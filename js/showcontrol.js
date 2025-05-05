@@ -3,29 +3,25 @@ import { app } from "../../scripts/app.js";
 // Some fragments of this code are from https://github.com/LucianoCirino/efficiency-nodes-comfyui
 
 function inpaintCropAndStitchHandler(node) {
-    if (node.comfyClass == "InpaintCrop") {
-        toggleWidget(node, findWidgetByName(node, "preresize_mode"));
-        toggleWidget(node, findWidgetByName(node, "preresize_min_width"));
-        toggleWidget(node, findWidgetByName(node, "preresize_min_height"));
-        toggleWidget(node, findWidgetByName(node, "preresize_max_width"));
-        toggleWidget(node, findWidgetByName(node, "preresize_max_height"));
-        if (findWidgetByName(node, "preresize").value == true) {
-            toggleWidget(node, findWidgetByName(node, "preresize_mode"), true);
-            if (findWidgetByName(node, "preresize_mode").value == "ensure minimum resolution") {
-                toggleWidget(node, findWidgetByName(node, "preresize_min_width"), true);
-                toggleWidget(node, findWidgetByName(node, "preresize_min_height"), true);
-            }
-            else if (findWidgetByName(node, "preresize_mode").value == "ensure minimum and maximum resolution") {
-                toggleWidget(node, findWidgetByName(node, "preresize_min_width"), true);
-                toggleWidget(node, findWidgetByName(node, "preresize_min_height"), true);
-                toggleWidget(node, findWidgetByName(node, "preresize_max_width"), true);
-                toggleWidget(node, findWidgetByName(node, "preresize_max_height"), true);
-            }
-            else if (findWidgetByName(node, "preresize_mode").value == "ensure maximum resolution") {
-                toggleWidget(node, findWidgetByName(node, "preresize_max_width"), true);
-                toggleWidget(node, findWidgetByName(node, "preresize_max_height"), true);
+    if (node.comfyClass == "InpaintCrop") {        
+        toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_Presets"));
+        toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_custom_value"));
+        if (findWidgetByName(node, "preresize_target_pixels").value == true) {
+            toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_Presets"), true);
+            if (findWidgetByName(node, "preresize_target_pixels_Presets").value == "custom") {
+                toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_custom_value"), true);
             }
         }
+        
+        toggleWidget(node, findWidgetByName(node, "output_target_pixels_Presets"));
+        toggleWidget(node, findWidgetByName(node, "output_target_pixels_custom_value"));
+        if (findWidgetByName(node, "output_resize_to_target_pixels").value == true) {
+            toggleWidget(node, findWidgetByName(node, "output_target_pixels_Presets"), true);
+            if (findWidgetByName(node, "output_target_pixels_Presets").value == "custom") {
+                toggleWidget(node, findWidgetByName(node, "output_target_pixels_custom_value"), true);
+            }
+        }
+        
         toggleWidget(node, findWidgetByName(node, "extend_up_factor"));
         toggleWidget(node, findWidgetByName(node, "extend_down_factor"));
         toggleWidget(node, findWidgetByName(node, "extend_left_factor"));
