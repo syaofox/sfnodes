@@ -8,6 +8,7 @@ from .files import LoadImagesFromFolder
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
 from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect
+from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
 
 WEB_DIRECTORY = "js"
 
@@ -63,6 +64,10 @@ NODE_CLASS_MAPPINGS = {
     'ColorTint': ColorTint,
     'ColorBlockEffect': ColorBlockEffect,
     'FlatteningEffect': FlatteningEffect,
+
+    # IPAdapter节点
+    'IPAdapterMSLayerWeights': IPAdapterMSLayerWeights,
+    'IPAdapterMSTiled': IPAdapterMSTiled,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -116,6 +121,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'ColorTint': 'SF Color Tint',
     'ColorBlockEffect': 'SF Color Block Effect',
     'FlatteningEffect': 'SF Flattening Effect',
+
+    # IPAdapter节点
+    'IPAdapterMSLayerWeights': 'SF IPAdapter MS Layer Weights',
+    'IPAdapterMSTiled': 'SF IPAdapter MS Tiled',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
