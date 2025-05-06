@@ -5,6 +5,7 @@ from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder
+from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
 
 WEB_DIRECTORY = "js"
 
@@ -36,6 +37,12 @@ NODE_CLASS_MAPPINGS = {
     # 文件节点
     'LoadImagesFromFolder': LoadImagesFromFolder,
 
+    # 图片缩放节点
+    'GetImageSize': GetImageSize,
+    'ImageScalerForSDModels': ImageScalerForSDModels,
+    'ImageScalerByPixels': ImageScalerByPixels,
+    'ImageScaleBySpecifiedSide': ImageScaleBySpecifiedSide,
+    'ComputeImageScaleRatio': ComputeImageScaleRatio,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -64,6 +71,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 文件节点
     'LoadImagesFromFolder': 'SF Load Images From Folder',
+
+    # 图片缩放节点
+    'GetImageSize': 'SF Get Image Size',
+    'ImageScalerForSDModels': 'SF Image Scaler For SD Models',
+    'ImageScalerByPixels': 'SF Image Scaler By Pixels',
+    'ImageScaleBySpecifiedSide': 'SF Image Scale By Specified Side',
+    'ComputeImageScaleRatio': 'SF Compute Image Scale Ratio',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
