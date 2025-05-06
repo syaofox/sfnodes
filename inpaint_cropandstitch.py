@@ -446,21 +446,21 @@ class InpaintCrop:
                 "preresize_target_pixels_custom_value": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 16.0, "step": 0.1, "tooltip": "自定义目标像素数倍率，1.0表示100万像素，2.0表示200万像素，仅当选择'custom'预设时生效"}),
 
                 # Mask manipulation
-                "mask_fill_holes": ("BOOLEAN", {"default": True, "tooltip": "Mark as masked any areas fully enclosed by mask."}),
-                "mask_expand_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, "tooltip": "Expand the mask by a certain amount of pixels before processing."}),
-                "mask_invert": ("BOOLEAN", {"default": False,"tooltip": "Invert mask so that anything masked will be kept."}),
-                "mask_blend_pixels": ("INT", {"default": 32, "min": 0, "max": 64, "step": 1, "tooltip": "How many pixels to blend into the original image."}),
-                "mask_hipass_filter": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.01, "tooltip": "Ignore mask values lower than this value."}),
+                "mask_fill_holes": ("BOOLEAN", {"default": True, "tooltip": "将完全被遮罩包围的区域标记为遮罩区域。"}),
+                "mask_expand_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, "tooltip": "在处理前将遮罩向外扩展指定的像素数。"}),
+                "mask_invert": ("BOOLEAN", {"default": False,"tooltip": "反转遮罩，使遮罩区域为保留区域。"}),
+                "mask_blend_pixels": ("INT", {"default": 32, "min": 0, "max": 64, "step": 1, "tooltip": "设置多少像素与原始图像进行混合。"}),
+                "mask_hipass_filter": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.01, "tooltip": "忽略低于此值的遮罩区域。"}),
 
                 # Extend image for outpainting
-                "extend_for_outpainting": ("BOOLEAN", {"default": False, "tooltip": "Extend the image for outpainting."}),
+                "extend_for_outpainting": ("BOOLEAN", {"default": False, "tooltip": "扩展图像以进行外部绘制。"}),
                 "extend_up_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
                 "extend_down_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
                 "extend_left_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
                 "extend_right_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
 
                 # Context
-                "context_from_mask_extend_factor": ("FLOAT", {"default": 1.2, "min": 1.0, "max": 100.0, "step": 0.01, "tooltip": "Grow the context area from the mask by a certain factor in every direction. For example, 1.5 grabs extra 50% up, down, left, and right as context."}),
+                "context_from_mask_extend_factor": ("FLOAT", {"default": 1.2, "min": 1.0, "max": 100.0, "step": 0.01, "tooltip": "将遮罩区域的上下文区域按一定比例扩大。例如，1.5表示在上、下、左、右各额外扩展50%作为上下文。"}),
 
                 # Output padding
                 "output_padding": (["0", "8", "16", "32", "64", "128", "256", "512"], {"default": "32"}),
@@ -479,7 +479,7 @@ class InpaintCrop:
 
     FUNCTION = "inpaint_crop"
     CATEGORY = "inpaint"
-    DESCRIPTION = "Crops an image around a mask for inpainting, the optional context mask defines an extra area to keep for the context."
+    DESCRIPTION = "根据遮罩裁剪图像进行修复，可选的上下文遮罩定义了需要保留的额外区域作为上下文。"
 
 
     # Remove the following # to turn on debug mode (extra outputs, print statements)
@@ -835,7 +835,7 @@ class InpaintStitch:
         }
 
     CATEGORY = "inpaint"
-    DESCRIPTION = "Stitches an image cropped with Inpaint Crop back into the original image"
+    DESCRIPTION = "将使用Inpaint Crop裁剪的图像重新缝合回原始图像"
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)
