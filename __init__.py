@@ -1,17 +1,10 @@
 from .inpaint_cropandstitch import InpaintCrop
 from .inpaint_cropandstitch import InpaintStitch
 from .face_morph import FaceMorph
-from .face_occluder import OccluderLoader
-from .face_occluder import GeneratePreciseFaceMask
-from .face_analysis import AlignImageByFace
-from .face_analysis import FaceCutout
-from .face_analysis import FacePaste
-from .face_analysis import ExtractBoundingBox
-from .face_analysis import FaceAnalysisModels
-from .face_region import BiSeNetLoader
-from .face_region import RegionSelector
-from .face_region import GenerateRegionFaceMask
-
+from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
+from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels
+from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
+from .files import LoadImagesFromFolder
 
 WEB_DIRECTORY = "js"
 
@@ -40,7 +33,9 @@ NODE_CLASS_MAPPINGS = {
     'ExtractBoundingBox': ExtractBoundingBox,
     'FaceAnalysisModels': FaceAnalysisModels,
 
-    
+    # 文件节点
+    'LoadImagesFromFolder': LoadImagesFromFolder,
+
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -66,6 +61,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'FacePaste': 'SF Face Paste',
     'ExtractBoundingBox': 'SF Extract Bounding Box',
     'FaceAnalysisModels': 'SF Face Analysis Models',
+
+    # 文件节点
+    'LoadImagesFromFolder': 'SF Load Images From Folder',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
