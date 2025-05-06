@@ -105,30 +105,34 @@ class RegionSelector:
     @classmethod
     def INPUT_TYPES(cls):
         all_regions = list_available_regions()
-        region_groups = list_region_groups()
+        
+        # 为每个区域创建一个开关选项
+        region_checkboxes = {}
+        for region in all_regions:
+            region_checkboxes[f"use_{region}"] = ("BOOLEAN", {"default": False})
         
         return {
-            'required': {
-                'selection_mode': (['individual', 'group'], {'default': 'individual'}),
-                'individual_regions': ([reg for reg in all_regions], {'default': 'skin', 'multiselect': True}),
-                'region_group': (region_groups, {'default': 'face'})
-            }
+            'required': {},
+            'optional': region_checkboxes
         }
 
     RETURN_TYPES = ('REGIONS',)
     RETURN_NAMES = ('selected_regions',)
     FUNCTION = 'select_regions'
     CATEGORY = _CATEGORY
-    DESCRIPTION = '选择要生成遮罩的面部区域'
+    DESCRIPTION = '选择要生成遮罩的面部区域（通过复选框）'
 
-    def select_regions(self, selection_mode, individual_regions, region_group):
-        if selection_mode == 'individual':
-            if isinstance(individual_regions, str):
-                selected_regions = [individual_regions]
-            else:
-                selected_regions = individual_regions
-        else:  # group模式
-            selected_regions = get_regions_in_group(region_group)
+    def select_regions(self, **kwargs):
+        # 通过复选框选择区域
+        selected_regions = []
+        all_regions = list_available_regions()
+        for region in all_regions:
+            if kwargs.get(f"use_{region}", False):
+                selected_regions.append(region)
+        
+        # 如果没有选择任何区域，默认选择皮肤
+        if len(selected_regions) == 0:
+            selected_regions = ['skin']
             
         print(f"已选择的面部区域: {', '.join(selected_regions)}")
         return (selected_regions,)
