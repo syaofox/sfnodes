@@ -8,7 +8,9 @@ from .face_analysis import FaceCutout
 from .face_analysis import FacePaste
 from .face_analysis import ExtractBoundingBox
 from .face_analysis import FaceAnalysisModels
-
+from .face_region import BiSeNetLoader
+from .face_region import RegionSelector
+from .face_region import GenerateRegionFaceMask
 
 
 WEB_DIRECTORY = "js"
@@ -25,6 +27,11 @@ NODE_CLASS_MAPPINGS = {
     # 人脸遮挡节点
     'OccluderLoader': OccluderLoader,
     'GeneratePreciseFaceMask': GeneratePreciseFaceMask,
+
+    # 人脸区域节点
+    'BiSeNetLoader': BiSeNetLoader,
+    'RegionSelector': RegionSelector,
+    'GenerateRegionFaceMask': GenerateRegionFaceMask,
 
     # 人脸分析节点
     'AlignImageByFace': AlignImageByFace,
@@ -47,6 +54,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 人脸遮挡节点
     'OccluderLoader': 'SF Occluder Loader',
     'GeneratePreciseFaceMask': 'SF Generate PreciseFaceMask',
+
+    # 人脸区域节点
+    'BiSeNetLoader': 'SF BiSeNet Loader',
+    'RegionSelector': 'SF Region Selector',
+    'GenerateRegionFaceMask': 'SF Generate Region Face Mask',
 
     # 人脸分析节点
     'AlignImageByFace': 'SF Align Image By Face',
