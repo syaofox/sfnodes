@@ -6,7 +6,7 @@ from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBound
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
-
+from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale
 WEB_DIRECTORY = "js"
 
 
@@ -43,6 +43,12 @@ NODE_CLASS_MAPPINGS = {
     'ImageScalerByPixels': ImageScalerByPixels,
     'ImageScaleBySpecifiedSide': ImageScaleBySpecifiedSide,
     'ComputeImageScaleRatio': ComputeImageScaleRatio,
+
+    # 遮罩节点
+    'OutlineMask': OutlineMask,
+    'CreateBlurredEdgeMask': CreateBlurredEdgeMask,
+    'MaskChange': MaskChange,
+    'Depth2Mask': Depth2Mask,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -78,6 +84,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'ImageScalerByPixels': 'SF Image Scaler By Pixels',
     'ImageScaleBySpecifiedSide': 'SF Image Scale By Specified Side',
     'ComputeImageScaleRatio': 'SF Compute Image Scale Ratio',
+
+    # 遮罩节点
+    'OutlineMask': 'SF Outline Mask',
+    'CreateBlurredEdgeMask': 'SF Create Blurred Edge Mask',
+    'MaskChange': 'SF Mask Change',
+    'Depth2Mask': 'SF Depth2Mask',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
