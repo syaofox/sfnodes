@@ -6,7 +6,7 @@ from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBound
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
-from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale
+from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea
 WEB_DIRECTORY = "js"
 
 
@@ -49,6 +49,9 @@ NODE_CLASS_MAPPINGS = {
     'CreateBlurredEdgeMask': CreateBlurredEdgeMask,
     'MaskChange': MaskChange,
     'Depth2Mask': Depth2Mask,
+    'MaskScaleBy': MaskScaleBy,
+    'MaskScale': MaskScale,
+    'MaskPaintArea': MaskPaintArea,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -90,6 +93,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'CreateBlurredEdgeMask': 'SF Create Blurred Edge Mask',
     'MaskChange': 'SF Mask Change',
     'Depth2Mask': 'SF Depth2Mask',
+    'MaskScaleBy': 'SF Mask Scale By',
+    'MaskScale': 'SF Mask Scale',
+    'MaskPaintArea': 'SF Mask Paint Area',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']

@@ -4,7 +4,7 @@ from PIL import Image, ImageFilter, ImageOps
 from comfy.utils import common_upscale
 
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask
-from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask
+from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask, apply_mask_area
 
 _CATEGORY = 'sfnodes/masks'
 
@@ -243,5 +243,43 @@ class MaskScale:
             s = common_upscale(samples, width, height, 'lanczos', 'disabled')
             s = s.movedim(1, -1)
         return (tensor2mask(s),)
+
+
+class MaskPaintArea:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'target_mask': ('MASK', ),
+                'area_mask': ('MASK', ),
+                'paint_mode': (
+                    ['白色 (1.0)', '黑色 (0.0)', '自定义值'],
+                    {'default': '白色 (1.0)'}
+                ),
+                'custom_value': (
+                    'FLOAT',
+                    {'default': 0.5, 'min': 0.0, 'max': 1.0, 'step': 0.01},
+                ),
+            }
+        }
+
+    RETURN_TYPES = ('MASK',)
+    FUNCTION = 'execute'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '根据区域遮罩对目标遮罩进行涂黑或涂白'
+
+    def execute(self, target_mask, area_mask, paint_mode, custom_value):
+        # 根据选择的模式确定要应用的值
+        if paint_mode == '白色 (1.0)':
+            paint_value = 1.0
+        elif paint_mode == '黑色 (0.0)':
+            paint_value = 0.0
+        else:  # 自定义值
+            paint_value = custom_value
+        
+        # 应用区域遮罩
+        result_mask = apply_mask_area(target_mask, area_mask, paint_value)
+        
+        return (result_mask,)
 
 
