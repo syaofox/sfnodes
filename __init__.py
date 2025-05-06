@@ -7,6 +7,8 @@ from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
 from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea
+from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect
+
 WEB_DIRECTORY = "js"
 
 
@@ -43,6 +45,9 @@ NODE_CLASS_MAPPINGS = {
     'ImageScalerByPixels': ImageScalerByPixels,
     'ImageScaleBySpecifiedSide': ImageScaleBySpecifiedSide,
     'ComputeImageScaleRatio': ComputeImageScaleRatio,
+    'ImageRotate': ImageRotate,
+    'TrimImageBorders': TrimImageBorders,
+    'AddImageBorder': AddImageBorder,
 
     # 遮罩节点
     'OutlineMask': OutlineMask,
@@ -52,6 +57,12 @@ NODE_CLASS_MAPPINGS = {
     'MaskScaleBy': MaskScaleBy,
     'MaskScale': MaskScale,
     'MaskPaintArea': MaskPaintArea,
+
+    # 图片处理节点
+    'ColorAdjustment': ColorAdjustment,
+    'ColorTint': ColorTint,
+    'ColorBlockEffect': ColorBlockEffect,
+    'FlatteningEffect': FlatteningEffect,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -87,6 +98,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'ImageScalerByPixels': 'SF Image Scaler By Pixels',
     'ImageScaleBySpecifiedSide': 'SF Image Scale By Specified Side',
     'ComputeImageScaleRatio': 'SF Compute Image Scale Ratio',
+    'ImageRotate': 'SF Image Rotate',
+    'TrimImageBorders': 'SF Trim Image Borders',
+    'AddImageBorder': 'SF Add Image Border',
 
     # 遮罩节点
     'OutlineMask': 'SF Outline Mask',
@@ -96,6 +110,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'MaskScaleBy': 'SF Mask Scale By',
     'MaskScale': 'SF Mask Scale',
     'MaskPaintArea': 'SF Mask Paint Area',
+
+    # 图片处理节点
+    'ColorAdjustment': 'SF Color Adjustment',
+    'ColorTint': 'SF Color Tint',
+    'ColorBlockEffect': 'SF Color Block Effect',
+    'FlatteningEffect': 'SF Flattening Effect',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
