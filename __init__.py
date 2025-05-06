@@ -4,7 +4,7 @@ from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
-from .files import LoadImagesFromFolder
+from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
 from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect
@@ -39,6 +39,8 @@ NODE_CLASS_MAPPINGS = {
 
     # 文件节点
     'LoadImagesFromFolder': LoadImagesFromFolder,
+    'LoadImageFromPath': LoadImageFromPath,
+    'SelectFace': SelectFace,
 
     # 图片缩放节点
     'GetImageSize': GetImageSize,
@@ -96,6 +98,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 文件节点
     'LoadImagesFromFolder': 'SF Load Images From Folder',
+    'LoadImageFromPath': 'SF Load Image From Path',
+    'SelectFace': 'SF Select Face',
 
     # 图片缩放节点
     'GetImageSize': 'SF Get Image Size',

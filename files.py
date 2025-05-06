@@ -1,13 +1,57 @@
 import os
 import re
+from pathlib import Path
+
+import numpy as np
 import torch
+from PIL import Image, ImageOps
 
 import comfy.utils
 
-from PIL import Image, ImageOps
 from .utils.image_convert import pil2tensor
 
 _CATEGORY = 'sfnodes/files'
+
+
+class LoadImageFromPath:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'image_path': ('STRING', {'default': 'images'}),
+            }
+        }
+
+    RETURN_TYPES = ('IMAGE', 'STRING')
+    RETURN_NAMES = ('image', 'file_full_path')
+    FUNCTION = 'execute'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '读取指定路径图片，返回图片和图片名称'
+
+    def execute(self, image_path):
+        # 去掉可能存在的双引号
+        image_path = image_path.strip('"')
+
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f'文件未找到: {image_path}')
+
+        file_full_path = str(Path(image_path).absolute())
+
+        img = Image.open(image_path)
+        img = ImageOps.exif_transpose(img)
+
+        if img is None:
+            raise ValueError(f'无法从文件中读取有效图像: {image_path}')
+
+        if img.mode == 'I':
+            img = img.point(lambda i: i * (1 / 255))
+        img = img.convert('RGB')
+
+        image = np.array(img).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+
+        return (image, file_full_path)
+    
 
 
 class LoadImagesFromFolder:
@@ -104,3 +148,46 @@ class LoadImagesFromFolder:
         )
 
 
+# 读取 FACE_PATH
+def get_face_path():
+    with open(os.path.join(os.path.dirname(__file__), 'facepath'), 'r') as f:
+        for line in f:
+            if line.startswith('FACE_PATH'):
+                # 提取路径并去除引号和空格
+                return line.split('=')[1].strip().strip("'").strip('"')
+    return r'D:\codes\aidraw\fworker\assets\face_pieces'  # 默认路径作为备选
+
+
+class SelectFace:
+    dir_dict = {}
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        target_dir = get_face_path()
+        for d in Path(target_dir).iterdir():
+            if d.is_dir():
+                cls.dir_dict[d.name] = d
+
+        return {'required': {'face_name': (list(cls.dir_dict.keys()),)}}
+
+    RETURN_TYPES = (
+        'STRING',
+        'STRING',
+    )
+    RETURN_NAMES = (
+        'face_path',
+        'face_name',
+    )
+    FUNCTION = 'execute'
+
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '从特定路径选择人脸，子文件夹名即为人脸名称，路径在facepath文件中设置'
+
+    def execute(self, face_name):
+        return (
+            str(self.dir_dict[face_name]),
+            face_name,
+        )
