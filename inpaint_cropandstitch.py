@@ -1,4 +1,3 @@
-import comfy.utils
 import math
 import nodes
 import numpy as np
@@ -7,7 +6,7 @@ import torchvision.transforms.functional as F
 from PIL import Image
 from scipy.ndimage import gaussian_filter, grey_dilation, binary_closing, binary_fill_holes
 
-CATEGORY = "sfnodes/inpaint"
+_CATEGORY = "sfnodes/inpaint"
 
 def calculate_target_size_from_pixels(width, height, output_target_pixels_Presets, output_target_pixels_custom_value):
     """基于总像素数计算目标尺寸，保持原始宽高比"""
@@ -479,7 +478,7 @@ class InpaintCrop:
         }
 
     FUNCTION = "inpaint_crop"
-    CATEGORY = CATEGORY
+    CATEGORY = _CATEGORY
     DESCRIPTION = "根据遮罩裁剪图像进行修复，可选的上下文遮罩定义了需要保留的额外区域作为上下文。"
 
 
@@ -835,7 +834,7 @@ class InpaintStitch:
             }
         }
 
-    CATEGORY = CATEGORY
+    CATEGORY = _CATEGORY
     DESCRIPTION = "将使用Inpaint Crop裁剪的图像重新缝合回原始图像"
 
     RETURN_TYPES = ("IMAGE",)

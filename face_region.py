@@ -3,9 +3,7 @@ import cv2
 import numpy as np
 import onnxruntime
 import torch
-from PIL import Image
 
-import folder_paths
 from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
@@ -14,8 +12,6 @@ from .utils.region_models import (
     get_model_path, 
     list_available_models, 
     list_available_regions,
-    list_region_groups,
-    get_regions_in_group,
     get_region_indices,
     get_model_description
 )
