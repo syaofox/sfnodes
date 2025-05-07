@@ -1,8 +1,11 @@
 import math
 import cv2
 import numpy as np
+import os
+import torch
+import torchvision.transforms.v2 as T
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
 from comfy.utils import  common_upscale
 from .utils.image_convert import np2tensor, pil2mask, pil2tensor,  tensor2np, tensor2pil
 from .utils.insightface_utils import InsightFace
@@ -263,7 +266,7 @@ class FaceAnalysisModels:
 
     RETURN_TYPES = ("ANALYSIS_MODELS", )
     FUNCTION = "load_models"
-    CATEGORY = "FaceAnalysis"
+    CATEGORY = _CATEGORY
 
     def load_models(self, library, provider):
         out = {}
@@ -276,3 +279,112 @@ class FaceAnalysisModels:
             raise Exception(f"未知的库: {library}")
 
         return (out, )
+
+
+
+
+class FaceEmbedDistance:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "reference": ("IMAGE", {"tooltip": "参考图像"}),
+                "image": ("IMAGE", {"tooltip": "待分析图像"}),
+                "similarity_metric": (["L2_norm", "cosine", "euclidean"], {"tooltip": "相似度度量方式"}),
+                "filter_thresh": ("FLOAT", { "default": 100.0, "min": 0.001, "max": 100.0, "step": 0.001, "tooltip": "过滤阈值" }),
+                "filter_best": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1, "tooltip": "过滤最佳匹配数量" }),
+                "generate_image_overlay": ("BOOLEAN", { "default": True, "tooltip": "是否生成图像叠加" }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "FLOAT")
+    RETURN_NAMES = ("IMAGE", "distance")
+    FUNCTION = "analize"
+    CATEGORY = _CATEGORY
+
+    def analize(self, analysis_models, reference, image, similarity_metric, filter_thresh, filter_best, generate_image_overlay=True):
+        if generate_image_overlay:
+            font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)), "Inconsolata.otf"), 32)
+            background_color = ImageColor.getrgb("#000000AA")
+            txt_height = font.getmask("Q").getbbox()[3] + font.getmetrics()[1]
+
+        if filter_thresh == 0.0:
+            filter_thresh = analysis_models.thresholds[similarity_metric]
+
+        # you can send multiple reference images in which case the embeddings are averaged
+        ref = []
+        for i in reference:
+            ref_emb = analysis_models.get_embeds(np.array(T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')))
+            if ref_emb is not None:
+                ref.append(torch.from_numpy(ref_emb))
+        
+        if ref == []:
+            raise Exception('No face detected in reference image')
+
+        ref = torch.stack(ref)
+        ref = np.array(torch.mean(ref, dim=0))
+
+        out = []
+        out_dist = []
+        
+        for i in image:
+            img = np.array(T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB'))
+
+            img = analysis_models.get_embeds(img)
+
+            if img is None: # No face detected
+                dist = 100.0
+                norm_dist = 0
+            else:
+                if np.array_equal(ref, img): # Same face
+                    dist = 0.0
+                    norm_dist = 0.0
+                else:
+                    if similarity_metric == "L2_norm":
+                        #dist = euclidean_distance(ref, img, True)
+                        ref = ref / np.linalg.norm(ref)
+                        img = img / np.linalg.norm(img)
+                        dist = np.float64(np.linalg.norm(ref - img))
+                    elif similarity_metric == "cosine":
+                        dist = np.float64(1 - np.dot(ref, img) / (np.linalg.norm(ref) * np.linalg.norm(img)))
+                        #dist = cos_distance(ref, img)
+                    else:
+                        #dist = euclidean_distance(ref, img)
+                        dist = np.float64(np.linalg.norm(ref - img))
+                    
+                    norm_dist = min(1.0, 1 / analysis_models.thresholds[similarity_metric] * dist)
+           
+            if dist <= filter_thresh:
+                print(f"\033[96mFace Analysis: value: {dist}, normalized: {norm_dist}\033[0m")
+
+                if generate_image_overlay:
+                    tmp = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGBA')
+                    txt = Image.new('RGBA', (image.shape[2], txt_height), color=background_color)
+                    draw = ImageDraw.Draw(txt)
+                    draw.text((0, 0), f"VALUE: {round(dist, 3)} | DIST: {round(norm_dist, 3)}", font=font, fill=(255, 255, 255, 255))
+                    composite = Image.new('RGBA', tmp.size)
+                    composite.paste(txt, (0, tmp.height - txt.height))
+                    composite = Image.alpha_composite(tmp, composite)
+                    out.append(T.ToTensor()(composite).permute(1, 2, 0))
+                else:
+                    out.append(i)
+
+                out_dist.append(dist)
+
+        if not out:
+            raise Exception('No image matches the filter criteria.')
+    
+        out = torch.stack(out)
+
+        # filter out the best matches
+        if filter_best > 0:
+            filter_best = min(filter_best, len(out))
+            out_dist, idx = torch.topk(torch.tensor(out_dist), filter_best, largest=False)
+            out = out[idx]
+            out_dist = out_dist.cpu().numpy().tolist()
+        
+        if out.shape[3] > 3:
+            out = out[:, :, :, :3]
+
+        return(out, out_dist,)

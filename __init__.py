@@ -2,7 +2,7 @@ from .inpaint_cropandstitch import InpaintCrop
 from .inpaint_cropandstitch import InpaintStitch
 from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
-from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels
+from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels, FaceEmbedDistance
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
@@ -36,7 +36,7 @@ NODE_CLASS_MAPPINGS = {
     'FacePaste': FacePaste,
     'ExtractBoundingBox': ExtractBoundingBox,
     'FaceAnalysisModels': FaceAnalysisModels,
-
+    'FaceEmbedDistance': FaceEmbedDistance,
     # 文件节点
     'LoadImagesFromFolder': LoadImagesFromFolder,
     'LoadImageFromPath': LoadImageFromPath,
@@ -95,7 +95,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'FacePaste': 'SF Face Paste',
     'ExtractBoundingBox': 'SF Extract Bounding Box',
     'FaceAnalysisModels': 'SF Face Analysis Models',
-
+    'FaceEmbedDistance': 'SF Face Embed Distance',
+    
     # 文件节点
     'LoadImagesFromFolder': 'SF Load Images From Folder',
     'LoadImageFromPath': 'SF Load Image From Path',
