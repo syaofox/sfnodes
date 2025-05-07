@@ -33,12 +33,14 @@ class GetImageSize:
         'INT',
         'INT',
         'INT',
+        'INT',
     )
     RETURN_NAMES = (
         'width',
         'height',
         'count',
         'min_dimension',
+        'max_dimension',
     )
     FUNCTION = 'execute'
     CATEGORY = _CATEGORY
@@ -49,12 +51,15 @@ class GetImageSize:
                 'width': (image.shape[2],),
                 'height': (image.shape[1],),
                 'count': (image.shape[0],),
-            },
+                'min_dimension': (min(image.shape[2], image.shape[1]),),
+                'max_dimension': (max(image.shape[2], image.shape[1]),),
+                },
             'result': (
                 image.shape[2],
                 image.shape[1],
                 image.shape[0],
                 min(image.shape[2], image.shape[1]),
+                max(image.shape[2], image.shape[1]),
             ),
         }
 

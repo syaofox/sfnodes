@@ -4,7 +4,7 @@ import { ComfyWidgets } from "../../scripts/widgets.js";
 app.registerExtension({
     name: "sfnodes.DisplayText",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (!nodeData?.category?.startsWith("fnodes")) {
+        if (!nodeData?.category?.startsWith("sfnodes")) {
             return;
         }
         
@@ -22,7 +22,9 @@ app.registerExtension({
                     onExecutedImage?.apply(this, arguments);
                     let value = message["width"].join("") + "x" + message["height"].join("");
                     if (nodeData.name === "GetImageSize") {
-                        value += "x" + message["count"].join("");
+                        value += "_" + message["count"].join("");
+                        value += "_" + message["min_dimension"].join("");
+                        value += "_" + message["max_dimension"].join("");
                     }
                     
                     updateWidget(this, "return_text", value);
