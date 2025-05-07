@@ -164,11 +164,11 @@ class FaceMorph:
         return cv2.remap(image, map_coords[:, :, 1], map_coords[:, :, 0], cv2.INTER_LINEAR)
 
     def download_models(self):
-        save_loc = Path(folder_paths.models_dir) / 'liveportrait'
+        save_loc = Path(folder_paths.models_dir) /  'sfnodes' / 'face_morph'
 
         models = [
-            ('landmark.onnx', 'https://huggingface.co/Kijai/LivePortrait_safetensors/resolve/main/landmark.onnx?download=true'),
-            ('landmark_model.pth', 'https://huggingface.co/Kijai/LivePortrait_safetensors/resolve/main/landmark_model.pth?download=true'),
+            ('landmark.onnx', 'https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark.onnx'),
+            ('landmark_model.pth', 'https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark_model.pth'),
         ]
 
         for model_name, model_url in models:

@@ -33,12 +33,12 @@ REGION_GROUPS = {
 # 模型配置
 REGION_MODELS = {
     'bisenet_resnet_18': {
-        'url': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.1.0/bisenet_resnet_18.onnx',
+        'url': 'https://huggingface.co/Syaofox/sfnodes/resolve/main/bisenet_resnet_18.onnx',
         'filename': 'bisenet_resnet_18.onnx',
         'description': '轻量级BiSeNet模型，使用ResNet-18作为骨干网络'
     },
     'bisenet_resnet_34': {
-        'url': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.0.0/bisenet_resnet_34.onnx',
+        'url': 'https://huggingface.co/Syaofox/sfnodes/resolve/main/bisenet_resnet_34.onnx',
         'filename': 'bisenet_resnet_34.onnx',
         'description': '高精度BiSeNet模型，使用ResNet-34作为骨干网络'
     }
@@ -53,7 +53,7 @@ def get_model_info(model_name):
 def get_model_path(model_name):
     """获取模型路径，如果不存在会自动下载"""
     model_info = get_model_info(model_name)
-    save_loc = Path(folder_paths.models_dir) / 'fnodes' / 'region'
+    save_loc = Path(folder_paths.models_dir) / 'sfnodes' / 'region'
     save_loc.mkdir(parents=True, exist_ok=True)
     
     model_url = model_info['url']

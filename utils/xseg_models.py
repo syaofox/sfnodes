@@ -10,17 +10,17 @@ from .downloader import download_model
 # 模型配置
 XSEG_MODELS = {
     'xseg_1': {
-        'url': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.1.0/xseg_1.onnx',
+        'url': 'https://huggingface.co/Syaofox/sfnodes/resolve/main/xseg_1.onnx',
         'filename': 'xseg_1.onnx',
         'description': '原始DFL-XSEG模型，针对人脸分割进行优化'
     },
     'xseg_2': {
-        'url': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.1.0/xseg_2.onnx',
+        'url': 'https://huggingface.co/Syaofox/sfnodes/resolve/main/xseg_2.onnx',
         'filename': 'xseg_2.onnx',
         'description': '改进的XSEG模型，提供更精确的人脸分割'
     },
     'xseg_3': {
-        'url': 'https://github.com/facefusion/facefusion-assets/releases/download/models-3.2.0/xseg_3.onnx',
+        'url': 'https://huggingface.co/Syaofox/sfnodes/resolve/main/xseg_3.onnx',
         'filename': 'xseg_3.onnx',
         'description': '改进的XSEG模型，提供更精确的人脸分割'
     }
@@ -35,7 +35,7 @@ def get_model_info(model_name):
 def get_model_path(model_name):
     """获取模型路径，如果不存在会自动下载"""
     model_info = get_model_info(model_name)
-    save_loc = Path(folder_paths.models_dir) / 'fnodes' / 'occluder'
+    save_loc = Path(folder_paths.models_dir) / 'sfnodes' / 'occluder'
     save_loc.mkdir(parents=True, exist_ok=True)
     
     model_url = model_info['url']
