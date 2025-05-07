@@ -17,6 +17,14 @@ def tensor2mask(image, channel='red'):
     return mask
 
 
+
+def tensor_to_image(image):
+    return np.array(T.ToPILImage()(image.permute(2, 0, 1)).convert('RGB'))
+
+def image_to_tensor(image):
+    return T.ToTensor()(image).permute(1, 2, 0)
+    #return T.ToTensor()(Image.fromarray(image)).permute(1, 2, 0)
+
 def tensor2pil(image):
     return Image.fromarray(np.clip(255.0 * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
 

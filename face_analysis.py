@@ -3,20 +3,29 @@ import cv2
 import numpy as np
 import os
 import torch
+import zipfile
 from pathlib import Path
 import torchvision.transforms.v2 as T
 import folder_paths
-from .utils.downloader import download_model
-import zipfile
 
+from color_matcher import ColorMatcher
+from color_matcher.normalizer import Normalizer
+
+from .utils.downloader import download_model
+from comfy.utils import ProgressBar
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
 from comfy.utils import  common_upscale
-from .utils.image_convert import np2tensor, pil2mask, pil2tensor,  tensor2np, tensor2pil
+from .utils.image_convert import np2tensor, pil2mask, pil2tensor,  tensor2np, tensor2pil, tensor_to_image, image_to_tensor
 from .utils.insightface_utils import InsightFace
-
+from .utils.mask_utils import expand_mask
 
 _CATEGORY = 'sfnodes/face_analysis'
 
+def mask_from_landmarks(image, landmarks):
+    mask = np.zeros(image.shape[:2], dtype=np.float64)
+    points = cv2.convexHull(landmarks)
+    cv2.fillConvexPoly(mask, points, color=(1,))
+    return mask
 
 
 class AlignImageByFace:
@@ -403,3 +412,129 @@ class FaceEmbedDistance:
             out = out[:, :, :, :3]
 
         return(out, out_dist,)
+    
+
+
+
+
+class FaceWarp:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "image_from": ("IMAGE", ),
+                "image_to": ("IMAGE", ),
+                "keypoints": (["main features", "full face", "full face+forehead (if available)"], ),
+                "grow": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1 }),
+                "blur": ("INT", { "default": 13, "min": 1, "max": 4096, "step": 2 }),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK",)
+    FUNCTION = "warp"
+    CATEGORY = _CATEGORY
+
+    def warp(self, analysis_models, image_from, image_to, keypoints, grow, blur):
+
+        
+
+        if image_from.shape[0] < image_to.shape[0]:
+            image_from = torch.cat([image_from, image_from[-1:].repeat((image_to.shape[0]-image_from.shape[0], 1, 1, 1))], dim=0)
+        elif image_from.shape[0] > image_to.shape[0]:
+            image_from = image_from[:image_to.shape[0]]
+
+        steps = image_from.shape[0]
+        if steps > 1:
+            pbar = ProgressBar(steps)
+
+        cm = ColorMatcher()
+
+        result_image = []
+        result_mask = []
+
+        for i in range(steps):
+            img_from = tensor_to_image(image_from[i])
+            img_to = tensor_to_image(image_to[i])
+
+            shape_from = analysis_models.get_landmarks(img_from, extended_landmarks=("forehead" in keypoints))
+            shape_to = analysis_models.get_landmarks(img_to, extended_landmarks=("forehead" in keypoints))
+
+            if shape_from is None or shape_to is None:
+                print(f"\033[96mNo landmarks detected at frame {i}\033[0m")
+                img = image_to[i].unsqueeze(0)
+                mask = torch.zeros_like(img)[:,:,:1]
+                result_image.append(img)
+                result_mask.append(mask)
+                continue
+
+            if keypoints == "main features":
+                shape_from = shape_from[1]
+                shape_to = shape_to[1]
+            else:
+                shape_from = shape_from[0]
+                shape_to = shape_to[0]
+
+            # get the transformation matrix
+            from_points = np.array(shape_from, dtype=np.float64)
+            to_points = np.array(shape_to, dtype=np.float64)
+            
+            matrix = cv2.estimateAffine2D(from_points, to_points)[0]
+            output = cv2.warpAffine(img_from, matrix, (img_to.shape[1], img_to.shape[0]), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
+
+            mask_from = mask_from_landmarks(img_from, shape_from)
+            mask_to = mask_from_landmarks(img_to, shape_to)
+            output_mask = cv2.warpAffine(mask_from, matrix, (img_to.shape[1], img_to.shape[0]))
+
+            output_mask = torch.from_numpy(output_mask).unsqueeze(0).unsqueeze(-1).float()
+            mask_to = torch.from_numpy(mask_to).unsqueeze(0).unsqueeze(-1).float()
+            output_mask = torch.min(output_mask, mask_to)
+
+            output = image_to_tensor(output).unsqueeze(0)
+            img_to = image_to_tensor(img_to).unsqueeze(0)
+            
+            if grow != 0:
+                output_mask = expand_mask(output_mask.squeeze(-1), grow, True).unsqueeze(-1)
+
+            if blur > 1:
+                if blur % 2 == 0:
+                    blur+= 1
+                output_mask = T.functional.gaussian_blur(output_mask.permute(0,3,1,2), blur).permute(0,2,3,1)
+
+            padding = 0
+
+            _, y, x, _ = torch.where(mask_to)
+            x1 = max(0, x.min().item() - padding)
+            y1 = max(0, y.min().item() - padding)
+            x2 = min(img_to.shape[2], x.max().item() + padding)
+            y2 = min(img_to.shape[1], y.max().item() + padding)
+            cm_ref = img_to[:, y1:y2, x1:x2, :]
+
+            _, y, x, _ = torch.where(output_mask)
+            x1 = max(0, x.min().item() - padding)
+            y1 = max(0, y.min().item() - padding)
+            x2 = min(output.shape[2], x.max().item() + padding)
+            y2 = min(output.shape[1], y.max().item() + padding)
+            cm_image = output[:, y1:y2, x1:x2, :]
+
+            normalized = cm.transfer(src=Normalizer(cm_image[0].numpy()).type_norm() , ref=Normalizer(cm_ref[0].numpy()).type_norm(), method='mkl')
+            normalized = torch.from_numpy(normalized).unsqueeze(0)
+
+            factor = 0.8
+
+            output[:, y1:y1+cm_image.shape[1], x1:x1+cm_image.shape[2], :] = factor * normalized + (1 - factor) * cm_image
+
+            output_image = output * output_mask + img_to * (1 - output_mask)
+            output_image = output_image.clamp(0, 1)
+            output_mask = output_mask.clamp(0, 1).squeeze(-1)
+
+            result_image.append(output_image)
+            result_mask.append(output_mask)
+
+            if steps > 1:
+                pbar.update(1)
+        
+        result_image = torch.cat(result_image, dim=0)
+        result_mask = torch.cat(result_mask, dim=0)
+
+        return (result_image, result_mask)

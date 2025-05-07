@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.ndimage
 import torch
 from PIL import ImageFilter
 from scipy.ndimage import binary_closing, binary_fill_holes
@@ -91,6 +90,7 @@ def invert_mask(mask):
 
 
 def expand_mask(mask, expand, tapered_corners):
+    import scipy
     c = 0 if tapered_corners else 1
     kernel = np.array([[c, 1, c], [1, 1, 1], [c, 1, c]])
     device = mask.device
