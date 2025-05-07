@@ -99,6 +99,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'FaceAnalysisModels': 'SF Face Analysis Models',
     'FaceEmbedDistance': 'SF Face Embed Distance',
     'FaceWarp': 'SF Face Warp',
+    
     # 文件节点
     'LoadImagesFromFolder': 'SF Load Images From Folder',
     'LoadImageFromPath': 'SF Load Image From Path',

@@ -177,6 +177,7 @@ class FaceCutout:
             'width': w,
             'height': h,
             'scale_factor': scale_factor,
+            'distination_image':image,
         }
 
         return (face, bounding_info)
@@ -200,7 +201,6 @@ class FacePaste:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'destination': ('IMAGE',),
                 'source': ('IMAGE',),
                 'bounding_info': ('BOUNDINGINFO',),
                 'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置图像的边距像素数'}),
@@ -222,11 +222,11 @@ class FacePaste:
         draw.rectangle(((0, 0), size), outline='black', width=margin)
         return mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
-    def paste(self, destination, source, bounding_info, margin, margin_percent, blur_radius):
+    def paste(self, source, bounding_info, margin, margin_percent, blur_radius):
         if not bounding_info:
-            return destination, None
+            return source, None
 
-        destination = tensor2pil(destination[0])
+        destination = tensor2pil(bounding_info['distination_image'][0])
         source = tensor2pil(source[0])
 
         if bounding_info.get('scale_factor', 1) != 1:
