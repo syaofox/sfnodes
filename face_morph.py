@@ -31,11 +31,11 @@ class FaceMorph:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'source_image': ('IMAGE',),
-                'target_image': ('IMAGE',),
-                'landmark_type': (['ALL', 'OUTLINE'],),
-                'align_type': (['Width', 'Height', 'Landmarks', 'JawLine'],),
-                'onnx_device': (['CPU', 'CUDA', 'ROCM', 'CoreML', 'torch_gpu'], {'default': 'CPU'}),
+                'source_image': ('IMAGE',{"tooltip": "源图像"}),
+                'target_image': ('IMAGE',{"tooltip": "目标图像"}),
+                'landmark_type': (['ALL', 'OUTLINE'],{"tooltip": "选择要使用的面部标志类型"}),
+                'align_type': (['Width', 'Height', 'Landmarks', 'JawLine'],{"tooltip": "选择对齐类型"}),
+                'onnx_device': (['CPU', 'CUDA', 'ROCM', 'CoreML', 'torch_gpu'], {"tooltip": "选择推理设备", "default": 'CPU'}),
             },
         }
 

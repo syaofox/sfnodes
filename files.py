@@ -60,8 +60,8 @@ class LoadImagesFromFolder:
         return {
             'required': {
                 'input_path': ('STRING', {'default': '', 'multiline': False}),
-                'start_index': ('INT', {'default': 0, 'min': 0, 'max': 9999}),
-                'max_index': ('INT', {'default': 1, 'min': 1, 'max': 9999}),
+                'start_index': ('INT', {'default': 0, 'min': 0, 'max': 9999, 'tooltip': '设置开始索引'}),
+                'max_index': ('INT', {'default': 1, 'min': 1, 'max': 9999, 'tooltip': '设置最大索引'}),
             }
         }
 

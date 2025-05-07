@@ -18,22 +18,22 @@ class ColorAdjustment:
                 'image': ('IMAGE',),
                 'temperature': (
                     'FLOAT',
-                    {'default': 0, 'min': -100, 'max': 100, 'step': 5},
+                    {'default': 0, 'min': -100, 'max': 100, 'step': 5, 'tooltip': '设置温度值，范围为-100到100，步长为5'},
                 ),
-                'hue': ('FLOAT', {'default': 0, 'min': -90, 'max': 90, 'step': 5}),
+                'hue': ('FLOAT', {'default': 0, 'min': -90, 'max': 90, 'step': 5, 'tooltip': '设置色调值，范围为-90到90，步长为5'}),
                 'brightness': (
                     'FLOAT',
-                    {'default': 0, 'min': -100, 'max': 100, 'step': 5},
+                    {'default': 0, 'min': -100, 'max': 100, 'step': 5, 'tooltip': '设置亮度值，范围为-100到100，步长为5'},
                 ),
                 'contrast': (
                     'FLOAT',
-                    {'default': 0, 'min': -100, 'max': 100, 'step': 5},
+                    {'default': 0, 'min': -100, 'max': 100, 'step': 5, 'tooltip': '设置对比度值，范围为-100到100，步长为5'},
                 ),
                 'saturation': (
                     'FLOAT',
-                    {'default': 0, 'min': -100, 'max': 100, 'step': 5},
+                    {'default': 0, 'min': -100, 'max': 100, 'step': 5, 'tooltip': '设置饱和度值，范围为-100到100，步长为5'},
                 ),
-                'gamma': ('FLOAT', {'default': 1, 'min': 0.2, 'max': 2.2, 'step': 0.1}),
+                'gamma': ('FLOAT', {'default': 1, 'min': 0.2, 'max': 2.2, 'step': 0.1, 'tooltip': '设置伽马值，范围为0.2到2.2，步长为0.1'}),
             },
         }
 
@@ -107,7 +107,7 @@ class ColorTint:
                 'image': ('IMAGE',),
                 'strength': (
                     'FLOAT',
-                    {'default': 1.0, 'min': 0.1, 'max': 1.0, 'step': 0.1},
+                    {'default': 1.0, 'min': 0.1, 'max': 1.0, 'step': 0.1, 'tooltip': '设置强度值，范围为0.1到1.0，步长为0.1'},
                 ),
                 'mode': (
                     [
@@ -187,7 +187,7 @@ class ColorBlockEffect:
                 'image': ('IMAGE',),
                 'strength': (
                     'INT',
-                    {'default': 10, 'min': 1, 'max': 100, 'step': 1},
+                    {'default': 10, 'min': 1, 'max': 100, 'step': 1, 'tooltip': '设置强度值，范围为1到100，步长为1'},
                 ),
             },
         }
@@ -228,15 +228,15 @@ class FlatteningEffect:
                 'image': ('IMAGE',),
                 'high_threshold': (
                     'FLOAT',
-                    {'default': 0.7, 'min': 0.01, 'max': 10.0, 'step': 0.01},
+                    {'default': 0.7, 'min': 0.01, 'max': 10.0, 'step': 0.01, 'tooltip': '设置高阈值，范围为0.01到10.0，步长为0.01'},
                 ),
                 'mid_threshold': (
                     'FLOAT',
-                    {'default': 0.35, 'min': 0.01, 'max': 10.0, 'step': 0.01},
+                    {'default': 0.35, 'min': 0.01, 'max': 10.0, 'step': 0.01, 'tooltip': '设置中阈值，范围为0.01到10.0，步长为0.01'},
                 ),
                 'low_threshold': (
                     'FLOAT',
-                    {'default': 0.1, 'min': 0.01, 'max': 10.0, 'step': 0.01},
+                    {'default': 0.1, 'min': 0.01, 'max': 10.0, 'step': 0.01, 'tooltip': '设置低阈值，范围为0.01到10.0，步长为0.01'},
                 ),
             },
         }

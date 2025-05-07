@@ -17,13 +17,13 @@ class OutlineMask:
                 'mask': ('MASK',),
                 'outer_width': (
                     'INT',
-                    {'default': 10, 'min': 0, 'max': 16384, 'step': 1},
+                    {'default': 10, 'min': 0, 'max': 16384, 'step': 1, 'tooltip': '设置外轮廓宽度，范围为0到16384，步长为1'},
                 ),
                 'inner_width': (
                     'INT',
-                    {'default': 10, 'min': 0, 'max': 16384, 'step': 1},
+                    {'default': 10, 'min': 0, 'max': 16384, 'step': 1, 'tooltip': '设置内轮廓宽度，范围为0到16384，步长为1'},
                 ),
-                'tapered_corners': ('BOOLEAN', {'default': True}),
+                'tapered_corners': ('BOOLEAN', {'default': True, 'tooltip': '是否使用锥形角'}),
             }
         }
 
@@ -110,14 +110,14 @@ class MaskChange:
         return {
             'required': {
                 'mask': ('MASK',),
-                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1}),
+                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置生长值，范围为-4096到4096，步长为1'}),
                 'grow_percent': (
                     'FLOAT',
-                    {'default': 0.00, 'min': -2.0, 'max': 2.0, 'step': 0.01},
+                    {'default': 0.00, 'min': -2.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置生长百分比，范围为-2.0到2.0，步长为0.01'},
                 ),
-                'grow_tapered': ('BOOLEAN', {'default': False}),
-                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1}),
-                'fill': ('BOOLEAN', {'default': False}),
+                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形角'}),
+                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值，范围为0到4096，步长为1'}),
+                'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
             },
         }
 
@@ -154,7 +154,7 @@ class Depth2Mask:
                 'image_depth': ('IMAGE',),
                 'depth': (
                     'FLOAT',
-                    {'default': 0.2, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'round': 0.001, 'display': 'number'},
+                    {'default': 0.2, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'round': 0.001, 'display': 'number', 'tooltip': '设置深度阈值，范围为0.0到1.0，步长为0.01'},
                 ),
             },
         }
@@ -191,7 +191,7 @@ class MaskScaleBy:
         return {
             'required': {
                 'mask': ('MASK',),
-                'scale_by': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 8.0, 'step': 0.01}),
+                'scale_by': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 8.0, 'step': 0.01, 'tooltip': '设置缩放比例，范围为0.01到8.0，步长为0.01'}),
             }
         }
 
@@ -250,15 +250,15 @@ class MaskPaintArea:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'target_mask': ('MASK', ),
-                'area_mask': ('MASK', ),
+                'target_mask': ('MASK', {'tooltip': '目标遮罩'}),
+                'area_mask': ('MASK', {'tooltip': '区域遮罩'}),
                 'paint_mode': (
                     ['白色 (1.0)', '黑色 (0.0)', '自定义值'],
-                    {'default': '白色 (1.0)'}
+                    {'default': '白色 (1.0)', 'tooltip': '选择涂黑或涂白模式'}
                 ),
                 'custom_value': (
                     'FLOAT',
-                    {'default': 0.5, 'min': 0.0, 'max': 1.0, 'step': 0.01},
+                    {'default': 0.5, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'tooltip': '设置自定义值，范围为0.0到1.0，步长为0.01'}
                 ),
             }
         }

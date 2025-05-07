@@ -19,8 +19,8 @@ class AlignImageByFace:
             'required': {
                 'analysis_models': ('ANALYSIS_MODELS',),
                 'image_from': ('IMAGE',),
-                'expand': ('BOOLEAN', {'default': True}),
-                'simple_angle': ('BOOLEAN', {'default': False}),
+                'expand': ('BOOLEAN', {'default': True, 'tooltip': '是否扩展图像，如果为True，则扩展图像以包含整个人脸'}),
+                'simple_angle': ('BOOLEAN', {'default': False, 'tooltip': '是否简化角度，如果为True，则只考虑90度、180度、270度、360度'}),
             },
             'optional': {
                 'image_to': ('IMAGE',),
@@ -109,11 +109,11 @@ class FaceCutout:
             'required': {
                 'analysis_models': ('ANALYSIS_MODELS',),
                 'image': ('IMAGE',),
-                'padding': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1}),
-                'padding_percent': ('FLOAT', {'default': 0.1, 'min': 0.0, 'max': 2.0, 'step': 0.01}),
-                'face_index': ('INT', {'default': -1, 'min': -1, 'max': 4096, 'step': 1}),
-                'rescale_mode': (['sdxl', 'sd15', 'sdxl+', 'sd15+', 'none', 'custom'],),
-                'custom_megapixels': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 16.0, 'step': 0.01}),
+                'padding': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置图像的填充像素数'}),
+                'padding_percent': ('FLOAT', {'default': 0.1, 'min': 0.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置图像的填充百分比'}),
+                'face_index': ('INT', {'default': -1, 'min': -1, 'max': 4096, 'step': 1, 'tooltip': '选择要裁剪的人脸索引，-1表示自动选择最大人脸'}),
+                'rescale_mode': (['sdxl', 'sd15', 'sdxl+', 'sd15+', 'none', 'custom'], {'default': 'sdxl', 'tooltip': '选择缩放模式，sdxl: 缩放到1024x1024像素; sd15: 缩放到512x512像素; sdxl+: 缩放到1024x1280像素; sd15+: 缩放到512x768像素; none: 不缩放; custom: 使用自定义的像素数'}),
+                'custom_megapixels': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 16.0, 'step': 0.01, 'tooltip': '设置自定义的像素数，如果选择custom，则使用自定义的像素数'}),
             },
         }
 
@@ -187,8 +187,8 @@ class FacePaste:
                 'destination': ('IMAGE',),
                 'source': ('IMAGE',),
                 'bounding_info': ('BOUNDINGINFO',),
-                'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1}),
-                'margin_percent': ('FLOAT', {'default': 0.10, 'min': 0.0, 'max': 2.0, 'step': 0.05}),
+                'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置图像的边距像素数'}),
+                'margin_percent': ('FLOAT', {'default': 0.10, 'min': 0.0, 'max': 2.0, 'step': 0.05, 'tooltip': '设置图像的边距百分比'}),
                 'blur_radius': ('INT', {'default': 10, 'min': 0, 'max': 4096, 'step': 1}),
             },
         }

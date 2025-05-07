@@ -2,36 +2,96 @@ import { app } from "../../scripts/app.js";
 
 // Some fragments of this code are from https://github.com/LucianoCirino/efficiency-nodes-comfyui
 
+// 节点类型与对应widget配置
+const NODE_WIDGETS_CONFIG = {
+    "InpaintCrop": {
+        // 简单widget列表（初始默认隐藏）
+        simpleWidgets: [
+            "preresize_target_pixels_Presets",
+            "preresize_target_pixels_custom_value",
+            "output_target_pixels_Presets",
+            "output_target_pixels_custom_value",
+            "extend_up_factor",
+            "extend_down_factor",
+            "extend_left_factor",
+            "extend_right_factor"
+        ],
+        // 特殊条件处理
+        conditionalWidgets: [
+            {
+                condition: (node) => findWidgetByName(node, "preresize_target_pixels").value === true,
+                widgets: [
+                    {name: "preresize_target_pixels_Presets", show: true},
+                    {
+                        name: "preresize_target_pixels_custom_value", 
+                        show: (node) => findWidgetByName(node, "preresize_target_pixels_Presets").value === "custom"
+                    }
+                ]
+            },
+            {
+                condition: (node) => findWidgetByName(node, "output_resize_to_target_pixels").value === true,
+                widgets: [
+                    {name: "output_target_pixels_Presets", show: true},
+                    {
+                        name: "output_target_pixels_custom_value", 
+                        show: (node) => findWidgetByName(node, "output_target_pixels_Presets").value === "custom"
+                    }
+                ]
+            },
+            {
+                condition: (node) => findWidgetByName(node, "extend_for_outpainting").value === true,
+                widgets: [
+                    {name: "extend_up_factor", show: true},
+                    {name: "extend_down_factor", show: true},
+                    {name: "extend_left_factor", show: true},
+                    {name: "extend_right_factor", show: true}
+                ]
+            }
+        ]
+    },
+    "FaceMorph": {
+        simpleWidgets: ["landmark_type", "align_type", "onnx_device"]
+    },
+    "GeneratePreciseFaceMask": {
+        simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
+    },
+    "GenerateRegionFaceMask": {
+        simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
+    }
+};
+
 function inpaintCropAndStitchHandler(node) {
-    if (node.comfyClass == "InpaintCrop") {        
-        toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_Presets"));
-        toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_custom_value"));
-        if (findWidgetByName(node, "preresize_target_pixels").value == true) {
-            toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_Presets"), true);
-            if (findWidgetByName(node, "preresize_target_pixels_Presets").value == "custom") {
-                toggleWidget(node, findWidgetByName(node, "preresize_target_pixels_custom_value"), true);
+    const nodeConfig = NODE_WIDGETS_CONFIG[node.comfyClass];
+    if (!nodeConfig) return;
+
+    // 处理简单的widget（默认隐藏）
+    if (nodeConfig.simpleWidgets) {
+        nodeConfig.simpleWidgets.forEach(widgetName => {
+            const widget = findWidgetByName(node, widgetName);
+            if (widget) {
+                toggleWidget(node, widget);
             }
-        }
-        
-        toggleWidget(node, findWidgetByName(node, "output_target_pixels_Presets"));
-        toggleWidget(node, findWidgetByName(node, "output_target_pixels_custom_value"));
-        if (findWidgetByName(node, "output_resize_to_target_pixels").value == true) {
-            toggleWidget(node, findWidgetByName(node, "output_target_pixels_Presets"), true);
-            if (findWidgetByName(node, "output_target_pixels_Presets").value == "custom") {
-                toggleWidget(node, findWidgetByName(node, "output_target_pixels_custom_value"), true);
+        });
+    }
+
+    // 处理条件widget
+    if (nodeConfig.conditionalWidgets) {
+        nodeConfig.conditionalWidgets.forEach(condConfig => {
+            // 检查条件是否满足
+            if (condConfig.condition(node)) {
+                // 处理所有满足条件的widget
+                condConfig.widgets.forEach(widgetConfig => {
+                    const widget = findWidgetByName(node, widgetConfig.name);
+                    if (widget) {
+                        // 处理显示条件 - 可以是布尔值或函数
+                        const showWidget = typeof widgetConfig.show === 'function' 
+                            ? widgetConfig.show(node) 
+                            : widgetConfig.show;
+                        toggleWidget(node, widget, showWidget);
+                    }
+                });
             }
-        }
-        
-        toggleWidget(node, findWidgetByName(node, "extend_up_factor"));
-        toggleWidget(node, findWidgetByName(node, "extend_down_factor"));
-        toggleWidget(node, findWidgetByName(node, "extend_left_factor"));
-        toggleWidget(node, findWidgetByName(node, "extend_right_factor"));
-        if (findWidgetByName(node, "extend_for_outpainting").value == true) {
-            toggleWidget(node, findWidgetByName(node, "extend_up_factor"), true);
-            toggleWidget(node, findWidgetByName(node, "extend_down_factor"), true);
-            toggleWidget(node, findWidgetByName(node, "extend_left_factor"), true);
-            toggleWidget(node, findWidgetByName(node, "extend_right_factor"), true);
-        }
+        });
     }
 
     return;
@@ -74,7 +134,7 @@ function toggleWidget(node, widget, show = false, suffix = "") {
 app.registerExtension({
     name: "inpaint-cropandstitch.showcontrol",
     nodeCreated(node) {
-        if (!node.comfyClass.startsWith("Inpaint")) {
+        if (!node.comfyClass.startsWith("Inpaint") && !NODE_WIDGETS_CONFIG[node.comfyClass]) {
             return;
         }
 

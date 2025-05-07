@@ -111,7 +111,7 @@ class ImageScalerForSDModels(BaseImageScaler):
     @classmethod
     def INPUT_TYPES(cls):
         base_inputs = super().INPUT_TYPES()
-        base_inputs['required']['sd_model_type'] = (['sdxl', 'sd15', 'sd15+', 'sdxl+'],)
+        base_inputs['required']['sd_model_type'] = (['sdxl', 'sd15', 'sd15+', 'sdxl+'], {'tooltip': '根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1024x1280'})
         return base_inputs
 
     FUNCTION = 'execute'
@@ -139,8 +139,8 @@ class ImageScalerByPixels(BaseImageScaler):
 
         base_inputs['required'].update(
             {
-                'total_pixels': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 16.0, 'step': 0.01}),
-                'limit': ('BOOLEAN', {'default': True}),
+                'total_pixels': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 16.0, 'step': 0.01, 'tooltip': '设置缩放比例，范围为0.01到16.0，步长为0.01'}),
+                'limit': ('BOOLEAN', {'default': True, 'tooltip': '限制缩放比例，如果图像的像素数小于目标像素数，则不缩放图像'}),
             }
         )
 
@@ -176,9 +176,9 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
         base_inputs = super().INPUT_TYPES()
         base_inputs['required'].update(
             {
-                'size': ('INT', {'default': 512, 'min': 0, 'step': 1, 'max': 99999}),
-                'shorter': ('BOOLEAN', {'default': False}),
-                'limit': ('BOOLEAN', {'default': False}),
+                'size': ('INT', {'default': 512, 'min': 0, 'step': 1, 'max': 99999, 'tooltip': '设置缩放目标像素数，范围为0到99999，步长为1'}),
+                'shorter': ('BOOLEAN', {'default': False, 'tooltip': '参照短边缩放'}),
+                'limit': ('BOOLEAN', {'default': False, 'tooltip': '限制缩放比例，如果图像的最短边小于size，则不缩放图像'}),
             }
         )
         return base_inputs
@@ -216,7 +216,7 @@ class ComputeImageScaleRatio:
                 'image': ('IMAGE',),
                 'target_max_size': (
                     'INT',
-                    {'default': 1920, 'min': 0, 'step': 1, 'max': 99999},
+                    {'default': 1920, 'min': 0, 'step': 1, 'max': 99999, 'tooltip': '设置目标最大尺寸，范围为0到99999，步长为1'},
                 ),
             },
         }
@@ -266,9 +266,9 @@ class ImageRotate:
                 'image_from': ('IMAGE',),
                 'angle': (
                     'FLOAT',
-                    {'default': 0.1, 'min': -14096, 'max': 14096, 'step': 0.01},
+                    {'default': 0.1, 'min': -14096, 'max': 14096, 'step': 0.01, 'tooltip': '设置旋转角度，范围为-14096到14096，步长为0.01'},
                 ),
-                'expand': ('BOOLEAN', {'default': True}),
+                'expand': ('BOOLEAN', {'default': True, 'tooltip': '扩展图像尺寸'}),
             },
         }
 
@@ -316,7 +316,7 @@ class TrimImageBorders:
                 'image': ('IMAGE',),
                 'threshold': (
                     'INT',
-                    {'default': 10, 'min': 0, 'max': 14096, 'step': 1},
+                    {'default': 10, 'min': 0, 'max': 14096, 'step': 1, 'tooltip': '设置阈值，范围为0到14096，步长为1'},
                 ),
             },
         }
@@ -349,8 +349,8 @@ class AddImageBorder:
         return {
             'required': {
                 'image': ('IMAGE',),
-                'border_width': ('INT', {'default': 10, 'min': 0, 'max': 1000, 'step': 1}),
-                'border_ratio': ('FLOAT', {'default': 0.0, 'min': 0.0, 'max': 1.0, 'step': 0.01}),
+                'border_width': ('INT', {'default': 10, 'min': 0, 'max': 1000, 'step': 1, 'tooltip': '设置边框宽度，范围为0到1000，步长为1'}),
+                'border_ratio': ('FLOAT', {'default': 0.0, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'tooltip': '设置边框比例，范围为0.0到1.0，步长为0.01'}),
                 'r': ('INT', {'default': 0, 'min': 0, 'max': 255, 'step': 1}),
                 'g': ('INT', {'default': 0, 'min': 0, 'max': 255, 'step': 1}),
                 'b': ('INT', {'default': 0, 'min': 0, 'max': 255, 'step': 1}),

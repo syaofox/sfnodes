@@ -45,7 +45,7 @@ class OccluderLoader:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'model_choice': (list_available_models(), {'default': 'xseg_2'})
+                'model_choice': (list_available_models(), {'default': 'xseg_2', 'tooltip': '选择要加载的模型'})
             }
         }
     
@@ -70,18 +70,18 @@ class GeneratePreciseFaceMask:
             'required': {
                 'occluder': ('OCCLUDER',),
                 'input_image': ('IMAGE',),
-                'mask_threshold': ('FLOAT', {'default': 0.1, 'min': 0.0, 'max': 1.0, 'step': 0.01}),
-                'post_process': (['none', 'gaussian_blur'], {'default': 'none'}),
+                'mask_threshold': ('FLOAT', {'default': 0.1, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'tooltip': '设置遮罩阈值'}),
+                'post_process': (['none', 'gaussian_blur'], {'default': 'none', 'tooltip': '选择后处理方法'}),
             },
             'optional': {
-                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1}),
+                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置遮罩增长'}),
                 'grow_percent': (
                     'FLOAT',
                     {'default': 0.00, 'min': 0.00, 'max': 2.0, 'step': 0.01},
                 ),
-                'grow_tapered': ('BOOLEAN', {'default': False}),
-                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1}),
-                'fill': ('BOOLEAN', {'default': False}),
+                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形增长'}),
+                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值'}),
+                'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
             },
         }
 

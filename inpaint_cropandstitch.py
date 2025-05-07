@@ -438,8 +438,8 @@ class InpaintCrop:
                 "image": ("IMAGE",),
 
                 # Resize algorithms
-                "downscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bilinear"}),
-                "upscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bicubic"}),
+                "downscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bilinear", "tooltip": "选择下采样算法"}),
+                "upscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bicubic", "tooltip": "选择上采样算法"}),
 
                 # pre-resize to target pixels
                 "preresize_target_pixels": ("BOOLEAN", {"default": False, "tooltip": "将输入图片缩放到指定像素数。选择SD模型预设或自定义像素值。"}),
@@ -464,7 +464,7 @@ class InpaintCrop:
                 "context_from_mask_extend_factor": ("FLOAT", {"default": 1.2, "min": 1.0, "max": 100.0, "step": 0.01, "tooltip": "将遮罩区域的上下文区域按一定比例扩大。例如，1.5表示在上、下、左、右各额外扩展50%作为上下文。"}),
 
                 # Output padding
-                "output_padding": (["0", "8", "16", "32", "64", "128", "256", "512"], {"default": "32"}),
+                "output_padding": (["0", "8", "16", "32", "64", "128", "256", "512"], {"default": "32", "tooltip": "设置输出图像的外边距填充像素数"}),
                 
                 # output resize to target pixels
                 "output_resize_to_target_pixels": ("BOOLEAN", {"default": True, "tooltip": "将输出缩放到指定像素数。选择SD模型预设或自定义像素值。"}),

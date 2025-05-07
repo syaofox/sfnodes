@@ -83,7 +83,7 @@ class BiSeNetLoader:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'model_choice': (list_available_models(), {'default': 'bisenet_resnet_34'})
+                'model_choice': (list_available_models(), {'default': 'bisenet_resnet_34', 'tooltip': '选择要加载的模型'})
             }
         }
 
@@ -143,20 +143,20 @@ class GenerateRegionFaceMask:
     def INPUT_TYPES(cls):
         return {
             'required': {
-                'region_extractor': ('REGION_EXTRACTOR',),
-                'input_image': ('IMAGE',),
-                'regions': ('REGIONS',),
-                'post_process': (['none', 'gaussian_blur'], {'default': 'gaussian_blur'}),
+                'region_extractor': ('REGION_EXTRACTOR',{"tooltip": "面部区域分割模型"}),
+                'input_image': ('IMAGE',{"tooltip": "输入图像"}),
+                'regions': ('REGIONS',{"tooltip": "要生成的面部区域"}),
+                'post_process': (['none', 'gaussian_blur'], {'default': 'gaussian_blur', 'tooltip': '选择后处理方法'}),
             },
             'optional': {
-                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1}),
+                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置遮罩增长'}),
                 'grow_percent': (
                     'FLOAT',
                     {'default': 0.00, 'min': 0.00, 'max': 2.0, 'step': 0.01},
                 ),
-                'grow_tapered': ('BOOLEAN', {'default': False}),
-                'blur': ('INT', {'default': 4, 'min': 0, 'max': 4096, 'step': 1}),
-                'fill': ('BOOLEAN', {'default': True}),
+                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形增长'    }),
+                'blur': ('INT', {'default': 4, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值'}),
+                'fill': ('BOOLEAN', {'default': True, 'tooltip': '是否填充孔洞'}),
             },
         }
 
