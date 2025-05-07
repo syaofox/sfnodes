@@ -3,7 +3,11 @@ import cv2
 import numpy as np
 import os
 import torch
+from pathlib import Path
 import torchvision.transforms.v2 as T
+import folder_paths
+from .utils.downloader import download_model
+import zipfile
 
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
 from comfy.utils import  common_upscale
@@ -274,6 +278,17 @@ class FaceAnalysisModels:
         if library == "insightface":
             out = InsightFace(provider=provider)
         elif library == "auraface":
+            # 判断模型是否存在Path(folder_paths.models_dir) /insightface/models/auraface/ 不存在就下载
+            if not os.path.exists(Path(folder_paths.models_dir) / "insightface" / "models" / "auraface" ):
+                # 下载模型压缩包并解压 https://huggingface.co/Syaofox/sfnodes/resolve/main/AuraFace-v1.zip
+                download_model(
+                    "https://huggingface.co/Syaofox/sfnodes/resolve/main/AuraFace-v1.zip",
+                    Path(folder_paths.models_dir) / "insightface" / "models" ,
+                    "AuraFace-v1.zip"
+                )
+                # 解压模型压缩包
+                with zipfile.ZipFile(Path(folder_paths.models_dir) / "insightface" / "models" / "AuraFace-v1.zip", 'r') as zip_ref:
+                    zip_ref.extractall(Path(folder_paths.models_dir) / "insightface" / "models" / "auraface")
             out = InsightFace(provider=provider, name="auraface")
         else:
             raise Exception(f"未知的库: {library}")
