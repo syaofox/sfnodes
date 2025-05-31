@@ -129,17 +129,20 @@ class FaceCutout:
                 'padding_percent': ('FLOAT', {'default': 0.1, 'min': 0.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置图像的填充百分比'}),
                 'rescale_mode': (['sdxl', 'sd15', 'sdxl+', 'sd15+', 'none', 'custom'], {'default': 'sdxl', 'tooltip': '选择缩放模式，sdxl: 缩放到1024x1024像素; sd15: 缩放到512x512像素; sdxl+: 缩放到1024x1280像素; sd15+: 缩放到512x768像素; none: 不缩放; custom: 使用自定义的像素数'}),
                 'custom_megapixels': ('FLOAT', {'default': 1.0, 'min': 0.01, 'max': 16.0, 'step': 0.01, 'tooltip': '设置自定义的像素数，如果选择custom，则使用自定义的像素数'}),
+                'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置贴回去图像的边距像素数'}),
+                'margin_percent': ('FLOAT', {'default': 0.10, 'min': 0.0, 'max': 2.0, 'step': 0.05, 'tooltip': '设置贴回去图像的边距百分比'}),
+                'blur_radius': ('INT', {'default': 10, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置贴回去图像的模糊半径'}),
             },
         }
 
-    RETURN_TYPES = ('BOUNDINGINFOS', 'IMAGES', 'IMAGE', 'INT',)
-    RETURN_NAMES = ('bounding_infos', 'crop_images','distination_image','face_count',)
-    OUTPUT_IS_LIST = (True, True, False, False,)
+    RETURN_TYPES = ('BOUNDINGINFOS', 'IMAGES', 'INT',)
+    RETURN_NAMES = ('bounding_infos', 'crop_images','face_count',)
+    OUTPUT_IS_LIST = (True, True, False,)
     FUNCTION = 'execute'
     CATEGORY = _CATEGORY
     DESCRIPTION = '切下图像中所有人脸并进行缩放，返回所有人脸信息'
 
-    def execute(self, analysis_models, image, padding, padding_percent, rescale_mode, custom_megapixels):
+    def execute(self, analysis_models, image, padding, padding_percent, rescale_mode, custom_megapixels, margin, margin_percent, blur_radius):
         target_size = self._get_target_size(rescale_mode, custom_megapixels)
 
         img = image[0]
@@ -173,14 +176,15 @@ class FaceCutout:
                 'width': widths[i],
                 'height': heights[i],
                 'scale_factor': scale_factor,
-                'distination_image': image,
-                
+                'margin': margin,
+                'margin_percent': margin_percent,
+                'blur_radius': blur_radius,
             }
             crop_images.append(scaled_face)
             
             bounding_infos.append(bounding_info)
 
-        return (bounding_infos, crop_images, image, face_count,)
+        return (bounding_infos, crop_images, face_count,)
 
     @staticmethod
     def _get_target_size(rescale_mode, custom_megapixels):
@@ -203,10 +207,7 @@ class FacePaste:
             'required': {
                 'bounding_info': ('BOUNDINGINFO',),  
                 'source_image': ('IMAGE',),
-                'distination_image': ('IMAGE',),
-                'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置图像的边距像素数'}),
-                'margin_percent': ('FLOAT', {'default': 0.10, 'min': 0.0, 'max': 2.0, 'step': 0.05, 'tooltip': '设置图像的边距百分比'}),
-                'blur_radius': ('INT', {'default': 10, 'min': 0, 'max': 4096, 'step': 1}),
+                'distination_image': ('IMAGE',),               
             },
         }
 
@@ -223,13 +224,16 @@ class FacePaste:
         draw.rectangle(((0, 0), size), outline='black', width=margin)
         return mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
-    def paste(self, bounding_info,source_image,  distination_image, margin, margin_percent, blur_radius):
+    def paste(self, bounding_info,source_image,  distination_image):
 
         # 从bounding_info中获取人脸图像和位置信息
         x = bounding_info['x']
         y = bounding_info['y']
         width = bounding_info['width']
         height = bounding_info['height']
+        margin = bounding_info['margin']
+        margin_percent = bounding_info['margin_percent']
+        blur_radius = bounding_info['blur_radius']
 
         
         destination = tensor2pil(distination_image[0])
