@@ -28,18 +28,29 @@ class InsightFace:
         self.thresholds = THRESHOLDS["ArcFace"]
 
     def get_face(self, image):
-        for size in [(size, size) for size in range(640, 256, -64)]:
-            self.face_analysis.det_model.input_size = size
-            faces = self.face_analysis.get(image)
-            if len(faces) > 0:
-                return sorted(faces, key=lambda x:(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]), reverse=True)
+        # 使用最大的检测尺寸来检测尽可能多的人脸
+        self.face_analysis.det_model.input_size = (640, 640)
+        faces = self.face_analysis.get(image)
+        
+        # 如果未检测到人脸，尝试使用较小的尺寸
+        if len(faces) == 0:
+            for size in [(size, size) for size in range(576, 256, -64)]:
+                self.face_analysis.det_model.input_size = size
+                faces = self.face_analysis.get(image)
+                if len(faces) > 0:
+                    break
+        
+        if len(faces) > 0:
+            # 按人脸面积从大到小排序
+            return sorted(faces, key=lambda x:(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]), reverse=True)
         return None
 
-    def get_embeds(self, image):
+    def get_embeds(self, image, face_index=0):
         face = self.get_face(image)
-        if face is not None:
-            face = face[0].normed_embedding
-        return face
+        if face is not None and len(face) > face_index:
+            face_embedding = face[face_index].normed_embedding
+            return face_embedding
+        return None
     
     def get_bbox(self, image, padding=0, padding_percent=0) -> tuple[list[torch.Tensor], list[int], list[int], list[int], list[int]]:
         faces = self.get_face(np.array(image))
@@ -53,22 +64,23 @@ class InsightFace:
                 x1, y1, x2, y2 = face['bbox']
                 width = x2 - x1
                 height = y2 - y1
-            x1 = int(max(0, x1 - int(width * padding_percent) - padding))
-            y1 = int(max(0, y1 - int(height * padding_percent) - padding))
-            x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
-            y2 = int(min(image.height, y2 + int(height * padding_percent) + padding))
-            crop = image.crop((x1, y1, x2, y2))
-            img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
-            x.append(x1)
-            y.append(y1)
-            w.append(x2 - x1)
-            h.append(y2 - y1)
+                
+                x1 = int(max(0, x1 - int(width * padding_percent) - padding))
+                y1 = int(max(0, y1 - int(height * padding_percent) - padding))
+                x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
+                y2 = int(min(image.height, y2 + int(height * padding_percent) + padding))
+                crop = image.crop((x1, y1, x2, y2))
+                img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
+                x.append(x1)
+                y.append(y1)
+                w.append(x2 - x1)
+                h.append(y2 - y1)
         return (img, x, y, w, h)
     
-    def get_keypoints(self, image):
+    def get_keypoints(self, image, face_index=0):
         face = self.get_face(image)
-        if face is not None:
-            shape = face[0]['kps']
+        if face is not None and len(face) > face_index:
+            shape = face[face_index]['kps']
             right_eye = shape[0]
             left_eye = shape[1]
             nose = shape[2]
@@ -78,10 +90,10 @@ class InsightFace:
             return [left_eye, right_eye, nose, left_mouth, right_mouth]
         return None
 
-    def get_landmarks(self, image, extended_landmarks=False):
+    def get_landmarks(self, image, extended_landmarks=False, face_index=0):
         face = self.get_face(image)
-        if face is not None:
-            shape = face[0]['landmark_2d_106']
+        if face is not None and len(face) > face_index:
+            shape = face[face_index]['landmark_2d_106']
             landmarks = np.round(shape).astype(np.int64)
 
             main_features = landmarks[33:]
