@@ -1,73 +1,80 @@
-import math
 import os
-import sys
 from functools import reduce
 import cv2
 import torch
 import numpy as np
 from PIL import Image
 import mediapipe as mp
-from .utils.person_mask_models import get_model_path, list_available_models, get_model_description
+from .utils.model_manager import ModelManager
 
 BaseOptions = mp.tasks.BaseOptions
 ImageSegmenter = mp.tasks.vision.ImageSegmenter
 ImageSegmenterOptions = mp.tasks.vision.ImageSegmenterOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-import folder_paths
+
+# 模型配置
+PERSON_MASK_MODELS = {
+    "selfie_multiclass_256x256": {
+        "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/selfie_multiclass_256x256.tflite",
+        "filename": "selfie_multiclass_256x256.tflite",
+        "description": "OpenVINO 多类自拍分割模型",
+    }
+}
+
 
 _CATEGORY = "sfnodes/person_mask"
 
 
 class PersonSegmenter:
     """人像分割模型的封装类"""
-    
+
     def __init__(self, model_path):
         self.model_path = model_path
         self.model_buffer = None
-        
+
         # 加载模型到内存
         with open(self.model_path, "rb") as f:
             self.model_buffer = f.read()
-            
+
         print(f"模型已加载: {os.path.basename(self.model_path)}")
-        
+
     def create_segmenter(self):
         """创建分割器实例"""
-        image_segmenter_base_options = BaseOptions(
-            model_asset_buffer=self.model_buffer
-        )
+        image_segmenter_base_options = BaseOptions(model_asset_buffer=self.model_buffer)
         options = mp.tasks.vision.ImageSegmenterOptions(
             base_options=image_segmenter_base_options,
             running_mode=VisionRunningMode.IMAGE,
             output_category_mask=True,
         )
-        
+
         return ImageSegmenter.create_from_options(options)
 
 
 class PersonSegmenterLoader:
     """加载人像分割模型的节点"""
-    
+
     def __init__(self):
         self.segmenter = None
-        
+        self.model_manager = ModelManager(PERSON_MASK_MODELS)
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {},
         }
-    
+
     RETURN_TYPES = ("PERSON_SEGMENTER",)
     RETURN_NAMES = ("segmenter",)
     FUNCTION = "load_segmenter"
     CATEGORY = _CATEGORY
     DESCRIPTION = "加载人像分割模型"
-    
+
     def load_segmenter(self):
-        model_path = get_model_path("selfie_multiclass_256x256")
+        model_path = self.model_manager.get_model_path(
+            "selfie_multiclass_256x256", sub_dir="person_mask"
+        )
         segmenter = PersonSegmenter(model_path)
-        print(f"人像分割模型已加载成功")
         return (segmenter,)
 
 
@@ -156,31 +163,33 @@ class PersonMaskGenerator:
                 # upper
                 upper - bbox_padding_y if upper > bbox_padding_y else 0,
                 # right
-                right + bbox_padding_x if right < grayscale.width - bbox_padding_x else grayscale.width,
+                right + bbox_padding_x
+                if right < grayscale.width - bbox_padding_x
+                else grayscale.width,
                 # lower
-                lower + bbox_padding_y if lower < grayscale.height - bbox_padding_y else grayscale.height,
+                lower + bbox_padding_y
+                if lower < grayscale.height - bbox_padding_y
+                else grayscale.height,
             )
 
         return bbox
 
     def __get_mask(
-            self,
-            image: Image.Image,
-            segmenter,
-            face_mask: bool,
-            background_mask: bool,
-            hair_mask: bool,
-            body_mask: bool,
-            clothes_mask: bool,
-            confidence: float,
-            refine_mask: bool,
+        self,
+        image: Image.Image,
+        segmenter,
+        face_mask: bool,
+        background_mask: bool,
+        hair_mask: bool,
+        body_mask: bool,
+        clothes_mask: bool,
+        confidence: float,
+        refine_mask: bool,
     ) -> Image.Image:
         # 检索分割图像的掩码
         media_pipe_image = self.get_mediapipe_image(image=image)
         segmented_masks = None
-        if any(
-                [face_mask, background_mask, hair_mask, body_mask, clothes_mask]
-        ):
+        if any([face_mask, background_mask, hair_mask, body_mask, clothes_mask]):
             segmented_masks = segmenter.segment(media_pipe_image)
 
         # https://developers.google.com/mediapipe/solutions/vision/image_segmenter#multiclass-model
@@ -224,7 +233,9 @@ class PersonMaskGenerator:
             for mask in masks:
                 mask_view = mask.numpy_view()
                 # 为每个通道创建条件
-                condition = np.stack((mask_view,) * image_shape[-1], axis=-1) > confidence
+                condition = (
+                    np.stack((mask_view,) * image_shape[-1], axis=-1) > confidence
+                )
                 mask_array = np.where(
                     condition, mask_foreground_array, mask_background_array
                 )
@@ -242,34 +253,35 @@ class PersonMaskGenerator:
             if bbox != None:
                 cropped_image_pil = image.crop(bbox)
 
-                cropped_mask_image = self.__get_mask(image=cropped_image_pil,
-                                                   segmenter=segmenter,
-                                                   face_mask=face_mask,
-                                                   background_mask=background_mask,
-                                                   hair_mask=hair_mask,
-                                                   body_mask=body_mask,
-                                                   clothes_mask=clothes_mask,
-                                                   confidence=confidence,
-                                                   refine_mask=False,
-                                                   )
+                cropped_mask_image = self.__get_mask(
+                    image=cropped_image_pil,
+                    segmenter=segmenter,
+                    face_mask=face_mask,
+                    background_mask=background_mask,
+                    hair_mask=hair_mask,
+                    body_mask=body_mask,
+                    clothes_mask=clothes_mask,
+                    confidence=confidence,
+                    refine_mask=False,
+                )
 
-                updated_mask_image = Image.new('RGBA', image.size, (0, 0, 0))
+                updated_mask_image = Image.new("RGBA", image.size, (0, 0, 0))
                 updated_mask_image.paste(cropped_mask_image, bbox)
                 mask_image = updated_mask_image
 
         return mask_image
 
     def get_mask_images(
-            self,
-            person_segmenter,
-            images,  # tensors
-            face_mask: bool,
-            background_mask: bool,
-            hair_mask: bool,
-            body_mask: bool,
-            clothes_mask: bool,
-            confidence: float,
-            refine_mask: bool,
+        self,
+        person_segmenter,
+        images,  # tensors
+        face_mask: bool,
+        background_mask: bool,
+        hair_mask: bool,
+        body_mask: bool,
+        clothes_mask: bool,
+        confidence: float,
+        refine_mask: bool,
     ) -> list[Image.Image]:
         mask_images: list[Image.Image] = []
 
@@ -282,7 +294,9 @@ class PersonMaskGenerator:
                 # mediapipe库对带有alpha通道的图像处理效果更好
                 if i.shape[-1] == 3:  # 如果图像是RGB
                     # 添加完全透明的alpha通道(255)
-                    i = np.dstack((i, np.full((i.shape[0], i.shape[1]), 255)))  # 创建RGBA图像
+                    i = np.dstack(
+                        (i, np.full((i.shape[0], i.shape[1]), 255))
+                    )  # 创建RGBA图像
 
                 image_pil = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
                 mask_image = self.__get_mask(
@@ -301,16 +315,16 @@ class PersonMaskGenerator:
         return mask_images
 
     def generate_mask(
-            self,
-            segmenter,
-            images,
-            face_mask: bool,
-            background_mask: bool,
-            hair_mask: bool,
-            body_mask: bool,
-            clothes_mask: bool,
-            confidence: float,
-            refine_mask: bool,
+        self,
+        segmenter,
+        images,
+        face_mask: bool,
+        background_mask: bool,
+        hair_mask: bool,
+        body_mask: bool,
+        clothes_mask: bool,
+        confidence: float,
+        refine_mask: bool,
     ):
         """从图像创建分割掩码
 
@@ -352,4 +366,3 @@ class PersonMaskGenerator:
             tensor_masks.append(tensor_mask)
 
         return (torch.cat(tensor_masks, dim=0),)
-
