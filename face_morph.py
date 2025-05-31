@@ -9,9 +9,24 @@ import folder_paths
 from custom_nodes.sfnodes.liveportrait.utils.cropper import CropperMediaPipe
 from custom_nodes.sfnodes.utils.downloader import download_model
 from custom_nodes.sfnodes.utils.image_convert import pil2tensor
+from custom_nodes.sfnodes.utils.model_manager import ModelManager
 
 _CATEGORY = 'sfnodes/face_analysis'
 
+# 模型配置
+LANDMARK_MODELS = {
+    
+    "landmark": {
+        "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark.onnx",
+        "filename": "landmark.onnx",
+        "description": "landmark.onnx",
+    },
+    "landmark_model": {
+        "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark_model.pth",
+        "filename": "landmark_model.pth",
+        "description": "landmark_model.pth",
+    },
+}
 
 class FaceLandmarkExtractor(CropperMediaPipe):
     def extract_face_landmarks(self, img_rgb, face_index):
@@ -27,6 +42,7 @@ class FaceLandmarkExtractor(CropperMediaPipe):
 
 
 class FaceMorph:
+    
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -48,6 +64,9 @@ class FaceMorph:
     def __init__(self):
         self.landmark_extractor = None
         self.current_config = None
+        self.model_manager = ModelManager(LANDMARK_MODELS)
+        self.model_manager.get_model_path("landmark", sub_dir="face_morph")
+        self.model_manager.get_model_path("landmark_model", sub_dir="face_morph")
 
     def landmark203_to_68(self, source):
         out = []
@@ -162,20 +181,9 @@ class FaceMorph:
         map_coords = interp(np.column_stack((yy.ravel(), xx.ravel()))).reshape(height, width, 2).astype(np.float32)
 
         return cv2.remap(image, map_coords[:, :, 1], map_coords[:, :, 0], cv2.INTER_LINEAR)
-
-    def download_models(self):
-        save_loc = Path(folder_paths.models_dir) /  'sfnodes' / 'face_morph'
-
-        models = [
-            ('landmark.onnx', 'https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark.onnx'),
-            ('landmark_model.pth', 'https://huggingface.co/Syaofox/sfnodes/resolve/main/landmark_model.pth'),
-        ]
-
-        for model_name, model_url in models:
-            download_model(model_url, save_loc, model_name)
+ 
 
     def execute(self, source_image, target_image, landmark_type, align_type, onnx_device):
-        self.download_models()
 
         self.initialize_landmark_extractor(onnx_device)
         image1, landmarks1 = self.process_image(source_image)
