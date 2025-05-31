@@ -7,6 +7,7 @@ import torch
 import numpy as np
 from PIL import Image
 import mediapipe as mp
+from .utils.person_mask_models import get_model_path, list_available_models, get_model_description
 
 BaseOptions = mp.tasks.BaseOptions
 ImageSegmenter = mp.tasks.vision.ImageSegmenter
@@ -17,27 +18,62 @@ import folder_paths
 
 _CATEGORY = "sfnodes/person_mask"
 
-def get_person_mask_model_path() -> str:
-    model_folder_name = "mediapipe"
-    model_name = "selfie_multiclass_256x256.tflite"
 
-    model_folder_path = os.path.join(folder_paths.models_dir, model_folder_name)
-    model_file_path = os.path.join(model_folder_path, model_name)
+class PersonSegmenter:
+    """人像分割模型的封装类"""
+    
+    def __init__(self, model_path):
+        self.model_path = model_path
+        self.model_buffer = None
+        
+        # 加载模型到内存
+        with open(self.model_path, "rb") as f:
+            self.model_buffer = f.read()
+            
+        print(f"模型已加载: {os.path.basename(self.model_path)}")
+        
+    def create_segmenter(self):
+        """创建分割器实例"""
+        image_segmenter_base_options = BaseOptions(
+            model_asset_buffer=self.model_buffer
+        )
+        options = mp.tasks.vision.ImageSegmenterOptions(
+            base_options=image_segmenter_base_options,
+            running_mode=VisionRunningMode.IMAGE,
+            output_category_mask=True,
+        )
+        
+        return ImageSegmenter.create_from_options(options)
 
-    if not os.path.exists(model_file_path):
-        import wget
 
-        model_url = f"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/{model_name}"
-        print(f"下载 '{model_name}' 模型")
-        os.makedirs(model_folder_path, exist_ok=True)
-        wget.download(model_url, model_file_path)
+class PersonSegmenterLoader:
+    """加载人像分割模型的节点"""
+    
+    def __init__(self):
+        self.segmenter = None
+        
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {},
+        }
+    
+    RETURN_TYPES = ("PERSON_SEGMENTER",)
+    RETURN_NAMES = ("segmenter",)
+    FUNCTION = "load_segmenter"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "加载人像分割模型"
+    
+    def load_segmenter(self):
+        model_path = get_model_path("selfie_multiclass_256x256")
+        segmenter = PersonSegmenter(model_path)
+        print(f"人像分割模型已加载成功")
+        return (segmenter,)
 
-    return model_file_path
 
 class PersonMaskGenerator:
     def __init__(self):
-        # 如果需要，下载模型
-        get_person_mask_model_path()
+        pass
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -52,6 +88,7 @@ class PersonMaskGenerator:
 
         return {
             "required": {
+                "segmenter": ("PERSON_SEGMENTER",),
                 "images": ("IMAGE",),
             },
             "optional": {
@@ -224,6 +261,7 @@ class PersonMaskGenerator:
 
     def get_mask_images(
             self,
+            person_segmenter,
             images,  # tensors
             face_mask: bool,
             background_mask: bool,
@@ -233,25 +271,10 @@ class PersonMaskGenerator:
             confidence: float,
             refine_mask: bool,
     ) -> list[Image.Image]:
-        person_mask_model_path = get_person_mask_model_path()
-        person_mask_model_buffer = None
-
-        with open(person_mask_model_path, "rb") as f:
-            person_mask_model_buffer = f.read()
-
-        image_segmenter_base_options = BaseOptions(
-            model_asset_buffer=person_mask_model_buffer
-        )
-        options = mp.tasks.vision.ImageSegmenterOptions(
-            base_options=image_segmenter_base_options,
-            running_mode=VisionRunningMode.IMAGE,
-            output_category_mask=True,
-        )
-
         mask_images: list[Image.Image] = []
 
-        # 创建图像分割器
-        with ImageSegmenter.create_from_options(options) as segmenter:
+        # 使用传入的分割器创建分割实例
+        with person_segmenter.create_segmenter() as segmenter:
             for tensor_image in images:
                 # 将张量转换为PIL图像
                 i = 255.0 * tensor_image.cpu().numpy()
@@ -279,6 +302,7 @@ class PersonMaskGenerator:
 
     def generate_mask(
             self,
+            segmenter,
             images,
             face_mask: bool,
             background_mask: bool,
@@ -291,6 +315,7 @@ class PersonMaskGenerator:
         """从图像创建分割掩码
 
         Args:
+            segmenter: 已加载的人像分割模型
             images (torch.Tensor): 要为其创建掩码的图像。
             face_mask (bool): 创建脸部掩码。
             background_mask (bool): 创建背景掩码。
@@ -305,6 +330,7 @@ class PersonMaskGenerator:
         """
 
         mask_images = self.get_mask_images(
+            person_segmenter=segmenter,
             images=images,
             face_mask=face_mask,
             background_mask=background_mask,

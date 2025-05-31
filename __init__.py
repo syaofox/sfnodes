@@ -9,7 +9,7 @@ from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixe
 from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
-from .person_mask import PersonMaskGenerator
+from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
 
 WEB_DIRECTORY = "js"
 
@@ -76,6 +76,7 @@ NODE_CLASS_MAPPINGS = {
     'IPAdapterMSTiled': IPAdapterMSTiled,
 
     # 人像分割节点
+    'PersonSegmenterLoader': PersonSegmenterLoader,
     'PersonMaskGenerator': PersonMaskGenerator,
 }
 
@@ -141,6 +142,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'IPAdapterMSTiled': 'SF IPAdapter MS Tiled',
 
     # 人像分割节点
+    'PersonSegmenterLoader': 'SF Person Segmenter Loader',
     'PersonMaskGenerator': 'SF Person Mask Generator',
 }
 
