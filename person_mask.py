@@ -1,0 +1,329 @@
+import math
+import os
+import sys
+from functools import reduce
+import cv2
+import torch
+import numpy as np
+from PIL import Image
+import mediapipe as mp
+
+BaseOptions = mp.tasks.BaseOptions
+ImageSegmenter = mp.tasks.vision.ImageSegmenter
+ImageSegmenterOptions = mp.tasks.vision.ImageSegmenterOptions
+VisionRunningMode = mp.tasks.vision.RunningMode
+
+import folder_paths
+
+_CATEGORY = "sfnodes/person_mask"
+
+def get_person_mask_model_path() -> str:
+    model_folder_name = "mediapipe"
+    model_name = "selfie_multiclass_256x256.tflite"
+
+    model_folder_path = os.path.join(folder_paths.models_dir, model_folder_name)
+    model_file_path = os.path.join(model_folder_path, model_name)
+
+    if not os.path.exists(model_file_path):
+        import wget
+
+        model_url = f"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/{model_name}"
+        print(f"下载 '{model_name}' 模型")
+        os.makedirs(model_folder_path, exist_ok=True)
+        wget.download(model_url, model_file_path)
+
+    return model_file_path
+
+class PersonMaskGenerator:
+    def __init__(self):
+        # 如果需要，下载模型
+        get_person_mask_model_path()
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        false_widget = (
+            "BOOLEAN",
+            {"default": False, "label_on": "启用", "label_off": "禁用"},
+        )
+        true_widget = (
+            "BOOLEAN",
+            {"default": True, "label_on": "启用", "label_off": "禁用"},
+        )
+
+        return {
+            "required": {
+                "images": ("IMAGE",),
+            },
+            "optional": {
+                "face_mask": true_widget,
+                "background_mask": false_widget,
+                "hair_mask": false_widget,
+                "body_mask": false_widget,
+                "clothes_mask": false_widget,
+                "confidence": (
+                    "FLOAT",
+                    {"default": 0.40, "min": 0.01, "max": 1.0, "step": 0.01},
+                ),
+                "refine_mask": true_widget,
+            },
+        }
+
+    CATEGORY = _CATEGORY
+    RETURN_TYPES = ("MASK",)
+    RETURN_NAMES = ("masks",)
+
+    FUNCTION = "generate_mask"
+
+    def get_mediapipe_image(self, image: Image.Image) -> mp.Image:
+        # 将图像转换为NumPy数组
+        numpy_image = np.asarray(image)
+
+        image_format = mp.ImageFormat.SRGB
+
+        # 如有必要，将BGR转换为RGB
+        if numpy_image.shape[-1] == 4:
+            image_format = mp.ImageFormat.SRGBA
+        elif numpy_image.shape[-1] == 3:
+            image_format = mp.ImageFormat.SRGB
+            numpy_image = cv2.cvtColor(numpy_image, cv2.COLOR_BGR2RGB)
+
+        return mp.Image(image_format=image_format, data=numpy_image)
+
+    def get_bbox_for_mask(self, mask_image: Image.Image):
+        # 将图像转换为灰度图
+        grayscale = mask_image.convert("L")
+
+        # 创建二进制掩码，非黑色像素为白色(255)
+        mask_for_bbox = grayscale.point(lambda p: 255 if p > 0 else 0)
+
+        # 获取非黑色区域的边界框
+        bbox = mask_for_bbox.getbbox()
+
+        if bbox != None:
+            left = bbox[0]
+            upper = bbox[1]
+            right = bbox[2]
+            lower = bbox[3]
+
+            bbox_width = right - left
+            bbox_height = lower - upper
+
+            # 在每个方向扩展边界框20%（如果可能）
+            bbox_padding_x = round(bbox_width * 0.2)
+            bbox_padding_y = round(bbox_height * 0.2)
+
+            # left, upper, right, lower
+            bbox = (
+                # left
+                left - bbox_padding_x if left > bbox_padding_x else 0,
+                # upper
+                upper - bbox_padding_y if upper > bbox_padding_y else 0,
+                # right
+                right + bbox_padding_x if right < grayscale.width - bbox_padding_x else grayscale.width,
+                # lower
+                lower + bbox_padding_y if lower < grayscale.height - bbox_padding_y else grayscale.height,
+            )
+
+        return bbox
+
+    def __get_mask(
+            self,
+            image: Image.Image,
+            segmenter,
+            face_mask: bool,
+            background_mask: bool,
+            hair_mask: bool,
+            body_mask: bool,
+            clothes_mask: bool,
+            confidence: float,
+            refine_mask: bool,
+    ) -> Image.Image:
+        # 检索分割图像的掩码
+        media_pipe_image = self.get_mediapipe_image(image=image)
+        segmented_masks = None
+        if any(
+                [face_mask, background_mask, hair_mask, body_mask, clothes_mask]
+        ):
+            segmented_masks = segmenter.segment(media_pipe_image)
+
+        # https://developers.google.com/mediapipe/solutions/vision/image_segmenter#multiclass-model
+        # 0 - 背景
+        # 1 - 头发
+        # 2 - 身体皮肤
+        # 3 - 脸部皮肤
+        # 4 - 衣服
+        # 5 - 其他(配件)
+        masks = []
+        if segmented_masks:
+            if background_mask:
+                masks.append(segmented_masks.confidence_masks[0])
+            if hair_mask:
+                masks.append(segmented_masks.confidence_masks[1])
+            if body_mask:
+                masks.append(segmented_masks.confidence_masks[2])
+            if face_mask:
+                masks.append(segmented_masks.confidence_masks[3])
+            if clothes_mask:
+                masks.append(segmented_masks.confidence_masks[4])
+
+        image_data = media_pipe_image.numpy_view()
+        image_shape = image_data.shape
+
+        # 将图像形状从"rgb"转换为"rgba"，即添加alpha通道
+        if image_shape[-1] == 3:
+            image_shape = (image_shape[0], image_shape[1], 4)
+
+        mask_background_array = np.zeros(image_shape, dtype=np.uint8)
+        mask_background_array[:] = (0, 0, 0, 255)
+
+        mask_foreground_array = np.zeros(image_shape, dtype=np.uint8)
+        mask_foreground_array[:] = (255, 255, 255, 255)
+
+        mask_arrays = []
+
+        if len(masks) == 0:
+            mask_arrays.append(mask_background_array)
+        else:
+            for mask in masks:
+                mask_view = mask.numpy_view()
+                # 为每个通道创建条件
+                condition = np.stack((mask_view,) * image_shape[-1], axis=-1) > confidence
+                mask_array = np.where(
+                    condition, mask_foreground_array, mask_background_array
+                )
+                mask_arrays.append(mask_array)
+
+        # 合并掩码，取每个掩码的最大值
+        merged_mask_arrays = reduce(np.maximum, mask_arrays)
+
+        # 创建图像
+        mask_image = Image.fromarray(merged_mask_arrays)
+
+        # 通过放大检测到分割区域的区域来细化掩码
+        if refine_mask:
+            bbox = self.get_bbox_for_mask(mask_image=mask_image)
+            if bbox != None:
+                cropped_image_pil = image.crop(bbox)
+
+                cropped_mask_image = self.__get_mask(image=cropped_image_pil,
+                                                   segmenter=segmenter,
+                                                   face_mask=face_mask,
+                                                   background_mask=background_mask,
+                                                   hair_mask=hair_mask,
+                                                   body_mask=body_mask,
+                                                   clothes_mask=clothes_mask,
+                                                   confidence=confidence,
+                                                   refine_mask=False,
+                                                   )
+
+                updated_mask_image = Image.new('RGBA', image.size, (0, 0, 0))
+                updated_mask_image.paste(cropped_mask_image, bbox)
+                mask_image = updated_mask_image
+
+        return mask_image
+
+    def get_mask_images(
+            self,
+            images,  # tensors
+            face_mask: bool,
+            background_mask: bool,
+            hair_mask: bool,
+            body_mask: bool,
+            clothes_mask: bool,
+            confidence: float,
+            refine_mask: bool,
+    ) -> list[Image.Image]:
+        person_mask_model_path = get_person_mask_model_path()
+        person_mask_model_buffer = None
+
+        with open(person_mask_model_path, "rb") as f:
+            person_mask_model_buffer = f.read()
+
+        image_segmenter_base_options = BaseOptions(
+            model_asset_buffer=person_mask_model_buffer
+        )
+        options = mp.tasks.vision.ImageSegmenterOptions(
+            base_options=image_segmenter_base_options,
+            running_mode=VisionRunningMode.IMAGE,
+            output_category_mask=True,
+        )
+
+        mask_images: list[Image.Image] = []
+
+        # 创建图像分割器
+        with ImageSegmenter.create_from_options(options) as segmenter:
+            for tensor_image in images:
+                # 将张量转换为PIL图像
+                i = 255.0 * tensor_image.cpu().numpy()
+
+                # mediapipe库对带有alpha通道的图像处理效果更好
+                if i.shape[-1] == 3:  # 如果图像是RGB
+                    # 添加完全透明的alpha通道(255)
+                    i = np.dstack((i, np.full((i.shape[0], i.shape[1]), 255)))  # 创建RGBA图像
+
+                image_pil = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+                mask_image = self.__get_mask(
+                    image=image_pil,
+                    segmenter=segmenter,
+                    face_mask=face_mask,
+                    background_mask=background_mask,
+                    hair_mask=hair_mask,
+                    body_mask=body_mask,
+                    clothes_mask=clothes_mask,
+                    confidence=confidence,
+                    refine_mask=refine_mask,
+                )
+                mask_images.append(mask_image)
+
+        return mask_images
+
+    def generate_mask(
+            self,
+            images,
+            face_mask: bool,
+            background_mask: bool,
+            hair_mask: bool,
+            body_mask: bool,
+            clothes_mask: bool,
+            confidence: float,
+            refine_mask: bool,
+    ):
+        """从图像创建分割掩码
+
+        Args:
+            images (torch.Tensor): 要为其创建掩码的图像。
+            face_mask (bool): 创建脸部掩码。
+            background_mask (bool): 创建背景掩码。
+            hair_mask (bool): 创建头发掩码。
+            body_mask (bool): 创建身体掩码。
+            clothes_mask (bool): 创建衣服掩码。
+            confidence (float): 模型对检测到的项目存在的置信度。
+            refine_mask (bool): 是否细化掩码。
+
+        Returns:
+            torch.Tensor: 分割掩码。
+        """
+
+        mask_images = self.get_mask_images(
+            images=images,
+            face_mask=face_mask,
+            background_mask=background_mask,
+            hair_mask=hair_mask,
+            body_mask=body_mask,
+            clothes_mask=clothes_mask,
+            confidence=confidence,
+            refine_mask=refine_mask,
+        )
+
+        tensor_masks = []
+        for mask_image in mask_images:
+            # 将PIL图像转换为张量图像
+            tensor_mask = mask_image.convert("RGB")
+            tensor_mask = np.array(tensor_mask).astype(np.float32) / 255.0
+            tensor_mask = torch.from_numpy(tensor_mask)[None,]
+            tensor_mask = tensor_mask.squeeze(3)[..., 0]
+
+            tensor_masks.append(tensor_mask)
+
+        return (torch.cat(tensor_masks, dim=0),)
+
