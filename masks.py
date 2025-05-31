@@ -283,3 +283,58 @@ class MaskPaintArea:
         return (result_mask,)
 
 
+class MaskAdjustGrayscale:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'mask': ('MASK', {'tooltip': '输入遮罩'}),
+                'gray_value': (
+                    'FLOAT',
+                    {'default': 0.5, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'tooltip': '设置灰度值，范围为0.0(黑)到1.0(白)'}
+                ),
+                'apply_to': (
+                    ['整个遮罩', '仅非零区域'],
+                    {'default': '仅非零区域', 'tooltip': '选择应用灰度值的区域'}
+                ),
+                'strength': (
+                    'FLOAT',
+                    {'default': 1.0, 'min': 0.0, 'max': 1.0, 'step': 0.01, 'tooltip': '调整强度，1.0为完全应用新灰度，0.0为保持原样'}
+                )
+            }
+        }
+
+    RETURN_TYPES = ('MASK',)
+    FUNCTION = 'execute'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '将遮罩设置为指定的灰度值'
+
+    def execute(self, mask, gray_value, apply_to, strength):
+        import torch
+        
+        # 创建一个新的张量以避免修改原始数据
+        result_mask = mask.clone()
+        
+        if apply_to == '整个遮罩':
+            # 应用到整个遮罩
+            if strength >= 1.0:
+                # 直接设置为指定灰度值
+                result_mask = torch.ones_like(mask) * gray_value
+            else:
+                # 根据强度混合原始遮罩和新灰度值
+                result_mask = mask * (1.0 - strength) + (torch.ones_like(mask) * gray_value * strength)
+        else:
+            # 只应用到非零区域
+            non_zero_mask = (mask > 0).float()
+            
+            if strength >= 1.0:
+                # 直接设置非零区域为指定灰度值
+                result_mask = torch.where(non_zero_mask > 0, torch.ones_like(mask) * gray_value, mask)
+            else:
+                # 根据强度混合原始遮罩和新灰度值，只在非零区域
+                new_values = mask * (1.0 - strength) + (torch.ones_like(mask) * gray_value * strength)
+                result_mask = torch.where(non_zero_mask > 0, new_values, mask)
+        
+        return (result_mask,)
+
+
