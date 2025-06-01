@@ -7,7 +7,7 @@ from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace, LoadImages
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
 from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea,MaskAdjustGrayscale
-from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect
+from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect, ImageColorMatch
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
 
@@ -71,6 +71,7 @@ NODE_CLASS_MAPPINGS = {
     'ColorTint': ColorTint,
     'ColorBlockEffect': ColorBlockEffect,
     'FlatteningEffect': FlatteningEffect,
+    'ImageColorMatch': ImageColorMatch,
 
     # IPAdapter节点
     'IPAdapterMSLayerWeights': IPAdapterMSLayerWeights,
@@ -138,6 +139,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'ColorTint': 'SF Color Tint',
     'ColorBlockEffect': 'SF Color Block Effect',
     'FlatteningEffect': 'SF Flattening Effect',
+    'ImageColorMatch': 'SF Image Color Match',
 
     # IPAdapter节点
     'IPAdapterMSLayerWeights': 'SF IPAdapter MS Layer Weights',
