@@ -17,146 +17,146 @@ WEB_DIRECTORY = "js"
 
 NODE_CLASS_MAPPINGS = {
     # 局部修复节点
-    "InpaintCrop": InpaintCrop,
-    "InpaintStitch": InpaintStitch,
+    "SFInpaintCrop": InpaintCrop,
+    "SFInpaintStitch": InpaintStitch,
 
     # 人脸变形节点
-    "FaceMorph": FaceMorph,
+    "SFFaceMorph": FaceMorph,
     
     # 人脸遮挡节点
-    'OccluderLoader': OccluderLoader,
-    'GeneratePreciseFaceMask': GeneratePreciseFaceMask,
+    'SFOccluderLoader': OccluderLoader,
+    'SFGeneratePreciseFaceMask': GeneratePreciseFaceMask,
 
     # 人脸区域节点
-    'BiSeNetLoader': BiSeNetLoader,
-    'RegionSelector': RegionSelector,
-    'GenerateRegionFaceMask': GenerateRegionFaceMask,
+    'SFBiSeNetLoader': BiSeNetLoader,
+    'SFRegionSelector': RegionSelector,
+    'SFGenerateRegionFaceMask': GenerateRegionFaceMask,
 
     # 人脸分析节点
-    'AlignImageByFace': AlignImageByFace,
-    'FaceCutout': FaceCutout,
-    'FacePaste': FacePaste,
-    'ExtractBoundingBox': ExtractBoundingBox,
-    'FaceAnalysisModels': FaceAnalysisModels,
-    'FaceEmbedDistance': FaceEmbedDistance,
-    'FaceWarp': FaceWarp,
+    'SFAlignImageByFace': AlignImageByFace,
+    'SFFaceCutout': FaceCutout,
+    'SFFacePaste': FacePaste,
+    'SFExtractBoundingBox': ExtractBoundingBox,
+    'SFFaceAnalysisModels': FaceAnalysisModels,
+    'SFFaceEmbedDistance': FaceEmbedDistance,
+    'SFFaceWarp': FaceWarp,
 
     # 文件节点
-    'LoadImagesFromFolder': LoadImagesFromFolder,
-    'LoadImageFromPath': LoadImageFromPath,
-    'SelectFace': SelectFace,
-    'LoadImages': LoadImages,
+    'SFLoadImagesFromFolder': LoadImagesFromFolder,
+    'SFLoadImageFromPath': LoadImageFromPath,
+    'SFSelectFace': SelectFace,
+    'SFLoadImages': LoadImages,
 
     # 图片缩放节点
-    'GetImageSize': GetImageSize,
-    'ImageScalerForSDModels': ImageScalerForSDModels,
-    'ImageScalerByPixels': ImageScalerByPixels,
-    'ImageScaleBySpecifiedSide': ImageScaleBySpecifiedSide,
-    'ComputeImageScaleRatio': ComputeImageScaleRatio,
-    'ImageRotate': ImageRotate,
-    'TrimImageBorders': TrimImageBorders,
-    'AddImageBorder': AddImageBorder,
+    'SFGetImageSize': GetImageSize,
+    'SFImageScalerForSDModels': ImageScalerForSDModels,
+    'SFImageScalerByPixels': ImageScalerByPixels,
+    'SFImageScaleBySpecifiedSide': ImageScaleBySpecifiedSide,
+    'SFComputeImageScaleRatio': ComputeImageScaleRatio,
+    'SFImageRotate': ImageRotate,
+    'SFTrimImageBorders': TrimImageBorders,
+    'SFAddImageBorder': AddImageBorder,
 
     # 遮罩节点
-    'OutlineMask': OutlineMask,
-    'CreateBlurredEdgeMask': CreateBlurredEdgeMask,
-    'MaskChange': MaskChange,
-    'Depth2Mask': Depth2Mask,
-    'MaskScaleBy': MaskScaleBy,
-    'MaskScale': MaskScale,
-    'MaskPaintArea': MaskPaintArea,
-    'MaskAdjustGrayscale': MaskAdjustGrayscale,
+    'SFOutlineMask': OutlineMask,
+    'SFCreateBlurredEdgeMask': CreateBlurredEdgeMask,
+    'SFMaskChange': MaskChange,
+    'SFDepth2Mask': Depth2Mask,
+    'SFMaskScaleBy': MaskScaleBy,
+    'SFMaskScale': MaskScale,
+    'SFMaskPaintArea': MaskPaintArea,
+    'SFMaskAdjustGrayscale': MaskAdjustGrayscale,
     'SFPreviewMask': PreviewMask,
 
     # 图片处理节点
-    'ColorAdjustment': ColorAdjustment,
-    'ColorTint': ColorTint,
-    'ColorBlockEffect': ColorBlockEffect,
-    'FlatteningEffect': FlatteningEffect,
-    'ImageColorMatch': ImageColorMatch,
+    'SFColorAdjustment': ColorAdjustment,
+    'SFColorTint': ColorTint,
+    'SFColorBlockEffect': ColorBlockEffect,
+    'SFFlatteningEffect': FlatteningEffect,
+    'SFImageColorMatch': ImageColorMatch,
 
     # IPAdapter节点
-    'IPAdapterMSLayerWeights': IPAdapterMSLayerWeights,
-    'IPAdapterMSTiled': IPAdapterMSTiled,
+    'SFIPAdapterMSLayerWeights': IPAdapterMSLayerWeights,
+    'SFIPAdapterMSTiled': IPAdapterMSTiled,
 
     # 人像分割节点
-    'PersonSegmenterLoader': PersonSegmenterLoader,
-    'PersonMaskGenerator': PersonMaskGenerator,
+    'SFPersonSegmenterLoader': PersonSegmenterLoader,
+    'SFPersonMaskGenerator': PersonMaskGenerator,
 
     # 显示节点
-    'DisplayAny': DisplayAny,
+    'SFDisplayAny': DisplayAny,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
     # 局部修复节点
-    "InpaintCrop": "SF Inpaint Crop",
-    "InpaintStitch": "SF Inpaint Stitch",
+    "SFInpaintCrop": "SF Inpaint Crop",
+    "SFInpaintStitch": "SF Inpaint Stitch",
 
     # 人脸变形节点
-    "FaceMorph": "SF Face Morph",
+    "SFFaceMorph": "SF Face Morph",
 
     # 人脸遮挡节点
-    'OccluderLoader': 'SF Occluder Loader',
-    'GeneratePreciseFaceMask': 'SF Generate PreciseFaceMask',
+    'SFOccluderLoader': 'SF Occluder Loader',
+    'SFGeneratePreciseFaceMask': 'SF Generate PreciseFaceMask',
 
     # 人脸区域节点
     'BiSeNetLoader': 'SF BiSeNet Loader',
-    'RegionSelector': 'SF Region Selector',
-    'GenerateRegionFaceMask': 'SF Generate Region Face Mask',
+    'SFRegionSelector': 'SF Region Selector',
+    'SFGenerateRegionFaceMask': 'SF Generate Region Face Mask',
 
     # 人脸分析节点
-    'AlignImageByFace': 'SF Align Image By Face',
-    'FaceCutout': 'SF Face Cutout',
-    'FacePaste': 'SF Face Paste',
-    'ExtractBoundingBox': 'SF Extract Bounding Box',
-    'FaceAnalysisModels': 'SF Face Analysis Models',
-    'FaceEmbedDistance': 'SF Face Embed Distance',
-    'FaceWarp': 'SF Face Warp',
+    'SFAlignImageByFace': 'SF Align Image By Face',
+    'SFFaceCutout': 'SF Face Cutout',
+    'SFFacePaste': 'SF Face Paste',
+    'SFExtractBoundingBox': 'SF Extract Bounding Box',
+    'SFFaceAnalysisModels': 'SF Face Analysis Models',
+    'SFFaceEmbedDistance': 'SF Face Embed Distance',
+    'SFFaceWarp': 'SF Face Warp',
     
     # 文件节点
-    'LoadImagesFromFolder': 'SF Load Images From Folder',
-    'LoadImageFromPath': 'SF Load Image From Path',
-    'SelectFace': 'SF Select Face',
-    'LoadImages': 'SF Load Images',
+    'SFLoadImagesFromFolder': 'SF Load Images From Folder',
+    'SFLoadImageFromPath': 'SF Load Image From Path',
+    'SFSelectFace': 'SF Select Face',
+    'SFLoadImages': 'SF Load Images',
 
     # 图片缩放节点
-    'GetImageSize': 'SF Get Image Size',
-    'ImageScalerForSDModels': 'SF Image Scaler For SD Models',
-    'ImageScalerByPixels': 'SF Image Scaler By Pixels',
-    'ImageScaleBySpecifiedSide': 'SF Image Scale By Specified Side',
-    'ComputeImageScaleRatio': 'SF Compute Image Scale Ratio',
-    'ImageRotate': 'SF Image Rotate',
-    'TrimImageBorders': 'SF Trim Image Borders',
-    'AddImageBorder': 'SF Add Image Border',
+    'SFGetImageSize': 'SF Get Image Size',
+    'SFImageScalerForSDModels': 'SF Image Scaler For SD Models',
+    'SFImageScalerByPixels': 'SF Image Scaler By Pixels',
+    'SFImageScaleBySpecifiedSide': 'SF Image Scale By Specified Side',
+    'SFComputeImageScaleRatio': 'SF Compute Image Scale Ratio',
+    'SFImageRotate': 'SF Image Rotate',
+    'SFTrimImageBorders': 'SF Trim Image Borders',
+    'SFAddImageBorder': 'SF Add Image Border',
 
     # 遮罩节点
-    'OutlineMask': 'SF Outline Mask',
-    'CreateBlurredEdgeMask': 'SF Create Blurred Edge Mask',
-    'MaskChange': 'SF Mask Change',
-    'Depth2Mask': 'SF Depth2Mask',
-    'MaskScaleBy': 'SF Mask Scale By',
-    'MaskScale': 'SF Mask Scale',
-    'MaskPaintArea': 'SF Mask Paint Area',
-    'MaskAdjustGrayscale': 'SF Mask Adjust Grayscale',
+    'SFOutlineMask': 'SF Outline Mask',
+    'SFCreateBlurredEdgeMask': 'SF Create Blurred Edge Mask',
+    'SFMaskChange': 'SF Mask Change',
+    'SFDepth2Mask': 'SF Depth2Mask',
+    'SFMaskScaleBy': 'SF Mask Scale By',
+    'SFMaskScale': 'SF Mask Scale',
+    'SFMaskPaintArea': 'SF Mask Paint Area',
+    'SFMaskAdjustGrayscale': 'SF Mask Adjust Grayscale',
     'SFPreviewMask': 'SF Preview Mask',
     
     # 图片处理节点
-    'ColorAdjustment': 'SF Color Adjustment',
-    'ColorTint': 'SF Color Tint',
-    'ColorBlockEffect': 'SF Color Block Effect',
-    'FlatteningEffect': 'SF Flattening Effect',
-    'ImageColorMatch': 'SF Image Color Match',
+    'SFColorAdjustment': 'SF Color Adjustment',
+    'SFColorTint': 'SF Color Tint',
+    'SFColorBlockEffect': 'SF Color Block Effect',
+    'SFFlatteningEffect': 'SF Flattening Effect',
+    'SFImageColorMatch': 'SF Image Color Match',
 
     # IPAdapter节点
-    'IPAdapterMSLayerWeights': 'SF IPAdapter MS Layer Weights',
-    'IPAdapterMSTiled': 'SF IPAdapter MS Tiled',
+    'SFIPAdapterMSLayerWeights': 'SF IPAdapter MS Layer Weights',
+    'SFIPAdapterMSTiled': 'SF IPAdapter MS Tiled',
 
     # 人像分割节点
-    'PersonSegmenterLoader': 'SF Person Segmenter Loader',
-    'PersonMaskGenerator': 'SF Person Mask Generator',
+    'SFPersonSegmenterLoader': 'SF Person Segmenter Loader',
+    'SFPersonMaskGenerator': 'SF Person Mask Generator',
 
     # 显示节点
-    'DisplayAny': 'SF Display Any',
+    'SFDisplayAny': 'SF Display Any',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
