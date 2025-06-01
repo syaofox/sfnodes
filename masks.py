@@ -1,8 +1,10 @@
 import torch
 from PIL import Image, ImageFilter, ImageOps
+import folder_paths
+import random
 
 from comfy.utils import common_upscale
-
+from nodes import SaveImage
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask
 from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask, apply_mask_area
 
@@ -338,3 +340,23 @@ class MaskAdjustGrayscale:
         return (result_mask,)
 
 
+class PreviewMask(SaveImage):
+    def __init__(self):
+        self.output_dir = folder_paths.get_temp_directory()
+        self.type = "temp"
+        self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 4
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {"mask": ("MASK",), },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, mask, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
+        return self.save_images(preview, filename_prefix, prompt, extra_pnginfo)
