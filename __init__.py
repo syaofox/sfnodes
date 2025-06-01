@@ -10,6 +10,7 @@ from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, M
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect, ImageColorMatch
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
+from .misc import DisplayAny
 
 WEB_DIRECTORY = "js"
 
@@ -80,6 +81,9 @@ NODE_CLASS_MAPPINGS = {
     # 人像分割节点
     'PersonSegmenterLoader': PersonSegmenterLoader,
     'PersonMaskGenerator': PersonMaskGenerator,
+
+    # 显示节点
+    'DisplayAny': DisplayAny,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -148,6 +152,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 人像分割节点
     'PersonSegmenterLoader': 'SF Person Segmenter Loader',
     'PersonMaskGenerator': 'SF Person Mask Generator',
+
+    # 显示节点
+    'DisplayAny': 'SF Display Any',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
