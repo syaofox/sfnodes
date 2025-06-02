@@ -2,13 +2,13 @@ import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 
 app.registerExtension({
-    name: "sfnodes.DisplayText",
+    name: "sfnodes.SFDisplayText",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (!nodeData?.category?.startsWith("sfnodes")) {
             return;
         }
 
-        if (nodeData.name === "DisplayAny") {
+        if (nodeData.name === "SFDisplayAny") {
             const onExecuted = nodeType.prototype.onExecuted;
 
             nodeType.prototype.onExecuted = function (message) {

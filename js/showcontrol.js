@@ -4,7 +4,7 @@ import { app } from "../../scripts/app.js";
 
 // 节点类型与对应widget配置
 const NODE_WIDGETS_CONFIG = {
-    "InpaintCrop": {
+    "SFInpaintCrop": {
         // 简单widget列表（初始默认隐藏）
         simpleWidgets: [
             "preresize_target_pixels_Presets",
@@ -49,13 +49,13 @@ const NODE_WIDGETS_CONFIG = {
             }
         ]
     },
-    "FaceMorph": {
+    "SFFaceMorph": {
         simpleWidgets: ["landmark_type", "align_type", "onnx_device"]
     },
-    "GeneratePreciseFaceMask": {
+    "SFGeneratePreciseFaceMask": {
         simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
     },
-    "GenerateRegionFaceMask": {
+    "SFGenerateRegionFaceMask": {
         simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
     }
 };
@@ -134,7 +134,7 @@ function toggleWidget(node, widget, show = false, suffix = "") {
 app.registerExtension({
     name: "inpaint-cropandstitch.showcontrol",
     nodeCreated(node) {
-        if (!node.comfyClass.startsWith("Inpaint") && !NODE_WIDGETS_CONFIG[node.comfyClass]) {
+        if (!node.comfyClass.startsWith("SFInpaint") && !NODE_WIDGETS_CONFIG[node.comfyClass]) {
             return;
         }
 
