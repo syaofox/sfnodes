@@ -2,12 +2,15 @@ import numpy as np
 import torch
 from PIL import ImageFilter
 from scipy.ndimage import binary_closing, binary_fill_holes
-
+import kornia
+import torch.nn.functional as F
 from .image_convert import pil2tensor, tensor2pil
 
 
 def combine_mask(destination, source, x, y):
-    output = destination.reshape((-1, destination.shape[-2], destination.shape[-1])).clone()
+    output = destination.reshape(
+        (-1, destination.shape[-2], destination.shape[-1])
+    ).clone()
     source = source.reshape((-1, source.shape[-2], source.shape[-1]))
 
     left, top = (
@@ -43,19 +46,27 @@ def grow_mask(mask, expand, tapered_corners):
 
     # 创建卷积核
     c = 0.0 if tapered_corners else 1.0
-    kernel = torch.tensor([[c, 1.0, c], [1.0, 1.0, 1.0], [c, 1.0, c]], device=device).unsqueeze(0).unsqueeze(0)
+    kernel = (
+        torch.tensor([[c, 1.0, c], [1.0, 1.0, 1.0], [c, 1.0, c]], device=device)
+        .unsqueeze(0)
+        .unsqueeze(0)
+    )
 
     # 计算填充
     padding = abs(expand)
 
     if expand > 0:
         # 膨胀操作
-        mask = torch.nn.functional.pad(mask, (padding, padding, padding, padding), mode='constant', value=0)
+        mask = torch.nn.functional.pad(
+            mask, (padding, padding, padding, padding), mode="constant", value=0
+        )
         mask = torch.nn.functional.conv2d(mask, kernel, padding=1, dilation=expand)
     else:
         # 腐蚀操作
         mask = 1 - mask
-        mask = torch.nn.functional.pad(mask, (padding, padding, padding, padding), mode='constant', value=1)
+        mask = torch.nn.functional.pad(
+            mask, (padding, padding, padding, padding), mode="constant", value=1
+        )
         mask = torch.nn.functional.conv2d(mask, kernel, padding=1, dilation=-expand)
         mask = 1 - mask
 
@@ -91,6 +102,7 @@ def invert_mask(mask):
 
 def expand_mask(mask, expand, tapered_corners):
     import scipy
+
     c = 0 if tapered_corners else 1
     kernel = np.array([[c, 1, c], [1, 1, 1], [c, 1, c]])
     device = mask.device
@@ -115,7 +127,7 @@ def blur_mask(mask, radius):
 
 
 def solid_mask(width, height, value=1):
-    return torch.full((1, height, width), value, dtype=torch.float32, device='cpu')
+    return torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
 
 
 def mask_floor(mask, threshold: float = 0.99):
@@ -135,29 +147,61 @@ def mask_unsqueeze(mask):
 def apply_mask_area(target_mask, area_mask, paint_value=1.0):
     """
     根据区域mask将目标mask的特定区域涂成指定的值（黑或白）
-    
+
     参数:
         target_mask: 目标遮罩，将被修改
         area_mask: 区域遮罩，定义要修改的区域
         paint_value: 要应用的值，0.0表示涂黑，1.0表示涂白
-        
+
     返回:
         修改后的遮罩
     """
     # 确保mask形状正确
-    target_mask = target_mask.reshape((-1, target_mask.shape[-2], target_mask.shape[-1]))
+    target_mask = target_mask.reshape(
+        (-1, target_mask.shape[-2], target_mask.shape[-1])
+    )
     area_mask = area_mask.reshape((-1, area_mask.shape[-2], area_mask.shape[-1]))
-    
+
     # 确保两个mask尺寸相同
     if target_mask.shape[-2:] != area_mask.shape[-2:]:
         raise ValueError("目标遮罩和区域遮罩的尺寸必须相同")
-    
+
     # 创建修改后的mask副本
     result_mask = target_mask.clone()
-    
+
     # 将area_mask中非零位置的值在target_mask中设置为指定值
     # 使用布尔索引进行操作
     area_bool = area_mask > 0.5  # 将area_mask二值化
     result_mask[area_bool] = paint_value
-    
+
     return result_mask
+
+
+def binary_dilation(mask, radius: int):
+    kernel = torch.ones(1, radius * 2 + 1, device=mask.device)
+    mask = kornia.filters.filter2d_separable(
+        mask, kernel, kernel, border_type="constant"
+    )
+    mask = (mask > 0).to(mask.dtype)
+    return mask
+
+
+def make_odd(x):
+    if x > 0 and x % 2 == 0:
+        return x + 1
+    return x
+
+
+def gaussian_blur(image, radius: int, sigma: float = 0):
+    c = image.shape[-3]
+    if sigma <= 0:
+        sigma = 0.3 * (radius - 1) + 0.8
+    return kornia.filters.gaussian_blur2d(image, (radius, radius), (sigma, sigma))
+
+
+def binary_erosion(mask, radius: int):
+    kernel = torch.ones(1, 1, radius * 2 + 1, radius * 2 + 1, device=mask.device)
+    mask = F.pad(mask, (radius, radius, radius, radius), mode="constant", value=1)
+    mask = F.conv2d(mask, kernel, groups=1)
+    mask = (mask == kernel.numel()).to(mask.dtype)
+    return mask

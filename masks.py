@@ -2,11 +2,11 @@ import torch
 from PIL import Image, ImageFilter, ImageOps
 import folder_paths
 import random
-
+import numpy as np
 from comfy.utils import common_upscale
 from nodes import SaveImage
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask
-from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask, apply_mask_area
+from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask, apply_mask_area, mask_unsqueeze, mask_floor, make_odd, binary_erosion, gaussian_blur
 
 _CATEGORY = 'sfnodes/masks'
 
@@ -360,3 +360,163 @@ class PreviewMask(SaveImage):
     def execute(self, mask, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         return self.save_images(preview, filename_prefix, prompt, extra_pnginfo)
+    
+
+
+class MaskedFill:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "mask": ("MASK",),
+                "fill": (["neutral", "telea", "navier-stokes"],),
+                "falloff": ("INT", {"default": 0, "min": 0, "max": 8191, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    CATEGORY = _CATEGORY
+    FUNCTION = "fill"
+
+    def fill(self, image, mask, fill: str, falloff: int):
+        image = image.detach().clone()
+        alpha = mask_unsqueeze(mask_floor(mask))
+        assert alpha.shape[0] == image.shape[0], "Image and mask batch size does not match"
+
+        falloff = make_odd(falloff)
+        if falloff > 0:
+            erosion = binary_erosion(alpha, falloff)
+            alpha = alpha * gaussian_blur(erosion, falloff)
+
+        if fill == "neutral":
+            m = (1.0 - alpha).squeeze(1)
+            for i in range(3):
+                image[:, :, :, i] -= 0.5
+                image[:, :, :, i] *= m
+                image[:, :, :, i] += 0.5
+        else:
+            import cv2
+
+            method = cv2.INPAINT_TELEA if fill == "telea" else cv2.INPAINT_NS
+            for slice, alpha_slice in zip(image, alpha):
+                alpha_np = alpha_slice.squeeze().cpu().numpy()
+                alpha_bc = alpha_np.reshape(*alpha_np.shape, 1)
+                image_np = slice.cpu().numpy()
+                filled_np = cv2.inpaint(
+                    (255.0 * image_np).astype(np.uint8),
+                    (255.0 * alpha_np).astype(np.uint8),
+                    3,
+                    method,
+                )
+                filled_np = filled_np.astype(np.float32) / 255.0
+                filled_np = image_np * (1.0 - alpha_bc) + filled_np * alpha_bc
+                slice.copy_(torch.from_numpy(filled_np))
+
+        return (image,)
+
+
+class FillWithReferenceColor:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "target_image": ("IMAGE", {'tooltip': '要填充的目标图像'}),
+                "reference_image": ("IMAGE", {'tooltip': '用于获取平均颜色的参考图像'}),
+                "mask": ("MASK", {'tooltip': '指定填充区域的蒙版'}),
+                "falloff": ("INT", {"default": 0, "min": 0, "max": 8191, "step": 1, 'tooltip': '边缘过渡范围，值越大过渡越平滑'}),
+                "opacity": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, 'tooltip': '填充颜色的不透明度'})
+            },
+            "optional": {
+                "reference_mask": ("MASK", {'tooltip': '可选的参考图像蒙版，只计算蒙版区域内的平均颜色'})
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    CATEGORY = _CATEGORY
+    FUNCTION = "fill_with_color"
+    DESCRIPTION = '使用参考图像的平均颜色填充目标图像蒙版区域'
+
+    def fill_with_color(self, target_image, reference_image, mask, falloff: int, opacity: float, reference_mask=None):
+        import torch
+        
+        # 克隆目标图像，避免修改原始数据
+        result_image = target_image.detach().clone()
+        
+        # 处理蒙版
+        alpha = mask_unsqueeze(mask_floor(mask))
+        assert alpha.shape[0] == result_image.shape[0], "图像和蒙版的批次大小不匹配"
+        
+        # 应用falloff效果
+        falloff = make_odd(falloff)
+        if falloff > 0:
+            erosion = binary_erosion(alpha, falloff)
+            alpha = alpha * gaussian_blur(erosion, falloff)
+        
+        # 计算参考图像的平均颜色
+        if reference_mask is not None:
+            # 重新实现参考蒙版的颜色计算逻辑
+            # 确保参考蒙版是二维的(batch_size, height, width)
+            # 获取参考蒙版的索引
+            batch_size = reference_image.shape[0]
+            
+            # 初始化存储平均颜色的张量
+            avg_colors = []
+            
+            # 对批次中的每个图像分别计算平均颜色
+            for batch_idx in range(batch_size):
+                # 获取当前批次的图像和蒙版
+                curr_img = reference_image[batch_idx]
+                curr_mask = reference_mask[batch_idx] if reference_mask.dim() > 2 else reference_mask
+                
+                # 确保蒙版是二维的(height, width)
+                if curr_mask.dim() > 2:
+                    curr_mask = curr_mask.squeeze()
+                
+                # 创建布尔掩码并添加通道维度
+                bool_mask = (curr_mask > 0.0).unsqueeze(-1)
+                
+                # 将布尔掩码扩展到三个通道
+                bool_mask_expanded = bool_mask.expand(*curr_img.shape)
+                
+                # 计算蒙版区域内像素的总数
+                mask_pixel_count = bool_mask.sum().item()
+                
+                if mask_pixel_count > 0:
+                    # 如果蒙版内有像素，计算区域平均颜色
+                    masked_img = curr_img * bool_mask_expanded
+                    sum_color = masked_img.sum(dim=(0, 1))
+                    avg_color = sum_color / mask_pixel_count
+                else:
+                    # 如果蒙版为空，使用整个图像的平均颜色
+                    avg_color = curr_img.mean(dim=(0, 1))
+                
+                avg_colors.append(avg_color)
+            
+            # 将收集到的平均颜色转换为张量
+            avg_color = torch.stack(avg_colors, dim=0)
+            
+            # 如果是单一批次，则去除批次维度
+            if avg_color.dim() > 1 and avg_color.shape[0] == 1:
+                avg_color = avg_color.squeeze(0)
+        else:
+            # 使用整个参考图像计算平均颜色
+            avg_color = torch.mean(reference_image.reshape(-1, reference_image.shape[-1]), dim=0)
+        
+        # 将平均颜色应用到蒙版区域
+        for i in range(result_image.shape[0]):  # 处理每一批图像
+            # 创建填充颜色图像
+            batch_avg_color = avg_color[i] if isinstance(avg_color, torch.Tensor) and avg_color.dim() > 1 else avg_color
+            color_fill = torch.ones_like(result_image[i]) * batch_avg_color
+            
+            # 根据不透明度和alpha混合颜色
+            alpha_i = alpha[i].squeeze(0)
+            alpha_with_opacity = alpha_i * opacity
+            
+            # 扩展alpha维度以匹配图像通道
+            alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
+            
+            # 混合原始图像和填充颜色
+            result_image[i] = result_image[i] * (1 - alpha_expanded) + color_fill * alpha_expanded
+        
+        return (result_image,)

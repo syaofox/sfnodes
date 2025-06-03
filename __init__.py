@@ -6,7 +6,7 @@ from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBound
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace, LoadImages
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
-from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea,MaskAdjustGrayscale,PreviewMask
+from .masks import OutlineMask, CreateBlurredEdgeMask, MaskChange, Depth2Mask, MaskScaleBy, MaskScale,MaskPaintArea,MaskAdjustGrayscale,PreviewMask,MaskedFill,FillWithReferenceColor
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect, ImageColorMatch
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
@@ -67,6 +67,8 @@ NODE_CLASS_MAPPINGS = {
     'SFMaskPaintArea': MaskPaintArea,
     'SFMaskAdjustGrayscale': MaskAdjustGrayscale,
     'SFPreviewMask': PreviewMask,
+    'SFMaskedFill': MaskedFill,
+    'SFFillWithReferenceColor': FillWithReferenceColor,
 
     # 图片处理节点
     'SFColorAdjustment': ColorAdjustment,
@@ -139,7 +141,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'SFMaskPaintArea': 'SF Mask Paint Area',
     'SFMaskAdjustGrayscale': 'SF Mask Adjust Grayscale',
     'SFPreviewMask': 'SF Preview Mask',
-    
+    'SFMaskedFill': 'SF Masked Fill',
+    'SFFillWithReferenceColor': 'SF Fill With Reference Color',
+
     # 图片处理节点
     'SFColorAdjustment': 'SF Color Adjustment',
     'SFColorTint': 'SF Color Tint',
