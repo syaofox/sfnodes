@@ -9,7 +9,7 @@ from .utils.image_convert import np2tensor, tensor2np
 from .utils.mask_utils import blur_mask, expand_mask, fill_holes, invert_mask
 from .utils.model_manager import ModelManager
 
-_CATEGORY = "sfnodes/face_region"
+_CATEGORY = "sfnodes/face_analysis"
 
 
 # 模型配置

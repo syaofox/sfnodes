@@ -11,7 +11,7 @@ from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from .utils.mask_utils import solid_mask
 
 
-_CATEGORY = 'sfnodes/image scale'
+_CATEGORY = 'sfnodes/image_processing'
 UPSCALE_METHODS = ['lanczos', 'nearest-exact', 'bilinear', 'area', 'bicubic']
 
 def make_even(number):

@@ -11,7 +11,7 @@ from .utils.mask_utils import blur_mask, expand_mask, fill_holes, invert_mask
 # from .utils.xseg_models import get_model_path, list_available_models, get_model_description
 from .utils.model_manager import ModelManager
 
-_CATEGORY = "sfnodes/face_occluder"
+_CATEGORY = "sfnodes/face_analysis"
 
 # 模型配置
 XSEG_MODELS = {

@@ -23,7 +23,7 @@ PERSON_MASK_MODELS = {
 }
 
 
-_CATEGORY = "sfnodes/person_mask"
+_CATEGORY = "sfnodes/masks"
 
 
 class PersonSegmenter:
@@ -138,7 +138,7 @@ class PersonMaskGenerator:
         grayscale = mask_image.convert("L")
 
         # 创建二进制掩码，非黑色像素为白色(255)
-        mask_for_bbox = grayscale.point(lambda p: 255 if p > 0 else 0)
+        mask_for_bbox = grayscale.point(lambda p: 255 if p > 0 else 0) # type: ignore
 
         # 获取非黑色区域的边界框
         bbox = mask_for_bbox.getbbox()

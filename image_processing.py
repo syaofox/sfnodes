@@ -10,7 +10,7 @@ from comfy_extras.nodes_post_processing import Blend, Blur, Quantize
 
 from .utils.image_convert import image_posterize
 
-_CATEGORY = 'sfnodes/image processing'
+_CATEGORY = 'sfnodes/image_processing'
 
 
 class ColorAdjustment:
