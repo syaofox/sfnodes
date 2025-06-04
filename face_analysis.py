@@ -132,6 +132,7 @@ class FaceCutout:
                 'margin': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置贴回去图像的边距像素数'}),
                 'margin_percent': ('FLOAT', {'default': 0.10, 'min': 0.0, 'max': 2.0, 'step': 0.05, 'tooltip': '设置贴回去图像的边距百分比'}),
                 'blur_radius': ('INT', {'default': 10, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置贴回去图像的模糊半径'}),
+                'is_square': ('BOOLEAN', {'default': False, 'tooltip': '是否将图像裁剪为正方形'}),
             },
         }
 
@@ -142,7 +143,7 @@ class FaceCutout:
     CATEGORY = _CATEGORY
     DESCRIPTION = '切下图像中所有人脸并进行缩放，返回所有人脸信息'
 
-    def execute(self, analysis_models, image, padding, padding_percent, rescale_mode, custom_megapixels, margin, margin_percent, blur_radius):
+    def execute(self, analysis_models, image, padding, padding_percent, rescale_mode, custom_megapixels, margin, margin_percent, blur_radius, is_square=False):
         target_size = self._get_target_size(rescale_mode, custom_megapixels)
 
         img = image[0]
@@ -160,6 +161,35 @@ class FaceCutout:
 
         for i, face in enumerate(faces):
             scale_factor = 1
+            
+            # 如果需要正方形，调整宽度和高度
+            if is_square:
+                # 计算正方形边长，取宽高的最大值
+                square_size = max(widths[i], heights[i])
+                # 计算新的x和y坐标，使人脸居中
+                center_x = x_coords[i] + widths[i] // 2
+                center_y = y_coords[i] + heights[i] // 2
+                new_x = center_x - square_size // 2
+                new_y = center_y - square_size // 2
+                
+                # 确保新坐标不超出图像边界
+                new_x = max(0, new_x)
+                new_y = max(0, new_y)
+                if new_x + square_size > pil_image.width:
+                    new_x = pil_image.width - square_size
+                if new_y + square_size > pil_image.height:
+                    new_y = pil_image.height - square_size
+                
+                # 更新坐标和尺寸
+                x_coords[i] = new_x
+                y_coords[i] = new_y
+                widths[i] = square_size
+                heights[i] = square_size
+                
+                # 重新裁剪人脸区域为正方形
+                face_np = tensor2np(image[0])
+                face_crop = face_np[new_y:new_y+square_size, new_x:new_x+square_size]
+                face = np2tensor(face_crop).unsqueeze(0)
 
             if target_size > 0:
                 scale_factor = math.sqrt(target_size / (widths[i] * heights[i]))
