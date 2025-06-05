@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
 from comfy.utils import  common_upscale
 from .utils.image_convert import np2tensor, pil2mask, pil2tensor,  tensor2np, tensor2pil, tensor_to_image, image_to_tensor
 from .utils.insightface_utils import InsightFace
-from .utils.mask_utils import expand_mask
+from .utils.mask_utils import expand_mask, blur_mask, fill_holes
 
 _CATEGORY = 'sfnodes/face_analysis'
 
@@ -500,8 +500,14 @@ class FaceWarp:
                 "image_from": ("IMAGE", ),
                 "image_to": ("IMAGE", ),
                 "keypoints": (["main features", "full face", "full face+forehead (if available)"], ),
-                "grow": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1 }),
-                "blur": ("INT", { "default": 13, "min": 1, "max": 4096, "step": 2 }),
+                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置生长值，范围为-4096到4096，步长为1'}),
+                'grow_percent': (
+                    'FLOAT',
+                    {'default': 0.00, 'min': -2.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置生长百分比，范围为-2.0到2.0，步长为0.01'},
+                ),
+                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形角'}),
+                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值，范围为0到4096，步长为1'}),
+                'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
             }
         }
 
@@ -509,7 +515,7 @@ class FaceWarp:
     FUNCTION = "warp"
     CATEGORY = _CATEGORY
 
-    def warp(self, analysis_models, image_from, image_to, keypoints, grow, blur):
+    def warp(self, analysis_models, image_from, image_to, keypoints, grow, grow_percent, grow_tapered, blur, fill):
 
         
 
@@ -567,13 +573,21 @@ class FaceWarp:
             output = image_to_tensor(output).unsqueeze(0)
             img_to = image_to_tensor(img_to).unsqueeze(0)
             
-            if grow != 0:
-                output_mask = expand_mask(output_mask.squeeze(-1), grow, True).unsqueeze(-1)
+            # 使用修改后的expand_mask函数，它会保持输入输出维度一致
+            grow_count = int(grow_percent * max(output_mask.shape[1], output_mask.shape[2])) + grow            
+            if grow_count != 0:
+                output_mask = expand_mask(output_mask.squeeze(-1), grow_count, grow_tapered)
+            else:
+                output_mask = output_mask.squeeze(-1)
 
-            if blur > 1:
-                if blur % 2 == 0:
-                    blur+= 1
-                output_mask = T.functional.gaussian_blur(output_mask.permute(0,3,1,2), blur).permute(0,2,3,1)
+            if fill:
+                output_mask = fill_holes(output_mask)
+
+            if blur > 0:
+                output_mask = blur_mask(output_mask, blur)
+
+            # 添加通道维度用于乘法运算
+            output_mask = output_mask.unsqueeze(-1)
 
             padding = 0
 

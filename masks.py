@@ -6,7 +6,7 @@ import numpy as np
 from comfy.utils import common_upscale
 from nodes import SaveImage
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask
-from .utils.mask_utils import blur_mask, combine_mask, expand_mask, fill_holes, grow_mask, invert_mask, apply_mask_area, mask_unsqueeze, mask_floor, make_odd, binary_erosion, gaussian_blur
+from .utils.mask_utils import blur_mask, combine_mask, fill_holes, expand_mask, invert_mask, apply_mask_area, mask_unsqueeze, mask_floor, make_odd, binary_erosion, gaussian_blur
 
 _CATEGORY = 'sfnodes/masks'
 
@@ -37,8 +37,8 @@ class OutlineMask:
     DESCRIPTION = '给遮罩添加内外轮廓线'
 
     def execute(self, mask, outer_width, inner_width, tapered_corners):
-        m1 = grow_mask(mask, outer_width, tapered_corners)
-        m2 = grow_mask(mask, -inner_width, tapered_corners)
+        m1 = expand_mask(mask, outer_width, tapered_corners)
+        m2 = expand_mask(mask, -inner_width, tapered_corners)
 
         m3 = combine_mask(m1, m2, 0, 0)
 
@@ -139,8 +139,6 @@ class MaskChange:
 
         if blur > 0:
             mask = blur_mask(mask, blur)
-
-        # mask = mask.squeeze(0).unsqueeze(-1)
 
         return (mask, invert_mask(mask))
 
