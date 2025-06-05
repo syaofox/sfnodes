@@ -22,9 +22,8 @@ THRESHOLDS = { # from DeepFace
 
 
 class InsightFace:
-    def __init__(self, provider="CPU", name="buffalo_l"):
-        self.face_analysis = FaceAnalysis(name=name, root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',])
-        self.face_analysis.prepare(ctx_id=0, det_size=(640, 640))
+    def __init__(self,face_analysis):
+        self.face_analysis = face_analysis
         self.thresholds = THRESHOLDS["ArcFace"]
 
     def get_face(self, image):

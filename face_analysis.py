@@ -18,14 +18,46 @@ from comfy.utils import  common_upscale
 from .utils.image_convert import np2tensor, pil2mask, pil2tensor,  tensor2np, tensor2pil, tensor_to_image, image_to_tensor
 from .utils.insightface_utils import InsightFace
 from .utils.mask_utils import expand_mask, blur_mask, fill_holes
+from insightface.app import FaceAnalysis
+
 
 _CATEGORY = 'sfnodes/face_analysis'
+
+INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
 
 def mask_from_landmarks(image, landmarks):
     mask = np.zeros(image.shape[:2], dtype=np.float64)
     points = cv2.convexHull(landmarks)
     cv2.fillConvexPoly(mask, points, color=(1,))
     return mask
+
+class FaceAnalysisModels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model_name": (["antelopev2", "buffalo_l"], {"tooltip": "选择要加载的模型"}),
+                "provider": (["CPU", "CUDA", "ROCM", "CoreML"], {"tooltip": "选择要使用的提供者"}),
+            },
+        }
+
+    RETURN_TYPES = ("FACEANALYSIS","ANALYSIS_MODELS",)
+    RETURN_NAMES = ("insightface","analysis_models",)
+    FUNCTION = "load_insight_face"
+    CATEGORY = _CATEGORY
+
+    def load_insight_face(self, model_name, provider):
+        
+        model = FaceAnalysis(name=model_name, root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',]) # alternative to buffalo_l
+        model.prepare(ctx_id=0, det_size=(640, 640))
+
+        out = InsightFace(model)
+        
+
+        return (model,out,)
+    
+
+
 
 
 class AlignImageByFace:
@@ -339,44 +371,6 @@ class ExtractBoundingBox:
 
 
 
-class FaceAnalysisModels:
-    @classmethod
-    def INPUT_TYPES(cls):
-        libraries = []
-        libraries.append("insightface")
-        libraries.append("auraface")
-
-        return {"required": {
-            "library": (libraries, ),
-            "provider": (["CPU", "CUDA", "DirectML", "OpenVINO", "ROCM", "CoreML"], ),
-        }}
-
-    RETURN_TYPES = ("ANALYSIS_MODELS", )
-    FUNCTION = "load_models"
-    CATEGORY = _CATEGORY
-
-    def load_models(self, library, provider):
-        out = {}
-
-        if library == "insightface":
-            out = InsightFace(provider=provider)
-        elif library == "auraface":
-            # 判断模型是否存在Path(folder_paths.models_dir) /insightface/models/auraface/ 不存在就下载
-            if not os.path.exists(Path(folder_paths.models_dir) / "insightface" / "models" / "auraface" ):
-                # 下载模型压缩包并解压 https://huggingface.co/Syaofox/sfnodes/resolve/main/AuraFace-v1.zip
-                download_model(
-                    "https://huggingface.co/Syaofox/sfnodes/resolve/main/AuraFace-v1.zip",
-                    Path(folder_paths.models_dir) / "insightface" / "models" ,
-                    "AuraFace-v1.zip"
-                )
-                # 解压模型压缩包
-                with zipfile.ZipFile(Path(folder_paths.models_dir) / "insightface" / "models" / "AuraFace-v1.zip", 'r') as zip_ref:
-                    zip_ref.extractall(Path(folder_paths.models_dir) / "insightface" / "models" / "auraface")
-            out = InsightFace(provider=provider, name="auraface")
-        else:
-            raise Exception(f"未知的库: {library}")
-
-        return (out, )
 
 
 
