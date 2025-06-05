@@ -10,6 +10,7 @@ from .masks import MaskParams, OutlineMask, CreateBlurredEdgeMask, MaskChange, D
 from .image_processing import ColorAdjustment, ColorTint, ColorBlockEffect, FlatteningEffect, ImageColorMatch
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
+from .adv_clip import AdvancedCLIPTextEncode, AddCLIPSDXLParams, AddCLIPSDXLRParams, AdvancedCLIPTextEncodeSDXL
 from .misc import DisplayAny
 
 WEB_DIRECTORY = "js"
@@ -88,6 +89,12 @@ NODE_CLASS_MAPPINGS = {
 
     # 显示节点
     'SFDisplayAny': DisplayAny,
+
+    # 高级CLIP节点
+    'SFAdvancedCLIPTextEncode': AdvancedCLIPTextEncode,
+    'SFAddCLIPSDXLParams': AddCLIPSDXLParams,
+    'SFAddCLIPSDXLRParams': AddCLIPSDXLRParams,
+    'SFAdvancedCLIPTextEncodeSDXL': AdvancedCLIPTextEncodeSDXL,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = { 
@@ -163,6 +170,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 显示节点
     'SFDisplayAny': 'SF Display Any',
+
+    # 高级CLIP节点
+    'SFAdvancedCLIPTextEncode': 'SF Advanced CLIP Text Encode',
+    'SFAddCLIPSDXLParams': 'SF Add CLIP SDXL Params',
+    'SFAddCLIPSDXLRParams': 'SF Add CLIP SDXLR Params',
+    'SFAdvancedCLIPTextEncodeSDXL': 'SF Advanced CLIP Text Encode SDXL',
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
