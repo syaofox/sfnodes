@@ -1,5 +1,4 @@
-from .inpaint_cropandstitch import InpaintCrop
-from .inpaint_cropandstitch import InpaintStitch
+from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels, FaceEmbedDistance,FaceWarp
@@ -20,6 +19,7 @@ NODE_CLASS_MAPPINGS = {
     # 局部修复节点
     "SFInpaintCrop": InpaintCrop,
     "SFInpaintStitch": InpaintStitch,
+    "SFInpaintExtendOutpaint": InpaintExtendOutpaint,
 
     # 人脸变形节点
     "SFFaceMorph": FaceMorph,
@@ -101,7 +101,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 局部修复节点
     "SFInpaintCrop": "SF Inpaint Crop",
     "SFInpaintStitch": "SF Inpaint Stitch",
-
+    "SFInpaintExtendOutpaint": "SF Inpaint Extend Outpaint",
+    
     # 人脸变形节点
     "SFFaceMorph": "SF Face Morph",
 
