@@ -518,3 +518,38 @@ class FillWithReferenceColor:
             result_image[i] = result_image[i] * (1 - alpha_expanded) + color_fill * alpha_expanded
         
         return (result_image,)
+
+
+class MaskParams:
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {                
+                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置生长值，范围为-4096到4096，步长为1'}),
+                'grow_percent': (
+                    'FLOAT',
+                    {'default': 0.00, 'min': -2.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置生长百分比，范围为-2.0到2.0，步长为0.01'},
+                ),
+                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形角'}),
+                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值，范围为0到4096，步长为1'}),
+                'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
+            },
+        }
+
+    RETURN_TYPES = ('MASKPARAMS',)
+    RETURN_NAMES = ('mask_params',)
+    FUNCTION = 'execute'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '设置遮罩参数'
+
+    def execute(self,  grow, grow_percent, grow_tapered, blur, fill):
+        mask_params = {
+            'grow': grow,
+            'grow_percent': grow_percent,
+            'grow_tapered': grow_tapered,
+            'blur': blur,
+            'fill': fill,
+        }
+
+        return (mask_params,)
