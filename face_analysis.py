@@ -508,6 +508,11 @@ class FaceWarp:
                 'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形角'}),
                 'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值，范围为0到4096，步长为1'}),
                 'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
+            },
+            "optional": {
+                "mask_from": ("MASK", ),
+                "mask_to": ("MASK", ),
+
             }
         }
 
@@ -515,7 +520,7 @@ class FaceWarp:
     FUNCTION = "warp"
     CATEGORY = _CATEGORY
 
-    def warp(self, analysis_models, image_from, image_to, keypoints, grow, grow_percent, grow_tapered, blur, fill):
+    def warp(self, analysis_models, image_from, image_to, keypoints, grow, grow_percent, grow_tapered, blur, fill, mask_from=None, mask_to=None):
 
         
 
@@ -562,12 +567,42 @@ class FaceWarp:
             matrix = cv2.estimateAffine2D(from_points, to_points)[0]
             output = cv2.warpAffine(img_from, matrix, (img_to.shape[1], img_to.shape[0]), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
 
-            mask_from = mask_from_landmarks(img_from, shape_from)
-            mask_to = mask_from_landmarks(img_to, shape_to)
-            output_mask = cv2.warpAffine(mask_from, matrix, (img_to.shape[1], img_to.shape[0]))
+            # 处理mask_from和mask_to
+            if mask_from is not None and i < mask_from.shape[0]:
+                # 使用提供的mask_from
+                mask_from_tensor = mask_from[i]
+                # 确保mask_from是二维的
+                if len(mask_from_tensor.shape) == 3 and mask_from_tensor.shape[2] == 1:
+                    mask_from_tensor = mask_from_tensor.squeeze(-1)
+                mask_from_np = mask_from_tensor.cpu().numpy().astype(np.float64)
+                
+                # 确保mask_from与img_from尺寸一致，如果不一致则调整大小
+                if mask_from_np.shape[0] != img_from.shape[0] or mask_from_np.shape[1] != img_from.shape[1]:
+                    mask_from_np = cv2.resize(mask_from_np, (img_from.shape[1], img_from.shape[0]), interpolation=cv2.INTER_LINEAR)
+            else:
+                # 计算mask_from
+                mask_from_np = mask_from_landmarks(img_from, shape_from)
+            
+            if mask_to is not None and i < mask_to.shape[0]:
+                # 使用提供的mask_to
+                mask_to_tensor = mask_to[i]
+                # 确保mask_to是二维的
+                if len(mask_to_tensor.shape) == 3 and mask_to_tensor.shape[2] == 1:
+                    mask_to_tensor = mask_to_tensor.squeeze(-1)
+                mask_to_np = mask_to_tensor.cpu().numpy().astype(np.float64)
+                
+                # 确保mask_to与img_to尺寸一致，如果不一致则调整大小
+                if mask_to_np.shape[0] != img_to.shape[0] or mask_to_np.shape[1] != img_to.shape[1]:
+                    mask_to_np = cv2.resize(mask_to_np, (img_to.shape[1], img_to.shape[0]), interpolation=cv2.INTER_LINEAR)
+            else:
+                # 计算mask_to
+                mask_to_np = mask_from_landmarks(img_to, shape_to)
+
+            # 对mask_from进行仿射变换
+            output_mask = cv2.warpAffine(mask_from_np, matrix, (img_to.shape[1], img_to.shape[0]))
 
             output_mask = torch.from_numpy(output_mask).unsqueeze(0).unsqueeze(-1).float()
-            mask_to = torch.from_numpy(mask_to).unsqueeze(0).unsqueeze(-1).float()
+            mask_to = torch.from_numpy(mask_to_np).unsqueeze(0).unsqueeze(-1).float()
             output_mask = torch.min(output_mask, mask_to)
 
             output = image_to_tensor(output).unsqueeze(0)
