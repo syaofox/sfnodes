@@ -116,35 +116,7 @@ class GeneratePreciseFaceMask:
                 ),
             },
             "optional": {
-                "grow": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -4096,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置遮罩增长",
-                    },
-                ),
-                "grow_percent": (
-                    "FLOAT",
-                    {"default": 0.00, "min": 0.00, "max": 2.0, "step": 0.01},
-                ),
-                "grow_tapered": (
-                    "BOOLEAN",
-                    {"default": False, "tooltip": "是否使用锥形增长"},
-                ),
-                "blur": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置模糊值",
-                    },
-                ),
-                "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
+                "mask_params": ("MASKPARAMS", ),
             },
         }
 
@@ -167,12 +139,23 @@ class GeneratePreciseFaceMask:
         occluder,
         input_image,
         mask_threshold,
-        grow,
-        grow_percent,
-        grow_tapered,
-        blur,
-        fill,
+        mask_params=None,
     ):
+        if mask_params is None:
+            mask_params = {
+                'grow': 0,
+                'grow_percent': 0.0,
+                'grow_tapered': False,
+                'blur': 0,
+                'fill': False
+            }
+
+        grow = mask_params['grow']
+        grow_percent = mask_params['grow_percent']
+        grow_tapered = mask_params['grow_tapered']
+        blur = mask_params['blur']
+        fill = mask_params['fill']
+
         face_occluder_model = occluder
 
         out_mask, out_inverted_mask, out_image = [], [], []
