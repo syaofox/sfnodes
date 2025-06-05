@@ -1,9 +1,11 @@
 from .utils.adv_encode import advanced_encode, advanced_encode_XL
 from nodes import MAX_RESOLUTION
 
+_CATEGORY = 'sfnodes/misc'
+
 class AdvancedCLIPTextEncode:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": {
             "text": ("STRING", {"multiline": True}),
             "clip": ("CLIP", ),
@@ -15,7 +17,7 @@ class AdvancedCLIPTextEncode:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/advanced"
+    CATEGORY = _CATEGORY
 
     def encode(self, clip, text, token_normalization, weight_interpretation, affect_pooled='disable'):
         embeddings_final, pooled = advanced_encode(clip, text, token_normalization, weight_interpretation, w_max=1.0, apply_to_pooled=affect_pooled=='enable')
@@ -23,7 +25,7 @@ class AdvancedCLIPTextEncode:
 
 class AddCLIPSDXLParams:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": {
             "conditioning": ("CONDITIONING", ),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
@@ -37,7 +39,7 @@ class AddCLIPSDXLParams:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/advanced"
+    CATEGORY = _CATEGORY
 
     def encode(self, conditioning, width, height, crop_w, crop_h, target_width, target_height):
         c = []
@@ -54,7 +56,7 @@ class AddCLIPSDXLParams:
     
 class AddCLIPSDXLRParams:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": {
             "conditioning": ("CONDITIONING", ),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
@@ -65,7 +67,7 @@ class AddCLIPSDXLRParams:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/advanced"
+    CATEGORY = _CATEGORY
 
     def encode(self, conditioning, width, height, ascore):
         c = []
@@ -80,7 +82,7 @@ class AddCLIPSDXLRParams:
 
 class AdvancedCLIPTextEncodeSDXL:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": {
             "text_l": ("STRING", {"multiline": True}),
             "text_g": ("STRING", {"multiline": True}),
@@ -94,7 +96,7 @@ class AdvancedCLIPTextEncodeSDXL:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/advanced"
+    CATEGORY = _CATEGORY
 
     def encode(self, clip, text_l, text_g, token_normalization, weight_interpretation, balance, affect_pooled='disable'):
         embeddings_final, pooled = advanced_encode_XL(clip, text_l, text_g, token_normalization, weight_interpretation, w_max=1.0, clip_balance=balance, apply_to_pooled=affect_pooled == "enable")
