@@ -500,18 +500,12 @@ class FaceWarp:
                 "image_from": ("IMAGE", ),
                 "image_to": ("IMAGE", ),
                 "keypoints": (["main features", "full face", "full face+forehead (if available)"], ),
-                'grow': ('INT', {'default': 0, 'min': -4096, 'max': 4096, 'step': 1, 'tooltip': '设置生长值，范围为-4096到4096，步长为1'}),
-                'grow_percent': (
-                    'FLOAT',
-                    {'default': 0.00, 'min': -2.0, 'max': 2.0, 'step': 0.01, 'tooltip': '设置生长百分比，范围为-2.0到2.0，步长为0.01'},
-                ),
-                'grow_tapered': ('BOOLEAN', {'default': False, 'tooltip': '是否使用锥形角'}),
-                'blur': ('INT', {'default': 0, 'min': 0, 'max': 4096, 'step': 1, 'tooltip': '设置模糊值，范围为0到4096，步长为1'}),
-                'fill': ('BOOLEAN', {'default': False, 'tooltip': '是否填充孔洞'}),
+                
             },
             "optional": {
                 "mask_from": ("MASK", ),
                 "mask_to": ("MASK", ),
+                "mask_params": ("MASKPARAMS", ),
 
             }
         }
@@ -520,9 +514,22 @@ class FaceWarp:
     FUNCTION = "warp"
     CATEGORY = _CATEGORY
 
-    def warp(self, analysis_models, image_from, image_to, keypoints, grow, grow_percent, grow_tapered, blur, fill, mask_from=None, mask_to=None):
+    def warp(self, analysis_models, image_from, image_to, keypoints, mask_from=None, mask_to=None,mask_params=None):
 
-        
+        if mask_params is None:
+            mask_params = {
+                'grow': 0,
+                'grow_percent': 0.0,
+                'grow_tapered': False,
+                'blur': 0,
+                'fill': False
+            }
+
+        grow = mask_params['grow']
+        grow_percent = mask_params['grow_percent']
+        grow_tapered = mask_params['grow_tapered']
+        blur = mask_params['blur']
+        fill = mask_params['fill']
 
         if image_from.shape[0] < image_to.shape[0]:
             image_from = torch.cat([image_from, image_from[-1:].repeat((image_to.shape[0]-image_from.shape[0], 1, 1, 1))], dim=0)
