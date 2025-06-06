@@ -21,8 +21,8 @@ class AlignImageByFace:
             },
         }
 
-    RETURN_TYPES = ('ROTATE_INFO',)
-    RETURN_NAMES = ('rotate_info',)
+    RETURN_TYPES = ('IMAGE', 'MASK', 'FLOAT', 'FLOAT')
+    RETURN_NAMES = ('aligned_image', 'aligned_mask', 'rotation_angle', 'inverse_rotation_angle')
     FUNCTION = 'align'
     CATEGORY = _CATEGORY
     DESCRIPTION = '根据图像中的人脸进行旋转对齐'
@@ -107,28 +107,6 @@ class AlignImageByFace:
         if is_flipped:
             rotation_angle += 180
 
-        rotate_info['aligned_image'] = aligned_image_tensor
-        rotate_info['aligned_mask'] = mask_tensor
-        rotate_info['rotation_angle'] = rotation_angle
-        rotate_info['inverse_rotation_angle'] = 360 - rotation_angle
-
-        return (rotate_info,)
+        return (aligned_image_tensor, mask_tensor, rotation_angle, 360 - rotation_angle)
 
 
-class ExtractRotateInfo:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            'required': {
-                'rotate_info': ('ROTATE_INFO',),
-            },
-        }
-        
-    RETURN_TYPES = ('IMAGE', 'MASK', 'FLOAT', 'FLOAT')
-    RETURN_NAMES = ('aligned_image', 'aligned_mask', 'rotation_angle', 'inverse_rotation_angle')
-    FUNCTION = 'extract'
-    CATEGORY = _CATEGORY
-    DESCRIPTION = '从旋转信息中提取旋转后的图像和mask'
-
-    def extract(self, rotate_info):
-        return (rotate_info['aligned_image'], rotate_info['aligned_mask'], rotate_info['rotation_angle'], rotate_info['inverse_rotation_angle'])
