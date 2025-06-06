@@ -1,7 +1,8 @@
 from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
-from .face_analysis import AlignImageByFace, FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels, FaceEmbedDistance,FaceWarp
+from .face_analysis import FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels, FaceEmbedDistance,FaceWarp
+from .face_alginAndrotate import AlignImageByFace
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace, LoadImages
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder

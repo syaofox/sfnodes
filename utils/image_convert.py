@@ -68,7 +68,7 @@ def np2tensor(image):
 
 
 def np2mask(image):
-    return torch.from_numpy(image).unsqueeze(0)
+    return torch.from_numpy(image).unsqueeze(0).unsqueeze(0)
 
 
 def mask2np(image):
