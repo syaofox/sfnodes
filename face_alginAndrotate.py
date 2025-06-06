@@ -15,21 +15,26 @@ class AlignImageByFace:
                 'image_from': ('IMAGE',),
                 'expand': ('BOOLEAN', {'default': True, 'tooltip': '是否扩展图像，如果为True，则扩展图像以包含整个人脸'}),
                 'simple_angle': ('BOOLEAN', {'default': False, 'tooltip': '是否简化角度，如果为True，则只考虑90度、180度、270度、360度'}),
+                'threshold': (
+                    'INT',
+                    {'default': 10, 'min': 0, 'max': 14096, 'step': 1, 'tooltip': '黑色边框阈值，范围为0到14096，步长为1'},
+                ),
+                'resize': ('BOOLEAN', {'default': False, 'tooltip': '是否调整旋转还原后的图像为原始大小'}),
             },
             'optional': {
                 'image_to': ('IMAGE',),
             },
         }
 
-    RETURN_TYPES = ('IMAGE', 'MASK', 'FLOAT', 'FLOAT')
-    RETURN_NAMES = ('aligned_image', 'aligned_mask', 'rotation_angle', 'inverse_rotation_angle')
+    RETURN_TYPES = ('IMAGE', 'ROTATION_INFO')
+    RETURN_NAMES = ('aligned_image', 'rotation_info')
     FUNCTION = 'align'
     CATEGORY = _CATEGORY
     DESCRIPTION = '根据图像中的人脸进行旋转对齐'
 
-    def align(self, analysis_models, image_from, expand=True, simple_angle=False, image_to=None):
-        rotate_info = {}
+    def align(self, analysis_models, image_from, expand=True, threshold=10, simple_angle=False, image_to=None, resize=False):
         source_image = tensor2np(image_from[0])
+        original_width, original_height = source_image.shape[:2]
 
         def find_nearest_angle(angle):
             angles = [-360, -270, -180, -90, 0, 90, 180, 270, 360]
@@ -107,6 +112,105 @@ class AlignImageByFace:
         if is_flipped:
             rotation_angle += 180
 
-        return (aligned_image_tensor, mask_tensor, rotation_angle, 360 - rotation_angle)
+        rotation_info = {
+            'rotation_angle': rotation_angle,
+            'inverse_rotation_angle': 360 - rotation_angle,
+            'mask': mask_tensor,
+            'expand': expand,
+            'threshold': threshold,
+            'original_width': original_width,
+            'original_height': original_height,
+            'resize': resize,
+        }
+
+        return (aligned_image_tensor, rotation_info)
 
 
+class RestoreRotatedImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'image': ('IMAGE',),
+                'rotation_info': ('ROTATION_INFO',),
+            }
+        }
+
+    RETURN_TYPES = ('IMAGE',)
+    RETURN_NAMES = ('restored_image',)
+    FUNCTION = 'restore'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '将旋转后的图像恢复到原始方向和大小，去除黑边'
+
+    def restore(self, image, rotation_info):
+        image_np = tensor2np(image[0])
+  
+
+        height, width = image_np.shape[:2]
+        center = (width / 2, height / 2)
+
+        # 根据mask，填充image黑色
+    
+
+
+        if rotation_info['expand']:
+            # 计算新图像的尺寸
+            rot_mat = cv2.getRotationMatrix2D(center, rotation_info['inverse_rotation_angle'], 1.0)
+            abs_cos = abs(rot_mat[0, 0])
+            abs_sin = abs(rot_mat[0, 1])
+            new_width = int(height * abs_sin + width * abs_cos)
+            new_height = int(height * abs_cos + width * abs_sin)
+
+            # 调整旋转矩阵
+            rot_mat[0, 2] += (new_width / 2) - center[0]
+            rot_mat[1, 2] += (new_height / 2) - center[1]
+
+            # 执行旋转
+            rotated_image = cv2.warpAffine(image_np, rot_mat, (new_width, new_height), flags=cv2.INTER_CUBIC)
+        else:
+            # 不扩展图像尺寸的旋转
+            rot_mat = cv2.getRotationMatrix2D(center, rotation_info['inverse_rotation_angle'], 1.0)
+            rotated_image = cv2.warpAffine(image_np, rot_mat, (width, height), flags=cv2.INTER_CUBIC)
+
+        # 转换回tensor格式
+        rotated_tensor = np2tensor(rotated_image).unsqueeze(0)
+
+       
+
+        img = tensor2np(rotated_tensor[0])
+        img = Image.fromarray(img)
+        gray_image = img.convert('L')
+
+        binary_image = gray_image.point(lambda x: 255 if x > rotation_info['threshold'] else 0)
+        bbox = binary_image.getbbox()
+
+        if bbox:
+            cropped_image = img.crop(bbox)
+        else:
+            cropped_image = img
+
+        if rotation_info['resize']:
+            cropped_image = cropped_image.resize(( rotation_info['original_height'], rotation_info['original_width']), Image.Resampling.LANCZOS)
+
+        cropped_image = np2tensor(cropped_image).unsqueeze(0)
+        return (cropped_image, rotation_info)
+
+
+
+class ExtractRotationInfo:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'rotation_info': ('ROTATION_INFO',),
+            }
+        }
+
+    RETURN_TYPES = ('FLOAT', 'FLOAT', 'MASK', 'INT', 'INT')
+    RETURN_NAMES = ('rotation_angle', 'inverse_rotation_angle', 'mask', 'original_width', 'original_height')
+    FUNCTION = 'extract'
+    CATEGORY = _CATEGORY
+    DESCRIPTION = '提取旋转信息'
+
+    def extract(self, rotation_info):
+        return (rotation_info['rotation_angle'], rotation_info['inverse_rotation_angle'], rotation_info['mask'], rotation_info['original_width'], rotation_info['original_height'])

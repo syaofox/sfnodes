@@ -2,7 +2,7 @@ from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutp
 from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_analysis import FaceCutout, FacePaste, ExtractBoundingBox, FaceAnalysisModels, FaceEmbedDistance,FaceWarp
-from .face_alginAndrotate import AlignImageByFace
+from .face_alginAndrotate import AlignImageByFace, RestoreRotatedImage, ExtractRotationInfo
 from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
 from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace, LoadImages
 from .image_scale import GetImageSize, ImageScalerForSDModels, ImageScalerByPixels, ImageScaleBySpecifiedSide, ComputeImageScaleRatio, ImageRotate, TrimImageBorders, AddImageBorder
@@ -36,6 +36,9 @@ NODE_CLASS_MAPPINGS = {
 
     # 人脸分析节点
     'SFAlignImageByFace': AlignImageByFace,
+    'SFRestoreRotatedImage': RestoreRotatedImage,
+    'SFExtractRotationInfo': ExtractRotationInfo,
+
     'SFFaceCutout': FaceCutout,
     'SFFacePaste': FacePaste,
     'SFExtractBoundingBox': ExtractBoundingBox,
@@ -118,6 +121,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # 人脸分析节点
     'SFAlignImageByFace': 'SF Align Image By Face',
+    'SFRestoreRotatedImage': 'SF Restore Rotated Image',
+    'SFExtractRotationInfo': 'SF Extract Rotation Info',
+    
     'SFFaceCutout': 'SF Face Cutout',
     'SFFacePaste': 'SF Face Paste',
     'SFExtractBoundingBox': 'SF Extract Bounding Box',
