@@ -149,9 +149,32 @@ class RestoreRotatedImage:
         height, width = image_np.shape[:2]
         center = (width / 2, height / 2)
 
-        # 根据mask，填充image黑色
-    
-
+        # 根据mask，填充image mask部分黑色
+        mask = rotation_info['mask']
+        
+        # 检查mask是否为None
+        if mask is None:
+            print("警告: mask为None，跳过mask应用")
+        else:
+            # 处理mask的维度，确保与图像匹配
+            # 如果mask有多余的批次和通道维度，需要去除这些维度
+            if len(mask.shape) == 4:  # [batch, channel, height, width]
+                mask = mask.squeeze(0).squeeze(0)  # 去除批次和通道维度
+            elif len(mask.shape) == 3:  # [batch, height, width] 或 [channel, height, width]
+                mask = mask.squeeze(0)  # 去除第一个维度
+                
+            # 再次检查维度是否匹配
+            if mask.shape[0] != height or mask.shape[1] != width:
+                print(f"警告: 处理后mask尺寸 {mask.shape} 与图像尺寸 ({height}, {width}) 仍不匹配，跳过mask应用")
+            else:
+                # 创建布尔掩码
+                bool_mask = (mask > 0.0)
+                
+                # 扩展mask维度以匹配图像通道
+                bool_mask_expanded = bool_mask.unsqueeze(-1).expand(height, width, 3)
+                
+                # 将mask区域填充为黑色
+                image_np[bool_mask_expanded] = 0
 
         if rotation_info['expand']:
             # 计算新图像的尺寸
