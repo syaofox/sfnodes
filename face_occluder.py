@@ -6,7 +6,7 @@ import torch
 from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
-from .utils.mask_utils import blur_mask,  fill_holes, invert_mask, expand_mask
+from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask
 
 # from .utils.xseg_models import get_model_path, list_available_models, get_model_description
 from .utils.model_manager import ModelManager
@@ -116,7 +116,7 @@ class GeneratePreciseFaceMask:
                 ),
             },
             "optional": {
-                "mask_params": ("MASKPARAMS", ),
+                "mask_params": ("MASKPARAMS",),
             },
         }
 
@@ -143,18 +143,18 @@ class GeneratePreciseFaceMask:
     ):
         if mask_params is None:
             mask_params = {
-                'grow': 0,
-                'grow_percent': 0.0,
-                'grow_tapered': False,
-                'blur': 0,
-                'fill': False
+                "grow": 0,
+                "grow_percent": 0.0,
+                "grow_tapered": False,
+                "blur": 0,
+                "fill": False,
             }
 
-        grow = mask_params['grow']
-        grow_percent = mask_params['grow_percent']
-        grow_tapered = mask_params['grow_tapered']
-        blur = mask_params['blur']
-        fill = mask_params['fill']
+        grow = mask_params["grow"]
+        grow_percent = mask_params["grow_percent"]
+        grow_tapered = mask_params["grow_tapered"]
+        blur = mask_params["blur"]
+        fill = mask_params["fill"]
 
         face_occluder_model = occluder
 

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-import cv2#; cv2.setNumThreads(0); cv2.ocl.setUseOpenCL(False)
+import cv2  # ; cv2.setNumThreads(0); cv2.ocl.setUseOpenCL(False)
 import torch
 import numpy as np
 
@@ -8,6 +8,8 @@ from .timer import Timer
 from .crop import crop_image, _transform_pts
 import folder_paths
 import os
+
+
 def to_ndarray(obj):
     if isinstance(obj, torch.Tensor):
         return obj.cpu().numpy()
@@ -16,59 +18,66 @@ def to_ndarray(obj):
     else:
         return np.array(obj)
 
+
 class LandmarkRunner(object):
     """landmark runner"""
+
     def __init__(self, **kwargs):
-        ckpt_path = kwargs.get('ckpt_path')
-        onnx_provider = kwargs.get('onnx_provider', 'cuda')
-        device_id = kwargs.get('device_id', 0)
-        self.dsize = kwargs.get('dsize', 224)
+        ckpt_path = kwargs.get("ckpt_path")
+        onnx_provider = kwargs.get("onnx_provider", "cuda")
+        device_id = kwargs.get("device_id", 0)
+        self.dsize = kwargs.get("dsize", 224)
         self.timer = Timer()
 
         import onnxruntime
 
-        if onnx_provider.lower() == 'cuda':
+        if onnx_provider.lower() == "cuda":
             self.session = onnxruntime.InferenceSession(
-                ckpt_path, providers=[
-                    ('CUDAExecutionProvider', {'device_id': device_id})
-                ]
+                ckpt_path,
+                providers=[("CUDAExecutionProvider", {"device_id": device_id})],
             )
         else:
             opts = onnxruntime.SessionOptions()
             opts.intra_op_num_threads = 4
             self.session = onnxruntime.InferenceSession(
-                ckpt_path, providers=['CPUExecutionProvider'],
-                sess_options=opts
+                ckpt_path, providers=["CPUExecutionProvider"], sess_options=opts
             )
 
     def _run(self, inp):
-        out = self.session.run(None, {'input': inp})
+        out = self.session.run(None, {"input": inp})
         return out
 
     def run(self, img_rgb: np.ndarray, lmk=None):
         if lmk is not None:
-            crop_dct, img_crop_rgb = crop_image(img_rgb, lmk, dsize=self.dsize, scale=1.5, vy_ratio=-0.1)
+            crop_dct, img_crop_rgb = crop_image(
+                img_rgb, lmk, dsize=self.dsize, scale=1.5, vy_ratio=-0.1
+            )
         else:
             img_crop_rgb = cv2.resize(img_rgb, (self.dsize, self.dsize))
             scale = max(img_rgb.shape[:2]) / self.dsize
             crop_dct = {
-                'M_c2o': np.array([
-                    [scale, 0., 0.],
-                    [0., scale, 0.],
-                    [0., 0., 1.],
-                ], dtype=np.float32),
+                "M_c2o": np.array(
+                    [
+                        [scale, 0.0, 0.0],
+                        [0.0, scale, 0.0],
+                        [0.0, 0.0, 1.0],
+                    ],
+                    dtype=np.float32,
+                ),
             }
 
-        inp = (img_crop_rgb.astype(np.float32) / 255.).transpose(2, 0, 1)[None, ...]  # HxWx3 (BGR) -> 1x3xHxW (RGB!)
+        inp = (img_crop_rgb.astype(np.float32) / 255.0).transpose(2, 0, 1)[
+            None, ...
+        ]  # HxWx3 (BGR) -> 1x3xHxW (RGB!)
 
         out_lst = self._run(inp)
         out_pts = out_lst[2]
 
         pts = to_ndarray(out_pts[0]).reshape(-1, 2) * self.dsize  # scale to 0-224
-        pts = _transform_pts(pts, M=crop_dct['M_c2o'])
+        pts = _transform_pts(pts, M=crop_dct["M_c2o"])
         del crop_dct, img_crop_rgb
         return {
-            'pts': pts,  # 2d landmarks 203 points
+            "pts": pts,  # 2d landmarks 203 points
         }
 
     def warmup(self):
@@ -79,14 +88,16 @@ class LandmarkRunner(object):
         _ = self._run(dummy_image)
 
         elapse = self.timer.toc()
-        print(f'LandmarkRunner warmup time: {elapse:.3f}s')
+        print(f"LandmarkRunner warmup time: {elapse:.3f}s")
+
 
 class LandmarkRunnerTorch(object):
     """landmark runner torch version"""
+
     def __init__(self, **kwargs):
-        self.device = kwargs.get('device_id', 0)
-        self.dsize = kwargs.get('dsize', 224)
-        ckpt_path = kwargs.get('ckpt_path')
+        self.device = kwargs.get("device_id", 0)
+        self.dsize = kwargs.get("dsize", 224)
+        ckpt_path = kwargs.get("ckpt_path")
 
         if not os.path.exists(ckpt_path):
             download_path = os.path.join(folder_paths.models_dir, "liveportrait")
@@ -108,26 +119,33 @@ class LandmarkRunnerTorch(object):
 
     def run(self, img_rgb: np.ndarray, lmk=None):
         if lmk is not None:
-            crop_dct, img_crop_rgb = crop_image(img_rgb, lmk, dsize=self.dsize, scale=1.5, vy_ratio=-0.1)
+            crop_dct, img_crop_rgb = crop_image(
+                img_rgb, lmk, dsize=self.dsize, scale=1.5, vy_ratio=-0.1
+            )
         else:
             img_crop_rgb = cv2.resize(img_rgb, (self.dsize, self.dsize))
             scale = max(img_rgb.shape[:2]) / self.dsize
             crop_dct = {
-                'M_c2o': np.array([
-                    [scale, 0., 0.],
-                    [0., scale, 0.],
-                    [0., 0., 1.],
-                ], dtype=np.float32),
+                "M_c2o": np.array(
+                    [
+                        [scale, 0.0, 0.0],
+                        [0.0, scale, 0.0],
+                        [0.0, 0.0, 1.0],
+                    ],
+                    dtype=np.float32,
+                ),
             }
 
-        inp = (img_crop_rgb.astype(np.float32) / 255.).transpose(2, 0, 1)[None, ...]  # HxWx3 (BGR) -> 1x3xHxW (RGB!)
+        inp = (img_crop_rgb.astype(np.float32) / 255.0).transpose(2, 0, 1)[
+            None, ...
+        ]  # HxWx3 (BGR) -> 1x3xHxW (RGB!)
 
         out_lst = self._run(inp)
         out_pts = out_lst[2]
 
         pts = to_ndarray(out_pts[0]).reshape(-1, 2) * self.dsize  # scale to 0-224
-        pts = _transform_pts(pts, M=crop_dct['M_c2o'])
+        pts = _transform_pts(pts, M=crop_dct["M_c2o"])
         del crop_dct, img_crop_rgb
         return {
-            'pts': pts,  # 2d landmarks 203 points
+            "pts": pts,  # 2d landmarks 203 points
         }

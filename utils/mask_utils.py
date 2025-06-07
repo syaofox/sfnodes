@@ -37,7 +37,6 @@ def combine_mask(destination, source, x, y):
     return output
 
 
-
 def fill_holes(mask):
     holemask = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).cpu()
     out = []

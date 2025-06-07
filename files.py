@@ -10,30 +10,30 @@ import comfy.utils
 
 from .utils.image_convert import pil2tensor
 
-_CATEGORY = 'sfnodes/files'
+_CATEGORY = "sfnodes/files"
 
 
 class LoadImageFromPath:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            'required': {
-                'image_path': ('STRING', {'default': 'images'}),
+            "required": {
+                "image_path": ("STRING", {"default": "images"}),
             }
         }
 
-    RETURN_TYPES = ('IMAGE', 'STRING')
-    RETURN_NAMES = ('image', 'file_full_path')
-    FUNCTION = 'execute'
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "file_full_path")
+    FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = '读取指定路径图片，返回图片和图片名称'
+    DESCRIPTION = "读取指定路径图片，返回图片和图片名称"
 
     def execute(self, image_path):
         # 去掉可能存在的双引号
         image_path = image_path.strip('"')
 
         if not os.path.exists(image_path):
-            raise FileNotFoundError(f'文件未找到: {image_path}')
+            raise FileNotFoundError(f"文件未找到: {image_path}")
 
         file_full_path = str(Path(image_path).absolute())
 
@@ -41,62 +41,69 @@ class LoadImageFromPath:
         img = ImageOps.exif_transpose(img)
 
         if img is None:
-            raise ValueError(f'无法从文件中读取有效图像: {image_path}')
+            raise ValueError(f"无法从文件中读取有效图像: {image_path}")
 
-        if img.mode == 'I':
+        if img.mode == "I":
             img = img.point(lambda i: i * (1 / 255))
-        img = img.convert('RGB')
+        img = img.convert("RGB")
 
         image = np.array(img).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
 
         return (image, file_full_path)
-    
 
 
 class LoadImagesFromFolder:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            'required': {
-                'input_path': ('STRING', {'default': '', 'multiline': False}),
-                'start_index': ('INT', {'default': 0, 'min': 0, 'max': 9999, 'tooltip': '设置开始索引'}),
-                'max_index': ('INT', {'default': 1, 'min': 1, 'max': 9999, 'tooltip': '设置最大索引'}),
+            "required": {
+                "input_path": ("STRING", {"default": "", "multiline": False}),
+                "start_index": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 9999, "tooltip": "设置开始索引"},
+                ),
+                "max_index": (
+                    "INT",
+                    {"default": 1, "min": 1, "max": 9999, "tooltip": "设置最大索引"},
+                ),
             }
         }
 
     RETURN_TYPES = (
-        'IMAGE',
-        'IMAGE',
-        'LIST',
+        "IMAGE",
+        "IMAGE",
+        "LIST",
     )
     RETURN_NAMES = (
-        'images_list',
-        'image_batch',
-        'file_list',
+        "images_list",
+        "image_batch",
+        "file_list",
     )
     OUTPUT_IS_LIST = (
         True,
         False,
         True,
     )
-    FUNCTION = 'make_list'
+    FUNCTION = "make_list"
     CATEGORY = _CATEGORY
-    DESCRIPTION = '读取文件夹中的图片，返回图片列表和图片批次'
+    DESCRIPTION = "读取文件夹中的图片，返回图片列表和图片批次"
 
     def make_list(self, start_index, max_index, input_path):
         # 检查输入路径是否存在
         if not os.path.exists(input_path):
-            raise FileNotFoundError(f'文件夹未找到: {input_path}')
+            raise FileNotFoundError(f"文件夹未找到: {input_path}")
 
         # 检查文件夹是否为空
         if not os.listdir(input_path):
-            raise ValueError(f'文件夹为空: {input_path}')
+            raise ValueError(f"文件夹为空: {input_path}")
 
         # 对文件列表进行排序
         file_list = sorted(
             os.listdir(input_path),
-            key=lambda s: sum(((s, int(n)) for s, n in re.findall(r'(\D+)(\d+)', 'a%s0' % s)), ()),
+            key=lambda s: sum(
+                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
+            ),
         )
 
         image_list = []
@@ -114,8 +121,8 @@ class LoadImagesFromFolder:
             img = Image.open(fname)
             img = ImageOps.exif_transpose(img)
             if img is None:
-                raise ValueError(f'无法从文件中读取有效图像: {fname}')
-            image = img.convert('RGB')
+                raise ValueError(f"无法从文件中读取有效图像: {fname}")
+            image = img.convert("RGB")
 
             t_image = pil2tensor(image)
             # 确保所有图像的尺寸相同
@@ -127,20 +134,22 @@ class LoadImagesFromFolder:
                         t_image.movedim(-1, 1),
                         ref_image.shape[2],
                         ref_image.shape[1],
-                        'lanczos',
-                        'center',
+                        "lanczos",
+                        "center",
                     ).movedim(1, -1)
 
             image_list.append(t_image)
 
         if not image_list:
-            raise ValueError('未找到有效图像')
+            raise ValueError("未找到有效图像")
 
         image_batch = torch.cat(image_list, dim=0)
         images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
 
-        # 完整路径 
-        file_list = [os.path.join(input_path, file_list[i]) for i in range(len(file_list))][start_index:end_index]
+        # 完整路径
+        file_list = [
+            os.path.join(input_path, file_list[i]) for i in range(len(file_list))
+        ][start_index:end_index]
         return (
             images_out,
             image_batch,
@@ -150,12 +159,12 @@ class LoadImagesFromFolder:
 
 # 读取 FACE_PATH
 def get_face_path():
-    with open(os.path.join(os.path.dirname(__file__), 'facepath'), 'r') as f:
+    with open(os.path.join(os.path.dirname(__file__), "facepath"), "r") as f:
         for line in f:
-            if line.startswith('FACE_PATH'):
+            if line.startswith("FACE_PATH"):
                 # 提取路径并去除引号和空格
-                return line.split('=')[1].strip().strip("'").strip('"')
-    return r'D:\codes\aidraw\fworker\assets\face_pieces'  # 默认路径作为备选
+                return line.split("=")[1].strip().strip("'").strip('"')
+    return r"D:\codes\aidraw\fworker\assets\face_pieces"  # 默认路径作为备选
 
 
 class SelectFace:
@@ -171,20 +180,20 @@ class SelectFace:
             if d.is_dir():
                 cls.dir_dict[d.name] = d
 
-        return {'required': {'face_name': (list(cls.dir_dict.keys()),)}}
+        return {"required": {"face_name": (list(cls.dir_dict.keys()),)}}
 
     RETURN_TYPES = (
-        'STRING',
-        'STRING',
+        "STRING",
+        "STRING",
     )
     RETURN_NAMES = (
-        'face_path',
-        'face_name',
+        "face_path",
+        "face_name",
     )
-    FUNCTION = 'execute'
+    FUNCTION = "execute"
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = '从特定路径选择人脸，子文件夹名即为人脸名称，路径在facepath文件中设置'
+    DESCRIPTION = "从特定路径选择人脸，子文件夹名即为人脸名称，路径在facepath文件中设置"
 
     def execute(self, face_name):
         return (
@@ -193,29 +202,26 @@ class SelectFace:
         )
 
 
-
-
-
 class LoadImages:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            'required': {
-                'input_path': ('STRING', {'default': '', 'multiline': False}),                
+            "required": {
+                "input_path": ("STRING", {"default": "", "multiline": False}),
             }
         }
 
     RETURN_TYPES = (
-        'IMAGE',
-        'IMAGE',
-        'LIST',
-        'INT',
+        "IMAGE",
+        "IMAGE",
+        "LIST",
+        "INT",
     )
     RETURN_NAMES = (
-        'images_list',
-        'image_batch',
-        'file_list',
-        'count',
+        "images_list",
+        "image_batch",
+        "file_list",
+        "count",
     )
     OUTPUT_IS_LIST = (
         True,
@@ -223,28 +229,28 @@ class LoadImages:
         True,
         False,
     )
-    FUNCTION = 'make_list'
+    FUNCTION = "make_list"
     CATEGORY = _CATEGORY
-    DESCRIPTION = '读取文件夹中的图片，返回图片列表和图片批次'
+    DESCRIPTION = "读取文件夹中的图片，返回图片列表和图片批次"
 
     def make_list(self, input_path):
         # 检查输入路径是否存在
         if not os.path.exists(input_path):
-            raise FileNotFoundError(f'文件夹未找到: {input_path}')
+            raise FileNotFoundError(f"文件夹未找到: {input_path}")
 
         # 检查文件夹是否为空
         if not os.listdir(input_path):
-            raise ValueError(f'文件夹为空: {input_path}')
+            raise ValueError(f"文件夹为空: {input_path}")
 
         # 对文件列表进行排序
         file_list = sorted(
             os.listdir(input_path),
-            key=lambda s: sum(((s, int(n)) for s, n in re.findall(r'(\D+)(\d+)', 'a%s0' % s)), ()),
+            key=lambda s: sum(
+                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
+            ),
         )
 
         image_list = []
-
-
 
         ref_image = None
 
@@ -253,8 +259,8 @@ class LoadImages:
             img = Image.open(fname)
             img = ImageOps.exif_transpose(img)
             if img is None:
-                raise ValueError(f'无法从文件中读取有效图像: {fname}')
-            image = img.convert('RGB')
+                raise ValueError(f"无法从文件中读取有效图像: {fname}")
+            image = img.convert("RGB")
 
             t_image = pil2tensor(image)
             # 确保所有图像的尺寸相同
@@ -266,19 +272,19 @@ class LoadImages:
                         t_image.movedim(-1, 1),
                         ref_image.shape[2],
                         ref_image.shape[1],
-                        'lanczos',
-                        'center',
+                        "lanczos",
+                        "center",
                     ).movedim(1, -1)
 
             image_list.append(t_image)
 
         if not image_list:
-            raise ValueError('未找到有效图像')
+            raise ValueError("未找到有效图像")
 
         image_batch = torch.cat(image_list, dim=0)
         images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
 
-        # 完整路径 
+        # 完整路径
         file_list = [os.path.join(input_path, file) for file in file_list]
         return (
             images_out,

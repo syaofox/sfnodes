@@ -3,15 +3,24 @@ import nodes
 import numpy as np
 import torch
 import torchvision.transforms.functional as F
+
 from PIL import Image
-from scipy.ndimage import gaussian_filter, grey_dilation, binary_closing, binary_fill_holes
+from scipy.ndimage import (
+    gaussian_filter,
+    grey_dilation,
+    binary_closing,
+    binary_fill_holes,
+)
 
 _CATEGORY = "sfnodes/inpaint"
 
-def calculate_target_size_from_pixels(width, height, output_target_pixels_Presets, output_target_pixels_custom_value):
+
+def calculate_target_size_from_pixels(
+    width, height, output_target_pixels_Presets, output_target_pixels_custom_value
+):
     """基于总像素数计算目标尺寸，保持原始宽高比"""
     current_pixels = width * height
-    
+
     # 确定目标像素数
     if output_target_pixels_Presets == "sd15":
         target_pixels = 512 * 512  # 262,144像素
@@ -19,21 +28,23 @@ def calculate_target_size_from_pixels(width, height, output_target_pixels_Preset
         target_pixels = 1024 * 1024  # 1,048,576像素
     else:  # custom，使用浮点数乘以100万表示像素
         target_pixels = int(output_target_pixels_custom_value * 1000000)
-    
+
     # 计算缩放因子
     scale_by = math.sqrt(target_pixels / current_pixels)
-    
+
     # 计算目标尺寸
     target_width = round(width * scale_by)
     target_height = round(height * scale_by)
-    
+
     return target_width, target_height
 
 
 def rescale_i(samples, width, height, algorithm: str):
     samples = samples.movedim(-1, 1)
     algorithm = getattr(Image, algorithm.upper())  # i.e. Image.BICUBIC
-    samples_pil: Image.Image = F.to_pil_image(samples[0].cpu()).resize((width, height), algorithm)
+    samples_pil: Image.Image = F.to_pil_image(samples[0].cpu()).resize(
+        (width, height), algorithm
+    )
     samples = F.to_tensor(samples_pil).unsqueeze(0)
     samples = samples.movedim(1, -1)
     return samples
@@ -42,7 +53,9 @@ def rescale_i(samples, width, height, algorithm: str):
 def rescale_m(samples, width, height, algorithm: str):
     samples = samples.unsqueeze(1)
     algorithm = getattr(Image, algorithm.upper())  # i.e. Image.BICUBIC
-    samples_pil: Image.Image = F.to_pil_image(samples[0].cpu()).resize((width, height), algorithm)
+    samples_pil: Image.Image = F.to_pil_image(samples[0].cpu()).resize(
+        (width, height), algorithm
+    )
     samples = F.to_tensor(samples_pil).unsqueeze(0)
     samples = samples.squeeze(1)
     return samples
@@ -55,7 +68,9 @@ def fillholes_iterative_hipass_fill_m(samples):
 
     for threshold in thresholds:
         thresholded_mask = mask_np >= threshold
-        closed_mask = binary_closing(thresholded_mask, structure=np.ones((3, 3)), border_value=1)
+        closed_mask = binary_closing(
+            thresholded_mask, structure=np.ones((3, 3)), border_value=1
+        )
         filled_mask = binary_fill_holes(closed_mask)
         mask_np = np.maximum(mask_np, np.where(filled_mask != 0, threshold, 0))
 
@@ -90,7 +105,7 @@ def invert_m(samples):
 
 def blur_m(samples, pixels):
     mask = samples.squeeze(0)
-    sigma = pixels / 4 
+    sigma = pixels / 4
     mask_np = mask.cpu().numpy()
     blurred_mask = gaussian_filter(mask_np, sigma=sigma)
     blurred_mask = torch.from_numpy(blurred_mask).float()
@@ -98,7 +113,15 @@ def blur_m(samples, pixels):
     return blurred_mask.unsqueeze(0)
 
 
-def extend_imm(image, mask, optional_context_mask, extend_up_factor, extend_down_factor, extend_left_factor, extend_right_factor):
+def extend_imm(
+    image,
+    mask,
+    optional_context_mask,
+    extend_up_factor,
+    extend_down_factor,
+    extend_left_factor,
+    extend_right_factor,
+):
     B, H, W, C = image.shape
 
     new_H = int(H * (1.0 + extend_up_factor - 1.0 + extend_down_factor - 1.0))
@@ -109,7 +132,9 @@ def extend_imm(image, mask, optional_context_mask, extend_up_factor, extend_down
 
     expanded_image = torch.zeros(1, new_H, new_W, C, device=image.device)
     expanded_mask = torch.ones(1, new_H, new_W, device=mask.device)
-    expanded_optional_context_mask = torch.zeros(1, new_H, new_W, device=optional_context_mask.device)
+    expanded_optional_context_mask = torch.zeros(
+        1, new_H, new_W, device=optional_context_mask.device
+    )
 
     up_padding = int(H * (extend_up_factor - 1.0))
     down_padding = new_H - H - up_padding
@@ -129,18 +154,38 @@ def extend_imm(image, mask, optional_context_mask, extend_up_factor, extend_down
     image = image.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
     expanded_image = expanded_image.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
 
-    expanded_image[:, :, slice_target_up:slice_target_down, slice_target_left:slice_target_right] = image[:, :, slice_source_up:slice_source_down, slice_source_left:slice_source_right]
+    expanded_image[
+        :, :, slice_target_up:slice_target_down, slice_target_left:slice_target_right
+    ] = image[
+        :, :, slice_source_up:slice_source_down, slice_source_left:slice_source_right
+    ]
     if up_padding > 0:
-        expanded_image[:, :, :up_padding, slice_target_left:slice_target_right] = image[:, :, 0:1, slice_source_left:slice_source_right].repeat(1, 1, up_padding, 1)
+        expanded_image[:, :, :up_padding, slice_target_left:slice_target_right] = image[
+            :, :, 0:1, slice_source_left:slice_source_right
+        ].repeat(1, 1, up_padding, 1)
     if down_padding > 0:
-        expanded_image[:, :, -down_padding:, slice_target_left:slice_target_right] = image[:, :, -1:, slice_source_left:slice_source_right].repeat(1, 1, down_padding, 1)
+        expanded_image[:, :, -down_padding:, slice_target_left:slice_target_right] = (
+            image[:, :, -1:, slice_source_left:slice_source_right].repeat(
+                1, 1, down_padding, 1
+            )
+        )
     if left_padding > 0:
-        expanded_image[:, :, :, :left_padding] = expanded_image[:, :, :, left_padding:left_padding+1].repeat(1, 1, 1, left_padding)
+        expanded_image[:, :, :, :left_padding] = expanded_image[
+            :, :, :, left_padding : left_padding + 1
+        ].repeat(1, 1, 1, left_padding)
     if right_padding > 0:
-        expanded_image[:, :, :, -right_padding:] = expanded_image[:, :, :, -right_padding-1:-right_padding].repeat(1, 1, 1, right_padding)
+        expanded_image[:, :, :, -right_padding:] = expanded_image[
+            :, :, :, -right_padding - 1 : -right_padding
+        ].repeat(1, 1, 1, right_padding)
 
-    expanded_mask[:, slice_target_up:slice_target_down, slice_target_left:slice_target_right] = mask[:, slice_source_up:slice_source_down, slice_source_left:slice_source_right]
-    expanded_optional_context_mask[:, slice_target_up:slice_target_down, slice_target_left:slice_target_right] = optional_context_mask[:, slice_source_up:slice_source_down, slice_source_left:slice_source_right]
+    expanded_mask[
+        :, slice_target_up:slice_target_down, slice_target_left:slice_target_right
+    ] = mask[:, slice_source_up:slice_source_down, slice_source_left:slice_source_right]
+    expanded_optional_context_mask[
+        :, slice_target_up:slice_target_down, slice_target_left:slice_target_right
+    ] = optional_context_mask[
+        :, slice_source_up:slice_source_down, slice_source_left:slice_source_right
+    ]
 
     expanded_image = expanded_image.permute(0, 2, 3, 1)  # [B, C, H, W] -> [B, H, W, C]
     image = image.permute(0, 2, 3, 1)  # [B, C, H, W] -> [B, H, W, C]
@@ -150,7 +195,9 @@ def extend_imm(image, mask, optional_context_mask, extend_up_factor, extend_down
 
 def debug_context_location_in_image(image, x, y, w, h):
     debug_image = image.clone()
-    debug_image[:, y:y+h, x:x+w, :] = 1.0 - debug_image[:, y:y+h, x:x+w, :]
+    debug_image[:, y : y + h, x : x + w, :] = (
+        1.0 - debug_image[:, y : y + h, x : x + w, :]
+    )
     return debug_image
 
 
@@ -171,7 +218,7 @@ def findcontextarea_m(mask):
         w = x_max - x + 1  # +1 to include the max index
         h = y_max - y + 1  # +1 to include the max index
 
-    context = mask[:, y:y+h, x:x+w]
+    context = mask[:, y : y + h, x : x + w]
     return context, x, y, w, h
 
 
@@ -179,10 +226,10 @@ def growcontextarea_m(context, mask, x, y, w, h, extend_factor):
     img_h, img_w = mask.shape[1], mask.shape[2]
 
     # Compute intended growth in each direction
-    grow_left = int(round(w * (extend_factor-1.0) / 2.0))
-    grow_right = int(round(w * (extend_factor-1.0) / 2.0))
-    grow_up = int(round(h * (extend_factor-1.0) / 2.0))
-    grow_down = int(round(h * (extend_factor-1.0) / 2.0))
+    grow_left = int(round(w * (extend_factor - 1.0) / 2.0))
+    grow_right = int(round(w * (extend_factor - 1.0) / 2.0))
+    grow_up = int(round(h * (extend_factor - 1.0) / 2.0))
+    grow_down = int(round(h * (extend_factor - 1.0) / 2.0))
 
     # Try to grow left, but clamp at 0
     new_x = x - grow_left
@@ -209,7 +256,7 @@ def growcontextarea_m(context, mask, x, y, w, h, extend_factor):
     new_h = new_y2 - new_y
 
     # Extract the context
-    new_context = mask[:, new_y:new_y+new_h, new_x:new_x+new_w]
+    new_context = mask[:, new_y : new_y + new_h, new_x : new_x + new_w]
 
     if new_h < 0 or new_w < 0:
         new_x = 0
@@ -234,7 +281,7 @@ def combinecontextmask_m(context, mask, x, y, w, h, optional_context_mask):
     new_y_max = max(y + h, y_opt + h_opt)
     new_w = new_x_max - new_x
     new_h = new_y_max - new_y
-    combined_context = mask[:, new_y:new_y+new_h, new_x:new_x+new_w]
+    combined_context = mask[:, new_y : new_y + new_h, new_x : new_x + new_w]
     return combined_context, new_x, new_y, new_w, new_h
 
 
@@ -242,10 +289,22 @@ def pad_to_multiple(value, multiple):
     return int(math.ceil(value / multiple) * multiple)
 
 
-def crop_magic_im(image, mask, x, y, w, h, target_w, target_h, padding, downscale_algorithm, upscale_algorithm):
+def crop_magic_im(
+    image,
+    mask,
+    x,
+    y,
+    w,
+    h,
+    target_w,
+    target_h,
+    padding,
+    downscale_algorithm,
+    upscale_algorithm,
+):
     image = image.clone()
     mask = mask.clone()
-    
+
     # Ok this is the most complex function in this node. The one that does the magic after all the preparation done by the other nodes.
     # Basically this function determines the right context area that encompasses the whole context area (mask+optional_context_mask),
     # that is ideally within the bounds of the original image, and that has the right aspect ratio to match target width and height.
@@ -256,7 +315,19 @@ def crop_magic_im(image, mask, x, y, w, h, target_w, target_h, padding, downscal
 
     # Check for invalid inputs
     if target_w <= 0 or target_h <= 0 or w == 0 or h == 0:
-        return image, 0, 0, image.shape[2], image.shape[1], image, mask, 0, 0, image.shape[2], image.shape[1]
+        return (
+            image,
+            0,
+            0,
+            image.shape[2],
+            image.shape[1],
+            image,
+            mask,
+            0,
+            0,
+            image.shape[2],
+            image.shape[1],
+        )
 
     # Step 1: Pad target dimensions to be multiples of padding
     if padding != 0:
@@ -326,43 +397,71 @@ def crop_magic_im(image, mask, x, y, w, h, target_w, target_h, padding, downscal
         left_padding = -new_x
         expanded_image_w += left_padding
     if new_x + new_w > image_w:
-        right_padding = (new_x + new_w - image_w)
+        right_padding = new_x + new_w - image_w
         expanded_image_w += right_padding
     # Adjust height for top overflow (y < 0) and bottom overflow (y + h > image_h)
     if new_y < 0:
         up_padding = -new_y
-        expanded_image_h += up_padding 
+        expanded_image_h += up_padding
     if new_y + new_h > image_h:
-        down_padding = (new_y + new_h - image_h)
+        down_padding = new_y + new_h - image_h
         expanded_image_h += down_padding
 
     # Step 5: Create the new image and mask
-    expanded_image = torch.zeros((image.shape[0], expanded_image_h, expanded_image_w, image.shape[3]), device=image.device)
-    expanded_mask = torch.ones((mask.shape[0], expanded_image_h, expanded_image_w), device=mask.device)
+    expanded_image = torch.zeros(
+        (image.shape[0], expanded_image_h, expanded_image_w, image.shape[3]),
+        device=image.device,
+    )
+    expanded_mask = torch.ones(
+        (mask.shape[0], expanded_image_h, expanded_image_w), device=mask.device
+    )
 
     # Reorder the tensors to match the required dimension format for padding
     image = image.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
     expanded_image = expanded_image.permute(0, 3, 1, 2)  # [B, H, W, C] -> [B, C, H, W]
 
     # Ensure the expanded image has enough room to hold the padded version of the original image
-    expanded_image[:, :, up_padding:up_padding + image_h, left_padding:left_padding + image_w] = image
+    expanded_image[
+        :, :, up_padding : up_padding + image_h, left_padding : left_padding + image_w
+    ] = image
 
     # Fill the new extended areas with the edge values of the image
     if up_padding > 0:
-        expanded_image[:, :, :up_padding, left_padding:left_padding + image_w] = image[:, :, 0:1, left_padding:left_padding + image_w].repeat(1, 1, up_padding, 1)
+        expanded_image[:, :, :up_padding, left_padding : left_padding + image_w] = (
+            image[:, :, 0:1, left_padding : left_padding + image_w].repeat(
+                1, 1, up_padding, 1
+            )
+        )
     if down_padding > 0:
-        expanded_image[:, :, -down_padding:, left_padding:left_padding + image_w] = image[:, :, -1:, left_padding:left_padding + image_w].repeat(1, 1, down_padding, 1)
+        expanded_image[:, :, -down_padding:, left_padding : left_padding + image_w] = (
+            image[:, :, -1:, left_padding : left_padding + image_w].repeat(
+                1, 1, down_padding, 1
+            )
+        )
     if left_padding > 0:
-        expanded_image[:, :, up_padding:up_padding + image_h, :left_padding] = expanded_image[:, :, up_padding:up_padding + image_h, left_padding:left_padding+1].repeat(1, 1, 1, left_padding)
+        expanded_image[:, :, up_padding : up_padding + image_h, :left_padding] = (
+            expanded_image[
+                :, :, up_padding : up_padding + image_h, left_padding : left_padding + 1
+            ].repeat(1, 1, 1, left_padding)
+        )
     if right_padding > 0:
-        expanded_image[:, :, up_padding:up_padding + image_h, -right_padding:] = expanded_image[:, :, up_padding:up_padding + image_h, -right_padding-1:-right_padding].repeat(1, 1, 1, right_padding)
+        expanded_image[:, :, up_padding : up_padding + image_h, -right_padding:] = (
+            expanded_image[
+                :,
+                :,
+                up_padding : up_padding + image_h,
+                -right_padding - 1 : -right_padding,
+            ].repeat(1, 1, 1, right_padding)
+        )
 
     # Reorder the tensors back to [B, H, W, C] format
     expanded_image = expanded_image.permute(0, 2, 3, 1)  # [B, C, H, W] -> [B, H, W, C]
     image = image.permute(0, 2, 3, 1)  # [B, C, H, W] -> [B, H, W, C]
 
     # Same for the mask
-    expanded_mask[:, up_padding:up_padding + image_h, left_padding:left_padding + image_w] = mask
+    expanded_mask[
+        :, up_padding : up_padding + image_h, left_padding : left_padding + image_w
+    ] = mask
 
     # Record the cto values (canvas to original)
     cto_x = left_padding
@@ -375,14 +474,14 @@ def crop_magic_im(image, mask, x, y, w, h, target_w, target_h, padding, downscal
     canvas_mask = expanded_mask
 
     # Step 6: Crop the image and mask around x, y, w, h
-    ctc_x = new_x+left_padding
-    ctc_y = new_y+up_padding
+    ctc_x = new_x + left_padding
+    ctc_y = new_y + up_padding
     ctc_w = new_w
     ctc_h = new_h
 
     # Crop the image and mask
-    cropped_image = canvas_image[:, ctc_y:ctc_y + ctc_h, ctc_x:ctc_x + ctc_w]
-    cropped_mask = canvas_mask[:, ctc_y:ctc_y + ctc_h, ctc_x:ctc_x + ctc_w]
+    cropped_image = canvas_image[:, ctc_y : ctc_y + ctc_h, ctc_x : ctc_x + ctc_w]
+    cropped_mask = canvas_mask[:, ctc_y : ctc_y + ctc_h, ctc_x : ctc_x + ctc_w]
 
     # Step 7: Resize image and mask to the target width and height
     # Decide which algorithm to use based on the scaling direction
@@ -390,13 +489,41 @@ def crop_magic_im(image, mask, x, y, w, h, target_w, target_h, padding, downscal
         cropped_image = rescale_i(cropped_image, target_w, target_h, upscale_algorithm)
         cropped_mask = rescale_m(cropped_mask, target_w, target_h, upscale_algorithm)
     else:  # Downscaling
-        cropped_image = rescale_i(cropped_image, target_w, target_h, downscale_algorithm)
+        cropped_image = rescale_i(
+            cropped_image, target_w, target_h, downscale_algorithm
+        )
         cropped_mask = rescale_m(cropped_mask, target_w, target_h, downscale_algorithm)
 
-    return canvas_image, cto_x, cto_y, cto_w, cto_h, cropped_image, cropped_mask, ctc_x, ctc_y, ctc_w, ctc_h
+    return (
+        canvas_image,
+        cto_x,
+        cto_y,
+        cto_w,
+        cto_h,
+        cropped_image,
+        cropped_mask,
+        ctc_x,
+        ctc_y,
+        ctc_w,
+        ctc_h,
+    )
 
 
-def stitch_magic_im(canvas_image, inpainted_image, mask, ctc_x, ctc_y, ctc_w, ctc_h, cto_x, cto_y, cto_w, cto_h, downscale_algorithm, upscale_algorithm):
+def stitch_magic_im(
+    canvas_image,
+    inpainted_image,
+    mask,
+    ctc_x,
+    ctc_y,
+    ctc_w,
+    ctc_h,
+    cto_x,
+    cto_y,
+    cto_w,
+    cto_h,
+    downscale_algorithm,
+    upscale_algorithm,
+):
     canvas_image = canvas_image.clone()
     inpainted_image = inpainted_image.clone()
     mask = mask.clone()
@@ -414,16 +541,16 @@ def stitch_magic_im(canvas_image, inpainted_image, mask, ctc_x, ctc_y, ctc_w, ct
     resized_mask = resized_mask.clamp(0, 1).unsqueeze(-1)  # shape: [1, H, W, 1]
 
     # Extract the canvas region we're about to overwrite
-    canvas_crop = canvas_image[:, ctc_y:ctc_y + ctc_h, ctc_x:ctc_x + ctc_w]
+    canvas_crop = canvas_image[:, ctc_y : ctc_y + ctc_h, ctc_x : ctc_x + ctc_w]
 
     # Blend: new = mask * inpainted + (1 - mask) * canvas
     blended = resized_mask * resized_image + (1.0 - resized_mask) * canvas_crop
 
     # Paste the blended region back onto the canvas
-    canvas_image[:, ctc_y:ctc_y + ctc_h, ctc_x:ctc_x + ctc_w] = blended
+    canvas_image[:, ctc_y : ctc_y + ctc_h, ctc_x : ctc_x + ctc_w] = blended
 
     # Final crop to get back the original image area
-    output_image = canvas_image[:, cto_y:cto_y + cto_h, cto_x:cto_x + cto_w]
+    output_image = canvas_image[:, cto_y : cto_y + cto_h, cto_x : cto_x + cto_w]
 
     return output_image
 
@@ -435,52 +562,157 @@ class InpaintCrop:
             "required": {
                 # Required inputs
                 "image": ("IMAGE",),
-
                 # Resize algorithms
-                "downscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bilinear", "tooltip": "选择下采样算法"}),
-                "upscale_algorithm": (["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"], {"default": "bicubic", "tooltip": "选择上采样算法"}),
-
+                "downscale_algorithm": (
+                    ["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"],
+                    {"default": "bilinear", "tooltip": "选择下采样算法"},
+                ),
+                "upscale_algorithm": (
+                    ["nearest", "bilinear", "bicubic", "lanczos", "box", "hamming"],
+                    {"default": "bicubic", "tooltip": "选择上采样算法"},
+                ),
                 # pre-resize to target pixels
-                "preresize_target_pixels": ("BOOLEAN", {"default": False, "tooltip": "将输入图片缩放到指定像素数。选择SD模型预设或自定义像素值。"}),
-                "preresize_target_pixels_Presets": (['sd15', 'sdxl', 'custom'], {"default": "sdxl", "tooltip": "sd15: 缩放到512x512像素; sdxl: 缩放到1024x1024像素; custom: 使用自定义像素值"}),
-                "preresize_target_pixels_custom_value": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 16.0, "step": 0.1, "tooltip": "自定义目标像素数倍率，1.0表示100万像素，2.0表示200万像素，仅当选择'custom'预设时生效"}),
-
+                "preresize_target_pixels": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "将输入图片缩放到指定像素数。选择SD模型预设或自定义像素值。",
+                    },
+                ),
+                "preresize_target_pixels_Presets": (
+                    ["sd15", "sdxl", "custom"],
+                    {
+                        "default": "sdxl",
+                        "tooltip": "sd15: 缩放到512x512像素; sdxl: 缩放到1024x1024像素; custom: 使用自定义像素值",
+                    },
+                ),
+                "preresize_target_pixels_custom_value": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.1,
+                        "max": 16.0,
+                        "step": 0.1,
+                        "tooltip": "自定义目标像素数倍率，1.0表示100万像素，2.0表示200万像素，仅当选择'custom'预设时生效",
+                    },
+                ),
                 # Mask manipulation
-                "mask_fill_holes": ("BOOLEAN", {"default": True, "tooltip": "将完全被遮罩包围的区域标记为遮罩区域。"}),
-                "mask_expand_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, "tooltip": "在处理前将遮罩向外扩展指定的像素数。"}),
-                "mask_invert": ("BOOLEAN", {"default": False,"tooltip": "反转遮罩，使遮罩区域为保留区域。"}),
-                "mask_blend_pixels": ("INT", {"default": 32, "min": 0, "max": 64, "step": 1, "tooltip": "设置多少像素与原始图像进行混合。"}),
-                "mask_hipass_filter": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.01, "tooltip": "忽略低于此值的遮罩区域。"}),
-
+                "mask_fill_holes": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "将完全被遮罩包围的区域标记为遮罩区域。",
+                    },
+                ),
+                "mask_expand_pixels": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": nodes.MAX_RESOLUTION,
+                        "step": 1,
+                        "tooltip": "在处理前将遮罩向外扩展指定的像素数。",
+                    },
+                ),
+                "mask_invert": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "反转遮罩，使遮罩区域为保留区域。"},
+                ),
+                "mask_blend_pixels": (
+                    "INT",
+                    {
+                        "default": 32,
+                        "min": 0,
+                        "max": 64,
+                        "step": 1,
+                        "tooltip": "设置多少像素与原始图像进行混合。",
+                    },
+                ),
+                "mask_hipass_filter": (
+                    "FLOAT",
+                    {
+                        "default": 0.1,
+                        "min": 0,
+                        "max": 1,
+                        "step": 0.01,
+                        "tooltip": "忽略低于此值的遮罩区域。",
+                    },
+                ),
                 # Extend image for outpainting
-                "extend_for_outpainting": ("BOOLEAN", {"default": False, "tooltip": "扩展图像以进行外部绘制。"}),
-                "extend_up_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-                "extend_down_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-                "extend_left_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-                "extend_right_factor": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01}),
-
+                "extend_for_outpainting": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "扩展图像以进行外部绘制。"},
+                ),
+                "extend_up_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01},
+                ),
+                "extend_down_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01},
+                ),
+                "extend_left_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01},
+                ),
+                "extend_right_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.01, "max": 100.0, "step": 0.01},
+                ),
                 # Context
-                "context_from_mask_extend_factor": ("FLOAT", {"default": 1.2, "min": 1.0, "max": 100.0, "step": 0.01, "tooltip": "将遮罩区域的上下文区域按一定比例扩大。例如，1.5表示在上、下、左、右各额外扩展50%作为上下文。"}),
-
+                "context_from_mask_extend_factor": (
+                    "FLOAT",
+                    {
+                        "default": 1.2,
+                        "min": 1.0,
+                        "max": 100.0,
+                        "step": 0.01,
+                        "tooltip": "将遮罩区域的上下文区域按一定比例扩大。例如，1.5表示在上、下、左、右各额外扩展50%作为上下文。",
+                    },
+                ),
                 # Output padding
-                "output_padding": (["0", "8", "16", "32", "64", "128", "256", "512"], {"default": "32", "tooltip": "设置输出图像的外边距填充像素数"}),
-                
+                "output_padding": (
+                    ["0", "8", "16", "32", "64", "128", "256", "512"],
+                    {"default": "32", "tooltip": "设置输出图像的外边距填充像素数"},
+                ),
                 # output resize to target pixels
-                "output_resize_to_target_pixels": ("BOOLEAN", {"default": True, "tooltip": "将输出缩放到指定像素数。选择SD模型预设或自定义像素值。"}),
-                "output_target_pixels_Presets": (['sd15', 'sdxl', 'custom'], {"default": "sdxl", "tooltip": "sd15: 缩放到512x512像素; sdxl: 缩放到1024x1024像素; custom: 使用自定义像素值"}),
-                "output_target_pixels_custom_value": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 16.0, "step": 0.1, "tooltip": "自定义目标像素数倍率，1.0表示100万像素，2.0表示200万像素，仅当选择'custom'预设时生效"}),
-           },
-           "optional": {
+                "output_resize_to_target_pixels": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "将输出缩放到指定像素数。选择SD模型预设或自定义像素值。",
+                    },
+                ),
+                "output_target_pixels_Presets": (
+                    ["sd15", "sdxl", "custom"],
+                    {
+                        "default": "sdxl",
+                        "tooltip": "sd15: 缩放到512x512像素; sdxl: 缩放到1024x1024像素; custom: 使用自定义像素值",
+                    },
+                ),
+                "output_target_pixels_custom_value": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.1,
+                        "max": 16.0,
+                        "step": 0.1,
+                        "tooltip": "自定义目标像素数倍率，1.0表示100万像素，2.0表示200万像素，仅当选择'custom'预设时生效",
+                    },
+                ),
+            },
+            "optional": {
                 # Optional inputs
                 "mask": ("MASK",),
                 "optional_context_mask": ("MASK",),
-           }
+            },
         }
 
     FUNCTION = "inpaint_crop"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "根据遮罩裁剪图像进行修复，可选的上下文遮罩定义了需要保留的额外区域作为上下文。"
-
+    DESCRIPTION = (
+        "根据遮罩裁剪图像进行修复，可选的上下文遮罩定义了需要保留的额外区域作为上下文。"
+    )
 
     # Remove the following # to turn on debug mode (extra outputs, print statements)
     #'''
@@ -488,7 +720,7 @@ class InpaintCrop:
     RETURN_TYPES = ("STITCHER", "IMAGE", "MASK")
     RETURN_NAMES = ("stitcher", "cropped_image", "cropped_mask")
 
-    '''
+    """
     
     DEBUG_MODE = True # TODO
     RETURN_TYPES = ("STITCHER", "IMAGE", "MASK",
@@ -543,10 +775,37 @@ class InpaintCrop:
         "DEBUG_cropped_in_canvas_location",
         "DEBUG_cropped_mask_blend",
     )
-    #'''
+    #"""
 
- 
-    def inpaint_crop(self, image, downscale_algorithm, upscale_algorithm, preresize_target_pixels, preresize_target_pixels_Presets, preresize_target_pixels_custom_value, extend_for_outpainting, extend_up_factor, extend_down_factor, extend_left_factor, extend_right_factor, mask_hipass_filter, mask_fill_holes, mask_expand_pixels, mask_invert, mask_blend_pixels, context_from_mask_extend_factor, output_resize_to_target_pixels, output_target_pixels_Presets, output_target_pixels_custom_value, mask=None, optional_context_mask=None, output_resize_to_target_size=None, output_target_width=512, output_target_height=512, output_padding="32"):
+    def inpaint_crop(
+        self,
+        image,
+        downscale_algorithm,
+        upscale_algorithm,
+        preresize_target_pixels,
+        preresize_target_pixels_Presets,
+        preresize_target_pixels_custom_value,
+        extend_for_outpainting,
+        extend_up_factor,
+        extend_down_factor,
+        extend_left_factor,
+        extend_right_factor,
+        mask_hipass_filter,
+        mask_fill_holes,
+        mask_expand_pixels,
+        mask_invert,
+        mask_blend_pixels,
+        context_from_mask_extend_factor,
+        output_resize_to_target_pixels,
+        output_target_pixels_Presets,
+        output_target_pixels_custom_value,
+        mask=None,
+        optional_context_mask=None,
+        output_resize_to_target_size=None,
+        output_target_width=512,
+        output_target_height=512,
+        output_padding="32",
+    ):
         image = image.clone()
         if mask is not None:
             mask = mask.clone()
@@ -556,48 +815,73 @@ class InpaintCrop:
         output_padding = int(output_padding) if output_padding else 32
 
         if self.DEBUG_MODE:
-            print('Inpaint Crop Batch input')
+            print("Inpaint Crop Batch input")
             print(image.shape, type(image), image.dtype)
             if mask is not None:
                 print(mask.shape, type(mask), mask.dtype)
             if optional_context_mask is not None:
-                print(optional_context_mask.shape, type(optional_context_mask), optional_context_mask.dtype)
+                print(
+                    optional_context_mask.shape,
+                    type(optional_context_mask),
+                    optional_context_mask.dtype,
+                )
 
         if image.shape[0] > 1:
-            assert output_resize_to_target_pixels, "output_resize_to_target_pixels must be enabled when input is a batch of images, given all images in the batch output have to be the same size"
+            assert output_resize_to_target_pixels, (
+                "output_resize_to_target_pixels must be enabled when input is a batch of images, given all images in the batch output have to be the same size"
+            )
 
         # When a LoadImage node passes a mask without user editing, it may be the wrong shape.
         # Detect and fix that to avoid shape mismatch errors.
-        if mask is not None and (image.shape[0] == 1 or mask.shape[0] == 1 or mask.shape[0] == image.shape[0]):
+        if mask is not None and (
+            image.shape[0] == 1 or mask.shape[0] == 1 or mask.shape[0] == image.shape[0]
+        ):
             if mask.shape[1] != image.shape[1] or mask.shape[2] != image.shape[2]:
                 # 调整所有掩码的尺寸，不仅限于全零掩码
-                print(f"警告：掩码尺寸({mask.shape[1]}x{mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸...")
+                print(
+                    f"警告：掩码尺寸({mask.shape[1]}x{mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
+                )
                 resized_mask = []
                 for b in range(mask.shape[0]):
                     # 使用bilinear重新调整掩码尺寸以匹配图像尺寸
-                    one_mask = mask[b:b+1]
-                    one_mask = rescale_m(one_mask, image.shape[2], image.shape[1], 'bilinear')
+                    one_mask = mask[b : b + 1]
+                    one_mask = rescale_m(
+                        one_mask, image.shape[2], image.shape[1], "bilinear"
+                    )
                     resized_mask.append(one_mask)
                 mask = torch.cat(resized_mask, dim=0)
                 print(f"已调整掩码尺寸为：{mask.shape[1]}x{mask.shape[2]}")
 
-        if optional_context_mask is not None and (image.shape[0] == 1 or optional_context_mask.shape[0] == 1 or optional_context_mask.shape[0] == image.shape[0]):
-            if optional_context_mask.shape[1] != image.shape[1] or optional_context_mask.shape[2] != image.shape[2]:
+        if optional_context_mask is not None and (
+            image.shape[0] == 1
+            or optional_context_mask.shape[0] == 1
+            or optional_context_mask.shape[0] == image.shape[0]
+        ):
+            if (
+                optional_context_mask.shape[1] != image.shape[1]
+                or optional_context_mask.shape[2] != image.shape[2]
+            ):
                 # 对于可选上下文掩码也进行同样的调整
-                print(f"警告：可选上下文掩码尺寸({optional_context_mask.shape[1]}x{optional_context_mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸...")
+                print(
+                    f"警告：可选上下文掩码尺寸({optional_context_mask.shape[1]}x{optional_context_mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
+                )
                 resized_optional_mask = []
                 for b in range(optional_context_mask.shape[0]):
                     # 使用bilinear重新调整可选上下文掩码尺寸以匹配图像尺寸
-                    one_optional_mask = optional_context_mask[b:b+1]
-                    one_optional_mask = rescale_m(one_optional_mask, image.shape[2], image.shape[1], 'bilinear')
+                    one_optional_mask = optional_context_mask[b : b + 1]
+                    one_optional_mask = rescale_m(
+                        one_optional_mask, image.shape[2], image.shape[1], "bilinear"
+                    )
                     resized_optional_mask.append(one_optional_mask)
                 optional_context_mask = torch.cat(resized_optional_mask, dim=0)
-                print(f"已调整可选上下文掩码尺寸为：{optional_context_mask.shape[1]}x{optional_context_mask.shape[2]}")
+                print(
+                    f"已调整可选上下文掩码尺寸为：{optional_context_mask.shape[1]}x{optional_context_mask.shape[2]}"
+                )
 
         # If no mask is provided, create one with the shape of the image
         if mask is None:
             mask = torch.zeros_like(image[:, :, :, 0])
-    
+
         # If there is only one image for many masks, replicate it for all masks
         if mask.shape[0] > 1 and image.shape[0] == 1:
             assert image.dim() == 4, f"Expected 4D BHWC image tensor, got {image.shape}"
@@ -614,45 +898,69 @@ class InpaintCrop:
 
         # If there is only one optional_context_mask for many images, replicate it for all images
         if image.shape[0] > 1 and optional_context_mask.shape[0] == 1:
-            assert optional_context_mask.dim() == 3, f"Expected 3D BHW optional_context_mask tensor, got {optional_context_mask.shape}"
-            optional_context_mask = optional_context_mask.expand(image.shape[0], -1, -1).clone()
+            assert optional_context_mask.dim() == 3, (
+                f"Expected 3D BHW optional_context_mask tensor, got {optional_context_mask.shape}"
+            )
+            optional_context_mask = optional_context_mask.expand(
+                image.shape[0], -1, -1
+            ).clone()
 
         if self.DEBUG_MODE:
-            print('Inpaint Crop Batch ready')
+            print("Inpaint Crop Batch ready")
             print(image.shape, type(image), image.dtype)
             print(mask.shape, type(mask), mask.dtype)
-            print(optional_context_mask.shape, type(optional_context_mask), optional_context_mask.dtype)
+            print(
+                optional_context_mask.shape,
+                type(optional_context_mask),
+                optional_context_mask.dtype,
+            )
 
-         # Validate data
-        assert image.ndimension() == 4, f"Expected 4 dimensions for image, got {image.ndimension()}"
-        assert mask.ndimension() == 3, f"Expected 3 dimensions for mask, got {mask.ndimension()}"
-        assert optional_context_mask.ndimension() == 3, f"Expected 3 dimensions for optional_context_mask, got {optional_context_mask.ndimension()}"
-        assert mask.shape[1:] == image.shape[1:3], f"Mask dimensions do not match image dimensions. Expected {image.shape[1:3]}, got {mask.shape[1:]}"
-        assert optional_context_mask.shape[1:] == image.shape[1:3], f"optional_context_mask dimensions do not match image dimensions. Expected {image.shape[1:3]}, got {optional_context_mask.shape[1:]}"
-        assert mask.shape[0] == image.shape[0], f"Mask batch does not match image batch. Expected {image.shape[0]}, got {mask.shape[0]}"
-        assert optional_context_mask.shape[0] == image.shape[0], f"Optional context mask batch does not match image batch. Expected {image.shape[0]}, got {optional_context_mask.shape[0]}"
+        # Validate data
+        assert image.ndimension() == 4, (
+            f"Expected 4 dimensions for image, got {image.ndimension()}"
+        )
+        assert mask.ndimension() == 3, (
+            f"Expected 3 dimensions for mask, got {mask.ndimension()}"
+        )
+        assert optional_context_mask.ndimension() == 3, (
+            f"Expected 3 dimensions for optional_context_mask, got {optional_context_mask.ndimension()}"
+        )
+        assert mask.shape[1:] == image.shape[1:3], (
+            f"Mask dimensions do not match image dimensions. Expected {image.shape[1:3]}, got {mask.shape[1:]}"
+        )
+        assert optional_context_mask.shape[1:] == image.shape[1:3], (
+            f"optional_context_mask dimensions do not match image dimensions. Expected {image.shape[1:3]}, got {optional_context_mask.shape[1:]}"
+        )
+        assert mask.shape[0] == image.shape[0], (
+            f"Mask batch does not match image batch. Expected {image.shape[0]}, got {mask.shape[0]}"
+        )
+        assert optional_context_mask.shape[0] == image.shape[0], (
+            f"Optional context mask batch does not match image batch. Expected {image.shape[0]}, got {optional_context_mask.shape[0]}"
+        )
 
         # Run for each image separately
         result_stitcher = {
-            'downscale_algorithm': downscale_algorithm,
-            'upscale_algorithm': upscale_algorithm,
-            'blend_pixels': mask_blend_pixels,
-            'canvas_to_orig_x': [],
-            'canvas_to_orig_y': [],
-            'canvas_to_orig_w': [],
-            'canvas_to_orig_h': [],
-            'canvas_image': [],
-            'cropped_to_canvas_x': [],
-            'cropped_to_canvas_y': [],
-            'cropped_to_canvas_w': [],
-            'cropped_to_canvas_h': [],
-            'cropped_mask_for_blend': [],
+            "downscale_algorithm": downscale_algorithm,
+            "upscale_algorithm": upscale_algorithm,
+            "blend_pixels": mask_blend_pixels,
+            "canvas_to_orig_x": [],
+            "canvas_to_orig_y": [],
+            "canvas_to_orig_w": [],
+            "canvas_to_orig_h": [],
+            "canvas_image": [],
+            "cropped_to_canvas_x": [],
+            "cropped_to_canvas_y": [],
+            "cropped_to_canvas_w": [],
+            "cropped_to_canvas_h": [],
+            "cropped_mask_for_blend": [],
         }
-        
+
         result_image = []
         result_mask = []
 
-        debug_outputs = {name: [] for name in self.RETURN_NAMES if name.startswith("DEBUG_")}
+        debug_outputs = {
+            name: [] for name in self.RETURN_NAMES if name.startswith("DEBUG_")
+        }
 
         batch_size = image.shape[0]
         for b in range(batch_size):
@@ -661,15 +969,44 @@ class InpaintCrop:
             one_optional_context_mask = optional_context_mask[b].unsqueeze(0)
 
             outputs = self.inpaint_crop_single_image(
-                one_image, downscale_algorithm, upscale_algorithm,
-                extend_for_outpainting, extend_up_factor, extend_down_factor, extend_left_factor, extend_right_factor,
-                mask_hipass_filter, mask_fill_holes, mask_expand_pixels, mask_invert, mask_blend_pixels,
-                context_from_mask_extend_factor, output_padding, one_mask, one_optional_context_mask, 
-                preresize_target_pixels, preresize_target_pixels_Presets, preresize_target_pixels_custom_value, 
-                output_resize_to_target_pixels, output_target_pixels_Presets, output_target_pixels_custom_value)
+                one_image,
+                downscale_algorithm,
+                upscale_algorithm,
+                extend_for_outpainting,
+                extend_up_factor,
+                extend_down_factor,
+                extend_left_factor,
+                extend_right_factor,
+                mask_hipass_filter,
+                mask_fill_holes,
+                mask_expand_pixels,
+                mask_invert,
+                mask_blend_pixels,
+                context_from_mask_extend_factor,
+                output_padding,
+                one_mask,
+                one_optional_context_mask,
+                preresize_target_pixels,
+                preresize_target_pixels_Presets,
+                preresize_target_pixels_custom_value,
+                output_resize_to_target_pixels,
+                output_target_pixels_Presets,
+                output_target_pixels_custom_value,
+            )
 
             stitcher, cropped_image, cropped_mask = outputs[:3]
-            for key in ['canvas_to_orig_x', 'canvas_to_orig_y', 'canvas_to_orig_w', 'canvas_to_orig_h', 'canvas_image', 'cropped_to_canvas_x', 'cropped_to_canvas_y', 'cropped_to_canvas_w', 'cropped_to_canvas_h', 'cropped_mask_for_blend']:
+            for key in [
+                "canvas_to_orig_x",
+                "canvas_to_orig_y",
+                "canvas_to_orig_w",
+                "canvas_to_orig_h",
+                "canvas_image",
+                "cropped_to_canvas_x",
+                "cropped_to_canvas_y",
+                "cropped_to_canvas_w",
+                "cropped_to_canvas_h",
+                "cropped_mask_for_blend",
+            ]:
                 result_stitcher[key].append(stitcher[key])
 
             cropped_image = cropped_image.clone().squeeze(0)
@@ -678,44 +1015,87 @@ class InpaintCrop:
             result_mask.append(cropped_mask)
 
             # Handle the DEBUG_ fields dynamically
-            for name, output in zip(self.RETURN_NAMES[3:], outputs[3:]):  # Start from index 3 since first 3 are fixed
+            for name, output in zip(
+                self.RETURN_NAMES[3:], outputs[3:]
+            ):  # Start from index 3 since first 3 are fixed
                 if name.startswith("DEBUG_"):
-                    output_array = output.squeeze(0)  # Assuming output needs to be squeezed similar to image/mask
+                    output_array = output.squeeze(
+                        0
+                    )  # Assuming output needs to be squeezed similar to image/mask
                     debug_outputs[name].append(output_array)
 
         result_image = torch.stack(result_image, dim=0)
         result_mask = torch.stack(result_mask, dim=0)
 
         if self.DEBUG_MODE:
-            print('Inpaint Crop Batch output')
+            print("Inpaint Crop Batch output")
             print(result_image.shape, type(result_image), result_image.dtype)
             print(result_mask.shape, type(result_mask), result_mask.dtype)
 
-        debug_outputs = {name: torch.stack(values, dim=0) for name, values in debug_outputs.items()}
+        debug_outputs = {
+            name: torch.stack(values, dim=0) for name, values in debug_outputs.items()
+        }
 
-        return result_stitcher, result_image, result_mask, *[debug_outputs[name] for name in self.RETURN_NAMES if name.startswith("DEBUG_")]
+        return (
+            result_stitcher,
+            result_image,
+            result_mask,
+            *[
+                debug_outputs[name]
+                for name in self.RETURN_NAMES
+                if name.startswith("DEBUG_")
+            ],
+        )
 
-
-    def inpaint_crop_single_image(self, image, downscale_algorithm, upscale_algorithm, extend_for_outpainting, extend_up_factor, extend_down_factor, extend_left_factor, extend_right_factor, mask_hipass_filter, mask_fill_holes, mask_expand_pixels, mask_invert, mask_blend_pixels, context_from_mask_extend_factor, output_padding, mask=None, optional_context_mask=None, preresize_target_pixels=False, preresize_target_pixels_Presets="sdxl", preresize_target_pixels_custom_value=1.0, output_resize_to_target_pixels=True, output_target_pixels_Presets="sdxl", output_target_pixels_custom_value=1.0):
+    def inpaint_crop_single_image(
+        self,
+        image,
+        downscale_algorithm,
+        upscale_algorithm,
+        extend_for_outpainting,
+        extend_up_factor,
+        extend_down_factor,
+        extend_left_factor,
+        extend_right_factor,
+        mask_hipass_filter,
+        mask_fill_holes,
+        mask_expand_pixels,
+        mask_invert,
+        mask_blend_pixels,
+        context_from_mask_extend_factor,
+        output_padding,
+        mask=None,
+        optional_context_mask=None,
+        preresize_target_pixels=False,
+        preresize_target_pixels_Presets="sdxl",
+        preresize_target_pixels_custom_value=1.0,
+        output_resize_to_target_pixels=True,
+        output_target_pixels_Presets="sdxl",
+        output_target_pixels_custom_value=1.0,
+    ):
         # 确保mask和optional_context_mask不为None
         if mask is None:
             mask = torch.zeros_like(image[:, :, :, 0])
         if optional_context_mask is None:
             optional_context_mask = torch.zeros_like(image[:, :, :, 0])
-            
+
         if preresize_target_pixels:
             # 使用目标像素缩放
             image, mask, optional_context_mask = preresize_target_pixels_imm(
-                image, mask, optional_context_mask, 
-                downscale_algorithm, upscale_algorithm,
-                preresize_target_pixels_Presets, preresize_target_pixels_custom_value
+                image,
+                mask,
+                optional_context_mask,
+                downscale_algorithm,
+                upscale_algorithm,
+                preresize_target_pixels_Presets,
+                preresize_target_pixels_custom_value,
             )
         if self.DEBUG_MODE:
             DEBUG_preresize_image = image.clone()
             DEBUG_preresize_mask = mask.clone()
-       
+
         if mask_fill_holes:
-           mask = fillholes_iterative_hipass_fill_m(mask)
+            mask = fillholes_iterative_hipass_fill_m(mask)
         if self.DEBUG_MODE:
             DEBUG_fillholes_mask = mask.clone()
 
@@ -731,18 +1111,28 @@ class InpaintCrop:
 
         if mask_blend_pixels > 0:
             mask = expand_m(mask, mask_blend_pixels)
-            mask = blur_m(mask, mask_blend_pixels*0.5)
+            mask = blur_m(mask, mask_blend_pixels * 0.5)
         if self.DEBUG_MODE:
             DEBUG_blur_mask = mask.clone()
 
         if mask_hipass_filter >= 0.01:
             mask = hipassfilter_m(mask, mask_hipass_filter)
-            optional_context_mask = hipassfilter_m(optional_context_mask, mask_hipass_filter)
+            optional_context_mask = hipassfilter_m(
+                optional_context_mask, mask_hipass_filter
+            )
         if self.DEBUG_MODE:
             DEBUG_hipassfilter_mask = mask.clone()
 
         if extend_for_outpainting:
-            image, mask, optional_context_mask = extend_imm(image, mask, optional_context_mask, extend_up_factor, extend_down_factor, extend_left_factor, extend_right_factor)
+            image, mask, optional_context_mask = extend_imm(
+                image,
+                mask,
+                optional_context_mask,
+                extend_up_factor,
+                extend_down_factor,
+                extend_left_factor,
+                extend_right_factor,
+            )
         if self.DEBUG_MODE:
             DEBUG_extend_image = image.clone()
             DEBUG_extend_mask = mask.clone()
@@ -751,80 +1141,170 @@ class InpaintCrop:
         # If no mask, mask everything for some inpainting.
         if x == -1 or w == -1 or h == -1 or y == -1:
             x, y, w, h = 0, 0, image.shape[2], image.shape[1]
-            context = mask[:, y:y+h, x:x+w]
+            context = mask[:, y : y + h, x : x + w]
         if self.DEBUG_MODE:
             DEBUG_context_from_mask = context.clone()
-            DEBUG_context_from_mask_location = debug_context_location_in_image(image, x, y, w, h)
+            DEBUG_context_from_mask_location = debug_context_location_in_image(
+                image, x, y, w, h
+            )
 
         if context_from_mask_extend_factor >= 1.01:
-            context, x, y, w, h = growcontextarea_m(context, mask, x, y, w, h, context_from_mask_extend_factor)
+            context, x, y, w, h = growcontextarea_m(
+                context, mask, x, y, w, h, context_from_mask_extend_factor
+            )
         # If no mask, mask everything for some inpainting.
         if x == -1 or w == -1 or h == -1 or y == -1:
             x, y, w, h = 0, 0, image.shape[2], image.shape[1]
-            context = mask[:, y:y+h, x:x+w]
+            context = mask[:, y : y + h, x : x + w]
         if self.DEBUG_MODE:
             DEBUG_context_expand = context.clone()
-            DEBUG_context_expand_location = debug_context_location_in_image(image, x, y, w, h)
+            DEBUG_context_expand_location = debug_context_location_in_image(
+                image, x, y, w, h
+            )
 
-        context, x, y, w, h = combinecontextmask_m(context, mask, x, y, w, h, optional_context_mask)
+        context, x, y, w, h = combinecontextmask_m(
+            context, mask, x, y, w, h, optional_context_mask
+        )
         # If no mask, mask everything for some inpainting.
         if x == -1 or w == -1 or h == -1 or y == -1:
             x, y, w, h = 0, 0, image.shape[2], image.shape[1]
-            context = mask[:, y:y+h, x:x+w]
+            context = mask[:, y : y + h, x : x + w]
         if self.DEBUG_MODE:
             DEBUG_context_with_context_mask = context.clone()
-            DEBUG_context_with_context_mask_location = debug_context_location_in_image(image, x, y, w, h)
+            DEBUG_context_with_context_mask_location = debug_context_location_in_image(
+                image, x, y, w, h
+            )
 
         # 使用传入的output_padding值
         padding = int(output_padding)
 
         if not output_resize_to_target_pixels:
             # 使用原始大小
-            canvas_image, cto_x, cto_y, cto_w, cto_h, cropped_image, cropped_mask, ctc_x, ctc_y, ctc_w, ctc_h = crop_magic_im(image, mask, x, y, w, h, w, h, padding, downscale_algorithm, upscale_algorithm)
-        else: # output_resize_to_target_pixels
+            (
+                canvas_image,
+                cto_x,
+                cto_y,
+                cto_w,
+                cto_h,
+                cropped_image,
+                cropped_mask,
+                ctc_x,
+                ctc_y,
+                ctc_w,
+                ctc_h,
+            ) = crop_magic_im(
+                image,
+                mask,
+                x,
+                y,
+                w,
+                h,
+                w,
+                h,
+                padding,
+                downscale_algorithm,
+                upscale_algorithm,
+            )
+        else:  # output_resize_to_target_pixels
             # 使用按像素缩放
-            target_width, target_height = calculate_target_size_from_pixels(w, h, output_target_pixels_Presets, output_target_pixels_custom_value)
-            canvas_image, cto_x, cto_y, cto_w, cto_h, cropped_image, cropped_mask, ctc_x, ctc_y, ctc_w, ctc_h = crop_magic_im(image, mask, x, y, w, h, target_width, target_height, padding, downscale_algorithm, upscale_algorithm)
-        
+            target_width, target_height = calculate_target_size_from_pixels(
+                w, h, output_target_pixels_Presets, output_target_pixels_custom_value
+            )
+            (
+                canvas_image,
+                cto_x,
+                cto_y,
+                cto_w,
+                cto_h,
+                cropped_image,
+                cropped_mask,
+                ctc_x,
+                ctc_y,
+                ctc_w,
+                ctc_h,
+            ) = crop_magic_im(
+                image,
+                mask,
+                x,
+                y,
+                w,
+                h,
+                target_width,
+                target_height,
+                padding,
+                downscale_algorithm,
+                upscale_algorithm,
+            )
+
         if self.DEBUG_MODE:
             DEBUG_context_to_target = context.clone()
-            DEBUG_context_to_target_location = debug_context_location_in_image(image, x, y, w, h)
+            DEBUG_context_to_target_location = debug_context_location_in_image(
+                image, x, y, w, h
+            )
             DEBUG_context_to_target_image = image.clone()
             DEBUG_context_to_target_mask = mask.clone()
             DEBUG_canvas_image = canvas_image.clone()
-            DEBUG_orig_in_canvas_location = debug_context_location_in_image(canvas_image, cto_x, cto_y, cto_w, cto_h)
-            DEBUG_cropped_in_canvas_location = debug_context_location_in_image(canvas_image, ctc_x, ctc_y, ctc_w, ctc_h)
+            DEBUG_orig_in_canvas_location = debug_context_location_in_image(
+                canvas_image, cto_x, cto_y, cto_w, cto_h
+            )
+            DEBUG_cropped_in_canvas_location = debug_context_location_in_image(
+                canvas_image, ctc_x, ctc_y, ctc_w, ctc_h
+            )
 
         # For blending, grow the mask even further and make it blurrier.
         cropped_mask_blend = cropped_mask.clone()
         if mask_blend_pixels > 0:
-           cropped_mask_blend = blur_m(cropped_mask_blend, mask_blend_pixels*0.5)
+            cropped_mask_blend = blur_m(cropped_mask_blend, mask_blend_pixels * 0.5)
         if self.DEBUG_MODE:
             DEBUG_cropped_mask_blend = cropped_mask_blend.clone()
 
         stitcher = {
-            'canvas_to_orig_x': cto_x,
-            'canvas_to_orig_y': cto_y,
-            'canvas_to_orig_w': cto_w,
-            'canvas_to_orig_h': cto_h,
-            'canvas_image': canvas_image,
-            'cropped_to_canvas_x': ctc_x,
-            'cropped_to_canvas_y': ctc_y,
-            'cropped_to_canvas_w': ctc_w,
-            'cropped_to_canvas_h': ctc_h,
-            'cropped_mask_for_blend': cropped_mask_blend,
+            "canvas_to_orig_x": cto_x,
+            "canvas_to_orig_y": cto_y,
+            "canvas_to_orig_w": cto_w,
+            "canvas_to_orig_h": cto_h,
+            "canvas_image": canvas_image,
+            "cropped_to_canvas_x": ctc_x,
+            "cropped_to_canvas_y": ctc_y,
+            "cropped_to_canvas_w": ctc_w,
+            "cropped_to_canvas_h": ctc_h,
+            "cropped_mask_for_blend": cropped_mask_blend,
         }
 
         if not self.DEBUG_MODE:
             return stitcher, cropped_image, cropped_mask
         else:
-            return stitcher, cropped_image, cropped_mask, DEBUG_preresize_image, DEBUG_preresize_mask, DEBUG_fillholes_mask, DEBUG_expand_mask, DEBUG_invert_mask, DEBUG_blur_mask, DEBUG_hipassfilter_mask, DEBUG_extend_image, DEBUG_extend_mask, DEBUG_context_from_mask, DEBUG_context_from_mask_location, DEBUG_context_expand, DEBUG_context_expand_location, DEBUG_context_with_context_mask, DEBUG_context_with_context_mask_location, DEBUG_context_to_target, DEBUG_context_to_target_location, DEBUG_context_to_target_image, DEBUG_context_to_target_mask, DEBUG_canvas_image, DEBUG_orig_in_canvas_location, DEBUG_cropped_in_canvas_location, DEBUG_cropped_mask_blend
-
-
+            return (
+                stitcher,
+                cropped_image,
+                cropped_mask,
+                DEBUG_preresize_image,
+                DEBUG_preresize_mask,
+                DEBUG_fillholes_mask,
+                DEBUG_expand_mask,
+                DEBUG_invert_mask,
+                DEBUG_blur_mask,
+                DEBUG_hipassfilter_mask,
+                DEBUG_extend_image,
+                DEBUG_extend_mask,
+                DEBUG_context_from_mask,
+                DEBUG_context_from_mask_location,
+                DEBUG_context_expand,
+                DEBUG_context_expand_location,
+                DEBUG_context_with_context_mask,
+                DEBUG_context_with_context_mask_location,
+                DEBUG_context_to_target,
+                DEBUG_context_to_target_location,
+                DEBUG_context_to_target_image,
+                DEBUG_context_to_target_mask,
+                DEBUG_canvas_image,
+                DEBUG_orig_in_canvas_location,
+                DEBUG_cropped_in_canvas_location,
+                DEBUG_cropped_mask_blend,
+            )
 
 
 class InpaintStitch:
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -842,28 +1322,44 @@ class InpaintStitch:
 
     FUNCTION = "inpaint_stitch"
 
-
     def inpaint_stitch(self, stitcher, inpainted_image):
         inpainted_image = inpainted_image.clone()
         results = []
 
         batch_size = inpainted_image.shape[0]
-        assert len(stitcher['cropped_to_canvas_x']) == batch_size or len(stitcher['cropped_to_canvas_x']) == 1, "Stitch batch size doesn't match image batch size"
+        assert (
+            len(stitcher["cropped_to_canvas_x"]) == batch_size
+            or len(stitcher["cropped_to_canvas_x"]) == 1
+        ), "Stitch batch size doesn't match image batch size"
         override = False
-        if len(stitcher['cropped_to_canvas_x']) != batch_size and len(stitcher['cropped_to_canvas_x']) == 1:
+        if (
+            len(stitcher["cropped_to_canvas_x"]) != batch_size
+            and len(stitcher["cropped_to_canvas_x"]) == 1
+        ):
             override = True
         for b in range(batch_size):
             one_image = inpainted_image[b]
             one_stitcher = {}
-            for key in ['downscale_algorithm', 'upscale_algorithm', 'blend_pixels']:
+            for key in ["downscale_algorithm", "upscale_algorithm", "blend_pixels"]:
                 one_stitcher[key] = stitcher[key]
-            for key in ['canvas_to_orig_x', 'canvas_to_orig_y', 'canvas_to_orig_w', 'canvas_to_orig_h', 'canvas_image', 'cropped_to_canvas_x', 'cropped_to_canvas_y', 'cropped_to_canvas_w', 'cropped_to_canvas_h', 'cropped_mask_for_blend']:
-                if override: # One stitcher for many images, always read 0.
+            for key in [
+                "canvas_to_orig_x",
+                "canvas_to_orig_y",
+                "canvas_to_orig_w",
+                "canvas_to_orig_h",
+                "canvas_image",
+                "cropped_to_canvas_x",
+                "cropped_to_canvas_y",
+                "cropped_to_canvas_w",
+                "cropped_to_canvas_h",
+                "cropped_mask_for_blend",
+            ]:
+                if override:  # One stitcher for many images, always read 0.
                     one_stitcher[key] = stitcher[key][0]
                 else:
                     one_stitcher[key] = stitcher[key][b]
             one_image = one_image.unsqueeze(0)
-            one_image, = self.inpaint_stitch_single_image(one_stitcher, one_image)
+            (one_image,) = self.inpaint_stitch_single_image(one_stitcher, one_image)
             one_image = one_image.squeeze(0)
             one_image = one_image.clone()
             results.append(one_image)
@@ -873,31 +1369,56 @@ class InpaintStitch:
         return (result_batch,)
 
     def inpaint_stitch_single_image(self, stitcher, inpainted_image):
-        downscale_algorithm = stitcher['downscale_algorithm']
-        upscale_algorithm = stitcher['upscale_algorithm']
-        canvas_image = stitcher['canvas_image']
+        downscale_algorithm = stitcher["downscale_algorithm"]
+        upscale_algorithm = stitcher["upscale_algorithm"]
+        canvas_image = stitcher["canvas_image"]
 
-        ctc_x = stitcher['cropped_to_canvas_x']
-        ctc_y = stitcher['cropped_to_canvas_y']
-        ctc_w = stitcher['cropped_to_canvas_w']
-        ctc_h = stitcher['cropped_to_canvas_h']
+        ctc_x = stitcher["cropped_to_canvas_x"]
+        ctc_y = stitcher["cropped_to_canvas_y"]
+        ctc_w = stitcher["cropped_to_canvas_w"]
+        ctc_h = stitcher["cropped_to_canvas_h"]
 
-        cto_x = stitcher['canvas_to_orig_x']
-        cto_y = stitcher['canvas_to_orig_y']
-        cto_w = stitcher['canvas_to_orig_w']
-        cto_h = stitcher['canvas_to_orig_h']
+        cto_x = stitcher["canvas_to_orig_x"]
+        cto_y = stitcher["canvas_to_orig_y"]
+        cto_w = stitcher["canvas_to_orig_w"]
+        cto_h = stitcher["canvas_to_orig_h"]
 
-        mask = stitcher['cropped_mask_for_blend']  # shape: [1, H, W]
+        mask = stitcher["cropped_mask_for_blend"]  # shape: [1, H, W]
 
-        output_image = stitch_magic_im(canvas_image, inpainted_image, mask, ctc_x, ctc_y, ctc_w, ctc_h, cto_x, cto_y, cto_w, cto_h, downscale_algorithm, upscale_algorithm)
+        output_image = stitch_magic_im(
+            canvas_image,
+            inpainted_image,
+            mask,
+            ctc_x,
+            ctc_y,
+            ctc_w,
+            ctc_h,
+            cto_x,
+            cto_y,
+            cto_w,
+            cto_h,
+            downscale_algorithm,
+            upscale_algorithm,
+        )
 
         return (output_image,)
 
 
-def preresize_target_pixels_imm(image, mask, optional_context_mask, downscale_algorithm, upscale_algorithm, preresize_target_pixels_Presets, preresize_target_pixels_custom_value):
-    current_width, current_height = image.shape[2], image.shape[1]  # Image size [batch, height, width, channels]
+def preresize_target_pixels_imm(
+    image,
+    mask,
+    optional_context_mask,
+    downscale_algorithm,
+    upscale_algorithm,
+    preresize_target_pixels_Presets,
+    preresize_target_pixels_custom_value,
+):
+    current_width, current_height = (
+        image.shape[2],
+        image.shape[1],
+    )  # Image size [batch, height, width, channels]
     current_pixels = current_width * current_height
-    
+
     # 确定目标像素数
     if preresize_target_pixels_Presets == "sd15":
         target_pixels = 512 * 512  # 262,144像素
@@ -905,27 +1426,28 @@ def preresize_target_pixels_imm(image, mask, optional_context_mask, downscale_al
         target_pixels = 1024 * 1024  # 1,048,576像素
     else:  # custom，使用浮点数乘以100万表示像素
         target_pixels = int(preresize_target_pixels_custom_value * 1000000)
-    
+
     # 计算缩放因子
     scale_by = math.sqrt(target_pixels / current_pixels)
     target_width = round(current_width * scale_by)
     target_height = round(current_height * scale_by)
-    
+
     # 根据缩放方向选择算法
     if scale_by > 1:  # 放大
         rescale_algorithm = upscale_algorithm
-        mask_algorithm = 'bilinear'  # 放大时使用双线性插值获得更平滑的结果
+        mask_algorithm = "bilinear"  # 放大时使用双线性插值获得更平滑的结果
     else:  # 缩小
         rescale_algorithm = downscale_algorithm
-        mask_algorithm = 'nearest'  # 缩小时使用最近邻插值方法更高效
-    
+        mask_algorithm = "nearest"  # 缩小时使用最近邻插值方法更高效
+
     # 执行缩放
     image = rescale_i(image, target_width, target_height, rescale_algorithm)
     mask = rescale_m(mask, target_width, target_height, mask_algorithm)
-    optional_context_mask = rescale_m(optional_context_mask, target_width, target_height, mask_algorithm)
-    
-    return image, mask, optional_context_mask
+    optional_context_mask = rescale_m(
+        optional_context_mask, target_width, target_height, mask_algorithm
+    )
 
+    return image, mask, optional_context_mask
 
 
 class InpaintExtendOutpaint:
@@ -936,18 +1458,42 @@ class InpaintExtendOutpaint:
                 "image": ("IMAGE",),
                 "mask": ("MASK",),
                 "mode": (["factors", "pixels"], {"default": "factors"}),
-                "expand_up_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1}),
-                "expand_up_factor": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01}),
-                "expand_down_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1}),
-                "expand_down_factor": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01}),
-                "expand_left_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1}),
-                "expand_left_factor": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01}),
-                "expand_right_pixels": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1}),
-                "expand_right_factor": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01}),
+                "expand_up_pixels": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1},
+                ),
+                "expand_up_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01},
+                ),
+                "expand_down_pixels": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1},
+                ),
+                "expand_down_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01},
+                ),
+                "expand_left_pixels": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1},
+                ),
+                "expand_left_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01},
+                ),
+                "expand_right_pixels": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1},
+                ),
+                "expand_right_factor": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 1.0, "max": 100.0, "step": 0.01},
+                ),
             },
             "optional": {
                 "optional_context_mask": ("MASK",),
-            }
+            },
         }
 
     CATEGORY = "inpaint"
@@ -957,10 +1503,28 @@ class InpaintExtendOutpaint:
 
     FUNCTION = "inpaint_extend"
 
-    def inpaint_extend(self, image, mask, mode, expand_up_pixels, expand_up_factor, expand_down_pixels, expand_down_factor, expand_left_pixels, expand_left_factor, expand_right_pixels, expand_right_factor, optional_context_mask=None):
-        assert image.shape[0] == mask.shape[0], "Batch size of images and masks must be the same"
+    def inpaint_extend(
+        self,
+        image,
+        mask,
+        mode,
+        expand_up_pixels,
+        expand_up_factor,
+        expand_down_pixels,
+        expand_down_factor,
+        expand_left_pixels,
+        expand_left_factor,
+        expand_right_pixels,
+        expand_right_factor,
+        optional_context_mask=None,
+    ):
+        assert image.shape[0] == mask.shape[0], (
+            "Batch size of images and masks must be the same"
+        )
         if optional_context_mask is not None:
-            assert optional_context_mask.shape[0] == image.shape[0], "Batch size of optional_context_masks must be the same as images or None"
+            assert optional_context_mask.shape[0] == image.shape[0], (
+                "Batch size of optional_context_masks must be the same as images or None"
+            )
 
         results_image = []
         results_mask = []
@@ -969,13 +1533,16 @@ class InpaintExtendOutpaint:
         batch_size = image.shape[0]
         for b in range(batch_size):
             one_image = image[b].unsqueeze(0)  # Adding batch dimension
-            one_mask = mask[b].unsqueeze(0)    # Adding batch dimension
+            one_mask = mask[b].unsqueeze(0)  # Adding batch dimension
             one_context_mask = None
             if optional_context_mask is not None:
                 one_context_mask = optional_context_mask[b].unsqueeze(0)
 
-            #Validate or initialize mask
-            if one_mask.shape[1] != one_image.shape[1] or one_mask.shape[2] != one_image.shape[2]:
+            # Validate or initialize mask
+            if (
+                one_mask.shape[1] != one_image.shape[1]
+                or one_mask.shape[2] != one_image.shape[2]
+            ):
                 non_zero_indices = torch.nonzero(one_mask[0], as_tuple=True)
                 if not non_zero_indices[0].size(0):
                     one_mask = torch.zeros_like(one_image[:, :, :, 0])
@@ -983,7 +1550,10 @@ class InpaintExtendOutpaint:
                     assert False, "mask size must match image size"
 
             # Validate or initialize context mask
-            if one_context_mask is not None and (one_context_mask.shape[1] != one_image.shape[1] or one_context_mask.shape[2] != one_image.shape[2]):
+            if one_context_mask is not None and (
+                one_context_mask.shape[1] != one_image.shape[1]
+                or one_context_mask.shape[2] != one_image.shape[2]
+            ):
                 non_zero_indices = torch.nonzero(one_context_mask[0], as_tuple=True)
                 if not non_zero_indices[0].size(0):
                     one_context_mask = torch.zeros_like(one_image[:, :, :, 0])
@@ -995,8 +1565,12 @@ class InpaintExtendOutpaint:
 
             if mode == "factors":
                 # Calculate new dimensions based on factors
-                new_height = int(orig_height * (expand_up_factor + expand_down_factor - 1))
-                new_width = int(orig_width * (expand_left_factor + expand_right_factor - 1))
+                new_height = int(
+                    orig_height * (expand_up_factor + expand_down_factor - 1)
+                )
+                new_width = int(
+                    orig_width * (expand_left_factor + expand_right_factor - 1)
+                )
 
                 up_padding = int(orig_height * (expand_up_factor - 1))
                 down_padding = new_height - orig_height - up_padding
@@ -1013,8 +1587,16 @@ class InpaintExtendOutpaint:
                 right_padding = expand_right_pixels
 
             # Expand image
-            new_image = torch.zeros((one_image.shape[0], new_height, new_width, one_image.shape[3]), dtype=one_image.dtype)
-            new_image[:, up_padding:up_padding + orig_height, left_padding:left_padding + orig_width, :] = one_image.squeeze(0)
+            new_image = torch.zeros(
+                (one_image.shape[0], new_height, new_width, one_image.shape[3]),
+                dtype=one_image.dtype,
+            )
+            new_image[
+                :,
+                up_padding : up_padding + orig_height,
+                left_padding : left_padding + orig_width,
+                :,
+            ] = one_image.squeeze(0)
 
             start_y = up_padding
             start_x = left_padding
@@ -1023,43 +1605,156 @@ class InpaintExtendOutpaint:
 
             # Mirror image so there's no bleeding of black border when using inpaintmodelconditioning
             available_top = min(start_y, initial_height)
-            available_bottom = min(new_height - (start_y + initial_height), initial_height)
+            available_bottom = min(
+                new_height - (start_y + initial_height), initial_height
+            )
             available_left = min(start_x, initial_width)
             available_right = min(new_width - (start_x + initial_width), initial_width)
             # Top
             if available_top:
-                new_image[:, start_y - available_top:start_y, start_x:start_x + initial_width, :] = torch.flip(image[:, :available_top, :, :], [1])
+                new_image[
+                    :,
+                    start_y - available_top : start_y,
+                    start_x : start_x + initial_width,
+                    :,
+                ] = torch.flip(image[:, :available_top, :, :], [1])
             # Bottom
             if available_bottom:
-                new_image[:, start_y + initial_height:start_y + initial_height + available_bottom, start_x:start_x + initial_width, :] = torch.flip(image[:, -available_bottom:, :, :], [1])
+                new_image[
+                    :,
+                    start_y + initial_height : start_y
+                    + initial_height
+                    + available_bottom,
+                    start_x : start_x + initial_width,
+                    :,
+                ] = torch.flip(image[:, -available_bottom:, :, :], [1])
             # Left
             if available_left:
-                new_image[:, start_y:start_y + initial_height, start_x - available_left:start_x, :] = torch.flip(new_image[:, start_y:start_y + initial_height, start_x:start_x + available_left, :], [2])
+                new_image[
+                    :,
+                    start_y : start_y + initial_height,
+                    start_x - available_left : start_x,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y : start_y + initial_height,
+                        start_x : start_x + available_left,
+                        :,
+                    ],
+                    [2],
+                )
             # Right
             if available_right:
-                new_image[:, start_y:start_y + initial_height, start_x + initial_width:start_x + initial_width + available_right, :] = torch.flip(new_image[:, start_y:start_y + initial_height, start_x + initial_width - available_right:start_x + initial_width, :], [2])
+                new_image[
+                    :,
+                    start_y : start_y + initial_height,
+                    start_x + initial_width : start_x + initial_width + available_right,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y : start_y + initial_height,
+                        start_x + initial_width - available_right : start_x
+                        + initial_width,
+                        :,
+                    ],
+                    [2],
+                )
             # Top-left corner
             if available_top and available_left:
-                new_image[:, start_y - available_top:start_y, start_x - available_left:start_x, :] = torch.flip(new_image[:, start_y:start_y + available_top, start_x:start_x + available_left, :], [1, 2])
+                new_image[
+                    :,
+                    start_y - available_top : start_y,
+                    start_x - available_left : start_x,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y : start_y + available_top,
+                        start_x : start_x + available_left,
+                        :,
+                    ],
+                    [1, 2],
+                )
             # Top-right corner
             if available_top and available_right:
-                new_image[:, start_y - available_top:start_y, start_x + initial_width:start_x + initial_width + available_right, :] = torch.flip(new_image[:, start_y:start_y + available_top, start_x + initial_width - available_right:start_x + initial_width, :], [1, 2])
+                new_image[
+                    :,
+                    start_y - available_top : start_y,
+                    start_x + initial_width : start_x + initial_width + available_right,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y : start_y + available_top,
+                        start_x + initial_width - available_right : start_x
+                        + initial_width,
+                        :,
+                    ],
+                    [1, 2],
+                )
             # Bottom-left corner
             if available_bottom and available_left:
-                new_image[:, start_y + initial_height:start_y + initial_height + available_bottom, start_x - available_left:start_x, :] = torch.flip(new_image[:, start_y + initial_height - available_bottom:start_y + initial_height, start_x:start_x + available_left, :], [1, 2])
+                new_image[
+                    :,
+                    start_y + initial_height : start_y
+                    + initial_height
+                    + available_bottom,
+                    start_x - available_left : start_x,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y + initial_height - available_bottom : start_y
+                        + initial_height,
+                        start_x : start_x + available_left,
+                        :,
+                    ],
+                    [1, 2],
+                )
             # Bottom-right corner
             if available_bottom and available_right:
-                new_image[:, start_y + initial_height:start_y + initial_height + available_bottom, start_x + initial_width:start_x + initial_width + available_right, :] = torch.flip(new_image[:, start_y + initial_height - available_bottom:start_y + initial_height, start_x + initial_width - available_right:start_x + initial_width, :], [1, 2])
-
+                new_image[
+                    :,
+                    start_y + initial_height : start_y
+                    + initial_height
+                    + available_bottom,
+                    start_x + initial_width : start_x + initial_width + available_right,
+                    :,
+                ] = torch.flip(
+                    new_image[
+                        :,
+                        start_y + initial_height - available_bottom : start_y
+                        + initial_height,
+                        start_x + initial_width - available_right : start_x
+                        + initial_width,
+                        :,
+                    ],
+                    [1, 2],
+                )
 
             # Expand mask
-            new_mask = torch.ones((one_mask.shape[0], new_height, new_width), dtype=one_mask.dtype)
-            new_mask[:, up_padding:up_padding + orig_height, left_padding:left_padding + orig_width] = one_mask.squeeze(0)
+            new_mask = torch.ones(
+                (one_mask.shape[0], new_height, new_width), dtype=one_mask.dtype
+            )
+            new_mask[
+                :,
+                up_padding : up_padding + orig_height,
+                left_padding : left_padding + orig_width,
+            ] = one_mask.squeeze(0)
 
             # Expand context mask if present
             if one_context_mask is not None:
-                new_context_mask = torch.zeros((one_context_mask.shape[0], new_height, new_width), dtype=one_context_mask.dtype)
-                new_context_mask[:, up_padding:up_padding + orig_height, left_padding:left_padding + orig_width] = one_context_mask.squeeze(0)
+                new_context_mask = torch.zeros(
+                    (one_context_mask.shape[0], new_height, new_width),
+                    dtype=one_context_mask.dtype,
+                )
+                new_context_mask[
+                    :,
+                    up_padding : up_padding + orig_height,
+                    left_padding : left_padding + orig_width,
+                ] = one_context_mask.squeeze(0)
 
             # Append results
             results_image.append(new_image.squeeze(0))

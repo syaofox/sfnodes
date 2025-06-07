@@ -1,10 +1,11 @@
 import os
-from functools import reduce
 import cv2
 import torch
 import numpy as np
-from PIL import Image
 import mediapipe as mp
+
+from functools import reduce
+from PIL import Image
 from .utils.model_manager import ModelManager
 
 BaseOptions = mp.tasks.BaseOptions
@@ -138,7 +139,7 @@ class PersonMaskGenerator:
         grayscale = mask_image.convert("L")
 
         # 创建二进制掩码，非黑色像素为白色(255)
-        mask_for_bbox = grayscale.point(lambda p: 255 if p > 0 else 0) # type: ignore
+        mask_for_bbox = grayscale.point(lambda p: 255 if p > 0 else 0)  # type: ignore
 
         # 获取非黑色区域的边界框
         bbox = mask_for_bbox.getbbox()

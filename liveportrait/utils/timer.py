@@ -6,14 +6,15 @@ tools to measure elapsed time
 
 import time
 
+
 class Timer(object):
     """A simple timer."""
 
     def __init__(self):
-        self.total_time = 0.
+        self.total_time = 0.0
         self.calls = 0
-        self.start_time = 0.
-        self.diff = 0.
+        self.start_time = 0.0
+        self.diff = 0.0
 
     def tic(self):
         # using time.time instead of time.clock because time time.clock
@@ -25,5 +26,5 @@ class Timer(object):
         return self.diff
 
     def clear(self):
-        self.start_time = 0.
-        self.diff = 0.
+        self.start_time = 0.0
+        self.diff = 0.0

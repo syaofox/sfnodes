@@ -9,11 +9,13 @@ import torch
 import numpy as np
 from typing import Union
 from collections import OrderedDict
-from scipy.spatial import ConvexHull # pylint: disable=E0401,E0611
+from scipy.spatial import ConvexHull  # pylint: disable=E0401,E0611
+
 
 def squeeze_tensor_to_numpy(tensor):
     out = tensor.data.squeeze(0).cpu().numpy()
     return out
+
 
 def dct2cuda(dct: dict, device_id: int):
     for key in dct:
@@ -29,7 +31,7 @@ def concat_feat(kp_source: torch.Tensor, kp_driving: torch.Tensor) -> torch.Tens
     """
     bs_src = kp_source.shape[0]
     bs_dri = kp_driving.shape[0]
-    assert bs_src == bs_dri, 'batch size must be equal'
+    assert bs_src == bs_dri, "batch size must be equal"
 
     feat = torch.cat([kp_source.view(bs_src, -1), kp_driving.view(bs_dri, -1)], dim=1)
     return feat
@@ -38,20 +40,23 @@ def concat_feat(kp_source: torch.Tensor, kp_driving: torch.Tensor) -> torch.Tens
 def remove_ddp_dumplicate_key(state_dict):
     state_dict_new = OrderedDict()
     for key in state_dict.keys():
-        state_dict_new[key.replace('module.', '')] = state_dict[key]
+        state_dict_new[key.replace("module.", "")] = state_dict[key]
     return state_dict_new
 
+
 # get coefficients of Eqn. 7
-def calculate_transformation(config, s_kp_info, t_0_kp_info, t_i_kp_info, R_s, R_t_0, R_t_i):
+def calculate_transformation(
+    config, s_kp_info, t_0_kp_info, t_i_kp_info, R_s, R_t_0, R_t_i
+):
     if config.relative:
         new_rotation = (R_t_i @ R_t_0.permute(0, 2, 1)) @ R_s
-        new_expression = s_kp_info['exp'] + (t_i_kp_info['exp'] - t_0_kp_info['exp'])
+        new_expression = s_kp_info["exp"] + (t_i_kp_info["exp"] - t_0_kp_info["exp"])
     else:
         new_rotation = R_t_i
-        new_expression = t_i_kp_info['exp']
-    new_translation = s_kp_info['t'] + (t_i_kp_info['t'] - t_0_kp_info['t'])
+        new_expression = t_i_kp_info["exp"]
+    new_translation = s_kp_info["t"] + (t_i_kp_info["t"] - t_0_kp_info["t"])
     new_translation[..., 2].fill_(0)  # Keep the z-axis unchanged
-    new_scale = s_kp_info['scale'] * (t_i_kp_info['scale'] / t_0_kp_info['scale'])
+    new_scale = s_kp_info["scale"] * (t_i_kp_info["scale"] / t_0_kp_info["scale"])
     return new_rotation, new_expression, new_translation, new_scale
 
 
@@ -74,15 +79,17 @@ def resize_to_limit(img, max_dim=1280, n=2):
         img = img[:new_h, :new_w]
     return img
 
+
 def tensor_to_numpy(data: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
     """transform torch.Tensor into numpy.ndarray"""
     if isinstance(data, torch.Tensor):
         return data.data.cpu().numpy()
     return data
 
+
 def calc_motion_multiplier(
     kp_source: Union[np.ndarray, torch.Tensor],
-    kp_driving_initial: Union[np.ndarray, torch.Tensor]
+    kp_driving_initial: Union[np.ndarray, torch.Tensor],
 ) -> float:
     """calculate motion_multiplier based on the source image and the first driving frame"""
     kp_source_np = tensor_to_numpy(kp_source)

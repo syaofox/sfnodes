@@ -180,7 +180,7 @@ class GenerateRegionFaceMask:
                 "regions": ("REGIONS", {"tooltip": "要生成的面部区域"}),
             },
             "optional": {
-                "mask_params": ("MASKPARAMS", ),
+                "mask_params": ("MASKPARAMS",),
             },
         }
 
@@ -207,18 +207,18 @@ class GenerateRegionFaceMask:
     ):
         if mask_params is None:
             mask_params = {
-                'grow': 0,
-                'grow_percent': 0.0,
-                'grow_tapered': False,
-                'blur': 4,
-                'fill': True
+                "grow": 0,
+                "grow_percent": 0.0,
+                "grow_tapered": False,
+                "blur": 4,
+                "fill": True,
             }
 
-        grow = mask_params['grow']
-        grow_percent = mask_params['grow_percent']
-        grow_tapered = mask_params['grow_tapered']
-        blur = mask_params['blur']
-        fill = mask_params['fill']
+        grow = mask_params["grow"]
+        grow_percent = mask_params["grow_percent"]
+        grow_tapered = mask_params["grow_tapered"]
+        blur = mask_params["blur"]
+        fill = mask_params["fill"]
 
         region_indices = [
             FACE_MASK_REGION_SET[region]

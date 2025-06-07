@@ -21,7 +21,7 @@ def headpose_pred_to_degree(pred):
         idx_tensor = [idx for idx in range(0, 66)]
         idx_tensor = torch.FloatTensor(idx_tensor).to(device)
         pred = F.softmax(pred, dim=1)
-        degree = torch.sum(pred*idx_tensor, axis=1) * 3 - 97.5
+        degree = torch.sum(pred * idx_tensor, axis=1) * 3 - 97.5
 
         return degree
 
@@ -29,8 +29,7 @@ def headpose_pred_to_degree(pred):
 
 
 def get_rotation_matrix(pitch_, yaw_, roll_):
-    """ the input is in degree
-    """
+    """the input is in degree"""
     # calculate the rotation matrix: vps @ rot
 
     # transform to radian
@@ -53,23 +52,50 @@ def get_rotation_matrix(pitch_, yaw_, roll_):
     zeros = torch.zeros([bs, 1]).to(device)
     x, y, z = pitch, yaw, roll
 
-    rot_x = torch.cat([
-        ones, zeros, zeros,
-        zeros, torch.cos(x), -torch.sin(x),
-        zeros, torch.sin(x), torch.cos(x)
-    ], dim=1).reshape([bs, 3, 3])
+    rot_x = torch.cat(
+        [
+            ones,
+            zeros,
+            zeros,
+            zeros,
+            torch.cos(x),
+            -torch.sin(x),
+            zeros,
+            torch.sin(x),
+            torch.cos(x),
+        ],
+        dim=1,
+    ).reshape([bs, 3, 3])
 
-    rot_y = torch.cat([
-        torch.cos(y), zeros, torch.sin(y),
-        zeros, ones, zeros,
-        -torch.sin(y), zeros, torch.cos(y)
-    ], dim=1).reshape([bs, 3, 3])
+    rot_y = torch.cat(
+        [
+            torch.cos(y),
+            zeros,
+            torch.sin(y),
+            zeros,
+            ones,
+            zeros,
+            -torch.sin(y),
+            zeros,
+            torch.cos(y),
+        ],
+        dim=1,
+    ).reshape([bs, 3, 3])
 
-    rot_z = torch.cat([
-        torch.cos(z), -torch.sin(z), zeros,
-        torch.sin(z), torch.cos(z), zeros,
-        zeros, zeros, ones
-    ], dim=1).reshape([bs, 3, 3])
+    rot_z = torch.cat(
+        [
+            torch.cos(z),
+            -torch.sin(z),
+            zeros,
+            torch.sin(z),
+            torch.cos(z),
+            zeros,
+            zeros,
+            zeros,
+            ones,
+        ],
+        dim=1,
+    ).reshape([bs, 3, 3])
 
     rot = rot_z @ rot_y @ rot_x
     return rot.permute(0, 2, 1)  # transpose
