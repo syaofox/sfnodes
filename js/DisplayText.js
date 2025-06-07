@@ -34,19 +34,19 @@ app.registerExtension({
         }
         
         switch (nodeData.name) {  
-            case "ImageScalerForSDModels":
-            case "ImageScalerByPixels":
-            case "ImageScaleBySpecifiedSide":
-            case "ComputeImageScaleRatio":
-            case "ImageRotate":
-            case "TrimImageBorders":
-            case "AddImageBorder":
-            case "GetImageSize":           
+            case "SFImageScalerForSDModels":
+            case "SFImageScalerByPixels":
+            case "SFImageScaleBySpecifiedSide":
+            case "SFComputeImageScaleRatio":
+            case "SFImageRotate":
+            case "SFTrimImageBorders":
+            case "SFAddImageBorder":
+            case "SFGetImageSize":           
                 const onExecutedImage = nodeType.prototype.onExecuted;
                 nodeType.prototype.onExecuted = function (message) {
                     onExecutedImage?.apply(this, arguments);
                     let value = message["width"].join("") + "x" + message["height"].join("");
-                    if (nodeData.name === "GetImageSize") {
+                    if (nodeData.name === "SFGetImageSize") {
                         value += "_" + message["count"].join("");
                         value += "_" + message["min_dimension"].join("");
                         value += "_" + message["max_dimension"].join("");
