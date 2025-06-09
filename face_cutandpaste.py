@@ -81,6 +81,16 @@ class FaceCutout:
                         "tooltip": "设置贴回去图像的模糊半径",
                     },
                 ),
+                "blur_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.1,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置贴回去图像的模糊百分比",
+                    },
+                ),
                 "is_square": (
                     "BOOLEAN",
                     {"default": False, "tooltip": "是否将图像裁剪为正方形"},
@@ -118,6 +128,7 @@ class FaceCutout:
         margin,
         margin_percent,
         blur_radius,
+        blur_percent,
         is_square=False,
     ):
         target_size = self._get_target_size(rescale_mode, custom_megapixels)
@@ -189,6 +200,7 @@ class FaceCutout:
                 "margin": margin,
                 "margin_percent": margin_percent,
                 "blur_radius": blur_radius,
+                "blur_percent": blur_percent,
             }
             crop_images.append(scaled_face)
 
@@ -253,6 +265,7 @@ class FacePaste:
         margin = bounding_info["margin"]
         margin_percent = bounding_info["margin_percent"]
         blur_radius = bounding_info["blur_radius"]
+        blur_percent = bounding_info["blur_percent"]
 
         destination = tensor2pil(distination_image[0])
         source = tensor2pil(source_image[0])
@@ -262,9 +275,11 @@ class FacePaste:
             source = source.resize((width, height), resample=Image.Resampling.LANCZOS)
 
         ref_size = max(source.width, source.height)
-        margin_border = int(ref_size * margin_percent) + margin
+        margin_size = int(ref_size * margin_percent) + margin
+        blur_size = int(ref_size * blur_percent) + blur_radius
+        print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
 
-        mask = self.create_soft_edge_mask(source.size, margin_border, blur_radius)
+        mask = self.create_soft_edge_mask(source.size, margin_size, blur_size)
 
         position = (x, y)
         destination.paste(source, position, mask)
