@@ -257,6 +257,7 @@ class FaceWarp:
                 "mask_from": ("MASK",),
                 "mask_to": ("MASK",),
                 "mask_params": ("MASKPARAMS",),
+                "is_mathcolor": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -276,6 +277,7 @@ class FaceWarp:
         mask_from=None,
         mask_to=None,
         mask_params=None,
+        is_mathcolor=True,
     ):
         if mask_params is None:
             mask_params = {
@@ -449,12 +451,15 @@ class FaceWarp:
             y2 = min(output.shape[1], y.max().item() + padding)
             cm_image = output[:, y1:y2, x1:x2, :]
 
-            normalized = cm.transfer(
-                src=Normalizer(cm_image[0].numpy()).type_norm(),
-                ref=Normalizer(cm_ref[0].numpy()).type_norm(),
-                method="mkl",
-            )
-            normalized = torch.from_numpy(normalized).unsqueeze(0)
+            if is_mathcolor:               
+                normalized = cm.transfer(
+                    src=Normalizer(cm_image[0].numpy()).type_norm(),
+                    ref=Normalizer(cm_ref[0].numpy()).type_norm(),
+                    method="mkl",
+                )
+                normalized = torch.from_numpy(normalized).unsqueeze(0)
+            else:
+                normalized = cm_image
 
             factor = 0.8
 
