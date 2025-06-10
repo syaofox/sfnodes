@@ -49,14 +49,14 @@ def pil2hex(image):
 
 def pil2mask(image):
     image_np = np.array(image.convert("L")).astype(np.float32) / 255.0
-    mask = torch.from_numpy(image_np)
+    mask = torch.from_numpy(image_np).unsqueeze(0)
     return mask
 
 
 def mask2pil(mask):
     if mask.ndim > 2:
         mask = mask.squeeze(0)
-    mask_np = mask.cpu().numpy().astype("uint8")
+    mask_np = (mask.cpu().numpy() * 255.0).astype("uint8")
     mask_pil = Image.fromarray(mask_np, mode="L")
     return mask_pil
 

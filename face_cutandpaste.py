@@ -2,9 +2,15 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 from comfy.utils import common_upscale
-from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil
+from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil, mask2pil
 
 _CATEGORY = "sfnodes/face_analysis"
+
+def create_soft_edge_mask(size, margin, blur_radius):
+        mask = Image.new("L", size, 255)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle(((0, 0), size), outline="black", width=margin)
+        return mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
 
 class FaceCutout:
@@ -188,19 +194,26 @@ class FaceCutout:
                 new_height = round(heights[i] * scale_factor)
                 scaled_face = self._rescale_image(face, new_width, new_height)
             else:
+                new_width = widths[i]
+                new_height = heights[i]
                 scaled_face = face
+
+
+            ref_size = max(new_width, new_height)
+            margin_size = int(ref_size * margin_percent) + margin
+            blur_size = int(ref_size * blur_percent) + blur_radius
+            print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
+
+            mask_image = create_soft_edge_mask((new_width, new_height), margin_size, blur_size)
+
 
             # 为每个人脸创建单独的 BOUNDINGINFO 结构
             bounding_info = {
                 "x": x_coords[i],
                 "y": y_coords[i],
                 "width": widths[i],
-                "height": heights[i],
-                "scale_factor": scale_factor,
-                "margin": margin,
-                "margin_percent": margin_percent,
-                "blur_radius": blur_radius,
-                "blur_percent": blur_percent,
+                "height": heights[i],                
+                "mask": pil2mask(mask_image),
             }
             crop_images.append(scaled_face)
 
@@ -239,7 +252,7 @@ class FacePaste:
             "required": {
                 "bounding_info": ("BOUNDINGINFO",),
                 "source_image": ("IMAGE",),
-                "distination_image": ("IMAGE",),
+                "destination_image": ("IMAGE",),
             },
         }
 
@@ -249,42 +262,32 @@ class FacePaste:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将bounding_info中的人脸图像贴回原图"
 
-    @staticmethod
-    def create_soft_edge_mask(size, margin, blur_radius):
-        mask = Image.new("L", size, 255)
-        draw = ImageDraw.Draw(mask)
-        draw.rectangle(((0, 0), size), outline="black", width=margin)
-        return mask.filter(ImageFilter.GaussianBlur(blur_radius))
-
-    def paste(self, bounding_info, source_image, distination_image):
+    
+    def paste(self, bounding_info, source_image, destination_image):
         # 从bounding_info中获取人脸图像和位置信息
         x = bounding_info["x"]
         y = bounding_info["y"]
         width = bounding_info["width"]
         height = bounding_info["height"]
-        margin = bounding_info["margin"]
-        margin_percent = bounding_info["margin_percent"]
-        blur_radius = bounding_info["blur_radius"]
-        blur_percent = bounding_info["blur_percent"]
-
-        destination = tensor2pil(distination_image[0])
+        mask = bounding_info["mask"]
+        
+        destination = tensor2pil(destination_image[0])
         source = tensor2pil(source_image[0])
+
+        mask_image = mask2pil(mask)
+        
 
         # 如果源图像尺寸与目标区域尺寸不匹配，进行调整
         if source.width != width or source.height != height:
             source = source.resize((width, height), resample=Image.Resampling.LANCZOS)
 
-        ref_size = max(source.width, source.height)
-        margin_size = int(ref_size * margin_percent) + margin
-        blur_size = int(ref_size * blur_percent) + blur_radius
-        print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
-
-        mask = self.create_soft_edge_mask(source.size, margin_size, blur_size)
+            mask_image = mask_image.resize((width, height), resample=Image.Resampling.LANCZOS)
 
         position = (x, y)
-        destination.paste(source, position, mask)
+        print(f"[FacePaste] destination shape: {destination.size}, source shape: {source.size}, mask shape: {mask_image.size}")
+        destination.paste(source, position, mask_image)
 
-        return pil2tensor(destination), pil2mask(mask)
+        return pil2tensor(destination), pil2mask(mask_image)
 
 
 class ExtractBoundingBox:
@@ -307,8 +310,8 @@ class ExtractBoundingBox:
             },
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "IMAGE", "BOUNDINGINFO")
-    RETURN_NAMES = ("x", "y", "width", "height", "crop_image", "bounding_info")
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "IMAGE", "MASK", "BOUNDINGINFO")
+    RETURN_NAMES = ("x", "y", "width", "height", "crop_image", "mask", "bounding_info")
     INPUT_IS_LIST = (
         True,
         False,
@@ -350,5 +353,6 @@ class ExtractBoundingBox:
         y = bounding_info.get("y", 0)
         width = bounding_info.get("width", 0)
         height = bounding_info.get("height", 0)
+        mask = bounding_info.get("mask", None)
         crop_image = crop_images[index]
-        return (x, y, width, height, crop_image, bounding_info)
+        return (x, y, width, height, crop_image, mask, bounding_info)
