@@ -2,7 +2,8 @@ from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutp
 from .face_morph import FaceMorph
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_cutandpaste import FaceCutout, FacePaste, ExtractBoundingBox
-from .face_analysis import FaceAnalysisModels, FaceEmbedDistance, FaceWarp
+from .face_analysis import FaceAnalysisModels, FaceEmbedDistance
+from .face_warp import FaceWarp
 from .face_alginandrotate import (
     AlignImageByFace,
     RestoreRotatedImage,
