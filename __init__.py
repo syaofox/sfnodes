@@ -51,6 +51,7 @@ from .adv_clip import (
     AdvancedCLIPTextEncodeSDXL,
 )
 from .misc import DisplayAny
+from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 
 WEB_DIRECTORY = "js"
 
@@ -125,6 +126,11 @@ NODE_CLASS_MAPPINGS = {
     "SFAddCLIPSDXLParams": AddCLIPSDXLParams,
     "SFAddCLIPSDXLRParams": AddCLIPSDXLRParams,
     "SFAdvancedCLIPTextEncodeSDXL": AdvancedCLIPTextEncodeSDXL,
+
+    # 局部修复节点
+    "SFInpaintCutOut": InpaintCutOut,
+    "SFInpaintPaste": InpaintPaste,
+    "SFExtractCutInfo": ExtractCutInfo,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -197,6 +203,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAddCLIPSDXLParams": "SF Add CLIP SDXL Params",
     "SFAddCLIPSDXLRParams": "SF Add CLIP SDXLR Params",
     "SFAdvancedCLIPTextEncodeSDXL": "SF Advanced CLIP Text Encode SDXL",
+    # 局部修复节点
+    "SFInpaintCutOut": "SF Inpaint Cut Out",
+    "SFInpaintPaste": "SF Inpaint Paste",
+    "SFExtractCutInfo": "SF Extract Cut Info",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
