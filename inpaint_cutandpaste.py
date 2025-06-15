@@ -94,8 +94,8 @@ class InpaintCutOut:
 
     CATEGORY = _CATEGORY
 
-    RETURN_TYPES = ("IMAGE", "MASK","CUTINFO")
-    RETURN_NAMES = ("cutout_image", "cutout_mask","cutinfo")
+    RETURN_TYPES = ("IMAGE", "MASK","IMAGE","CUTINFO")
+    RETURN_NAMES = ("cutout_image", "cutout_mask","cutout_origin_image","cutinfo")
 
     FUNCTION = "inpaint_cutout"
 
@@ -179,14 +179,13 @@ class InpaintCutOut:
             "height": height,
             "mask": pil2mask(edge_mask),
             "source_image": image,
-            
         }
         
         # 转换回tensor格式
         cutout_image = pil2tensor(cropped_image)
         cutout_mask = pil2mask(cropped_mask)
-        
-        return (cutout_image, cutout_mask, cutinfo)
+        cutout_origin_image = pil2tensor(pil_image)
+        return (cutout_image, cutout_mask, cutout_origin_image, cutinfo)
         
     @staticmethod
     def _get_target_size(rescale_mode, custom_megapixels):
