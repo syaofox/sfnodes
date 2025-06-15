@@ -164,7 +164,7 @@ def get_face_path():
             if line.startswith("FACE_PATH"):
                 # 提取路径并去除引号和空格
                 return line.split("=")[1].strip().strip("'").strip('"')
-    return r"D:\codes\aidraw\fworker\assets\face_pieces"  # 默认路径作为备选
+    return r"D:\codes\aivision\asserts\face_pieces"  # 默认路径作为备选
 
 
 class SelectFace:
