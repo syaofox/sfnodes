@@ -324,3 +324,97 @@ class FaceMorph:
 
         warped_image = self.warp_image(image1, src_points, dst_points)
         return (pil2tensor(warped_image),)
+
+
+class FaceReshape:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "输入图像"}),
+                "width_scale": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.01, "tooltip": "脸型宽度缩放比例"}),
+                "height_scale": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.01, "tooltip": "脸型高度缩放比例"}),
+                "preserve_features": (["是", "否"], {"default": "是", "tooltip": "是否保持眼睛和嘴巴等关键特征不变形"}),
+                "onnx_device": (
+                    ["CPU", "CUDA", "ROCM", "CoreML", "torch_gpu"],
+                    {"tooltip": "选择推理设备", "default": "CPU"},
+                ),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("reshaped_image",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "通过调整参数直接对脸型进行宽度和高度变形，无需参考图像"
+
+    def __init__(self):
+        self.face_morph = FaceMorph()
+        self.landmark_extractor = None
+        self.current_config = None
+        self.model_manager = ModelManager(LANDMARK_MODELS)
+        self.model_manager.get_model_path("landmark", sub_dir="face_morph")
+        self.model_manager.get_model_path("landmark_model", sub_dir="face_morph")
+
+    def initialize_landmark_extractor(self, onnx_device):
+        extractor_init_config = {"keep_model_loaded": True, "onnx_device": onnx_device}
+        if (
+            self.landmark_extractor is None
+            or self.current_config != extractor_init_config
+        ):
+            self.current_config = extractor_init_config
+            self.landmark_extractor = FaceLandmarkExtractor(**extractor_init_config)
+    
+    def process_image(self, image):
+        image_np = (image.contiguous() * 255).byte().numpy()
+        if self.landmark_extractor is None:
+            raise ValueError("self.landmark_extractor 未初始化")
+        landmark_info = self.landmark_extractor.extract_face_landmarks(image_np[0], 0)
+        landmarks = self.face_morph.landmark203_to_68(landmark_info["landmarks"])
+        return image_np[0], np.array(landmarks[:65])
+
+    def execute(self, image, width_scale, height_scale, preserve_features, onnx_device):
+        self.initialize_landmark_extractor(onnx_device)
+        img_np, landmarks = self.process_image(image)
+        
+        # 计算面部特征
+        features = self.face_morph.calculate_facial_features(landmarks)
+        
+        # 创建网格点
+        height, width = img_np.shape[:2]
+        src_points = self.face_morph.create_grid_points(width, height)
+        dst_points = src_points.copy()
+        
+        # 确定面部变形中心点
+        face_center = np.mean(landmarks, axis=0)
+        
+        # 创建目标landmarks用于变形
+        target_landmarks = landmarks.copy()
+        
+        # 应用宽度和高度变形
+        for i in range(len(target_landmarks)):
+            # 计算相对于面部中心的偏移
+            offset_x = target_landmarks[i, 0] - face_center[0]
+            offset_y = target_landmarks[i, 1] - face_center[1]
+            
+            if preserve_features == "是":
+                # 如果需要保持关键特征，只变形下巴线和脸颊区域的点
+                is_jaw_or_cheek = i < 17  # 下巴轮廓点
+                
+                if is_jaw_or_cheek:
+                    # 变形下巴和脸颊区域
+                    target_landmarks[i, 0] = face_center[0] + offset_x * width_scale
+                    target_landmarks[i, 1] = face_center[1] + offset_y * height_scale
+            else:
+                # 全部特征点都进行变形
+                target_landmarks[i, 0] = face_center[0] + offset_x * width_scale
+                target_landmarks[i, 1] = face_center[1] + offset_y * height_scale
+        
+        # 合并变形点
+        src_points = np.append(src_points, landmarks, axis=0)
+        dst_points = np.append(dst_points, target_landmarks, axis=0)
+        
+        # 应用变形
+        warped_image = self.face_morph.warp_image(img_np, src_points, dst_points)
+        
+        return (pil2tensor(warped_image),)
