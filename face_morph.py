@@ -334,7 +334,7 @@ class FaceReshape:
                 "image": ("IMAGE", {"tooltip": "输入图像"}),
                 "width_scale": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.01, "tooltip": "脸型宽度缩放比例"}),
                 "height_scale": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.01, "tooltip": "脸型高度缩放比例"}),
-                "preserve_features": (["是", "否"], {"default": "是", "tooltip": "是否保持眼睛和嘴巴等关键特征不变形"}),
+                "preserve_features": (["是", "否"], {"default": "否", "tooltip": "是否保持眼睛和嘴巴等关键特征不变形"}),
                 "onnx_device": (
                     ["CPU", "CUDA", "ROCM", "CoreML", "torch_gpu"],
                     {"tooltip": "选择推理设备", "default": "CPU"},
@@ -385,30 +385,59 @@ class FaceReshape:
         src_points = self.face_morph.create_grid_points(width, height)
         dst_points = src_points.copy()
         
-        # 确定面部变形中心点
-        face_center = np.mean(landmarks, axis=0)
+        # 获取关键特征点位置
+        chin_point = landmarks[8]  # 下巴底部点
+        forehead_point = np.mean(landmarks[17:27], axis=0)  # 额头区域的平均点
+        
+        # 计算脸部垂直中点（不是简单平均，而是在额头和下巴之间）
+        face_vertical_center = (forehead_point + chin_point) / 2
+        
+        # 计算面部水平中点（使用眼睛中点）
+        face_horizontal_center = (features["left_eye"] + features["right_eye"]) / 2
         
         # 创建目标landmarks用于变形
         target_landmarks = landmarks.copy()
         
         # 应用宽度和高度变形
         for i in range(len(target_landmarks)):
-            # 计算相对于面部中心的偏移
-            offset_x = target_landmarks[i, 0] - face_center[0]
-            offset_y = target_landmarks[i, 1] - face_center[1]
+            point = target_landmarks[i]
             
+            # 处理宽度变形 - 相对于垂直中线
+            x_offset = point[0] - face_horizontal_center[0]
+            # 处理高度变形 - 区分上下部分
+            is_upper_face = point[1] < face_vertical_center[1]
+            
+            # 计算点到垂直中心的距离
+            y_offset = point[1] - face_vertical_center[1]
+            
+            # 应用变形
             if preserve_features == "是":
-                # 如果需要保持关键特征，只变形下巴线和脸颊区域的点
+                # 如果保持关键特征，只变形下巴轮廓点
                 is_jaw_or_cheek = i < 17  # 下巴轮廓点
                 
                 if is_jaw_or_cheek:
-                    # 变形下巴和脸颊区域
-                    target_landmarks[i, 0] = face_center[0] + offset_x * width_scale
-                    target_landmarks[i, 1] = face_center[1] + offset_y * height_scale
+                    # 宽度变形
+                    target_landmarks[i, 0] = face_horizontal_center[0] + x_offset * width_scale
+                    
+                    # 高度变形 - 根据点是在脸的上部还是下部来决定方向
+                    if is_upper_face:
+                        # 上部向上移动或压缩
+                        target_landmarks[i, 1] = face_vertical_center[1] - abs(y_offset) * height_scale
+                    else:
+                        # 下部向下移动或压缩
+                        target_landmarks[i, 1] = face_vertical_center[1] + abs(y_offset) * height_scale
             else:
                 # 全部特征点都进行变形
-                target_landmarks[i, 0] = face_center[0] + offset_x * width_scale
-                target_landmarks[i, 1] = face_center[1] + offset_y * height_scale
+                # 宽度变形
+                target_landmarks[i, 0] = face_horizontal_center[0] + x_offset * width_scale
+                
+                # 高度变形 - 根据点是在脸的上部还是下部来决定方向
+                if is_upper_face:
+                    # 上部向上移动或压缩
+                    target_landmarks[i, 1] = face_vertical_center[1] - abs(y_offset) * height_scale
+                else:
+                    # 下部向下移动或压缩
+                    target_landmarks[i, 1] = face_vertical_center[1] + abs(y_offset) * height_scale
         
         # 合并变形点
         src_points = np.append(src_points, landmarks, axis=0)
