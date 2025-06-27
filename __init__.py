@@ -52,6 +52,8 @@ from .adv_clip import (
 )
 from .misc import DisplayAny
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
+from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
+
 
 WEB_DIRECTORY = "js"
 
@@ -132,6 +134,11 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintCutOut": InpaintCutOut,
     "SFInpaintPaste": InpaintPaste,
     "SFExtractCutInfo": ExtractCutInfo,
+    # 提示注入节点
+    "SFPromptInjection": PromptInjection,
+    "SFPromptInjectionIdx": PromptInjectionIdx,
+    "SFSimplePromptInjection": SimplePromptInjection,
+    "SFAdvancedPromptInjection": AdvancedPromptInjection,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -209,6 +216,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintCutOut": "SF Inpaint Cut Out",
     "SFInpaintPaste": "SF Inpaint Paste",
     "SFExtractCutInfo": "SF Extract Cut Info",
+    # 提示注入节点
+    "SFPromptInjection": "SF Prompt Injection",
+    "SFPromptInjectionIdx": "SF Prompt Injection Idx",
+    "SFSimplePromptInjection": "SF Simple Prompt Injection",
+    "SFAdvancedPromptInjection": "SF Advanced Prompt Injection",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
