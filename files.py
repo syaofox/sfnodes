@@ -180,7 +180,10 @@ class SelectFace:
             if d.is_dir():
                 cls.dir_dict[d.name] = d
 
-        return {"required": {"face_name": (list(cls.dir_dict.keys()),)}}
+        return {
+            "required": {"face_name": (list(cls.dir_dict.keys()),)},
+            "optional": {"char_name": ("STRING", {"default": "char"})}
+        }
 
     RETURN_TYPES = (
         "STRING",
@@ -195,7 +198,9 @@ class SelectFace:
     CATEGORY = _CATEGORY
     DESCRIPTION = "从特定路径选择人脸，子文件夹名即为人脸名称，路径在facepath文件中设置"
 
-    def execute(self, face_name):
+    def execute(self, face_name, char_name=None):
+        if char_name:
+            face_name = char_name
         return (
             str(self.dir_dict[face_name]),
             face_name,
