@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 from comfy.utils import common_upscale
 from nodes import SaveImage
-from .utils.image_convert import mask2tensor, np2tensor, tensor2mask
+from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, rescale_image
 from .utils.mask_utils import (
     blur_mask,
     combine_mask,
@@ -747,3 +747,126 @@ class MaskParams:
         }
 
         return (mask_params,)
+
+
+class MaskCrop:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "输入图像"}),
+                "mask": ("MASK", {"tooltip": "用于裁剪的遮罩，白色区域将被裁剪掉"}),
+                "invert_mask": ("BOOLEAN", {"default": False, "tooltip": "反转遮罩，裁剪黑色区域而保留白色区域"}),
+                "threshold": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "遮罩阈值，大于此值的区域被视为白色区域"}),
+                "actual_crop": ("BOOLEAN", {"default": True, "tooltip": "是否实际裁剪图像。如果为True，将裁剪图像；如果为False，只会将遮罩区域变黑"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "裁剪掉图像中的遮罩区域"
+
+    def execute(self, image, mask, invert_mask, threshold, actual_crop):
+        import torch
+        import numpy as np
+        from PIL import Image
+        
+        # 确保图像和遮罩的批次大小匹配
+        assert image.shape[0] == mask.shape[0] or mask.shape[0] == 1, "图像和遮罩的批次大小不匹配"
+        
+        # 如果遮罩和图像尺寸不同，调整遮罩大小
+        if image.shape[1:3] != mask.shape[1:3]:
+            # 将遮罩转换为张量格式以便于缩放
+            mask_tensor = mask2tensor(mask)
+            # 调整遮罩大小以匹配图像
+            mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
+            # 转换回遮罩格式
+            mask = tensor2mask(mask_tensor)
+        
+        # 如果需要反转遮罩
+        if invert_mask:
+            mask = 1.0 - mask
+        
+        # 如果不需要实际裁剪，只是将遮罩区域变黑
+        if not actual_crop:
+            # 克隆图像以避免修改原始数据
+            result_image = image.detach().clone()
+            
+            # 将遮罩调整为适合图像处理的格式
+            alpha = mask_unsqueeze(mask)
+            
+            # 确保遮罩和图像的批次大小匹配
+            if alpha.shape[0] == 1 and result_image.shape[0] > 1:
+                alpha = alpha.repeat(result_image.shape[0], 1, 1, 1)
+            
+            # 应用遮罩（将遮罩区域设为黑色）
+            for i in range(result_image.shape[0]):  # 处理每一批图像
+                # 扩展alpha维度以匹配图像通道
+                alpha_expanded = alpha[i].squeeze(0).unsqueeze(-1).expand(-1, -1, 3)
+                # 将遮罩区域设为黑色（0）
+                result_image[i] = result_image[i] * (1.0 - alpha_expanded)
+            
+            return (result_image,)
+        
+        # 实际裁剪图像的逻辑
+        # 创建结果图像列表
+        result_images = []
+        
+        # 处理每一批图像
+        for i in range(image.shape[0]):
+            # 获取当前批次的图像和遮罩
+            curr_img = image[i].cpu().numpy()
+            curr_mask = mask[i if mask.shape[0] > 1 else 0].cpu().numpy()
+            
+            # 将遮罩二值化
+            binary_mask = (curr_mask > threshold).astype(np.uint8)
+            
+            # 将图像转换为PIL格式以便处理
+            pil_img = Image.fromarray((curr_img * 255).astype(np.uint8))
+            pil_mask = Image.fromarray((binary_mask * 255).astype(np.uint8))
+            
+            # 获取非零区域的边界框（非遮罩区域）
+            non_zero = np.where(binary_mask == 0)
+            if len(non_zero[0]) > 0 and len(non_zero[1]) > 0:
+                # 计算边界框
+                min_y, max_y = np.min(non_zero[0]), np.max(non_zero[0])
+                min_x, max_x = np.min(non_zero[1]), np.max(non_zero[1])
+                
+                # 裁剪图像
+                cropped_img = pil_img.crop((min_x, min_y, max_x + 1, max_y + 1))
+                
+                # 转换回numpy格式
+                cropped_np = np.array(cropped_img).astype(np.float32) / 255.0
+                
+                # 添加到结果列表
+                result_images.append(torch.from_numpy(cropped_np))
+            else:
+                # 如果没有非遮罩区域，返回空图像（1x1像素）
+                empty_img = torch.zeros((1, 1, 3), dtype=torch.float32)
+                result_images.append(empty_img)
+        
+        # 将结果列表转换为批次张量
+        # 注意：由于裁剪后的图像可能大小不同，我们需要调整它们到相同大小
+        if len(result_images) == 1:
+            return (result_images[0].unsqueeze(0),)
+        else:
+            # 找出最大的宽度和高度
+            max_height = max([img.shape[0] for img in result_images])
+            max_width = max([img.shape[1] for img in result_images])
+            
+            # 调整所有图像到相同大小
+            resized_images = []
+            for img in result_images:
+                if img.shape[0] != max_height or img.shape[1] != max_width:
+                    # 创建新的空白图像
+                    resized = torch.zeros((max_height, max_width, 3), dtype=torch.float32)
+                    # 将原始图像复制到新图像的左上角
+                    h, w = img.shape[0], img.shape[1]
+                    resized[:h, :w, :] = img
+                    resized_images.append(resized)
+                else:
+                    resized_images.append(img)
+            
+            # 堆叠所有调整大小后的图像
+            return (torch.stack(resized_images),)
