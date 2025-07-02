@@ -520,10 +520,12 @@ class ScaleImageToSquare:
             },
         }
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("image", "mask")
     FUNCTION = "prep_image"
 
     CATEGORY = "ipadapter/utils"
+    DESCRIPTION = "将图片缩放为正方形，可选择裁剪或填充方式，并输出填充区域的mask"
 
     def prep_image(self, image, size_length, interpolation="LANCZOS", crop_position="center", sharpening=0.0):
         size = (size_length, size_length)
@@ -569,5 +571,21 @@ class ScaleImageToSquare:
             output = contrast_adaptive_sharpening(output, sharpening)
 
         output = output.permute([0,2,3,1])
+        
+        # 创建mask，标记填充区域
+        mask = torch.ones((output.shape[0], size_length, size_length), dtype=torch.float32)
+        
+        # 如果使用pad模式，创建对应的mask（填充区域为1，原图区域为0）
+        if crop_position == "pad" and oh != ow:
+            mask_tensor = torch.zeros((1, size_length, size_length), dtype=torch.float32)
+            if oh > ow:
+                pad_width = (oh - ow) // 2
+                mask_tensor[0, :, :pad_width] = 1.0  # 左侧填充区域
+                mask_tensor[0, :, size_length-pad_width:] = 1.0  # 右侧填充区域
+            elif ow > oh:
+                pad_height = (ow - oh) // 2
+                mask_tensor[0, :pad_height, :] = 1.0  # 上方填充区域
+                mask_tensor[0, size_length-pad_height:, :] = 1.0  # 下方填充区域
+            mask = mask_tensor
 
-        return (output, )
+        return (output, mask)
