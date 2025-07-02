@@ -2,12 +2,13 @@ import math
 import cv2
 import numpy as np
 import torch
+import torchvision.transforms as T
 
 from PIL import Image
 from comfy.utils import common_upscale
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from .utils.mask_utils import solid_mask
-
+from .utils.image_convert import contrast_adaptive_sharpening
 
 _CATEGORY = "sfnodes/image_processing"
 UPSCALE_METHODS = ["lanczos", "nearest-exact", "bilinear", "area", "bicubic"]
@@ -501,3 +502,72 @@ class AddImageBorder:
         mask_tensor = torch.from_numpy(border_mask).unsqueeze(0)
 
         return (bordered_tensor, mask_tensor)
+
+
+
+
+
+class ScaleImageToSquare:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "image": ("IMAGE",),
+            "size_length": ("INT", {"default": 1024, "min": 224, "max": 10000, "step": 1}),
+
+            "interpolation": (["LANCZOS", "BICUBIC", "HAMMING", "BILINEAR", "BOX", "NEAREST"],),
+            "crop_position": (["top", "bottom", "left", "right", "center", "pad"],),
+            "sharpening": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "prep_image"
+
+    CATEGORY = "ipadapter/utils"
+
+    def prep_image(self, image, size_length, interpolation="LANCZOS", crop_position="center", sharpening=0.0):
+        size = (size_length, size_length)
+        _, oh, ow, _ = image.shape
+        output = image.permute([0,3,1,2])
+
+        if crop_position == "pad":
+            if oh != ow:
+                if oh > ow:
+                    pad = (oh - ow) // 2
+                    pad = (pad, 0, pad, 0)
+                elif ow > oh:
+                    pad = (ow - oh) // 2
+                    pad = (0, pad, 0, pad)
+                output = T.functional.pad(output, pad, fill=0)
+        else:
+            crop_size = min(oh, ow)
+            x = (ow-crop_size) // 2
+            y = (oh-crop_size) // 2
+            if "top" in crop_position:
+                y = 0
+            elif "bottom" in crop_position:
+                y = oh-crop_size
+            elif "left" in crop_position:
+                x = 0
+            elif "right" in crop_position:
+                x = ow-crop_size
+
+            x2 = x+crop_size
+            y2 = y+crop_size
+
+            output = output[:, :, y:y2, x:x2]
+
+        imgs = []
+        for img in output:
+            img = T.ToPILImage()(img) # using PIL for better results
+            img = img.resize(size, resample=Image.Resampling[interpolation])
+            imgs.append(T.ToTensor()(img))
+        output = torch.stack(imgs, dim=0)
+        del imgs, img
+
+        if sharpening > 0:
+            output = contrast_adaptive_sharpening(output, sharpening)
+
+        output = output.permute([0,2,3,1])
+
+        return (output, )

@@ -97,3 +97,44 @@ def rescale_image(image, width, height):
     samples = image.movedim(-1, 1)
     resized = common_upscale(samples, width, height, "lanczos", "disabled")
     return resized.movedim(1, -1)
+
+
+
+def contrast_adaptive_sharpening(image, amount):
+    img = T.functional.pad(image, (1, 1, 1, 1)).cpu()
+
+    a = img[..., :-2, :-2]
+    b = img[..., :-2, 1:-1]
+    c = img[..., :-2, 2:]
+    d = img[..., 1:-1, :-2]
+    e = img[..., 1:-1, 1:-1]
+    f = img[..., 1:-1, 2:]
+    g = img[..., 2:, :-2]
+    h = img[..., 2:, 1:-1]
+    i = img[..., 2:, 2:]
+
+    # Computing contrast
+    cross = (b, d, e, f, h)
+    mn = min_(cross)
+    mx = max_(cross)
+
+    diag = (a, c, g, i)
+    mn2 = min_(diag)
+    mx2 = max_(diag)
+    mx = mx + mx2
+    mn = mn + mn2
+
+    # Computing local weight
+    inv_mx = torch.reciprocal(mx)
+    amp = inv_mx * torch.minimum(mn, (2 - mx))
+
+    # scaling
+    amp = torch.sqrt(amp)
+    w = - amp * (amount * (1/5 - 1/8) + 1/8)
+    div = torch.reciprocal(1 + 4*w)
+
+    output = ((b + d + f + h)*w + e) * div
+    output = torch.nan_to_num(output)
+    output = output.clamp(0, 1)
+
+    return output
