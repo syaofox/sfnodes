@@ -579,11 +579,25 @@ class ScaleImageToSquare:
         if crop_position == "pad" and oh != ow:
             mask_tensor = torch.zeros((1, size_length, size_length), dtype=torch.float32)
             if oh > ow:
-                pad_width = (oh - ow) // 2
+                # 计算填充后的总宽度
+                padded_width = oh
+                # 计算原始图像在填充后的宽度比例
+                original_ratio = ow / padded_width
+                # 计算缩放后的原始图像宽度
+                scaled_original_width = int(original_ratio * size_length)
+                # 计算填充区域宽度
+                pad_width = (size_length - scaled_original_width) // 2
                 mask_tensor[0, :, :pad_width] = 1.0  # 左侧填充区域
                 mask_tensor[0, :, size_length-pad_width:] = 1.0  # 右侧填充区域
             elif ow > oh:
-                pad_height = (ow - oh) // 2
+                # 计算填充后的总高度
+                padded_height = ow
+                # 计算原始图像在填充后的高度比例
+                original_ratio = oh / padded_height
+                # 计算缩放后的原始图像高度
+                scaled_original_height = int(original_ratio * size_length)
+                # 计算填充区域高度
+                pad_height = (size_length - scaled_original_height) // 2
                 mask_tensor[0, :pad_height, :] = 1.0  # 上方填充区域
                 mask_tensor[0, size_length-pad_height:, :] = 1.0  # 下方填充区域
             mask = mask_tensor
