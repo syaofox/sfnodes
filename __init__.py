@@ -55,7 +55,7 @@ from .adv_clip import (
 from .misc import DisplayAny
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
-
+from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 
 WEB_DIRECTORY = "js"
 
@@ -145,6 +145,11 @@ NODE_CLASS_MAPPINGS = {
     "SFPromptInjectionIdx": PromptInjectionIdx,
     "SFSimplePromptInjection": SimplePromptInjection,
     "SFAdvancedPromptInjection": AdvancedPromptInjection,
+    # 标签节点
+    "SFTagger": Tagger,
+    "SFSaveTags": SaveTags,
+    "SFFlux_CLIPTextEncode": FluxCLIPTextEncode,
+    "SFCaption_Analyzer": CaptionAnalyzer,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -231,6 +236,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPromptInjectionIdx": "SF Prompt Injection Idx",
     "SFSimplePromptInjection": "SF Simple Prompt Injection",
     "SFAdvancedPromptInjection": "SF Advanced Prompt Injection",
+    # 标签节点
+    "SFTagger": "SF Tagger",
+    "SFSaveTags": "SF Save Tags",
+    "SFFlux_CLIPTextEncode": "SF Flux CLIP Text Encode",
+    "SFCaption_Analyzer": "SF Caption Analyzer",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
