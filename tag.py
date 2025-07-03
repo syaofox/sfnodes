@@ -329,10 +329,11 @@ class CaptionAnalyzer:
                     "expression", "body", "accessory", "pants", "clothing", "shoes", "action"]
         selection = {
                         "analyze": ("STRING", {"forceInput": True, "dynamicPrompts": True}),
-                        "subject_index": ("INT", {"default": 0, "min": 0, "max": 2, "step": 1}),
+                        "subject_index": ("INT", {"default": 1, "min": 0, "max": 2, "step": 1}),
+                        "add_is_text": ("BOOLEAN", {"default": True}),
                      }
         for key in key_list:
-            selection[key] = ("BOOLEAN", {"default": False})
+            selection[key] = ("BOOLEAN", {"default": True})
         return {
             "required": selection
         }
@@ -343,7 +344,7 @@ class CaptionAnalyzer:
     CATEGORY = _CATEGORY
     RETURN_NAMES = ("selected analyze", )
 
-    def analyze(self, analyze, subject_index, **kwargs):
+    def analyze(self, analyze, subject_index, add_is_text=True, **kwargs):
         selected_analyze = []
         analyze_dict = {}
         previous_key = analyze.split(",")[0]
@@ -367,13 +368,19 @@ class CaptionAnalyzer:
         for key, flag in kwargs.items():
             if flag and key in analyze_dict:
                 if subject_index == 0 or len(analyze_dict[key].split(";")) < subject_index:
-                    analyze_result  = analyze_dict[key]
+                    analyze_result = analyze_dict[key]
                 else:
                     analyze_result = analyze_dict[key].split(";")[subject_index-1].strip()
 
-                selected_analyze.append(f"{key.replace('_', ' ')} is {analyze_result.replace('NA','unknown')}")
+                analyze_result = analyze_result.replace('NA','unknown').replace('n/a','unknown').replace('N/A','unknown')
+                if add_is_text:                    
+                    selected_analyze.append(f"{key.replace('_', ' ')} is {analyze_result}")
+                else:
+                    if analyze_result != 'unknown':
+                        selected_analyze.append(f"{analyze_result}")
             elif flag and not key in analyze_dict:
-                selected_analyze.append(f"{key.replace('_', ' ')} is unknown")
+                if add_is_text:
+                    selected_analyze.append(f"{key.replace('_', ' ')} is unknown")                
 
         return (','.join(selected_analyze),)
 
