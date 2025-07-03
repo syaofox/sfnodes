@@ -572,12 +572,12 @@ class ScaleImageToSquare:
 
         output = output.permute([0,2,3,1])
         
-        # 创建mask，标记填充区域
-        mask = torch.ones((output.shape[0], size_length, size_length), dtype=torch.float32)
+        # 创建mask，标记填充区域（填充区域为1，原图区域为0）
+        # 默认情况下，如果不是pad模式或图像已经是正方形，mask应该全为0（表示没有填充区域）
+        mask = torch.zeros((output.shape[0], size_length, size_length), dtype=torch.float32)
         
-        # 如果使用pad模式，创建对应的mask（填充区域为1，原图区域为0）
+        # 如果使用pad模式且图像不是正方形，创建对应的mask
         if crop_position == "pad" and oh != ow:
-            mask_tensor = torch.zeros((1, size_length, size_length), dtype=torch.float32)
             if oh > ow:
                 # 计算填充后的总宽度
                 padded_width = oh
@@ -587,8 +587,8 @@ class ScaleImageToSquare:
                 scaled_original_width = int(original_ratio * size_length)
                 # 计算填充区域宽度
                 pad_width = (size_length - scaled_original_width) // 2
-                mask_tensor[0, :, :pad_width] = 1.0  # 左侧填充区域
-                mask_tensor[0, :, size_length-pad_width:] = 1.0  # 右侧填充区域
+                mask[:, :, :pad_width] = 1.0  # 左侧填充区域
+                mask[:, :, size_length-pad_width:] = 1.0  # 右侧填充区域
             elif ow > oh:
                 # 计算填充后的总高度
                 padded_height = ow
@@ -598,8 +598,7 @@ class ScaleImageToSquare:
                 scaled_original_height = int(original_ratio * size_length)
                 # 计算填充区域高度
                 pad_height = (size_length - scaled_original_height) // 2
-                mask_tensor[0, :pad_height, :] = 1.0  # 上方填充区域
-                mask_tensor[0, size_length-pad_height:, :] = 1.0  # 下方填充区域
-            mask = mask_tensor
+                mask[:, :pad_height, :] = 1.0  # 上方填充区域
+                mask[:, size_length-pad_height:, :] = 1.0  # 下方填充区域
 
         return (output, mask)
