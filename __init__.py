@@ -56,6 +56,7 @@ from .misc import DisplayAny
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
+from .hyperlora import HyperLoRALoadCharLoRANode
 
 WEB_DIRECTORY = "js"
 
@@ -150,6 +151,9 @@ NODE_CLASS_MAPPINGS = {
     "SFSaveTags": SaveTags,
     "SFFlux_CLIPTextEncode": FluxCLIPTextEncode,
     "SFCaption_Analyzer": CaptionAnalyzer,
+
+    # HyperLoRA节点
+    "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -241,6 +245,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSaveTags": "SF Save Tags",
     "SFFlux_CLIPTextEncode": "SF Flux CLIP Text Encode",
     "SFCaption_Analyzer": "SF Caption Analyzer",
+
+    # HyperLoRA节点
+    "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

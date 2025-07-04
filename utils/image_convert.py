@@ -5,7 +5,7 @@ import torch
 import torchvision.transforms.v2 as T
 from PIL import Image
 from comfy.utils import common_upscale
-
+from typing import Any, Callable, Dict, Iterable, List
 
 def mask2tensor(mask):
     image = (
@@ -25,6 +25,21 @@ def tensor2mask(image, channel="red"):
 def tensor_to_image(image):
     return np.array(T.ToPILImage()(image.permute(2, 0, 1)).convert("RGB"))
 
+
+def tensor2images(tensor: torch.Tensor) -> List[Image.Image]:
+    images = []
+    for i in range(tensor.shape[0]):
+        image = tensor[i].cpu().numpy()
+        image = (image.clip(0.0, 1.0) * 255.0).astype(np.uint8)
+        images.append(Image.fromarray(image))
+    return images
+
+def images2tensor(images: Iterable[Image.Image]) -> torch.Tensor:
+    tensor_list = []
+    for image in images:
+        image = np.array(image).astype(np.float32) / 255.0
+        tensor_list.append(torch.from_numpy(image).unsqueeze(0))
+    return torch.cat(tensor_list, dim=0)
 
 def image_to_tensor(image):
     return T.ToTensor()(image).permute(1, 2, 0)
