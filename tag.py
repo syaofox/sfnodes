@@ -372,7 +372,7 @@ class CaptionAnalyzer:
                 else:
                     analyze_result = analyze_dict[key].split(";")[subject_index-1].strip()
 
-                analyze_result = analyze_result.replace('NA','unknown').replace('n/a','unknown').replace('N/A','unknown')
+                analyze_result = analyze_result.replace('NA','unknown').replace('n/a','unknown').replace('N/A','unknown').replace('none','unknown').replace('None','unknown')
                 if analyze_result != 'unknown':
                     if add_is_text:                    
                         selected_analyze.append(f"{key.replace('_', ' ')} is {analyze_result}")

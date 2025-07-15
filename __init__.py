@@ -57,6 +57,7 @@ from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode
+from .image_compare import ImageCompare
 
 WEB_DIRECTORY = "js"
 
@@ -154,6 +155,8 @@ NODE_CLASS_MAPPINGS = {
 
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
+    # 图片对比节点
+    "SFImageCompare": ImageCompare,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -248,6 +251,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
+    # 图片对比节点
+    "SFImageCompare": "SF Image Compare",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
