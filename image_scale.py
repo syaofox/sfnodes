@@ -635,7 +635,9 @@ class SFLoadImage(LoadImage):
         }
 
         return {"required": required}
-
+    
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT")
+    RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
     CATEGORY = "sfnodes/image_processing"
     
     def load_image(self, image, upscale_method, total_pixels, limit):
@@ -646,11 +648,8 @@ class SFLoadImage(LoadImage):
         image_scaler_by_pixels = ImageScalerByPixels()
         result_dict = image_scaler_by_pixels.execute(image_output, upscale_method, total_pixels, limit, mask)
         
-        # prepare_result返回的是一个字典，包含ui和result两个键
-        # result键包含了(scaled_image, result_mask, width, height, min_dimension)
-        scaled_image, result_mask = result_dict["result"][0], result_dict["result"][1]
-        
-        return (scaled_image, result_mask)
+
+        return result_dict
             
             
 

@@ -41,7 +41,8 @@ app.registerExtension({
             case "SFImageRotate":
             case "SFTrimImageBorders":
             case "SFAddImageBorder":
-            case "SFGetImageSize":           
+            case "SFGetImageSize":
+            case "SFLoadImage":
                 const onExecutedImage = nodeType.prototype.onExecuted;
                 nodeType.prototype.onExecuted = function (message) {
                     onExecutedImage?.apply(this, arguments);
