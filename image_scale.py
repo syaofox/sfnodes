@@ -9,6 +9,7 @@ from comfy.utils import common_upscale
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from .utils.mask_utils import solid_mask
 from .utils.image_convert import contrast_adaptive_sharpening
+from nodes import LoadImage
 
 _CATEGORY = "sfnodes/image_processing"
 UPSCALE_METHODS = ["lanczos", "nearest-exact", "bilinear", "area", "bicubic"]
@@ -602,3 +603,57 @@ class ScaleImageToSquare:
                 mask[:, size_length-pad_height:, :] = 1.0  # 下方填充区域
 
         return (output, mask)
+    
+
+    
+class SFLoadImage(LoadImage):
+    @classmethod
+    def INPUT_TYPES(cls):
+        base_inputs = super().INPUT_TYPES()
+
+        # 创建一个新的required字典，保留原始的image参数
+        required = {
+            "image": base_inputs["required"]["image"],
+            "upscale_method": (UPSCALE_METHODS,),
+            "total_pixels": (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": 0.01,
+                    "max": 16.0,
+                    "step": 0.01,
+                    "tooltip": "设置缩放比例，范围为0.01到16.0，步长为0.01",
+                },
+            ),
+            "limit": (
+                "BOOLEAN",
+                {
+                    "default": False,
+                    "tooltip": "限制缩放比例，如果图像的像素数小于目标像素数，则不缩放图像",
+                },
+            ),
+        }
+
+        return {"required": required}
+
+    CATEGORY = "sfnodes/image_processing"
+    
+    def load_image(self, image, upscale_method, total_pixels, limit):
+        # 首先调用父类的load_image方法加载图像
+        image_output, mask = super().load_image(image)
+        
+        # 然后使用ImageScalerByPixels进行缩放
+        image_scaler_by_pixels = ImageScalerByPixels()
+        result_dict = image_scaler_by_pixels.execute(image_output, upscale_method, total_pixels, limit, mask)
+        
+        # prepare_result返回的是一个字典，包含ui和result两个键
+        # result键包含了(scaled_image, result_mask, width, height, min_dimension)
+        scaled_image, result_mask = result_dict["result"][0], result_dict["result"][1]
+        
+        return (scaled_image, result_mask)
+            
+            
+
+    
+
+   
