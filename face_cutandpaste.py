@@ -2,7 +2,7 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 from comfy.utils import common_upscale
-from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil, mask2pil
+from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil, mask2pil, mask2tensor, tensor2mask
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -253,6 +253,13 @@ class FacePaste:
                 "bounding_info": ("BOUNDINGINFO",),
                 "source_image": ("IMAGE",),
                 "destination_image": ("IMAGE",),
+                "upscale_method": (
+                    ["lanczos", "bilinear", "bicubic", "nearest"],
+                    {
+                        "default": "lanczos",
+                        "tooltip": "设置图像缩放的方法"
+                    }
+                ),
             },
         }
 
@@ -263,32 +270,40 @@ class FacePaste:
     DESCRIPTION = "将bounding_info中的人脸图像贴回原图"
 
     
-    def paste(self, bounding_info, source_image, destination_image):
+    def paste(self, bounding_info, source_image, destination_image, upscale_method="lanczos"):
         # 从bounding_info中获取人脸图像和位置信息
         x = bounding_info["x"]
         y = bounding_info["y"]
         width = bounding_info["width"]
         height = bounding_info["height"]
-        mask = bounding_info["mask"]
-        
-        destination = tensor2pil(destination_image[0])
-        source = tensor2pil(source_image[0])
 
-        mask_image = mask2pil(mask)
-        
 
-        # 如果源图像尺寸与目标区域尺寸不匹配，进行调整
-        if source.width != width or source.height != height:
-            source = source.resize((width, height), resample=Image.Resampling.LANCZOS)
+        mask_image = mask2tensor(bounding_info["mask"])                   
+        source_image = self._rescale_image(source_image, width, height, upscale_method)        
+        mask_image = self._rescale_image(mask_image, width, height, upscale_method)
 
-            mask_image = mask_image.resize((width, height), resample=Image.Resampling.LANCZOS)
+
+        source_image = tensor2pil(source_image)
+        destination_image = tensor2pil(destination_image)
+
+        mask_image = tensor2mask(mask_image)
+        mask_image = mask2pil(mask_image)
 
         position = (x, y)
-        print(f"[FacePaste] destination shape: {destination.size}, source shape: {source.size}, mask shape: {mask_image.size}")
-        destination.paste(source, position, mask_image)
+        print(f"[FacePaste] destination shape: {destination_image.size}, source shape: {source_image.size}, mask shape: {mask_image.size}")
+        destination_image.paste(source_image, position, mask_image)
 
-        return pil2tensor(destination), pil2mask(mask_image)
-
+        return pil2tensor(destination_image), pil2mask(mask_image)
+    
+    @staticmethod
+    def _rescale_image(image, width, height, upscale_method="lanczos"):
+        samples = image.movedim(-1, 1)
+        source_width, source_height = samples.shape[3], samples.shape[2]
+        if source_width != width or source_height != height:
+            resized = common_upscale(samples, width, height, upscale_method, "disabled")
+        else:
+            resized = samples
+        return resized.movedim(1, -1)
 
 class ExtractBoundingBox:
     @classmethod
