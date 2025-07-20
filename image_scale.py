@@ -122,28 +122,35 @@ class ImageScalerForSDModels(BaseImageScaler):
     def INPUT_TYPES(cls):
         base_inputs = super().INPUT_TYPES()
         base_inputs["required"]["sd_model_type"] = (
-            ["sdxl", "sd15", "sd15+", "sdxl+"],
+            ["sdxl", "sd15", "sd15+", "sdxl+", "custom"],
             {
-                "tooltip": "根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1024x1280"
+                "tooltip": "根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1280x1280"
             },
+            
+        )
+        base_inputs["required"].update(
+            {
+            "custom_megapixels": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.01,
+                        "max": 16.0,
+                        "step": 0.01,
+                        "tooltip": "设置自定义的像素数，如果选择custom，则使用自定义的像素数",
+                    },
+                ),
+            }
         )
         return base_inputs
 
     FUNCTION = "execute"
     DESCRIPTION = """
-    根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1024x1280
+    根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1280x1280
     """
 
-    def execute(self, image, upscale_method, sd_model_type, mask=None):
-        sd_dimensions = {
-            "sd15": (512, 512),
-            "sd15+": (512, 768),
-            "sdxl": (1024, 1024),
-            "sdxl+": (1024, 1280),
-        }
-        target_width, target_height = sd_dimensions.get(sd_model_type, (1024, 1024))
-        total_pixels = target_width * target_height
-
+    def execute(self, image, upscale_method, sd_model_type, custom_megapixels, mask=None):
+        total_pixels = self._get_target_size(sd_model_type, custom_megapixels)
         scale_by = math.sqrt(total_pixels / (image.shape[2] * image.shape[1]))
         width = round(image.shape[2] * scale_by)
         height = round(image.shape[1] * scale_by)
@@ -152,6 +159,19 @@ class ImageScalerForSDModels(BaseImageScaler):
             image, width, height, upscale_method, mask
         )
         return self.prepare_result(scaled_image, result_mask, width, height)
+
+    @staticmethod
+    def _get_target_size(rescale_mode, custom_megapixels):
+        if rescale_mode == "custom":
+            return int(custom_megapixels * 1024 * 1024)
+        size_map = {
+            "sd15": 512 * 512,
+            "sd15+": 512 * 768,
+            "sdxl": 1024 * 1024,
+            "sdxl+": 1024 * 1280,
+            "none": -1,
+        }
+        return size_map.get(rescale_mode, -1)
 
 
 class ImageScalerByPixels(BaseImageScaler):
