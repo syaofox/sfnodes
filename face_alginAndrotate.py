@@ -41,6 +41,13 @@ class AlignImageByFace:
                     "BOOLEAN",
                     {"default": False, "tooltip": "是否调整旋转还原后的图像为原始大小"},
                 ),
+                "rotate_method": (
+                    ["INTER_CUBIC", "INTER_LINEAR", "INTER_AREA"],
+                    {
+                        "default": "INTER_CUBIC",
+                        "tooltip": "旋转方法,INTER_CUBIC为双三次插值,INTER_LINEAR为双线性插值,INTER_AREA为区域插值",
+                    },
+                ),
             },
             "optional": {
                 "image_to": ("IMAGE",),
@@ -62,6 +69,7 @@ class AlignImageByFace:
         simple_angle=False,
         image_to=None,
         resize=False,
+        rotate_method="INTER_CUBIC",
     ):
         source_image = tensor2np(image_from[0])
         original_width, original_height = source_image.shape[:2]
@@ -136,12 +144,19 @@ class AlignImageByFace:
         else:
             new_size = (cols, rows)
 
+        if rotate_method == "INTER_CUBIC":
+            flags = cv2.INTER_CUBIC
+        elif rotate_method == "INTER_LINEAR":
+            flags = cv2.INTER_LINEAR
+        elif rotate_method == "INTER_AREA":
+            flags = cv2.INTER_AREA
+
         aligned_image = cv2.warpAffine(
-            original_image, M, new_size, flags=cv2.INTER_LINEAR
+            original_image, M, new_size, flags=flags
         )
 
         # 旋转白色图像以创建mask
-        aligned_white = cv2.warpAffine(white_image, M, new_size, flags=cv2.INTER_LINEAR)
+        aligned_white = cv2.warpAffine(white_image, M, new_size, flags=flags)
 
         # 将旋转后的白色图像转换为mask
         # 将非255的部分（旋转后产生的黑边）设为1，其余设为0
