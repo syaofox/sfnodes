@@ -834,7 +834,7 @@ class MaskCrop:
                 min_x, max_x = np.min(non_zero[1]), np.max(non_zero[1])
                 
                 # 裁剪图像
-                cropped_img = pil_img.crop((min_x, min_y, max_x + 1, max_y + 1))
+                cropped_img = pil_img.crop((min_x, min_y, max_x + 1, max_y + 1)) # type: ignore
                 
                 # 转换回numpy格式
                 cropped_np = np.array(cropped_img).astype(np.float32) / 255.0
