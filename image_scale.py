@@ -10,6 +10,8 @@ from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from .utils.mask_utils import solid_mask
 from .utils.image_convert import contrast_adaptive_sharpening
 from nodes import LoadImage
+import folder_paths
+import os
 
 _CATEGORY = "sfnodes/image_processing"
 UPSCALE_METHODS = ["lanczos", "nearest-exact", "bilinear", "area", "bicubic"]
@@ -673,6 +675,38 @@ class SFLoadImage(LoadImage):
             
             
 
-    
 
+
+   
+class SFLoadImageSubfolder(LoadImage):
+    @classmethod
+    def INPUT_TYPES(cls):
+        input_dir = folder_paths.get_input_directory()
+        files = []
+        for root, _, filenames in os.walk(input_dir):
+            for f in filenames:
+                full_path = os.path.join(root, f)
+                if os.path.isfile(full_path):
+                    rel_path = os.path.relpath(full_path, input_dir)
+                    files.append(rel_path)
+        files = folder_paths.filter_files_content_types(files, ["image"])
+        return {"required":
+                    {"image": (sorted(files), {"image_upload": True})},
+                }
+
+        
+    CATEGORY = "sfnodes/image_processing"
+    
+    def load_image(self, image, upscale_method, total_pixels, limit):
+        # 首先调用父类的load_image方法加载图像
+        image_output, mask = super().load_image(image)
+        
+        # 然后使用ImageScalerByPixels进行缩放
+        image_scaler_by_pixels = ImageScalerByPixels()
+        result_dict = image_scaler_by_pixels.execute(image_output, upscale_method, total_pixels, limit, mask)
+        
+
+        return result_dict
+            
+            
    
