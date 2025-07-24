@@ -695,18 +695,7 @@ class SFLoadImageSubfolder(LoadImage):
                 }
 
         
-    CATEGORY = "sfnodes/image_processing"
+    CATEGORY = _CATEGORY
     
-    def load_image(self, image, upscale_method, total_pixels, limit):
-        # 首先调用父类的load_image方法加载图像
-        image_output, mask = super().load_image(image)
-        
-        # 然后使用ImageScalerByPixels进行缩放
-        image_scaler_by_pixels = ImageScalerByPixels()
-        result_dict = image_scaler_by_pixels.execute(image_output, upscale_method, total_pixels, limit, mask)
-        
-
-        return result_dict
-            
             
    
