@@ -11,30 +11,21 @@ class AlignImageByFace:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "analysis_models": ("ANALYSIS_MODELS",),
-                "image_from": ("IMAGE",),
-                "expand": (
-                    "BOOLEAN",
-                    {
-                        "default": True,
-                        "tooltip": "是否扩展图像，如果为True，则扩展图像以包含整个人脸",
-                    },
-                ),
+                "image_from": ("IMAGE",),   
                 "simple_angle": (
                     "BOOLEAN",
                     {
                         "default": False,
                         "tooltip": "是否简化角度，如果为True，则只考虑90度、180度、270度、360度",
                     },
-                ),
-                # 指定旋转角度
-                "if_angle": (
+                ),             
+                "expand": (
                     "BOOLEAN",
                     {
-                        "default": False,
-                        "tooltip": "是否指定旋转角度，如果为True，则使用指定的旋转角度",
+                        "default": True,
+                        "tooltip": "是否扩展图像，如果为True，则扩展图像以包含整个人脸",
                     },
-                ),
+                ),               
                 "angle": (
                     "INT",
                     {
@@ -68,6 +59,7 @@ class AlignImageByFace:
                 ),
             },
             "optional": {
+                "analysis_models": ("ANALYSIS_MODELS",),                
                 "image_to": ("IMAGE",),
             },
         }
@@ -80,16 +72,18 @@ class AlignImageByFace:
 
     def align(
         self,
-        analysis_models,
-        image_from,
+        
         expand=True,
-        if_angle=False,
+
         angle=0,
         threshold=10,
         simple_angle=False,
         image_to=None,
         resize=False,
         rotate_method="INTER_CUBIC",
+
+        analysis_models = None,
+        image_from = None,
     ):
         source_image = tensor2np(image_from[0])
         original_width, original_height = source_image.shape[:2]
@@ -125,7 +119,7 @@ class AlignImageByFace:
         
         is_flipped = False
 
-        if if_angle:
+        if analysis_models is None:
             rotation_angle = angle
         else:
             # 尝试检测人脸，如果失败则翻转图像再次尝试
