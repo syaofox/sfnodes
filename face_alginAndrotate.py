@@ -27,6 +27,24 @@ class AlignImageByFace:
                         "tooltip": "是否简化角度，如果为True，则只考虑90度、180度、270度、360度",
                     },
                 ),
+                # 指定旋转角度
+                "if_angle": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "是否指定旋转角度，如果为True，则使用指定的旋转角度",
+                    },
+                ),
+                "angle": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -360,
+                        "max": 360,
+                        "step": 1,
+                        "tooltip": "旋转角度，范围为-360到360，步长为1",
+                    },
+                ),
                 "threshold": (
                     "INT",
                     {
@@ -65,6 +83,8 @@ class AlignImageByFace:
         analysis_models,
         image_from,
         expand=True,
+        if_angle=False,
+        angle=0,
         threshold=10,
         simple_angle=False,
         image_to=None,
@@ -102,20 +122,25 @@ class AlignImageByFace:
                 img = np.array(img)
             face_shape = analysis_models.get_keypoints(img)
             return face_shape, img
+        
+        is_flipped = False
 
-        # 尝试检测人脸，如果失败则翻转图像再次尝试
-        face_shape, processed_image = detect_face(source_image)
-        if face_shape is None:
-            face_shape, processed_image = detect_face(source_image, flip=True)
-            is_flipped = True
-            if face_shape is None:
-                raise Exception("无法在图像中检测到人脸。")
+        if if_angle:
+            rotation_angle = angle
         else:
-            is_flipped = False
+            # 尝试检测人脸，如果失败则翻转图像再次尝试
+            face_shape, processed_image = detect_face(source_image)
+            if face_shape is None:
+                face_shape, processed_image = detect_face(source_image, flip=True)
+                is_flipped = True
+                if face_shape is None:
+                    raise Exception("无法在图像中检测到人脸。")
+            
+                
 
-        rotation_angle = calculate_angle(face_shape)
-        if simple_angle:
-            rotation_angle = find_nearest_angle(rotation_angle)
+            rotation_angle = calculate_angle(face_shape)
+            if simple_angle:
+                rotation_angle = find_nearest_angle(rotation_angle)
 
         # 如果提供了目标图像，计算相对旋转角度
         if image_to is not None:

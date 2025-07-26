@@ -532,7 +532,7 @@ class AddImageBorder:
 
 class ScaleImageToSquare:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": {
             "image": ("IMAGE",),
             "size_length": ("INT", {"default": 1024, "min": 224, "max": 10000, "step": 1}),
