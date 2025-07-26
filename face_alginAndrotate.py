@@ -33,7 +33,7 @@ class AlignImageByFace:
                         "min": -360,
                         "max": 360,
                         "step": 1,
-                        "tooltip": "旋转角度，范围为-360到360，步长为1",
+                        "tooltip": "旋转角度，范围为-360到360，负数表示顺时针旋转,正数表示逆时针旋转",
                     },
                 ),
                 "threshold": (
