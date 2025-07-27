@@ -113,8 +113,6 @@ def rescale_image(image, width, height):
     resized = common_upscale(samples, width, height, "lanczos", "disabled")
     return resized.movedim(1, -1)
 
-
-
 def contrast_adaptive_sharpening(image, amount):
     img = T.functional.pad(image, (1, 1, 1, 1)).cpu()
 

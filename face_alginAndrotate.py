@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from PIL import Image
-from .utils.image_convert import np2tensor, np2mask, tensor2np, rescale_image
+from .utils.image_convert import mask2tensor, np2tensor, np2mask, tensor2mask, tensor2np, rescale_image
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -226,11 +226,14 @@ class RestoreRotatedImage:
         mask = rotation_info["mask"]
 
         if mask is not None:
-            mask_width = mask.shape[3]
-            mask_height = mask.shape[2]
-            image_resize = rescale_image(image, mask_width, mask_height)
+            image_width  = image.shape[2]
+            image_height = image.shape[1]
 
-            image_np = tensor2np(image_resize[0])
+            mask_image = mask2tensor(mask)
+            mask_resize = rescale_image(mask_image, image_width, image_height)
+            mask = tensor2mask(mask_resize)
+
+            image_np = tensor2np(image[0])
             height, width = image_np.shape[:2]
             center = (width / 2, height / 2)
 
