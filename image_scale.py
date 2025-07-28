@@ -429,20 +429,31 @@ class TrimImageBorders:
                         "tooltip": "设置阈值，范围为0到14096，步长为1",
                     },
                 ),
+                "border_color": (
+                    ["black", "white"],
+                    {"default": "black", "tooltip": "选择要移除的边框颜色"},
+                ),
             },
         }
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "run"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "图片去黑边"
+    DESCRIPTION = "图片去黑边或白边"
 
-    def run(self, image, threshold):
+    def run(self, image, threshold, border_color="black"):
         img = tensor2np(image[0])
         img = Image.fromarray(img)
         gray_image = img.convert("L")
 
-        binary_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+        # 根据选择的边框颜色调整二值化逻辑
+        if border_color == "white":
+            # 对于白色边框，将高于阈值的像素设为0（黑色），低于阈值的设为255（白色）
+            binary_image = gray_image.point(lambda x: 0 if x > (255 - threshold) else 255)
+        else:
+            # 对于黑色边框，将高于阈值的像素设为255（白色），低于阈值的设为0（黑色）
+            binary_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+        
         bbox = binary_image.getbbox()
 
         if bbox:
