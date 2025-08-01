@@ -64,7 +64,8 @@ class StringConcatenate():
             }
         }
 
-    RETURN_TYPES = (IO.STRING,)
+    RETURN_TYPES = (IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING)
+    RETURN_NAMES = ("string","string_a","string_b","string_c","string_d","string_e","string_f","string_g")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
@@ -72,4 +73,4 @@ class StringConcatenate():
         
         strings = [string_a, string_b, string_c, string_d, string_e, string_f, string_g]
         strings = [s for s in strings if s and s.strip()]
-        return delimiter.join(strings),
+        return delimiter.join(strings),string_a,string_b,string_c,string_d,string_e,string_f,string_g
