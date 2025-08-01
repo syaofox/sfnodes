@@ -66,7 +66,7 @@ class StringConcatenate():
 
     RETURN_TYPES = (IO.STRING,)
     FUNCTION = "execute"
-    CATEGORY = "utils/string"
+    CATEGORY = _CATEGORY
 
     def execute(self, string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter):       
         
