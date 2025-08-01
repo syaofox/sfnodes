@@ -54,7 +54,7 @@ from .adv_clip import (
     AddCLIPSDXLRParams,
     AdvancedCLIPTextEncodeSDXL,
 )
-from .misc import DisplayAny
+from .misc import DisplayAny, StringConcatenate
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
@@ -136,6 +136,7 @@ NODE_CLASS_MAPPINGS = {
     "SFPersonMaskGenerator": PersonMaskGenerator,
     # 显示节点
     "SFDisplayAny": DisplayAny,
+    "SFStringConcatenate": StringConcatenate,
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": AdvancedCLIPTextEncode,
     "SFAddCLIPSDXLParams": AddCLIPSDXLParams,
@@ -235,6 +236,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPersonMaskGenerator": "SF Person Mask Generator",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
+    "SFStringConcatenate": "SF String Concatenate",
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": "SF Advanced CLIP Text Encode",
     "SFAddCLIPSDXLParams": "SF Add CLIP SDXL Params",

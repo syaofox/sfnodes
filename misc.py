@@ -1,3 +1,5 @@
+from comfy.comfy_types.node_typing import IO
+
 _CATEGORY = "sfnodes/misc"
 
 
@@ -44,3 +46,30 @@ class DisplayAny:
         text = str(input)
 
         return {"ui": {"text": text}, "result": (text,)}
+
+
+class StringConcatenate():
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "string_a": (IO.STRING, {"multiline": True}),
+                "string_b": (IO.STRING, {"multiline": True}),
+                "string_c": (IO.STRING, {"multiline": True}),
+                "string_d": (IO.STRING, {"multiline": True}),
+                "string_e": (IO.STRING, {"multiline": True}),
+                "string_f": (IO.STRING, {"multiline": True}),
+                "string_g": (IO.STRING, {"multiline": True}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": ","})
+            }
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter):       
+        
+        strings = [string_a, string_b, string_c, string_d, string_e, string_f, string_g]
+        strings = [s for s in strings if s and s.strip()]
+        return delimiter.join(strings),
