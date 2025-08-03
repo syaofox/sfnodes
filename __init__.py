@@ -54,12 +54,13 @@ from .adv_clip import (
     AddCLIPSDXLRParams,
     AdvancedCLIPTextEncodeSDXL,
 )
-from .misc import DisplayAny, StringConcatenate
+from .misc import DisplayAny
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode
 from .image_compare import ImageCompare
+from .text import Text_Translation,StringConcatenate,StringConcatenateLong
 
 WEB_DIRECTORY = "js"
 
@@ -136,7 +137,6 @@ NODE_CLASS_MAPPINGS = {
     "SFPersonMaskGenerator": PersonMaskGenerator,
     # 显示节点
     "SFDisplayAny": DisplayAny,
-    "SFStringConcatenate": StringConcatenate,
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": AdvancedCLIPTextEncode,
     "SFAddCLIPSDXLParams": AddCLIPSDXLParams,
@@ -162,6 +162,10 @@ NODE_CLASS_MAPPINGS = {
     "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
+    # 文本节点
+    "SFTextTranslation": Text_Translation,
+    "SFStringConcatenate": StringConcatenate,
+    "SFStringConcatenateLong": StringConcatenateLong,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -236,7 +240,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPersonMaskGenerator": "SF Person Mask Generator",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
-    "SFStringConcatenate": "SF String Concatenate",
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": "SF Advanced CLIP Text Encode",
     "SFAddCLIPSDXLParams": "SF Add CLIP SDXL Params",
@@ -261,6 +264,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
+    # 文本节点
+    "SFTextTranslation": "SF Text Translation",
+    "SFStringConcatenate": "SF String Concatenate",
+    "SFStringConcatenateLong": "SF String Concatenate Long",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
