@@ -331,32 +331,6 @@ class IPAdapterEmbedsMS:
 
         return ipadapter_execute(model.clone(), ipadapter_model, clip_vision, **ipa_args)
 
-class IPAdapterEmbedsMSBatch(IPAdapterEmbedsMS):
-    def __init__(self):
-        self.unfold_batch = True
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "model": ("MODEL", ),
-                "ipadapter": ("IPADAPTER", ),
-                "pos_embed": ("EMBEDS",),
-                "weight": ("FLOAT", { "default": 1.0, "min": -1, "max": 5, "step": 0.05 }),
-                "weight_faceidv2": ("FLOAT", { "default": 1.0, "min": -1, "max": 5.0, "step": 0.05 }),
-                "weight_type": (WEIGHT_TYPES, ),
-                "start_at": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001 }),
-                "end_at": ("FLOAT", { "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001 }),
-                "embeds_scaling": (['V only', 'K+V', 'K+V w/ C penalty', 'K+mean(V) w/ C penalty'], ),
-                "layer_weights": ("STRING", { "default": "", "multiline": True }),
-            },
-            "optional": {
-                "neg_embed": ("EMBEDS",),
-                "attn_mask": ("MASK",),
-                "clip_vision": ("CLIP_VISION",),
-                "insightface": ("INSIGHTFACE",),
-            }
-        }
 
 class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
     @classmethod
