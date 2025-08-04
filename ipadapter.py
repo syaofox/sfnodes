@@ -138,11 +138,13 @@ class IPAdapterMSTiled(IPAdapterAdvanced):
         "MODEL",
         "IMAGE",
         "MASK",
+        "IMAGE",
     )
     RETURN_NAMES = (
         "MODEL",
-        "tiles",
+        "style_tiles",
         "masks",
+        "composition_tiles",
     )
 
     def apply_ipadapter(
@@ -384,3 +386,177 @@ class IPAdapterEmbedsMSBatch(IPAdapterEmbedsMS):
                 "insightface": ("INSIGHTFACE",),
             }
         }
+
+class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "ipadapter": ("IPADAPTER",),
+                "image_style": ("IMAGE",),
+                "image_composition": ("IMAGE",),
+                "weight_style": ("FLOAT", {"default": 1.0, "min": -1, "max": 5, "step": 0.05}),
+                "weight_composition": ("FLOAT", {"default": 1.0, "min": -1, "max": 5, "step": 0.05}),
+                "expand_style": ("BOOLEAN", {"default": False}),
+                "combine_embeds": (["concat", "add", "subtract", "average", "norm average"], {"default": "average"}),
+                "start_at": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "end_at": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "embeds_scaling": (["V only", "K+V", "K+V w/ C penalty", "K+mean(V) w/ C penalty"],),
+                "sharpening": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+            },
+            "optional": {
+                "image_negative": ("IMAGE",),
+                "attn_mask": ("MASK",),
+                "clip_vision": ("CLIP_VISION",),
+            },
+        }
+
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "IPAdapter Style & Composition Tiled"
+
+    RETURN_TYPES = (
+        "MODEL",
+        "IMAGE",  # style_tiles
+        "IMAGE",  # composition_tiles
+        "MASK",   # masks
+    )
+    RETURN_NAMES = (
+        "MODEL",
+        "style_tiles",
+        "composition_tiles",
+        "masks",
+    )
+
+    def apply_ipadapter(
+        self,
+        model,
+        ipadapter,
+        image_style,
+        image_composition,
+        weight_style,
+        weight_composition,
+        expand_style,
+        combine_embeds,
+        start_at,
+        end_at,
+        embeds_scaling,
+        sharpening,
+        image_negative=None,
+        attn_mask=None,
+        clip_vision=None,
+        encode_batch_size=0
+    ):
+        # tiled参数
+        tile_size = 256
+        def tile_image(image, attn_mask, sharpening):
+            _, oh, ow, _ = image.shape
+            if attn_mask is None:
+                attn_mask = torch.ones([1, oh, ow], dtype=image.dtype, device=image.device)
+            img = image.permute([0, 3, 1, 2])
+            mask = attn_mask.unsqueeze(1)
+            mask = T.Resize((oh, ow), interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
+            if oh / ow > 0.75 and oh / ow < 1.33:
+                img = T.CenterCrop(min(oh, ow))(img)
+                resize = (tile_size * 2, tile_size * 2)
+                mask = T.CenterCrop(min(oh, ow))(mask)
+            else:
+                resize = (
+                    (int(tile_size * ow / oh), tile_size)
+                    if oh < ow
+                    else (tile_size, int(tile_size * oh / ow))
+                )
+            imgs = []
+            for im in img:
+                im = T.ToPILImage()(im)
+                im = im.resize(resize, resample=Image.Resampling["LANCZOS"])
+                imgs.append(T.ToTensor()(im))
+            img = torch.stack(imgs)
+            del imgs, im
+            mask = T.Resize(resize[::-1], interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
+            if oh / ow > 4 or oh / ow < 0.25:
+                crop = (tile_size, tile_size * 4) if oh < ow else (tile_size * 4, tile_size)
+                img = T.CenterCrop(crop)(img)
+                mask = T.CenterCrop(crop)(mask)
+            mask = mask.squeeze(1)
+            if sharpening > 0:
+                img = contrast_adaptive_sharpening(img, sharpening)
+            img = img.permute([0, 2, 3, 1])
+            _, oh, ow, _ = img.shape
+            tiles_x = math.ceil(ow / tile_size)
+            tiles_y = math.ceil(oh / tile_size)
+            overlap_x = max(0, (tiles_x * tile_size - ow) / (tiles_x - 1 if tiles_x > 1 else 1))
+            overlap_y = max(0, (tiles_y * tile_size - oh) / (tiles_y - 1 if tiles_y > 1 else 1))
+            base_mask = torch.zeros([mask.shape[0], oh, ow], dtype=img.dtype, device=img.device)
+            tiles = []
+            masks = []
+            for y in range(tiles_y):
+                for x in range(tiles_x):
+                    start_x = int(x * (tile_size - overlap_x))
+                    start_y = int(y * (tile_size - overlap_y))
+                    tiles.append(img[:, start_y:start_y+tile_size, start_x:start_x+tile_size, :])
+                    m = base_mask.clone()
+                    m[:, start_y:start_y+tile_size, start_x:start_x+tile_size] = mask[:, start_y:start_y+tile_size, start_x:start_x+tile_size]
+                    masks.append(m)
+            del m
+            return tiles, masks
+
+        # 分别对style和composition做tile
+        style_tiles, style_masks = tile_image(image_style, attn_mask, sharpening)
+        comp_tiles, comp_masks = tile_image(image_composition, attn_mask, sharpening)
+        all_masks = [torch.logical_or(sm.bool(), cm.bool()).float() for sm, cm in zip(style_masks, comp_masks)]
+        work_model = model.clone()
+        # 先应用style tiles
+        for i in range(len(style_tiles)):
+            ipa_args = {
+                "image": style_tiles[i],
+                "image_negative": image_negative,
+                "weight": weight_style,
+                "weight_type": "style transfer" if not expand_style else "strong style transfer",
+                "combine_embeds": combine_embeds,
+                "start_at": start_at,
+                "end_at": end_at,
+                "attn_mask": all_masks[i],
+                "unfold_batch": False,
+                "embeds_scaling": embeds_scaling,                
+                
+            }
+            if 'ipadapter' in ipadapter:
+                ipadapter_model = ipadapter['ipadapter']['model']
+                clip_vision_model = clip_vision if clip_vision is not None else ipadapter['clipvision']['model']
+            else:
+                ipadapter_model = ipadapter
+                clip_vision_model = clip_vision
+            work_model, _ = ipadapter_execute(
+                work_model, ipadapter_model, clip_vision_model, **ipa_args
+            )
+        # 再应用composition tiles
+        for i in range(len(comp_tiles)):
+            ipa_args = {
+                "image": comp_tiles[i],
+                "image_negative": image_negative,
+                "weight": weight_composition,
+                "weight_type": "composition",
+                "combine_embeds": combine_embeds,
+                "start_at": start_at,
+                "end_at": end_at,
+                "attn_mask": all_masks[i],
+                "unfold_batch": False,
+                "embeds_scaling": embeds_scaling,
+                "encode_batch_size": encode_batch_size,
+            }
+            if 'ipadapter' in ipadapter:
+                ipadapter_model = ipadapter['ipadapter']['model']
+                clip_vision_model = clip_vision if clip_vision is not None else ipadapter['clipvision']['model']
+            else:
+                ipadapter_model = ipadapter
+                clip_vision_model = clip_vision
+            work_model, _ = ipadapter_execute(
+                work_model, ipadapter_model, clip_vision_model, **ipa_args
+            )
+        return (
+            work_model,
+            torch.cat(style_tiles),
+            torch.cat(comp_tiles),
+            torch.cat(all_masks),
+        ) 

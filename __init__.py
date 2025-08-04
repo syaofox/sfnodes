@@ -46,7 +46,7 @@ from .image_processing import (
     FlatteningEffect,
     ImageColorMatch,
 )
-from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled,IPAdapterEmbedsMS,IPAdapterEmbedsMSBatch
+from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled,IPAdapterEmbedsMS,IPAdapterEmbedsMSBatch,IPAdapterStyleCompositionTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
 from .adv_clip import (
     AdvancedCLIPTextEncode,
@@ -132,6 +132,7 @@ NODE_CLASS_MAPPINGS = {
     "SFIPAdapterMSTiled": IPAdapterMSTiled,
     "SFIPAdapterEmbedsMS": IPAdapterEmbedsMS,
     "SFIPAdapterEmbedsMSBatch": IPAdapterEmbedsMSBatch,
+    "SFIPAdapterStyleCompositionTiled": IPAdapterStyleCompositionTiled,
     # 人像分割节点
     "SFPersonSegmenterLoader": PersonSegmenterLoader,
     "SFPersonMaskGenerator": PersonMaskGenerator,
@@ -235,6 +236,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFIPAdapterMSTiled": "SF IPAdapter MS Tiled",
     "SFIPAdapterEmbedsMS": "SF IPAdapter Embeds MS",
     "SFIPAdapterEmbedsMSBatch": "SF IPAdapter Embeds MS Batch",
+    "SFIPAdapterStyleCompositionTiled": "SF IPAdapter Style Composition Tiled",
     # 人像分割节点
     "SFPersonSegmenterLoader": "SF Person Segmenter Loader",
     "SFPersonMaskGenerator": "SF Person Mask Generator",
