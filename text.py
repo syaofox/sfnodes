@@ -1,3 +1,5 @@
+import csv
+import os
 
 from .utils.translation import  translators
 from comfy.comfy_types.node_typing import IO
@@ -10,10 +12,11 @@ class Text_Translation:
         pass
     
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
+                "translator": (["Niutrans","MyMemory","Alibaba","Baidu","ModernMt","VolcEngine","Iciba","Iflytek","Google","Bing","Lingvanex","Yandex","Itranslate","SysTran","Argos","Apertium","Reverso","Deepl","CloudTranslation","QQTranSmart","TranslateCom","Sogou","Tilde","Caiyun","QQFanyi","TranslateMe","Papago","Mirai","Youdao","Iflyrec","Hujiang","Yeekit","LanguageWire","Elia","Judic","Mglip","Utibet"], {"default": "google"}),
                 "trans_text": ("STRING",  {"multiline": True}),
             },
         }
@@ -27,19 +30,38 @@ class Text_Translation:
 
     CATEGORY = _CATEGORY
 
-    def func(self, trans_switch, trans_text):
+    def func(self, trans_switch, translator, trans_text):
         output_text = ""
         if trans_switch:
-            output_text  = translators(text = trans_text)
+            output_text  = translators(text = trans_text, translator = translator.lower())
         else:
             output_text = trans_text
         return (output_text,)
 
 
+class TextString:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "trans_switch": ("BOOLEAN", {"default": False, "label_on": "on", "label_off": "off"}),
+                "text": ("STRING", {"multiline": True}),
+            }
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    RETURN_NAMES = ("string",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, trans_switch, text):
+        if trans_switch:
+            text = translators(text = text)
+        return (text,)
 
 class StringConcatenate():
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
@@ -62,14 +84,14 @@ class StringConcatenate():
             string_c = translators(text = string_c)
         
         strings = [string_a, string_b, string_c]
-        strings = [s for s in strings if s and s.strip()]
+        strings = [s for s in strings if s and s.strip()] # type: ignore 
         return delimiter.join(strings),string_a,string_b,string_c,
 
 
 
 class StringConcatenateLong():
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
@@ -100,5 +122,48 @@ class StringConcatenateLong():
             string_g = translators(text = string_g)
         
         strings = [string_a, string_b, string_c, string_d, string_e, string_f, string_g]
-        strings = [s for s in strings if s and s.strip()]
+        strings = [s for s in strings if s and s.strip()] # type: ignore 
         return delimiter.join(strings),string_a,string_b,string_c,string_d,string_e,string_f,string_g
+
+
+
+class AnimeCharSelect:
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data', 'characters.csv')
+        
+        # 读取CSV文件
+        cls.character_options = []
+        with open(data_file, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) >= 2:
+                    # 显示整行内容（第一列 + 第二列），但实际值仍为第二列
+                    display_name = f"{row[0]} ({row[1]})"
+                    cls.character_options.append({"label": display_name, "value": row[1]})
+        
+        return {
+            "required": {
+                "character": ([option["label"] for option in cls.character_options], {"default": cls.character_options[0]["label"] if cls.character_options else ""})
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("string",)
+    FUNCTION = "func"
+    CATEGORY = _CATEGORY
+
+    def func(self, character):
+        # 根据显示名找到对应的第二列值
+        selected_value = ""
+        for option in self.character_options:
+            if option["label"] == character:
+                selected_value = option["value"]
+                break
+        
+        # 对输出值中的括号进行转义处理
+        escaped_character = selected_value.replace('(', '\(').replace(')', '\)')
+        # 返回转义后的角色名（即第二列的内容）
+        return (escaped_character,)
