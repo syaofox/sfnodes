@@ -1,5 +1,7 @@
 import csv
+from fileinput import filename
 import os
+import re
 
 from .utils.translation import  translators
 from comfy.comfy_types.node_typing import IO
@@ -150,8 +152,8 @@ class AnimeCharSelect:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("string",)
+    RETURN_TYPES = ("STRING","STRING")
+    RETURN_NAMES = ("prompt","filename")
     FUNCTION = "func"
     CATEGORY = _CATEGORY
 
@@ -165,5 +167,26 @@ class AnimeCharSelect:
         
         # 对输出值中的括号进行转义处理
         escaped_character = selected_value.replace('(', '\(').replace(')', '\)')
+        # 处理特殊字符，让他可以是合法文件名
+        filename = re.sub(r'[<>:"/\\|?*]', '', selected_value)
         # 返回转义后的角色名（即第二列的内容）
-        return (escaped_character,)
+        return (escaped_character,filename,)
+
+
+class TextToFilename:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True}),
+            }
+        }
+    
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("filename",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, text):
+        filename = re.sub(r'[<>:"/\\|?*]', '', text)
+        return (filename,)
