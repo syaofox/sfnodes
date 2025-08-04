@@ -8,6 +8,14 @@ from comfy.comfy_types.node_typing import IO
 
 _CATEGORY = "sfnodes/Text"
 
+def load_csv_data(filename):
+    data = []
+    with open(filename, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 2:
+                data.append({"label": row[0], "value": row[1]})
+    return data
 
 class Text_Translation:
     def __init__(self):
@@ -138,13 +146,7 @@ class AnimeCharSelect:
         
         # 读取CSV文件
         cls.character_options = []
-        with open(data_file, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                if len(row) >= 2:
-                    # 显示整行内容（第一列 + 第二列），但实际值仍为第二列
-                    display_name = f"{row[0]} ({row[1]})"
-                    cls.character_options.append({"label": display_name, "value": row[1]})
+        cls.character_options = load_csv_data(data_file)        
         
         return {
             "required": {
@@ -190,3 +192,38 @@ class TextToFilename:
     def execute(self, text):
         filename = re.sub(r'[<>:"/\\|?*]', '', text)
         return (filename,)
+
+
+
+class NsfwTags:
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data', 'nsfwtags.csv')
+        
+        # 读取CSV文件
+        cls.tag_options = []
+        cls.tag_options = load_csv_data(data_file)
+                
+        return {
+            "required": {
+                "nsfw_tag": ([option["label"] for option in cls.tag_options], {"default": cls.tag_options[0]["label"] if cls.tag_options else ""})
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("tag",)
+    FUNCTION = "func"
+    CATEGORY = _CATEGORY
+
+    def func(self, nsfw_tag):
+        # 根据显示名找到对应的英文标签值
+        selected_value = ""
+        for option in self.tag_options:
+            if option["label"] == nsfw_tag:
+                selected_value = option["value"]
+                break
+        
+        # 返回英文标签
+        return (selected_value,)

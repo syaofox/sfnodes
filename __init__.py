@@ -60,7 +60,7 @@ from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptI
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode
 from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename
+from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags
 
 WEB_DIRECTORY = "js"
 
@@ -170,6 +170,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextString": TextString,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
+    "SFNsfwTags": NsfwTags,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -276,6 +277,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextString": "SF Text String",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
+    "SFNsfwTags": "SF Nsfw Tags",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
