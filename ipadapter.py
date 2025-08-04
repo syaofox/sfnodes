@@ -17,6 +17,58 @@ except ImportError:
 
 _CATEGORY = "sfnodes/ipadapter"
 
+def tile_image(image, attn_mask, sharpening, tile_size=256):
+            _, oh, ow, _ = image.shape
+            if attn_mask is None:
+                attn_mask = torch.ones([1, oh, ow], dtype=image.dtype, device=image.device)
+            img = image.permute([0, 3, 1, 2])
+            mask = attn_mask.unsqueeze(1)
+            mask = T.Resize((oh, ow), interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
+            if oh / ow > 0.75 and oh / ow < 1.33:
+                img = T.CenterCrop(min(oh, ow))(img)
+                resize = (tile_size * 2, tile_size * 2)
+                mask = T.CenterCrop(min(oh, ow))(mask)
+            else:
+                resize = (
+                    (int(tile_size * ow / oh), tile_size)
+                    if oh < ow
+                    else (tile_size, int(tile_size * oh / ow))
+                )
+            imgs = []
+            for im in img:
+                im = T.ToPILImage()(im)
+                im = im.resize(resize, resample=Image.Resampling["LANCZOS"])
+                imgs.append(T.ToTensor()(im))
+            img = torch.stack(imgs)
+            del imgs, im
+            mask = T.Resize(resize[::-1], interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
+            if oh / ow > 4 or oh / ow < 0.25:
+                crop = (tile_size, tile_size * 4) if oh < ow else (tile_size * 4, tile_size)
+                img = T.CenterCrop(crop)(img)
+                mask = T.CenterCrop(crop)(mask)
+            mask = mask.squeeze(1)
+            if sharpening > 0:
+                img = contrast_adaptive_sharpening(img, sharpening)
+            img = img.permute([0, 2, 3, 1])
+            _, oh, ow, _ = img.shape
+            tiles_x = math.ceil(ow / tile_size)
+            tiles_y = math.ceil(oh / tile_size)
+            overlap_x = max(0, (tiles_x * tile_size - ow) / (tiles_x - 1 if tiles_x > 1 else 1))
+            overlap_y = max(0, (tiles_y * tile_size - oh) / (tiles_y - 1 if tiles_y > 1 else 1))
+            base_mask = torch.zeros([mask.shape[0], oh, ow], dtype=img.dtype, device=img.device)
+            tiles = []
+            masks = []
+            for y in range(tiles_y):
+                for x in range(tiles_x):
+                    start_x = int(x * (tile_size - overlap_x))
+                    start_y = int(y * (tile_size - overlap_y))
+                    tiles.append(img[:, start_y:start_y+tile_size, start_x:start_x+tile_size, :])
+                    m = base_mask.clone()
+                    m[:, start_y:start_y+tile_size, start_x:start_x+tile_size] = mask[:, start_y:start_y+tile_size, start_x:start_x+tile_size]
+                    masks.append(m)
+            del m
+            return tiles, masks
+
 
 class IPAdapterMSLayerWeights:
     @classmethod
@@ -447,59 +499,7 @@ class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
         clip_vision=None,
         encode_batch_size=0
     ):
-        # tiled参数
-        tile_size = 256
-        def tile_image(image, attn_mask, sharpening):
-            _, oh, ow, _ = image.shape
-            if attn_mask is None:
-                attn_mask = torch.ones([1, oh, ow], dtype=image.dtype, device=image.device)
-            img = image.permute([0, 3, 1, 2])
-            mask = attn_mask.unsqueeze(1)
-            mask = T.Resize((oh, ow), interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
-            if oh / ow > 0.75 and oh / ow < 1.33:
-                img = T.CenterCrop(min(oh, ow))(img)
-                resize = (tile_size * 2, tile_size * 2)
-                mask = T.CenterCrop(min(oh, ow))(mask)
-            else:
-                resize = (
-                    (int(tile_size * ow / oh), tile_size)
-                    if oh < ow
-                    else (tile_size, int(tile_size * oh / ow))
-                )
-            imgs = []
-            for im in img:
-                im = T.ToPILImage()(im)
-                im = im.resize(resize, resample=Image.Resampling["LANCZOS"])
-                imgs.append(T.ToTensor()(im))
-            img = torch.stack(imgs)
-            del imgs, im
-            mask = T.Resize(resize[::-1], interpolation=T.InterpolationMode.BICUBIC, antialias=True)(mask)
-            if oh / ow > 4 or oh / ow < 0.25:
-                crop = (tile_size, tile_size * 4) if oh < ow else (tile_size * 4, tile_size)
-                img = T.CenterCrop(crop)(img)
-                mask = T.CenterCrop(crop)(mask)
-            mask = mask.squeeze(1)
-            if sharpening > 0:
-                img = contrast_adaptive_sharpening(img, sharpening)
-            img = img.permute([0, 2, 3, 1])
-            _, oh, ow, _ = img.shape
-            tiles_x = math.ceil(ow / tile_size)
-            tiles_y = math.ceil(oh / tile_size)
-            overlap_x = max(0, (tiles_x * tile_size - ow) / (tiles_x - 1 if tiles_x > 1 else 1))
-            overlap_y = max(0, (tiles_y * tile_size - oh) / (tiles_y - 1 if tiles_y > 1 else 1))
-            base_mask = torch.zeros([mask.shape[0], oh, ow], dtype=img.dtype, device=img.device)
-            tiles = []
-            masks = []
-            for y in range(tiles_y):
-                for x in range(tiles_x):
-                    start_x = int(x * (tile_size - overlap_x))
-                    start_y = int(y * (tile_size - overlap_y))
-                    tiles.append(img[:, start_y:start_y+tile_size, start_x:start_x+tile_size, :])
-                    m = base_mask.clone()
-                    m[:, start_y:start_y+tile_size, start_x:start_x+tile_size] = mask[:, start_y:start_y+tile_size, start_x:start_x+tile_size]
-                    masks.append(m)
-            del m
-            return tiles, masks
+     
 
         # 分别对style和composition做tile
         style_tiles, style_masks = tile_image(image_style, attn_mask, sharpening)
