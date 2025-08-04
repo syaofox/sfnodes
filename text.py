@@ -206,24 +206,36 @@ class NsfwTags:
         cls.tag_options = []
         cls.tag_options = load_csv_data(data_file)
                 
+        # 为每个标签创建一个布尔复选框
+        inputs = {}
+        for option in cls.tag_options:
+            inputs[option["label"]] = ("BOOLEAN", {"default": False})
+        
         return {
             "required": {
-                "nsfw_tag": ([option["label"] for option in cls.tag_options], {"default": cls.tag_options[0]["label"] if cls.tag_options else ""})
+                **inputs,
+                "delimiter": ("STRING", {"default": ",", "multiline": False})
             }
         }
 
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("tag",)
+    RETURN_NAMES = ("tags",)
     FUNCTION = "func"
     CATEGORY = _CATEGORY
 
-    def func(self, nsfw_tag):
-        # 根据显示名找到对应的英文标签值
-        selected_value = ""
-        for option in self.tag_options:
-            if option["label"] == nsfw_tag:
-                selected_value = option["value"]
-                break
+    def func(self, **kwargs):
+        # 获取分隔符（最后一个参数）
+        delimiter = kwargs.pop("delimiter", ",")
         
-        # 返回英文标签
-        return (selected_value,)
+        # 收集所有选中的标签
+        selected_values = []
+        for option in self.tag_options:
+            label = option["label"]
+            if kwargs.get(label, False):
+                #_替换为,
+                value = option["value"].replace("_",",")
+                selected_values.append(value)
+        
+        # 使用指定分隔符连接选中的标签值
+        result = delimiter.join(selected_values)
+        return (result,)
