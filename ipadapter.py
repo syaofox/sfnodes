@@ -235,90 +235,9 @@ class IPAdapterMSTiled(IPAdapterAdvanced):
 
         del ipadapter
 
-        # 2. Extract the tiles
+        # 2. Extract the tiles (调用tile_image)
         tile_size = 256
-        _, oh, ow, _ = image.shape
-        if attn_mask is None:
-            attn_mask = torch.ones([1, oh, ow], dtype=image.dtype, device=image.device)
-
-        image = image.permute([0, 3, 1, 2])
-        attn_mask = attn_mask.unsqueeze(1)
-        attn_mask = T.Resize(
-            (oh, ow), interpolation=T.InterpolationMode.BICUBIC, antialias=True
-        )(attn_mask)
-
-        if oh / ow > 0.75 and oh / ow < 1.33:
-            image = T.CenterCrop(min(oh, ow))(image)
-            resize = (tile_size * 2, tile_size * 2)
-            attn_mask = T.CenterCrop(min(oh, ow))(attn_mask)
-        else:
-            resize = (
-                (int(tile_size * ow / oh), tile_size)
-                if oh < ow
-                else (tile_size, int(tile_size * oh / ow))
-            )
-
-        imgs = []
-        for img in image:
-            img = T.ToPILImage()(img)
-            img = img.resize(resize, resample=Image.Resampling["LANCZOS"])
-            imgs.append(T.ToTensor()(img))
-        image = torch.stack(imgs)
-        del imgs, img
-
-        attn_mask = T.Resize(
-            resize[::-1], interpolation=T.InterpolationMode.BICUBIC, antialias=True
-        )(attn_mask)
-
-        if oh / ow > 4 or oh / ow < 0.25:
-            crop = (tile_size, tile_size * 4) if oh < ow else (tile_size * 4, tile_size)
-            image = T.CenterCrop(crop)(image)
-            attn_mask = T.CenterCrop(crop)(attn_mask)
-
-        attn_mask = attn_mask.squeeze(1)
-
-        if sharpening > 0:
-            image = contrast_adaptive_sharpening(image, sharpening)
-
-        image = image.permute([0, 2, 3, 1])
-
-        _, oh, ow, _ = image.shape
-
-        tiles_x = math.ceil(ow / tile_size)
-        tiles_y = math.ceil(oh / tile_size)
-        overlap_x = max(
-            0, (tiles_x * tile_size - ow) / (tiles_x - 1 if tiles_x > 1 else 1)
-        )
-        overlap_y = max(
-            0, (tiles_y * tile_size - oh) / (tiles_y - 1 if tiles_y > 1 else 1)
-        )
-
-        base_mask = torch.zeros(
-            [attn_mask.shape[0], oh, ow], dtype=image.dtype, device=image.device
-        )
-
-        tiles = []
-        masks = []
-        for y in range(tiles_y):
-            for x in range(tiles_x):
-                start_x = int(x * (tile_size - overlap_x))
-                start_y = int(y * (tile_size - overlap_y))
-                tiles.append(
-                    image[
-                        :,
-                        start_y : start_y + tile_size,
-                        start_x : start_x + tile_size,
-                        :,
-                    ]
-                )
-                mask = base_mask.clone()
-                mask[
-                    :, start_y : start_y + tile_size, start_x : start_x + tile_size
-                ] = attn_mask[
-                    :, start_y : start_y + tile_size, start_x : start_x + tile_size
-                ]
-                masks.append(mask)
-        del mask
+        tiles, masks = tile_image(image, attn_mask, sharpening, tile_size=tile_size)
 
         # 3. Apply the ipadapter to each group of tiles
         model = model.clone()
