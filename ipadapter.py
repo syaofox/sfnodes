@@ -275,7 +275,7 @@ class IPAdapterEmbedsMS:
         self.unfold_batch = False
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "model": ("MODEL", ),
@@ -336,7 +336,7 @@ class IPAdapterEmbedsMSBatch(IPAdapterEmbedsMS):
         self.unfold_batch = True
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "model": ("MODEL", ),
