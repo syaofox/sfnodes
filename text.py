@@ -1,5 +1,6 @@
 import csv
 from fileinput import filename
+from math import fabs
 import os
 import re
 
@@ -211,7 +212,7 @@ class NsfwTags:
         for option in cls.tag_options:
             label = option["label"]
             inputs[label] = ("BOOLEAN", {"default": False})
-            inputs[f"{label}_strength"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 10.0, "step": 0.05})
+            inputs[f"{label}_weight"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.05, "display": "slider"})
         
         return {
             "required": {
@@ -219,7 +220,7 @@ class NsfwTags:
                 "delimiter": ("STRING", {"default": ",", "multiline": False})
             },
             "optional": {
-                "text": ("STRING", {"multiline": True}),
+                "text": ("STRING", {"forceInput": True}),
             }
         }
 
@@ -238,16 +239,16 @@ class NsfwTags:
             label = option["label"]
             if kwargs.get(label, False):
                 # 获取对应的强度值
-                strength = kwargs.get(f"{label}_strength", 0.0)
+                weight = kwargs.get(f"{label}_weight", 0.0)
                 #_替换为,
                 value = option["value"].replace("_",",")
                 
                 # 根据强度值格式化输出
-                if strength == 1.0:
+                if weight == 1.0:
                     selected_values.append(value)
                 else:
                     #保留小数点后面两位
-                    selected_values.append(f"({value}:{strength:.2f})")
+                    selected_values.append(f"({value}:{weight:.2f})")
         
         # 使用指定分隔符连接选中的标签值
         result = delimiter.join(selected_values)
