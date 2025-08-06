@@ -206,15 +206,20 @@ class NsfwTags:
         cls.tag_options = []
         cls.tag_options = load_csv_data(data_file)
                 
-        # 为每个标签创建一个布尔复选框
+        # 为每个标签创建一个布尔复选框和强度调节滑块
         inputs = {}
         for option in cls.tag_options:
-            inputs[option["label"]] = ("BOOLEAN", {"default": False})
+            label = option["label"]
+            inputs[label] = ("BOOLEAN", {"default": False})
+            inputs[f"{label}_strength"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 10.0, "step": 0.05})
         
         return {
             "required": {
                 **inputs,
                 "delimiter": ("STRING", {"default": ",", "multiline": False})
+            },
+            "optional": {
+                "text": ("STRING", {"multiline": True}),
             }
         }
 
@@ -232,10 +237,23 @@ class NsfwTags:
         for option in self.tag_options:
             label = option["label"]
             if kwargs.get(label, False):
+                # 获取对应的强度值
+                strength = kwargs.get(f"{label}_strength", 0.0)
                 #_替换为,
                 value = option["value"].replace("_",",")
-                selected_values.append(value)
+                
+                # 根据强度值格式化输出
+                if strength == 1.0:
+                    selected_values.append(value)
+                else:
+                    #保留小数点后面两位
+                    selected_values.append(f"({value}:{strength:.2f})")
         
         # 使用指定分隔符连接选中的标签值
         result = delimiter.join(selected_values)
+        # 从kwargs中获取text参数
+        text = kwargs.get("text", "")
+        # 合并text和result
+        if text:
+            result = f"{text},{result}"
         return (result,)
