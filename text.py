@@ -80,6 +80,9 @@ class StringConcatenate():
                 "string_b": (IO.STRING, {"multiline": True}),
                 "string_c": (IO.STRING, {"multiline": True}),                
                 "delimiter": (IO.STRING, {"multiline": False, "default": ","})
+            },
+             "optional": {
+                "text_in": ("STRING", {"forceInput": True}),
             }
         }
 
@@ -88,7 +91,7 @@ class StringConcatenate():
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, trans_switch,string_a, string_b, string_c, delimiter):       
+    def execute(self, trans_switch,string_a, string_b, string_c, delimiter,text_in):       
         if trans_switch:
             string_a = translators(text = string_a)
             string_b = translators(text = string_b)
@@ -96,7 +99,9 @@ class StringConcatenate():
         
         strings = [string_a, string_b, string_c]
         strings = [s for s in strings if s and s.strip()] # type: ignore 
-        return delimiter.join(strings),string_a,string_b,string_c,
+        if text_in:
+            strings.append(text_in)
+        return delimiter.join(strings),string_a,string_b,string_c
 
 
 
@@ -114,6 +119,9 @@ class StringConcatenateLong():
                 "string_f": (IO.STRING, {"multiline": True}),
                 "string_g": (IO.STRING, {"multiline": True}),
                 "delimiter": (IO.STRING, {"multiline": False, "default": ","})
+            },
+             "optional": {
+                "text_in": ("STRING", {"forceInput": True}),
             }
         }
 
@@ -122,7 +130,7 @@ class StringConcatenateLong():
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, trans_switch,string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter):       
+    def execute(self, trans_switch,string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter,text_in):       
         if trans_switch:
             string_a = translators(text = string_a)
             string_b = translators(text = string_b)
@@ -134,6 +142,8 @@ class StringConcatenateLong():
         
         strings = [string_a, string_b, string_c, string_d, string_e, string_f, string_g]
         strings = [s for s in strings if s and s.strip()] # type: ignore 
+        if text_in:
+            strings.append(text_in)
         return delimiter.join(strings),string_a,string_b,string_c,string_d,string_e,string_f,string_g
 
 
@@ -152,6 +162,9 @@ class AnimeCharSelect:
         return {
             "required": {
                 "character": ([option["label"] for option in cls.character_options], {"default": cls.character_options[0]["label"] if cls.character_options else ""})
+            },
+             "optional": {
+                "text_in": ("STRING", {"forceInput": True}),
             }
         }
 
@@ -160,7 +173,7 @@ class AnimeCharSelect:
     FUNCTION = "func"
     CATEGORY = _CATEGORY
 
-    def func(self, character):
+    def func(self, character,text_in):
         # 根据显示名找到对应的第二列值
         selected_value = ""
         for option in self.character_options:
@@ -173,7 +186,11 @@ class AnimeCharSelect:
         # 处理特殊字符，让他可以是合法文件名
         filename = re.sub(r'[<>:"/\\|?*]', '', selected_value)
         # 返回转义后的角色名（即第二列的内容）
-        return (escaped_character,filename,)
+        if text_in:
+            prompt = f"{escaped_character},{text_in}"
+        else:
+            prompt = f"{escaped_character}"
+        return (prompt,filename,)
 
 
 class TextToFilename:
@@ -181,7 +198,7 @@ class TextToFilename:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": ("STRING", {"multiline": True}),
+                "text": ("STRING", {"forceInput": True}),
             }
         }
     
