@@ -91,7 +91,7 @@ class StringConcatenate():
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, trans_switch,string_a, string_b, string_c, delimiter,text_in):       
+    def execute(self, trans_switch,string_a, string_b, string_c, delimiter,text_in=''): 
         if trans_switch:
             string_a = translators(text = string_a)
             string_b = translators(text = string_b)
@@ -130,7 +130,7 @@ class StringConcatenateLong():
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, trans_switch,string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter,text_in):       
+    def execute(self, trans_switch,string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter,text_in=''):       
         if trans_switch:
             string_a = translators(text = string_a)
             string_b = translators(text = string_b)
@@ -173,7 +173,7 @@ class AnimeCharSelect:
     FUNCTION = "func"
     CATEGORY = _CATEGORY
 
-    def func(self, character,text_in):
+    def func(self, character,text_in=''):
         # 根据显示名找到对应的第二列值
         selected_value = ""
         for option in self.character_options:
