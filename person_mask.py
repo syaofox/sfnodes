@@ -7,6 +7,7 @@ import mediapipe as mp
 from functools import reduce
 from PIL import Image
 from .utils.model_manager import ModelManager
+from .utils.mask_utils import mask_process,pil2tensor
 
 BaseOptions = mp.tasks.BaseOptions
 ImageSegmenter = mp.tasks.vision.ImageSegmenter
@@ -110,6 +111,8 @@ class PersonMaskGenerator:
                     {"default": 0.40, "min": 0.01, "max": 1.0, "step": 0.01},
                 ),
                 "refine_mask": true_widget,
+                 "mask_params": ("MASKPARAMS",),
+
             },
         }
 
@@ -326,6 +329,8 @@ class PersonMaskGenerator:
         clothes_mask: bool,
         confidence: float,
         refine_mask: bool,
+        mask_params = None,
+
     ):
         """从图像创建分割掩码
 
@@ -357,13 +362,12 @@ class PersonMaskGenerator:
         )
 
         tensor_masks = []
-        for mask_image in mask_images:
-            # 将PIL图像转换为张量图像
-            tensor_mask = mask_image.convert("RGB")
-            tensor_mask = np.array(tensor_mask).astype(np.float32) / 255.0
-            tensor_mask = torch.from_numpy(tensor_mask)[None,]
-            tensor_mask = tensor_mask.squeeze(3)[..., 0]
+        for mask_image in mask_images:          
+            tensor_mask = pil2tensor(mask_image)[:, :, :, 0] 
+            processed_mask = mask_process(tensor_mask, mask_params, unqueeze=False)
+            tensor_masks.append(processed_mask)
 
-            tensor_masks.append(tensor_mask)
-
-        return (torch.cat(tensor_masks, dim=0),)
+        # 合并所有mask并确保正确的维度格式 [B, H, W]
+        result_masks = torch.stack(tensor_masks, dim=0)
+        
+        return (result_masks,)
