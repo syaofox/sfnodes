@@ -340,13 +340,21 @@ class FaceSegmentation:
                     "grow_percent": 0.0,
                     "grow_tapered": False,
                     "blur": 0,
+                    "blur_percent": 0.0,
                     "fill": False,
+                    "invert": False,
                 }
+            pre_invert = mask_params["pre_invert"]
             grow = mask_params["grow"]
             grow_percent = mask_params["grow_percent"]
             grow_tapered = mask_params["grow_tapered"]
             blur = mask_params["blur"]
+            blur_percent = mask_params["blur_percent"]
             fill = mask_params["fill"]
+            invert = mask_params["invert"]
+
+            if pre_invert:
+                mask = 1 - mask
 
             grow_count = int(grow_percent * max(mask.shape)) + grow
             if grow_count > 0:
@@ -355,9 +363,13 @@ class FaceSegmentation:
             if fill:
                 mask = fill_holes(mask)
 
-            if blur > 0:
-                mask = blur_mask(mask, blur)
+            blur_count = int(blur_percent * max(mask.shape)) + blur 
 
+            if blur_count > 0:
+                mask = blur_mask(mask, blur_count)
+
+            if invert:
+                mask = 1 - mask
 
             mask = mask.squeeze(0).unsqueeze(-1)
 

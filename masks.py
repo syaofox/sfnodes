@@ -693,6 +693,8 @@ class MaskParams:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否反转遮罩(注意:先反转,再其他操作)"}),
+
                 "grow": (
                     "INT",
                     {
@@ -727,7 +729,20 @@ class MaskParams:
                         "tooltip": "设置模糊值，范围为0到4096，步长为1",
                     },
                 ),
+                "blur_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
                 "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
+                "invert": ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"}),
+
+
             },
         }
 
@@ -737,13 +752,17 @@ class MaskParams:
     CATEGORY = _CATEGORY
     DESCRIPTION = "设置遮罩参数"
 
-    def execute(self, grow, grow_percent, grow_tapered, blur, fill):
+    def execute(self, pre_invert, grow, grow_percent, grow_tapered, blur, blur_percent, fill, invert):
+
         mask_params = {
+            "pre_invert": pre_invert,
             "grow": grow,
             "grow_percent": grow_percent,
             "grow_tapered": grow_tapered,
             "blur": blur,
+            "blur_percent": blur_percent,
             "fill": fill,
+            "invert": invert,
         }
 
         return (mask_params,)
