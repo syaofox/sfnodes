@@ -166,7 +166,8 @@ def binary_erosion(mask, radius: int):
     return mask
 
 
-def mask_process(mask, mask_params=None):
+def mask_process(mask, mask_params=None, unqueeze=True):
+
 
     if mask_params is None:
         mask = mask.squeeze(0).unsqueeze(-1)
@@ -200,7 +201,8 @@ def mask_process(mask, mask_params=None):
     if invert:
         mask = 1 - mask
 
-    mask = mask.squeeze(0).unsqueeze(-1)
+    if unqueeze:
+        mask = mask.squeeze(0).unsqueeze(-1)
     return mask
 
 
