@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageColor
 from .utils.insightface_utils import InsightFace
 from insightface.app import FaceAnalysis
 from .utils.image_convert import image_to_tensor, tensor_to_image
-from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask
+from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask, mask_process
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -334,44 +334,7 @@ class FaceSegmentation:
                     smooth+= 1
                 mask = T.functional.gaussian_blur(mask.bool().unsqueeze(1), smooth).squeeze(1).float()
             
-            if mask_params is None:
-                mask_params = {
-                    "grow": 0,
-                    "grow_percent": 0.0,
-                    "grow_tapered": False,
-                    "blur": 0,
-                    "blur_percent": 0.0,
-                    "fill": False,
-                    "invert": False,
-                }
-            pre_invert = mask_params["pre_invert"]
-            grow = mask_params["grow"]
-            grow_percent = mask_params["grow_percent"]
-            grow_tapered = mask_params["grow_tapered"]
-            blur = mask_params["blur"]
-            blur_percent = mask_params["blur_percent"]
-            fill = mask_params["fill"]
-            invert = mask_params["invert"]
-
-            if pre_invert:
-                mask = 1 - mask
-
-            grow_count = int(grow_percent * max(mask.shape)) + grow
-            if grow_count > 0:
-                mask = expand_mask(mask, grow_count, grow_tapered)
-
-            if fill:
-                mask = fill_holes(mask)
-
-            blur_count = int(blur_percent * max(mask.shape)) + blur 
-
-            if blur_count > 0:
-                mask = blur_mask(mask, blur_count)
-
-            if invert:
-                mask = 1 - mask
-
-            mask = mask.squeeze(0).unsqueeze(-1)
+            mask = mask_process(mask, mask_params)
 
             # extract segment from image
             y, x, _ = torch.where(mask)

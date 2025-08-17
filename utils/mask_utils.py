@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import torch
 from PIL import ImageFilter
@@ -163,3 +164,43 @@ def binary_erosion(mask, radius: int):
     mask = F.conv2d(mask, kernel, groups=1)
     mask = (mask == kernel.numel()).to(mask.dtype)
     return mask
+
+
+def mask_process(mask, mask_params=None):
+
+    if mask_params is None:
+        mask = mask.squeeze(0).unsqueeze(-1)
+        return mask
+
+
+    pre_invert = mask_params["pre_invert"]
+    grow = mask_params["grow"]
+    grow_percent = mask_params["grow_percent"]
+    grow_tapered = mask_params["grow_tapered"]
+    blur = mask_params["blur"]
+    blur_percent = mask_params["blur_percent"]
+    fill = mask_params["fill"]
+    invert = mask_params["invert"]
+
+    if pre_invert:
+        mask = 1 - mask
+
+    grow_count = int(grow_percent * max(mask.shape)) + grow
+    if grow_count > 0:
+        mask = expand_mask(mask, grow_count, grow_tapered)
+
+    if fill:
+        mask = fill_holes(mask)
+
+    blur_count = int(blur_percent * max(mask.shape)) + blur 
+
+    if blur_count > 0:
+        mask = blur_mask(mask, blur_count)
+
+    if invert:
+        mask = 1 - mask
+
+    mask = mask.squeeze(0).unsqueeze(-1)
+    return mask
+
+
