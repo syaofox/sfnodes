@@ -6,7 +6,7 @@ import torch
 from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
-from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask
+from .utils.mask_utils import invert_mask,  mask_process
 
 # from .utils.xseg_models import get_model_path, list_available_models, get_model_description
 from .utils.model_manager import ModelManager
@@ -141,20 +141,7 @@ class GeneratePreciseFaceMask:
         mask_threshold,
         mask_params=None,
     ):
-        if mask_params is None:
-            mask_params = {
-                "grow": 0,
-                "grow_percent": 0.0,
-                "grow_tapered": False,
-                "blur": 0,
-                "fill": False,
-            }
-
-        grow = mask_params["grow"]
-        grow_percent = mask_params["grow_percent"]
-        grow_tapered = mask_params["grow_tapered"]
-        blur = mask_params["blur"]
-        fill = mask_params["fill"]
+       
 
         face_occluder_model = occluder
 
@@ -169,11 +156,8 @@ class GeneratePreciseFaceMask:
                 input_image[i],
                 face_occluder_model,
                 mask_threshold,
-                grow,
-                grow_percent,
-                grow_tapered,
-                blur,
-                fill,
+                mask_params,
+
             )
             out_mask.append(mask)
             out_inverted_mask.append(invert_mask(mask))
@@ -192,11 +176,8 @@ class GeneratePreciseFaceMask:
         img,
         face_occluder_model,
         mask_threshold,
-        grow,
-        grow_percent,
-        grow_tapered,
-        blur,
-        fill,
+        mask_params=None,
+
     ):
         """处理单张图像"""
         face = tensor2np(img)
@@ -213,16 +194,6 @@ class GeneratePreciseFaceMask:
             print("\033[96m没有检测到人脸特征\033[0m")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
-        mask = self._process_mask(
-            occlusion_mask, img, grow, grow_percent, grow_tapered, blur, fill
-        )
-        processed_img = img * mask.repeat(1, 1, 3)
-        return mask, processed_img
-
-    def _process_mask(
-        self, occlusion_mask, img, grow, grow_percent, grow_tapered, blur, fill
-    ):
-        """处理遮罩"""
         mask = (
             np2tensor(occlusion_mask)
             .unsqueeze(0)
@@ -231,14 +202,8 @@ class GeneratePreciseFaceMask:
             .to(device=img.device)
         )
 
-        grow_count = int(grow_percent * max(mask.shape)) + grow
-        if grow_count > 0:
-            mask = expand_mask(mask, grow_count, grow_tapered)
-
-        if fill:
-            mask = fill_holes(mask)
-
-        if blur > 0:
-            mask = blur_mask(mask, blur)
-
-        return mask.squeeze(0).unsqueeze(-1)
+        mask = mask_process(
+            mask, mask_params, unqueeze=True
+        )
+        processed_img = img * mask.repeat(1, 1, 3)
+        return mask, processed_img

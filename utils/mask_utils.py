@@ -7,7 +7,6 @@ import kornia
 import torch.nn.functional as F
 from .image_convert import pil2tensor, tensor2pil
 
-
 def combine_mask(destination, source, x, y):
     output = destination.reshape(
         (-1, destination.shape[-2], destination.shape[-1])
