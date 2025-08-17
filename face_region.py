@@ -6,7 +6,8 @@ import torch
 from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
-from .utils.mask_utils import blur_mask, expand_mask, fill_holes, invert_mask
+from .utils.mask_utils import invert_mask, mask_process
+
 from .utils.model_manager import ModelManager
 
 _CATEGORY = "sfnodes/face_analysis"
@@ -205,21 +206,7 @@ class GenerateRegionFaceMask:
         regions,
         mask_params=None,
     ):
-        if mask_params is None:
-            mask_params = {
-                "grow": 0,
-                "grow_percent": 0.0,
-                "grow_tapered": False,
-                "blur": 4,
-                "fill": True,
-            }
-
-        grow = mask_params["grow"]
-        grow_percent = mask_params["grow_percent"]
-        grow_tapered = mask_params["grow_tapered"]
-        blur = mask_params["blur"]
-        fill = mask_params["fill"]
-
+       
         region_indices = [
             FACE_MASK_REGION_SET[region]
             for region in regions
@@ -237,11 +224,8 @@ class GenerateRegionFaceMask:
                 input_image[i],
                 region_extractor,
                 region_indices,
-                grow,
-                grow_percent,
-                grow_tapered,
-                blur,
-                fill,
+                mask_params,
+
             )
             out_mask.append(mask)
             out_inverted_mask.append(invert_mask(mask))
@@ -260,11 +244,8 @@ class GenerateRegionFaceMask:
         img,
         region_extractor,
         region_indices,
-        grow,
-        grow_percent,
-        grow_tapered,
-        blur,
-        fill,
+        mask_params,
+
     ):
         """处理单张图像"""
         face = tensor2np(img)
@@ -279,16 +260,6 @@ class GenerateRegionFaceMask:
             print("\033[96m未能创建有效的区域遮罩\033[0m")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
-        mask = self._process_mask(
-            region_mask, img, grow, grow_percent, grow_tapered, blur, fill
-        )
-        processed_img = img * mask.repeat(1, 1, 3)
-        return mask, processed_img
-
-    def _process_mask(
-        self, region_mask, img, grow, grow_percent, grow_tapered, blur, fill
-    ):
-        """处理遮罩"""
         mask = (
             np2tensor(region_mask)
             .unsqueeze(0)
@@ -297,14 +268,32 @@ class GenerateRegionFaceMask:
             .to(device=img.device)
         )
 
-        grow_count = int(grow_percent * max(mask.shape)) + grow
-        if grow_count > 0:
-            mask = expand_mask(mask, grow_count, grow_tapered)
+        mask = mask_process(
+            mask, mask_params, unqueeze=True
+        )
+        processed_img = img * mask.repeat(1, 1, 3)
+        return mask, processed_img
 
-        if fill:
-            mask = fill_holes(mask)
+    # def _process_mask(
+    #     self, region_mask, img, grow, grow_percent, grow_tapered, blur, fill
+    # ):
+    #     """处理遮罩"""
+    #     mask = (
+    #         np2tensor(region_mask)
+    #         .unsqueeze(0)
+    #         .squeeze(-1)
+    #         .clamp(0, 1)
+    #         .to(device=img.device)
+    #     )
 
-        if blur > 0:
-            mask = blur_mask(mask, blur)
+    #     grow_count = int(grow_percent * max(mask.shape)) + grow
+    #     if grow_count > 0:
+    #         mask = expand_mask(mask, grow_count, grow_tapered)
 
-        return mask.squeeze(0).unsqueeze(-1)
+    #     if fill:
+    #         mask = fill_holes(mask)
+
+    #     if blur > 0:
+    #         mask = blur_mask(mask, blur)
+
+    #     return mask.squeeze(0).unsqueeze(-1)
