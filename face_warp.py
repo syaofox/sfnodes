@@ -7,7 +7,8 @@ from color_matcher import ColorMatcher
 from color_matcher.normalizer import Normalizer
 from comfy.utils import ProgressBar
 from .utils.image_convert import tensor_to_image, image_to_tensor
-from .utils.mask_utils import expand_mask, blur_mask, fill_holes
+from .utils.mask_utils import mask_process
+
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -58,20 +59,7 @@ class FaceWarp:
         is_mathcolor=True,
         include_background=False,
     ):
-        if mask_params is None:
-            mask_params = {
-                "grow": 0,
-                "grow_percent": 0.0,
-                "grow_tapered": False,
-                "blur": 0,
-                "fill": False,
-            }
-
-        grow = mask_params["grow"]
-        grow_percent = mask_params["grow_percent"]
-        grow_tapered = mask_params["grow_tapered"]
-        blur = mask_params["blur"]
-        fill = mask_params["fill"]
+        
 
         if image_from.shape[0] < image_to.shape[0]:
             image_from = torch.cat(
@@ -193,26 +181,15 @@ class FaceWarp:
             output = image_to_tensor(output).unsqueeze(0)
             img_to = image_to_tensor(img_to).unsqueeze(0)
             
-            # 使用修改后的expand_mask函数，它会保持输入输出维度一致
-            grow_count = (
-                int(grow_percent * max(output_mask.shape[1], output_mask.shape[2]))
-                + grow
-            )
-            if grow_count != 0:
-                output_mask = expand_mask(
-                    output_mask.squeeze(-1), grow_count, grow_tapered
-                )
-            else:
-                output_mask = output_mask.squeeze(-1)
+            # 处理mask维度：[B,H,W,1] -> [B,H,W] 用于mask_process
+            output_mask_2d = output_mask.squeeze(-1)   
+                     
+            # 使用mask_process处理
+            processed_mask = mask_process(output_mask_2d, mask_params, unqueeze=False)
 
-            if fill:
-                output_mask = fill_holes(output_mask)
-
-            if blur > 0:
-                output_mask = blur_mask(output_mask, blur)
-
-            # 添加通道维度用于乘法运算
-            output_mask = output_mask.unsqueeze(-1)
+            # 恢复维度：[B,H,W] -> [B,H,W,1]
+            output_mask = processed_mask.unsqueeze(-1)
+           
 
             padding = 0
 

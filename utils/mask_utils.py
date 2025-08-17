@@ -169,7 +169,8 @@ def mask_process(mask, mask_params=None, unqueeze=True):
 
 
     if mask_params is None:
-        mask = mask.squeeze(0).unsqueeze(-1)
+        if unqueeze:
+            mask = mask.squeeze(0).unsqueeze(-1)
         return mask
 
 
