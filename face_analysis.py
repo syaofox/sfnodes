@@ -2,17 +2,26 @@ import cv2
 import numpy as np
 import os
 import torch
+import torch.nn.functional as F
 import torchvision.transforms.v2 as T
 import folder_paths
 
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from .utils.insightface_utils import InsightFace
 from insightface.app import FaceAnalysis
-
+from .utils.image_convert import image_to_tensor, tensor_to_image
+from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask
 
 _CATEGORY = "sfnodes/face_analysis"
 
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
+
+def mask_from_landmarks(image, landmarks):
+    mask = np.zeros(image.shape[:2], dtype=np.float64)
+    points = cv2.convexHull(landmarks)
+    cv2.fillConvexPoly(mask, points, color=1)
+
+    return mask
 
 class FaceAnalysisModels:
     @classmethod
@@ -226,3 +235,172 @@ class FaceEmbedDistance:
         )
 
 
+
+class FaceSegmentation:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "image": ("IMAGE", ),
+                "area": (["face", "main_features", "eyes", "left_eye", "right_eye", "nose", "mouth", "face+forehead (if available)"], ),
+                
+            },
+            "optional": {
+                "mask_params": ("MASKPARAMS",),
+            },
+        }
+
+    RETURN_TYPES = ("MASK", "IMAGE", "MASK", "IMAGE", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("mask", "image", "seg_mask", "seg_image", "x", "y", "width", "height")
+    FUNCTION = "segment"
+    CATEGORY = _CATEGORY
+
+    def segment(self, analysis_models, image, area, mask_params=None):
+        steps = image.shape[0]
+
+        if steps > 1:
+            pbar = ProgressBar(steps)
+
+        out_mask = []
+        out_image = []
+        out_seg_mask = []
+        out_seg_image = []
+        out_x = []
+        out_y = []
+        out_w = []
+        out_h = []
+
+        for img in image:       
+            face = tensor_to_image(img)
+
+            if face is None:
+                print(f"\033[96mNo face detected at frame {len(out_image)}\033[0m")
+                img = torch.zeros_like(img)
+                mask = img.clone()[:,:,:1]
+                out_mask.append(mask)
+                out_image.append(img)
+                out_seg_mask.append(mask[:8,:8,:])
+                out_seg_image.append(img[:8,:8,:])
+                out_x.append(0)
+                out_y.append(0)
+                continue
+
+            landmarks = analysis_models.get_landmarks(face, extended_landmarks=("forehead" in area))
+
+            if landmarks is None:
+                print(f"\033[96mNo landmarks detected at frame {len(out_image)}\033[0m")
+                img = torch.zeros_like(img)
+                mask = img.clone()[:,:,:1]
+                out_mask.append(mask)
+                out_image.append(img)
+                out_seg_mask.append(mask[:8,:8,:])
+                out_seg_image.append(img[:8,:8,:])
+                out_x.append(0)
+                out_y.append(0)
+                continue
+
+            if area == "face":
+                landmarks = landmarks[-2]
+            elif area == "eyes":
+                landmarks = landmarks[2]
+            elif area == "left_eye":
+                landmarks = landmarks[3]
+            elif area == "right_eye":
+                landmarks = landmarks[4]
+            elif area == "nose":
+                landmarks = landmarks[5]
+            elif area == "mouth":
+                landmarks = landmarks[6]
+            elif area == "main_features":
+                landmarks = landmarks[1]
+            elif "forehead" in area:
+                landmarks = landmarks[-1]
+
+            #mask = np.zeros(face.shape[:2], dtype=np.float64)
+            #points = cv2.convexHull(landmarks)
+            #cv2.fillConvexPoly(mask, points, color=1)
+
+            mask = mask_from_landmarks(face, landmarks)
+            mask = image_to_tensor(mask).unsqueeze(0).squeeze(-1).clamp(0, 1).to(device=img.device)
+
+            _, y, x = torch.where(mask)
+            x1, x2 = x.min().item(), x.max().item()
+            y1, y2 = y.min().item(), y.max().item()
+            smooth = int(min(max((x2 - x1), (y2 - y1)) * 0.2, 99))
+
+            if smooth > 1:
+                if smooth % 2 == 0:
+                    smooth+= 1
+                mask = T.functional.gaussian_blur(mask.bool().unsqueeze(1), smooth).squeeze(1).float()
+            
+            if mask_params is None:
+                mask_params = {
+                    "grow": 0,
+                    "grow_percent": 0.0,
+                    "grow_tapered": False,
+                    "blur": 0,
+                    "fill": False,
+                }
+            grow = mask_params["grow"]
+            grow_percent = mask_params["grow_percent"]
+            grow_tapered = mask_params["grow_tapered"]
+            blur = mask_params["blur"]
+            fill = mask_params["fill"]
+
+            grow_count = int(grow_percent * max(mask.shape)) + grow
+            if grow_count > 0:
+                mask = expand_mask(mask, grow_count, grow_tapered)
+
+            if fill:
+                mask = fill_holes(mask)
+
+            if blur > 0:
+                mask = blur_mask(mask, blur)
+
+
+            mask = mask.squeeze(0).unsqueeze(-1)
+
+            # extract segment from image
+            y, x, _ = torch.where(mask)
+            x1, x2 = x.min().item(), x.max().item()
+            y1, y2 = y.min().item(), y.max().item()
+            segment_mask = mask[y1:y2, x1:x2, :]
+            segment_image = img[y1:y2, x1:x2, :]
+            
+            img = img * mask.repeat(1, 1, 3)
+
+            out_mask.append(mask)
+            out_image.append(img)
+            out_seg_mask.append(segment_mask)
+            out_seg_image.append(segment_image)
+            out_x.append(x1)
+            out_y.append(y1)
+
+            if steps > 1:
+                pbar.update(1)
+        
+        out_mask = torch.stack(out_mask).squeeze(-1)
+        out_image = torch.stack(out_image)
+
+        # find the max size of out_seg_image
+        max_w = max([img.shape[1] for img in out_seg_image])
+        max_h = max([img.shape[0] for img in out_seg_image])
+        pad_left = [(max_w - img.shape[1])//2 for img in out_seg_image]
+        pad_right = [max_w - img.shape[1] - pad_left[i] for i, img in enumerate(out_seg_image)]
+        pad_top = [(max_h - img.shape[0])//2 for img in out_seg_image]
+        pad_bottom = [max_h - img.shape[0] - pad_top[i] for i, img in enumerate(out_seg_image)]
+        out_seg_image = [F.pad(img.unsqueeze(0).permute([0,3,1,2]), (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i])) for i, img in enumerate(out_seg_image)]
+        out_seg_mask = [F.pad(mask.unsqueeze(0).permute([0,3,1,2]), (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i])) for i, mask in enumerate(out_seg_mask)]
+
+        out_seg_image = torch.cat(out_seg_image).permute([0,2,3,1])
+        out_seg_mask = torch.cat(out_seg_mask).squeeze(1)
+
+        if len(out_x) == 1:
+            out_x = out_x[0]
+            out_y = out_y[0]
+
+        out_w = out_seg_image.shape[2]
+        out_h = out_seg_image.shape[1]
+
+        return (out_mask, out_image, out_seg_mask, out_seg_image, out_x, out_y, out_w, out_h)

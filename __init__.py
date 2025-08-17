@@ -2,7 +2,8 @@ from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutp
 from .face_morph import FaceMorph, FaceReshape
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_cutandpaste import FaceCutout, FacePaste, ExtractBoundingBox
-from .face_analysis import FaceAnalysisModels, FaceEmbedDistance
+from .face_analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
+
 from .face_warp import FaceWarp
 from .face_alginandrotate import (
     AlignImageByFace,
@@ -89,6 +90,7 @@ NODE_CLASS_MAPPINGS = {
     "SFExtractBoundingBox": ExtractBoundingBox,
     "SFFaceAnalysisModels": FaceAnalysisModels,
     "SFFaceEmbedDistance": FaceEmbedDistance,
+    "SFFaceSegmentation": FaceSegmentation,
     "SFFaceWarp": FaceWarp,
     # 文件节点
     "SFLoadImagesFromFolder": LoadImagesFromFolder,
@@ -198,6 +200,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFExtractBoundingBox": "SF Extract Bounding Box",
     "SFFaceAnalysisModels": "SF Face Analysis Models",
     "SFFaceEmbedDistance": "SF Face Embed Distance",
+    "SFFaceSegmentation": "SF Face Segmentation",
     "SFFaceWarp": "SF Face Warp",
     # 文件节点
     "SFLoadImagesFromFolder": "SF Load Images From Folder",
