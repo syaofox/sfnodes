@@ -88,7 +88,17 @@ class HyperLoRALoadCharLoRANode:
                 img_list.append(img)
             except Exception as e:
                 print(f"图片读取失败: {img_path}, {e}")
+
         images_tensor = images2tensor(img_list) if img_list else None
+
+        # 确保图片尺寸相同（在转换为张量后调整）
+        if images_tensor is not None and images_tensor.shape[0] > 0:
+            ref_shape = images_tensor[0].shape
+            for i in range(1, images_tensor.shape[0]):
+                if images_tensor[i].shape != ref_shape:
+                    adjusted = comfy.utils.common_upscale(images_tensor[i].movedim(-1, 0).unsqueeze(0), ref_shape[1], ref_shape[0], "lanczos", "center").squeeze(0).movedim(0, -1)
+                    images_tensor[i] = adjusted
+                    print(f"图片 {i+1} 已调整为 {ref_shape}")
         return (lora, images_tensor, charname)
 
 
@@ -113,6 +123,18 @@ class HyperLoRASaveCharLoRANode:
         filename = os.path.join(folder_paths.models_dir, 'hyper_lora/chars', f"{char_name}.safetensors")
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         save_file(lora, filename)
+
+        # 确保图片尺寸相同
+        if images is not None and hasattr(images, 'shape') and images.shape[0] > 0:
+            ref_shape = images[0].shape
+            for i in range(1, images.shape[0]):
+                if images[i].shape != ref_shape:
+                    # 调整尺寸使用 common_upscale
+                    adjusted = comfy.utils.common_upscale(images[i].movedim(-1, 0).unsqueeze(0), ref_shape[1], ref_shape[0], "lanczos", "center").squeeze(0).movedim(0, -1)
+                    images[i] = adjusted
+                    print(f"图片 {i+1} 已调整为 {ref_shape}")
+
+
         # 保存图片batch
         if images is not None and hasattr(images, 'shape') and images.shape[0] > 0:
             img_list = tensor2images(images)
