@@ -49,6 +49,10 @@ class DisplayAny:
 
 
 class Bus:
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, input_types):
+        return True
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -59,11 +63,17 @@ class Bus:
                 "negative": ("CONDITIONING", {"default": None}),
                 "latent": ("LATENT", {"default": None}),
                 "clip": ("CLIP", {"default": None}),
-                "vae": ("VAE", {"default": None}),                
+                "vae": ("VAE", {"default": None}),  
+                "image1": ("IMAGE", {"default": None}),
+                "image2": ("IMAGE", {"default": None}),
+                "image3": ("IMAGE", {"default": None}),
+                "text1": ("STRING", {"default": None, "forceInput": True}),
+                "text2": ("STRING", {"default": None, "forceInput": True}),
+                "text3": ("STRING", {"default": None, "forceInput": True}),
             }
         }
 
-    RETURN_TYPES = ("BUS", "MODEL", "CONDITIONING", "CONDITIONING", "LATENT", "CLIP", "VAE")
+    RETURN_TYPES = ("BUS", "MODEL", "CONDITIONING", "CONDITIONING", "LATENT", "CLIP", "VAE", "IMAGE", "IMAGE", "IMAGE","STRING","STRING", "STRING", )
     RETURN_NAMES = (
         "bus",
         "model",
@@ -72,13 +82,23 @@ class Bus:
         "latent",
         "clip",
         "vae",
+        "image1",
+        "image2",
+        "image3",
+        "text1",
+        "text2",
+        "text3",
+
+
     )
    
     FUNCTION = "run"
     CATEGORY = _CATEGORY
     DESCRIPTION = "将输入的模型、条件、潜在表示、CLIP和VAE添加到总线上。"
 
-    def run(self, bus=None, model=None, positive=None, negative=None, latent=None, clip=None, vae=None):
+    def run(self, bus=None, model=None, positive=None, negative=None, latent=None, clip=None, vae=None, image1=None, image2=None, image3=None, text1=None, text2=None, text3=None):
+
+
 
         if bus is None:          
             bus = {
@@ -88,6 +108,15 @@ class Bus:
                 "latent": latent,
                 "clip": clip,
                 "vae": vae,
+                "image1": image1,
+                "image2": image2,
+                "image3": image3,
+                "text1": text1,
+                "text2": text2,
+                "text3": text3,
+
+
+
             }
        
         if model is not None:
@@ -102,4 +131,19 @@ class Bus:
             bus["clip"] = clip
         if vae is not None: 
             bus["vae"] = vae
-        return (bus, bus["model"], bus["positive"], bus["negative"], bus["latent"], bus["clip"], bus["vae"])
+        if image1 is not None:            
+            bus["image1"] = image1
+        if image2 is not None:
+            bus["image2"] = image2
+        if image3 is not None:
+            bus["image3"] = image3
+        if text1 is not None:
+            bus["text1"] = text1
+        if text2 is not None:
+            bus["text2"] = text2
+        if text3 is not None:
+            bus["text3"] = text3
+
+        return (bus, bus["model"], bus["positive"], bus["negative"], bus["latent"], bus["clip"], bus["vae"], bus["image1"], bus["image2"], bus["image3"], bus["text1"], bus["text2"], bus["text3"])
+
+
