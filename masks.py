@@ -19,6 +19,7 @@ from .utils.mask_utils import (
     make_odd,
     binary_erosion,
     gaussian_blur,
+    mask_process,
 )
 
 _CATEGORY = "sfnodes/masks"
@@ -158,6 +159,7 @@ class MaskChange:
         return {
             "required": {
                 "mask": ("MASK",),
+
                 "grow": (
                     "INT",
                     {
@@ -192,28 +194,68 @@ class MaskChange:
                         "tooltip": "设置模糊值，范围为0到4096，步长为1",
                     },
                 ),
+                "blur_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
                 "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
+                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否预反转(先反转,再其他操作)"}),
+
+
+
             },
         }
 
-    RETURN_TYPES = ("MASK", "MASK")
-    RETURN_NAMES = ("mask", "inverted_mask")
+    RETURN_TYPES = ("MASK", "MASK", )
+    RETURN_NAMES = ("mask", "inverted_mask",)
+
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     DESCRIPTION = "修改和处理遮罩"
 
-    def execute(self, mask, grow, grow_percent, grow_tapered, blur, fill):
-        grow_count = int(grow_percent * max(mask.shape)) + grow
-        if grow_count != 0:  # 改为检查是否不等于0
-            mask = expand_mask(mask, grow_count, grow_tapered)
+    def execute(self, mask, grow, grow_percent, grow_tapered, blur, blur_percent, fill, pre_invert):
+        print(mask.shape)
 
-        if fill:
-            mask = fill_holes(mask)
+        mask_params = {
+                "pre_invert": False,
+                "mask": mask,
+                "grow": grow,
+                "grow_percent": grow_percent,
+                "grow_tapered": grow_tapered,
+                "blur": blur,
+                "blur_percent": blur_percent,
+                "fill": fill,
+                "invert": False,
 
-        if blur > 0:
-            mask = blur_mask(mask, blur)
+            }
+        mask = mask_process(mask, mask_params, unqueeze=False)  
 
-        return (mask, invert_mask(mask))
+
+        if not pre_invert:
+            mask_inverted = invert_mask(mask)
+        else:
+            mask_params_invert = {
+            "pre_invert": True,
+            "mask": mask,
+            "grow": grow,
+            "grow_percent": grow_percent,
+            "grow_tapered": grow_tapered,
+            "blur": blur,
+            "blur_percent": blur_percent,
+            "fill": fill,
+            "invert": False,
+
+        }
+            mask_inverted = mask_process(mask, mask_params_invert, unqueeze=False)    
+
+
+        return (mask, mask_inverted)
 
 
 class Depth2Mask:
