@@ -931,3 +931,82 @@ class MaskCrop:
             
             # 堆叠所有调整大小后的图像
             return (torch.stack(resized_images),)
+
+
+class MaskFillPercentArea:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mask": ("MASK", {"tooltip": "输入遮罩"}),
+                "fill_direction": (
+                    ["横向", "纵向"],
+                    {"default": "横向", "tooltip": "选择填充方向"},
+                ),
+                "fill_start_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "设置填充起始百分比，范围为0.0到1.0，步长为0.01",
+                    },
+                ),
+                "fill_end_percent": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "设置填充结束百分比，范围为0.0到1.0，步长为0.01",
+                    },
+                ),
+                "fill_mode": (
+                    ["白色 (1.0)", "黑色 (0.0)"],
+                    {"default": "白色 (1.0)", "tooltip": "选择填充颜色"},
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "填充遮罩的横向或纵向百分比区域为白色或黑色"
+
+    def execute(self, mask, fill_direction, fill_start_percent, fill_end_percent, fill_mode):
+        # 确保起始百分比小于等于结束百分比
+        if fill_start_percent > fill_end_percent:
+            fill_start_percent, fill_end_percent = fill_end_percent, fill_start_percent
+
+        # 根据选择的模式确定要应用的值
+        fill_value = 1.0 if fill_mode == "白色 (1.0)" else 0.0
+
+        # 获取mask的形状
+        # 如果mask有4个维度，去掉通道维度
+        if len(mask.shape) == 4:
+            mask = mask.squeeze(1)  # 去掉通道维度
+        batch_size, height, width = mask.shape
+
+        # 创建区域遮罩
+        area_mask = torch.zeros_like(mask)
+
+        if fill_direction == "横向":
+            # 计算填充的起始和结束列
+            start_col = int(width * fill_start_percent)
+            end_col = int(width * fill_end_percent)
+            # 设置区域遮罩
+            area_mask[:, :, start_col:end_col] = 1.0
+        else:  # 纵向
+            # 计算填充的起始和结束行
+            start_row = int(height * fill_start_percent)
+            end_row = int(height * fill_end_percent)
+            # 设置区域遮罩
+            area_mask[:, start_row:end_row, :] = 1.0
+
+        # 应用区域遮罩
+        result_mask = apply_mask_area(mask, area_mask, fill_value)
+
+        return (result_mask,)
+

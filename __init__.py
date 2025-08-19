@@ -39,6 +39,7 @@ from .masks import (
     MaskedFill,
     FillWithReferenceColor,
     MaskCrop,
+    MaskFillPercentArea
 )
 from .image_processing import (
     ColorAdjustment,
@@ -124,6 +125,8 @@ NODE_CLASS_MAPPINGS = {
     "SFMaskedFill": MaskedFill,
     "SFFillWithReferenceColor": FillWithReferenceColor,
     "SFMaskCrop": MaskCrop,
+    "SFMaskFillPercentArea": MaskFillPercentArea,
+
     # 图片处理节点
     "SFColorAdjustment": ColorAdjustment,
     "SFColorTint": ColorTint,
@@ -236,6 +239,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskedFill": "SF Masked Fill",
     "SFFillWithReferenceColor": "SF Fill With Reference Color",
     "SFMaskCrop": "SF Mask Crop",
+    "SFMaskFillPercentArea": "SF Mask Fill Percent Area",
+
     # 图片处理节点
     "SFColorAdjustment": "SF Color Adjustment",
     "SFColorTint": "SF Color Tint",
