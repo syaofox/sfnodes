@@ -32,6 +32,13 @@ class InpaintCutOut:
                         "tooltip": "设置图像的填充百分比",
                     },
                 ),
+                "force_square": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "如果开启，将扩展短边成为正方形裁剪区域",
+                    },
+                ),
                 "rescale_mode": (
                     ["sdxl", "sd15", "sdxl+", "sd15+", "none", "custom"],
                     {
@@ -99,7 +106,7 @@ class InpaintCutOut:
 
     FUNCTION = "inpaint_cutout"
 
-    def inpaint_cutout(self, image, mask, padding, padding_percent, rescale_mode, custom_megapixels, margin, margin_percent, blur_radius, blur_percent):
+    def inpaint_cutout(self, image, mask, padding, padding_percent, force_square, rescale_mode, custom_megapixels, margin, margin_percent, blur_radius, blur_percent):
         # 将输入转换为适当的格式
         img = image[0]
         pil_image = tensor2pil(img)
@@ -130,19 +137,35 @@ class InpaintCutOut:
         # 应用padding
         width = x_max - x_min
         height = y_max - y_min
-        
+
         padding_x = int(width * padding_percent) + padding
         padding_y = int(height * padding_percent) + padding
-        
+
         x_min = max(0, x_min - padding_x)
         y_min = max(0, y_min - padding_y)
         x_max = min(pil_image.width, x_max + padding_x)
         y_max = min(pil_image.height, y_max + padding_y)
-        
+
         # 更新宽度和高度
         width = x_max - x_min
         height = y_max - y_min
-        
+
+        # 如果开启强制正方形选项，扩展短边
+        if force_square:
+            # 计算需要扩展的像素数
+            if width > height:
+                # 高度是短边，需要扩展
+                extra = width - height
+                y_min = max(0, y_min - extra // 2)
+                y_max = min(pil_image.height, y_max + (extra - extra // 2))
+                height = y_max - y_min
+            elif height > width:
+                # 宽度是短边，需要扩展
+                extra = height - width
+                x_min = max(0, x_min - extra // 2)
+                x_max = min(pil_image.width, x_max + (extra - extra // 2))
+                width = x_max - x_min
+
         # 裁剪图像和mask
         cropped_image = pil_image.crop((x_min, y_min, x_max, y_max))
         cropped_mask = mask_image.crop((x_min, y_min, x_max, y_max))
