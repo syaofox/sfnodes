@@ -369,5 +369,8 @@ class PersonMaskGenerator:
 
         # 合并所有mask并确保正确的维度格式 [B, H, W]
         result_masks = torch.stack(tensor_masks, dim=0)
+
+        if len(result_masks.shape) == 4:
+            result_masks = result_masks.squeeze(1)  # 去掉通道维度
         
         return (result_masks,)
