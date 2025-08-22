@@ -128,3 +128,40 @@ class InsightFace:
                 outline_forehead,
             ]
         return None
+
+    def get_single_bbox(
+        self, image, padding=0, padding_percent=0,face_index=0
+    ) -> tuple[torch.Tensor, int, int, int, int]:
+        """
+        获取指定索引的人脸bbox
+        
+        Args:
+            image: 输入图像
+            face_index: 人脸索引，默认为0（最大的人脸）
+            padding: 边框填充像素
+            padding_percent: 边框填充百分比
+            
+        Returns:
+            tuple: (裁剪图像, x坐标, y坐标, 宽度, 高度)
+        """
+        faces = self.get_face(np.array(image))
+        
+        if faces is not None and len(faces) > face_index:
+            face = faces[face_index]
+            x1, y1, x2, y2 = face["bbox"]
+            width = x2 - x1
+            height = y2 - y1
+
+            x1 = int(max(0, x1 - int(width * padding_percent) - padding))
+            y1 = int(max(0, y1 - int(height * padding_percent) - padding))
+            x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
+            y2 = int(
+                min(image.height, y2 + int(height * padding_percent) + padding)
+            )
+            crop = image.crop((x1, y1, x2, y2))
+            img_tensor = T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0)
+            
+            return (img_tensor, x1, y1, x2 - x1, y2 - y1)
+        
+        # 如果没有检测到人脸或索引超出范围，返回None
+        return (None, 0, 0, 0, 0)

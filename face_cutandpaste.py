@@ -101,24 +101,30 @@ class FaceCutout:
                     "BOOLEAN",
                     {"default": False, "tooltip": "是否将图像裁剪为正方形"},
                 ),
+                "face_index": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 100,
+                        "step": 1,
+                        "tooltip": "指定要使用的人脸索引，从0开始",
+                    },
+                ),
             },
         }
 
     RETURN_TYPES = (
-        "BOUNDINGINFOS",
-        "IMAGES",
-        "INT",
+        "IMAGE",       
+        "MASK",    
+        "BOUNDINGINFO",
     )
     RETURN_NAMES = (
-        "bounding_infos",
-        "crop_images",
-        "face_count",
+        "face_image",        
+        "mask",
+        "bounding_info",
     )
-    OUTPUT_IS_LIST = (
-        True,
-        True,
-        False,
-    )
+  
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     DESCRIPTION = "切下图像中所有人脸并进行缩放，返回所有人脸信息"
@@ -136,93 +142,91 @@ class FaceCutout:
         blur_radius,
         blur_percent,
         is_square=False,
+        face_index=0,
     ):
         target_size = self._get_target_size(rescale_mode, custom_megapixels)
 
         img = image[0]
 
         pil_image = tensor2pil(img)
-
-        faces, x_coords, y_coords, widths, heights = analysis_models.get_bbox(
-            pil_image, padding, padding_percent
+        face, x, y, width, height = analysis_models.get_single_bbox(
+            pil_image, padding, padding_percent, face_index
         )
 
-        face_count = len(faces)
-        if face_count == 0:
+        if face is None:
             raise Exception("未在图像中检测到人脸。")
 
-        bounding_infos = []
-        crop_images = []
 
-        for i, face in enumerate(faces):
-            scale_factor = 1
+        scale_factor = 1
 
-            # 如果需要正方形，调整宽度和高度
-            if is_square:
-                # 计算正方形边长，取宽高的最大值
-                square_size = max(widths[i], heights[i])
-                # 计算新的x和y坐标，使人脸居中
-                center_x = x_coords[i] + widths[i] // 2
-                center_y = y_coords[i] + heights[i] // 2
-                new_x = center_x - square_size // 2
-                new_y = center_y - square_size // 2
+        # 如果需要正方形，调整宽度和高度
+        if is_square:
+            # 计算正方形边长，取宽高的最大值
+            square_size = max(width, height)
+            # 计算新的x和y坐标，使人脸居中
+            center_x = x + width // 2
+            center_y = y + height // 2
+            new_x = center_x - square_size // 2
+            new_y = center_y - square_size // 2
 
-                # 确保新坐标不超出图像边界
-                new_x = max(0, new_x)
-                new_y = max(0, new_y)
-                if new_x + square_size > pil_image.width:
-                    new_x = pil_image.width - square_size
-                if new_y + square_size > pil_image.height:
-                    new_y = pil_image.height - square_size
+            # 确保新坐标不超出图像边界
+            new_x = max(0, new_x)
+            new_y = max(0, new_y)
+            if new_x + square_size > pil_image.width:
+                new_x = pil_image.width - square_size
+            if new_y + square_size > pil_image.height:
+                new_y = pil_image.height - square_size
 
-                # 更新坐标和尺寸
-                x_coords[i] = new_x
-                y_coords[i] = new_y
-                widths[i] = square_size
-                heights[i] = square_size
+            # 更新坐标和尺寸
+            x = new_x
+            y = new_y
+            width = square_size
+            height = square_size
 
-                # 重新裁剪人脸区域为正方形
-                face_np = tensor2np(image[0])
-                face_crop = face_np[
-                    new_y : new_y + square_size, new_x : new_x + square_size
-                ]
-                face = np2tensor(face_crop).unsqueeze(0)
+            # 重新裁剪人脸区域为正方形
+            face_np = tensor2np(image[0])
+            face_crop = face_np[
+                y : y + square_size, x : x + square_size
+            ]
+            face = np2tensor(face_crop).unsqueeze(0)
 
-            if target_size > 0:
-                scale_factor = math.sqrt(target_size / (widths[i] * heights[i]))
-                new_width = round(widths[i] * scale_factor)
-                new_height = round(heights[i] * scale_factor)
-                scaled_face = self._rescale_image(face, new_width, new_height)
-            else:
-                new_width = widths[i]
-                new_height = heights[i]
-                scaled_face = face
+        if target_size > 0:
+            scale_factor = math.sqrt(target_size / (width * height))
+            new_width = round(width * scale_factor)
+            new_height = round(height * scale_factor)
+            scaled_face = self._rescale_image(face, new_width, new_height)
+        else:
+            new_width = width
+            new_height = height
+            scaled_face = face
 
 
-            ref_size = max(new_width, new_height)
-            margin_size = int(ref_size * margin_percent) + margin
-            blur_size = int(ref_size * blur_percent) + blur_radius
-            print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
+        ref_size = max(new_width, new_height)
+        margin_size = int(ref_size * margin_percent) + margin
+        blur_size = int(ref_size * blur_percent) + blur_radius
+        print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
 
-            mask_image = create_soft_edge_mask((new_width, new_height), margin_size, blur_size)
+        mask_image = create_soft_edge_mask((new_width, new_height), margin_size, blur_size)
+        mask_tensor = pil2mask(mask_image)
 
+        bounding_info = {            
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "mask": mask_tensor,
+            "origin_image": image, 
+            "origin_face":face,
+            "new_face":scaled_face,
+            "new_width":new_width,
+            "new_height":new_height,
 
-            # 为每个人脸创建单独的 BOUNDINGINFO 结构
-            bounding_info = {
-                "x": x_coords[i],
-                "y": y_coords[i],
-                "width": widths[i],
-                "height": heights[i],                
-                "mask": pil2mask(mask_image),
-            }
-            crop_images.append(scaled_face)
-
-            bounding_infos.append(bounding_info)
+        }
 
         return (
-            bounding_infos,
-            crop_images,
-            face_count,
+            scaled_face,            
+            mask_tensor,            
+            bounding_info,
         )
 
     @staticmethod
@@ -251,8 +255,7 @@ class FacePaste:
         return {
             "required": {
                 "bounding_info": ("BOUNDINGINFO",),
-                "source_image": ("IMAGE",),
-                "destination_image": ("IMAGE",),
+                "source_image": ("IMAGE",),                
                 "upscale_method": (
                     ["lanczos", "bilinear", "bicubic", "nearest"],
                     {
@@ -260,6 +263,9 @@ class FacePaste:
                         "tooltip": "设置图像缩放的方法"
                     }
                 ),
+            },
+            "optional": {
+                "destination_image": ("IMAGE",),
             },
         }
 
@@ -269,13 +275,15 @@ class FacePaste:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将bounding_info中的人脸图像贴回原图"
 
-    
-    def paste(self, bounding_info, source_image, destination_image, upscale_method="lanczos"):
+    def paste(self, bounding_info, source_image, destination_image=None, upscale_method="lanczos"):
         # 从bounding_info中获取人脸图像和位置信息
         x = bounding_info["x"]
         y = bounding_info["y"]
         width = bounding_info["width"]
         height = bounding_info["height"]
+
+        if destination_image is None:
+            destination_image = bounding_info["origin_image"]
 
 
         mask_image = mask2tensor(bounding_info["mask"])                   
@@ -310,58 +318,30 @@ class ExtractBoundingBox:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "bounding_infos": ("BOUNDINGINFOS",),
-                "crop_images": ("IMAGES",),
-                "index": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "选择要解析的人脸索引",
-                    },
-                ),
+                "bounding_info": ("BOUNDINGINFO",),               
             },
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "IMAGE", "MASK", "BOUNDINGINFO")
-    RETURN_NAMES = ("x", "y", "width", "height", "crop_image", "mask", "bounding_info")
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "MASK", "IMAGE","IMAGE","IMAGE","INT","INT")
+    RETURN_NAMES = ("x", "y", "width", "height", "mask", "origin_image","origin_face","new_face","new_width","new_height")
     INPUT_IS_LIST = (
         True,
         False,
     )
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从边界框信息中提取指定索引的人脸坐标、尺寸和图像"
+    DESCRIPTION = "从边界框信息中提取人脸坐标、尺寸和图像"
 
-    def extract(self, bounding_infos, crop_images, index=0):
-        # 确保bounding_infos是列表
-        if not isinstance(bounding_infos, list):
-            bounding_infos = [bounding_infos]
+    def extract(self, bounding_info):
 
-        # 确保index是整数
-        if isinstance(index, list):
-            if len(index) > 0:
-                index = index[0]  # 如果index是列表，取第一个元素
-            else:
-                index = 0
-
-        # 确保index在有效范围内
-        if len(bounding_infos) == 0:
-            raise Exception("边界框信息列表为空")
-
-        if index >= len(bounding_infos):
-            print(
-                f"警告：索引 {index} 超出了bounding_infos的范围 {len(bounding_infos)}，使用默认索引0"
-            )
-            index = 0
-
-        bounding_info = bounding_infos[index]
+        
 
         # 确保bounding_info是字典类型
-        if not isinstance(bounding_info, dict):
-            raise Exception(f"边界框信息不是预期的字典格式: {type(bounding_info)}")
+        if not isinstance(bounding_info, list) and len(bounding_info) <= 0:
+            raise Exception(f"边界框信息不是预期的列表格式: {type(bounding_info)}")
+        
+        if len(bounding_info) > 0:
+            bounding_info = bounding_info[0]
 
         # 从bounding_info中提取信息
         x = bounding_info.get("x", 0)
@@ -369,5 +349,9 @@ class ExtractBoundingBox:
         width = bounding_info.get("width", 0)
         height = bounding_info.get("height", 0)
         mask = bounding_info.get("mask", None)
-        crop_image = crop_images[index]
-        return (x, y, width, height, crop_image, mask, bounding_info)
+        origin_face = bounding_info.get("origin_face", None)
+        origin_image = bounding_info.get("origin_image", None)
+        new_face = bounding_info.get("new_face", None)
+        new_width = bounding_info.get("new_width", 0)
+        new_height = bounding_info.get("new_height", 0)
+        return (x, y, width, height, mask, origin_image,origin_face,new_face,new_width,new_height)
