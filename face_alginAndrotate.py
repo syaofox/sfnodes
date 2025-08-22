@@ -61,6 +61,16 @@ class AlignImageByFace:
             "optional": {
                 "analysis_models": ("ANALYSIS_MODELS",),                
                 "image_to": ("IMAGE",),
+                "face_index": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 100,
+                        "step": 1,
+                        "tooltip": "指定要使用的人脸索引，从0开始",
+                    },
+                ),
             },
         }
 
@@ -84,6 +94,7 @@ class AlignImageByFace:
 
         analysis_models = None,
         image_from = None,
+        face_index = 0,  # 新增参数
     ):
         source_image = tensor2np(image_from[0])
         original_width, original_height = source_image.shape[:2]
@@ -114,7 +125,8 @@ class AlignImageByFace:
                     180, expand=expand, resample=Image.Resampling.BICUBIC
                 )
                 img = np.array(img)
-            face_shape = analysis_models.get_keypoints(img)
+            # 修改调用，传递face_index参数
+            face_shape = analysis_models.get_keypoints(img, face_index=face_index) if analysis_models else None
             return face_shape, img
         
         is_flipped = False
@@ -138,7 +150,8 @@ class AlignImageByFace:
 
         # 如果提供了目标图像，计算相对旋转角度
         if image_to is not None:
-            target_shape = analysis_models.get_keypoints(tensor2np(image_to[0]))
+            # 修改调用，传递face_index参数
+            target_shape = analysis_models.get_keypoints(tensor2np(image_to[0]), face_index=face_index) if analysis_models else None
             if target_shape is not None:
                 print(f"目标图像人脸关键点: {target_shape}")
                 rotation_angle -= calculate_angle(target_shape)
