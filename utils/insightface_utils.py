@@ -50,10 +50,15 @@ class InsightFace:
 
     def get_embeds(self, image, face_index=0):
         face = self.get_face(image)
-        if face is not None and len(face) > face_index:
-            face_embedding = face[face_index].normed_embedding
-            return face_embedding
-        return None
+
+        if face is None:
+            return None
+
+        face_index = min(face_index, len(face) - 1)
+                
+        face_embedding = face[face_index].normed_embedding
+        return face_embedding
+        
 
     def get_bbox(
         self, image, padding=0, padding_percent=0
@@ -86,48 +91,59 @@ class InsightFace:
 
     def get_keypoints(self, image, face_index=0):
         face = self.get_face(image)
-        if face is not None and len(face) > face_index:
-            shape = face[face_index]["kps"]
-            right_eye = shape[0]
-            left_eye = shape[1]
-            nose = shape[2]
-            left_mouth = shape[3]
-            right_mouth = shape[4]
+        if face is None:
+            return None
 
-            return [left_eye, right_eye, nose, left_mouth, right_mouth]
-        return None
+        face_index = min(face_index, len(face) - 1)
+
+        shape = face[face_index]["kps"]
+        right_eye = shape[0]
+        left_eye = shape[1]
+        nose = shape[2]
+        left_mouth = shape[3]
+        right_mouth = shape[4]
+
+        return [left_eye, right_eye, nose, left_mouth, right_mouth]
+    
 
     def get_landmarks(self, image, extended_landmarks=False, face_index=0):
         face = self.get_face(image)
-        if face is not None and len(face) > face_index:
-            shape = face[face_index]["landmark_2d_106"]
-            landmarks = np.round(shape).astype(np.int64)
 
-            main_features = landmarks[33:]
-            left_eye = landmarks[87:97]
-            right_eye = landmarks[33:43]
-            eyes = landmarks[[*range(33, 43), *range(87, 97)]]
-            nose = landmarks[72:87]
-            mouth = landmarks[52:72]
-            left_brow = landmarks[97:106]
-            right_brow = landmarks[43:52]
-            outline = landmarks[[*range(33), *range(48, 51), *range(102, 105)]]
-            outline_forehead = outline
+        if face is None:
+            return None
 
-            return [
-                landmarks,
-                main_features,
-                eyes,
-                left_eye,
-                right_eye,
-                nose,
-                mouth,
-                left_brow,
-                right_brow,
-                outline,
-                outline_forehead,
-            ]
-        return None
+        face_index = min(face_index, len(face) - 1)
+
+
+        
+        shape = face[face_index]["landmark_2d_106"]
+        landmarks = np.round(shape).astype(np.int64)
+
+        main_features = landmarks[33:]
+        left_eye = landmarks[87:97]
+        right_eye = landmarks[33:43]
+        eyes = landmarks[[*range(33, 43), *range(87, 97)]]
+        nose = landmarks[72:87]
+        mouth = landmarks[52:72]
+        left_brow = landmarks[97:106]
+        right_brow = landmarks[43:52]
+        outline = landmarks[[*range(33), *range(48, 51), *range(102, 105)]]
+        outline_forehead = outline
+
+        return [
+            landmarks,
+            main_features,
+            eyes,
+            left_eye,
+            right_eye,
+            nose,
+            mouth,
+            left_brow,
+            right_brow,
+            outline,
+            outline_forehead,
+        ]
+
 
     def get_single_bbox(
         self, image, padding=0, padding_percent=0,face_index=0
@@ -145,23 +161,25 @@ class InsightFace:
             tuple: (裁剪图像, x坐标, y坐标, 宽度, 高度)
         """
         faces = self.get_face(np.array(image))
-        
-        if faces is not None and len(faces) > face_index:
-            face = faces[face_index]
-            x1, y1, x2, y2 = face["bbox"]
-            width = x2 - x1
-            height = y2 - y1
+        if faces is None:
+            return (None, 0, 0, 0, 0)
 
-            x1 = int(max(0, x1 - int(width * padding_percent) - padding))
-            y1 = int(max(0, y1 - int(height * padding_percent) - padding))
-            x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
-            y2 = int(
-                min(image.height, y2 + int(height * padding_percent) + padding)
-            )
-            crop = image.crop((x1, y1, x2, y2))
-            img_tensor = T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0)
-            
-            return (img_tensor, x1, y1, x2 - x1, y2 - y1)
+        face_index = min(face_index, len(faces) - 1)        
+       
+        face = faces[face_index]
+        x1, y1, x2, y2 = face["bbox"]
+        width = x2 - x1
+        height = y2 - y1
+
+        x1 = int(max(0, x1 - int(width * padding_percent) - padding))
+        y1 = int(max(0, y1 - int(height * padding_percent) - padding))
+        x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
+        y2 = int(
+            min(image.height, y2 + int(height * padding_percent) + padding)
+        )
+        crop = image.crop((x1, y1, x2, y2))
+        img_tensor = T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0)
         
-        # 如果没有检测到人脸或索引超出范围，返回None
-        return (None, 0, 0, 0, 0)
+        return (img_tensor, x1, y1, x2 - x1, y2 - y1)
+        
+        
