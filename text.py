@@ -213,17 +213,9 @@ class TextToFilename:
 
 
 
-class NsfwTags:
+class BaseTags:
     @classmethod
     def INPUT_TYPES(cls):
-        # 获取当前脚本所在目录，构建数据文件的绝对路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data', 'nsfwtags.csv')
-        
-        # 读取CSV文件
-        cls.tag_options = []
-        cls.tag_options = load_csv_data(data_file)
-                
         # 为每个标签创建一个布尔复选框和强度调节滑块
         inputs = {}
         for option in cls.tag_options:
@@ -245,7 +237,7 @@ class NsfwTags:
     RETURN_NAMES = ("tags",)
     FUNCTION = "func"
     CATEGORY = _CATEGORY
-
+    
     def func(self, **kwargs):
         # 获取分隔符（最后一个参数）
         delimiter = kwargs.pop("delimiter", ",")
@@ -275,3 +267,56 @@ class NsfwTags:
         if text:
             result = f"{text},{result}"
         return (result,)
+
+class NsfwTags(BaseTags):
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data', 'nsfwtags.csv')
+        
+        # 读取CSV文件
+        cls.tag_options = load_csv_data(data_file)
+        
+        # 调用父类方法生成输入配置
+        return super().INPUT_TYPES()
+
+
+class ExpressionTags(BaseTags):
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data','nsfw', 'expression.csv')
+        
+        # 读取CSV文件
+        cls.tag_options = load_csv_data(data_file)
+        
+        # 调用父类方法生成输入配置
+        return super().INPUT_TYPES()
+
+class ForeplayTags(BaseTags):
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data','nsfw', 'foreplay.csv')
+        
+        # 读取CSV文件
+        cls.tag_options = load_csv_data(data_file)
+        
+        # 调用父类方法生成输入配置
+        return super().INPUT_TYPES()
+
+class PositionsTags(BaseTags):
+    @classmethod
+    def INPUT_TYPES(cls):
+        # 获取当前脚本所在目录，构建数据文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(current_dir, 'data','nsfw', 'positions.csv')
+        
+        # 读取CSV文件
+        cls.tag_options = load_csv_data(data_file)
+        
+        # 调用父类方法生成输入配置
+        return super().INPUT_TYPES()
