@@ -63,6 +63,7 @@ from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .image_compare import ImageCompare
 from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags 
+from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount
 
 WEB_DIRECTORY = "js"
 
@@ -181,6 +182,21 @@ NODE_CLASS_MAPPINGS = {
     "SFExpressionTags": ExpressionTags,
     "SFForeplayTags": ForeplayTags,
     "SFPositionsTags": PositionsTags,
+    # 简单数学节点
+    "SFSimpleMathFloat": SimpleMathFloat,
+    "SFSimpleMathPercent": SimpleMathPercent,
+    "SFSimpleMathInt": SimpleMathInt,
+    "SFSimpleMathSlider": SimpleMathSlider,
+    "SFSimpleMathSliderLowRes": SimpleMathSliderLowRes,
+    "SFSimpleMathBoolean": SimpleMathBoolean,
+    "SFSimpleMath": SimpleMath,
+    "SFSimpleMathDual": SimpleMathDual,
+    "SFSimpleMathCondition": SimpleMathCondition,
+    "SFSimpleCondition": SimpleCondition,
+    "SFSimpleComparison": SimpleComparison,
+    "SFConsoleDebug": ConsoleDebug,
+    "SFDebugTensorShape": DebugTensorShape,
+    "SFBatchCount": BatchCount,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -296,6 +312,21 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFExpressionTags": "SF Expression Tags",
     "SFForeplayTags": "SF Foreplay Tags",
     "SFPositionsTags": "SF Positions Tags",
+    # 简单数学节点
+    "SFSimpleMathFloat": "SF Simple Math Float",
+    "SFSimpleMathPercent": "SF Simple Math Percent",
+    "SFSimpleMathInt": "SF Simple Math Int",
+    "SFSimpleMathSlider": "SF Simple Math Slider",
+    "SFSimpleMathSliderLowRes": "SF Simple Math Slider Low Res",
+    "SFSimpleMathBoolean": "SF Simple Math Boolean",
+    "SFSimpleMath": "SF Simple Math",
+    "SFSimpleMathDual": "SF Simple Math Dual",
+    "SFSimpleMathCondition": "SF Simple Math Condition",
+    "SFSimpleCondition": "SF Simple Condition",
+    "SFSimpleComparison": "SF Simple Comparison",
+    "SFConsoleDebug": "SF Console Debug",
+    "SFDebugTensorShape": "SF Debug Tensor Shape",
+    "SFBatchCount": "SF Batch Count",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
