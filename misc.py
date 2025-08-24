@@ -147,3 +147,18 @@ class Bus:
         return (bus, bus["model"], bus["positive"], bus["negative"], bus["latent"], bus["clip"], bus["vae"], bus["image1"], bus["image2"], bus["image3"], bus["text1"], bus["text2"], bus["text3"])
 
 
+class RemoveLatentMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "execute"
+
+    CATEGORY = "essentials/utilities"
+
+    def execute(self, samples):
+        s = samples.copy()
+        if "noise_mask" in s:
+            del s["noise_mask"]
+
+        return (s,)

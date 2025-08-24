@@ -55,7 +55,7 @@ from .adv_clip import (
     AddCLIPSDXLRParams,
     AdvancedCLIPTextEncodeSDXL,
 )
-from .misc import DisplayAny, Bus
+from .misc import DisplayAny, Bus, RemoveLatentMask
 
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
@@ -141,6 +141,7 @@ NODE_CLASS_MAPPINGS = {
     # 显示节点
     "SFDisplayAny": DisplayAny,
     "SFBus": Bus,
+    "SFRemoveLatentMask": RemoveLatentMask,
 
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": AdvancedCLIPTextEncode,
@@ -255,6 +256,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 显示节点
     "SFDisplayAny": "SF Display Any",
     "SFBus": "SF Bus",
+    "SFRemoveLatentMask": "SF Remove Latent Mask",
 
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": "SF Advanced CLIP Text Encode",
