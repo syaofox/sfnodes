@@ -1,5 +1,4 @@
 from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
-from .face_morph import FaceMorph, FaceReshape
 from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
 from .face_cutandpaste import FaceCutout, FacePaste, ExtractBoundingBox
 from .face_analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
@@ -73,9 +72,6 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintCrop": InpaintCrop,
     "SFInpaintStitch": InpaintStitch,
     "SFInpaintExtendOutpaint": InpaintExtendOutpaint,
-    # 人脸变形节点
-    "SFFaceMorph": FaceMorph,
-    "SFFaceReshape": FaceReshape,
     # 人脸遮挡节点
     "SFOccluderLoader": OccluderLoader,
     "SFGeneratePreciseFaceMask": GeneratePreciseFaceMask,
@@ -190,9 +186,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintCrop": "SF Inpaint Crop",
     "SFInpaintStitch": "SF Inpaint Stitch",
     "SFInpaintExtendOutpaint": "SF Inpaint Extend Outpaint",
-    # 人脸变形节点
-    "SFFaceMorph": "SF Face Morph",
-    "SFFaceReshape": "SF Face Reshape",
     # 人脸遮挡节点
     "SFOccluderLoader": "SF Occluder Loader",
     "SFGeneratePreciseFaceMask": "SF Generate PreciseFaceMask",
