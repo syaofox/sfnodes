@@ -221,7 +221,7 @@ class BaseTags:
         for option in cls.tag_options:
             label = option["label"]
             inputs[label] = ("BOOLEAN", {"default": False})
-            inputs[f"{label}_weight"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.05, "display": "slider"})
+            inputs[f"{label}_weight"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.05, "display": "number"})
         
         return {
             "required": {
