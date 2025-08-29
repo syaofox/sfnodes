@@ -22,7 +22,8 @@ from .image_scale import (
     AddImageBorder,
     ScaleImageToSquare,
     SFLoadImage,
-    SFLoadImageSubfolder
+    SFLoadImageSubfolder,
+    ImageResizePlus
 )
 from .masks import (
     MaskParams,
@@ -108,6 +109,7 @@ NODE_CLASS_MAPPINGS = {
     "SFScaleImageToSquare": ScaleImageToSquare,
     "SFLoadImage": SFLoadImage,
     "SFLoadImageSubfolder": SFLoadImageSubfolder,
+    "SFImageResizePlus": ImageResizePlus,
     # 遮罩节点
     "SFMaskParams": MaskParams,
     "SFOutlineMask": OutlineMask,
@@ -239,6 +241,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFScaleImageToSquare": "SF Scale Image To Square",
     "SFLoadImage": "SF Load Image",
     "SFLoadImageSubfolder": "SF Load Image Subfolder",
+    "SFImageResizePlus": "SF Image Resize Plus",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
     "SFOutlineMask": "SF Outline Mask",
