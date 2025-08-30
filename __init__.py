@@ -63,7 +63,7 @@ from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptI
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags 
+from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount
 
 WEB_DIRECTORY = "js"
@@ -184,6 +184,7 @@ NODE_CLASS_MAPPINGS = {
     "SFExpressionTags": ExpressionTags,
     "SFForeplayTags": ForeplayTags,
     "SFPositionsTags": PositionsTags,
+    "SFStringConcatenateWithSwitches": StringConcatenateWithSwitches,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
     "SFSimpleMathPercent": SimpleMathPercent,
@@ -315,6 +316,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFExpressionTags": "SF Expression Tags",
     "SFForeplayTags": "SF Foreplay Tags",
     "SFPositionsTags": "SF Positions Tags",
+    "SFStringConcatenateWithSwitches": "SF String Concatenate With Switches",
     # 简单数学节点
     "SFSimpleMathFloat": "SF Simple Math Float",
     "SFSimpleMathPercent": "SF Simple Math Percent",
