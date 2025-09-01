@@ -266,6 +266,30 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                         "tooltip": "限制缩放比例，如果图像的最短边小于size，则不缩放图像",
                     },
                 ),
+                "crop": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "如果较长边超过阈值，则裁剪图像",
+                    },
+                ),
+                "crop_threshold": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 0,
+                        "step": 1,
+                        "max": 99999,
+                        "tooltip": "裁剪阈值，当较长边超过此值时触发裁剪",
+                    },
+                ),
+                "crop_position": (
+                    ["top", "bottom", "left", "right", "center"],
+                    {
+                        "default": "center",
+                        "tooltip": "指定裁剪位置",
+                    },
+                ),
             }
         )
         return base_inputs
@@ -274,9 +298,10 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
     DESCRIPTION = """
     根据指定边长缩放图片，shorter为True时参照短边，否则参照长边
     limit为True时，如果图像的最短边小于size，则不缩放图像
+    crop为True时，如果较长边超过阈值，则根据crop_position裁剪图像
     """
 
-    def execute(self, image, size, upscale_method, shorter, limit, mask=None):
+    def execute(self, image, size, upscale_method, shorter, limit, crop, crop_threshold, crop_position, mask=None):
         # Check if we should skip scaling
         min_side = min(image.shape[2], image.shape[1])
         if limit and min_side < size:
@@ -298,10 +323,78 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
         width = make_even(round(image.shape[2] / scale_by))
         height = make_even(round(image.shape[1] / scale_by))
 
-        scaled_image, result_mask = self.scale_image(
-            image, width, height, upscale_method, mask
-        )
+        # Apply cropping if enabled and needed
+        if crop:
+            scaled_image, result_mask = self.scale_image(
+                image, width, height, upscale_method, mask
+            )
+            
+            # Check if cropping is needed (one dimension exceeds the crop threshold)
+            if (shorter and max(width, height) > crop_threshold) or (not shorter and min(width, height) > crop_threshold):
+                 scaled_image, result_mask = self._crop_image(
+                     scaled_image, result_mask, crop_threshold, crop_position, shorter
+                )
+            width, height = scaled_image.shape[2], scaled_image.shape[1]
+        else:
+            scaled_image, result_mask = self.scale_image(
+                image, width, height, upscale_method, mask
+            )
+
         return self.prepare_result(scaled_image, result_mask, width, height)
+
+    def _crop_image(self, image, mask, target_size, crop_position, shorter):
+        """Crop image to target size based on specified position"""
+        width, height = image.shape[2], image.shape[1]
+        
+        if shorter:
+            # When shorter=True, we want to crop the longer side
+            if width > height:
+                # Landscape image - crop width
+                crop_width = target_size
+                crop_height = height
+                x = self._get_crop_coordinate(width, crop_width, crop_position)
+                y = 0
+            else:
+                # Portrait image - crop height
+                crop_width = width
+                crop_height = target_size
+                x = 0
+                y = self._get_crop_coordinate(height, crop_height, crop_position)
+        else:
+            # When shorter=False, we want to crop the shorter side
+            if width > height:
+                # Landscape image - crop height
+                crop_width = width
+                crop_height = target_size
+                x = 0
+                y = self._get_crop_coordinate(height, crop_height, crop_position)
+            else:
+                # Portrait image - crop width
+                crop_width = target_size
+                crop_height = height
+                x = self._get_crop_coordinate(width, crop_width, crop_position)
+                y = 0
+        
+        # Perform cropping
+        cropped_image = image[:, y:y+crop_height, x:x+crop_width, :]
+        
+        if mask is not None:
+            cropped_mask = mask[y:y+crop_height, x:x+crop_width]
+        else:
+            cropped_mask = solid_mask(crop_width, crop_height)
+        
+        return cropped_image, cropped_mask
+
+    def _get_crop_coordinate(self, dimension_size, crop_size, position):
+        """Calculate crop coordinate based on position"""
+        if position == "top" or position == "left":
+            return 0
+        elif position == "bottom" or position == "right":
+            return dimension_size - crop_size
+        elif position == "center":
+            return (dimension_size - crop_size) // 2
+        else:
+            return 0  # Default to top/left
 
 
 class ComputeImageScaleRatio:
