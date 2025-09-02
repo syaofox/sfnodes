@@ -66,6 +66,8 @@ from .image_compare import ImageCompare
 from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount
 
+from .wan22_prompt_selector import Wan22PromptSelector
+
 WEB_DIRECTORY = "js"
 
 
@@ -200,6 +202,8 @@ NODE_CLASS_MAPPINGS = {
     "SFConsoleDebug": ConsoleDebug,
     "SFDebugTensorShape": DebugTensorShape,
     "SFBatchCount": BatchCount,
+    # 提示词节点
+    "SFWan22PromptSelector": Wan22PromptSelector,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -332,6 +336,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFConsoleDebug": "SF Console Debug",
     "SFDebugTensorShape": "SF Debug Tensor Shape",
     "SFBatchCount": "SF Batch Count",
+    # 提示词节点
+    "SFWan22PromptSelector": "SF Wan2.2 Prompt Selector",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
