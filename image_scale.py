@@ -805,8 +805,19 @@ class SFLoadImageSubfolder(LoadImage):
                     {"image": (sorted(files), {"image_upload": True})},
                 }
 
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING")
+    RETURN_NAMES = ("image", "mask", "filename")
         
     CATEGORY = _CATEGORY
+    
+    def load_image(self, image):
+        # 调用父类的load_image方法加载图像
+        image_output, mask = super().load_image(image)
+        
+        # 提取文件名（不含路径和扩展名）
+        filename = os.path.splitext(os.path.basename(image))[0]
+        
+        return (image_output, mask, filename)
     
             
    
