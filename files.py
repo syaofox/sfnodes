@@ -175,14 +175,15 @@ class SelectFace:
 
     @classmethod
     def INPUT_TYPES(cls):
-        target_dir = get_face_path()
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        target_dir = os.path.join(current_dir, "data", "face_pieces")
         for d in Path(target_dir).iterdir():
             if d.is_dir():
                 cls.dir_dict[d.name] = d
 
         return {
             "required": {"face_name": (list(cls.dir_dict.keys()),)},
-            "optional": {"char_name": ("STRING", {"default": "char"})}
+            "optional": {"char_name": ("STRING", {"default": ""})},
         }
 
     RETURN_TYPES = (
