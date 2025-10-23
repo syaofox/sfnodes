@@ -1,4 +1,4 @@
 color_matcher
 translators
-transformers==4.51.2
+transformers
 accelerate

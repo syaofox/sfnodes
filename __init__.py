@@ -23,7 +23,8 @@ from .image_scale import (
     ScaleImageToSquare,
     SFLoadImage,
     SFLoadImageSubfolder,
-    ImageResizePlus
+    ImageResizePlus,
+    ApexSmartResize
 )
 from .masks import (
     MaskParams,
@@ -112,6 +113,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImage": SFLoadImage,
     "SFLoadImageSubfolder": SFLoadImageSubfolder,
     "SFImageResizePlus": ImageResizePlus,
+    "SFSmartResize": ApexSmartResize,
     # 遮罩节点
     "SFMaskParams": MaskParams,
     "SFOutlineMask": OutlineMask,
@@ -247,6 +249,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImage": "SF Load Image",
     "SFLoadImageSubfolder": "SF Load Image Subfolder",
     "SFImageResizePlus": "SF Image Resize Plus",
+    "SFSmartResize": "SF Smart Resize",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
     "SFOutlineMask": "SF Outline Mask",
