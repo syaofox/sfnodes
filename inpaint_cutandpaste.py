@@ -101,8 +101,8 @@ class InpaintCutOut:
 
     CATEGORY = _CATEGORY
 
-    RETURN_TYPES = ("IMAGE", "MASK","IMAGE","CUTINFO")
-    RETURN_NAMES = ("cutout_image", "cutout_mask","cutout_origin_image","cutinfo")
+    RETURN_TYPES = ("IMAGE", "MASK","IMAGE","CUTINFO","IMAGE")
+    RETURN_NAMES = ("cutout_image", "cutout_mask","cutout_origin_image","cutinfo","cutout_masked_image")
 
     FUNCTION = "inpaint_cutout"
 
@@ -204,11 +204,20 @@ class InpaintCutOut:
             "source_image": image,
         }
         
+        # 创建白底图像并应用遮罩
+        white_bg = Image.new("RGB", cropped_image.size, (255, 255, 255))
+        # 确保mask是单通道L模式
+        if cropped_mask.mode != "L":
+            cropped_mask = cropped_mask.convert("L")
+        # 将遮罩区域粘贴到白底上
+        white_bg.paste(cropped_image, (0, 0), cropped_mask)
+        
         # 转换回tensor格式
         cutout_image = pil2tensor(cropped_image)
         cutout_mask = pil2mask(cropped_mask)
         cutout_origin_image = pil2tensor(pil_image)
-        return (cutout_image, cutout_mask, cutout_origin_image, cutinfo)
+        cutout_masked_image = pil2tensor(white_bg)
+        return (cutout_image, cutout_mask, cutout_origin_image, cutinfo, cutout_masked_image)
         
     @staticmethod
     def _get_target_size(rescale_mode, custom_megapixels):
