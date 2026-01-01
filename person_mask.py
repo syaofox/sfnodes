@@ -236,6 +236,9 @@ class PersonMaskGenerator:
         else:
             for mask in masks:
                 mask_view = mask.numpy_view()
+                # 确保 mask_view 是 2D 数组 (H, W)
+                if len(mask_view.shape) > 2:
+                    mask_view = mask_view.squeeze()
                 # 为每个通道创建条件
                 condition = (
                     np.stack((mask_view,) * image_shape[-1], axis=-1) > confidence
