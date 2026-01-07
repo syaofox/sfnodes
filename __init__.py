@@ -49,6 +49,7 @@ from .image_processing import (
     FlatteningEffect,
     ImageColorMatch,
 )
+from .imitation_hue import ImitationHueNode
 from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled,IPAdapterEmbedsMS,IPAdapterEmbedsMSBatch,IPAdapterStyleCompositionTiled
 from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
 from .adv_clip import (
@@ -136,6 +137,7 @@ NODE_CLASS_MAPPINGS = {
     "SFColorBlockEffect": ColorBlockEffect,
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
+    "SFImitationHue": ImitationHueNode,
     # IPAdapter节点
     "SFIPAdapterMSLayerWeights": IPAdapterMSLayerWeights,
     "SFIPAdapterMSTiled": IPAdapterMSTiled,
@@ -272,6 +274,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFColorBlockEffect": "SF Color Block Effect",
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
+    "SFImitationHue": "SF Imitation Hue",
     # IPAdapter节点
     "SFIPAdapterMSLayerWeights": "SF IPAdapter MS Layer Weights",
     "SFIPAdapterMSTiled": "SF IPAdapter MS Tiled",
