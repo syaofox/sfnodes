@@ -30,6 +30,11 @@ def make_even(number):
     return number + remainder
 
 
+def make_divisible(number, divisor):
+    """确保数字能被divisor整除，向上取整到最近的倍数"""
+    return ((number + divisor - 1) // divisor) * divisor
+
+
 class GetImageSize:
     @classmethod
     def INPUT_TYPES(cls):
@@ -295,6 +300,16 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                         "tooltip": "指定裁剪位置",
                     },
                 ),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 16,
+                        "min": 1,
+                        "step": 1,
+                        "max": 128,
+                        "tooltip": "确保最终图像分辨率能被此数字整除，默认16",
+                    },
+                ),
             }
         )
         return base_inputs
@@ -306,18 +321,27 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
     crop为True时，如果较长边超过阈值，则根据crop_position裁剪图像
     """
 
-    def execute(self, image, size, upscale_method, shorter, limit, crop, crop_threshold, crop_position, mask=None):
+    def execute(self, image, size, upscale_method, shorter, limit, crop, crop_threshold, crop_position, divisible_by, mask=None):
         # Check if we should skip scaling
         min_side = min(image.shape[2], image.shape[1])
         if limit and min_side < size:
-            return self.prepare_result(
-                image,
-                mask
-                if mask is not None
-                else solid_mask(image.shape[2], image.shape[1]),
-                image.shape[2],
-                image.shape[1],
-            )
+            width = make_divisible(image.shape[2], divisible_by)
+            height = make_divisible(image.shape[1], divisible_by)
+            # 如果尺寸发生变化，需要缩放
+            if width != image.shape[2] or height != image.shape[1]:
+                scaled_image, result_mask = self.scale_image(
+                    image, width, height, upscale_method, mask
+                )
+                return self.prepare_result(scaled_image, result_mask, width, height)
+            else:
+                return self.prepare_result(
+                    image,
+                    mask
+                    if mask is not None
+                    else solid_mask(image.shape[2], image.shape[1]),
+                    image.shape[2],
+                    image.shape[1],
+                )
 
         if shorter:
             reference_side_length = min(image.shape[2], image.shape[1])
@@ -327,6 +351,10 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
         scale_by = reference_side_length / size
         width = make_even(round(image.shape[2] / scale_by))
         height = make_even(round(image.shape[1] / scale_by))
+        
+        # 确保宽度和高度能被divisible_by整除
+        width = make_divisible(width, divisible_by)
+        height = make_divisible(height, divisible_by)
 
         # Apply cropping if enabled and needed
         if crop:
@@ -340,6 +368,14 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                      scaled_image, result_mask, crop_threshold, crop_position, shorter
                 )
             width, height = scaled_image.shape[2], scaled_image.shape[1]
+            # 裁剪后也确保能被divisible_by整除
+            width = make_divisible(width, divisible_by)
+            height = make_divisible(height, divisible_by)
+            # 如果尺寸发生变化，需要重新缩放
+            if width != scaled_image.shape[2] or height != scaled_image.shape[1]:
+                scaled_image, result_mask = self.scale_image(
+                    scaled_image, width, height, upscale_method, result_mask
+                )
         else:
             scaled_image, result_mask = self.scale_image(
                 image, width, height, upscale_method, mask
