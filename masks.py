@@ -1010,3 +1010,96 @@ class MaskFillPercentArea:
 
         return (result_mask,)
 
+
+class MaskFillColor:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "输入图片"}),
+                "mask": ("MASK", {"tooltip": "输入遮罩，白色区域将被填充"}),
+                "fill_color_r": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "填充颜色的红色通道，范围为0.0到1.0",
+                    },
+                ),
+                "fill_color_g": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "填充颜色的绿色通道，范围为0.0到1.0",
+                    },
+                ),
+                "fill_color_b": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "填充颜色的蓝色通道，范围为0.0到1.0",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "用指定颜色填充图片中mask遮住的部分（默认白色）"
+
+    def execute(self, image, mask, fill_color_r, fill_color_g, fill_color_b):
+        import torch
+        
+        # 克隆图像以避免修改原始数据
+        result_image = image.detach().clone()
+        
+        # 处理遮罩
+        alpha = mask_unsqueeze(mask_floor(mask))
+        assert alpha.shape[0] == result_image.shape[0] or alpha.shape[0] == 1, (
+            "图像和遮罩的批次大小不匹配"
+        )
+        
+        # 如果遮罩和图像尺寸不同，调整遮罩大小
+        if image.shape[1:3] != alpha.shape[2:4]:
+            # 将遮罩转换为张量格式以便于缩放
+            mask_tensor = mask2tensor(mask)
+            # 调整遮罩大小以匹配图像
+            mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
+            # 转换回遮罩格式并重新处理
+            mask_rescaled = tensor2mask(mask_tensor)
+            alpha = mask_unsqueeze(mask_floor(mask_rescaled))
+        
+        # 创建填充颜色张量 [R, G, B]
+        fill_color = torch.tensor([fill_color_r, fill_color_g, fill_color_b], 
+                                  dtype=result_image.dtype, 
+                                  device=result_image.device)
+        
+        # 处理每一批图像
+        for i in range(result_image.shape[0]):
+            # 获取当前批次的alpha遮罩
+            alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
+            
+            # 扩展alpha维度以匹配图像通道 [H, W] -> [H, W, 3]
+            alpha_expanded = alpha_i.unsqueeze(-1).expand(-1, -1, 3)
+            
+            # 创建填充颜色图像
+            color_fill = torch.ones_like(result_image[i]) * fill_color
+            
+            # 混合原始图像和填充颜色
+            # mask区域用填充颜色，非mask区域保持原图
+            result_image[i] = (
+                result_image[i] * (1.0 - alpha_expanded) + 
+                color_fill * alpha_expanded
+            )
+        
+        return (result_image,)
+
