@@ -859,6 +859,50 @@ class SFLoadImageSubfolder(LoadImage):
         filename = os.path.splitext(os.path.basename(image))[0]
         
         return (image_output, mask, filename)
+
+
+class SFLoadImageSubfolderSortedByMtime(LoadImage):
+    @classmethod
+    def INPUT_TYPES(cls):
+        input_dir = folder_paths.get_input_directory()
+        files = []
+        for root, _, filenames in os.walk(input_dir):
+            for f in filenames:
+                full_path = os.path.join(root, f)
+                if os.path.isfile(full_path):
+                    rel_path = os.path.relpath(full_path, input_dir)
+                    files.append(rel_path)
+        
+        # 过滤图片文件
+        files = folder_paths.filter_files_content_types(files, ["image"])
+        
+        # 按修改时间从新到旧排序（降序：最新的在前）
+        files_with_mtime = []
+        for rel_path in files:
+            full_path = os.path.join(input_dir, rel_path)
+            mtime = os.path.getmtime(full_path)
+            files_with_mtime.append((rel_path, mtime))
+        
+        files_with_mtime.sort(key=lambda x: x[1], reverse=True)
+        files = [rel_path for rel_path, _ in files_with_mtime]
+        
+        return {"required":
+                    {"image": (files, {"image_upload": True})},
+                }
+
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING")
+    RETURN_NAMES = ("image", "mask", "filename")
+        
+    CATEGORY = _CATEGORY
+    
+    def load_image(self, image):
+        # 调用父类的load_image方法加载图像
+        image_output, mask = super().load_image(image)
+        
+        # 提取文件名（不含路径和扩展名）
+        filename = os.path.splitext(os.path.basename(image))[0]
+        
+        return (image_output, mask, filename)
     
             
    

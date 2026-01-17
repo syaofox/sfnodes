@@ -23,6 +23,7 @@ from .image_scale import (
     ScaleImageToSquare,
     SFLoadImage,
     SFLoadImageSubfolder,
+    SFLoadImageSubfolderSortedByMtime,
     ImageResizePlus,
     ApexSmartResize
 )
@@ -114,6 +115,7 @@ NODE_CLASS_MAPPINGS = {
     "SFScaleImageToSquare": ScaleImageToSquare,
     "SFLoadImage": SFLoadImage,
     "SFLoadImageSubfolder": SFLoadImageSubfolder,
+    "SFLoadImageSubfolderSortedByMtime": SFLoadImageSubfolderSortedByMtime,
     "SFImageResizePlus": ImageResizePlus,
     "SFSmartResize": ApexSmartResize,
     # 遮罩节点
@@ -252,6 +254,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFScaleImageToSquare": "SF Scale Image To Square",
     "SFLoadImage": "SF Load Image",
     "SFLoadImageSubfolder": "SF Load Image Subfolder",
+    "SFLoadImageSubfolderSortedByMtime": "SF Load Image Subfolder Sorted By Mtime",
     "SFImageResizePlus": "SF Image Resize Plus",
     "SFSmartResize": "SF Smart Resize",
     # 遮罩节点
