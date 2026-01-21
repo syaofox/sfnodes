@@ -1,27 +1,29 @@
 // ==========================================================================
-// Multi LoRA Loader Model Only - Dynamic Slot Management
+// Multi LoRA Loader - Dynamic Slot Management
 // ==========================================================================
 // 
 // Description:
-// JavaScript extension for MultiLoraLoaderModelOnly node that enables
-// dynamic addition of LoRA slots. Initially shows only 1 slot, with
-// an "Add Slot" button to reveal additional slots as needed.
+// JavaScript extension for MultiLoraLoader and MultiLoraLoaderModelOnly nodes
+// that enables dynamic addition of LoRA slots. Initially shows only 1 slot,
+// with an "Add Slot" button to reveal additional slots as needed.
 // 
 // Features:
 // - Initial display of 1 LoRA slot
 // - "Add Slot" button to dynamically add more slots
 // - State persistence (saves visible slot count with workflow)
 // - Supports up to 50 slots
+// - Works for both MultiLoraLoader and MultiLoraLoaderModelOnly nodes
 // 
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
 
 app.registerExtension({
-    name: "sfnodes.MultiLoraLoaderModelOnly",
+    name: "sfnodes.MultiLoraLoader",
 
     nodeCreated(node) {
-        if (node.comfyClass === "SFMultiLoraLoaderModelOnly") {
+        // 支持两个节点类：SFMultiLoraLoader 和 SFMultiLoraLoaderModelOnly
+        if (node.comfyClass === "SFMultiLoraLoader" || node.comfyClass === "SFMultiLoraLoaderModelOnly") {
             // 初始化可见槽位数量（默认1个）
             node.visibleSlotCount = node.visibleSlotCount || 1;
             const MAX_SLOTS = 50;
@@ -46,9 +48,10 @@ app.registerExtension({
             // 更新节点大小以适应可见的控件
             const updateNodeSize = () => {
                 // 计算可见控件的高度
-                // 基础高度：标题 + model输入 + normalize_weight + 按钮
+                // 基础高度：标题 + model输入 + (clip输入，如果是MultiLoraLoader) + normalize_weight + 按钮
                 // 每个槽位增加约3个控件的高度（enabled + name + strength）
-                const baseHeight = 180; // 基础高度（标题、model、normalize_weight、按钮）
+                const hasClip = node.comfyClass === "SFMultiLoraLoader";
+                const baseHeight = hasClip ? 220 : 180; // MultiLoraLoader需要额外空间给CLIP输入
                 const slotHeight = 85; // 每个槽位的高度（enabled + name + strength）
                 
                 const calculatedHeight = baseHeight + (node.visibleSlotCount * slotHeight);
