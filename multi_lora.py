@@ -144,10 +144,11 @@ class MultiLoraLoader:
 
 class MultiLoraLoaderModelOnly(MultiLoraLoader):
     """
-    支持加载多个LoRA的节点（仅模型），最多20个LoRA槽位
+    支持加载多个LoRA的节点（仅模型），最多50个LoRA槽位
     每个LoRA可以单独开关，设置强度（两位小数精度）
     最终权重通过normalize_weight进行归一化转换
     只应用到MODEL，不应用到CLIP
+    槽位通过JavaScript前端动态显示/隐藏
     """
     @classmethod
     def INPUT_TYPES(cls):
@@ -158,7 +159,7 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
         else:
             lora_list_with_none = ["[None]"]
         
-        # 构建20个LoRA槽位的输入定义（不包含clip）
+        # 构建必需的输入定义（不包含clip）
         required = {
             "model": ("MODEL", {"tooltip": "The diffusion model the LoRAs will be applied to."}),
             "normalize_weight": ("FLOAT", {
@@ -170,17 +171,18 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
             }),
         }
         
-        # 为每个LoRA槽位添加输入
-        for i in range(1, 21):
-            required[f"lora_{i}_enabled"] = ("BOOLEAN", {
+        # 为每个LoRA槽位添加可选输入（最多50个槽位，由JavaScript前端动态控制显示）
+        optional = {}
+        for i in range(1, 51):
+            optional[f"lora_{i}_enabled"] = ("BOOLEAN", {
                 "default": False,
                 "tooltip": f"是否启用LoRA {i}"
             })
-            required[f"lora_{i}_name"] = (lora_list_with_none, {
+            optional[f"lora_{i}_name"] = (lora_list_with_none, {
                 "default": "[None]",
                 "tooltip": f"选择LoRA {i}的文件"
             })
-            required[f"lora_{i}_strength"] = ("FLOAT", {
+            optional[f"lora_{i}_strength"] = ("FLOAT", {
                 "default": 1.0,
                 "min": -100.0,
                 "max": 100.0,
@@ -189,13 +191,13 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
                 "tooltip": f"LoRA {i}的强度（两位小数精度）"
             })
         
-        return {"required": required}
+        return {"required": required, "optional": optional}
 
     RETURN_TYPES = ("MODEL",)
     OUTPUT_TOOLTIPS = ("应用了多个LoRA的扩散模型",)
     FUNCTION = "load_multiple_loras_model_only"
     CATEGORY = "loaders"
-    DESCRIPTION = "加载多个LoRA（最多20个）仅应用到MODEL，每个LoRA可单独开关和设置强度，权重通过normalize_weight归一化"
+    DESCRIPTION = "加载多个LoRA（最多50个）仅应用到MODEL，每个LoRA可单独开关和设置强度，权重通过normalize_weight归一化。槽位可通过前端动态添加。"
 
     def load_multiple_loras_model_only(self, model, normalize_weight, **kwargs):
         """
@@ -204,13 +206,17 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
         Args:
             model: 扩散模型
             normalize_weight: 归一化权重系数
-            **kwargs: 包含所有lora_i_enabled, lora_i_name, lora_i_strength参数
+            **kwargs: 包含所有lora_i_enabled, lora_i_name, lora_i_strength参数（可选）
         """
         # 收集所有启用的LoRA及其目标权重
         enabled_loras = []
         target_weights = []
         
-        for i in range(1, 21):
+        # 遍历所有可能的槽位（1-50），检查是否存在且启用
+        for i in range(1, 51):
+            # 检查输入是否存在（因为是optional，可能不存在）
+            if f"lora_{i}_enabled" not in kwargs:
+                continue
             enabled = kwargs.get(f"lora_{i}_enabled", False)
             if enabled:
                 lora_name = kwargs.get(f"lora_{i}_name", "[None]")
