@@ -107,6 +107,9 @@ class MultiLoraLoader:
             if original_strength < 0:
                 normalized_strength = -normalized_strength
             
+            # 打印实际LoRA权重
+            print(f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}")
+            
             # 如果归一化后的权重为0，跳过
             if normalized_strength == 0:
                 continue
