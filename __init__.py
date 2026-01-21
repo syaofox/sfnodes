@@ -66,6 +66,7 @@ from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
 from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
+from .multi_lora import MultiLoraLoader
 from .image_compare import ImageCompare
 from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
@@ -181,6 +182,8 @@ NODE_CLASS_MAPPINGS = {
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
     "SFHyperLoRASaveCharLoRANode": HyperLoRASaveCharLoRANode,
+    # 多LoRA节点
+    "SFMultiLoraLoader": MultiLoraLoader,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
     # 文本节点
@@ -320,6 +323,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
     "SFHyperLoRASaveCharLoRANode": "SF HyperLoRA Save Char LoRA",
+    # 多LoRA节点
+    "SFMultiLoraLoader": "SF Multi LoRA Loader",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
     # 文本节点
