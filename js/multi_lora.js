@@ -10,6 +10,7 @@
 // Features:
 // - Initial display of 1 LoRA slot
 // - "Add Slot" button to dynamically add more slots
+// - "Remove Slot" button to remove the last slot (minimum 1 slot)
 // - State persistence (saves visible slot count with workflow)
 // - Supports up to 50 slots
 // - Works for both MultiLoraLoader and MultiLoraLoaderModelOnly nodes
@@ -40,9 +41,27 @@ app.registerExtension({
             // 显示/隐藏指定槽位的所有控件
             const setSlotVisibility = (slotIndex, visible) => {
                 const widgets = getSlotWidgets(slotIndex);
-                if (widgets.enabled) widgets.enabled.hidden = !visible;
-                if (widgets.name) widgets.name.hidden = !visible;
-                if (widgets.strength) widgets.strength.hidden = !visible;
+                if (widgets.enabled) {
+                    widgets.enabled.hidden = !visible;
+                    if (!visible) {
+                        // 隐藏时重置值
+                        widgets.enabled.value = false;
+                    }
+                }
+                if (widgets.name) {
+                    widgets.name.hidden = !visible;
+                    if (!visible) {
+                        // 隐藏时重置值
+                        widgets.name.value = "[None]";
+                    }
+                }
+                if (widgets.strength) {
+                    widgets.strength.hidden = !visible;
+                    if (!visible) {
+                        // 隐藏时重置值
+                        widgets.strength.value = 1.0;
+                    }
+                }
             };
 
             // 更新节点大小以适应可见的控件
@@ -76,7 +95,27 @@ app.registerExtension({
                     node.visibleSlotCount++;
                     setSlotVisibility(node.visibleSlotCount, true);
                     updateNodeSize(); // 更新节点大小
+                    updateButtonStates(); // 更新按钮状态
                     node.setDirtyCanvas(true, true);
+                }
+            };
+
+            // 删除槽位按钮的处理函数
+            const removeSlot = () => {
+                if (node.visibleSlotCount > 1) {
+                    // 清除最后一个槽位的值
+                    setSlotVisibility(node.visibleSlotCount, false);
+                    node.visibleSlotCount--;
+                    updateNodeSize(); // 更新节点大小
+                    updateButtonStates(); // 更新按钮状态
+                    node.setDirtyCanvas(true, true);
+                }
+            };
+
+            // 更新按钮状态（删除按钮在只有1个槽位时应该禁用）
+            const updateButtonStates = () => {
+                if (node.removeSlotButton) {
+                    node.removeSlotButton.disabled = node.visibleSlotCount <= 1;
                 }
             };
 
@@ -87,6 +126,14 @@ app.registerExtension({
             node.addWidget("button", "➕ 添加槽位", null, () => {
                 addSlot();
             });
+
+            // 添加"删除槽位"按钮
+            node.removeSlotButton = node.addWidget("button", "➖ 删除槽位", null, () => {
+                removeSlot();
+            });
+            
+            // 初始化按钮状态
+            updateButtonStates();
 
             // 保存原始的 serialize 方法
             const originalSerialize = node.serialize;
@@ -107,6 +154,8 @@ app.registerExtension({
                     this.visibleSlotCount = data.visibleSlotCount;
                     // 重新初始化槽位显示状态
                     initializeSlots();
+                    // 更新按钮状态
+                    updateButtonStates();
                 }
             };
         }
