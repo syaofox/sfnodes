@@ -43,11 +43,28 @@ app.registerExtension({
                 if (widgets.strength) widgets.strength.hidden = !visible;
             };
 
+            // 更新节点大小以适应可见的控件
+            const updateNodeSize = () => {
+                // 计算可见控件的高度
+                // 基础高度：标题 + model输入 + normalize_weight + 按钮
+                // 每个槽位增加约3个控件的高度（enabled + name + strength）
+                const baseHeight = 180; // 基础高度（标题、model、normalize_weight、按钮）
+                const slotHeight = 85; // 每个槽位的高度（enabled + name + strength）
+                
+                const calculatedHeight = baseHeight + (node.visibleSlotCount * slotHeight);
+                
+                // 设置节点大小，保持宽度不变
+                const currentWidth = node.size[0] || 320;
+                node.setSize([currentWidth, calculatedHeight]);
+            };
+
             // 初始化：隐藏除第一个槽位外的所有槽位
             const initializeSlots = () => {
                 for (let i = 1; i <= MAX_SLOTS; i++) {
                     setSlotVisibility(i, i <= node.visibleSlotCount);
                 }
+                // 更新节点大小以适应可见的控件
+                updateNodeSize();
             };
 
             // 添加槽位按钮的处理函数
@@ -55,6 +72,7 @@ app.registerExtension({
                 if (node.visibleSlotCount < MAX_SLOTS) {
                     node.visibleSlotCount++;
                     setSlotVisibility(node.visibleSlotCount, true);
+                    updateNodeSize(); // 更新节点大小
                     node.setDirtyCanvas(true, true);
                 }
             };
