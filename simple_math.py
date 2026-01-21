@@ -21,6 +21,22 @@ class SimpleMathFloat:
     def execute(self, value):
         return (float(value), )
 
+class Float:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "value": ("FLOAT", { "default": 0.0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 0.01 }),
+            },
+        }
+
+    RETURN_TYPES = ("FLOAT", )
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, value):
+        return (round(float(value), 2), )
+
 class SimpleMathPercent:
     @classmethod
     def INPUT_TYPES(s):

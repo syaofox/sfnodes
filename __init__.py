@@ -68,7 +68,7 @@ from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .image_compare import ImageCompare
 from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
-from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount
+from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 
 from .wan22_prompt_selector import Wan22PromptSelector
 
@@ -210,6 +210,7 @@ NODE_CLASS_MAPPINGS = {
     "SFConsoleDebug": ConsoleDebug,
     "SFDebugTensorShape": DebugTensorShape,
     "SFBatchCount": BatchCount,
+    "SFFloat": Float,
     # 提示词节点
     "SFWan22PromptSelector": Wan22PromptSelector,
 }
@@ -348,6 +349,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFConsoleDebug": "SF Console Debug",
     "SFDebugTensorShape": "SF Debug Tensor Shape",
     "SFBatchCount": "SF Batch Count",
+    "SFFloat": "SF Float",
     # 提示词节点
     "SFWan22PromptSelector": "SF Wan2.2 Prompt Selector",
 }
