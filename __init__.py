@@ -61,6 +61,7 @@ from .adv_clip import (
     AdvancedCLIPTextEncodeSDXL,
 )
 from .misc import DisplayAny, Bus, RemoveLatentMask,SDXLEmptyLatentSizePicker
+from .empty_latent_ratio import EmptyLatentByAspectRatio
 
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
@@ -157,6 +158,7 @@ NODE_CLASS_MAPPINGS = {
     "SFBus": Bus,
     "SFRemoveLatentMask": RemoveLatentMask,
     "SFSDXLEmptyLatentSizePicker": SDXLEmptyLatentSizePicker,
+    "SFEmptyLatentByAspectRatio": EmptyLatentByAspectRatio,
 
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": AdvancedCLIPTextEncode,
@@ -300,6 +302,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFBus": "SF Bus",
     "SFRemoveLatentMask": "SF Remove Latent Mask",
     "SFSDXLEmptyLatentSizePicker": "SF SDXL Empty Latent Size Picker",
+    "SFEmptyLatentByAspectRatio": "SF Empty Latent By Aspect Ratio",
 
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": "SF Advanced CLIP Text Encode",
