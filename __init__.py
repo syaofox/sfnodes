@@ -73,6 +73,7 @@ from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextS
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 
 from .wan22_prompt_selector import Wan22PromptSelector
+from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 
 WEB_DIRECTORY = "js"
 
@@ -219,6 +220,9 @@ NODE_CLASS_MAPPINGS = {
     "SFFloat": Float,
     # 提示词节点
     "SFWan22PromptSelector": Wan22PromptSelector,
+    # Qwen节点
+    "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
+    "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -362,6 +366,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFloat": "SF Float",
     # 提示词节点
     "SFWan22PromptSelector": "SF Wan2.2 Prompt Selector",
+    # Qwen节点
+    "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
+    "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
