@@ -27,11 +27,11 @@ class MultiLoraLoader:
             "model": ("MODEL", {"tooltip": "The diffusion model the LoRAs will be applied to."}),
             "clip": ("CLIP", {"tooltip": "The CLIP model the LoRAs will be applied to."}),
             "normalize_weight": ("FLOAT", {
-                "default": 1.0, 
+                "default": 0.0, 
                 "min": 0.0, 
                 "max": 10.0, 
                 "step": 0.01,
-                "tooltip": "归一化权重系数。实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
+                "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
             }),
         }
         
@@ -107,11 +107,15 @@ class MultiLoraLoader:
         
         for i, lora_name, original_strength in enabled_loras:
             # 计算归一化后的实际权重
-            normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
-            
-            # 保持原始符号
-            if original_strength < 0:
-                normalized_strength = -normalized_strength
+            if normalize_weight == 0:
+                # 当normalize_weight为0时，不归一化，直接使用原始强度
+                normalized_strength = original_strength
+            else:
+                normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
+                
+                # 保持原始符号
+                if original_strength < 0:
+                    normalized_strength = -normalized_strength
             
             # 打印实际LoRA权重
             print(f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}")
@@ -169,11 +173,11 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
         required = {
             "model": ("MODEL", {"tooltip": "The diffusion model the LoRAs will be applied to."}),
             "normalize_weight": ("FLOAT", {
-                "default": 1.0, 
+                "default": 0.0, 
                 "min": 0.0, 
                 "max": 10.0, 
                 "step": 0.01,
-                "tooltip": "归一化权重系数。实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
+                "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
             }),
         }
         
@@ -247,11 +251,15 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
         
         for i, lora_name, original_strength in enabled_loras:
             # 计算归一化后的实际权重
-            normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
-            
-            # 保持原始符号
-            if original_strength < 0:
-                normalized_strength = -normalized_strength
+            if normalize_weight == 0:
+                # 当normalize_weight为0时，不归一化，直接使用原始强度
+                normalized_strength = original_strength
+            else:
+                normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
+                
+                # 保持原始符号
+                if original_strength < 0:
+                    normalized_strength = -normalized_strength
             
             # 打印实际LoRA权重
             print(f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}")
