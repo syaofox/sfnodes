@@ -29,6 +29,7 @@ from .image_scale import (
 )
 from .masks import (
     MaskParams,
+    MaskParamsEdges,
     OutlineMask,
     CreateBlurredEdgeMask,
     MaskChange,
@@ -123,6 +124,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSmartResize": ApexSmartResize,
     # 遮罩节点
     "SFMaskParams": MaskParams,
+    "SFMaskParamsEdges": MaskParamsEdges,
     "SFOutlineMask": OutlineMask,
     "SFCreateBlurredEdgeMask": CreateBlurredEdgeMask,
     "SFMaskChange": MaskChange,
@@ -270,6 +272,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSmartResize": "SF Smart Resize",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
+    "SFMaskParamsEdges": "SF Mask Params Edges",
     "SFOutlineMask": "SF Outline Mask",
     "SFCreateBlurredEdgeMask": "SF Create Blurred Edge Mask",
     "SFMaskChange": "SF Mask Change",

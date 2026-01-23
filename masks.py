@@ -810,6 +810,246 @@ class MaskParams:
         return (mask_params,)
 
 
+class MaskParamsEdges:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否反转遮罩(注意:先反转,再其他操作)"}),
+                
+                # 上边增长参数
+                "grow_top": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -4096,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置上边生长值，范围为-4096到4096，步长为1",
+                    },
+                ),
+                "grow_top_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": -2.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置上边生长百分比，范围为-2.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 下边增长参数
+                "grow_bottom": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -4096,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置下边生长值，范围为-4096到4096，步长为1",
+                    },
+                ),
+                "grow_bottom_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": -2.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置下边生长百分比，范围为-2.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 左边增长参数
+                "grow_left": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -4096,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置左边生长值，范围为-4096到4096，步长为1",
+                    },
+                ),
+                "grow_left_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": -2.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置左边生长百分比，范围为-2.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 右边增长参数
+                "grow_right": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -4096,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置右边生长值，范围为-4096到4096，步长为1",
+                    },
+                ),
+                "grow_right_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": -2.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置右边生长百分比，范围为-2.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                "grow_tapered": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "是否使用锥形角"},
+                ),
+                
+                # 上边模糊参数
+                "blur_top": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置上边模糊值，范围为0到4096，步长为1",
+                    },
+                ),
+                "blur_top_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置上边模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 下边模糊参数
+                "blur_bottom": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置下边模糊值，范围为0到4096，步长为1",
+                    },
+                ),
+                "blur_bottom_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置下边模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 左边模糊参数
+                "blur_left": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置左边模糊值，范围为0到4096，步长为1",
+                    },
+                ),
+                "blur_left_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置左边模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                # 右边模糊参数
+                "blur_right": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "设置右边模糊值，范围为0到4096，步长为1",
+                    },
+                ),
+                "blur_right_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.00,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": "设置右边模糊百分比，范围为0.0到2.0，步长为0.01",
+                    },
+                ),
+                
+                "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
+                "invert": ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"}),
+            },
+        }
+
+    RETURN_TYPES = ("MASKPARAMS",)
+    RETURN_NAMES = ("mask_params",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "设置遮罩参数（支持四个边单独定义增长和模糊参数）"
+
+    def execute(
+        self,
+        pre_invert,
+        grow_top, grow_top_percent,
+        grow_bottom, grow_bottom_percent,
+        grow_left, grow_left_percent,
+        grow_right, grow_right_percent,
+        grow_tapered,
+        blur_top, blur_top_percent,
+        blur_bottom, blur_bottom_percent,
+        blur_left, blur_left_percent,
+        blur_right, blur_right_percent,
+        fill,
+        invert,
+    ):
+        mask_params = {
+            "pre_invert": pre_invert,
+            "grow_top": grow_top,
+            "grow_top_percent": grow_top_percent,
+            "grow_bottom": grow_bottom,
+            "grow_bottom_percent": grow_bottom_percent,
+            "grow_left": grow_left,
+            "grow_left_percent": grow_left_percent,
+            "grow_right": grow_right,
+            "grow_right_percent": grow_right_percent,
+            "grow_tapered": grow_tapered,
+            "blur_top": blur_top,
+            "blur_top_percent": blur_top_percent,
+            "blur_bottom": blur_bottom,
+            "blur_bottom_percent": blur_bottom_percent,
+            "blur_left": blur_left,
+            "blur_left_percent": blur_left_percent,
+            "blur_right": blur_right,
+            "blur_right_percent": blur_right_percent,
+            "fill": fill,
+            "invert": invert,
+        }
+
+        return (mask_params,)
+
+
 class MaskCrop:
     @classmethod
     def INPUT_TYPES(cls):
