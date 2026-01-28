@@ -79,6 +79,8 @@ app.registerExtension({
                 function (value) {
                     const it = options.find((o) => o.alias === value);
                     selectedWidget.value = it ? it.content : "";
+                    if (inputWidget) inputWidget.value = it ? it.content : "";
+                    if (aliasWidget) aliasWidget.value = "";
                     return value;
                 },
                 { values: aliases }
@@ -113,16 +115,10 @@ app.registerExtension({
 
             const it = options.find((o) => o.alias === curAlias);
             selectedWidget.value = it ? it.content : "";
+            if (inputWidget) inputWidget.value = it ? it.content : "";
+            if (aliasWidget) aliasWidget.value = "";
 
             node.setDirtyCanvas(true, true);
-        }
-
-        ensureComboWidget();
-        const comboIdx = node.widgets.indexOf(comboWidget);
-        const firstVisible = 2;
-        if (comboIdx > firstVisible && comboIdx > 0) {
-            node.widgets.splice(comboIdx, 1);
-            node.widgets.splice(firstVisible, 0, comboWidget);
         }
 
         let aliasWidget = node.widgets.find((w) => w.name === "alias");
@@ -139,18 +135,33 @@ app.registerExtension({
             });
         }
 
+        ensureComboWidget();
+        const comboIdx = node.widgets.indexOf(comboWidget);
+        const firstVisible = 2;
+        if (comboIdx > firstVisible && comboIdx > 0) {
+            node.widgets.splice(comboIdx, 1);
+            node.widgets.splice(firstVisible, 0, comboWidget);
+        }
+
         const addButton = node.addWidget("button", "添加", null, function () {
             const alias = (aliasWidget.value || "").trim();
             const content = (inputWidget.value || "").trim();
-            if (!alias || !content) return;
-            if (options.some((o) => o.alias === alias)) return;
+            const curAlias = comboWidget.value;
 
-            options.push({ alias, content });
+            if (alias) {
+                if (!content) return;
+                if (options.some((o) => o.alias === alias)) return;
+                options.push({ alias, content });
+                aliasWidget.value = "";
+                inputWidget.value = "";
+            } else if (curAlias && content) {
+                const it = options.find((o) => o.alias === curAlias);
+                if (it) it.content = content;
+            } else return;
+
             syncOptionsWidget();
             refreshSelectedWidget();
             saveOptionsToServer();
-            aliasWidget.value = "";
-            inputWidget.value = "";
             node.setDirtyCanvas(true, true);
         });
         addButton.serialize = false;
