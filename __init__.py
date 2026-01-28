@@ -72,6 +72,7 @@ from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .image_compare import ImageCompare
 from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
+from .text_dropdown import SFTextDropdown
 
 from .wan22_prompt_selector import Wan22PromptSelector
 from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
@@ -204,6 +205,7 @@ NODE_CLASS_MAPPINGS = {
     "SFForeplayTags": ForeplayTags,
     "SFPositionsTags": PositionsTags,
     "SFStringConcatenateWithSwitches": StringConcatenateWithSwitches,
+    "SFTextDropdown": SFTextDropdown,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
     "SFSimpleMathPercent": SimpleMathPercent,
@@ -351,6 +353,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFForeplayTags": "SF Foreplay Tags",
     "SFPositionsTags": "SF Positions Tags",
     "SFStringConcatenateWithSwitches": "SF String Concatenate With Switches",
+    "SFTextDropdown": "SF Text Dropdown",
     # 简单数学节点
     "SFSimpleMathFloat": "SF Simple Math Float",
     "SFSimpleMathPercent": "SF Simple Math Percent",
