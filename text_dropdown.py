@@ -1,6 +1,7 @@
 import json
 import os
 
+from aiohttp import web
 from comfy.comfy_types.node_typing import IO
 
 _CATEGORY = "sfnodes/Text"
@@ -23,13 +24,13 @@ class SFTextDropdown:
 
     - 下拉框显示项目别名，输出为对应项目文本内容（可多行）
     - 单行输入框定义别名，多行输入框定义项目内容
-    - 选项保存在 custom_nodes/sfnodes/sfnodes_text_dropdown.json，所有节点共享
+    - 选项保存在 custom_nodes/sfnodes/data/sfnodes_text_dropdown.json，所有节点共享
     """
 
     @classmethod
     def _get_options_path(cls) -> str:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(current_dir, "sfnodes_text_dropdown.json")
+        return os.path.join(current_dir, "data", "sfnodes_text_dropdown.json")
 
     @classmethod
     def _load_global_options(cls) -> list[dict]:
@@ -65,6 +66,8 @@ class SFTextDropdown:
             valid.append(item)
         path = cls._get_options_path()
         try:
+            d = os.path.dirname(path)
+            os.makedirs(d, exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(valid, f, ensure_ascii=False, indent=2)
         except Exception:
@@ -122,3 +125,32 @@ class SFTextDropdown:
         if not isinstance(selected_text, str):
             selected_text = str(selected_text)
         return (selected_text,)
+
+
+def _register_text_dropdown_save_route():
+    """注册 POST /sfnodes/text_dropdown/save，供前端添加/删除后立即保存 JSON。"""
+    try:
+        from server import PromptServer
+
+        ins = getattr(PromptServer, "instance", None)
+        if ins is None or not hasattr(ins, "routes"):
+            return
+        routes = ins.routes
+
+        @routes.post("/sfnodes/text_dropdown/save")
+        async def _sf_text_dropdown_save(request: web.Request) -> web.Response:
+            try:
+                body = await request.json()
+                raw = body.get("options")
+                if not isinstance(raw, list):
+                    return web.Response(status=400, text="options array required")
+                SFTextDropdown._save_global_options(raw)
+                return web.Response(status=200)
+            except Exception:
+                return web.Response(status=500)
+
+    except Exception:
+        pass
+
+
+_register_text_dropdown_save_route()

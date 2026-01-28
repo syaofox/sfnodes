@@ -91,6 +91,14 @@ app.registerExtension({
             node.setDirtyCanvas(true, true);
         }
 
+        function saveOptionsToServer() {
+            fetch("/api/sfnodes/text_dropdown/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ options }),
+            }).catch(() => {});
+        }
+
         function refreshSelectedWidget() {
             ensureComboWidget();
             if (!comboWidget) return;
@@ -140,6 +148,7 @@ app.registerExtension({
             options.push({ alias, content });
             syncOptionsWidget();
             refreshSelectedWidget();
+            saveOptionsToServer();
             aliasWidget.value = "";
             inputWidget.value = "";
             node.setDirtyCanvas(true, true);
@@ -154,6 +163,7 @@ app.registerExtension({
             options.splice(idx, 1);
             syncOptionsWidget();
             refreshSelectedWidget();
+            saveOptionsToServer();
         });
         deleteButton.serialize = false;
 
