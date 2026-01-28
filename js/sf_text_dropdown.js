@@ -1,44 +1,41 @@
-// SF Text Dropdown 前端扩展
-// 功能：
-// - 从 options_json 中读取全局文本列表
-// - 使用下拉框展示选项，并输出选中的文本到 selected_text
-// - 提供文本输入框 + 添加按钮，将新文本加入列表
-// - 提供删除按钮，从列表中删除当前选中项
-// - 将完整列表和当前选中文本写回 options_json / selected_text，由后端 Python 节点持久化到 JSON 文件
+// SF Text Dropdown 前端扩展（别名 + 内容）
+// - 下拉框显示别名，输出为对应项目文本内容（可多行）
+// - 单行「别名」、多行「项目内容」+ 添加/删除
 
 import { app } from "/scripts/app.js";
+
+function normalizeOptions(data) {
+    if (!Array.isArray(data)) return [];
+    return data
+        .map((x) => {
+            if (x && typeof x === "object" && "alias" in x && "content" in x) {
+                return { alias: String(x.alias).trim(), content: String(x.content) };
+            }
+            if (typeof x === "string") {
+                const s = x.trim();
+                const first = (s.split(/\r?\n/)[0] || "").trim() || "未命名";
+                return { alias: first.slice(0, 64), content: s };
+            }
+            return null;
+        })
+        .filter((o) => o && o.alias);
+}
 
 app.registerExtension({
     name: "sfnodes.text_dropdown",
 
-    /**
-     * 在节点实例创建后增强 SFTextDropdown 的 UI
-     */
     nodeCreated(node) {
-        // 仅处理我们的节点
-        if (node?.comfyClass !== "SFTextDropdown") {
-            return;
-        }
+        if (node?.comfyClass !== "SFTextDropdown") return;
 
-        if (!node.widgets) {
-            node.widgets = [];
-        }
+        if (!node.widgets) node.widgets = [];
 
-        // 找到 Python 定义的两个基础 widget
         let selectedWidget = node.widgets.find((w) => w.name === "selected_text");
         let optionsWidget = node.widgets.find((w) => w.name === "options_json");
 
-        // 确保存在承载 JSON 的隐藏 widget
         if (!optionsWidget) {
-            optionsWidget = {
-                name: "options_json",
-                type: "text",
-                value: "[]",
-            };
+            optionsWidget = { name: "options_json", type: "text", value: "[]" };
             node.widgets.push(optionsWidget);
         }
-
-        // 隐藏 options_json，不在 UI 中占空间，但仍参与序列化
         optionsWidget.hidden = true;
         optionsWidget.computeSize = () => [0, 0];
         optionsWidget.draw = () => {};
@@ -47,27 +44,22 @@ app.registerExtension({
             try {
                 const v = optionsWidget.value || "[]";
                 const data = JSON.parse(v);
-                if (Array.isArray(data)) {
-                    return data.map((x) => String(x));
-                }
+                return normalizeOptions(data);
             } catch (e) {
-                // ignore
+                return [];
             }
-            return [];
         }
 
         let options = parseOptions();
 
-        // 原始 selected_text 作为隐藏存储字段，实际显示用一个新的 combo widget
         if (!selectedWidget) {
             selectedWidget = {
                 name: "selected_text",
                 type: "text",
-                value: options[0] || "",
+                value: options[0] ? options[0].content : "",
             };
             node.widgets.unshift(selectedWidget);
         }
-        // 隐藏原始 widget（仍用于序列化）
         selectedWidget.hidden = true;
         selectedWidget.computeSize = () => [0, 0];
         selectedWidget.draw = () => {};
@@ -75,22 +67,23 @@ app.registerExtension({
         let comboWidget = null;
 
         function ensureComboWidget() {
-            if (comboWidget) {
-                return;
-            }
+            if (comboWidget) return;
+            const aliases = options.map((o) => o.alias);
+            const sel = options.find((o) => o.content === selectedWidget.value);
+            const currentAlias = sel ? sel.alias : aliases[0] || "";
+
             comboWidget = node.addWidget(
                 "combo",
-                "selected_text",
-                selectedWidget.value || options[0] || "",
+                "selected_alias",
+                currentAlias,
                 function (value) {
-                    // 同步到隐藏的 selected_text，供后端使用
-                    selectedWidget.value = value;
+                    const it = options.find((o) => o.alias === value);
+                    selectedWidget.value = it ? it.content : "";
                     return value;
                 },
-                {
-                    values: options,
-                }
+                { values: aliases }
             );
+            comboWidget.serialize = false;
         }
 
         function syncOptionsWidget() {
@@ -102,32 +95,35 @@ app.registerExtension({
             ensureComboWidget();
             if (!comboWidget) return;
 
-            // 更新可选值列表
-            if (!comboWidget.options) {
-                comboWidget.options = {};
-            }
-            comboWidget.options.values = options;
+            const aliases = options.map((o) => o.alias);
+            if (!comboWidget.options) comboWidget.options = {};
+            comboWidget.options.values = aliases;
 
-            // 当前值修正
-            let current = comboWidget.value;
-            if (!current && options.length > 0) {
-                current = options[0];
-            }
-            if (options.length === 0) {
-                current = "";
-            } else if (!options.includes(current)) {
-                current = options[0];
-            }
-            comboWidget.value = current;
-            selectedWidget.value = current;
+            let curAlias = comboWidget.value;
+            if (!aliases.includes(curAlias)) curAlias = aliases[0] || "";
+            comboWidget.value = curAlias;
+
+            const it = options.find((o) => o.alias === curAlias);
+            selectedWidget.value = it ? it.content : "";
 
             node.setDirtyCanvas(true, true);
         }
 
-        // 确保下拉框已创建
         ensureComboWidget();
+        const comboIdx = node.widgets.indexOf(comboWidget);
+        const firstVisible = 2;
+        if (comboIdx > firstVisible && comboIdx > 0) {
+            node.widgets.splice(comboIdx, 1);
+            node.widgets.splice(firstVisible, 0, comboWidget);
+        }
 
-        // new_item 由 Python INPUT_TYPES 定义（multiline=True），前端会渲染为多行框
+        let aliasWidget = node.widgets.find((w) => w.name === "alias");
+        if (!aliasWidget) {
+            aliasWidget = node.addWidget("text", "alias", "", (v) => v, {
+                multiline: false,
+            });
+        }
+
         let inputWidget = node.widgets.find((w) => w.name === "new_item");
         if (!inputWidget) {
             inputWidget = node.addWidget("text", "new_item", "", (v) => v, {
@@ -135,51 +131,33 @@ app.registerExtension({
             });
         }
 
-        // 添加按钮：将多行输入整块作为一条项目保存
-        const addButton = node.addWidget(
-            "button",
-            "添加",
-            null,
-            function () {
-                const text = (inputWidget.value || "").trim();
-                if (!text) {
-                    return;
-                }
-                if (!options.includes(text)) {
-                    options.push(text);
-                    syncOptionsWidget();
-                    refreshSelectedWidget();
-                }
-                inputWidget.value = "";
-                node.setDirtyCanvas(true, true);
-            }
-        );
+        const addButton = node.addWidget("button", "添加", null, function () {
+            const alias = (aliasWidget.value || "").trim();
+            const content = (inputWidget.value || "").trim();
+            if (!alias || !content) return;
+            if (options.some((o) => o.alias === alias)) return;
+
+            options.push({ alias, content });
+            syncOptionsWidget();
+            refreshSelectedWidget();
+            aliasWidget.value = "";
+            inputWidget.value = "";
+            node.setDirtyCanvas(true, true);
+        });
         addButton.serialize = false;
 
-        // 删除按钮
-        const deleteButton = node.addWidget(
-            "button",
-            "删除选中",
-            null,
-            function () {
-                const current = selectedWidget.value;
-                if (!current) {
-                    return;
-                }
-                const idx = options.indexOf(current);
-                if (idx === -1) {
-                    return;
-                }
-                options.splice(idx, 1);
-                syncOptionsWidget();
-                refreshSelectedWidget();
-            }
-        );
+        const deleteButton = node.addWidget("button", "删除选中", null, function () {
+            const curAlias = comboWidget.value;
+            if (!curAlias) return;
+            const idx = options.findIndex((o) => o.alias === curAlias);
+            if (idx === -1) return;
+            options.splice(idx, 1);
+            syncOptionsWidget();
+            refreshSelectedWidget();
+        });
         deleteButton.serialize = false;
 
-        // 初始同步一次，确保 options_json 与 UI 一致
         syncOptionsWidget();
         refreshSelectedWidget();
     },
 });
-

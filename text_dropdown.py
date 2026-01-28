@@ -6,13 +6,24 @@ from comfy.comfy_types.node_typing import IO
 _CATEGORY = "sfnodes/Text"
 
 
+def _normalize_item(x):
+    """统一为 {alias, content} 结构。"""
+    if isinstance(x, dict) and "alias" in x and "content" in x:
+        return {"alias": str(x["alias"]).strip(), "content": str(x["content"])}
+    if isinstance(x, str):
+        s = x.strip()
+        first = (s.split("\n")[0] or "").strip() or "未命名"
+        return {"alias": first[:64], "content": s}
+    return None
+
+
 class SFTextDropdown:
     """
-    文本下拉选择节点
+    文本下拉选择节点（支持别名）
 
-    - 选中一条文本并输出
-    - 文本选项列表保存在 custom_nodes/sfnodes/sfnodes_text_dropdown.json 中
-    - 列表在所有 SFTextDropdown 节点之间共享
+    - 下拉框显示项目别名，输出为对应项目文本内容（可多行）
+    - 单行输入框定义别名，多行输入框定义项目内容
+    - 选项保存在 custom_nodes/sfnodes/sfnodes_text_dropdown.json，所有节点共享
     """
 
     @classmethod
@@ -21,49 +32,55 @@ class SFTextDropdown:
         return os.path.join(current_dir, "sfnodes_text_dropdown.json")
 
     @classmethod
-    def _load_global_options(cls) -> list[str]:
+    def _load_global_options(cls) -> list[dict]:
         path = cls._get_options_path()
         try:
             if not os.path.exists(path):
                 return []
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            if isinstance(data, list):
-                # 统一为字符串列表
-                return [str(x) for x in data]
+            if not isinstance(data, list):
+                return []
+            out = []
+            for i, x in enumerate(data):
+                item = _normalize_item(x)
+                if item and item["alias"]:
+                    out.append(item)
+            return out
         except Exception:
-            # 文件损坏或解析失败时，忽略并返回空列表
             pass
         return []
 
     @classmethod
-    def _save_global_options(cls, options: list[str]) -> None:
-        # 去重并保持顺序
-        unique_options = list(dict.fromkeys(str(x) for x in options if str(x).strip()))
+    def _save_global_options(cls, options: list[dict]) -> None:
+        valid = []
+        seen = set()
+        for x in options:
+            item = _normalize_item(x)
+            if not item or not item["alias"]:
+                continue
+            if item["alias"] in seen:
+                continue
+            seen.add(item["alias"])
+            valid.append(item)
         path = cls._get_options_path()
         try:
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(unique_options, f, ensure_ascii=False, indent=2)
+                json.dump(valid, f, ensure_ascii=False, indent=2)
         except Exception:
-            # 写入失败时静默忽略，避免打断节点执行
             pass
 
     @classmethod
     def INPUT_TYPES(cls):
         options = cls._load_global_options()
-        default_selected = options[0] if options else ""
+        default_content = options[0]["content"] if options else ""
 
         return {
             "required": {
-                # 当前选中的文本，由前端 JS 通过下拉框维护
                 "selected_text": (
                     IO.STRING,
-                    {
-                        "multiline": False,
-                        "default": default_selected,
-                    },
+                    {"multiline": False, "default": default_content},
                 ),
-                # 全部选项列表的 JSON 字符串，由前端 JS 负责同步
                 "options_json": (
                     IO.STRING,
                     {
@@ -72,13 +89,13 @@ class SFTextDropdown:
                         "display": "hidden",
                     },
                 ),
-                # 多行输入框，用于添加新项目（整块多行文本为一条）
+                "alias": (
+                    IO.STRING,
+                    {"multiline": False, "default": ""},
+                ),
                 "new_item": (
                     IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                    },
+                    {"multiline": True, "default": ""},
                 ),
             }
         }
@@ -88,8 +105,13 @@ class SFTextDropdown:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, selected_text: str, options_json: str, new_item: str = ""):
-        # 同步并持久化全局列表；new_item 仅作 UI 输入，不参与执行逻辑
+    def execute(
+        self,
+        selected_text: str,
+        options_json: str,
+        alias: str = "",
+        new_item: str = "",
+    ):
         try:
             data = json.loads(options_json)
             if isinstance(data, list):
@@ -99,6 +121,4 @@ class SFTextDropdown:
 
         if not isinstance(selected_text, str):
             selected_text = str(selected_text)
-
         return (selected_text,)
-
