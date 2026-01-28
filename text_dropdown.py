@@ -103,8 +103,8 @@ class SFTextDropdown:
             }
         }
 
-    RETURN_TYPES = (IO.STRING,)
-    RETURN_NAMES = ("string",)
+    RETURN_TYPES = (IO.STRING, IO.STRING)
+    RETURN_NAMES = ("string", "alias")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
@@ -119,12 +119,20 @@ class SFTextDropdown:
             data = json.loads(options_json)
             if isinstance(data, list):
                 type(self)._save_global_options(data)
+                opts = [x for x in data if isinstance(x, dict) and "alias" in x and "content" in x]
+            else:
+                opts = []
         except Exception:
-            pass
+            opts = []
 
         if not isinstance(selected_text, str):
             selected_text = str(selected_text)
-        return (selected_text,)
+        sel_alias = ""
+        for x in opts:
+            if str(x.get("content", "")) == selected_text:
+                sel_alias = str(x.get("alias", "")).strip()
+                break
+        return (selected_text, sel_alias)
 
 
 def _register_text_dropdown_save_route():

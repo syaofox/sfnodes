@@ -109,11 +109,10 @@ app.registerExtension({
             if (!comboWidget.options) comboWidget.options = {};
             comboWidget.options.values = aliases;
 
-            let curAlias = comboWidget.value;
-            if (!aliases.includes(curAlias)) curAlias = aliases[0] || "";
+            const content = selectedWidget.value || "";
+            const it = options.find((o) => o.content === content);
+            const curAlias = it ? it.alias : aliases[0] || "";
             comboWidget.value = curAlias;
-
-            const it = options.find((o) => o.alias === curAlias);
             selectedWidget.value = it ? it.content : "";
             if (inputWidget) inputWidget.value = it ? it.content : "";
             if (aliasWidget) aliasWidget.value = "";
@@ -180,5 +179,11 @@ app.registerExtension({
 
         syncOptionsWidget();
         refreshSelectedWidget();
+
+        setTimeout(function () {
+            options.length = 0;
+            options.push(...parseOptions());
+            refreshSelectedWidget();
+        }, 0);
     },
 });
