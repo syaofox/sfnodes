@@ -76,6 +76,7 @@ from .text_dropdown import SFTextDropdown
 
 from .wan22_prompt_selector import Wan22PromptSelector
 from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
+from .flux_resolution import FluxResolutionNode
 
 WEB_DIRECTORY = "js"
 
@@ -227,6 +228,8 @@ NODE_CLASS_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
+    # Flux 分辨率节点
+    "SFFluxResolution": FluxResolutionNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -375,6 +378,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
+    # Flux 分辨率节点
+    "SFFluxResolution": "SF Flux Resolution Calculator",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
