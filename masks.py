@@ -583,6 +583,48 @@ class MaskedFill:
         return (image,)
 
 
+class ImageMaskToTransparency:
+    """输入图片和 mask，输出带透明通道的图片，mask 遮盖区域透明。"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "输入图片"}),
+                "mask": ("MASK", {"tooltip": "遮罩，遮盖区域在输出中为透明"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "输入图片和 mask，输出带透明通道的图片(RGBA)，mask 遮盖区域透明"
+
+    def execute(self, image, mask):
+        batch_size = min(image.shape[0], mask.shape[0])
+        image = image[:batch_size]
+        mask = mask[:batch_size]
+
+        # Resize mask to image spatial size (H, W)
+        mask_bchw = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
+        target_h, target_w = image.shape[1], image.shape[2]
+        mask_resized = torch.nn.functional.interpolate(
+            mask_bchw, size=(target_h, target_w), mode="bilinear"
+        )
+        mask_resized = mask_resized.squeeze(1)  # (B, H, W)
+
+        # alpha = 1 - mask (mask=1 -> transparent)
+        alpha = 1.0 - mask_resized
+        alpha = alpha.unsqueeze(-1)  # (B, H, W, 1)
+
+        # Concat RGB + alpha -> (B, H, W, 4) RGBA
+        rgb = image[:, :, :, :3]
+        rgba = torch.cat([rgb, alpha], dim=-1)
+
+        return (rgba,)
+
+
 class FillWithReferenceColor:
     @classmethod
     def INPUT_TYPES(cls):
