@@ -70,108 +70,24 @@ class TextString:
             text = translators(text = text)
         return (text,)
 
+_MAX_STRING_SLOTS = 20
+
+
 class StringConcatenate():
+    """字符串拼接节点，支持 1～N 个 string 槽位，由前端 JS 动态控制可见数量。"""
+
     @classmethod
     def INPUT_TYPES(cls):
+        optional = {}
+        for i in range(1, _MAX_STRING_SLOTS + 1):
+            optional[f"string_{i}"] = (IO.STRING, {"multiline": True, "default": ""})
+        optional["text_in"] = ("STRING", {"forceInput": True})
         return {
             "required": {
-                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_a": (IO.STRING, {"multiline": True}),
-                "string_b": (IO.STRING, {"multiline": True}),
-                "string_c": (IO.STRING, {"multiline": True}),                
-                "delimiter": (IO.STRING, {"multiline": False, "default": ","})
+                "trans_switch": ("BOOLEAN", {"default": False, "label_on": "on", "label_off": "off"}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": ","}),
             },
-             "optional": {
-                "text_in": ("STRING", {"forceInput": True}),
-            }
-        }
-
-    RETURN_TYPES = (IO.STRING,IO.STRING,IO.STRING,IO.STRING)
-    RETURN_NAMES = ("combined","string_a","string_b","string_c")
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-
-    def execute(self, trans_switch,string_a, string_b, string_c, delimiter,text_in=''): 
-        if trans_switch:
-            string_a = translators(text = string_a)
-            string_b = translators(text = string_b)
-            string_c = translators(text = string_c)
-        
-        strings = [string_a, string_b, string_c]
-        strings = [s for s in strings if s and s.strip()] # type: ignore 
-        if text_in:
-            strings.append(text_in)
-        return delimiter.join(strings),string_a,string_b,string_c
-
-
-
-class StringConcatenateLong():
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_a": (IO.STRING, {"multiline": True}),
-                "string_b": (IO.STRING, {"multiline": True}),
-                "string_c": (IO.STRING, {"multiline": True}),
-                "string_d": (IO.STRING, {"multiline": True}),
-                "string_e": (IO.STRING, {"multiline": True}),
-                "string_f": (IO.STRING, {"multiline": True}),
-                "string_g": (IO.STRING, {"multiline": True}),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ","})
-            },
-             "optional": {
-                "text_in": ("STRING", {"forceInput": True}),
-            }
-        }
-
-    RETURN_TYPES = (IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING,IO.STRING)
-    RETURN_NAMES = ("combined","string_a","string_b","string_c","string_d","string_e","string_f","string_g")
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-
-    def execute(self, trans_switch,string_a, string_b, string_c, string_d, string_e, string_f, string_g, delimiter,text_in=''):       
-        if trans_switch:
-            string_a = translators(text = string_a)
-            string_b = translators(text = string_b)
-            string_c = translators(text = string_c)
-            string_d = translators(text = string_d)
-            string_e = translators(text = string_e)
-            string_f = translators(text = string_f)
-            string_g = translators(text = string_g)
-        
-        strings = [string_a, string_b, string_c, string_d, string_e, string_f, string_g]
-        strings = [s for s in strings if s and s.strip()] # type: ignore 
-        if text_in:
-            strings.append(text_in)
-        return delimiter.join(strings),string_a,string_b,string_c,string_d,string_e,string_f,string_g
-
-
-class StringConcatenateWithSwitches:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_a_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_a": (IO.STRING, {"multiline": True}),
-                "string_b_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_b": (IO.STRING, {"multiline": True}),
-                "string_c_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_c": (IO.STRING, {"multiline": True}),
-                "string_d_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_d": (IO.STRING, {"multiline": True}),
-                "string_e_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_e": (IO.STRING, {"multiline": True}),
-                "string_f_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_f": (IO.STRING, {"multiline": True}),
-                "string_g_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
-                "string_g": (IO.STRING, {"multiline": True}),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ","})
-            },
-             "optional": {
-                "text_in": ("STRING", {"forceInput": True}),
-            }
+            "optional": optional,
         }
 
     RETURN_TYPES = (IO.STRING,)
@@ -179,45 +95,15 @@ class StringConcatenateWithSwitches:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, trans_switch, string_a_switch, string_a, string_b_switch, string_b, string_c_switch, string_c, 
-                string_d_switch, string_d, string_e_switch, string_e, string_f_switch, string_f, string_g_switch, string_g, 
-                delimiter, text_in=''):
-        
-        # 翻译处理
+    def execute(self, trans_switch, delimiter, **kwargs):
+        strings = [kwargs.get(f"string_{i}", "") or "" for i in range(1, _MAX_STRING_SLOTS + 1)]
         if trans_switch:
-            string_a = translators(text=string_a) if string_a_switch else string_a
-            string_b = translators(text=string_b) if string_b_switch else string_b
-            string_c = translators(text=string_c) if string_c_switch else string_c
-            string_d = translators(text=string_d) if string_d_switch else string_d
-            string_e = translators(text=string_e) if string_e_switch else string_e
-            string_f = translators(text=string_f) if string_f_switch else string_f
-            string_g = translators(text=string_g) if string_g_switch else string_g
-        
-        # 根据开关状态收集字符串
-        strings = []
-        if string_a_switch and string_a and string_a.strip():
-            strings.append(string_a)
-        if string_b_switch and string_b and string_b.strip():
-            strings.append(string_b)
-        if string_c_switch and string_c and string_c.strip():
-            strings.append(string_c)
-        if string_d_switch and string_d and string_d.strip():
-            strings.append(string_d)
-        if string_e_switch and string_e and string_e.strip():
-            strings.append(string_e)
-        if string_f_switch and string_f and string_f.strip():
-            strings.append(string_f)
-        if string_g_switch and string_g and string_g.strip():
-            strings.append(string_g)
-        
-        # 添加可选输入文本
+            strings = [translators(text=s) for s in strings]
+        strings = [s for s in strings if s and s.strip()]
+        text_in = kwargs.get("text_in") or ""
         if text_in:
-            strings.append(text_in)
-        
-        # 使用分隔符连接字符串
-        combined = delimiter.join(strings)
-        
-        return (combined,)
+            strings.insert(0, text_in)
+        return (delimiter.join(strings),)
 
 
 

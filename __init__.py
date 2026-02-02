@@ -71,7 +71,7 @@ from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,StringConcatenateLong,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags,StringConcatenateWithSwitches
+from .text import Text_Translation,StringConcatenate,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 from .text_dropdown import SFTextDropdown
 
@@ -199,7 +199,6 @@ NODE_CLASS_MAPPINGS = {
     # 文本节点
     "SFTextTranslation": Text_Translation,
     "SFStringConcatenate": StringConcatenate,
-    "SFStringConcatenateLong": StringConcatenateLong,
     "SFTextString": TextString,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
@@ -207,7 +206,6 @@ NODE_CLASS_MAPPINGS = {
     "SFExpressionTags": ExpressionTags,
     "SFForeplayTags": ForeplayTags,
     "SFPositionsTags": PositionsTags,
-    "SFStringConcatenateWithSwitches": StringConcatenateWithSwitches,
     "SFTextDropdown": SFTextDropdown,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
@@ -350,7 +348,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 文本节点
     "SFTextTranslation": "SF Text Translation",
     "SFStringConcatenate": "SF String Concatenate",
-    "SFStringConcatenateLong": "SF String Concatenate Long",
     "SFTextString": "SF Text String",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
@@ -358,7 +355,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFExpressionTags": "SF Expression Tags",
     "SFForeplayTags": "SF Foreplay Tags",
     "SFPositionsTags": "SF Positions Tags",
-    "SFStringConcatenateWithSwitches": "SF String Concatenate With Switches",
     "SFTextDropdown": "SF Text Dropdown",
     # 简单数学节点
     "SFSimpleMathFloat": "SF Simple Math Float",
