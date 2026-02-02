@@ -809,6 +809,10 @@ class SFLoadImage(LoadImage):
         }
 
         return {"required": required}
+
+    @classmethod
+    def IS_CHANGED(cls, image, upscale_method, total_pixels, limit):
+        return super().IS_CHANGED(image)
     
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT")
     RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
