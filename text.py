@@ -106,6 +106,34 @@ class StringConcatenate():
         return (delimiter.join(strings),)
 
 
+class TextCombine:
+    """合并 text_in 和 text，用 delimiter 连接。"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": (IO.STRING, {"multiline": True, "default": ""}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": ","}),
+            },
+            "optional": {
+                "text_in": (IO.STRING, {"forceInput": True}),
+            },
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    RETURN_NAMES = ("combined",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, text, delimiter, text_in=None):
+        parts = []
+        if text_in and text_in.strip():
+            parts.append(text_in.strip())
+        if text and text.strip():
+            parts.append(text.strip())
+        return (delimiter.join(parts),)
+
 
 class AnimeCharSelect:
     @classmethod

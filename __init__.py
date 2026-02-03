@@ -71,7 +71,7 @@ from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags
+from .text import Text_Translation,StringConcatenate,TextCombine,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 from .text_dropdown import SFTextDropdown
 
@@ -199,6 +199,7 @@ NODE_CLASS_MAPPINGS = {
     # 文本节点
     "SFTextTranslation": Text_Translation,
     "SFStringConcatenate": StringConcatenate,
+    "SFTextCombine": TextCombine,
     "SFTextString": TextString,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
@@ -348,6 +349,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 文本节点
     "SFTextTranslation": "SF Text Translation",
     "SFStringConcatenate": "SF String Concatenate",
+    "SFTextCombine": "SF Text Combine",
     "SFTextString": "SF Text String",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
