@@ -115,6 +115,8 @@ class TextCombine:
             "required": {
                 "text": (IO.STRING, {"multiline": True, "default": ""}),
                 "delimiter": (IO.STRING, {"multiline": False, "default": ","}),
+                # text 在 text_in 的前置 / 后置
+                "position": (["后置", "前置"], {"default": "后置"}),
             },
             "optional": {
                 "text_in": (IO.STRING, {"forceInput": True}),
@@ -126,12 +128,28 @@ class TextCombine:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, text, delimiter, text_in=None):
+    def execute(self, text, delimiter, position, text_in=None):
+        """
+        position:
+            - "后置": text 追加在 text_in 之后（兼容旧行为）
+            - "前置": text 放在 text_in 之前
+        """
         parts = []
-        if text_in and text_in.strip():
-            parts.append(text_in.strip())
-        if text and text.strip():
-            parts.append(text.strip())
+
+        text_clean = text.strip() if text and text.strip() else ""
+        text_in_clean = text_in.strip() if text_in and text_in.strip() else ""
+
+        if position == "前置":
+            if text_clean:
+                parts.append(text_clean)
+            if text_in_clean:
+                parts.append(text_in_clean)
+        else:  # "后置" 或其他非法值都按旧行为处理
+            if text_in_clean:
+                parts.append(text_in_clean)
+            if text_clean:
+                parts.append(text_clean)
+
         return (delimiter.join(parts),)
 
 
