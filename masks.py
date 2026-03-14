@@ -159,7 +159,6 @@ class MaskChange:
         return {
             "required": {
                 "mask": ("MASK",),
-
                 "grow": (
                     "INT",
                     {
@@ -205,43 +204,41 @@ class MaskChange:
                     },
                 ),
                 "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
-                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否预反转(先反转,再其他操作)"}),
-
-
-
+                "pre_invert": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "是否预反转(先反转,再其他操作)"},
+                ),
             },
         }
 
-    RETURN_TYPES = ("MASK", "MASK", )
-    RETURN_NAMES = ("mask", "inverted_mask",)
+    RETURN_TYPES = (
+        "MASK",
+        "MASK",
+    )
+    RETURN_NAMES = (
+        "mask",
+        "inverted_mask",
+    )
 
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     DESCRIPTION = "修改和处理遮罩"
 
-    def execute(self, mask, grow, grow_percent, grow_tapered, blur, blur_percent, fill, pre_invert):
+    def execute(
+        self,
+        mask,
+        grow,
+        grow_percent,
+        grow_tapered,
+        blur,
+        blur_percent,
+        fill,
+        pre_invert,
+    ):
         print(mask.shape)
 
         mask_params = {
-                "pre_invert": False,
-                "mask": mask,
-                "grow": grow,
-                "grow_percent": grow_percent,
-                "grow_tapered": grow_tapered,
-                "blur": blur,
-                "blur_percent": blur_percent,
-                "fill": fill,
-                "invert": False,
-
-            }
-        mask = mask_process(mask, mask_params, unqueeze=False)  
-
-
-        if not pre_invert:
-            mask_inverted = invert_mask(mask)
-        else:
-            mask_params_invert = {
-            "pre_invert": True,
+            "pre_invert": False,
             "mask": mask,
             "grow": grow,
             "grow_percent": grow_percent,
@@ -250,10 +247,24 @@ class MaskChange:
             "blur_percent": blur_percent,
             "fill": fill,
             "invert": False,
-
         }
-            mask_inverted = mask_process(mask, mask_params_invert, unqueeze=False)    
+        mask = mask_process(mask, mask_params, unqueeze=False)
 
+        if not pre_invert:
+            mask_inverted = invert_mask(mask)
+        else:
+            mask_params_invert = {
+                "pre_invert": True,
+                "mask": mask,
+                "grow": grow,
+                "grow_percent": grow_percent,
+                "grow_tapered": grow_tapered,
+                "blur": blur,
+                "blur_percent": blur_percent,
+                "fill": fill,
+                "invert": False,
+            }
+            mask_inverted = mask_process(mask, mask_params_invert, unqueeze=False)
 
         return (mask, mask_inverted)
 
@@ -777,8 +788,13 @@ class MaskParams:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否反转遮罩(注意:先反转,再其他操作)"}),
-
+                "pre_invert": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "是否反转遮罩(注意:先反转,再其他操作)",
+                    },
+                ),
                 "grow": (
                     "INT",
                     {
@@ -825,8 +841,6 @@ class MaskParams:
                 ),
                 "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
                 "invert": ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"}),
-
-
             },
         }
 
@@ -836,8 +850,17 @@ class MaskParams:
     CATEGORY = _CATEGORY
     DESCRIPTION = "设置遮罩参数"
 
-    def execute(self, pre_invert, grow, grow_percent, grow_tapered, blur, blur_percent, fill, invert):
-
+    def execute(
+        self,
+        pre_invert,
+        grow,
+        grow_percent,
+        grow_tapered,
+        blur,
+        blur_percent,
+        fill,
+        invert,
+    ):
         mask_params = {
             "pre_invert": pre_invert,
             "grow": grow,
@@ -857,8 +880,13 @@ class MaskParamsEdges:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否反转遮罩(注意:先反转,再其他操作)"}),
-                
+                "pre_invert": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "是否反转遮罩(注意:先反转,再其他操作)",
+                    },
+                ),
                 # 上边增长参数
                 "grow_top": (
                     "INT",
@@ -880,7 +908,6 @@ class MaskParamsEdges:
                         "tooltip": "设置上边生长百分比，范围为-2.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 下边增长参数
                 "grow_bottom": (
                     "INT",
@@ -902,7 +929,6 @@ class MaskParamsEdges:
                         "tooltip": "设置下边生长百分比，范围为-2.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 左边增长参数
                 "grow_left": (
                     "INT",
@@ -924,7 +950,6 @@ class MaskParamsEdges:
                         "tooltip": "设置左边生长百分比，范围为-2.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 右边增长参数
                 "grow_right": (
                     "INT",
@@ -946,12 +971,10 @@ class MaskParamsEdges:
                         "tooltip": "设置右边生长百分比，范围为-2.0到2.0，步长为0.01",
                     },
                 ),
-                
                 "grow_tapered": (
                     "BOOLEAN",
                     {"default": False, "tooltip": "是否使用锥形角"},
                 ),
-                
                 # 上边模糊参数
                 "blur_top": (
                     "INT",
@@ -973,7 +996,6 @@ class MaskParamsEdges:
                         "tooltip": "设置上边模糊百分比，范围为0.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 下边模糊参数
                 "blur_bottom": (
                     "INT",
@@ -995,7 +1017,6 @@ class MaskParamsEdges:
                         "tooltip": "设置下边模糊百分比，范围为0.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 左边模糊参数
                 "blur_left": (
                     "INT",
@@ -1017,7 +1038,6 @@ class MaskParamsEdges:
                         "tooltip": "设置左边模糊百分比，范围为0.0到2.0，步长为0.01",
                     },
                 ),
-                
                 # 右边模糊参数
                 "blur_right": (
                     "INT",
@@ -1039,7 +1059,6 @@ class MaskParamsEdges:
                         "tooltip": "设置右边模糊百分比，范围为0.0到2.0，步长为0.01",
                     },
                 ),
-                
                 "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
                 "invert": ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"}),
             },
@@ -1054,15 +1073,23 @@ class MaskParamsEdges:
     def execute(
         self,
         pre_invert,
-        grow_top, grow_top_percent,
-        grow_bottom, grow_bottom_percent,
-        grow_left, grow_left_percent,
-        grow_right, grow_right_percent,
+        grow_top,
+        grow_top_percent,
+        grow_bottom,
+        grow_bottom_percent,
+        grow_left,
+        grow_left_percent,
+        grow_right,
+        grow_right_percent,
         grow_tapered,
-        blur_top, blur_top_percent,
-        blur_bottom, blur_bottom_percent,
-        blur_left, blur_left_percent,
-        blur_right, blur_right_percent,
+        blur_top,
+        blur_top_percent,
+        blur_bottom,
+        blur_bottom_percent,
+        blur_left,
+        blur_left_percent,
+        blur_right,
+        blur_right_percent,
         fill,
         invert,
     ):
@@ -1099,9 +1126,30 @@ class MaskCrop:
             "required": {
                 "image": ("IMAGE", {"tooltip": "输入图像"}),
                 "mask": ("MASK", {"tooltip": "用于裁剪的遮罩，白色区域将被裁剪掉"}),
-                "invert_mask": ("BOOLEAN", {"default": False, "tooltip": "反转遮罩，裁剪黑色区域而保留白色区域"}),
-                "threshold": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "遮罩阈值，大于此值的区域被视为白色区域"}),
-                "actual_crop": ("BOOLEAN", {"default": True, "tooltip": "是否实际裁剪图像。如果为True，将裁剪图像；如果为False，只会将遮罩区域变黑"}),
+                "invert_mask": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "反转遮罩，裁剪黑色区域而保留白色区域",
+                    },
+                ),
+                "threshold": (
+                    "FLOAT",
+                    {
+                        "default": 0.5,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "遮罩阈值，大于此值的区域被视为白色区域",
+                    },
+                ),
+                "actual_crop": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "是否实际裁剪图像。如果为True，将裁剪图像；如果为False，只会将遮罩区域变黑",
+                    },
+                ),
             }
         }
 
@@ -1114,10 +1162,12 @@ class MaskCrop:
         import torch
         import numpy as np
         from PIL import Image
-        
+
         # 确保图像和遮罩的批次大小匹配
-        assert image.shape[0] == mask.shape[0] or mask.shape[0] == 1, "图像和遮罩的批次大小不匹配"
-        
+        assert image.shape[0] == mask.shape[0] or mask.shape[0] == 1, (
+            "图像和遮罩的批次大小不匹配"
+        )
+
         # 如果遮罩和图像尺寸不同，调整遮罩大小
         if image.shape[1:3] != mask.shape[1:3]:
             # 将遮罩转换为张量格式以便于缩放
@@ -1126,69 +1176,69 @@ class MaskCrop:
             mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
             # 转换回遮罩格式
             mask = tensor2mask(mask_tensor)
-        
+
         # 如果需要反转遮罩
         if invert_mask:
             mask = 1.0 - mask
-        
+
         # 如果不需要实际裁剪，只是将遮罩区域变黑
         if not actual_crop:
             # 克隆图像以避免修改原始数据
             result_image = image.detach().clone()
-            
+
             # 将遮罩调整为适合图像处理的格式
             alpha = mask_unsqueeze(mask)
-            
+
             # 确保遮罩和图像的批次大小匹配
             if alpha.shape[0] == 1 and result_image.shape[0] > 1:
                 alpha = alpha.repeat(result_image.shape[0], 1, 1, 1)
-            
+
             # 应用遮罩（将遮罩区域设为黑色）
             for i in range(result_image.shape[0]):  # 处理每一批图像
                 # 扩展alpha维度以匹配图像通道
                 alpha_expanded = alpha[i].squeeze(0).unsqueeze(-1).expand(-1, -1, 3)
                 # 将遮罩区域设为黑色（0）
                 result_image[i] = result_image[i] * (1.0 - alpha_expanded)
-            
+
             return (result_image,)
-        
+
         # 实际裁剪图像的逻辑
         # 创建结果图像列表
         result_images = []
-        
+
         # 处理每一批图像
         for i in range(image.shape[0]):
             # 获取当前批次的图像和遮罩
             curr_img = image[i].cpu().numpy()
             curr_mask = mask[i if mask.shape[0] > 1 else 0].cpu().numpy()
-            
+
             # 将遮罩二值化
             binary_mask = (curr_mask > threshold).astype(np.uint8)
-            
+
             # 将图像转换为PIL格式以便处理
             pil_img = Image.fromarray((curr_img * 255).astype(np.uint8))
             pil_mask = Image.fromarray((binary_mask * 255).astype(np.uint8))
-            
+
             # 获取非零区域的边界框（非遮罩区域）
             non_zero = np.where(binary_mask == 0)
             if len(non_zero[0]) > 0 and len(non_zero[1]) > 0:
                 # 计算边界框
                 min_y, max_y = np.min(non_zero[0]), np.max(non_zero[0])
                 min_x, max_x = np.min(non_zero[1]), np.max(non_zero[1])
-                
+
                 # 裁剪图像
-                cropped_img = pil_img.crop((min_x, min_y, max_x + 1, max_y + 1)) # type: ignore
-                
+                cropped_img = pil_img.crop((min_x, min_y, max_x + 1, max_y + 1))  # type: ignore
+
                 # 转换回numpy格式
                 cropped_np = np.array(cropped_img).astype(np.float32) / 255.0
-                
+
                 # 添加到结果列表
                 result_images.append(torch.from_numpy(cropped_np))
             else:
                 # 如果没有非遮罩区域，返回空图像（1x1像素）
                 empty_img = torch.zeros((1, 1, 3), dtype=torch.float32)
                 result_images.append(empty_img)
-        
+
         # 将结果列表转换为批次张量
         # 注意：由于裁剪后的图像可能大小不同，我们需要调整它们到相同大小
         if len(result_images) == 1:
@@ -1197,20 +1247,22 @@ class MaskCrop:
             # 找出最大的宽度和高度
             max_height = max([img.shape[0] for img in result_images])
             max_width = max([img.shape[1] for img in result_images])
-            
+
             # 调整所有图像到相同大小
             resized_images = []
             for img in result_images:
                 if img.shape[0] != max_height or img.shape[1] != max_width:
                     # 创建新的空白图像
-                    resized = torch.zeros((max_height, max_width, 3), dtype=torch.float32)
+                    resized = torch.zeros(
+                        (max_height, max_width, 3), dtype=torch.float32
+                    )
                     # 将原始图像复制到新图像的左上角
                     h, w = img.shape[0], img.shape[1]
                     resized[:h, :w, :] = img
                     resized_images.append(resized)
                 else:
                     resized_images.append(img)
-            
+
             # 堆叠所有调整大小后的图像
             return (torch.stack(resized_images),)
 
@@ -1257,7 +1309,9 @@ class MaskFillPercentArea:
     CATEGORY = _CATEGORY
     DESCRIPTION = "填充遮罩的横向或纵向百分比区域为白色或黑色"
 
-    def execute(self, mask, fill_direction, fill_start_percent, fill_end_percent, fill_mode):
+    def execute(
+        self, mask, fill_direction, fill_start_percent, fill_end_percent, fill_mode
+    ):
         # 确保起始百分比小于等于结束百分比
         if fill_start_percent > fill_end_percent:
             fill_start_percent, fill_end_percent = fill_end_percent, fill_start_percent
@@ -1300,34 +1354,11 @@ class MaskFillColor:
             "required": {
                 "image": ("IMAGE", {"tooltip": "输入图片"}),
                 "mask": ("MASK", {"tooltip": "输入遮罩，白色区域将被填充"}),
-                "fill_color_r": (
-                    "FLOAT",
+                "fill_color": (
+                    "COLOR",
                     {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "填充颜色的红色通道，范围为0.0到1.0",
-                    },
-                ),
-                "fill_color_g": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "填充颜色的绿色通道，范围为0.0到1.0",
-                    },
-                ),
-                "fill_color_b": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "填充颜色的蓝色通道，范围为0.0到1.0",
+                        "default": [255, 255, 255],
+                        "tooltip": "填充颜色 (RGB)",
                     },
                 ),
             }
@@ -1336,52 +1367,44 @@ class MaskFillColor:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "用指定颜色填充图片中mask遮住的部分（默认白色）"
+    DESCRIPTION = "用指定颜色填充图片中mask遮住的部分"
 
-    def execute(self, image, mask, fill_color_r, fill_color_g, fill_color_b):
+    def execute(self, image, mask, fill_color):
         import torch
-        
-        # 克隆图像以避免修改原始数据
+
+        if isinstance(fill_color, str):
+            hex_color = fill_color.lstrip("#")
+            fill_color_r = int(hex_color[0:2], 16)
+            fill_color_g = int(hex_color[2:4], 16)
+            fill_color_b = int(hex_color[4:6], 16)
+        else:
+            fill_color_r, fill_color_g, fill_color_b = fill_color
+
         result_image = image.detach().clone()
-        
-        # 处理遮罩
+
         alpha = mask_unsqueeze(mask_floor(mask))
         assert alpha.shape[0] == result_image.shape[0] or alpha.shape[0] == 1, (
             "图像和遮罩的批次大小不匹配"
         )
-        
-        # 如果遮罩和图像尺寸不同，调整遮罩大小
+
         if image.shape[1:3] != alpha.shape[2:4]:
-            # 将遮罩转换为张量格式以便于缩放
             mask_tensor = mask2tensor(mask)
-            # 调整遮罩大小以匹配图像
             mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
-            # 转换回遮罩格式并重新处理
             mask_rescaled = tensor2mask(mask_tensor)
             alpha = mask_unsqueeze(mask_floor(mask_rescaled))
-        
-        # 创建填充颜色张量 [R, G, B]
-        fill_color = torch.tensor([fill_color_r, fill_color_g, fill_color_b], 
-                                  dtype=result_image.dtype, 
-                                  device=result_image.device)
-        
-        # 处理每一批图像
-        for i in range(result_image.shape[0]):
-            # 获取当前批次的alpha遮罩
-            alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
-            
-            # 扩展alpha维度以匹配图像通道 [H, W] -> [H, W, 3]
-            alpha_expanded = alpha_i.unsqueeze(-1).expand(-1, -1, 3)
-            
-            # 创建填充颜色图像
-            color_fill = torch.ones_like(result_image[i]) * fill_color
-            
-            # 混合原始图像和填充颜色
-            # mask区域用填充颜色，非mask区域保持原图
-            result_image[i] = (
-                result_image[i] * (1.0 - alpha_expanded) + 
-                color_fill * alpha_expanded
-            )
-        
-        return (result_image,)
 
+        fill_color_normalized = torch.tensor(
+            [fill_color_r / 255.0, fill_color_g / 255.0, fill_color_b / 255.0],
+            dtype=result_image.dtype,
+            device=result_image.device,
+        )
+
+        for i in range(result_image.shape[0]):
+            alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
+            alpha_expanded = alpha_i.unsqueeze(-1).expand(-1, -1, 3)
+            color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
+            result_image[i] = (
+                result_image[i] * (1.0 - alpha_expanded) + color_fill * alpha_expanded
+            )
+
+        return (result_image,)
