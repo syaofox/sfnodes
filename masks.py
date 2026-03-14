@@ -1359,6 +1359,16 @@ class MaskFillColor:
                         "tooltip": "填充颜色 (RGB)",
                     },
                 ),
+                "opacity": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "填充颜色的不透明度，1.0为完全不透明，0.0为完全透明",
+                    },
+                ),
             }
         }
 
@@ -1367,7 +1377,7 @@ class MaskFillColor:
     CATEGORY = _CATEGORY
     DESCRIPTION = "用指定颜色填充图片中mask遮住的部分"
 
-    def execute(self, image, mask, fill_color):
+    def execute(self, image, mask, fill_color, opacity):
         import torch
 
         if isinstance(fill_color, str):
@@ -1399,7 +1409,8 @@ class MaskFillColor:
 
         for i in range(result_image.shape[0]):
             alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
-            alpha_expanded = alpha_i.unsqueeze(-1).expand(-1, -1, 3)
+            alpha_with_opacity = alpha_i * opacity
+            alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
             color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
             result_image[i] = (
                 result_image[i] * (1.0 - alpha_expanded) + color_fill * alpha_expanded
