@@ -206,7 +206,7 @@ class GenerateRegionFaceMask:
         regions,
         mask_params=None,
     ):
-       
+
         region_indices = [
             FACE_MASK_REGION_SET[region]
             for region in regions

@@ -67,7 +67,7 @@ class Bus:
                 "negative": ("CONDITIONING", {"default": None}),
                 "latent": ("LATENT", {"default": None}),
                 "clip": ("CLIP", {"default": None}),
-                "vae": ("VAE", {"default": None}),  
+                "vae": ("VAE", {"default": None}),
                 "image1": ("IMAGE", {"default": None}),
                 "image2": ("IMAGE", {"default": None}),
                 "image3": ("IMAGE", {"default": None}),
@@ -95,7 +95,7 @@ class Bus:
 
 
     )
-   
+
     FUNCTION = "run"
     CATEGORY = _CATEGORY
     DESCRIPTION = "将输入的模型、条件、潜在表示、CLIP和VAE添加到总线上。"
@@ -104,7 +104,7 @@ class Bus:
 
 
 
-        if bus is None:          
+        if bus is None:
             bus = {
                 "model": model,
                 "positive": positive,
@@ -122,7 +122,7 @@ class Bus:
 
 
             }
-       
+
         if model is not None:
             bus["model"] = model
         if positive is not None:
@@ -133,9 +133,9 @@ class Bus:
             bus["latent"] = latent
         if clip is not None:
             bus["clip"] = clip
-        if vae is not None: 
+        if vae is not None:
             bus["vae"] = vae
-        if image1 is not None:            
+        if image1 is not None:
             bus["image1"] = image1
         if image2 is not None:
             bus["image2"] = image2

@@ -53,7 +53,7 @@ class ImageCompare:
     This node includes an optional passthrough 
     for image_a and a difference mask output.
     """
-    
+
     @classmethod
     def INPUT_TYPES(cls):
         blend_modes = ["normal", "difference", "lighten", "darken", "screen", "multiply"]
@@ -65,8 +65,8 @@ class ImageCompare:
                 "image_b": ("IMAGE",),
             },
             "hidden": {
-                "prompt": "PROMPT", 
-                "extra_pnginfo": "EXTRA_PNGINFO", 
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
                 "unique_id": "UNIQUE_ID",
                 "blend_mode": (blend_modes, {"default": "normal"})
             },
@@ -75,7 +75,7 @@ class ImageCompare:
     RETURN_TYPES = ("IMAGE", "MASK",)
     RETURN_NAMES = ("image_a", "diff_mask",)
     FUNCTION = "execute"
-    OUTPUT_NODE = True 
+    OUTPUT_NODE = True
     CATEGORY = "Eses Nodes/Image Utilities"
 
     def execute(self, image_a, image_b=None, prompt=None, extra_pnginfo=None, unique_id=None, blend_mode="normal"):
@@ -99,7 +99,7 @@ class ImageCompare:
                 "image_a_data": img_a_b64,
                 "image_b_data": img_b_b64
             })
-        
+
         diff_mask = torch.zeros_like(image_a[:, :, :, 0])
 
         if image_b is not None and image_a.shape == image_b.shape:

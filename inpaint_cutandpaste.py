@@ -1,7 +1,6 @@
 import math
 from PIL import Image, ImageDraw, ImageFilter
-from comfy.utils import common_upscale
-from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil, mask2pil
+from .utils.image_convert import pil2mask, pil2tensor, tensor2pil, mask2pil
 
 _CATEGORY = "sfnodes/inpaint"
 
@@ -111,7 +110,7 @@ class InpaintCutOut:
         img = image[0]
         pil_image = tensor2pil(img)
         mask_image = mask2pil(mask)
-        
+
         # 查找mask中非零区域的边界框
         non_zero_coords = []
         for y in range(mask_image.height):
@@ -125,15 +124,15 @@ class InpaintCutOut:
                         non_zero_coords.append((x, y))
                 elif isinstance(pixel_value, (int, float)) and pixel_value > 0:  # 如果是单个值（例如灰度图像）
                     non_zero_coords.append((x, y))
-        
+
         if len(non_zero_coords) == 0:
             raise Exception("Mask没有非零区域，无法裁剪图像")
-            
+
         # 计算边界框
         x_coords, y_coords = zip(*non_zero_coords)
         x_min, x_max = min(x_coords), max(x_coords)
         y_min, y_max = min(y_coords), max(y_coords)
-        
+
         # 应用padding
         width = x_max - x_min
         height = y_max - y_min
@@ -169,10 +168,10 @@ class InpaintCutOut:
         # 裁剪图像和mask
         cropped_image = pil_image.crop((x_min, y_min, x_max, y_max))
         cropped_mask = mask_image.crop((x_min, y_min, x_max, y_max))
-        
+
         # 计算目标大小
         target_size = self._get_target_size(rescale_mode, custom_megapixels)
-        
+
         # 缩放图像和mask（如果需要）
         if target_size > 0:
             scale_factor = math.sqrt(target_size / (width * height))
@@ -180,20 +179,20 @@ class InpaintCutOut:
             new_height = round(height * scale_factor)
             cropped_image = cropped_image.resize((new_width, new_height), resample=Image.Resampling.LANCZOS)
             cropped_mask = cropped_mask.resize((new_width, new_height), resample=Image.Resampling.LANCZOS)
-        
+
         # 为边缘创建模糊mask
         ref_size = max(width, height)
         margin_size = int(ref_size * margin_percent) + margin
         blur_size = int(ref_size * blur_percent) + blur_radius
-        
+
         edge_mask = Image.new("L", (width, height), 255)
         draw = ImageDraw.Draw(edge_mask)
         draw.rectangle(((0, 0), (width, height)), outline="black", width=margin_size)
         edge_mask = edge_mask.filter(ImageFilter.GaussianBlur(blur_size))
-        
+
         if target_size > 0:
             edge_mask = edge_mask.resize((new_width, new_height), resample=Image.Resampling.LANCZOS)
-        
+
         # 创建cutinfo字典
         cutinfo = {
             "x": x_min,
@@ -203,7 +202,7 @@ class InpaintCutOut:
             "mask": pil2mask(edge_mask),
             "source_image": image,
         }
-        
+
         # 创建白底图像并应用遮罩
         white_bg = Image.new("RGB", cropped_image.size, (255, 255, 255))
         # 确保mask是单通道L模式
@@ -211,14 +210,14 @@ class InpaintCutOut:
             cropped_mask = cropped_mask.convert("L")
         # 将遮罩区域粘贴到白底上
         white_bg.paste(cropped_image, (0, 0), cropped_mask)
-        
+
         # 转换回tensor格式
         cutout_image = pil2tensor(cropped_image)
         cutout_mask = pil2mask(cropped_mask)
         cutout_origin_image = pil2tensor(pil_image)
         cutout_masked_image = pil2tensor(white_bg)
         return (cutout_image, cutout_mask, cutout_origin_image, cutinfo, cutout_masked_image)
-        
+
     @staticmethod
     def _get_target_size(rescale_mode, custom_megapixels):
         if rescale_mode == "custom":
@@ -250,7 +249,7 @@ class InpaintPaste:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将cutinfo中的图像贴回原图"
 
-    
+
     def paste(self, cutinfo, source_image):
         # 从cutinfo中获取图像和位置信息
         x = cutinfo["x"]
@@ -259,12 +258,12 @@ class InpaintPaste:
         height = cutinfo["height"]
         mask = cutinfo["mask"]
         destination_image = cutinfo["source_image"]
-        
+
         destination = tensor2pil(destination_image[0])
         source = tensor2pil(source_image[0])
 
         mask_image = mask2pil(mask)
-        
+
         # 如果源图像尺寸与目标区域尺寸不匹配，进行调整
         if source.width != width or source.height != height:
             source = source.resize((width, height), resample=Image.Resampling.LANCZOS)

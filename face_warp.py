@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from color_matcher import ColorMatcher
 from color_matcher.normalizer import Normalizer
@@ -59,7 +58,7 @@ class FaceWarp:
         is_mathcolor=True,
         include_background=False,
     ):
-        
+
 
         if image_from.shape[0] < image_to.shape[0]:
             image_from = torch.cat(
@@ -180,16 +179,16 @@ class FaceWarp:
 
             output = image_to_tensor(output).unsqueeze(0)
             img_to = image_to_tensor(img_to).unsqueeze(0)
-            
+
             # 处理mask维度：[B,H,W,1] -> [B,H,W] 用于mask_process
-            output_mask_2d = output_mask.squeeze(-1)   
-                     
+            output_mask_2d = output_mask.squeeze(-1)
+
             # 使用mask_process处理
             processed_mask = mask_process(output_mask_2d, mask_params, unqueeze=False)
 
             # 恢复维度：[B,H,W] -> [B,H,W,1]
             output_mask = processed_mask.unsqueeze(-1)
-           
+
 
             padding = 0
 
@@ -207,7 +206,7 @@ class FaceWarp:
             y2 = min(output.shape[1], y.max().item() + padding)
             cm_image = output[:, y1:y2, x1:x2, :]
 
-            if is_mathcolor:               
+            if is_mathcolor:
                 normalized = cm.transfer(
                     src=Normalizer(cm_image[0].numpy()).type_norm(),
                     ref=Normalizer(cm_ref[0].numpy()).type_norm(),
@@ -227,7 +226,7 @@ class FaceWarp:
                 # 包含源图像的其他部分
                 # 我们直接使用image_from[i]的tensor版本，并确保它与output尺寸匹配
                 img_from = image_from[i].unsqueeze(0)
-                
+
                 # 确保img_from与output尺寸匹配
                 if img_from.shape[1:3] != output.shape[1:3]:
                     # 在tensor上使用F.interpolate进行调整大小
@@ -237,12 +236,12 @@ class FaceWarp:
                         mode='bilinear',
                         align_corners=False
                     ).permute(0, 2, 3, 1)  # 返回到[B,H,W,C]格式
-                
+
                 output_image = output * output_mask + img_from * (1 - output_mask)
             else:
                 # 原有逻辑：使用目标图像的其他部分
                 output_image = output * output_mask + img_to * (1 - output_mask)
-            
+
             output_image = output_image.clamp(0, 1)
             output_mask = output_mask.clamp(0, 1).squeeze(-1)
 

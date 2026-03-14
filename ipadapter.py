@@ -357,7 +357,7 @@ class IPAdapterEmbedsMSBatch(IPAdapterEmbedsMS):
                 "insightface": ("INSIGHTFACE",),
             }
         }
-    
+
 
 class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
     @classmethod
@@ -419,7 +419,7 @@ class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
         clip_vision=None,
         encode_batch_size=0
     ):
-     
+
 
         # 分别对style和composition做tile
         style_tiles, style_masks = tile_image(image_style, attn_mask, sharpening)
@@ -438,8 +438,8 @@ class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
                 "end_at": end_at,
                 "attn_mask": all_masks[i],
                 "unfold_batch": False,
-                "embeds_scaling": embeds_scaling,                
-                
+                "embeds_scaling": embeds_scaling,
+
             }
             if 'ipadapter' in ipadapter:
                 ipadapter_model = ipadapter['ipadapter']['model']
@@ -479,4 +479,4 @@ class IPAdapterStyleCompositionTiled(IPAdapterAdvanced):
             torch.cat(style_tiles),
             torch.cat(comp_tiles),
             torch.cat(all_masks),
-        ) 
+        )

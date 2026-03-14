@@ -1,4 +1,4 @@
-import glob    
+import glob
 import os
 import folder_paths
 from PIL import Image

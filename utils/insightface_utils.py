@@ -55,10 +55,10 @@ class InsightFace:
             return None
 
         face_index = min(face_index, len(face) - 1)
-                
+
         face_embedding = face[face_index].normed_embedding
         return face_embedding
-        
+
 
     def get_bbox(
         self, image, padding=0, padding_percent=0
@@ -104,7 +104,7 @@ class InsightFace:
         right_mouth = shape[4]
 
         return [left_eye, right_eye, nose, left_mouth, right_mouth]
-    
+
 
     def get_landmarks(self, image, extended_landmarks=False, face_index=0):
         face = self.get_face(image)
@@ -115,7 +115,7 @@ class InsightFace:
         face_index = min(face_index, len(face) - 1)
 
 
-        
+
         shape = face[face_index]["landmark_2d_106"]
         landmarks = np.round(shape).astype(np.int64)
 
@@ -164,8 +164,8 @@ class InsightFace:
         if faces is None:
             return (None, 0, 0, 0, 0)
 
-        face_index = min(face_index, len(faces) - 1)        
-       
+        face_index = min(face_index, len(faces) - 1)
+
         face = faces[face_index]
         x1, y1, x2, y2 = face["bbox"]
         width = x2 - x1
@@ -179,7 +179,6 @@ class InsightFace:
         )
         crop = image.crop((x1, y1, x2, y2))
         img_tensor = T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0)
-        
+
         return (img_tensor, x1, y1, x2 - x1, y2 - y1)
-        
-        
+

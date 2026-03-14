@@ -8,9 +8,7 @@ from comfy.utils import common_upscale
 from nodes import SaveImage
 from .utils.image_convert import mask2tensor, np2tensor, tensor2mask, rescale_image
 from .utils.mask_utils import (
-    blur_mask,
     combine_mask,
-    fill_holes,
     expand_mask,
     invert_mask,
     apply_mask_area,

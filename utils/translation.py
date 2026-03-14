@@ -3,15 +3,15 @@ def  translators(text : str , translator: str = "bing", source_language = "auto"
     if not text:
         return ""
     try:
-        import translators  
+        import translators
         result = translators.translate_text(query_text = text, translator = translator,from_language = source_language, to_language= target_language, timeout= timeout)
-        return result 
+        return result
     except Exception as e:
         raise Exception(f"Error:  Translation failed , Message : {e}")
 
 def get_translator():
     try:
-        import translators  
+        import translators
         translators_list = translators.translators_pool
         result = '\n'.join(translators_list)
         print(f"Text Translation translator: \n{result}")
@@ -21,4 +21,4 @@ def get_translator():
         raise Exception(f"Error:  Translation failed , Message : {e}")
 
 
-    
+

@@ -5,7 +5,7 @@ import torch
 import torchvision.transforms.v2 as T
 from PIL import Image
 from comfy.utils import common_upscale
-from typing import Any, Callable, Dict, Iterable, List
+from typing import Iterable, List
 
 def mask2tensor(mask):
     image = (

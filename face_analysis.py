@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageColor
 from .utils.insightface_utils import InsightFace
 from insightface.app import FaceAnalysis
 from .utils.image_convert import image_to_tensor, tensor_to_image
-from .utils.mask_utils import blur_mask, fill_holes, invert_mask, expand_mask, mask_process
+from .utils.mask_utils import mask_process
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -244,7 +244,7 @@ class FaceSegmentation:
                 "analysis_models": ("ANALYSIS_MODELS", ),
                 "image": ("IMAGE", ),
                 "area": (["face", "main_features", "eyes", "left_eye", "right_eye", "nose", "mouth", "face+forehead (if available)"], ),
-                
+
             },
             "optional": {
                 "mask_params": ("MASKPARAMS",),
@@ -271,7 +271,7 @@ class FaceSegmentation:
         out_w = []
         out_h = []
 
-        for img in image:       
+        for img in image:
             face = tensor_to_image(img)
 
             if face is None:
@@ -333,7 +333,7 @@ class FaceSegmentation:
                 if smooth % 2 == 0:
                     smooth+= 1
                 mask = T.functional.gaussian_blur(mask.bool().unsqueeze(1), smooth).squeeze(1).float()
-            
+
             mask = mask_process(mask, mask_params)
 
             # extract segment from image
@@ -342,7 +342,7 @@ class FaceSegmentation:
             y1, y2 = y.min().item(), y.max().item()
             segment_mask = mask[y1:y2, x1:x2, :]
             segment_image = img[y1:y2, x1:x2, :]
-            
+
             img = img * mask.repeat(1, 1, 3)
 
             out_mask.append(mask)
@@ -354,7 +354,7 @@ class FaceSegmentation:
 
             if steps > 1:
                 pbar.update(1)
-        
+
         out_mask = torch.stack(out_mask).squeeze(-1)
         out_image = torch.stack(out_image)
 

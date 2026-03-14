@@ -28,7 +28,7 @@ def build_patch(patchedBlocks, weight=1.0, sigma_start=0.0, sigma_end=1.0, noise
                 out = torch.stack((c, b)).to(dtype=context_attn1.dtype)
                 out = out.repeat(1, batch_prompt, 1, 1) * weight
 
-                return n, out, out 
+                return n, out, out
 
         return n, context_attn1, value_attn1
     return prompt_injection_patch
@@ -157,7 +157,7 @@ class PromptInjectionIdx:
     def patch(self, model, all=None, idx_0=None, idx_1=None, idx_2=None, idx_3=None, idx_4=None, idx_5=None, idx_6=None, idx_7=None, idx_8=None, idx_9=None, idx_10=None, idx_11_sd15=None, idx_12_sd15=None, idx_13_sd15=None, idx_14_sd15=None, idx_15_sd15=None, weight=1.0, start_at=0.0, end_at=1.0, noise=0.0):
         if not any((all, idx_0, idx_1, idx_2, idx_3, idx_4, idx_5, idx_6, idx_7, idx_8, idx_9, idx_10, idx_11_sd15, idx_12_sd15, idx_13_sd15, idx_14_sd15, idx_15_sd15)):
             return (model,)
-        
+
         m = model.clone()
         sigma_start = m.get_model_object("model_sampling").percent_to_sigma(start_at)
         sigma_end = m.get_model_object("model_sampling").percent_to_sigma(end_at)

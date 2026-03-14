@@ -365,8 +365,8 @@ class PersonMaskGenerator:
         )
 
         tensor_masks = []
-        for mask_image in mask_images:          
-            tensor_mask = pil2tensor(mask_image)[:, :, :, 0] 
+        for mask_image in mask_images:
+            tensor_mask = pil2tensor(mask_image)[:, :, :, 0]
             processed_mask = mask_process(tensor_mask, mask_params, unqueeze=False)
             tensor_masks.append(processed_mask)
 
@@ -375,5 +375,5 @@ class PersonMaskGenerator:
 
         if len(result_masks.shape) == 4:
             result_masks = result_masks.squeeze(1)  # 去掉通道维度
-        
+
         return (result_masks,)

@@ -11,21 +11,21 @@ class AlignImageByFace:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image_from": ("IMAGE",),   
+                "image_from": ("IMAGE",),
                 "simple_angle": (
                     "BOOLEAN",
                     {
                         "default": False,
                         "tooltip": "是否简化角度，如果为True，则只考虑90度、180度、270度、360度",
                     },
-                ),             
+                ),
                 "expand": (
                     "BOOLEAN",
                     {
                         "default": True,
                         "tooltip": "是否扩展图像，如果为True，则扩展图像以包含整个人脸",
                     },
-                ),               
+                ),
                 "angle": (
                     "INT",
                     {
@@ -59,7 +59,7 @@ class AlignImageByFace:
                 ),
             },
             "optional": {
-                "analysis_models": ("ANALYSIS_MODELS",),                
+                "analysis_models": ("ANALYSIS_MODELS",),
                 "image_to": ("IMAGE",),
                 "face_index": (
                     "INT",
@@ -82,7 +82,7 @@ class AlignImageByFace:
 
     def align(
         self,
-        
+
         expand=True,
 
         angle=0,
@@ -128,7 +128,7 @@ class AlignImageByFace:
             # 修改调用，传递face_index参数
             face_shape = analysis_models.get_keypoints(img, face_index=face_index) if analysis_models else None
             return face_shape, img
-        
+
         is_flipped = False
 
         if analysis_models is None:
@@ -141,8 +141,8 @@ class AlignImageByFace:
                 is_flipped = True
                 if face_shape is None:
                     raise Exception("无法在图像中检测到人脸。")
-            
-                
+
+
 
             rotation_angle = calculate_angle(face_shape)
             if simple_angle:

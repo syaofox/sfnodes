@@ -1,6 +1,4 @@
 import csv
-from fileinput import filename
-from math import fabs
 import os
 import re
 
@@ -21,7 +19,7 @@ def load_csv_data(filename):
 class Text_Translation:
     def __init__(self):
         pass
-    
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -159,11 +157,11 @@ class AnimeCharSelect:
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(current_dir, 'data', 'characters.csv')
-        
+
         # 读取CSV文件
         cls.character_options = []
-        cls.character_options = load_csv_data(data_file)        
-        
+        cls.character_options = load_csv_data(data_file)
+
         return {
             "required": {
                 "character": ([option["label"] for option in cls.character_options], {"default": cls.character_options[0]["label"] if cls.character_options else ""})
@@ -185,9 +183,9 @@ class AnimeCharSelect:
             if option["label"] == character:
                 selected_value = option["value"]
                 break
-        
+
         # 对输出值中的括号进行转义处理
-        escaped_character = selected_value.replace('(', '\(').replace(')', '\)')
+        escaped_character = selected_value.replace('(', r'\(').replace(')', r'\)')
         # 处理特殊字符，让他可以是合法文件名
         filename = re.sub(r'[<>:"/\\|?*]', '', selected_value)
         # 返回转义后的角色名（即第二列的内容）
@@ -206,7 +204,7 @@ class TextToFilename:
                 "text": ("STRING", {"forceInput": True}),
             }
         }
-    
+
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("filename",)
     FUNCTION = "execute"
@@ -227,7 +225,7 @@ class BaseTags:
             label = option["label"]
             inputs[label] = ("BOOLEAN", {"default": False})
             inputs[f"{label}_weight"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.05, "display": "number"})
-        
+
         return {
             "required": {
                 **inputs,
@@ -242,11 +240,11 @@ class BaseTags:
     RETURN_NAMES = ("tags",)
     FUNCTION = "func"
     CATEGORY = _CATEGORY
-    
+
     def func(self, **kwargs):
         # 获取分隔符（最后一个参数）
         delimiter = kwargs.pop("delimiter", ",")
-        
+
         # 收集所有选中的标签
         selected_values = []
         for option in self.tag_options:
@@ -256,14 +254,14 @@ class BaseTags:
                 weight = kwargs.get(f"{label}_weight", 0.0)
                 #_替换为,
                 value = option["value"].replace("_",",")
-                
+
                 # 根据强度值格式化输出
                 if weight == 1.0:
                     selected_values.append(value)
                 else:
                     #保留小数点后面两位
                     selected_values.append(f"({value}:{weight:.2f})")
-        
+
         # 使用指定分隔符连接选中的标签值
         result = delimiter.join(selected_values)
         # 从kwargs中获取text参数
@@ -279,10 +277,10 @@ class NsfwTags(BaseTags):
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(current_dir, 'data', 'nsfwtags.csv')
-        
+
         # 读取CSV文件
         cls.tag_options = load_csv_data(data_file)
-        
+
         # 调用父类方法生成输入配置
         return super().INPUT_TYPES()
 
@@ -293,10 +291,10 @@ class ExpressionTags(BaseTags):
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(current_dir, 'data','nsfw', 'expression.csv')
-        
+
         # 读取CSV文件
         cls.tag_options = load_csv_data(data_file)
-        
+
         # 调用父类方法生成输入配置
         return super().INPUT_TYPES()
 
@@ -306,10 +304,10 @@ class ForeplayTags(BaseTags):
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(current_dir, 'data','nsfw', 'foreplay.csv')
-        
+
         # 读取CSV文件
         cls.tag_options = load_csv_data(data_file)
-        
+
         # 调用父类方法生成输入配置
         return super().INPUT_TYPES()
 
@@ -319,9 +317,9 @@ class PositionsTags(BaseTags):
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(current_dir, 'data','nsfw', 'positions.csv')
-        
+
         # 读取CSV文件
         cls.tag_options = load_csv_data(data_file)
-        
+
         # 调用父类方法生成输入配置
         return super().INPUT_TYPES()

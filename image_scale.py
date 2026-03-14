@@ -98,7 +98,7 @@ class BaseImageScaler:
     CATEGORY = _CATEGORY
 
     def scale_image(self, image, width, height, upscale_method, mask=None):
-        
+
         width = width - (width % 16)
         height = height - (height % 16)
 
@@ -145,7 +145,7 @@ class ImageScalerForSDModels(BaseImageScaler):
             {
                 "tooltip": "根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1280x1280"
             },
-            
+
         )
         base_inputs["required"].update(
             {
@@ -351,7 +351,7 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
         scale_by = reference_side_length / size
         width = make_even(round(image.shape[2] / scale_by))
         height = make_even(round(image.shape[1] / scale_by))
-        
+
         # 确保宽度和高度能被divisible_by整除
         width = make_divisible(width, divisible_by)
         height = make_divisible(height, divisible_by)
@@ -361,7 +361,7 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
             scaled_image, result_mask = self.scale_image(
                 image, width, height, upscale_method, mask
             )
-            
+
             # Check if cropping is needed (one dimension exceeds the crop threshold)
             if (shorter and max(width, height) > crop_threshold) or (not shorter and min(width, height) > crop_threshold):
                  scaled_image, result_mask = self._crop_image(
@@ -386,7 +386,7 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
     def _crop_image(self, image, mask, target_size, crop_position, shorter):
         """Crop image to target size based on specified position"""
         width, height = image.shape[2], image.shape[1]
-        
+
         if shorter:
             # When shorter=True, we want to crop the longer side
             if width > height:
@@ -415,15 +415,15 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                 crop_height = height
                 x = self._get_crop_coordinate(width, crop_width, crop_position)
                 y = 0
-        
+
         # Perform cropping
         cropped_image = image[:, y:y+crop_height, x:x+crop_width, :]
-        
+
         if mask is not None:
             cropped_mask = mask[y:y+crop_height, x:x+crop_width]
         else:
             cropped_mask = solid_mask(crop_width, crop_height)
-        
+
         return cropped_image, cropped_mask
 
     def _get_crop_coordinate(self, dimension_size, crop_size, position):
@@ -594,7 +594,7 @@ class TrimImageBorders:
         else:
             # 对于黑色边框，将高于阈值的像素设为255（白色），低于阈值的设为0（黑色）
             binary_image = gray_image.point(lambda x: 255 if x > threshold else 0)
-        
+
         bbox = binary_image.getbbox()
 
         if bbox:
@@ -746,11 +746,11 @@ class ScaleImageToSquare:
             output = contrast_adaptive_sharpening(output, sharpening)
 
         output = output.permute([0,2,3,1])
-        
+
         # 创建mask，标记填充区域（填充区域为1，原图区域为0）
         # 默认情况下，如果不是pad模式或图像已经是正方形，mask应该全为0（表示没有填充区域）
         mask = torch.zeros((output.shape[0], size_length, size_length), dtype=torch.float32)
-        
+
         # 如果使用pad模式且图像不是正方形，创建对应的mask
         if crop_position == "pad" and oh != ow:
             if oh > ow:
@@ -777,9 +777,9 @@ class ScaleImageToSquare:
                 mask[:, size_length-pad_height:, :] = 1.0  # 下方填充区域
 
         return (output, mask)
-    
 
-    
+
+
 class SFLoadImage(LoadImage):
     @classmethod
     def INPUT_TYPES(cls):
@@ -813,27 +813,27 @@ class SFLoadImage(LoadImage):
     @classmethod
     def IS_CHANGED(cls, image, upscale_method, total_pixels, limit):
         return super().IS_CHANGED(image)
-    
+
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT")
     RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
     CATEGORY = "sfnodes/image_processing"
-    
+
     def load_image(self, image, upscale_method, total_pixels, limit):
         # 首先调用父类的load_image方法加载图像
         image_output, mask = super().load_image(image)
-        
+
         # 然后使用ImageScalerByPixels进行缩放
         image_scaler_by_pixels = ImageScalerByPixels()
         result_dict = image_scaler_by_pixels.execute(image_output, upscale_method, total_pixels, limit, mask)
-        
+
 
         return result_dict
-            
-            
 
 
 
-   
+
+
+
 class SFLoadImageSubfolder(LoadImage):
     @classmethod
     def INPUT_TYPES(cls):
@@ -852,16 +852,16 @@ class SFLoadImageSubfolder(LoadImage):
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
     RETURN_NAMES = ("image", "mask", "filename")
-        
+
     CATEGORY = _CATEGORY
-    
+
     def load_image(self, image):
         # 调用父类的load_image方法加载图像
         image_output, mask = super().load_image(image)
-        
+
         # 提取文件名（不含路径和扩展名）
         filename = os.path.splitext(os.path.basename(image))[0]
-        
+
         return (image_output, mask, filename)
 
 
@@ -876,40 +876,40 @@ class SFLoadImageSubfolderSortedByMtime(LoadImage):
                 if os.path.isfile(full_path):
                     rel_path = os.path.relpath(full_path, input_dir)
                     files.append(rel_path)
-        
+
         # 过滤图片文件
         files = folder_paths.filter_files_content_types(files, ["image"])
-        
+
         # 按修改时间从新到旧排序（降序：最新的在前）
         files_with_mtime = []
         for rel_path in files:
             full_path = os.path.join(input_dir, rel_path)
             mtime = os.path.getmtime(full_path)
             files_with_mtime.append((rel_path, mtime))
-        
+
         files_with_mtime.sort(key=lambda x: x[1], reverse=True)
         files = [rel_path for rel_path, _ in files_with_mtime]
-        
+
         return {"required":
                     {"image": (files, {"image_upload": True})},
                 }
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
     RETURN_NAMES = ("image", "mask", "filename")
-        
+
     CATEGORY = _CATEGORY
-    
+
     def load_image(self, image):
         # 调用父类的load_image方法加载图像
         image_output, mask = super().load_image(image)
-        
+
         # 提取文件名（不含路径和扩展名）
         filename = os.path.splitext(os.path.basename(image))[0]
-        
+
         return (image_output, mask, filename)
-    
-            
-   
+
+
+
 class ImageResizePlus:
     @classmethod
     def INPUT_TYPES(s):
@@ -1021,7 +1021,7 @@ class ImageResizePlus:
             x2 = width - ((width % multiple_of) - x)
             y2 = height - ((height % multiple_of) - y)
             outputs = outputs[:, y:y2, x:x2, :]
-        
+
         outputs = torch.clamp(outputs, 0, 1)
 
         return(outputs, outputs.shape[2], outputs.shape[1],)
@@ -1033,13 +1033,13 @@ class ApexSmartResize:
     Apex Smart Resize - Automatically snaps to closest compatible resolution
     Intelligent resolution detection and scaling with proportion preservation
     """
-    
+
     def __init__(self):
         # Define compatible resolutions for different AI models
         self.resolution_sets = {
             "Standard": [
                 (1024, 1024), (1152, 896), (896, 1152), (1216, 832), (832, 1216),
-                (1344, 768), (768, 1344), (1536, 640), (640, 1536), 
+                (1344, 768), (768, 1344), (1536, 640), (640, 1536),
                 (832, 1280), (1280, 832), (704, 1504), (1504, 704),
                 (896, 1344), (1344, 896), (960, 1280), (1280, 960),
                 (512, 512), (768, 768), (640, 640)
@@ -1057,7 +1057,7 @@ class ApexSmartResize:
                 (704, 1504), (1504, 704), (832, 1280), (1280, 832)
             ],
             "Portrait": [
-                (832, 1216), (768, 1344), (640, 1536), (896, 1152), 
+                (832, 1216), (768, 1344), (640, 1536), (896, 1152),
                 (832, 1280), (704, 1504), (512, 768), (576, 1024),
                 (640, 960), (720, 1280), (768, 1024), (896, 1344)
             ],
@@ -1071,7 +1071,7 @@ class ApexSmartResize:
                 (1024, 1024), (1152, 1152), (1216, 1216), (1280, 1280), (1344, 1344)
             ]
         }
-    
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -1079,7 +1079,7 @@ class ApexSmartResize:
                 "image": ("IMAGE",),
                 "resolution_set": ([
                     "Standard",      # Core SDXL/Flux resolutions
-                    "Extended",      # Extra experimental sizes  
+                    "Extended",      # Extra experimental sizes
                     "Flux",          # Flux-optimized
                     "Portrait",      # Tall formats
                     "Landscape",     # Wide formats
@@ -1096,13 +1096,13 @@ class ApexSmartResize:
                     "crop_center",       # Crop from center
                     "stretch",           # Stretch to exact dimensions
                     "fit_pad_black",     # Fit with black padding
-                    "fit_pad_white",     # Fit with white padding  
+                    "fit_pad_white",     # Fit with white padding
                     "fit_pad_edge"       # Fit with edge extension
                 ], {"default": "crop_center"}),
                 "interpolation": ([
                     "lanczos",
                     "bicubic",
-                    "bilinear", 
+                    "bilinear",
                     "nearest"
                 ], {"default": "lanczos"}),
                 "show_candidates": ("BOOLEAN", {
@@ -1118,9 +1118,9 @@ class ApexSmartResize:
     CATEGORY = _CATEGORY
 
     def smart_resize(self, image, resolution_set, snap_method, resize_mode, interpolation, show_candidates):
-        
+
         start_time = datetime.now()
-        
+
         try:
             # Get input dimensions
             if len(image.shape) == 4:
@@ -1128,36 +1128,36 @@ class ApexSmartResize:
             else:
                 image = image.unsqueeze(0)
                 batch_size, orig_h, orig_w, channels = image.shape
-            
+
             orig_area = orig_w * orig_h
             orig_aspect = orig_w / orig_h
-            
+
             # Find best target resolution
             target_w, target_h, info, candidates_info = self._find_best_resolution(
                 orig_w, orig_h, resolution_set, snap_method, show_candidates
             )
-            
+
             target_area = target_w * target_h
             scale_factor = math.sqrt(target_area / orig_area)
-            
+
             # Generate console data
             console_data = self._create_console_data(
-                orig_w, orig_h, target_w, target_h, scale_factor, resize_mode, 
+                orig_w, orig_h, target_w, target_h, scale_factor, resize_mode,
                 resolution_set, snap_method, candidates_info, start_time
             )
-            
+
             # Resize the image
             resized_image = self._apply_resize(image, target_w, target_h, resize_mode, interpolation)
-            
+
             # Calculate processing time
             processing_time = (datetime.now() - start_time).total_seconds()
             console_data["processing_time_seconds"] = round(processing_time, 3)
-            
+
             # Format console output
             console_output = json.dumps(console_data, indent=2)
-            
+
             return (resized_image, target_w, target_h, scale_factor, info, console_output)
-            
+
         except Exception as e:
             error_console = json.dumps({
                 "status": "error",
@@ -1165,17 +1165,17 @@ class ApexSmartResize:
                 "original_size": f"{orig_w}x{orig_h}",
                 "timestamp": datetime.now().isoformat()
             }, indent=2)
-            
+
             return (image, orig_w, orig_h, 1.0, f"Error: {str(e)}", error_console)
-    
-    def _create_console_data(self, orig_w, orig_h, target_w, target_h, scale_factor, resize_mode, 
+
+    def _create_console_data(self, orig_w, orig_h, target_w, target_h, scale_factor, resize_mode,
                            resolution_set, snap_method, candidates_info, start_time):
         """Create structured data for Apex Console"""
-        
+
         orig_area = orig_w * orig_h
         target_area = target_w * target_h
         memory_change_mb = ((target_area - orig_area) * 4 * 3) / (1024 * 1024)  # Assume RGB float32
-        
+
         return {
             "action": "Smart Resize Complete",
             "status": "success",
@@ -1202,28 +1202,28 @@ class ApexSmartResize:
             },
             "candidates": candidates_info
         }
-    
+
     def _find_best_resolution(self, orig_w, orig_h, resolution_set, snap_method, show_candidates):
         """Find the best target resolution based on method"""
-        
+
         resolutions = self.resolution_sets[resolution_set]
         orig_area = orig_w * orig_h
         orig_aspect = orig_w / orig_h
-        
+
         if snap_method == "keep_proportion":
             target_w, target_h, info, candidates = self._keep_proportion_snap(orig_w, orig_h, resolutions, show_candidates)
             return target_w, target_h, info, candidates
-        
+
         # Other methods
         candidates = []
-        
+
         for w, h in resolutions:
             area = w * h
             aspect = w / h
             scale_factor = math.sqrt(area / orig_area)
             aspect_diff = abs(aspect - orig_aspect)
             area_diff = abs(area - orig_area)
-            
+
             candidates.append({
                 'resolution': f"{w}x{h}",
                 'scale_factor': round(scale_factor, 3),
@@ -1232,18 +1232,18 @@ class ApexSmartResize:
                 'area_diff': area_diff,
                 'total_pixels': f"{area:,}"
             })
-        
+
         # Sort candidates based on method
         if snap_method == "closest_area":
             candidates.sort(key=lambda x: x['area_diff'])
             best = candidates[0]
             info = f"Closest area match from {resolution_set}"
-            
+
         elif snap_method == "closest_ratio":
             candidates.sort(key=lambda x: x['aspect_diff'])
             best = candidates[0]
             info = f"Closest aspect ratio from {resolution_set}"
-            
+
         elif snap_method == "prefer_larger":
             larger_candidates = [c for c in candidates if c['area_diff'] >= 0]
             if larger_candidates:
@@ -1253,7 +1253,7 @@ class ApexSmartResize:
                 candidates.sort(key=lambda x: x['area_diff'], reverse=True)
                 best = candidates[0]
             info = f"Prefer larger from {resolution_set}"
-            
+
         else:  # prefer_smaller
             smaller_candidates = [c for c in candidates if c['area_diff'] <= 0]
             if smaller_candidates:
@@ -1263,7 +1263,7 @@ class ApexSmartResize:
                 candidates.sort(key=lambda x: x['area_diff'])
                 best = candidates[0]
             info = f"Prefer smaller from {resolution_set}"
-        
+
         # Extract target dimensions
         w, h = map(int, best['resolution'].split('x'))
         candidates_info = {
@@ -1271,76 +1271,76 @@ class ApexSmartResize:
             "total_evaluated": len(candidates),
             "top_5": sorted(candidates, key=lambda x: x['area_diff'])[:5]
         }
-        
+
         return w, h, info, candidates_info
-    
+
     def _keep_proportion_snap(self, orig_w, orig_h, resolutions, show_candidates):
         """Scale by largest dimension while maintaining aspect ratio"""
-        
+
         orig_aspect = orig_w / orig_h
         is_portrait = orig_h > orig_w
-        
+
         best_match = None
         best_score = float('inf')
         candidates = []
-        
+
         for target_w, target_h in resolutions:
             target_is_portrait = target_h > target_w
-            
+
             # Only consider resolutions with same orientation
             if is_portrait == target_is_portrait:
-                
+
                 if is_portrait:
                     # Scale by height (largest dimension)
                     scale_factor = target_h / orig_h
                     calculated_w = orig_w * scale_factor
-                    
+
                     # Round to nearest multiple of 64 for better compatibility
                     snapped_w = round(calculated_w / 64) * 64
-                    
+
                     # Check if this creates a valid resolution
                     if abs(snapped_w - target_w) <= 64:  # Allow some tolerance
                         aspect_diff = abs((target_w / target_h) - orig_aspect)
                         scale_diff = abs(scale_factor - 1.0)
-                        
+
                         # Scoring: prefer similar aspect ratio and reasonable scaling
                         score = aspect_diff * 10 + scale_diff * 2
-                        
+
                         candidates.append({
                             'resolution': f"{target_w}x{target_h}",
                             'scale_factor': round(scale_factor, 3),
                             'aspect_diff': round(aspect_diff, 3),
                             'score': round(score, 3)
                         })
-                        
+
                         if score < best_score:
                             best_score = score
                             best_match = (target_w, target_h)
-                
+
                 else:  # Landscape
                     # Scale by width (largest dimension)
                     scale_factor = target_w / orig_w
                     calculated_h = orig_h * scale_factor
-                    
+
                     snapped_h = round(calculated_h / 64) * 64
-                    
+
                     if abs(snapped_h - target_h) <= 64:
                         aspect_diff = abs((target_w / target_h) - orig_aspect)
                         scale_diff = abs(scale_factor - 1.0)
-                        
+
                         score = aspect_diff * 10 + scale_diff * 2
-                        
+
                         candidates.append({
                             'resolution': f"{target_w}x{target_h}",
                             'scale_factor': round(scale_factor, 3),
                             'aspect_diff': round(aspect_diff, 3),
                             'score': round(score, 3)
                         })
-                        
+
                         if score < best_score:
                             best_score = score
                             best_match = (target_w, target_h)
-        
+
         # Fallback to closest aspect ratio if no good match
         if best_match is None:
             best_aspect_diff = float('inf')
@@ -1349,67 +1349,67 @@ class ApexSmartResize:
                 if aspect_diff < best_aspect_diff:
                     best_aspect_diff = aspect_diff
                     best_match = (w, h)
-        
+
         target_w, target_h = best_match
         info = f"Keep proportion snap from {len(resolutions)} resolutions"
-        
+
         candidates_info = {
             "method": "keep_proportion",
             "orientation": "portrait" if orig_h > orig_w else "landscape",
             "total_evaluated": len(candidates),
             "top_5": sorted(candidates, key=lambda x: x['score'])[:5] if candidates else []
         }
-        
+
         return target_w, target_h, info, candidates_info
-    
+
     def _apply_resize(self, image, target_w, target_h, resize_mode, interpolation):
         """Apply the actual resizing with specified method"""
-        
+
         if resize_mode == "stretch":
             return self._resize_tensor(image, target_w, target_h, interpolation)
-        
+
         elif resize_mode == "crop_center":
             return self._crop_center_resize(image, target_w, target_h, interpolation)
-        
+
         elif resize_mode == "fit_pad_black":
             return self._fit_pad_resize(image, target_w, target_h, interpolation, pad_color=0.0)
-        
+
         elif resize_mode == "fit_pad_white":
             return self._fit_pad_resize(image, target_w, target_h, interpolation, pad_color=1.0)
-        
+
         elif resize_mode == "fit_pad_edge":
             return self._fit_pad_edge_resize(image, target_w, target_h, interpolation)
-        
+
         else:
             return self._resize_tensor(image, target_w, target_h, interpolation)
-    
+
     def _resize_tensor(self, image, width, height, interpolation):
         """Core tensor resize function"""
-        
+
         image_bchw = image.permute(0, 3, 1, 2)
-        
+
         mode_map = {
             "nearest": "nearest",
-            "bilinear": "bilinear", 
+            "bilinear": "bilinear",
             "bicubic": "bicubic",
             "lanczos": "bicubic"  # PyTorch fallback
         }
-        
+
         mode = mode_map.get(interpolation, "bicubic")
         antialias = mode in ["bilinear", "bicubic"]
-        
-        resized = F.interpolate(image_bchw, size=(height, width), 
+
+        resized = F.interpolate(image_bchw, size=(height, width),
                               mode=mode, antialias=antialias)
-        
+
         return resized.permute(0, 2, 3, 1)
-    
+
     def _crop_center_resize(self, image, target_w, target_h, interpolation):
         """Resize to cover target, then center crop"""
-        
+
         orig_h, orig_w = image.shape[1], image.shape[2]
         orig_aspect = orig_w / orig_h
         target_aspect = target_w / target_h
-        
+
         if orig_aspect > target_aspect:
             # Scale by height, crop width
             new_h = target_h
@@ -1418,25 +1418,25 @@ class ApexSmartResize:
             # Scale by width, crop height
             new_w = target_w
             new_h = int(target_w / orig_aspect)
-        
+
         # Resize to cover
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
-        
+
         # Center crop
         crop_x = max(0, (new_w - target_w) // 2)
         crop_y = max(0, (new_h - target_h) // 2)
-        
+
         cropped = resized[:, crop_y:crop_y+target_h, crop_x:crop_x+target_w, :]
-        
+
         return cropped
-    
+
     def _fit_pad_resize(self, image, target_w, target_h, interpolation, pad_color):
         """Fit image with solid color padding"""
-        
+
         orig_h, orig_w = image.shape[1], image.shape[2]
         orig_aspect = orig_w / orig_h
         target_aspect = target_w / target_h
-        
+
         if orig_aspect > target_aspect:
             # Fit to width
             new_w = target_w
@@ -1445,10 +1445,10 @@ class ApexSmartResize:
             # Fit to height
             new_h = target_h
             new_w = int(target_h * orig_aspect)
-        
+
         # Resize to fit
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
-        
+
         # Calculate padding
         pad_w = target_w - new_w
         pad_h = target_h - new_h
@@ -1456,34 +1456,34 @@ class ApexSmartResize:
         pad_right = pad_w - pad_left
         pad_top = pad_h // 2
         pad_bottom = pad_h - pad_top
-        
+
         if pad_w > 0 or pad_h > 0:
             image_bchw = resized.permute(0, 3, 1, 2)
-            padded = F.pad(image_bchw, (pad_left, pad_right, pad_top, pad_bottom), 
+            padded = F.pad(image_bchw, (pad_left, pad_right, pad_top, pad_bottom),
                           mode='constant', value=pad_color)
             result = padded.permute(0, 2, 3, 1)
         else:
             result = resized
-        
+
         return result
-    
+
     def _fit_pad_edge_resize(self, image, target_w, target_h, interpolation):
         """Fit image with edge replication padding"""
-        
+
         orig_h, orig_w = image.shape[1], image.shape[2]
         orig_aspect = orig_w / orig_h
         target_aspect = target_w / target_h
-        
+
         if orig_aspect > target_aspect:
             new_w = target_w
             new_h = int(target_w / orig_aspect)
         else:
             new_h = target_h
             new_w = int(target_h * orig_aspect)
-        
+
         # Resize to fit
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
-        
+
         # Calculate padding
         pad_w = target_w - new_w
         pad_h = target_h - new_h
@@ -1491,15 +1491,15 @@ class ApexSmartResize:
         pad_right = pad_w - pad_left
         pad_top = pad_h // 2
         pad_bottom = pad_h - pad_top
-        
+
         if pad_w > 0 or pad_h > 0:
             image_bchw = resized.permute(0, 3, 1, 2)
-            padded = F.pad(image_bchw, (pad_left, pad_right, pad_top, pad_bottom), 
+            padded = F.pad(image_bchw, (pad_left, pad_right, pad_top, pad_bottom),
                           mode='replicate')
             result = padded.permute(0, 2, 3, 1)
         else:
             result = resized
-        
+
         return result
 
 # Remove the old NODE_CLASS_MAPPINGS from here since it's now in __init__.py

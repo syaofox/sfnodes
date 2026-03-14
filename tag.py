@@ -1,4 +1,4 @@
-import os, sys
+import os
 from PIL import Image
 import torch
 from unittest.mock import patch
@@ -22,7 +22,7 @@ def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
     try:
         imports.remove("flash_attn")
     except:
-        print(f"No flash_attn import to remove")
+        print("No flash_attn import to remove")
         pass
     return imports
 
@@ -374,7 +374,7 @@ class CaptionAnalyzer:
 
                 analyze_result = analyze_result.replace('NA','unknown').replace('n/a','unknown').replace('N/A','unknown').replace('none','unknown').replace('None','unknown')
                 if analyze_result != 'unknown':
-                    if add_is_text:                    
+                    if add_is_text:
                         selected_analyze.append(f"{key.replace('_', ' ')} is {analyze_result}")
                     else:
                         selected_analyze.append(f"{analyze_result}")

@@ -141,7 +141,7 @@ class GeneratePreciseFaceMask:
         mask_threshold,
         mask_params=None,
     ):
-       
+
 
         face_occluder_model = occluder
 

@@ -115,16 +115,16 @@ class FaceCutout:
         }
 
     RETURN_TYPES = (
-        "IMAGE",       
-        "MASK",    
+        "IMAGE",
+        "MASK",
         "BOUNDINGINFO",
     )
     RETURN_NAMES = (
-        "face_image",        
+        "face_image",
         "mask",
         "bounding_info",
     )
-  
+
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     DESCRIPTION = "切下图像中所有人脸并进行缩放，返回所有人脸信息"
@@ -209,13 +209,13 @@ class FaceCutout:
         mask_image = create_soft_edge_mask((new_width, new_height), margin_size, blur_size)
         mask_tensor = pil2mask(mask_image)
 
-        bounding_info = {            
+        bounding_info = {
             "x": x,
             "y": y,
             "width": width,
             "height": height,
             "mask": mask_tensor,
-            "origin_image": image, 
+            "origin_image": image,
             "origin_face":face,
             "new_face":scaled_face,
             "new_width":new_width,
@@ -224,8 +224,8 @@ class FaceCutout:
         }
 
         return (
-            scaled_face,            
-            mask_tensor,            
+            scaled_face,
+            mask_tensor,
             bounding_info,
         )
 
@@ -255,7 +255,7 @@ class FacePaste:
         return {
             "required": {
                 "bounding_info": ("BOUNDINGINFO",),
-                "source_image": ("IMAGE",),                
+                "source_image": ("IMAGE",),
                 "upscale_method": (
                     ["lanczos", "bilinear", "bicubic", "nearest"],
                     {
@@ -286,8 +286,8 @@ class FacePaste:
             destination_image = bounding_info["origin_image"]
 
 
-        mask_image = mask2tensor(bounding_info["mask"])                   
-        source_image = self._rescale_image(source_image, width, height, upscale_method)        
+        mask_image = mask2tensor(bounding_info["mask"])
+        source_image = self._rescale_image(source_image, width, height, upscale_method)
         mask_image = self._rescale_image(mask_image, width, height, upscale_method)
 
 
@@ -302,7 +302,7 @@ class FacePaste:
         destination_image.paste(source_image, position, mask_image)
 
         return pil2tensor(destination_image), pil2mask(mask_image)
-    
+
     @staticmethod
     def _rescale_image(image, width, height, upscale_method="lanczos"):
         samples = image.movedim(-1, 1)
@@ -318,7 +318,7 @@ class ExtractBoundingBox:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "bounding_info": ("BOUNDINGINFO",),               
+                "bounding_info": ("BOUNDINGINFO",),
             },
         }
 
@@ -334,12 +334,12 @@ class ExtractBoundingBox:
 
     def extract(self, bounding_info):
 
-        
+
 
         # 确保bounding_info是字典类型
         if not isinstance(bounding_info, list) and len(bounding_info) <= 0:
             raise Exception(f"边界框信息不是预期的列表格式: {type(bounding_info)}")
-        
+
         if len(bounding_info) > 0:
             bounding_info = bounding_info[0]
 

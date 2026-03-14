@@ -91,7 +91,7 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
                     if target_latent is not None:
                         twidth = target_latent["samples"].shape[-1] * 8
                         theight = target_latent["samples"].shape[-2] * 8
-                        s = comfy.utils.common_upscale(samples, twidth, theight, "lanczos", "center")       
+                        s = comfy.utils.common_upscale(samples, twidth, theight, "lanczos", "center")
                     else:
                         s = samples
                     ref_latents.append(vae.encode(s.movedim(1, -1)[:, :, :, :3]))

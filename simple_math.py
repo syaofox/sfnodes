@@ -87,7 +87,7 @@ class SimpleMathSlider:
 
     def execute(self, value, min, max, rounding):
         value = min + value * (max - min)
-        
+
         if rounding > 0:
             value = round(value, rounding)
 
@@ -173,7 +173,7 @@ class SimpleMath:
             c = float(c)
         if isinstance(d, str):
             d = float(d)
-        
+
         operators = {
             ast.Add: op.add,
             ast.Sub: op.sub,
@@ -247,7 +247,7 @@ class SimpleMath:
 
         if math.isnan(result):
             result = 0.0
-        
+
         return (round(result), result, )
 
 class SimpleMathDual:
@@ -265,7 +265,7 @@ class SimpleMathDual:
                 "value_2": ("STRING", { "multiline": False, "default": "" }),
             },
         }
-    
+
     RETURN_TYPES = ("INT", "FLOAT", "INT", "FLOAT", )
     RETURN_NAMES = ("int_1", "float_1", "int_2", "float_2" )
     FUNCTION = "execute"
@@ -289,7 +289,7 @@ class SimpleMathCondition:
                 "on_false": ("STRING", { "multiline": False, "default": "" }),
             },
         }
-    
+
     RETURN_TYPES = ("INT", "FLOAT", )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY

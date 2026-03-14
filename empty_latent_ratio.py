@@ -1,6 +1,5 @@
 import torch
 import comfy.model_management
-from nodes import MAX_RESOLUTION
 
 _CATEGORY = "sfnodes/latent"
 
@@ -22,18 +21,18 @@ class EmptyLatentByAspectRatio:
     def INPUT_TYPES(cls):
         # 获取所有宽高比选项
         aspect_ratio_options = list(ASPECT_RATIOS.keys())
-        
+
         # 获取默认宽高比（4:3）的分辨率选项
         default_ratio = "4:3"
         resolution_options = ASPECT_RATIOS[default_ratio]
-        
+
         # 合并所有分辨率选项（用于JavaScript动态更新）
         all_resolutions = []
         for resolutions in ASPECT_RATIOS.values():
             all_resolutions.extend(resolutions)
         # 去重并保持顺序
         all_resolutions = list(dict.fromkeys(all_resolutions))
-        
+
         return {
             "required": {
                 "aspect_ratio": (aspect_ratio_options, {"default": default_ratio}),
@@ -53,9 +52,9 @@ class EmptyLatentByAspectRatio:
         width, height = resolution.split("x")
         width = int(width)
         height = int(height)
-        
+
         # 创建空潜在图像
         # 标准SD模型使用4通道，下采样8倍
         latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
-        
+
         return ({"samples": latent}, width, height)
