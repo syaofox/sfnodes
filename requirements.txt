@@ -2,3 +2,4 @@ color_matcher
 translators
 transformers
 accelerate
+mediapipe
