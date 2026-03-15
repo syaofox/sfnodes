@@ -1410,10 +1410,35 @@ class MaskFillColor:
         for i in range(result_image.shape[0]):
             alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
             alpha_with_opacity = alpha_i * opacity
-            alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
-            color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
-            result_image[i] = (
-                result_image[i] * (1.0 - alpha_expanded) + color_fill * alpha_expanded
-            )
+
+            if result_image.shape[-1] == 4:
+                original_alpha = result_image[i, :, :, 3]
+
+                if opacity >= 1.0:
+                    final_alpha = torch.where(
+                        alpha_i > 0, torch.ones_like(original_alpha), original_alpha
+                    )
+                else:
+                    final_alpha = torch.where(
+                        alpha_i > 0, alpha_with_opacity, original_alpha
+                    )
+
+                final_alpha_expanded = final_alpha.unsqueeze(-1).expand(-1, -1, 3)
+                color_fill = (
+                    torch.ones_like(result_image[i, :, :, :3]) * fill_color_normalized
+                )
+
+                result_image[i, :, :, :3] = (
+                    result_image[i, :, :, :3] * (1.0 - final_alpha_expanded)
+                    + color_fill * final_alpha_expanded
+                )
+                result_image[i, :, :, 3] = final_alpha
+            else:
+                alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
+                color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
+                result_image[i] = (
+                    result_image[i] * (1.0 - alpha_expanded)
+                    + color_fill * alpha_expanded
+                )
 
         return (result_image,)
