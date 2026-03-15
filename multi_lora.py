@@ -1,6 +1,9 @@
 import folder_paths
 import comfy.utils
 import comfy.sd
+from .utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MultiLoraLoader:
@@ -10,6 +13,7 @@ class MultiLoraLoader:
     最终权重通过normalize_weight进行归一化转换
     槽位通过JavaScript前端动态显示/隐藏
     """
+
     def __init__(self):
         self.loaded_loras = {}
 
@@ -24,36 +28,48 @@ class MultiLoraLoader:
 
         # 构建必需的输入定义
         required = {
-            "model": ("MODEL", {"tooltip": "The diffusion model the LoRAs will be applied to."}),
-            "clip": ("CLIP", {"tooltip": "The CLIP model the LoRAs will be applied to."}),
-            "normalize_weight": ("FLOAT", {
-                "default": 0.0,
-                "min": 0.0,
-                "max": 10.0,
-                "step": 0.01,
-                "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
-            }),
+            "model": (
+                "MODEL",
+                {"tooltip": "The diffusion model the LoRAs will be applied to."},
+            ),
+            "clip": (
+                "CLIP",
+                {"tooltip": "The CLIP model the LoRAs will be applied to."},
+            ),
+            "normalize_weight": (
+                "FLOAT",
+                {
+                    "default": 0.0,
+                    "min": 0.0,
+                    "max": 10.0,
+                    "step": 0.01,
+                    "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight",
+                },
+            ),
         }
 
         # 为每个LoRA槽位添加可选输入（最多50个槽位，由JavaScript前端动态控制显示）
         optional = {}
         for i in range(1, 51):
-            optional[f"lora_{i}_enabled"] = ("BOOLEAN", {
-                "default": False,
-                "tooltip": f"是否启用LoRA {i}"
-            })
-            optional[f"lora_{i}_name"] = (lora_list_with_none, {
-                "default": "[None]",
-                "tooltip": f"选择LoRA {i}的文件"
-            })
-            optional[f"lora_{i}_strength"] = ("FLOAT", {
-                "default": 1.0,
-                "min": -100.0,
-                "max": 100.0,
-                "step": 0.01,
-                "round": 0.01,  # 两位小数精度
-                "tooltip": f"LoRA {i}的强度（两位小数精度）"
-            })
+            optional[f"lora_{i}_enabled"] = (
+                "BOOLEAN",
+                {"default": False, "tooltip": f"是否启用LoRA {i}"},
+            )
+            optional[f"lora_{i}_name"] = (
+                lora_list_with_none,
+                {"default": "[None]", "tooltip": f"选择LoRA {i}的文件"},
+            )
+            optional[f"lora_{i}_strength"] = (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": -100.0,
+                    "max": 100.0,
+                    "step": 0.01,
+                    "round": 0.01,  # 两位小数精度
+                    "tooltip": f"LoRA {i}的强度（两位小数精度）",
+                },
+            )
 
         return {"required": required, "optional": optional}
 
@@ -66,7 +82,7 @@ class MultiLoraLoader:
     def load_multiple_loras(self, model, clip, normalize_weight, **kwargs):
         """
         加载多个LoRA并应用归一化权重
-        
+
         Args:
             model: 扩散模型
             clip: CLIP模型
@@ -111,14 +127,18 @@ class MultiLoraLoader:
                 # 当normalize_weight为0时，不归一化，直接使用原始强度
                 normalized_strength = original_strength
             else:
-                normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
+                normalized_strength = (
+                    abs(original_strength) / total_weight
+                ) * normalize_weight
 
                 # 保持原始符号
                 if original_strength < 0:
                     normalized_strength = -normalized_strength
 
             # 打印实际LoRA权重
-            print(f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}")
+            logger.info(
+                f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}"
+            )
 
             # 如果归一化后的权重为0，跳过
             if normalized_strength == 0:
@@ -143,10 +163,10 @@ class MultiLoraLoader:
                     current_clip,
                     lora,
                     normalized_strength,
-                    normalized_strength
+                    normalized_strength,
                 )
             except Exception as e:
-                print(f"加载LoRA {i} ({lora_name}) 时出错: {str(e)}")
+                logger.error(f"加载LoRA {i} ({lora_name}) 时出错: {str(e)}")
                 continue
 
         return (current_model, current_clip)
@@ -160,6 +180,7 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
     只应用到MODEL，不应用到CLIP
     槽位通过JavaScript前端动态显示/隐藏
     """
+
     @classmethod
     def INPUT_TYPES(cls):
         # 获取所有可用的LoRA文件列表，添加None选项
@@ -171,35 +192,44 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
 
         # 构建必需的输入定义（不包含clip）
         required = {
-            "model": ("MODEL", {"tooltip": "The diffusion model the LoRAs will be applied to."}),
-            "normalize_weight": ("FLOAT", {
-                "default": 0.0,
-                "min": 0.0,
-                "max": 10.0,
-                "step": 0.01,
-                "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight"
-            }),
+            "model": (
+                "MODEL",
+                {"tooltip": "The diffusion model the LoRAs will be applied to."},
+            ),
+            "normalize_weight": (
+                "FLOAT",
+                {
+                    "default": 0.0,
+                    "min": 0.0,
+                    "max": 10.0,
+                    "step": 0.01,
+                    "tooltip": "归一化权重系数。当为0时不归一化，直接使用原始强度；当>0时，实际权重 = (目标权重 / 所有权重之和) × normalize_weight",
+                },
+            ),
         }
 
         # 为每个LoRA槽位添加可选输入（最多50个槽位，由JavaScript前端动态控制显示）
         optional = {}
         for i in range(1, 51):
-            optional[f"lora_{i}_enabled"] = ("BOOLEAN", {
-                "default": False,
-                "tooltip": f"是否启用LoRA {i}"
-            })
-            optional[f"lora_{i}_name"] = (lora_list_with_none, {
-                "default": "[None]",
-                "tooltip": f"选择LoRA {i}的文件"
-            })
-            optional[f"lora_{i}_strength"] = ("FLOAT", {
-                "default": 1.0,
-                "min": -100.0,
-                "max": 100.0,
-                "step": 0.01,
-                "round": 0.01,  # 两位小数精度
-                "tooltip": f"LoRA {i}的强度（两位小数精度）"
-            })
+            optional[f"lora_{i}_enabled"] = (
+                "BOOLEAN",
+                {"default": False, "tooltip": f"是否启用LoRA {i}"},
+            )
+            optional[f"lora_{i}_name"] = (
+                lora_list_with_none,
+                {"default": "[None]", "tooltip": f"选择LoRA {i}的文件"},
+            )
+            optional[f"lora_{i}_strength"] = (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": -100.0,
+                    "max": 100.0,
+                    "step": 0.01,
+                    "round": 0.01,  # 两位小数精度
+                    "tooltip": f"LoRA {i}的强度（两位小数精度）",
+                },
+            )
 
         return {"required": required, "optional": optional}
 
@@ -212,7 +242,7 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
     def load_multiple_loras_model_only(self, model, normalize_weight, **kwargs):
         """
         加载多个LoRA并应用归一化权重（仅应用到MODEL）
-        
+
         Args:
             model: 扩散模型
             normalize_weight: 归一化权重系数
@@ -255,14 +285,18 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
                 # 当normalize_weight为0时，不归一化，直接使用原始强度
                 normalized_strength = original_strength
             else:
-                normalized_strength = (abs(original_strength) / total_weight) * normalize_weight
+                normalized_strength = (
+                    abs(original_strength) / total_weight
+                ) * normalize_weight
 
                 # 保持原始符号
                 if original_strength < 0:
                     normalized_strength = -normalized_strength
 
             # 打印实际LoRA权重
-            print(f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}")
+            logger.info(
+                f"LoRA {i} ({lora_name}): 原始强度={original_strength:.2f}, 归一化后实际权重={normalized_strength:.4f}"
+            )
 
             # 如果归一化后的权重为0，跳过
             if normalized_strength == 0:
@@ -286,10 +320,10 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
                     None,
                     lora,
                     normalized_strength,
-                    0.0  # CLIP强度设为0，只应用到MODEL
+                    0.0,  # CLIP强度设为0，只应用到MODEL
                 )
             except Exception as e:
-                print(f"加载LoRA {i} ({lora_name}) 时出错: {str(e)}")
+                logger.error(f"加载LoRA {i} ({lora_name}) 时出错: {str(e)}")
                 continue
 
         return (current_model,)

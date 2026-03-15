@@ -2,15 +2,25 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter
 from comfy.utils import common_upscale
-from .utils.image_convert import np2tensor, pil2mask, pil2tensor, tensor2np, tensor2pil, mask2pil, mask2tensor, tensor2mask
+from .utils.image_convert import (
+    np2tensor,
+    pil2mask,
+    pil2tensor,
+    tensor2np,
+    tensor2pil,
+    mask2pil,
+    mask2tensor,
+    tensor2mask,
+)
 
 _CATEGORY = "sfnodes/face_analysis"
 
+
 def create_soft_edge_mask(size, margin, blur_radius):
-        mask = Image.new("L", size, 255)
-        draw = ImageDraw.Draw(mask)
-        draw.rectangle(((0, 0), size), outline="black", width=margin)
-        return mask.filter(ImageFilter.GaussianBlur(blur_radius))
+    mask = Image.new("L", size, 255)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle(((0, 0), size), outline="black", width=margin)
+    return mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
 
 class FaceCutout:
@@ -156,7 +166,6 @@ class FaceCutout:
         if face is None:
             raise Exception("未在图像中检测到人脸。")
 
-
         scale_factor = 1
 
         # 如果需要正方形，调整宽度和高度
@@ -185,9 +194,7 @@ class FaceCutout:
 
             # 重新裁剪人脸区域为正方形
             face_np = tensor2np(image[0])
-            face_crop = face_np[
-                y : y + square_size, x : x + square_size
-            ]
+            face_crop = face_np[y : y + square_size, x : x + square_size]
             face = np2tensor(face_crop).unsqueeze(0)
 
         if target_size > 0:
@@ -200,13 +207,13 @@ class FaceCutout:
             new_height = height
             scaled_face = face
 
-
         ref_size = max(new_width, new_height)
         margin_size = int(ref_size * margin_percent) + margin
         blur_size = int(ref_size * blur_percent) + blur_radius
-        print(f"[FacePaste] margin_size: {margin_size}, blur_size: {blur_size}")
 
-        mask_image = create_soft_edge_mask((new_width, new_height), margin_size, blur_size)
+        mask_image = create_soft_edge_mask(
+            (new_width, new_height), margin_size, blur_size
+        )
         mask_tensor = pil2mask(mask_image)
 
         bounding_info = {
@@ -216,11 +223,10 @@ class FaceCutout:
             "height": height,
             "mask": mask_tensor,
             "origin_image": image,
-            "origin_face":face,
-            "new_face":scaled_face,
-            "new_width":new_width,
-            "new_height":new_height,
-
+            "origin_face": face,
+            "new_face": scaled_face,
+            "new_width": new_width,
+            "new_height": new_height,
         }
 
         return (
@@ -258,10 +264,7 @@ class FacePaste:
                 "source_image": ("IMAGE",),
                 "upscale_method": (
                     ["lanczos", "bilinear", "bicubic", "nearest"],
-                    {
-                        "default": "lanczos",
-                        "tooltip": "设置图像缩放的方法"
-                    }
+                    {"default": "lanczos", "tooltip": "设置图像缩放的方法"},
                 ),
             },
             "optional": {
@@ -275,7 +278,13 @@ class FacePaste:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将bounding_info中的人脸图像贴回原图"
 
-    def paste(self, bounding_info, source_image, destination_image=None, upscale_method="lanczos"):
+    def paste(
+        self,
+        bounding_info,
+        source_image,
+        destination_image=None,
+        upscale_method="lanczos",
+    ):
         # 从bounding_info中获取人脸图像和位置信息
         x = bounding_info["x"]
         y = bounding_info["y"]
@@ -285,11 +294,9 @@ class FacePaste:
         if destination_image is None:
             destination_image = bounding_info["origin_image"]
 
-
         mask_image = mask2tensor(bounding_info["mask"])
         source_image = self._rescale_image(source_image, width, height, upscale_method)
         mask_image = self._rescale_image(mask_image, width, height, upscale_method)
-
 
         source_image = tensor2pil(source_image)
         destination_image = tensor2pil(destination_image)
@@ -298,7 +305,6 @@ class FacePaste:
         mask_image = mask2pil(mask_image)
 
         position = (x, y)
-        print(f"[FacePaste] destination shape: {destination_image.size}, source shape: {source_image.size}, mask shape: {mask_image.size}")
         destination_image.paste(source_image, position, mask_image)
 
         return pil2tensor(destination_image), pil2mask(mask_image)
@@ -313,6 +319,7 @@ class FacePaste:
             resized = samples
         return resized.movedim(1, -1)
 
+
 class ExtractBoundingBox:
     @classmethod
     def INPUT_TYPES(cls):
@@ -322,8 +329,30 @@ class ExtractBoundingBox:
             },
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "MASK", "IMAGE","IMAGE","IMAGE","INT","INT")
-    RETURN_NAMES = ("x", "y", "width", "height", "mask", "origin_image","origin_face","new_face","new_width","new_height")
+    RETURN_TYPES = (
+        "INT",
+        "INT",
+        "INT",
+        "INT",
+        "MASK",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "INT",
+        "INT",
+    )
+    RETURN_NAMES = (
+        "x",
+        "y",
+        "width",
+        "height",
+        "mask",
+        "origin_image",
+        "origin_face",
+        "new_face",
+        "new_width",
+        "new_height",
+    )
     INPUT_IS_LIST = (
         True,
         False,
@@ -333,9 +362,6 @@ class ExtractBoundingBox:
     DESCRIPTION = "从边界框信息中提取人脸坐标、尺寸和图像"
 
     def extract(self, bounding_info):
-
-
-
         # 确保bounding_info是字典类型
         if not isinstance(bounding_info, list) and len(bounding_info) <= 0:
             raise Exception(f"边界框信息不是预期的列表格式: {type(bounding_info)}")
@@ -354,4 +380,15 @@ class ExtractBoundingBox:
         new_face = bounding_info.get("new_face", None)
         new_width = bounding_info.get("new_width", 0)
         new_height = bounding_info.get("new_height", 0)
-        return (x, y, width, height, mask, origin_image,origin_face,new_face,new_width,new_height)
+        return (
+            x,
+            y,
+            width,
+            height,
+            mask,
+            origin_image,
+            origin_face,
+            new_face,
+            new_width,
+            new_height,
+        )

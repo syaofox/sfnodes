@@ -7,9 +7,13 @@ from color_matcher.normalizer import Normalizer
 from comfy.utils import ProgressBar
 from .utils.image_convert import tensor_to_image, image_to_tensor
 from .utils.mask_utils import mask_process
+from .utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 _CATEGORY = "sfnodes/face_analysis"
+
 
 def mask_from_landmarks(image, landmarks):
     mask = np.zeros(image.shape[:2], dtype=np.float64)
@@ -58,8 +62,6 @@ class FaceWarp:
         is_mathcolor=True,
         include_background=False,
     ):
-
-
         if image_from.shape[0] < image_to.shape[0]:
             image_from = torch.cat(
                 [
@@ -94,7 +96,7 @@ class FaceWarp:
             )
 
             if shape_from is None or shape_to is None:
-                print(f"\033[96mNo landmarks detected at frame {i}\033[0m")
+                logger.warning(f"No landmarks detected at frame {i}")
                 img = image_to[i].unsqueeze(0)
                 mask = torch.zeros_like(img)[:, :, :1]
                 result_image.append(img)
@@ -189,7 +191,6 @@ class FaceWarp:
             # 恢复维度：[B,H,W] -> [B,H,W,1]
             output_mask = processed_mask.unsqueeze(-1)
 
-
             padding = 0
 
             _, y, x, _ = torch.where(mask_to)
@@ -233,8 +234,8 @@ class FaceWarp:
                     img_from = torch.nn.functional.interpolate(
                         img_from.permute(0, 3, 1, 2),  # [B,C,H,W]格式
                         size=(output.shape[1], output.shape[2]),
-                        mode='bilinear',
-                        align_corners=False
+                        mode="bilinear",
+                        align_corners=False,
                     ).permute(0, 2, 3, 1)  # 返回到[B,H,W,C]格式
 
                 output_image = output * output_mask + img_from * (1 - output_mask)

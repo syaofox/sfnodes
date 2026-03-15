@@ -12,6 +12,10 @@ from scipy.ndimage import (
     binary_fill_holes,
 )
 
+from .utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 _CATEGORY = "sfnodes/inpaint"
 
 
@@ -814,18 +818,6 @@ class InpaintCrop:
 
         output_padding = int(output_padding) if output_padding else 32
 
-        if self.DEBUG_MODE:
-            print("Inpaint Crop Batch input")
-            print(image.shape, type(image), image.dtype)
-            if mask is not None:
-                print(mask.shape, type(mask), mask.dtype)
-            if optional_context_mask is not None:
-                print(
-                    optional_context_mask.shape,
-                    type(optional_context_mask),
-                    optional_context_mask.dtype,
-                )
-
         if image.shape[0] > 1:
             assert output_resize_to_target_pixels, (
                 "output_resize_to_target_pixels must be enabled when input is a batch of images, given all images in the batch output have to be the same size"
@@ -838,8 +830,8 @@ class InpaintCrop:
         ):
             if mask.shape[1] != image.shape[1] or mask.shape[2] != image.shape[2]:
                 # 调整所有掩码的尺寸，不仅限于全零掩码
-                print(
-                    f"警告：掩码尺寸({mask.shape[1]}x{mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
+                logger.warning(
+                    f"掩码尺寸({mask.shape[1]}x{mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
                 )
                 resized_mask = []
                 for b in range(mask.shape[0]):
@@ -850,7 +842,7 @@ class InpaintCrop:
                     )
                     resized_mask.append(one_mask)
                 mask = torch.cat(resized_mask, dim=0)
-                print(f"已调整掩码尺寸为：{mask.shape[1]}x{mask.shape[2]}")
+                logger.info(f"已调整掩码尺寸为：{mask.shape[1]}x{mask.shape[2]}")
 
         if optional_context_mask is not None and (
             image.shape[0] == 1
@@ -862,8 +854,8 @@ class InpaintCrop:
                 or optional_context_mask.shape[2] != image.shape[2]
             ):
                 # 对于可选上下文掩码也进行同样的调整
-                print(
-                    f"警告：可选上下文掩码尺寸({optional_context_mask.shape[1]}x{optional_context_mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
+                logger.warning(
+                    f"可选上下文掩码尺寸({optional_context_mask.shape[1]}x{optional_context_mask.shape[2]})与图像尺寸({image.shape[1]}x{image.shape[2]})不匹配，正在自动调整掩码尺寸..."
                 )
                 resized_optional_mask = []
                 for b in range(optional_context_mask.shape[0]):
@@ -874,7 +866,7 @@ class InpaintCrop:
                     )
                     resized_optional_mask.append(one_optional_mask)
                 optional_context_mask = torch.cat(resized_optional_mask, dim=0)
-                print(
+                logger.info(
                     f"已调整可选上下文掩码尺寸为：{optional_context_mask.shape[1]}x{optional_context_mask.shape[2]}"
                 )
 
@@ -904,16 +896,6 @@ class InpaintCrop:
             optional_context_mask = optional_context_mask.expand(
                 image.shape[0], -1, -1
             ).clone()
-
-        if self.DEBUG_MODE:
-            print("Inpaint Crop Batch ready")
-            print(image.shape, type(image), image.dtype)
-            print(mask.shape, type(mask), mask.dtype)
-            print(
-                optional_context_mask.shape,
-                type(optional_context_mask),
-                optional_context_mask.dtype,
-            )
 
         # Validate data
         assert image.ndimension() == 4, (
@@ -1026,11 +1008,6 @@ class InpaintCrop:
 
         result_image = torch.stack(result_image, dim=0)
         result_mask = torch.stack(result_mask, dim=0)
-
-        if self.DEBUG_MODE:
-            print("Inpaint Crop Batch output")
-            print(result_image.shape, type(result_image), result_image.dtype)
-            print(result_mask.shape, type(result_mask), result_mask.dtype)
 
         debug_outputs = {
             name: torch.stack(values, dim=0) for name, values in debug_outputs.items()

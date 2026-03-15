@@ -7,7 +7,10 @@ import mediapipe as mp
 from functools import reduce
 from PIL import Image
 from .utils.model_manager import ModelManager
-from .utils.mask_utils import mask_process,pil2tensor
+from .utils.mask_utils import mask_process, pil2tensor
+from .utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 BaseOptions = mp.tasks.BaseOptions
 ImageSegmenter = mp.tasks.vision.ImageSegmenter
@@ -39,7 +42,7 @@ class PersonSegmenter:
         with open(self.model_path, "rb") as f:
             self.model_buffer = f.read()
 
-        print(f"模型已加载: {os.path.basename(self.model_path)}")
+        logger.info(f"模型已加载: {os.path.basename(self.model_path)}")
 
     def create_segmenter(self):
         """创建分割器实例"""
@@ -111,8 +114,7 @@ class PersonMaskGenerator:
                     {"default": 0.40, "min": 0.01, "max": 1.0, "step": 0.01},
                 ),
                 "refine_mask": true_widget,
-                 "mask_params": ("MASKPARAMS",),
-
+                "mask_params": ("MASKPARAMS",),
             },
         }
 
@@ -332,8 +334,7 @@ class PersonMaskGenerator:
         clothes_mask: bool,
         confidence: float,
         refine_mask: bool,
-        mask_params = None,
-
+        mask_params=None,
     ):
         """从图像创建分割掩码
 

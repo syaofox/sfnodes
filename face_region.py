@@ -7,8 +7,11 @@ from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
 from .utils.mask_utils import invert_mask, mask_process
+from .utils.logger import get_logger
 
 from .utils.model_manager import ModelManager
+
+logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -67,7 +70,7 @@ class RegionExtractor:
     def create_region_mask(self, image, region_indices, threshold=0.5):
         """创建面部区域遮罩"""
         if len(region_indices) == 0:
-            print("\033[96m没有选择有效的面部区域\033[0m")
+            logger.warning("没有选择有效的面部区域")
             return np.zeros(image.shape[:2], dtype=np.float32)
 
         # 准备输入数据
@@ -89,7 +92,7 @@ class RegionExtractor:
         try:
             region_mask = self.region_model.run(None, {"input": prepare_image})[0][0]
         except Exception as e:
-            print(f"\033[91m运行模型推理时出错: {e}\033[0m")
+            logger.error(f"运行模型推理时出错: {e}")
             return np.zeros(image.shape[:2], dtype=np.float32)
 
         # 处理输出 - 为选定的区域创建二值遮罩
@@ -129,7 +132,7 @@ class BiSeNetLoader:
             self.selected_model, sub_dir="region"
         )
         self.region_extractor = RegionExtractor(model_path)
-        print(
+        logger.info(
             f"已加载面部区域分割模型: {self.selected_model} - {self.model_manager.get_model_description(self.selected_model)}"
         )
         return (self.region_extractor,)
@@ -164,7 +167,7 @@ class RegionSelector:
         if len(selected_regions) == 0:
             selected_regions = ["skin"]
 
-        print(f"已选择的面部区域: {', '.join(selected_regions)}")
+        logger.info(f"已选择的面部区域: {', '.join(selected_regions)}")
         return (selected_regions,)
 
 
@@ -206,7 +209,6 @@ class GenerateRegionFaceMask:
         regions,
         mask_params=None,
     ):
-
         region_indices = [
             FACE_MASK_REGION_SET[region]
             for region in regions
@@ -225,7 +227,6 @@ class GenerateRegionFaceMask:
                 region_extractor,
                 region_indices,
                 mask_params,
-
             )
             out_mask.append(mask)
             out_inverted_mask.append(invert_mask(mask))
@@ -245,19 +246,18 @@ class GenerateRegionFaceMask:
         region_extractor,
         region_indices,
         mask_params,
-
     ):
         """处理单张图像"""
         face = tensor2np(img)
         if face is None:
-            print("\033[96m无效的输入图像\033[0m")
+            logger.warning("无效的输入图像")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
         cv2_image = cv2.cvtColor(np.array(face), cv2.COLOR_RGB2BGR)
         region_mask = region_extractor.create_region_mask(cv2_image, region_indices)
 
         if region_mask is None or np.max(region_mask) == 0:
-            print("\033[96m未能创建有效的区域遮罩\033[0m")
+            logger.warning("未能创建有效的区域遮罩")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
         mask = (
@@ -268,9 +268,7 @@ class GenerateRegionFaceMask:
             .to(device=img.device)
         )
 
-        mask = mask_process(
-            mask, mask_params, unqueeze=True
-        )
+        mask = mask_process(mask, mask_params, unqueeze=True)
         processed_img = img * mask.repeat(1, 1, 3)
         return mask, processed_img
 

@@ -1,7 +1,14 @@
 import cv2
 import numpy as np
 from PIL import Image
-from .utils.image_convert import mask2tensor, np2tensor, np2mask, tensor2mask, tensor2np, rescale_image
+from .utils.image_convert import (
+    mask2tensor,
+    np2tensor,
+    np2mask,
+    tensor2mask,
+    tensor2np,
+    rescale_image,
+)
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -82,19 +89,16 @@ class AlignImageByFace:
 
     def align(
         self,
-
         expand=True,
-
         angle=0,
         threshold=10,
         simple_angle=False,
         image_to=None,
         resize=False,
         rotate_method="INTER_CUBIC",
-
-        analysis_models = None,
-        image_from = None,
-        face_index = 0,  # 新增参数
+        analysis_models=None,
+        image_from=None,
+        face_index=0,  # 新增参数
     ):
         source_image = tensor2np(image_from[0])
         original_width, original_height = source_image.shape[:2]
@@ -126,7 +130,11 @@ class AlignImageByFace:
                 )
                 img = np.array(img)
             # 修改调用，传递face_index参数
-            face_shape = analysis_models.get_keypoints(img, face_index=face_index) if analysis_models else None
+            face_shape = (
+                analysis_models.get_keypoints(img, face_index=face_index)
+                if analysis_models
+                else None
+            )
             return face_shape, img
 
         is_flipped = False
@@ -142,8 +150,6 @@ class AlignImageByFace:
                 if face_shape is None:
                     raise Exception("无法在图像中检测到人脸。")
 
-
-
             rotation_angle = calculate_angle(face_shape)
             if simple_angle:
                 rotation_angle = find_nearest_angle(rotation_angle)
@@ -151,9 +157,14 @@ class AlignImageByFace:
         # 如果提供了目标图像，计算相对旋转角度
         if image_to is not None:
             # 修改调用，传递face_index参数
-            target_shape = analysis_models.get_keypoints(tensor2np(image_to[0]), face_index=face_index) if analysis_models else None
+            target_shape = (
+                analysis_models.get_keypoints(
+                    tensor2np(image_to[0]), face_index=face_index
+                )
+                if analysis_models
+                else None
+            )
             if target_shape is not None:
-                print(f"目标图像人脸关键点: {target_shape}")
                 rotation_angle -= calculate_angle(target_shape)
 
         original_image = tensor2np(image_from[0]) if not is_flipped else processed_image
@@ -183,9 +194,7 @@ class AlignImageByFace:
         elif rotate_method == "INTER_AREA":
             flags = cv2.INTER_AREA
 
-        aligned_image = cv2.warpAffine(
-            original_image, M, new_size, flags=flags
-        )
+        aligned_image = cv2.warpAffine(original_image, M, new_size, flags=flags)
 
         # 旋转白色图像以创建mask
         aligned_white = cv2.warpAffine(white_image, M, new_size, flags=flags)
@@ -239,7 +248,7 @@ class RestoreRotatedImage:
         mask = rotation_info["mask"]
 
         if mask is not None:
-            image_width  = image.shape[2]
+            image_width = image.shape[2]
             image_height = image.shape[1]
 
             mask_image = mask2tensor(mask)

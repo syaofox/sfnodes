@@ -6,10 +6,13 @@ import torch
 from comfy.utils import ProgressBar
 
 from .utils.image_convert import np2tensor, tensor2np
-from .utils.mask_utils import invert_mask,  mask_process
+from .utils.mask_utils import invert_mask, mask_process
+from .utils.logger import get_logger
 
 # from .utils.xseg_models import get_model_path, list_available_models, get_model_description
 from .utils.model_manager import ModelManager
+
+logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/face_analysis"
 
@@ -91,7 +94,7 @@ class OccluderLoader:
             self.selected_model, sub_dir="occluder"
         )
         self.occluder_model = Occluder(model_path)
-        print(
+        logger.info(
             f"已加载XSEG模型: {self.selected_model} - {self.model_manager.get_model_description(self.selected_model)}"
         )
         return (self.occluder_model,)
@@ -141,8 +144,6 @@ class GeneratePreciseFaceMask:
         mask_threshold,
         mask_params=None,
     ):
-
-
         face_occluder_model = occluder
 
         out_mask, out_inverted_mask, out_image = [], [], []
@@ -157,7 +158,6 @@ class GeneratePreciseFaceMask:
                 face_occluder_model,
                 mask_threshold,
                 mask_params,
-
             )
             out_mask.append(mask)
             out_inverted_mask.append(invert_mask(mask))
@@ -177,12 +177,11 @@ class GeneratePreciseFaceMask:
         face_occluder_model,
         mask_threshold,
         mask_params=None,
-
     ):
         """处理单张图像"""
         face = tensor2np(img)
         if face is None:
-            print("\033[96m没有检测到人脸\033[0m")
+            logger.warning("没有检测到人脸")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
         cv2_image = cv2.cvtColor(np.array(face), cv2.COLOR_RGB2BGR)
@@ -191,7 +190,7 @@ class GeneratePreciseFaceMask:
         )
 
         if occlusion_mask is None:
-            print("\033[96m没有检测到人脸特征\033[0m")
+            logger.warning("没有检测到人脸特征")
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
         mask = (
@@ -202,8 +201,6 @@ class GeneratePreciseFaceMask:
             .to(device=img.device)
         )
 
-        mask = mask_process(
-            mask, mask_params, unqueeze=True
-        )
+        mask = mask_process(mask, mask_params, unqueeze=True)
         processed_img = img * mask.repeat(1, 1, 3)
         return mask, processed_img

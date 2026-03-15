@@ -2,9 +2,12 @@ import torch
 import numpy as np
 import itertools
 from math import gcd
+from .logger import get_logger
 
 from comfy import model_management
 from comfy.sdxl_clip import SDXLClipModel, SDXLRefinerClipModel, SDXLClipG
+
+logger = get_logger(__name__)
 
 
 def _grouper(n, iterable):
@@ -283,7 +286,7 @@ def encode_token_weights(model, token_weight_pairs, encode_func):
         if hasattr(model.cond_stage_model, "set_clip_options"):
             model.cond_stage_model.set_clip_options({"layer": model.layer_idx})
         else:
-            print("[ComfyUI_ADV_CLIP_emb] ComfyUI is outdated.")
+            logger.warning("[ComfyUI_ADV_CLIP_emb] ComfyUI is outdated.")
             model.cond_stage_model.clip_layer(model.layer_idx)
 
     model_management.load_model_gpu(model.patcher)

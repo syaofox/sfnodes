@@ -7,14 +7,19 @@ import torchvision.transforms.v2 as T
 import folder_paths
 
 from PIL import Image, ImageDraw, ImageFont, ImageColor
+from comfy.utils import ProgressBar
 from .utils.insightface_utils import InsightFace
 from insightface.app import FaceAnalysis
 from .utils.image_convert import image_to_tensor, tensor_to_image
 from .utils.mask_utils import mask_process
+from .utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/face_analysis"
 
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
+
 
 def mask_from_landmarks(image, landmarks):
     mask = np.zeros(image.shape[:2], dtype=np.float64)
@@ -22,6 +27,7 @@ def mask_from_landmarks(image, landmarks):
     cv2.fillConvexPoly(mask, points, color=1)
 
     return mask
+
 
 class FaceAnalysisModels:
     @classmethod
@@ -187,9 +193,7 @@ class FaceEmbedDistance:
                     )
 
             if dist <= filter_thresh:
-                print(
-                    f"\033[96mFace Analysis: value: {dist}, normalized: {norm_dist}\033[0m"
-                )
+                logger.info(f"Face Analysis: value: {dist}, normalized: {norm_dist}")
 
                 if generate_image_overlay:
                     tmp = T.ToPILImage()(i.permute(2, 0, 1)).convert("RGBA")
@@ -235,16 +239,25 @@ class FaceEmbedDistance:
         )
 
 
-
 class FaceSegmentation:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "analysis_models": ("ANALYSIS_MODELS", ),
-                "image": ("IMAGE", ),
-                "area": (["face", "main_features", "eyes", "left_eye", "right_eye", "nose", "mouth", "face+forehead (if available)"], ),
-
+                "analysis_models": ("ANALYSIS_MODELS",),
+                "image": ("IMAGE",),
+                "area": (
+                    [
+                        "face",
+                        "main_features",
+                        "eyes",
+                        "left_eye",
+                        "right_eye",
+                        "nose",
+                        "mouth",
+                        "face+forehead (if available)",
+                    ],
+                ),
             },
             "optional": {
                 "mask_params": ("MASKPARAMS",),
@@ -252,7 +265,16 @@ class FaceSegmentation:
         }
 
     RETURN_TYPES = ("MASK", "IMAGE", "MASK", "IMAGE", "INT", "INT", "INT", "INT")
-    RETURN_NAMES = ("mask", "image", "seg_mask", "seg_image", "x", "y", "width", "height")
+    RETURN_NAMES = (
+        "mask",
+        "image",
+        "seg_mask",
+        "seg_image",
+        "x",
+        "y",
+        "width",
+        "height",
+    )
     FUNCTION = "segment"
     CATEGORY = _CATEGORY
 
@@ -275,27 +297,29 @@ class FaceSegmentation:
             face = tensor_to_image(img)
 
             if face is None:
-                print(f"\033[96mNo face detected at frame {len(out_image)}\033[0m")
+                logger.warning(f"No face detected at frame {len(out_image)}")
                 img = torch.zeros_like(img)
-                mask = img.clone()[:,:,:1]
+                mask = img.clone()[:, :, :1]
                 out_mask.append(mask)
                 out_image.append(img)
-                out_seg_mask.append(mask[:8,:8,:])
-                out_seg_image.append(img[:8,:8,:])
+                out_seg_mask.append(mask[:8, :8, :])
+                out_seg_image.append(img[:8, :8, :])
                 out_x.append(0)
                 out_y.append(0)
                 continue
 
-            landmarks = analysis_models.get_landmarks(face, extended_landmarks=("forehead" in area))
+            landmarks = analysis_models.get_landmarks(
+                face, extended_landmarks=("forehead" in area)
+            )
 
             if landmarks is None:
-                print(f"\033[96mNo landmarks detected at frame {len(out_image)}\033[0m")
+                logger.warning(f"No landmarks detected at frame {len(out_image)}")
                 img = torch.zeros_like(img)
-                mask = img.clone()[:,:,:1]
+                mask = img.clone()[:, :, :1]
                 out_mask.append(mask)
                 out_image.append(img)
-                out_seg_mask.append(mask[:8,:8,:])
-                out_seg_image.append(img[:8,:8,:])
+                out_seg_mask.append(mask[:8, :8, :])
+                out_seg_image.append(img[:8, :8, :])
                 out_x.append(0)
                 out_y.append(0)
                 continue
@@ -317,12 +341,18 @@ class FaceSegmentation:
             elif "forehead" in area:
                 landmarks = landmarks[-1]
 
-            #mask = np.zeros(face.shape[:2], dtype=np.float64)
-            #points = cv2.convexHull(landmarks)
-            #cv2.fillConvexPoly(mask, points, color=1)
+            # mask = np.zeros(face.shape[:2], dtype=np.float64)
+            # points = cv2.convexHull(landmarks)
+            # cv2.fillConvexPoly(mask, points, color=1)
 
             mask = mask_from_landmarks(face, landmarks)
-            mask = image_to_tensor(mask).unsqueeze(0).squeeze(-1).clamp(0, 1).to(device=img.device)
+            mask = (
+                image_to_tensor(mask)
+                .unsqueeze(0)
+                .squeeze(-1)
+                .clamp(0, 1)
+                .to(device=img.device)
+            )
 
             _, y, x = torch.where(mask)
             x1, x2 = x.min().item(), x.max().item()
@@ -331,8 +361,12 @@ class FaceSegmentation:
 
             if smooth > 1:
                 if smooth % 2 == 0:
-                    smooth+= 1
-                mask = T.functional.gaussian_blur(mask.bool().unsqueeze(1), smooth).squeeze(1).float()
+                    smooth += 1
+                mask = (
+                    T.functional.gaussian_blur(mask.bool().unsqueeze(1), smooth)
+                    .squeeze(1)
+                    .float()
+                )
 
             mask = mask_process(mask, mask_params)
 
@@ -361,14 +395,30 @@ class FaceSegmentation:
         # find the max size of out_seg_image
         max_w = max([img.shape[1] for img in out_seg_image])
         max_h = max([img.shape[0] for img in out_seg_image])
-        pad_left = [(max_w - img.shape[1])//2 for img in out_seg_image]
-        pad_right = [max_w - img.shape[1] - pad_left[i] for i, img in enumerate(out_seg_image)]
-        pad_top = [(max_h - img.shape[0])//2 for img in out_seg_image]
-        pad_bottom = [max_h - img.shape[0] - pad_top[i] for i, img in enumerate(out_seg_image)]
-        out_seg_image = [F.pad(img.unsqueeze(0).permute([0,3,1,2]), (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i])) for i, img in enumerate(out_seg_image)]
-        out_seg_mask = [F.pad(mask.unsqueeze(0).permute([0,3,1,2]), (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i])) for i, mask in enumerate(out_seg_mask)]
+        pad_left = [(max_w - img.shape[1]) // 2 for img in out_seg_image]
+        pad_right = [
+            max_w - img.shape[1] - pad_left[i] for i, img in enumerate(out_seg_image)
+        ]
+        pad_top = [(max_h - img.shape[0]) // 2 for img in out_seg_image]
+        pad_bottom = [
+            max_h - img.shape[0] - pad_top[i] for i, img in enumerate(out_seg_image)
+        ]
+        out_seg_image = [
+            F.pad(
+                img.unsqueeze(0).permute([0, 3, 1, 2]),
+                (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i]),
+            )
+            for i, img in enumerate(out_seg_image)
+        ]
+        out_seg_mask = [
+            F.pad(
+                mask.unsqueeze(0).permute([0, 3, 1, 2]),
+                (pad_left[i], pad_right[i], pad_top[i], pad_bottom[i]),
+            )
+            for i, mask in enumerate(out_seg_mask)
+        ]
 
-        out_seg_image = torch.cat(out_seg_image).permute([0,2,3,1])
+        out_seg_image = torch.cat(out_seg_image).permute([0, 2, 3, 1])
         out_seg_mask = torch.cat(out_seg_mask).squeeze(1)
 
         if len(out_x) == 1:
@@ -378,4 +428,13 @@ class FaceSegmentation:
         out_w = out_seg_image.shape[2]
         out_h = out_seg_image.shape[1]
 
-        return (out_mask, out_image, out_seg_mask, out_seg_image, out_x, out_y, out_w, out_h)
+        return (
+            out_mask,
+            out_image,
+            out_seg_mask,
+            out_seg_image,
+            out_x,
+            out_y,
+            out_w,
+            out_h,
+        )

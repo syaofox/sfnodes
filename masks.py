@@ -233,8 +233,6 @@ class MaskChange:
         fill,
         pre_invert,
     ):
-        print(mask.shape)
-
         mask_params = {
             "pre_invert": False,
             "mask": mask,
