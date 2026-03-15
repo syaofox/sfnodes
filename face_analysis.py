@@ -131,7 +131,7 @@ class FaceEmbedDistance:
         if generate_image_overlay:
             font = ImageFont.truetype(
                 os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)), "Inconsolata.otf"
+                    os.path.dirname(os.path.realpath(__file__)), "data", "face_distance", "Inconsolata.otf"
                 ),
                 32,
             )
