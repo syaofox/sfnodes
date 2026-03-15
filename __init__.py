@@ -75,7 +75,6 @@ from .text import Text_Translation,StringConcatenate,TextCombine,AnimeCharSelect
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 from .text_dropdown import SFTextDropdown
 
-from .wan22_prompt_selector import Wan22PromptSelector
 from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .flux_resolution import FluxResolutionNode
 
@@ -219,8 +218,6 @@ NODE_CLASS_MAPPINGS = {
     "SFDebugTensorShape": DebugTensorShape,
     "SFBatchCount": BatchCount,
     "SFFloat": Float,
-    # 提示词节点
-    "SFWan22PromptSelector": Wan22PromptSelector,
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
@@ -364,8 +361,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFDebugTensorShape": "SF Debug Tensor Shape",
     "SFBatchCount": "SF Batch Count",
     "SFFloat": "SF Float",
-    # 提示词节点
-    "SFWan22PromptSelector": "SF Wan2.2 Prompt Selector",
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
