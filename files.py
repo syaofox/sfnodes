@@ -157,16 +157,6 @@ class LoadImagesFromFolder:
         )
 
 
-# 读取 FACE_PATH
-def get_face_path():
-    with open(os.path.join(os.path.dirname(__file__), "facepath"), "r") as f:
-        for line in f:
-            if line.startswith("FACE_PATH"):
-                # 提取路径并去除引号和空格
-                return line.split("=")[1].strip().strip("'").strip('"')
-    return r"D:\codes\aivision\asserts\face_pieces"  # 默认路径作为备选
-
-
 class SelectFace:
     dir_dict = {}
 
