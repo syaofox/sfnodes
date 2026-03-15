@@ -5,6 +5,4 @@ __pycache__
 *.pyw
 *.pyz
 *.pywz
-js/character_thumbs.json
 data/
-sfnodes_text_dropdown.json
