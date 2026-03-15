@@ -24,7 +24,7 @@ class Text_Translation:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
+                "trans_switch": ("BOOLEAN", {"default": False, "label_on": "on", "label_off": "off"}),
                 "translator": (["Niutrans","MyMemory","Alibaba","Baidu","ModernMt","VolcEngine","Iciba","Iflytek","Google","Bing","Lingvanex","Yandex","Itranslate","SysTran","Argos","Apertium","Reverso","Deepl","CloudTranslation","QQTranSmart","TranslateCom","Sogou","Tilde","Caiyun","QQFanyi","TranslateMe","Papago","Mirai","Youdao","Iflyrec","Hujiang","Yeekit","LanguageWire","Elia","Judic","Mglip","Utibet"], {"default": "google"}),
                 "trans_text": ("STRING",  {"multiline": True}),
             },
@@ -47,26 +47,6 @@ class Text_Translation:
             output_text = trans_text
         return (output_text,)
 
-
-class TextString:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "trans_switch": ("BOOLEAN", {"default": False, "label_on": "on", "label_off": "off"}),
-                "text": ("STRING", {"multiline": True}),
-            }
-        }
-
-    RETURN_TYPES = (IO.STRING,)
-    RETURN_NAMES = ("string",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-
-    def execute(self, trans_switch, text):
-        if trans_switch:
-            text = translators(text = text)
-        return (text,)
 
 _MAX_STRING_SLOTS = 20
 
@@ -97,7 +77,7 @@ class StringConcatenate():
         strings = [kwargs.get(f"string_{i}", "") or "" for i in range(1, _MAX_STRING_SLOTS + 1)]
         if trans_switch:
             strings = [translators(text=s) for s in strings]
-        strings = [s for s in strings if s and s.strip()]
+        strings = [s for s in strings if s and s.strip()] 
         text_in = kwargs.get("text_in") or ""
         if text_in:
             strings.insert(0, text_in)
@@ -156,7 +136,7 @@ class AnimeCharSelect:
     def INPUT_TYPES(cls):
         # 获取当前脚本所在目录，构建数据文件的绝对路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data', 'characters.csv')
+        data_file = os.path.join(current_dir, 'data', 'anime_char', 'characters.csv')
 
         # 读取CSV文件
         cls.character_options = []
@@ -214,112 +194,3 @@ class TextToFilename:
         filename = re.sub(r'[<>:"/\\|?*]', '', text)
         return (filename,)
 
-
-
-class BaseTags:
-    @classmethod
-    def INPUT_TYPES(cls):
-        # 为每个标签创建一个布尔复选框和强度调节滑块
-        inputs = {}
-        for option in cls.tag_options:
-            label = option["label"]
-            inputs[label] = ("BOOLEAN", {"default": False})
-            inputs[f"{label}_weight"] = ("FLOAT", {"default": 1.0, "min": 0, "max": 2, "step": 0.05, "display": "number"})
-
-        return {
-            "required": {
-                **inputs,
-                "delimiter": ("STRING", {"default": ",", "multiline": False})
-            },
-            "optional": {
-                "text": ("STRING", {"forceInput": True}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("tags",)
-    FUNCTION = "func"
-    CATEGORY = _CATEGORY
-
-    def func(self, **kwargs):
-        # 获取分隔符（最后一个参数）
-        delimiter = kwargs.pop("delimiter", ",")
-
-        # 收集所有选中的标签
-        selected_values = []
-        for option in self.tag_options:
-            label = option["label"]
-            if kwargs.get(label, False):
-                # 获取对应的强度值
-                weight = kwargs.get(f"{label}_weight", 0.0)
-                #_替换为,
-                value = option["value"].replace("_",",")
-
-                # 根据强度值格式化输出
-                if weight == 1.0:
-                    selected_values.append(value)
-                else:
-                    #保留小数点后面两位
-                    selected_values.append(f"({value}:{weight:.2f})")
-
-        # 使用指定分隔符连接选中的标签值
-        result = delimiter.join(selected_values)
-        # 从kwargs中获取text参数
-        text = kwargs.get("text", "")
-        # 合并text和result
-        if text:
-            result = f"{text},{result}"
-        return (result,)
-
-class NsfwTags(BaseTags):
-    @classmethod
-    def INPUT_TYPES(cls):
-        # 获取当前脚本所在目录，构建数据文件的绝对路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data', 'nsfwtags.csv')
-
-        # 读取CSV文件
-        cls.tag_options = load_csv_data(data_file)
-
-        # 调用父类方法生成输入配置
-        return super().INPUT_TYPES()
-
-
-class ExpressionTags(BaseTags):
-    @classmethod
-    def INPUT_TYPES(cls):
-        # 获取当前脚本所在目录，构建数据文件的绝对路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data','nsfw', 'expression.csv')
-
-        # 读取CSV文件
-        cls.tag_options = load_csv_data(data_file)
-
-        # 调用父类方法生成输入配置
-        return super().INPUT_TYPES()
-
-class ForeplayTags(BaseTags):
-    @classmethod
-    def INPUT_TYPES(cls):
-        # 获取当前脚本所在目录，构建数据文件的绝对路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data','nsfw', 'foreplay.csv')
-
-        # 读取CSV文件
-        cls.tag_options = load_csv_data(data_file)
-
-        # 调用父类方法生成输入配置
-        return super().INPUT_TYPES()
-
-class PositionsTags(BaseTags):
-    @classmethod
-    def INPUT_TYPES(cls):
-        # 获取当前脚本所在目录，构建数据文件的绝对路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(current_dir, 'data','nsfw', 'positions.csv')
-
-        # 读取CSV文件
-        cls.tag_options = load_csv_data(data_file)
-
-        # 调用父类方法生成输入配置
-        return super().INPUT_TYPES()

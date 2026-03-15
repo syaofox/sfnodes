@@ -71,7 +71,7 @@ from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,TextCombine,TextString,AnimeCharSelect,TextToFilename,NsfwTags,ExpressionTags,ForeplayTags,PositionsTags
+from .text import Text_Translation,StringConcatenate,TextCombine,AnimeCharSelect,TextToFilename
 from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
 from .text_dropdown import SFTextDropdown
 
@@ -200,13 +200,8 @@ NODE_CLASS_MAPPINGS = {
     "SFTextTranslation": Text_Translation,
     "SFStringConcatenate": StringConcatenate,
     "SFTextCombine": TextCombine,
-    "SFTextString": TextString,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
-    "SFNsfwTags": NsfwTags,
-    "SFExpressionTags": ExpressionTags,
-    "SFForeplayTags": ForeplayTags,
-    "SFPositionsTags": PositionsTags,
     "SFTextDropdown": SFTextDropdown,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
@@ -350,13 +345,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextTranslation": "SF Text Translation",
     "SFStringConcatenate": "SF String Concatenate",
     "SFTextCombine": "SF Text Combine",
-    "SFTextString": "SF Text String",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
-    "SFNsfwTags": "SF Nsfw Tags",
-    "SFExpressionTags": "SF Expression Tags",
-    "SFForeplayTags": "SF Foreplay Tags",
-    "SFPositionsTags": "SF Positions Tags",
     "SFTextDropdown": "SF Text Dropdown",
     # 简单数学节点
     "SFSimpleMathFloat": "SF Simple Math Float",

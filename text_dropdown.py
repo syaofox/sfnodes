@@ -24,13 +24,13 @@ class SFTextDropdown:
 
     - 下拉框显示项目别名，输出为对应项目文本内容（可多行）
     - 单行输入框定义别名，多行输入框定义项目内容
-    - 选项保存在 custom_nodes/sfnodes/data/sfnodes_text_dropdown.json，所有节点共享
+    - 选项保存在 custom_nodes/sfnodes/data/text-dropdown/data.json，所有节点共享
     """
 
     @classmethod
     def _get_options_path(cls) -> str:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(current_dir, "data", "sfnodes_text_dropdown.json")
+        return os.path.join(current_dir, "data", "text-dropdown", "data.json")
 
     @classmethod
     def _load_global_options(cls) -> list[dict]:
