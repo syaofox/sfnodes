@@ -66,8 +66,6 @@ from .misc import DisplayAny, Bus, RemoveLatentMask,SDXLEmptyLatentSizePicker
 from .empty_latent_ratio import EmptyLatentByAspectRatio
 
 from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
-from .prompt_injection import PromptInjection, PromptInjectionIdx, SimplePromptInjection, AdvancedPromptInjection
-from .tag import Tagger, SaveTags, FluxCLIPTextEncode, CaptionAnalyzer
 from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
 from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .image_compare import ImageCompare
@@ -176,16 +174,6 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintCutOut": InpaintCutOut,
     "SFInpaintPaste": InpaintPaste,
     "SFExtractCutInfo": ExtractCutInfo,
-    # 提示注入节点
-    "SFPromptInjection": PromptInjection,
-    "SFPromptInjectionIdx": PromptInjectionIdx,
-    "SFSimplePromptInjection": SimplePromptInjection,
-    "SFAdvancedPromptInjection": AdvancedPromptInjection,
-    # 标签节点
-    "SFTagger": Tagger,
-    "SFSaveTags": SaveTags,
-    "SFFlux_CLIPTextEncode": FluxCLIPTextEncode,
-    "SFCaption_Analyzer": CaptionAnalyzer,
 
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
@@ -319,18 +307,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintCutOut": "SF Inpaint Cut Out",
     "SFInpaintPaste": "SF Inpaint Paste",
     "SFExtractCutInfo": "SF Extract Cut Info",
-    # 提示注入节点
-    "SFPromptInjection": "SF Prompt Injection",
-    "SFPromptInjectionIdx": "SF Prompt Injection Idx",
-    "SFSimplePromptInjection": "SF Simple Prompt Injection",
-    "SFAdvancedPromptInjection": "SF Advanced Prompt Injection",
-    # 标签节点
-    "SFTagger": "SF Tagger",
-    "SFSaveTags": "SF Save Tags",
-    "SFFlux_CLIPTextEncode": "SF Flux CLIP Text Encode",
-    "SFCaption_Analyzer": "SF Caption Analyzer",
 
-    # HyperLoRA节点
+   # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
     "SFHyperLoRASaveCharLoRANode": "SF HyperLoRA Save Char LoRA",
     # 多LoRA节点
