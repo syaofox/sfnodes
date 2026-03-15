@@ -79,7 +79,7 @@ from .wan22_prompt_selector import Wan22PromptSelector
 from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .flux_resolution import FluxResolutionNode
 
-WEB_DIRECTORY = "js"
+WEB_DIRECTORY = "web"
 
 
 NODE_CLASS_MAPPINGS = {
