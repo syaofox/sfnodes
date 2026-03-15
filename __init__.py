@@ -1,17 +1,21 @@
-from .inpaint_cropandstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
-from .face_occluder import OccluderLoader, GeneratePreciseFaceMask
-from .face_cutandpaste import FaceCutout, FacePaste, ExtractBoundingBox
-from .face_analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
+from .nodes.face.analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
+from .nodes.face.occluder import OccluderLoader, GeneratePreciseFaceMask
+from .nodes.face.cutpaste import FaceCutout, FacePaste, ExtractBoundingBox
 
-from .face_warp import FaceWarp
-from .face_alginandrotate import (
+from .nodes.face.warp import FaceWarp
+from .nodes.face.align import (
     AlignImageByFace,
     RestoreRotatedImage,
     ExtractRotationInfo,
 )
-from .face_region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
-from .files import LoadImagesFromFolder, LoadImageFromPath, SelectFace, LoadImages
-from .image_scale import (
+from .nodes.face.region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
+from .nodes.image.files import (
+    LoadImagesFromFolder,
+    LoadImageFromPath,
+    SelectFace,
+    LoadImages,
+)
+from .nodes.image.scale import (
     GetImageSize,
     ImageScalerForSDModels,
     ImageScalerByPixels,
@@ -25,9 +29,9 @@ from .image_scale import (
     SFLoadImageSubfolder,
     SFLoadImageSubfolderSortedByMtime,
     ImageResizePlus,
-    ApexSmartResize
+    ApexSmartResize,
 )
-from .masks import (
+from .nodes.mask.masks import (
     MaskParams,
     MaskParamsEdges,
     OutlineMask,
@@ -44,37 +48,72 @@ from .masks import (
     FillWithReferenceColor,
     MaskCrop,
     MaskFillPercentArea,
-    MaskFillColor
+    MaskFillColor,
 )
-from .image_processing import (
+from .nodes.image.processing import (
     ColorAdjustment,
     ColorTint,
     ColorBlockEffect,
     FlatteningEffect,
     ImageColorMatch,
 )
-from .imitation_hue import ImitationHueNode
-from .ipadapter import IPAdapterMSLayerWeights, IPAdapterMSTiled,IPAdapterEmbedsMS,IPAdapterEmbedsMSBatch,IPAdapterStyleCompositionTiled
-from .person_mask import PersonSegmenterLoader, PersonMaskGenerator
-from .adv_clip import (
+from .nodes.utils.imitation_hue import ImitationHueNode
+from .nodes.model.ipadapter import (
+    IPAdapterMSLayerWeights,
+    IPAdapterMSTiled,
+    IPAdapterEmbedsMS,
+    IPAdapterEmbedsMSBatch,
+    IPAdapterStyleCompositionTiled,
+)
+from .nodes.model.person_mask import PersonSegmenterLoader, PersonMaskGenerator
+from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
     AddCLIPSDXLParams,
     AddCLIPSDXLRParams,
     AdvancedCLIPTextEncodeSDXL,
 )
-from .misc import DisplayAny, Bus, RemoveLatentMask,SDXLEmptyLatentSizePicker
-from .empty_latent_ratio import EmptyLatentByAspectRatio
+from .nodes.utils.misc import (
+    DisplayAny,
+    Bus,
+    RemoveLatentMask,
+    SDXLEmptyLatentSizePicker,
+)
+from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
 
-from .inpaint_cutandpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
-from .hyperlora import HyperLoRALoadCharLoRANode,HyperLoRASaveCharLoRANode
-from .multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
-from .image_compare import ImageCompare
-from .text import Text_Translation,StringConcatenate,TextCombine,AnimeCharSelect,TextToFilename
-from .simple_math import SimpleMathFloat,SimpleMathPercent,SimpleMathInt,SimpleMathSlider,SimpleMathSliderLowRes,SimpleMathBoolean,SimpleMath,SimpleMathDual,SimpleMathCondition,SimpleCondition,SimpleComparison,ConsoleDebug,DebugTensorShape,BatchCount,Float
-from .text_dropdown import SFTextDropdown
+from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
+from .nodes.model.hyperlora import HyperLoRALoadCharLoRANode, HyperLoRASaveCharLoRANode
+from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
+from .nodes.image.compare import ImageCompare
+from .nodes.text.text import (
+    Text_Translation,
+    StringConcatenate,
+    TextCombine,
+    AnimeCharSelect,
+    TextToFilename,
+)
+from .nodes.utils.simple_math import (
+    SimpleMathFloat,
+    SimpleMathPercent,
+    SimpleMathInt,
+    SimpleMathSlider,
+    SimpleMathSliderLowRes,
+    SimpleMathBoolean,
+    SimpleMath,
+    SimpleMathDual,
+    SimpleMathCondition,
+    SimpleCondition,
+    SimpleComparison,
+    ConsoleDebug,
+    DebugTensorShape,
+    BatchCount,
+    Float,
+)
+from .nodes.text.dropdown import SFTextDropdown
 
-from .qwen import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
-from .flux_resolution import FluxResolutionNode
+from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
+from .nodes.utils.flux_resolution import FluxResolutionNode
+
+from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
 WEB_DIRECTORY = "web"
 
@@ -140,7 +179,6 @@ NODE_CLASS_MAPPINGS = {
     "SFMaskCrop": MaskCrop,
     "SFMaskFillPercentArea": MaskFillPercentArea,
     "SFMaskFillColor": MaskFillColor,
-
     # 图片处理节点
     "SFColorAdjustment": ColorAdjustment,
     "SFColorTint": ColorTint,
@@ -163,18 +201,15 @@ NODE_CLASS_MAPPINGS = {
     "SFRemoveLatentMask": RemoveLatentMask,
     "SFSDXLEmptyLatentSizePicker": SDXLEmptyLatentSizePicker,
     "SFEmptyLatentByAspectRatio": EmptyLatentByAspectRatio,
-
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": AdvancedCLIPTextEncode,
     "SFAddCLIPSDXLParams": AddCLIPSDXLParams,
     "SFAddCLIPSDXLRParams": AddCLIPSDXLRParams,
     "SFAdvancedCLIPTextEncodeSDXL": AdvancedCLIPTextEncodeSDXL,
-
     # 局部修复节点
     "SFInpaintCutOut": InpaintCutOut,
     "SFInpaintPaste": InpaintPaste,
     "SFExtractCutInfo": ExtractCutInfo,
-
     # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
     "SFHyperLoRASaveCharLoRANode": HyperLoRASaveCharLoRANode,
@@ -274,7 +309,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskCrop": "SF Mask Crop",
     "SFMaskFillPercentArea": "SF Mask Fill Percent Area",
     "SFMaskFillColor": "SF Mask Fill Color",
-
     # 图片处理节点
     "SFColorAdjustment": "SF Color Adjustment",
     "SFColorTint": "SF Color Tint",
@@ -297,7 +331,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFRemoveLatentMask": "SF Remove Latent Mask",
     "SFSDXLEmptyLatentSizePicker": "SF SDXL Empty Latent Size Picker",
     "SFEmptyLatentByAspectRatio": "SF Empty Latent By Aspect Ratio",
-
     # 高级CLIP节点
     "SFAdvancedCLIPTextEncode": "SF Advanced CLIP Text Encode",
     "SFAddCLIPSDXLParams": "SF Add CLIP SDXL Params",
@@ -307,8 +340,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintCutOut": "SF Inpaint Cut Out",
     "SFInpaintPaste": "SF Inpaint Paste",
     "SFExtractCutInfo": "SF Extract Cut Info",
-
-   # HyperLoRA节点
+    # HyperLoRA节点
     "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
     "SFHyperLoRASaveCharLoRANode": "SF HyperLoRA Save Char LoRA",
     # 多LoRA节点
