@@ -49,7 +49,7 @@ def download_insightface_models(model_name):
         raise ValueError(f"未知的模型: {model_name}")
 
     model_info = INSIGHTFACE_MODELS[model_name]
-    model_dir = Path(INSIGHTFACE_DIR) /  model_name / "models" 
+    model_dir = Path(INSIGHTFACE_DIR) / "models" / model_name
     model_dir.mkdir(parents=True, exist_ok=True)
 
     for filename in model_info["files"]:
