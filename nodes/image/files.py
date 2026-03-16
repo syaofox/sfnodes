@@ -169,12 +169,15 @@ class SelectFace:
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
         target_dir = os.path.join(current_dir, "data", "face_pieces")
-        for d in Path(target_dir).iterdir():
-            if d.is_dir():
-                cls.dir_dict[d.name] = d
+        if os.path.exists(target_dir):
+            for d in Path(target_dir).iterdir():
+                if d.is_dir():
+                    cls.dir_dict[d.name] = d
+        else:
+            os.makedirs(target_dir, exist_ok=True)
 
         return {
-            "required": {"face_name": (list(cls.dir_dict.keys()),)},
+            "required": {"face_name": (list(cls.dir_dict.keys()), {"default": ""})},
             "optional": {"char_name": ("STRING", {"default": ""})},
         }
 
