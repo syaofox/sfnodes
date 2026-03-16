@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torchvision.transforms.v2 as T
 import folder_paths
 
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from comfy.utils import ProgressBar
 from ...sf_utils.insightface_utils import InsightFace
@@ -13,12 +14,50 @@ from insightface.app import FaceAnalysis
 from ...sf_utils.image_convert import image_to_tensor, tensor_to_image
 from ...sf_utils.mask_utils import mask_process
 from ...sf_utils.logger import get_logger
+from ...sf_utils.downloader import download_model
 
 logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/face"
 
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
+
+INSIGHTFACE_MODELS = {
+    "antelopev2": {
+        "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/antelopev2/",
+        "files": [
+            "1k3d68.onnx",
+            "2d106det.onnx",
+            "genderage.onnx",
+            "glintr100.onnx",
+            "scrfd_10g_bnkps.onnx",
+        ],
+    },
+    "buffalo_l": {
+        "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/buffalo_l/",
+        "files": [
+            "det_10g.onnx",
+            "recognition.onnx",
+            "genderage.onnx",
+        ],
+    },
+}
+
+
+def download_insightface_models(model_name):
+    if model_name not in INSIGHTFACE_MODELS:
+        raise ValueError(f"未知的模型: {model_name}")
+
+    model_info = INSIGHTFACE_MODELS[model_name]
+    model_dir = Path(INSIGHTFACE_DIR) / model_name
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename in model_info["files"]:
+        file_path = model_dir / filename
+        if not file_path.is_file():
+            file_url = model_info["url"] + filename
+            logger.info(f"正在下载 InsightFace 模型: {filename}")
+            download_model(file_url, model_dir, filename)
 
 
 def mask_from_landmarks(image, landmarks):
@@ -56,14 +95,19 @@ class FaceAnalysisModels:
     FUNCTION = "load_insight_face"
     CATEGORY = _CATEGORY
 
+    def __init__(self):
+        pass
+
     def load_insight_face(self, model_name, provider):
+        download_insightface_models(model_name)
+
         model = FaceAnalysis(
             name=model_name,
             root=INSIGHTFACE_DIR,
             providers=[
                 provider + "ExecutionProvider",
             ],
-        )  # alternative to buffalo_l
+        )
         model.prepare(ctx_id=0, det_size=(640, 640))
 
         out = InsightFace(model)
