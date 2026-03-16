@@ -36,9 +36,11 @@ INSIGHTFACE_MODELS = {
     "buffalo_l": {
         "url": "https://huggingface.co/Syaofox/sfnodes/resolve/main/buffalo_l/",
         "files": [
+            "1k3d68.onnx",
+            "2d106det.onnx",
             "det_10g.onnx",
-            "recognition.onnx",
             "genderage.onnx",
+            "w600k_r50.onnx"
         ],
     },
 }
