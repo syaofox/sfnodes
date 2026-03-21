@@ -52,7 +52,8 @@ app.registerExtension({
 
             node.imageA = null;
             node.imageB = null;
-            node.isDragging = false;
+            node.isHovering = false;
+
             node.isManuallyResized = false;
             node.slider_pos = NEUTRALPOS;
             node.setSize([320, 440]);
@@ -378,7 +379,6 @@ app.registerExtension({
                 },
 
                 onMouseDown(event) {
-                    
                     if (event.button !== 0 || !this.imageA || !this.imageB) return false;
 
                     const renderData = this.getImageRenderData(this.imageA, this.getContainerArea());
@@ -395,14 +395,43 @@ app.registerExtension({
                     return false;
                 },
 
-                onMouseMove(event) {
-                    if (this.isDragging && this.imageA) 
-                        this.updateSliderFromEvent(event);
+                onMouseEnter(event) {
+                    if (!this.imageA) return;
+                    this.isHovering = true;
+                    if (this.imageB) {
+                        this.setDirtyCanvas(true, true);
+                    }
                 },
 
-                onMouseUp(event) {
-                    if (this.isDragging) this.isDragging = false;
+                onMouseLeave(event) {
+                    if (!this.imageA) return;
+                    this.isHovering = false;
+                    this.slider_pos = 0;
+                    document.body.style.cursor = 'default';
+                    this.setDirtyCanvas(true, true);
                 },
+
+                onMouseMove(event, pos, canvas) {
+                    if (!this.imageA) return;
+
+                    const renderData = this.getImageRenderData(this.imageA, this.getContainerArea());
+
+                    const isOverImage = pos[0] >= renderData.x && pos[0] <= renderData.x + renderData.width &&
+                        pos[1] >= renderData.y && pos[1] <= renderData.y + renderData.height;
+
+                    if (isOverImage) {
+                        document.body.style.cursor = 'ew-resize';
+                        if (this.imageB) {
+                            let newSliderValue = (pos[0] - renderData.x) / renderData.width;
+                            this.slider_pos = Math.max(0.0, Math.min(1.0, newSliderValue));
+                            this.setDirtyCanvas(true, true);
+                        }
+                    } else {
+                        document.body.style.cursor = 'default';
+                    }
+                },
+
+
             });
         }
     },
