@@ -90,6 +90,7 @@ app.registerExtension({
             if (catWidget) {
                 catWidget.options.values = categories;
                 catWidget.value = validCat;
+                origWidgets["category"].value = validCat;
             }
             
             const filtered = getFilteredOptions(options, validCat);
@@ -118,15 +119,28 @@ app.registerExtension({
             
             const options = currentOptions;
             const categories = getCategories(options);
-            const defaultCat = categories[0] || "default";
-            const filtered = getFilteredOptions(options, defaultCat);
-            const defaultAlias = filtered[0]?.alias || "";
-            const defaultContent = filtered[0]?.content || "";
+
+            const savedCat = origWidgets["category"]?.value || categories[0] || "default";
+            const savedContent = origWidgets["selected_text"]?.value || "";
+
+            const validCat = categories.includes(savedCat) ? savedCat : (categories[0] || "default");
+            const filtered = getFilteredOptions(options, validCat);
+
+            let defaultAlias = filtered[0]?.alias || "";
+            let defaultContent = filtered[0]?.content || "";
+
+            if (savedContent) {
+                const savedOpt = options.find(o => o.content === savedContent);
+                if (savedOpt && savedOpt.category === validCat) {
+                    defaultAlias = savedOpt.alias;
+                    defaultContent = savedContent;
+                }
+            }
 
             catWidget = node.addWidget(
                 "combo",
                 "category_select",
-                defaultCat,
+                validCat,
                 async (value) => {
                     const opts = await loadConfigFromAPI();
                     currentOptions = opts;
@@ -140,12 +154,11 @@ app.registerExtension({
                         aliasWidget.value = "";
                         updateContent(null);
                     }
+                    origWidgets["category"].value = value;
                     return value;
                 },
                 { values: categories }
             );
-            catWidget.serialize = false;
-
             const aliases0 = filtered.map(o => o.alias);
             aliasWidget = node.addWidget(
                 "combo",
@@ -161,7 +174,6 @@ app.registerExtension({
                 },
                 { values: aliases0 }
             );
-            aliasWidget.serialize = false;
 
             contentWidget = ComfyWidgets["STRING"](
                 node,
@@ -172,6 +184,7 @@ app.registerExtension({
             contentWidget.serialize = false;
             contentWidget.inputEl.readOnly = true;
 
+            origWidgets["category"].value = validCat;
             origWidgets["selected_text"].value = defaultContent;
             updateContent(filtered[0] || null);
 

@@ -68,14 +68,13 @@ class SFTextDropdown:
             "required": {
                 "category": (
                     IO.STRING,
-                    {"default": default_category, "display": "hidden"},
+                    {"default": default_category},
                 ),
                 "selected_text": (
                     IO.STRING,
                     {
                         "multiline": False,
                         "default": default_content,
-                        "display": "hidden",
                     },
                 ),
                 "options_json": (
