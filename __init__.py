@@ -58,13 +58,6 @@ from .nodes.image.processing import (
     ImageColorMatch,
 )
 from .nodes.utils.imitation_hue import ImitationHueNode
-# from .nodes.model.ipadapter import (
-#     IPAdapterMSLayerWeights,
-#     IPAdapterMSTiled,
-#     IPAdapterEmbedsMS,
-#     IPAdapterEmbedsMSBatch,
-#     IPAdapterStyleCompositionTiled,
-# )
 from .nodes.model.person_mask import PersonSegmenterLoader, PersonMaskGenerator
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
@@ -81,7 +74,7 @@ from .nodes.utils.misc import (
 from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
 
 from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
-# from .nodes.model.hyperlora import HyperLoRALoadCharLoRANode, HyperLoRASaveCharLoRANode
+from .nodes.model.hyperlora import HyperLoRALoadCharLoRANode, HyperLoRASaveCharLoRANode
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.image.compare import ImageCompare
 from .nodes.text.text import (
@@ -186,12 +179,6 @@ NODE_CLASS_MAPPINGS = {
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
     "SFImitationHue": ImitationHueNode,
-    # IPAdapter节点
-    # "SFIPAdapterMSLayerWeights": IPAdapterMSLayerWeights,
-    # "SFIPAdapterMSTiled": IPAdapterMSTiled,
-    # "SFIPAdapterEmbedsMS": IPAdapterEmbedsMS,
-    # "SFIPAdapterEmbedsMSBatch": IPAdapterEmbedsMSBatch,
-    # "SFIPAdapterStyleCompositionTiled": IPAdapterStyleCompositionTiled,
     # 人像分割节点
     "SFPersonSegmenterLoader": PersonSegmenterLoader,
     "SFPersonMaskGenerator": PersonMaskGenerator,
@@ -210,9 +197,9 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintCutOut": InpaintCutOut,
     "SFInpaintPaste": InpaintPaste,
     "SFExtractCutInfo": ExtractCutInfo,
-    # # HyperLoRA节点
-    # "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
-    # "SFHyperLoRASaveCharLoRANode": HyperLoRASaveCharLoRANode,
+    # HyperLoRA节点
+    "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
+    "SFHyperLoRASaveCharLoRANode": HyperLoRASaveCharLoRANode,
     # 多LoRA节点
     "SFMultiLoraLoader": MultiLoraLoader,
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
@@ -316,12 +303,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
     "SFImitationHue": "SF Imitation Hue",
-    # IPAdapter节点
-    # "SFIPAdapterMSLayerWeights": "SF IPAdapter MS Layer Weights",
-    # "SFIPAdapterMSTiled": "SF IPAdapter MS Tiled",
-    # "SFIPAdapterEmbedsMS": "SF IPAdapter Embeds MS",
-    # "SFIPAdapterEmbedsMSBatch": "SF IPAdapter Embeds MS Batch",
-    # "SFIPAdapterStyleCompositionTiled": "SF IPAdapter Style Composition Tiled",
     # 人像分割节点
     "SFPersonSegmenterLoader": "SF Person Segmenter Loader",
     "SFPersonMaskGenerator": "SF Person Mask Generator",
