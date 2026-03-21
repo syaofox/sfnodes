@@ -31,6 +31,10 @@ from .nodes.image.scale import (
     ImageResizePlus,
     ApexSmartResize,
 )
+from .nodes.image.concatenate import (
+    ImageConcanate,
+    ImageConcatFromBatch,
+)
 from .nodes.mask.masks import (
     MaskParams,
     MaskParamsEdges,
@@ -153,6 +157,8 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImageSubfolderSortedByMtime": SFLoadImageSubfolderSortedByMtime,
     "SFImageResizePlus": ImageResizePlus,
     "SFSmartResize": ApexSmartResize,
+    "SFImageConcanate": ImageConcanate,
+    "SFImageConcatFromBatch": ImageConcatFromBatch,
     # 遮罩节点
     "SFMaskParams": MaskParams,
     "SFMaskParamsEdges": MaskParamsEdges,
@@ -276,6 +282,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImageSubfolderSortedByMtime": "SF Load Image Subfolder Sorted By Mtime",
     "SFImageResizePlus": "SF Image Resize Plus",
     "SFSmartResize": "SF Smart Resize",
+    "SFImageConcanate": "SF Image Concatenate",
+    "SFImageConcatFromBatch": "SF Image Concat From Batch",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
     "SFMaskParamsEdges": "SF Mask Params Edges",
