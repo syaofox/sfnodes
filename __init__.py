@@ -67,7 +67,6 @@ from .nodes.model.adv_clip import (
 )
 from .nodes.utils.misc import (
     DisplayAny,
-    Bus,
     RemoveLatentMask,
     SDXLEmptyLatentSizePicker,
 )
@@ -184,7 +183,6 @@ NODE_CLASS_MAPPINGS = {
     "SFPersonMaskGenerator": PersonMaskGenerator,
     # 显示节点
     "SFDisplayAny": DisplayAny,
-    "SFBus": Bus,
     "SFRemoveLatentMask": RemoveLatentMask,
     "SFSDXLEmptyLatentSizePicker": SDXLEmptyLatentSizePicker,
     "SFEmptyLatentByAspectRatio": EmptyLatentByAspectRatio,
@@ -308,7 +306,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPersonMaskGenerator": "SF Person Mask Generator",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
-    "SFBus": "SF Bus",
     "SFRemoveLatentMask": "SF Remove Latent Mask",
     "SFSDXLEmptyLatentSizePicker": "SF SDXL Empty Latent Size Picker",
     "SFEmptyLatentByAspectRatio": "SF Empty Latent By Aspect Ratio",
