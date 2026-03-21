@@ -58,14 +58,6 @@ app.registerExtension({
             node.slider_pos = NEUTRALPOS;
             node.setSize([320, 440]);
 
-            const blendModes = ["normal", "difference", "lighten", "darken", "screen", "multiply"];
-            
-            node.addWidget("combo", "Blend Mode", "normal", function (value) {
-                node.properties.blend_mode = value;
-                node.setDirtyCanvas(true, true);
-            }, { values: blendModes, property: "blend_mode" });
-
-
             node.addWidget("button", "Reset Node Size", null, () => {
                 node.isManuallyResized = false;
                 node.slider_pos = NEUTRALPOS;
@@ -100,12 +92,6 @@ app.registerExtension({
 
             node.configure = function (data) {
                 originalConfigure.apply(this, arguments);
-
-                if (data.properties) {
-                    if (data.properties.blend_mode !== undefined) {
-                        this.properties.blend_mode = data.properties.blend_mode;
-                    }
-                }
 
                 if (data.isManuallyResized) this.isManuallyResized = data.isManuallyResized;
                 if (data.slider_pos !== undefined) {
@@ -230,86 +216,45 @@ app.registerExtension({
 
                         const sliderValue = this.slider_pos;
                         const sliderPx = renderData.x + sliderValue * renderData.width;
-                        const blendMode = this.properties.blend_mode || "normal";
 
-                        const setTextStyle = () => {
-                            //ctx.font = "8px Arial";
-                            ctx.font = "100 8px Arial";
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(sliderPx, renderData.y, renderData.x + renderData.width - sliderPx, renderData.height);
+                        ctx.clip();
+                        ctx.drawImage(this.imageA, renderData.x, renderData.y, renderData.width, renderData.height);
+                        ctx.restore();
 
-                            // Disabled shadows
-                            // ctx.shadowColor = 'rgba(0, 0, 0, 255)';
-                            // ctx.shadowOffsetX = 0;
-                            // ctx.shadowOffsetY = 0;
-                            // ctx.shadowBlur = 6;
-                            ctx.textBaseline = "top";
-                        };
-
-
-                        // Main Drawing Logic ---
-
-                        if (blendMode !== "normal" && this.imageB) {
-                            let compositeOp = "source-over";
-
-                            if (blendMode === "difference")
-                                compositeOp = "difference";
-                            else if (blendMode === "lighten")
-                                compositeOp = "lighter";
-                            else if (blendMode === "multiply")
-                                compositeOp = "multiply";
-                            else if (blendMode === "darken")
-                                compositeOp = "darken";
-                            else if (blendMode === "screen")
-                                compositeOp = "screen";
-
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(renderData.x, renderData.y, sliderPx - renderData.x, renderData.height);
+                        ctx.clip();
+                        if (this.imageB) {
                             ctx.drawImage(this.imageB, renderData.x, renderData.y, renderData.width, renderData.height);
-                            ctx.globalCompositeOperation = compositeOp;
-                            ctx.drawImage(this.imageA, renderData.x, renderData.y, renderData.width, renderData.height);
-                            ctx.globalCompositeOperation = 'source-over';
+                        }
+                        else {
+                            ctx.fillStyle = "black";
+                            ctx.fillRect(renderData.x, renderData.y, renderData.width, renderData.height);
+                        }
+                        ctx.restore();
+
+                        if (this.isHovering && sliderValue > 0 && sliderValue < 1) {
+                            ctx.font = "100 8px Arial";
+                            ctx.textBaseline = "top";
 
                             ctx.save();
                             ctx.beginPath();
-                            ctx.rect(sliderPx, renderData.y, renderData.width * (1.0 - sliderValue), renderData.height);
+                            ctx.rect(sliderPx, renderData.y, renderData.x + renderData.width - sliderPx, renderData.height);
                             ctx.clip();
-                            ctx.drawImage(this.imageB, renderData.x, renderData.y, renderData.width, renderData.height);
+                            drawLabelWithBackground(ctx, "A", renderData.x + renderData.width - 5, renderData.y + 9, "right");
                             ctx.restore();
-                        }
-                        else {
-                            if (this.imageB) {
-                                ctx.drawImage(this.imageB, renderData.x, renderData.y, renderData.width, renderData.height);
-                            }
-                            else {
-                                ctx.fillStyle = "black";
-                                ctx.fillRect(renderData.x, renderData.y, renderData.width, renderData.height);
-                            }
 
                             ctx.save();
                             ctx.beginPath();
                             ctx.rect(renderData.x, renderData.y, sliderPx - renderData.x, renderData.height);
                             ctx.clip();
-                            ctx.drawImage(this.imageA, renderData.x, renderData.y, renderData.width, renderData.height);
+                            drawLabelWithBackground(ctx, "B", renderData.x + 5, renderData.y + 9, "left");
                             ctx.restore();
                         }
-
-                        // Text & UI Drawing ---
-                        setTextStyle();
-
-                        // Image A label
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.rect(renderData.x, renderData.y, sliderPx - renderData.x, renderData.height);
-                        ctx.clip();
-                        drawLabelWithBackground(ctx, "A", renderData.x + 5, renderData.y + 9, "left");
-                        ctx.restore();
-
-                        // Image B label
-                        ctx.save();
-                        ctx.beginPath();
-                        const rightMaskStart = sliderPx;
-                        const rightMaskWidth = (renderData.x + renderData.width) - sliderPx;
-                        ctx.rect(rightMaskStart, renderData.y, rightMaskWidth, renderData.height);
-                        ctx.clip();
-                        drawLabelWithBackground(ctx, "B", renderData.x + renderData.width - 5, renderData.y + 9, "right");
-                        ctx.restore();
 
                         const lineColor = "rgba(255, 255, 255, 0.3)";
                         const handleColor = "rgba(255, 255, 255, 1.0)";

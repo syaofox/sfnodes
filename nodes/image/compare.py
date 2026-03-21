@@ -57,14 +57,6 @@ class ImageCompare:
 
     @classmethod
     def INPUT_TYPES(cls):
-        blend_modes = [
-            "normal",
-            "difference",
-            "lighten",
-            "darken",
-            "screen",
-            "multiply",
-        ]
         return {
             "required": {
                 "image_a": ("IMAGE",),
@@ -76,7 +68,6 @@ class ImageCompare:
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
                 "unique_id": "UNIQUE_ID",
-                "blend_mode": (blend_modes, {"default": "normal"}),
             },
         }
 
@@ -99,11 +90,7 @@ class ImageCompare:
         prompt=None,
         extra_pnginfo=None,
         unique_id=None,
-        blend_mode="normal",
     ):
-        print(
-            f"[SFImageCompare] execute called: unique_id={repr(unique_id)}, type={type(unique_id)}"
-        )
         if unique_id is not None:
             img_a_b64, img_b_b64 = None, None
 
