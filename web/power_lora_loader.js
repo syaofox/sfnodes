@@ -308,14 +308,25 @@ function setupNode(node) {
     // ---- override configure ----
     const _origConfigure = node.configure;
     node.configure = function (info) {
-        // Remove all custom widgets: lora, header, spacer, and "Add Lora" button
+        // Save lora values and filter them out of widgets_values
+        const savedLoraValues = [];
+        const filteredInfo = { ...info };
+        if (info.widgets_values) {
+            filteredInfo.widgets_values = [];
+            for (const v of info.widgets_values) {
+                if (v && typeof v === "object" && v.lora !== undefined) {
+                    savedLoraValues.push(v);
+                } else {
+                    filteredInfo.widgets_values.push(v);
+                }
+            }
+        }
+        // Remove custom widgets so _origConfigure only processes standard widgets
         if (this.widgets?.length) {
             for (const w of [...this.widgets]) {
                 if (
-                    isLoraWidget(w) ||
-                    w.name === "_header" ||
-                    w.name === "_spacer" ||
-                    (w.type === "button" && w.name?.includes?.("Add Lora"))
+                    isLoraWidget(w) || w.name === "_header" || w.name === "_spacer"
+                    || (w.type === "button" && w.name?.includes?.("Add Lora"))
                 ) {
                     w.onRemoved?.();
                     const idx = this.widgets.indexOf(w);
@@ -326,27 +337,12 @@ function setupNode(node) {
         this.widgetButtonSpacer = null;
         this.loraWidgetsCounter = 0;
         this._sfNonLoraAdded = false;
-        // Restore properties from saved info
-        if (info.properties) {
-            this.properties = { ...this.properties, ...info.properties };
-        }
-        // Restore standard widget values (normalize, normalize_weight, etc.)
-        if (info.widgets_values) {
-            let stdIdx = 0;
-            for (const v of info.widgets_values) {
-                if (v && typeof v === "object" && v.lora !== undefined) break;
-                if (stdIdx < this.widgets.length && this.widgets[stdIdx].value !== undefined) {
-                    this.widgets[stdIdx].value = v;
-                }
-                stdIdx++;
-            }
-            // Re-add lora widgets from saved data
-            for (const v of info.widgets_values) {
-                if (v && typeof v === "object" && v.lora !== undefined) {
-                    const w = this.addNewLoraWidget();
-                    w._value = { ...v };
-                }
-            }
+        // Call original configure (restores connections, properties, standard widget values)
+        if (_origConfigure) _origConfigure.call(this, filteredInfo);
+        // Re-add lora widgets from saved data
+        for (const v of savedLoraValues) {
+            const w = this.addNewLoraWidget();
+            w._value = { ...v };
         }
         this.addNonLoraWidgets();
         const s = this.computeSize();
