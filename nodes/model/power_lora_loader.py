@@ -71,7 +71,7 @@ class SFPowerLoraLoader:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "开启归一化：每个lora的实际权重 = (|strength| / 总|strength|) × normalize_weight",
+                        "tooltip": "开启归一化权重",
                     },
                 ),
                 "normalize_weight": (
@@ -126,8 +126,15 @@ class SFPowerLoraLoader:
         # Calculate normalization
         total_weight = sum(abs(s) for _, _, s, _ in enabled_loras)
 
+        if normalize:
+            logger.info(
+                f"[SFPowerLoraLoader] normalize=ON, weight={normalize_weight}, "
+                f"total_abs_weight={total_weight:.4f}, loras={len(enabled_loras)}"
+            )
+
         for key, value, strength_model, strength_clip in enabled_loras:
-            lora = get_lora_by_filename(value["lora"])
+            lora_name = value["lora"]
+            lora = get_lora_by_filename(lora_name)
             if lora is None or model is None:
                 continue
 
@@ -154,6 +161,11 @@ class SFPowerLoraLoader:
                     norm_s_clip = norm_s_model * ratio
                 else:
                     norm_s_clip = 0
+                logger.info(
+                    f"[SFPowerLoraLoader] {lora_name}: "
+                    f"raw_model={strength_model:.2f} raw_clip={strength_clip:.2f} -> "
+                    f"norm_model={norm_s_model:.4f} norm_clip={norm_s_clip:.4f}"
+                )
             else:
                 norm_s_model = strength_model
                 norm_s_clip = strength_clip

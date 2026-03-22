@@ -244,14 +244,14 @@ function setupNode(node) {
         this.loraWidgetsCounter++;
         const widget = createLoraWidget("lora_" + this.loraWidgetsCounter, node);
         if (loraName) widget._value.lora = loraName;
-        // Insert before the spacer
-        if (this.widgetButtonSpacer) {
-            const idx = this.widgets.indexOf(this.widgetButtonSpacer);
-            if (idx !== -1) this.widgets.splice(idx, 0, widget);
-            else this.widgets.push(widget);
-        } else {
-            this.widgets.push(widget);
+        // Insert after the last lora widget, or after the header if none exist
+        let insertIdx = -1;
+        for (let i = this.widgets.length - 1; i >= 0; i--) {
+            if (isLoraWidget(this.widgets[i])) { insertIdx = i + 1; break; }
+            if (this.widgets[i].name === "_header") { insertIdx = i + 1; break; }
         }
+        if (insertIdx !== -1) this.widgets.splice(insertIdx, 0, widget);
+        else this.widgets.push(widget);
         return widget;
     };
 
@@ -272,8 +272,12 @@ function setupNode(node) {
             });
         });
 
-        // Insert header and spacer at the beginning
-        this.widgets.splice(0, 0, header, spacer);
+        // Insert spacer + header after standard ComfyUI widgets (normalize, normalize_weight)
+        const stdCount = this.widgets.filter(
+            w => !isLoraWidget(w) && w.name !== "_header" && w.name !== "_spacer"
+                && !(w.type === "button" && w.name?.includes?.("Add Lora"))
+        ).length;
+        this.widgets.splice(stdCount, 0, spacer, header);
         this.widgetButtonSpacer = spacer;
     };
 
@@ -304,23 +308,44 @@ function setupNode(node) {
     // ---- override configure ----
     const _origConfigure = node.configure;
     node.configure = function (info) {
-        // Clear all existing widgets
+        // Remove all custom widgets: lora, header, spacer, and "Add Lora" button
         if (this.widgets?.length) {
             for (const w of [...this.widgets]) {
-                w.onRemoved?.();
+                if (
+                    isLoraWidget(w) ||
+                    w.name === "_header" ||
+                    w.name === "_spacer" ||
+                    (w.type === "button" && w.name?.includes?.("Add Lora"))
+                ) {
+                    w.onRemoved?.();
+                    const idx = this.widgets.indexOf(w);
+                    if (idx !== -1) this.widgets.splice(idx, 1);
+                }
             }
-            this.widgets.length = 0;
         }
         this.widgetButtonSpacer = null;
         this.loraWidgetsCounter = 0;
         this._sfNonLoraAdded = false;
-        // Call original configure (restores properties etc.)
-        if (_origConfigure) _origConfigure.call(this, info);
-        // Re-add lora widgets from saved data
-        for (const v of info.widgets_values || []) {
-            if (v && typeof v === "object" && v.lora !== undefined) {
-                const w = this.addNewLoraWidget();
-                w._value = { ...v };
+        // Restore properties from saved info
+        if (info.properties) {
+            this.properties = { ...this.properties, ...info.properties };
+        }
+        // Restore standard widget values (normalize, normalize_weight, etc.)
+        if (info.widgets_values) {
+            let stdIdx = 0;
+            for (const v of info.widgets_values) {
+                if (v && typeof v === "object" && v.lora !== undefined) break;
+                if (stdIdx < this.widgets.length && this.widgets[stdIdx].value !== undefined) {
+                    this.widgets[stdIdx].value = v;
+                }
+                stdIdx++;
+            }
+            // Re-add lora widgets from saved data
+            for (const v of info.widgets_values) {
+                if (v && typeof v === "object" && v.lora !== undefined) {
+                    const w = this.addNewLoraWidget();
+                    w._value = { ...v };
+                }
             }
         }
         this.addNonLoraWidgets();
