@@ -79,6 +79,7 @@ from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
 from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .nodes.model.hyperlora import HyperLoRALoadCharLoRANode, HyperLoRASaveCharLoRANode
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
+from .nodes.model.power_lora_loader import SFPowerLoraLoader
 from .nodes.image.compare import ImageCompare
 from .nodes.text.text import (
     Text_Translation,
@@ -207,6 +208,7 @@ NODE_CLASS_MAPPINGS = {
     # 多LoRA节点
     "SFMultiLoraLoader": MultiLoraLoader,
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
+    "SFPowerLoraLoader": SFPowerLoraLoader,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
     # 文本节点
@@ -332,6 +334,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 多LoRA节点
     "SFMultiLoraLoader": "SF Multi LoRA Loader",
     "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
+    "SFPowerLoraLoader": "SF Power Lora Loader",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
     # 文本节点
