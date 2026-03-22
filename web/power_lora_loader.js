@@ -98,11 +98,113 @@ function removeArrayItem(arr, item) {
 }
 
 // ---------------------------------------------------------------------------
-// Lora Chooser
+// Lora Chooser + Tree View
 // ---------------------------------------------------------------------------
+let _treeCssInjected = false;
+function injectTreeCss() {
+    if (_treeCssInjected) return;
+    _treeCssInjected = true;
+    const style = document.createElement("style");
+    style.textContent = `
+        .sf-lora-folder {
+            opacity: 0.85; font-weight: 500; cursor: pointer; user-select: none;
+        }
+        .sf-lora-folder:hover { background-color: rgba(255,255,255,0.1); }
+        .sf-lora-folder-arrow { display: inline-block; width: 15px; text-align: center; }
+        .sf-lora-prefix { display: none; opacity: 0.6; font-size: 0.9em; }
+        .sf-lora-folder-contents { display: block; }
+        .litecontextmenu:has(input:not(:placeholder-shown)) .sf-lora-folder-contents { display: block !important; }
+        .litecontextmenu:has(input:not(:placeholder-shown)) .sf-lora-folder { display: none !important; }
+        .litecontextmenu:has(input:not(:placeholder-shown)) .sf-lora-prefix { display: inline; }
+        .litecontextmenu:has(input:not(:placeholder-shown)) .litemenu-entry { padding-left: 2px !important; }
+    `;
+    document.head.appendChild(style);
+}
+
 function showLoraChooser(event, callback) {
     const loras = ["None", ...(app.loras || [])];
-    new LiteGraph.ContextMenu(loras, { event, title: "Choose a lora", scale: Math.max(1, app.canvas.ds?.scale ?? 1), className: "dark", callback });
+    const menu = new LiteGraph.ContextMenu(loras, {
+        event,
+        title: "Choose a lora",
+        scale: Math.max(1, app.canvas.ds?.scale ?? 1),
+        className: "dark",
+        callback,
+    });
+    // Check display mode: 0=List, 1=Tree
+    const mode = app.ui?.settings?.getSettingValue?.("sfnodes.MultiLoraLoader.DisplayMode");
+    if (mode === 1) {
+        requestAnimationFrame(() => buildLoraTree(menu));
+    }
+}
+
+function buildLoraTree(menu) {
+    const root = menu.root || menu;
+    if (!root || !root.querySelectorAll) return;
+    const items = root.querySelectorAll(".litemenu-entry");
+    if (items.length < 2) return;
+
+    injectTreeCss();
+
+    const folderMap = new Map();
+    const rootItems = [];
+    const splitBy = /\/|\\/;
+    const ITEMS = Symbol("items");
+
+    for (const item of items) {
+        const path = (item.getAttribute("data-value") || item.textContent || "").split(splitBy);
+        item.textContent = path[path.length - 1];
+        if (path.length > 1) {
+            const prefix = document.createElement("span");
+            prefix.className = "sf-lora-prefix";
+            prefix.textContent = path.slice(0, -1).join("/") + "/";
+            item.prepend(prefix);
+        }
+        if (path.length === 1) { rootItems.push(item); continue; }
+        item.remove();
+        let cur = folderMap;
+        for (let i = 0; i < path.length - 1; i++) {
+            if (!cur.has(path[i])) cur.set(path[i], new Map());
+            cur = cur.get(path[i]);
+        }
+        if (!cur.has(ITEMS)) cur.set(ITEMS, []);
+        cur.get(ITEMS).push(item);
+    }
+
+    function makeFolder(name) {
+        const el = document.createElement("div");
+        el.className = "litemenu-entry sf-lora-folder";
+        el.innerHTML = `<span class="sf-lora-folder-arrow">&#9658;</span> ${name}`;
+        el.style.paddingLeft = "5px";
+        return el;
+    }
+
+    function insertTree(parent, map, level) {
+        for (const [name, content] of map.entries()) {
+            if (name === ITEMS) continue;
+            const folder = makeFolder(name);
+            folder.style.paddingLeft = `${level * 10 + 5}px`;
+            parent.appendChild(folder);
+            const container = document.createElement("div");
+            container.className = "sf-lora-folder-contents";
+            container.style.display = "none";
+            const folderItems = content.get(ITEMS) || [];
+            for (const it of folderItems) {
+                it.style.paddingLeft = `${(level + 1) * 10 + 14}px`;
+                container.appendChild(it);
+            }
+            insertTree(container, content, level + 1);
+            parent.appendChild(container);
+            folder.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const arrow = folder.querySelector(".sf-lora-folder-arrow");
+                const next = folder.nextElementSibling;
+                if (next.style.display === "none") { next.style.display = "block"; arrow.innerHTML = "&#9660;"; }
+                else { next.style.display = "none"; arrow.innerHTML = "&#9658;"; }
+            });
+        }
+    }
+
+    insertTree(items[0]?.parentElement || root, folderMap, 0);
 }
 
 function fetchLoraList() {
@@ -113,12 +215,13 @@ function fetchLoraList() {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & State
 // ---------------------------------------------------------------------------
 const PROP_KEY = "SF_ShowStrengths";
 const OPT_SINGLE = "Single Strength";
 const OPT_SEPARATE = "Separate Model & Clip";
 const NODE_TYPE = "SFPowerLoraLoader";
+let _lastCanvasEvent = null;
 
 // ---------------------------------------------------------------------------
 // Setup node instance
@@ -154,10 +257,12 @@ function setupNode(node) {
 
     // ---- add header / spacer / button ----
     node.addNonLoraWidgets = function () {
+        if (this._sfNonLoraAdded) return;
+        this._sfNonLoraAdded = true;
         const header = createHeaderWidget(node);
         const spacer = createSpacerWidget();
         const btnWidget = node.addWidget("button", "\u2795 Add Lora", null, () => {
-            showLoraChooser(window._sfLastEvent, (value) => {
+            showLoraChooser(_lastCanvasEvent, (value) => {
                 if (typeof value === "string" && value !== "None") {
                     node.addNewLoraWidget(value);
                     const s = node.computeSize();
@@ -199,10 +304,16 @@ function setupNode(node) {
     // ---- override configure ----
     const _origConfigure = node.configure;
     node.configure = function (info) {
-        // Remove all existing widgets
-        while (this.widgets?.length) this.removeWidget(0);
+        // Clear all existing widgets
+        if (this.widgets?.length) {
+            for (const w of [...this.widgets]) {
+                w.onRemoved?.();
+            }
+            this.widgets.length = 0;
+        }
         this.widgetButtonSpacer = null;
         this.loraWidgetsCounter = 0;
+        this._sfNonLoraAdded = false;
         // Call original configure (restores properties etc.)
         if (_origConfigure) _origConfigure.call(this, info);
         // Re-add lora widgets from saved data
@@ -241,7 +352,7 @@ function setupNode(node) {
                 { content: "Move Up", disabled: !canUp, callback: () => { moveArrayItem(this.widgets, widget, idx - 1); node.setDirtyCanvas(true, true); } },
                 { content: "Move Down", disabled: !canDown, callback: () => { moveArrayItem(this.widgets, widget, idx + 1); node.setDirtyCanvas(true, true); } },
                 { content: "Remove", callback: () => { removeArrayItem(this.widgets, widget); node.setDirtyCanvas(true, true); } },
-            ], { title: "LORA WIDGET", event: window._sfLastEvent });
+            ], { title: "LORA WIDGET", event: _lastCanvasEvent });
             return undefined;
         }
         if (_origGetSlotMenu) return _origGetSlotMenu.call(this, slot);
@@ -250,13 +361,6 @@ function setupNode(node) {
 
     // ---- refresh ----
     node.refreshComboInNode = function () { fetchLoraList(); };
-
-    // Capture last mouse event for context menu
-    const origProcessMouse = node.processMouseDown;
-    if (!window._sfMouseHooked) {
-        window._sfMouseHooked = true;
-        document.addEventListener("pointerdown", (e) => { window._sfLastEvent = e; });
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +373,8 @@ function createSpacerWidget() {
         type: "custom",
         options: { serialize: false },
         value: {},
+        y: 0,
+        last_y: 0,
         draw() { /* invisible spacer */ },
         computeSize(width) { return [width, 8]; },
     };
@@ -280,8 +386,11 @@ function createHeaderWidget(node) {
         type: "custom",
         options: { serialize: false },
         value: { type: "header" },
+        y: 0,
+        last_y: 0,
         _hitToggle: [0, 0],
         draw(ctx, n, width, posY, height) {
+            w.last_y = posY;
             if (!n.hasLoraWidgets()) return;
             const showSep = n.properties[PROP_KEY] === OPT_SEPARATE;
             const margin = 10, im = margin * 0.33;
@@ -321,18 +430,26 @@ function createHeaderWidget(node) {
 }
 
 function createLoraWidget(name, node) {
+    const INVALID_BOUNDS = [0, -1];
     const w = {
         name,
         type: "custom",
-        value: null, // will be set by getter
+        value: null,
+        y: 0,
+        last_y: 0,
         _value: { on: true, lora: null, strength: 1, strengthTwo: null },
         _showSep: null,
         _haveMouseMoved: false,
+        _mouseDown: null,
+        _dragTarget: null,
         _hit: {},
         get value() { return this._value; },
         set value(v) {
-            if (typeof v === "object" && v) this._value = v;
-            else this._value = { on: true, lora: null, strength: 1, strengthTwo: null };
+            if (typeof v === "object" && v) {
+                this._value = v;
+            } else {
+                this._value = { on: true, lora: null, strength: 1, strengthTwo: null };
+            }
         },
         serializeValue() {
             const v = { ...this._value };
@@ -341,6 +458,7 @@ function createLoraWidget(name, node) {
             return v;
         },
         draw(ctx, n, width, posY, height) {
+            this.last_y = posY;
             const showSep = n.properties[PROP_KEY] === OPT_SEPARATE;
             // Handle mode switch
             if (this._showSep !== showSep) {
@@ -350,9 +468,18 @@ function createLoraWidget(name, node) {
                     if (old != null) this._value.strengthTwo = this._value.strength ?? 1;
                 } else {
                     this._value.strengthTwo = null;
-                    this._hit = {};
                 }
             }
+            // Reset non-toggle bounds each frame
+            this._hit.strengthTwoDec = INVALID_BOUNDS;
+            this._hit.strengthTwoVal = INVALID_BOUNDS;
+            this._hit.strengthTwoInc = INVALID_BOUNDS;
+            this._hit.strengthTwoAny = INVALID_BOUNDS;
+            this._hit.strengthDec = INVALID_BOUNDS;
+            this._hit.strengthVal = INVALID_BOUNDS;
+            this._hit.strengthInc = INVALID_BOUNDS;
+            this._hit.strengthAny = INVALID_BOUNDS;
+            this._hit.lora = INVALID_BOUNDS;
             const margin = 10, im = margin * 0.33;
             const lq = isLowQuality();
             const midY = posY + height * 0.5;
@@ -362,7 +489,10 @@ function createLoraWidget(name, node) {
             // Toggle
             this._hit.toggle = drawToggle(ctx, posX, posY, height, this._value.on);
             posX += this._hit.toggle[1] + im;
-            if (lq) return;
+            if (lq) {
+                ctx.globalAlpha = app.canvas.editor_alpha;
+                return;
+            }
             if (!this._value.on) ctx.globalAlpha = app.canvas.editor_alpha * 0.4;
             ctx.fillStyle = LiteGraph.WIDGET_TEXT_COLOR;
             let rposX = width - margin - im - im;
@@ -396,6 +526,8 @@ function createLoraWidget(name, node) {
             if (event.type === "pointerdown") {
                 w._mouseDown = [...pos];
                 w._haveMouseMoved = false;
+                w._dragTarget = null;
+                const showSep = n.properties[PROP_KEY] === OPT_SEPARATE;
                 // Check toggle
                 if (hitTest(pos, w._hit.toggle)) {
                     w._value.on = !w._value.on;
@@ -412,15 +544,15 @@ function createLoraWidget(name, node) {
                     });
                     return true;
                 }
-                // Check strengthTwo arrows
-                if (hitTest(pos, w._hit.strengthTwoDec)) { stepStrength(w, -1, true); n.setDirtyCanvas(true, true); return true; }
-                if (hitTest(pos, w._hit.strengthTwoInc)) { stepStrength(w, 1, true); n.setDirtyCanvas(true, true); return true; }
-                // Check model strength arrows
+                // Check strength arrows (rightmost widget)
+                if (hitTest(pos, w._hit.strengthTwoDec)) { stepStrength(w, -1, showSep); n.setDirtyCanvas(true, true); return true; }
+                if (hitTest(pos, w._hit.strengthTwoInc)) { stepStrength(w, 1, showSep); n.setDirtyCanvas(true, true); return true; }
+                // Check model strength arrows (separate mode only)
                 if (hitTest(pos, w._hit.strengthDec)) { stepStrength(w, -1, false); n.setDirtyCanvas(true, true); return true; }
                 if (hitTest(pos, w._hit.strengthInc)) { stepStrength(w, 1, false); n.setDirtyCanvas(true, true); return true; }
                 // Check number value click (prompt)
                 if (hitTest(pos, w._hit.strengthTwoVal)) {
-                    app.canvas.prompt("Value", w._value.strengthTwo ?? 1, (v) => { w._value.strengthTwo = Number(v); n.setDirtyCanvas(true, true); }, event);
+                    app.canvas.prompt("Value", (showSep ? w._value.strengthTwo : w._value.strength) ?? 1, (v) => { if (showSep) w._value.strengthTwo = Number(v); else w._value.strength = Number(v); n.setDirtyCanvas(true, true); }, event);
                     return true;
                 }
                 if (hitTest(pos, w._hit.strengthVal)) {
@@ -428,14 +560,8 @@ function createLoraWidget(name, node) {
                     return true;
                 }
                 // Check strength area drag
-                if (hitTest(pos, w._hit.strengthTwoAny)) {
-                    w._dragTarget = "strengthTwo";
-                    return true;
-                }
-                if (hitTest(pos, w._hit.strengthAny)) {
-                    w._dragTarget = "strength";
-                    return true;
-                }
+                if (hitTest(pos, w._hit.strengthTwoAny)) { w._dragTarget = showSep ? "strengthTwo" : "strength"; return true; }
+                if (hitTest(pos, w._hit.strengthAny)) { w._dragTarget = "strength"; return true; }
             }
             if (event.type === "pointermove" && w._mouseDown) {
                 if (w._dragTarget && event.deltaX) {
@@ -454,6 +580,7 @@ function createLoraWidget(name, node) {
 
     function hitTest(pos, bounds) {
         if (!bounds || bounds.length < 2) return false;
+        if (bounds[1] < 0) return false;
         return pos[0] >= bounds[0] && pos[0] <= bounds[0] + bounds[1];
     }
     function stepStrength(widget, dir, isTwo) {
@@ -468,15 +595,29 @@ function createLoraWidget(name, node) {
 // ---------------------------------------------------------------------------
 // Register Extension
 // ---------------------------------------------------------------------------
+// Capture last canvas mouse event for ContextMenu positioning
+// ---------------------------------------------------------------------------
+let _eventHookInstalled = false;
+function ensureEventHook() {
+    if (_eventHookInstalled) return;
+    _eventHookInstalled = true;
+    const origAdjust = LGraphCanvas.prototype.adjustMouseEvent;
+    LGraphCanvas.prototype.adjustMouseEvent = function (e) {
+        origAdjust.apply(this, arguments);
+        _lastCanvasEvent = e;
+    };
+}
+
 app.registerExtension({
     name: "sfnodes.SFPowerLoraLoader",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== NODE_TYPE) return;
-        nodeType["@SF_ShowStrengths"] = { type: "combo", values: [OPT_SINGLE, OPT_SEPARATE] };
-        const orig = nodeType.prototype.onNodeCreated;
-        nodeType.prototype.onNodeCreated = function () {
-            if (orig) orig.call(this);
-            setupNode(this);
-        };
+        if (nodeData.name === NODE_TYPE) {
+            nodeType["@SF_ShowStrengths"] = { type: "combo", values: [OPT_SINGLE, OPT_SEPARATE] };
+        }
+    },
+    nodeCreated(node) {
+        if (node.comfyClass !== NODE_TYPE) return;
+        ensureEventHook();
+        setupNode(node);
     },
 });
