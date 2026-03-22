@@ -66,7 +66,25 @@ class SFPowerLoraLoader:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {},
+            "required": {
+                "normalize": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "开启归一化：每个lora的实际权重 = (|strength| / 总|strength|) × normalize_weight",
+                    },
+                ),
+                "normalize_weight": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.01,
+                        "max": 10.0,
+                        "step": 0.01,
+                        "tooltip": "归一化目标总权重",
+                    },
+                ),
+            },
             "optional": FlexibleOptionalInputType(
                 type=any_type,
                 data={
@@ -82,7 +100,9 @@ class SFPowerLoraLoader:
     FUNCTION = "load_loras"
     CATEGORY = "loaders"
 
-    def load_loras(self, model=None, clip=None, **kwargs):
+    def load_loras(self, normalize, normalize_weight, model=None, clip=None, **kwargs):
+        # Collect enabled loras
+        enabled_loras = []
         for key, value in kwargs.items():
             key_upper = key.upper()
             if (
@@ -91,25 +111,57 @@ class SFPowerLoraLoader:
                 and "on" in value
                 and "lora" in value
                 and "strength" in value
+                and value["on"]
             ):
                 strength_model = value["strength"]
                 strength_clip = value.get("strengthTwo", None)
-                if clip is None:
-                    if strength_clip is not None and strength_clip != 0:
-                        logger.warning(
-                            "[SFPowerLoraLoader] Received clip strength even though no clip supplied!"
-                        )
-                    strength_clip = 0
-                else:
-                    strength_clip = (
-                        strength_clip if strength_clip is not None else strength_model
+                if strength_model != 0 or (
+                    strength_clip is not None and strength_clip != 0
+                ):
+                    enabled_loras.append((key, value, strength_model, strength_clip))
+
+        if not enabled_loras:
+            return (model, clip)
+
+        # Calculate normalization
+        total_weight = sum(abs(s) for _, _, s, _ in enabled_loras)
+
+        for key, value, strength_model, strength_clip in enabled_loras:
+            lora = get_lora_by_filename(value["lora"])
+            if lora is None or model is None:
+                continue
+
+            if clip is None:
+                if strength_clip is not None and strength_clip != 0:
+                    logger.warning(
+                        "[SFPowerLoraLoader] Received clip strength even though no clip supplied!"
                     )
-                if value["on"] and (strength_model != 0 or strength_clip != 0):
-                    lora = get_lora_by_filename(value["lora"])
-                    if model is not None and lora is not None:
-                        model, clip = LoraLoader().load_lora(
-                            model, clip, lora, strength_model, strength_clip
-                        )
+                strength_clip = 0
+            else:
+                strength_clip = (
+                    strength_clip if strength_clip is not None else strength_model
+                )
+
+            # Apply normalization
+            if normalize and total_weight > 0:
+                norm_s_model = (abs(strength_model) / total_weight) * normalize_weight
+                if strength_model < 0:
+                    norm_s_model = -norm_s_model
+                if strength_clip != 0:
+                    ratio = (
+                        strength_clip / strength_model if strength_model != 0 else 1.0
+                    )
+                    norm_s_clip = norm_s_model * ratio
+                else:
+                    norm_s_clip = 0
+            else:
+                norm_s_model = strength_model
+                norm_s_clip = strength_clip
+
+            if norm_s_model != 0 or norm_s_clip != 0:
+                model, clip = LoraLoader().load_lora(
+                    model, clip, lora, norm_s_model, norm_s_clip
+                )
 
         return (model, clip)
 
