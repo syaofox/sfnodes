@@ -109,6 +109,7 @@ from .nodes.text.dropdown import SFTextDropdown
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolutionNode
+from .nodes.utils.memory_cleanup import SFVRAMCleanup, SFRAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
@@ -239,6 +240,9 @@ NODE_CLASS_MAPPINGS = {
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
     # Flux 分辨率节点
     "SFFluxResolution": FluxResolutionNode,
+    # 内存清理节点
+    "SFVRAMCleanup": SFVRAMCleanup,
+    "SFRAMCleanup": SFRAMCleanup,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -365,6 +369,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
     # Flux 分辨率节点
     "SFFluxResolution": "SF Flux Resolution Calculator",
+    # 内存清理节点
+    "SFVRAMCleanup": "SF VRAM Cleanup",
+    "SFRAMCleanup": "SF RAM Cleanup",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
