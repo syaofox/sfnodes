@@ -7,6 +7,7 @@ import torch
 from PIL import Image, ImageOps
 
 import comfy.utils
+import folder_paths
 
 from ...sf_utils.image_convert import pil2tensor
 
@@ -165,10 +166,9 @@ class SelectFace:
 
     @classmethod
     def INPUT_TYPES(cls):
-        current_dir = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        target_dir = os.path.join(
+            folder_paths.get_user_directory(), "sfnodes", "face_pieces"
         )
-        target_dir = os.path.join(current_dir, "data", "face_pieces")
         if os.path.exists(target_dir):
             for d in Path(target_dir).iterdir():
                 if d.is_dir():
@@ -177,28 +177,99 @@ class SelectFace:
             os.makedirs(target_dir, exist_ok=True)
 
         return {
-            "required": {"face_name": (list(cls.dir_dict.keys()), {"default": ""})},
-            "optional": {"char_name": ("STRING", {"default": ""})},
+            "required": {
+                "face_name": (list(cls.dir_dict.keys()), {"default": ""}),
+                "start_index": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 9999, "tooltip": "设置开始索引"},
+                ),
+                "max_index": (
+                    "INT",
+                    {"default": 1, "min": 1, "max": 9999, "tooltip": "设置最大索引"},
+                ),
+            },
         }
 
     RETURN_TYPES = (
+        "IMAGE",
+        "IMAGE",
+        "LIST",
         "STRING",
         "STRING",
     )
     RETURN_NAMES = (
+        "images",
+        "images_list",
+        "file_list",
         "face_path",
         "face_name",
+    )
+    OUTPUT_IS_LIST = (
+        False,
+        True,
+        True,
+        False,
+        False,
     )
     FUNCTION = "execute"
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从特定路径选择人脸，子文件夹名即为人脸名称，路径在facepath文件中设置"
+    DESCRIPTION = "选择人脸文件夹，返回路径、名称及文件夹中的图片列表"
 
-    def execute(self, face_name, char_name=None):
-        if char_name:
-            face_name = char_name
+    def execute(self, face_name, start_index, max_index):
+        face_path = str(self.dir_dict[face_name])
+
+        file_list = sorted(
+            os.listdir(face_path),
+            key=lambda s: sum(
+                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
+            ),
+        )
+
+        start_index = max(0, min(start_index, len(file_list) - 1))
+        end_index = min(start_index + max_index, len(file_list))
+
+        image_list = []
+        ref_image = None
+
+        for num in range(start_index, end_index):
+            fname = os.path.join(face_path, file_list[num])
+            img = Image.open(fname)
+            img = ImageOps.exif_transpose(img)
+            if img is None:
+                raise ValueError(f"无法从文件中读取有效图像: {fname}")
+            image = img.convert("RGB")
+
+            t_image = pil2tensor(image)
+            if ref_image is None:
+                ref_image = t_image
+            else:
+                if t_image.shape[1:] != ref_image.shape[1:]:
+                    t_image = comfy.utils.common_upscale(
+                        t_image.movedim(-1, 1),
+                        ref_image.shape[2],
+                        ref_image.shape[1],
+                        "lanczos",
+                        "center",
+                    ).movedim(1, -1)
+
+            image_list.append(t_image)
+
+        if not image_list:
+            raise ValueError("未找到有效图像")
+
+        image_batch = torch.cat(image_list, dim=0)
+        images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
+
+        file_list = [
+            os.path.join(face_path, file_list[i]) for i in range(len(file_list))
+        ][start_index:end_index]
+
         return (
-            str(self.dir_dict[face_name]),
+            image_batch,
+            images_out,
+            file_list,
+            face_path,
             face_name,
         )
 
