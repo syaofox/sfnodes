@@ -54,6 +54,7 @@ from .nodes.mask.masks import (
     MaskFillPercentArea,
     MaskFillColor,
 )
+from .nodes.mask.conditional_invert import ConditionalInvertMask
 from .nodes.image.processing import (
     ColorAdjustment,
     ColorTint,
@@ -179,6 +180,7 @@ NODE_CLASS_MAPPINGS = {
     "SFMaskCrop": MaskCrop,
     "SFMaskFillPercentArea": MaskFillPercentArea,
     "SFMaskFillColor": MaskFillColor,
+    "SFConditionalInvertMask": ConditionalInvertMask,
     # 图片处理节点
     "SFColorAdjustment": ColorAdjustment,
     "SFColorTint": ColorTint,
@@ -308,6 +310,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskCrop": "SF Mask Crop",
     "SFMaskFillPercentArea": "SF Mask Fill Percent Area",
     "SFMaskFillColor": "SF Mask Fill Color",
+    "SFConditionalInvertMask": "SF Conditional Invert Mask",
     # 图片处理节点
     "SFColorAdjustment": "SF Color Adjustment",
     "SFColorTint": "SF Color Tint",
