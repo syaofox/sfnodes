@@ -35,6 +35,7 @@ class EmptyLatentByAspectRatio:
 
         return {
             "required": {
+                "model_type": (["SD", "Flux2"], {"default": "SD", "tooltip": "模型类型"}),
                 "aspect_ratio": (aspect_ratio_options, {"default": default_ratio}),
                 "resolution": (all_resolutions, {"default": resolution_options[0]}),
                 "batch_size": (
@@ -50,16 +51,19 @@ class EmptyLatentByAspectRatio:
     CATEGORY = _CATEGORY
     DESCRIPTION = "根据宽高比生成空潜在图像"
 
-    def generate(self, aspect_ratio, resolution, batch_size=1):
+    def generate(self, model_type, aspect_ratio, resolution, batch_size=1):
         # 解析分辨率字符串 "1024x768" -> (1024, 768)
         width, height = resolution.split("x")
         width = int(width)
         height = int(height)
 
-        # 创建空潜在图像
-        # 标准SD模型使用4通道，下采样8倍
+        if model_type == "Flux2":
+            channels, downscale = 128, 16
+        else:
+            channels, downscale = 4, 8
+
         latent = torch.zeros(
-            [batch_size, 4, height // 8, width // 8], device=self.device
+            [batch_size, channels, height // downscale, width // downscale], device=self.device
         )
 
         return ({"samples": latent}, width, height)

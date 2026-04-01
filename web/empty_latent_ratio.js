@@ -17,11 +17,11 @@ import { app } from "/scripts/app.js";
 
 // 定义宽高比和对应的分辨率（与Python代码保持一致）
 const ASPECT_RATIOS = {
-    "4:3": ["1024x768", "1280x960", "1600x1200", "2048x1536"],
-    "3:4": ["768x1024", "960x1280", "1200x1600", "1536x2048"],
-    "16:9": ["1280x720", "1920x1080", "2560x1440", "3840x2160"],
-    "9:16": ["720x1280", "1080x1920", "1440x2560", "2160x3840"],
-    "1:1": ["512x512", "768x768", "1024x1024", "1536x1536", "2048x2048"]
+    "4:3": ["512x384", "640x480", "1024x768", "1280x960", "1600x1200", "2048x1536"],
+    "3:4": ["384x512", "480x640", "768x1024", "960x1280", "1200x1600", "1536x2048"],
+    "16:9": ["640x360", "960x540", "1280x720", "1920x1080", "2560x1440", "3840x2160"],
+    "9:16": ["360x640", "540x960", "720x1280", "1080x1920", "1440x2560", "2160x3840"],
+    "1:1": ["256x256", "384x384", "512x512", "768x768", "1024x1024", "1536x1536", "2048x2048"]
 };
 
 app.registerExtension({
@@ -29,9 +29,10 @@ app.registerExtension({
 
     nodeCreated(node) {
         if (node.comfyClass === "SFEmptyLatentByAspectRatio") {
-            // 查找宽高比和分辨率控件
+            // 查找控件
             const aspectRatioWidget = node.widgets.find(w => w.name === "aspect_ratio");
             const resolutionWidget = node.widgets.find(w => w.name === "resolution");
+            const modelTypeWidget = node.widgets.find(w => w.name === "model_type");
 
             if (!aspectRatioWidget || !resolutionWidget) {
                 return;
@@ -81,6 +82,17 @@ app.registerExtension({
                 // 更新分辨率选项
                 updateResolutionOptions(value);
             };
+
+            // 监听模型类型变化，触发节点更新
+            if (modelTypeWidget) {
+                const originalModelTypeCallback = modelTypeWidget.callback;
+                modelTypeWidget.callback = function(value) {
+                    if (originalModelTypeCallback) {
+                        originalModelTypeCallback.call(this, value);
+                    }
+                    node.setDirtyCanvas(true, true);
+                };
+            }
 
             // 初始化：确保分辨率选项与当前选择的宽高比匹配
             updateResolutionOptions(aspectRatioWidget.value);
