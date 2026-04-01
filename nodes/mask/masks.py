@@ -1367,6 +1367,13 @@ class MaskFillColor:
                         "tooltip": "填充颜色的不透明度，1.0为完全不透明，0.0为完全透明",
                     },
                 ),
+                "skip_if_all_white": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "如果遮罩全白则跳过填充，直接返回原图",
+                    },
+                ),
             }
         }
 
@@ -1375,7 +1382,13 @@ class MaskFillColor:
     CATEGORY = _CATEGORY
     DESCRIPTION = "用指定颜色填充图片中mask遮住的部分"
 
-    def execute(self, image, mask, fill_color, opacity):
+    def execute(self, image, mask, fill_color, opacity, skip_if_all_white=True):
+        import torch
+
+        if skip_if_all_white:
+            mask_flat = mask.reshape(-1)
+            if torch.all(mask_flat == 1.0).item():
+                return (image,)
         import torch
 
         if isinstance(fill_color, str):
