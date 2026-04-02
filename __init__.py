@@ -114,6 +114,8 @@ from .nodes.utils.memory_cleanup import SFVRAMCleanup, SFRAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
+from .nodes.logic import SFIfElse, SFAnythingIndexSwitch
+
 WEB_DIRECTORY = "web"
 
 
@@ -245,6 +247,9 @@ NODE_CLASS_MAPPINGS = {
     # 内存清理节点
     "SFVRAMCleanup": SFVRAMCleanup,
     "SFRAMCleanup": SFRAMCleanup,
+    # 逻辑节点
+    "SFIfElse": SFIfElse,
+    "SFAnythingIndexSwitch": SFAnythingIndexSwitch,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -375,6 +380,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 内存清理节点
     "SFVRAMCleanup": "SF VRAM Cleanup",
     "SFRAMCleanup": "SF RAM Cleanup",
+    # 逻辑节点
+    "SFIfElse": "SF If Else",
+    "SFAnythingIndexSwitch": "SF Anything Index Switch",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
