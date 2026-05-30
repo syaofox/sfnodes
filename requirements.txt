@@ -2,8 +2,6 @@ color_matcher
 translators
 mediapipe
 opencv-contrib-python
-opencv-python
-opencv-python-headless
 insightface
 onnxruntime
 kornia
