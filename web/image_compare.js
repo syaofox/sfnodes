@@ -351,7 +351,7 @@ app.registerExtension({
                 onMouseLeave(event) {
                     if (!this.imageA) return;
                     this.isHovering = false;
-                    this.slider_pos = 0;
+                    this.slider_pos = this.slider_pos > 0.5 ? 1.0 : 0.0;
                     document.body.style.cursor = 'default';
                     this.setDirtyCanvas(true, true);
                 },
