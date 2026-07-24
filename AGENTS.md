@@ -115,6 +115,10 @@ class SFMyNode:
 - JS Widget 放在 `web/` 目录，文件名与节点功能对应
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册
 
+## Code Discovery
+
+优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。该系统已索引整个项目，支持语义搜索和调用链追踪。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退到 grep/glob。
+
 ## Development Rules
 
 1. **不要启动 ComfyUI 或运行 `pip install`** — 本机仅作为代码编辑环境

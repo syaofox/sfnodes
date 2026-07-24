@@ -9,6 +9,7 @@
 - 前端：JS Widget 使用 `app.registerExtension`（LiteGraph API），放在 `web/` 目录
 
 ## 执行约束
+0. **优先使用 codebase-memory 图搜索**（`search_graph`、`trace_path`、`get_code_snippet`）代替 grep/glob 查找函数、类、路由定义和调用关系。找不到时再回退 grep/glob。
 1. **沟通语言**：中文。
 2. **前置评估**（回答以下几个问题后再提交方案）：
    - 修改影响范围？有无副作用？会不会影响性能或导致相关功能受损？有没有过度想象？
