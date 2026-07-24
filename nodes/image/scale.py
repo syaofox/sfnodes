@@ -60,6 +60,7 @@ class GetImageSize:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    OUTPUT_NODE = True
 
     def execute(self, image):
         return {

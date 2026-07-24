@@ -6,14 +6,7 @@ import platform
 import gc
 from server import PromptServer
 import comfy.model_management
-
-
-class AnyType(str):
-    def __eq__(self, _) -> bool:
-        return True
-
-    def __ne__(self, __value: object) -> bool:
-        return False
+from ...sf_utils.common import AnyType
 
 
 any = AnyType("*")

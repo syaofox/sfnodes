@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import torch
 from PIL import ImageFilter
@@ -85,6 +86,13 @@ def blur_mask(mask, radius):
 
 def solid_mask(width, height, value=1):
     return torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
+
+
+def mask_from_landmarks(image, landmarks):
+    mask = np.zeros(image.shape[:2], dtype=np.float64)
+    points = cv2.convexHull(landmarks)
+    cv2.fillConvexPoly(mask, points, color=(1,))
+    return mask
 
 
 def mask_floor(mask, threshold: float = 0.99):

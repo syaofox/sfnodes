@@ -4,13 +4,9 @@ from typing import Union
 
 from nodes import LoraLoader
 from ...sf_utils.logger import get_logger
+from ...sf_utils.common import AnyType
 
 logger = get_logger(__name__)
-
-
-class AnyType(str):
-    def __ne__(self, __value: object) -> bool:
-        return False
 
 
 any_type = AnyType("*")

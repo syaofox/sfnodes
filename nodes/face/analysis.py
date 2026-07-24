@@ -11,8 +11,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageColor
 from comfy.utils import ProgressBar
 from ...sf_utils.insightface_utils import InsightFace
 from insightface.app import FaceAnalysis
-from ...sf_utils.image_convert import image_to_tensor, tensor_to_image
-from ...sf_utils.mask_utils import mask_process
+from ...sf_utils.image_convert import image_to_tensor, tensor2np
+from ...sf_utils.mask_utils import mask_process, mask_from_landmarks
 from ...sf_utils.logger import get_logger
 from ...sf_utils.downloader import download_model
 
@@ -60,14 +60,6 @@ def download_insightface_models(model_name):
             file_url = model_info["url"] + filename
             logger.info(f"正在下载 InsightFace 模型: {filename}")
             download_model(file_url, model_dir, filename)
-
-
-def mask_from_landmarks(image, landmarks):
-    mask = np.zeros(image.shape[:2], dtype=np.float64)
-    points = cv2.convexHull(landmarks)
-    cv2.fillConvexPoly(mask, points, color=1)
-
-    return mask
 
 
 class FaceAnalysisModels:
@@ -345,7 +337,7 @@ class FaceSegmentation:
         out_h = []
 
         for img in image:
-            face = tensor_to_image(img)
+            face = tensor2np(img)
 
             if face is None:
                 logger.warning(f"No face detected at frame {len(out_image)}")

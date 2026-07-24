@@ -5,21 +5,14 @@ import torch
 from color_matcher import ColorMatcher
 from color_matcher.normalizer import Normalizer
 from comfy.utils import ProgressBar
-from ...sf_utils.image_convert import tensor_to_image, image_to_tensor
-from ...sf_utils.mask_utils import mask_process
+from ...sf_utils.image_convert import tensor2np, image_to_tensor
+from ...sf_utils.mask_utils import mask_process, mask_from_landmarks
 from ...sf_utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 _CATEGORY = "sfnodes/face"
-
-
-def mask_from_landmarks(image, landmarks):
-    mask = np.zeros(image.shape[:2], dtype=np.float64)
-    points = cv2.convexHull(landmarks)
-    cv2.fillConvexPoly(mask, points, color=(1,))
-    return mask
 
 
 class FaceWarp:
@@ -85,8 +78,8 @@ class FaceWarp:
         result_mask = []
 
         for i in range(steps):
-            img_from = tensor_to_image(image_from[i])
-            img_to = tensor_to_image(image_to[i])
+            img_from = tensor2np(image_from[i])
+            img_to = tensor2np(image_to[i])
 
             shape_from = analysis_models.get_landmarks(
                 img_from, extended_landmarks=("forehead" in keypoints)

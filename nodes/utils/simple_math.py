@@ -189,6 +189,10 @@ class SimpleMathSliderLowRes:
         "FLOAT",
         "INT",
     )
+    RETURN_NAMES = (
+        "float",
+        "int",
+    )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
@@ -198,7 +202,7 @@ class SimpleMathSliderLowRes:
         if rounding > 0:
             value = round(value, rounding)
 
-        return (value,)
+        return (value, int(value))
 
 
 class SimpleMathBoolean:
@@ -210,7 +214,8 @@ class SimpleMathBoolean:
             },
         }
 
-    RETURN_TYPES = ("BOOLEAN",)
+    RETURN_TYPES = ("BOOLEAN", "INT")
+    RETURN_NAMES = ("boolean", "int")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 

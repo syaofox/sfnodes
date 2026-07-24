@@ -22,10 +22,6 @@ def tensor2mask(image, channel="red"):
     return mask
 
 
-def tensor_to_image(image):
-    return np.array(T.ToPILImage()(image.permute(2, 0, 1)).convert("RGB"))
-
-
 def tensor2images(tensor: torch.Tensor) -> List[Image.Image]:
     images = []
     for i in range(tensor.shape[0]):
