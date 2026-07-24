@@ -1,3 +1,5 @@
+import torch
+
 from ..sf_utils.common import AnyType
 
 any_type = AnyType("*")
@@ -62,3 +64,23 @@ class SFAnythingIndexSwitch:
     def index_switch(self, index, **kwargs):
         key = "value%d" % index
         return (kwargs[key],)
+
+
+class SFIsMaskEmpty:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask": ("MASK",),
+            },
+        }
+
+    RETURN_TYPES = ("BOOLEAN",)
+    RETURN_NAMES = ("boolean",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    def execute(self, mask):
+        if mask is None:
+            return (True,)
+        return (torch.all(mask == 0).item(),)

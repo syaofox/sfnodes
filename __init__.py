@@ -114,7 +114,7 @@ from .nodes.utils.memory_cleanup import SFVRAMCleanup, SFRAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
-from .nodes.logic import SFIfElse, SFAnythingIndexSwitch
+from .nodes.logic import SFIfElse, SFAnythingIndexSwitch, SFIsMaskEmpty
 
 WEB_DIRECTORY = "web"
 
@@ -250,6 +250,7 @@ NODE_CLASS_MAPPINGS = {
     # 逻辑节点
     "SFIfElse": SFIfElse,
     "SFAnythingIndexSwitch": SFAnythingIndexSwitch,
+    "SFIsMaskEmpty": SFIsMaskEmpty,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -383,6 +384,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 逻辑节点
     "SFIfElse": "SF If Else",
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
+    "SFIsMaskEmpty": "SF Is Mask Empty",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
