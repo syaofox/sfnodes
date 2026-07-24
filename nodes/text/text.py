@@ -70,7 +70,7 @@ class TextTranslation:
                         "Mglip",
                         "Utibet",
                     ],
-                    {"default": "google"},
+                    {"default": "Google"},
                 ),
                 "trans_text": ("STRING", {"multiline": True}),
             },
