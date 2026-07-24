@@ -52,11 +52,11 @@ def get_lora_by_filename(file_path, lora_paths=None):
         if os.path.basename(p) == basename:
             return lora_paths[i]
 
-    logger.warning(f"[SFPowerLoraLoader] Could not find lora: {file_path}")
+    logger.warning(f"[PowerLoraLoader] Could not find lora: {file_path}")
     return None
 
 
-class SFPowerLoraLoader:
+class PowerLoraLoader:
     """A powerful, flexible node to add multiple loras to a model/clip with custom UI."""
 
     @classmethod
@@ -124,7 +124,7 @@ class SFPowerLoraLoader:
 
         if normalize:
             logger.info(
-                f"[SFPowerLoraLoader] normalize=ON, weight={normalize_weight}, "
+                f"[PowerLoraLoader] normalize=ON, weight={normalize_weight}, "
                 f"total_abs_weight={total_weight:.4f}, loras={len(enabled_loras)}"
             )
 
@@ -137,7 +137,7 @@ class SFPowerLoraLoader:
             if clip is None:
                 if strength_clip is not None and strength_clip != 0:
                     logger.warning(
-                        "[SFPowerLoraLoader] Received clip strength even though no clip supplied!"
+                        "[PowerLoraLoader] Received clip strength even though no clip supplied!"
                     )
                 strength_clip = 0
             else:
@@ -158,7 +158,7 @@ class SFPowerLoraLoader:
                 else:
                     norm_s_clip = 0
                 logger.info(
-                    f"[SFPowerLoraLoader] {lora_name}: "
+                    f"[PowerLoraLoader] {lora_name}: "
                     f"raw_model={strength_model:.2f} raw_clip={strength_clip:.2f} -> "
                     f"norm_model={norm_s_model:.4f} norm_clip={norm_s_clip:.4f}"
                 )

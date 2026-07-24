@@ -12,7 +12,7 @@ from .nodes.face.region import BiSeNetLoader, RegionSelector, GenerateRegionFace
 from .nodes.image.files import (
     LoadImagesFromFolder,
     LoadImageFromPath,
-    SelectFace,
+    FaceBankLoader,
     LoadImages,
 )
 from .nodes.image.scale import (
@@ -21,18 +21,16 @@ from .nodes.image.scale import (
     ImageScalerByPixels,
     ImageScaleBySpecifiedSide,
     ComputeImageScaleRatio,
-    ImageRotate,
-    TrimImageBorders,
-    AddImageBorder,
     ScaleImageToSquare,
-    SFLoadImage,
-    SFLoadImageSubfolder,
-    SFLoadImageSubfolderSortedByMtime,
+    LoadImageScaled,
+    LoadImageFromSubfolder,
+    LoadImageByMtime,
     ImageResizePlus,
     ApexSmartResize,
 )
+from .nodes.image.transform import ImageRotate, TrimImageBorders, AddImageBorder
 from .nodes.image.concatenate import (
-    ImageConcanate,
+    ImageConcatenate,
     ImageConcatFromBatch,
 )
 from .nodes.mask.masks import (
@@ -40,7 +38,7 @@ from .nodes.mask.masks import (
     MaskParamsEdges,
     OutlineMask,
     CreateBlurredEdgeMask,
-    MaskChange,
+    MaskTransform,
     Depth2Mask,
     MaskScaleBy,
     MaskScale,
@@ -62,7 +60,7 @@ from .nodes.image.processing import (
     FlatteningEffect,
     ImageColorMatch,
 )
-from .nodes.utils.imitation_hue import ImitationHueNode
+from .nodes.image.imitation_hue import ImitationHue
 from .nodes.model.person_mask import PersonSegmenterLoader, PersonMaskGenerator
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
@@ -78,12 +76,12 @@ from .nodes.utils.misc import (
 from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
 
 from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
-from .nodes.model.hyperlora import HyperLoRALoadCharLoRANode, HyperLoRASaveCharLoRANode
+from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacter
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
-from .nodes.model.power_lora_loader import SFPowerLoraLoader
+from .nodes.model.power_lora_loader import PowerLoraLoader
 from .nodes.image.compare import ImageCompare
 from .nodes.text.text import (
-    Text_Translation,
+    TextTranslation,
     StringConcatenate,
     TextCombine,
     AnimeCharSelect,
@@ -104,17 +102,17 @@ from .nodes.utils.simple_math import (
     ConsoleDebug,
     DebugTensorShape,
     BatchCount,
-    Float,
+    SimpleFloat,
 )
-from .nodes.text.dropdown import SFTextDropdown
+from .nodes.text.dropdown import TextDropdown
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
-from .nodes.utils.flux_resolution import FluxResolutionNode
-from .nodes.utils.memory_cleanup import SFVRAMCleanup, SFRAMCleanup
+from .nodes.utils.flux_resolution import FluxResolution
+from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
-from .nodes.logic import SFIfElse, SFAnythingIndexSwitch, SFIsMaskEmpty
+from .nodes.logic import IfElse, AnythingIndexSwitch, IsMaskEmpty
 
 WEB_DIRECTORY = "web"
 
@@ -145,7 +143,7 @@ NODE_CLASS_MAPPINGS = {
     # 文件节点
     "SFLoadImagesFromFolder": LoadImagesFromFolder,
     "SFLoadImageFromPath": LoadImageFromPath,
-    "SFSelectFace": SelectFace,
+    "SFFaceBankLoader": FaceBankLoader,
     "SFLoadImages": LoadImages,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -153,23 +151,23 @@ NODE_CLASS_MAPPINGS = {
     "SFImageScalerByPixels": ImageScalerByPixels,
     "SFImageScaleBySpecifiedSide": ImageScaleBySpecifiedSide,
     "SFComputeImageScaleRatio": ComputeImageScaleRatio,
+    "SFScaleImageToSquare": ScaleImageToSquare,
+    "SFLoadImageScaled": LoadImageScaled,
+    "SFLoadImageFromSubfolder": LoadImageFromSubfolder,
+    "SFLoadImageByMtime": LoadImageByMtime,
+    "SFImageResizePlus": ImageResizePlus,
+    "SFApexSmartResize": ApexSmartResize,
     "SFImageRotate": ImageRotate,
     "SFTrimImageBorders": TrimImageBorders,
     "SFAddImageBorder": AddImageBorder,
-    "SFScaleImageToSquare": ScaleImageToSquare,
-    "SFLoadImage": SFLoadImage,
-    "SFLoadImageSubfolder": SFLoadImageSubfolder,
-    "SFLoadImageSubfolderSortedByMtime": SFLoadImageSubfolderSortedByMtime,
-    "SFImageResizePlus": ImageResizePlus,
-    "SFApexSmartResize": ApexSmartResize,
-    "SFImageConcanate": ImageConcanate,
+    "SFImageConcatenate": ImageConcatenate,
     "SFImageConcatFromBatch": ImageConcatFromBatch,
     # 遮罩节点
     "SFMaskParams": MaskParams,
     "SFMaskParamsEdges": MaskParamsEdges,
     "SFOutlineMask": OutlineMask,
     "SFCreateBlurredEdgeMask": CreateBlurredEdgeMask,
-    "SFMaskChange": MaskChange,
+    "SFMaskTransform": MaskTransform,
     "SFDepth2Mask": Depth2Mask,
     "SFMaskScaleBy": MaskScaleBy,
     "SFMaskScale": MaskScale,
@@ -189,7 +187,7 @@ NODE_CLASS_MAPPINGS = {
     "SFColorBlockEffect": ColorBlockEffect,
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
-    "SFImitationHueNode": ImitationHueNode,
+    "SFImitationHue": ImitationHue,
     # 人像分割节点
     "SFPersonSegmenterLoader": PersonSegmenterLoader,
     "SFPersonMaskGenerator": PersonMaskGenerator,
@@ -208,21 +206,21 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintPaste": InpaintPaste,
     "SFExtractCutInfo": ExtractCutInfo,
     # HyperLoRA节点
-    "SFHyperLoRALoadCharLoRANode": HyperLoRALoadCharLoRANode,
-    "SFHyperLoRASaveCharLoRANode": HyperLoRASaveCharLoRANode,
+    "SFHyperLoRALoadCharacter": HyperLoRALoadCharacter,
+    "SFHyperLoRASaveCharacter": HyperLoRASaveCharacter,
     # 多LoRA节点
     "SFMultiLoraLoader": MultiLoraLoader,
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
-    "SFPowerLoraLoader": SFPowerLoraLoader,
+    "SFPowerLoraLoader": PowerLoraLoader,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
     # 文本节点
-    "SFTextTranslation": Text_Translation,
+    "SFTextTranslation": TextTranslation,
     "SFStringConcatenate": StringConcatenate,
     "SFTextCombine": TextCombine,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
-    "SFTextDropdown": SFTextDropdown,
+    "SFTextDropdown": TextDropdown,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
     "SFSimpleMathPercent": SimpleMathPercent,
@@ -238,19 +236,19 @@ NODE_CLASS_MAPPINGS = {
     "SFConsoleDebug": ConsoleDebug,
     "SFDebugTensorShape": DebugTensorShape,
     "SFBatchCount": BatchCount,
-    "SFFloat": Float,
+    "SFSimpleFloat": SimpleFloat,
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
     # Flux 分辨率节点
-    "SFFluxResolutionNode": FluxResolutionNode,
+    "SFFluxResolution": FluxResolution,
     # 内存清理节点
-    "SFVRAMCleanup": SFVRAMCleanup,
-    "SFRAMCleanup": SFRAMCleanup,
+    "SFVRAMCleanup": VRAMCleanup,
+    "SFRAMCleanup": RAMCleanup,
     # 逻辑节点
-    "SFIfElse": SFIfElse,
-    "SFAnythingIndexSwitch": SFAnythingIndexSwitch,
-    "SFIsMaskEmpty": SFIsMaskEmpty,
+    "SFIfElse": IfElse,
+    "SFAnythingIndexSwitch": AnythingIndexSwitch,
+    "SFIsMaskEmpty": IsMaskEmpty,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -279,7 +277,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 文件节点
     "SFLoadImagesFromFolder": "SF Load Images From Folder",
     "SFLoadImageFromPath": "SF Load Image From Path",
-    "SFSelectFace": "SF Select Face",
+    "SFFaceBankLoader": "SF Face Bank Loader",
     "SFLoadImages": "SF Load Images",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
@@ -287,23 +285,23 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageScalerByPixels": "SF Image Scaler By Pixels",
     "SFImageScaleBySpecifiedSide": "SF Image Scale By Specified Side",
     "SFComputeImageScaleRatio": "SF Compute Image Scale Ratio",
+    "SFScaleImageToSquare": "SF Scale Image To Square",
+    "SFLoadImageScaled": "SF Load Image Scaled",
+    "SFLoadImageFromSubfolder": "SF Load Image From Subfolder",
+    "SFLoadImageByMtime": "SF Load Image By Mtime",
+    "SFImageResizePlus": "SF Image Resize Plus",
+    "SFApexSmartResize": "SF Apex Smart Resize",
     "SFImageRotate": "SF Image Rotate",
     "SFTrimImageBorders": "SF Trim Image Borders",
     "SFAddImageBorder": "SF Add Image Border",
-    "SFScaleImageToSquare": "SF Scale Image To Square",
-    "SFLoadImage": "SF Load Image",
-    "SFLoadImageSubfolder": "SF Load Image Subfolder",
-    "SFLoadImageSubfolderSortedByMtime": "SF Load Image Subfolder Sorted By Mtime",
-    "SFImageResizePlus": "SF Image Resize Plus",
-    "SFApexSmartResize": "SF Apex Smart Resize",
-    "SFImageConcanate": "SF Image Concatenate",
+    "SFImageConcatenate": "SF Image Concatenate",
     "SFImageConcatFromBatch": "SF Image Concat From Batch",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
     "SFMaskParamsEdges": "SF Mask Params Edges",
     "SFOutlineMask": "SF Outline Mask",
     "SFCreateBlurredEdgeMask": "SF Create Blurred Edge Mask",
-    "SFMaskChange": "SF Mask Change",
+    "SFMaskTransform": "SF Mask Transform",
     "SFDepth2Mask": "SF Depth2Mask",
     "SFMaskScaleBy": "SF Mask Scale By",
     "SFMaskScale": "SF Mask Scale",
@@ -323,7 +321,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFColorBlockEffect": "SF Color Block Effect",
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
-    "SFImitationHueNode": "SF Imitation Hue",
+    "SFImitationHue": "SF Imitation Hue",
     # 人像分割节点
     "SFPersonSegmenterLoader": "SF Person Segmenter Loader",
     "SFPersonMaskGenerator": "SF Person Mask Generator",
@@ -342,8 +340,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintPaste": "SF Inpaint Paste",
     "SFExtractCutInfo": "SF Extract Cut Info",
     # HyperLoRA节点
-    "SFHyperLoRALoadCharLoRANode": "SF HyperLoRA Load Char LoRA",
-    "SFHyperLoRASaveCharLoRANode": "SF HyperLoRA Save Char LoRA",
+    "SFHyperLoRALoadCharacter": "SF HyperLoRA Load Character",
+    "SFHyperLoRASaveCharacter": "SF HyperLoRA Save Character",
     # 多LoRA节点
     "SFMultiLoraLoader": "SF Multi LoRA Loader",
     "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
@@ -372,12 +370,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFConsoleDebug": "SF Console Debug",
     "SFDebugTensorShape": "SF Debug Tensor Shape",
     "SFBatchCount": "SF Batch Count",
-    "SFFloat": "SF Float",
+    "SFSimpleFloat": "SF Simple Float",
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
     # Flux 分辨率节点
-    "SFFluxResolutionNode": "SF Flux Resolution Calculator",
+    "SFFluxResolution": "SF Flux Resolution Calculator",
     # 内存清理节点
     "SFVRAMCleanup": "SF VRAM Cleanup",
     "SFRAMCleanup": "SF RAM Cleanup",

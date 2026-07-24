@@ -7,7 +7,7 @@ from comfy.comfy_types.node_typing import IO
 _CATEGORY = "sfnodes/text"
 
 
-class SFTextDropdown:
+class TextDropdown:
     @classmethod
     def _get_options_path(cls) -> str:
         base_dir = os.path.dirname(
@@ -128,7 +128,7 @@ def _register_text_dropdown_routes():
                 config = body.get("config", {})
                 if not isinstance(config, dict):
                     return web.Response(status=400, text="config object required")
-                SFTextDropdown._save_config(config)
+                TextDropdown._save_config(config)
                 return web.Response(status=200)
             except Exception:
                 return web.Response(status=500)
@@ -136,7 +136,7 @@ def _register_text_dropdown_routes():
         @routes.get("/api/sfnodes/text_dropdown/load")
         async def _load(request: web.Request) -> web.Response:
             try:
-                config = SFTextDropdown._load_config()
+                config = TextDropdown._load_config()
                 return web.json_response(config)
             except Exception:
                 return web.Response(status=500)

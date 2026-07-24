@@ -9,7 +9,7 @@ class TextEncodeQwenImageEdit(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SFTextEncodeQwenImageEdit",
-            category="sfnodes/qwen",
+            category="sfnodes/model",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
@@ -52,7 +52,7 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SFTextEncodeQwenImageEditPlus",
-            category="sfnodes/qwen",
+            category="sfnodes/model",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),

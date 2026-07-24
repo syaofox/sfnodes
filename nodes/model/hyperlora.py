@@ -62,7 +62,7 @@ def list_chars(sub_dir):
     return models
 
 
-class HyperLoRALoadCharLoRANode:
+class HyperLoRALoadCharacter:
     @classmethod
     def INPUT_TYPES(cls):
         return inputs_def(
@@ -117,7 +117,7 @@ class HyperLoRALoadCharLoRANode:
         return (lora, images_tensor, charname)
 
 
-class HyperLoRASaveCharLoRANode:
+class HyperLoRASaveCharacter:
     @classmethod
     def INPUT_TYPES(cls):
         return inputs_def(

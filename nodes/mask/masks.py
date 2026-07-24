@@ -151,7 +151,7 @@ class CreateBlurredEdgeMask:
         return (tensor2mask(blurred_image),)
 
 
-class MaskChange:
+class MaskTransform:
     @classmethod
     def INPUT_TYPES(cls):
         return {

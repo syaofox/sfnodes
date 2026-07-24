@@ -158,7 +158,7 @@ class LoadImagesFromFolder:
         )
 
 
-class SelectFace:
+class FaceBankLoader:
     dir_dict = {}
 
     def __init__(self):

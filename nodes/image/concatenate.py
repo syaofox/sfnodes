@@ -4,7 +4,7 @@ from comfy.utils import common_upscale
 _CATEGORY = "sfnodes/image"
 
 
-class ImageConcanate:
+class ImageConcatenate:
     @classmethod
     def INPUT_TYPES(cls):
         return {

@@ -9,7 +9,7 @@ MAX_FLOW_NUM = 20
 _CATEGORY = "sfnodes/logic"
 
 
-class SFIfElse:
+class IfElse:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -35,7 +35,7 @@ class SFIfElse:
         return (kwargs['on_true'] if kwargs['boolean'] else kwargs['on_false'],)
 
 
-class SFAnythingIndexSwitch:
+class AnythingIndexSwitch:
     def __init__(self):
         pass
 
@@ -66,7 +66,7 @@ class SFAnythingIndexSwitch:
         return (kwargs[key],)
 
 
-class SFIsMaskEmpty:
+class IsMaskEmpty:
     @classmethod
     def INPUT_TYPES(s):
         return {

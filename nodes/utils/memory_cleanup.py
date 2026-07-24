@@ -12,7 +12,7 @@ from ...sf_utils.common import AnyType
 any = AnyType("*")
 
 
-class SFVRAMCleanup:
+class VRAMCleanup:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -66,7 +66,7 @@ class SFVRAMCleanup:
         return (anything,)
 
 
-class SFRAMCleanup:
+class RAMCleanup:
     @classmethod
     def INPUT_TYPES(s):
         return {

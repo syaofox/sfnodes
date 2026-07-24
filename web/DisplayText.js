@@ -42,7 +42,7 @@ app.registerExtension({
             case "SFTrimImageBorders":
             case "SFAddImageBorder":
             case "SFGetImageSize":
-            case "SFLoadImage":
+            case "SFLoadImageScaled":
                 const onExecutedImage = nodeType.prototype.onExecuted;
                 nodeType.prototype.onExecuted = function (message) {
                     onExecutedImage?.apply(this, arguments);

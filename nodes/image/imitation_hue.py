@@ -193,7 +193,7 @@ def color_transfer(source, target, mask=None, strength=1.0, skin_protection=0.2,
     return final_result
 
 
-class ImitationHueNode:
+class ImitationHue:
     @classmethod
     def INPUT_TYPES(s):
         return {

@@ -18,7 +18,7 @@ def load_csv_data(filename):
     return data
 
 
-class Text_Translation:
+class TextTranslation:
     def __init__(self):
         pass
 

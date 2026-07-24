@@ -34,7 +34,7 @@ class SimpleMathFloat:
         return (float(value),)
 
 
-class Float:
+class SimpleFloat:
     @classmethod
     def INPUT_TYPES(s):
         return {

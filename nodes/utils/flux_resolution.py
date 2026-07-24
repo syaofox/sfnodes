@@ -28,7 +28,7 @@ def _get_font(size):
     return ImageFont.load_default()
 
 
-class FluxResolutionNode:
+class FluxResolution:
     @classmethod
     def INPUT_TYPES(cls):
         megapixel_options = [f"{i / 10:.1f}" for i in range(1, 26)]  # 0.1 to 2.5
