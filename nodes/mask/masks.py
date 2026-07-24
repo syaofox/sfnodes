@@ -471,8 +471,6 @@ class MaskAdjustGrayscale:
     DESCRIPTION = "将遮罩设置为指定的灰度值"
 
     def execute(self, mask, gray_value, apply_to, strength):
-        import torch
-
         # 创建一个新的张量以避免修改原始数据
         result_mask = mask.clone()
 
@@ -683,8 +681,6 @@ class FillWithReferenceColor:
         opacity: float,
         reference_mask=None,
     ):
-        import torch
-
         # 克隆目标图像，避免修改原始数据
         result_image = target_image.detach().clone()
 
@@ -871,194 +867,27 @@ class MaskParams:
         return (mask_params,)
 
 
+_DIRECTIONS = ["top", "bottom", "left", "right"]
+
+
 class MaskParamsEdges:
     @classmethod
     def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "pre_invert": (
-                    "BOOLEAN",
-                    {
-                        "default": False,
-                        "tooltip": "是否反转遮罩(注意:先反转,再其他操作)",
-                    },
-                ),
-                # 上边增长参数
-                "grow_top": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -4096,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置上边生长值，范围为-4096到4096，步长为1",
-                    },
-                ),
-                "grow_top_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": -2.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置上边生长百分比，范围为-2.0到2.0，步长为0.01",
-                    },
-                ),
-                # 下边增长参数
-                "grow_bottom": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -4096,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置下边生长值，范围为-4096到4096，步长为1",
-                    },
-                ),
-                "grow_bottom_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": -2.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置下边生长百分比，范围为-2.0到2.0，步长为0.01",
-                    },
-                ),
-                # 左边增长参数
-                "grow_left": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -4096,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置左边生长值，范围为-4096到4096，步长为1",
-                    },
-                ),
-                "grow_left_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": -2.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置左边生长百分比，范围为-2.0到2.0，步长为0.01",
-                    },
-                ),
-                # 右边增长参数
-                "grow_right": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -4096,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置右边生长值，范围为-4096到4096，步长为1",
-                    },
-                ),
-                "grow_right_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": -2.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置右边生长百分比，范围为-2.0到2.0，步长为0.01",
-                    },
-                ),
-                "grow_tapered": (
-                    "BOOLEAN",
-                    {"default": False, "tooltip": "是否使用锥形角"},
-                ),
-                # 上边模糊参数
-                "blur_top": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置上边模糊值，范围为0到4096，步长为1",
-                    },
-                ),
-                "blur_top_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置上边模糊百分比，范围为0.0到2.0，步长为0.01",
-                    },
-                ),
-                # 下边模糊参数
-                "blur_bottom": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置下边模糊值，范围为0到4096，步长为1",
-                    },
-                ),
-                "blur_bottom_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置下边模糊百分比，范围为0.0到2.0，步长为0.01",
-                    },
-                ),
-                # 左边模糊参数
-                "blur_left": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置左边模糊值，范围为0到4096，步长为1",
-                    },
-                ),
-                "blur_left_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置左边模糊百分比，范围为0.0到2.0，步长为0.01",
-                    },
-                ),
-                # 右边模糊参数
-                "blur_right": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置右边模糊值，范围为0到4096，步长为1",
-                    },
-                ),
-                "blur_right_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.00,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置右边模糊百分比，范围为0.0到2.0，步长为0.01",
-                    },
-                ),
-                "fill": ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"}),
-                "invert": ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"}),
-            },
+        required = {
+            "pre_invert": ("BOOLEAN", {"default": False, "tooltip": "是否反转遮罩(注意:先反转,再其他操作)"}),
         }
+        for d in _DIRECTIONS:
+            cn = {"top": "上", "bottom": "下", "left": "左", "right": "右"}[d]
+            required[f"grow_{d}"] = ("INT", {"default": 0, "min": -4096, "max": 4096, "step": 1, "tooltip": f"设置{cn}边生长值，范围为-4096到4096，步长为1"})
+            required[f"grow_{d}_percent"] = ("FLOAT", {"default": 0.00, "min": -2.0, "max": 2.0, "step": 0.01, "tooltip": f"设置{cn}边生长百分比，范围为-2.0到2.0，步长为0.01"})
+        required["grow_tapered"] = ("BOOLEAN", {"default": False, "tooltip": "是否使用锥形角"})
+        for d in _DIRECTIONS:
+            cn = {"top": "上", "bottom": "下", "left": "左", "right": "右"}[d]
+            required[f"blur_{d}"] = ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1, "tooltip": f"设置{cn}边模糊值，范围为0到4096，步长为1"})
+            required[f"blur_{d}_percent"] = ("FLOAT", {"default": 0.00, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": f"设置{cn}边模糊百分比，范围为0.0到2.0，步长为0.01"})
+        required["fill"] = ("BOOLEAN", {"default": False, "tooltip": "是否填充孔洞"})
+        required["invert"] = ("BOOLEAN", {"default": False, "tooltip": "输出结果反转"})
+        return {"required": required}
 
     RETURN_TYPES = ("MASKPARAMS",)
     RETURN_NAMES = ("mask_params",)
@@ -1066,53 +895,8 @@ class MaskParamsEdges:
     CATEGORY = _CATEGORY
     DESCRIPTION = "设置遮罩参数（支持四个边单独定义增长和模糊参数）"
 
-    def execute(
-        self,
-        pre_invert,
-        grow_top,
-        grow_top_percent,
-        grow_bottom,
-        grow_bottom_percent,
-        grow_left,
-        grow_left_percent,
-        grow_right,
-        grow_right_percent,
-        grow_tapered,
-        blur_top,
-        blur_top_percent,
-        blur_bottom,
-        blur_bottom_percent,
-        blur_left,
-        blur_left_percent,
-        blur_right,
-        blur_right_percent,
-        fill,
-        invert,
-    ):
-        mask_params = {
-            "pre_invert": pre_invert,
-            "grow_top": grow_top,
-            "grow_top_percent": grow_top_percent,
-            "grow_bottom": grow_bottom,
-            "grow_bottom_percent": grow_bottom_percent,
-            "grow_left": grow_left,
-            "grow_left_percent": grow_left_percent,
-            "grow_right": grow_right,
-            "grow_right_percent": grow_right_percent,
-            "grow_tapered": grow_tapered,
-            "blur_top": blur_top,
-            "blur_top_percent": blur_top_percent,
-            "blur_bottom": blur_bottom,
-            "blur_bottom_percent": blur_bottom_percent,
-            "blur_left": blur_left,
-            "blur_left_percent": blur_left_percent,
-            "blur_right": blur_right,
-            "blur_right_percent": blur_right_percent,
-            "fill": fill,
-            "invert": invert,
-        }
-
-        return (mask_params,)
+    def execute(self, **kwargs):
+        return (kwargs,)
 
 
 class MaskCrop:
@@ -1155,10 +939,6 @@ class MaskCrop:
     DESCRIPTION = "裁剪掉图像中的遮罩区域"
 
     def execute(self, image, mask, invert_mask, threshold, actual_crop):
-        import torch
-        import numpy as np
-        from PIL import Image
-
         # 确保图像和遮罩的批次大小匹配
         assert image.shape[0] == mask.shape[0] or mask.shape[0] == 1, (
             "图像和遮罩的批次大小不匹配"
@@ -1383,13 +1163,10 @@ class MaskFillColor:
     DESCRIPTION = "用指定颜色填充图片中mask遮住的部分"
 
     def execute(self, image, mask, fill_color, opacity, skip_if_all_white=True):
-        import torch
-
         if skip_if_all_white:
             mask_flat = mask.reshape(-1)
             if torch.all(mask_flat == 1.0).item():
                 return (image,)
-        import torch
 
         if isinstance(fill_color, str):
             hex_color = fill_color.lstrip("#")

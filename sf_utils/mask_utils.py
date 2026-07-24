@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import scipy
 import torch
 from PIL import ImageFilter
 from scipy.ndimage import binary_closing, binary_fill_holes
@@ -59,8 +60,6 @@ def invert_mask(mask):
 
 
 def expand_mask(mask, expand, tapered_corners):
-    import scipy
-
     c = 0 if tapered_corners else 1
     kernel = np.array([[c, 1, c], [1, 1, 1], [c, 1, c]])
     device = mask.device
@@ -184,8 +183,6 @@ def expand_mask_edges(mask, grow_top, grow_bottom, grow_left, grow_right, grow_t
         grow_right: 右边增长值
         grow_tapered: 是否使用锥形角
     """
-    import scipy
-
     if grow_top == 0 and grow_bottom == 0 and grow_left == 0 and grow_right == 0:
         return mask
 
@@ -366,92 +363,88 @@ def blur_mask_edges(mask, blur_top, blur_bottom, blur_left, blur_right):
     return torch.stack(out, dim=0).to(device)
 
 
+def _process_edges(mask, mask_params):
+    grow_tapered = mask_params.get("grow_tapered", False)
+    height, width = mask.shape[-2], mask.shape[-1]
+
+    grow_top = mask_params.get("grow_top", 0)
+    grow_top_percent = mask_params.get("grow_top_percent", 0.0)
+    grow_bottom = mask_params.get("grow_bottom", 0)
+    grow_bottom_percent = mask_params.get("grow_bottom_percent", 0.0)
+    grow_left = mask_params.get("grow_left", 0)
+    grow_left_percent = mask_params.get("grow_left_percent", 0.0)
+    grow_right = mask_params.get("grow_right", 0)
+    grow_right_percent = mask_params.get("grow_right_percent", 0.0)
+
+    grow_top_count = int(grow_top_percent * height) + grow_top
+    grow_bottom_count = int(grow_bottom_percent * height) + grow_bottom
+    grow_left_count = int(grow_left_percent * width) + grow_left
+    grow_right_count = int(grow_right_percent * width) + grow_right
+
+    if any([grow_top_count, grow_bottom_count, grow_left_count, grow_right_count]):
+        mask = expand_mask_edges(mask, grow_top_count, grow_bottom_count,
+                                 grow_left_count, grow_right_count, grow_tapered)
+
+    blur_top = mask_params.get("blur_top", 0)
+    blur_top_percent = mask_params.get("blur_top_percent", 0.0)
+    blur_bottom = mask_params.get("blur_bottom", 0)
+    blur_bottom_percent = mask_params.get("blur_bottom_percent", 0.0)
+    blur_left = mask_params.get("blur_left", 0)
+    blur_left_percent = mask_params.get("blur_left_percent", 0.0)
+    blur_right = mask_params.get("blur_right", 0)
+    blur_right_percent = mask_params.get("blur_right_percent", 0.0)
+
+    blur_top_count = int(blur_top_percent * height) + blur_top
+    blur_bottom_count = int(blur_bottom_percent * height) + blur_bottom
+    blur_left_count = int(blur_left_percent * width) + blur_left
+    blur_right_count = int(blur_right_percent * width) + blur_right
+
+    if any([blur_top_count, blur_bottom_count, blur_left_count, blur_right_count]):
+        mask = blur_mask_edges(mask, blur_top_count, blur_bottom_count,
+                               blur_left_count, blur_right_count)
+    return mask
+
+
+def _process_global(mask, mask_params):
+    grow_tapered = mask_params.get("grow_tapered", False)
+    grow = mask_params.get("grow", 0)
+    grow_percent = mask_params.get("grow_percent", 0.0)
+    blur = mask_params.get("blur", 0)
+    blur_percent = mask_params.get("blur_percent", 0.0)
+
+    grow_count = int(grow_percent * max(mask.shape)) + grow
+    if grow_count != 0:
+        mask = expand_mask(mask, grow_count, grow_tapered)
+
+    blur_count = int(blur_percent * max(mask.shape)) + blur
+    if blur_count > 0:
+        mask = blur_mask(mask, blur_count)
+    return mask
+
+
 def mask_process(mask, mask_params=None, unqueeze=True):
-
-
     if mask_params is None:
         if unqueeze:
             mask = mask.squeeze(0).unsqueeze(-1)
         return mask
 
-
     pre_invert = mask_params["pre_invert"]
     fill = mask_params["fill"]
     invert = mask_params["invert"]
-    grow_tapered = mask_params.get("grow_tapered", False)
 
     if pre_invert:
         mask = 1 - mask
 
-    # 检查是否使用四个边参数
-    use_edges = ("grow_top" in mask_params or "grow_bottom" in mask_params or
-                 "grow_left" in mask_params or "grow_right" in mask_params or
-                 "blur_top" in mask_params or "blur_bottom" in mask_params or
-                 "blur_left" in mask_params or "blur_right" in mask_params)
-
-    if use_edges:
-        # 使用四个边分别处理
-        # 获取增长参数
-        grow_top = mask_params.get("grow_top", 0)
-        grow_top_percent = mask_params.get("grow_top_percent", 0.0)
-        grow_bottom = mask_params.get("grow_bottom", 0)
-        grow_bottom_percent = mask_params.get("grow_bottom_percent", 0.0)
-        grow_left = mask_params.get("grow_left", 0)
-        grow_left_percent = mask_params.get("grow_left_percent", 0.0)
-        grow_right = mask_params.get("grow_right", 0)
-        grow_right_percent = mask_params.get("grow_right_percent", 0.0)
-
-        # 计算每个边的实际增长值
-        height, width = mask.shape[-2], mask.shape[-1]
-        grow_top_count = int(grow_top_percent * height) + grow_top
-        grow_bottom_count = int(grow_bottom_percent * height) + grow_bottom
-        grow_left_count = int(grow_left_percent * width) + grow_left
-        grow_right_count = int(grow_right_percent * width) + grow_right
-
-        if grow_top_count != 0 or grow_bottom_count != 0 or grow_left_count != 0 or grow_right_count != 0:
-            mask = expand_mask_edges(mask, grow_top_count, grow_bottom_count,
-                                     grow_left_count, grow_right_count, grow_tapered)
-
-        # 获取模糊参数
-        blur_top = mask_params.get("blur_top", 0)
-        blur_top_percent = mask_params.get("blur_top_percent", 0.0)
-        blur_bottom = mask_params.get("blur_bottom", 0)
-        blur_bottom_percent = mask_params.get("blur_bottom_percent", 0.0)
-        blur_left = mask_params.get("blur_left", 0)
-        blur_left_percent = mask_params.get("blur_left_percent", 0.0)
-        blur_right = mask_params.get("blur_right", 0)
-        blur_right_percent = mask_params.get("blur_right_percent", 0.0)
-
-        # 计算每个边的实际模糊值
-        blur_top_count = int(blur_top_percent * height) + blur_top
-        blur_bottom_count = int(blur_bottom_percent * height) + blur_bottom
-        blur_left_count = int(blur_left_percent * width) + blur_left
-        blur_right_count = int(blur_right_percent * width) + blur_right
-
-        if blur_top_count != 0 or blur_bottom_count != 0 or blur_left_count != 0 or blur_right_count != 0:
-            mask = blur_mask_edges(mask, blur_top_count, blur_bottom_count,
-                                   blur_left_count, blur_right_count)
-    else:
-        # 使用原有的全局参数（向后兼容）
-        grow = mask_params.get("grow", 0)
-        grow_percent = mask_params.get("grow_percent", 0.0)
-        blur = mask_params.get("blur", 0)
-        blur_percent = mask_params.get("blur_percent", 0.0)
-
-        grow_count = int(grow_percent * max(mask.shape)) + grow
-        if grow_count != 0:
-            mask = expand_mask(mask, grow_count, grow_tapered)
-
-        blur_count = int(blur_percent * max(mask.shape)) + blur
-        if blur_count > 0:
-            mask = blur_mask(mask, blur_count)
+    use_edges = any(k in mask_params for k in (
+        "grow_top", "grow_bottom", "grow_left", "grow_right",
+        "blur_top", "blur_bottom", "blur_left", "blur_right",
+    ))
+    mask = _process_edges(mask, mask_params) if use_edges else _process_global(mask, mask_params)
 
     if fill:
         mask = fill_holes(mask)
-
     if invert:
         mask = 1 - mask
-
     if unqueeze:
         mask = mask.squeeze(0).unsqueeze(-1)
     return mask

@@ -81,8 +81,6 @@ class Text_Translation:
 
     FUNCTION = "func"
 
-    # OUTPUT_NODE = False
-
     CATEGORY = _CATEGORY
 
     def func(self, trans_switch, translator, trans_text):

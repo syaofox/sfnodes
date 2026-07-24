@@ -384,10 +384,6 @@ class FaceSegmentation:
             elif "forehead" in area:
                 landmarks = landmarks[-1]
 
-            # mask = np.zeros(face.shape[:2], dtype=np.float64)
-            # points = cv2.convexHull(landmarks)
-            # cv2.fillConvexPoly(mask, points, color=1)
-
             mask = mask_from_landmarks(face, landmarks)
             mask = (
                 image_to_tensor(mask)

@@ -1,4 +1,7 @@
+import ast
 import math
+import operator as op
+
 from ...sf_utils.common import AnyType
 
 _CATEGORY = "sfnodes/utils"
@@ -248,9 +251,6 @@ class SimpleMath:
     CATEGORY = _CATEGORY
 
     def execute(self, value, a=0.0, b=0.0, c=0.0, d=0.0):
-        import ast
-        import operator as op
-
         h, w = 0.0, 0.0
         if hasattr(a, "shape"):
             a = list(a.shape)

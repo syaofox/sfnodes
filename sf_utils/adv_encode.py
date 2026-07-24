@@ -22,7 +22,6 @@ def _grouper(n, iterable):
 def _norm_mag(w, n):
     d = w - 1
     return 1 + np.sign(d) * np.sqrt(np.abs(d) ** 2 / n)
-    # return  np.sign(w) * np.sqrt(np.abs(w)**2 / n)
 
 
 def divide_length(word_ids, weights):
