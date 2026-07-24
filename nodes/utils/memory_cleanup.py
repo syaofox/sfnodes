@@ -40,7 +40,7 @@ class SFVRAMCleanup:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "empty_cache"
-    CATEGORY = "SF/Utils"
+    CATEGORY = "sfnodes/utils"
 
     @classmethod
     def IS_CHANGED(s, **kwargs):
@@ -105,7 +105,7 @@ class SFRAMCleanup:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "clean_ram"
-    CATEGORY = "SF/Utils"
+    CATEGORY = "sfnodes/utils"
 
     @classmethod
     def IS_CHANGED(s, **kwargs):

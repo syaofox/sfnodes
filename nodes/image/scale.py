@@ -720,7 +720,7 @@ class ScaleImageToSquare:
     RETURN_NAMES = ("image", "mask")
     FUNCTION = "prep_image"
 
-    CATEGORY = "ipadapter/utils"
+    CATEGORY = _CATEGORY
     DESCRIPTION = "将图片缩放为正方形，可选择裁剪或填充方式，并输出填充区域的mask"
 
     def prep_image(
@@ -845,7 +845,7 @@ class SFLoadImage(LoadImage):
 
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT")
     RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
-    CATEGORY = "sfnodes/image_processing"
+    CATEGORY = _CATEGORY
 
     def load_image(self, image, upscale_method, total_pixels, limit):
         # 首先调用父类的load_image方法加载图像

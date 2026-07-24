@@ -81,7 +81,7 @@ class ImageCompare:
     )
     FUNCTION = "execute"
     OUTPUT_NODE = True
-    CATEGORY = "Eses Nodes/Image Utilities"
+    CATEGORY = "sfnodes/image"
 
     def execute(
         self,

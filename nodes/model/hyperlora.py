@@ -130,7 +130,7 @@ class HyperLoRASaveCharLoRANode:
 
     RETURN_TYPES = ()
     FUNCTION = "execute"
-    CATEGORY = "HyperLoRA"
+    CATEGORY = _CATEGORY
     OUTPUT_NODE = True
 
     def execute(self, char_name, lora, images=None):

@@ -98,7 +98,7 @@ class SFPowerLoraLoader:
     RETURN_TYPES = ("MODEL", "CLIP")
     RETURN_NAMES = ("MODEL", "CLIP")
     FUNCTION = "load_loras"
-    CATEGORY = "loaders"
+    CATEGORY = "sfnodes/model"
 
     def load_loras(self, normalize, normalize_weight, model=None, clip=None, **kwargs):
         # Collect enabled loras

@@ -1473,7 +1473,7 @@ class InpaintExtendOutpaint:
             },
         }
 
-    CATEGORY = "inpaint"
+    CATEGORY = _CATEGORY
 
     RETURN_TYPES = ("IMAGE", "MASK", "MASK")
     RETURN_NAMES = ("image", "mask", "context_mask")

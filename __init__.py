@@ -161,7 +161,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImageSubfolder": SFLoadImageSubfolder,
     "SFLoadImageSubfolderSortedByMtime": SFLoadImageSubfolderSortedByMtime,
     "SFImageResizePlus": ImageResizePlus,
-    "SFSmartResize": ApexSmartResize,
+    "SFApexSmartResize": ApexSmartResize,
     "SFImageConcanate": ImageConcanate,
     "SFImageConcatFromBatch": ImageConcatFromBatch,
     # 遮罩节点
@@ -189,7 +189,7 @@ NODE_CLASS_MAPPINGS = {
     "SFColorBlockEffect": ColorBlockEffect,
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
-    "SFImitationHue": ImitationHueNode,
+    "SFImitationHueNode": ImitationHueNode,
     # 人像分割节点
     "SFPersonSegmenterLoader": PersonSegmenterLoader,
     "SFPersonMaskGenerator": PersonMaskGenerator,
@@ -243,7 +243,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
     # Flux 分辨率节点
-    "SFFluxResolution": FluxResolutionNode,
+    "SFFluxResolutionNode": FluxResolutionNode,
     # 内存清理节点
     "SFVRAMCleanup": SFVRAMCleanup,
     "SFRAMCleanup": SFRAMCleanup,
@@ -259,9 +259,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintExtendOutpaint": "SF Inpaint Extend Outpaint",
     # 人脸遮挡节点
     "SFOccluderLoader": "SF Occluder Loader",
-    "SFGeneratePreciseFaceMask": "SF Generate PreciseFaceMask",
+    "SFGeneratePreciseFaceMask": "SF Generate Precise Face Mask",
     # 人脸区域节点
-    "BiSeNetLoader": "SF BiSeNet Loader",
+    "SFBiSeNetLoader": "SF BiSeNet Loader",
     "SFRegionSelector": "SF Region Selector",
     "SFGenerateRegionFaceMask": "SF Generate Region Face Mask",
     # 人脸分析节点
@@ -294,7 +294,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImageSubfolder": "SF Load Image Subfolder",
     "SFLoadImageSubfolderSortedByMtime": "SF Load Image Subfolder Sorted By Mtime",
     "SFImageResizePlus": "SF Image Resize Plus",
-    "SFSmartResize": "SF Smart Resize",
+    "SFApexSmartResize": "SF Apex Smart Resize",
     "SFImageConcanate": "SF Image Concatenate",
     "SFImageConcatFromBatch": "SF Image Concat From Batch",
     # 遮罩节点
@@ -310,7 +310,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskAdjustGrayscale": "SF Mask Adjust Grayscale",
     "SFPreviewMask": "SF Preview Mask",
     "SFMaskedFill": "SF Masked Fill",
-    "SFImageMaskToTransparency": "SF 图片Mask转透明",
+    "SFImageMaskToTransparency": "SF Image Mask To Transparency",
     "SFFillWithReferenceColor": "SF Fill With Reference Color",
     "SFMaskCrop": "SF Mask Crop",
     "SFMaskFillPercentArea": "SF Mask Fill Percent Area",
@@ -322,7 +322,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFColorBlockEffect": "SF Color Block Effect",
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
-    "SFImitationHue": "SF Imitation Hue",
+    "SFImitationHueNode": "SF Imitation Hue",
     # 人像分割节点
     "SFPersonSegmenterLoader": "SF Person Segmenter Loader",
     "SFPersonMaskGenerator": "SF Person Mask Generator",
@@ -376,7 +376,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
     # Flux 分辨率节点
-    "SFFluxResolution": "SF Flux Resolution Calculator",
+    "SFFluxResolutionNode": "SF Flux Resolution Calculator",
     # 内存清理节点
     "SFVRAMCleanup": "SF VRAM Cleanup",
     "SFRAMCleanup": "SF RAM Cleanup",

@@ -78,7 +78,7 @@ class FluxResolutionNode:
     RETURN_TYPES = ("INT", "INT", "STRING", "IMAGE")
     RETURN_NAMES = ("width", "height", "resolution", "preview")
     FUNCTION = "calculate_dimensions"
-    CATEGORY = "sfnodes/Flux"
+    CATEGORY = "sfnodes/utils"
     OUTPUT_NODE = True
 
     def create_preview_image(self, width, height, resolution, ratio_display):
