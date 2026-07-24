@@ -42,6 +42,7 @@ class FaceWarp:
     )
     FUNCTION = "warp"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "将源图像的人脸扭曲变形以匹配目标图像的人脸特征"
 
     def warp(
         self,

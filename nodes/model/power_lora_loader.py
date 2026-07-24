@@ -58,6 +58,7 @@ def get_lora_by_filename(file_path, lora_paths=None):
 
 class PowerLoraLoader:
     """A powerful, flexible node to add multiple loras to a model/clip with custom UI."""
+    DESCRIPTION = "功能强大的多 LoRA 加载器，支持动态槽位和权重归一化"
 
     @classmethod
     def INPUT_TYPES(cls):

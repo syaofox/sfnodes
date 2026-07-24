@@ -27,6 +27,7 @@ class ImageConcatenate:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "concatenate"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "拼接两张图片，支持右、下、左、上四个方向"
 
     def concatenate(
         self, image1, image2, direction, match_image_size, first_image_shape=None
@@ -113,6 +114,7 @@ class ImageConcatFromBatch:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "concat"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "将图片批次排列为网格拼接图，支持指定列数和尺寸匹配"
 
     def concat(self, images, num_columns, match_image_size, max_resolution):
         batch_size, height, width, channels = images.shape

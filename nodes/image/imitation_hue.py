@@ -194,6 +194,7 @@ def color_transfer(source, target, mask=None, strength=1.0, skin_protection=0.2,
 
 
 class ImitationHue:
+    DESCRIPTION = "模仿参考图像的色调进行色彩迁移，支持肤色保护和分通道调节"
     @classmethod
     def INPUT_TYPES(s):
         return {

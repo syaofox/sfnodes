@@ -26,8 +26,8 @@ class DisplayAny:
     RETURN_TYPES = ("STRING",)
     FUNCTION = "execute"
     OUTPUT_NODE = True
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "显示任意输入的原始值或张量形状，输出字符串"
 
     def execute(self, input, mode):
         if mode == "tensor shape":
@@ -61,8 +61,8 @@ class RemoveLatentMask:
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "execute"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "移除 Latent 中的 noise_mask，返回干净的 Latent"
 
     def execute(self, samples):
         s = samples.copy()
@@ -135,6 +135,7 @@ class SDXLEmptyLatentSizePicker:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "选择 SDXL 预设分辨率生成空 Latent，支持宽高覆盖"
 
     def execute(self, resolution, batch_size, width_override=0, height_override=0):
         width, height = resolution.split(" ")[0].split("x")

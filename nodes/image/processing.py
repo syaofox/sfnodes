@@ -447,6 +447,7 @@ class ImageColorMatch:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "将目标图像的颜色统计分布匹配到参考图像，支持多种色彩空间"
 
     def execute(
         self,

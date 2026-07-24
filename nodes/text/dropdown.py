@@ -92,6 +92,7 @@ class TextDropdown:
     RETURN_NAMES = ("content", "alias")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "从可配置的下拉列表中选择文本内容，支持分类和别名"
 
     def execute(self, category: str, selected_text: str, options_json: str):
         config = self._load_config()

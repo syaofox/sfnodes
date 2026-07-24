@@ -21,8 +21,8 @@ class AdvancedCLIPTextEncode:
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "高级 CLIP 文本编码，支持多种权重解析和归一化策略"
 
     def encode(
         self,
@@ -66,8 +66,8 @@ class AddCLIPSDXLParams:
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "为 SDXL Conditioning 添加宽高、裁剪和目标尺寸参数"
 
     def encode(
         self, conditioning, width, height, crop_w, crop_h, target_width, target_height
@@ -102,8 +102,8 @@ class AddCLIPSDXLRParams:
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "为 SDXL Refiner Conditioning 添加宽高和美学评分参数"
 
     def encode(self, conditioning, width, height, ascore):
         c = []
@@ -138,8 +138,8 @@ class AdvancedCLIPTextEncodeSDXL:
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "高级 SDXL CLIP 文本编码，支持 text_l 和 text_g 双编码器"
 
     def encode(
         self,

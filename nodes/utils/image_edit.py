@@ -5,6 +5,8 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
+    """将图片和文本指令编码为 Conditioning，支持 Qwen 视觉语言模型"""
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -48,6 +50,8 @@ class TextEncodeQwenImageEdit(io.ComfyNode):
 
 
 class TextEncodeQwenImageEditPlus(io.ComfyNode):
+    """增强版 Qwen 图像编辑编码，支持最多 4 张参考图和目标 Latent"""
+
     @classmethod
     def define_schema(cls):
         return io.Schema(

@@ -32,6 +32,7 @@ class ImageRotate:
     RETURN_NAMES = ("rotated_image",)
     FUNCTION = "run"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "旋转图像，可选择扩展画布以适应旋转后的图像"
 
     def run(self, image_from, angle, expand):
         image_np = tensor2np(image_from[0])

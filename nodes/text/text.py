@@ -72,7 +72,7 @@ class TextTranslation:
                     ],
                     {"default": "Google"},
                 ),
-                "trans_text": ("STRING", {"multiline": True}),
+                "trans_text": ("STRING", {"multiline": True, "tooltip": "要翻译的文本"}),
             },
         }
 
@@ -80,8 +80,8 @@ class TextTranslation:
     RETURN_NAMES = ("string",)
 
     FUNCTION = "func"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "翻译文本，支持多种翻译引擎"
 
     def func(self, trans_switch, translator, trans_text):
         output_text = ""
@@ -103,14 +103,14 @@ class StringConcatenate:
         optional = {}
         for i in range(1, _MAX_STRING_SLOTS + 1):
             optional[f"string_{i}"] = (IO.STRING, {"multiline": True, "default": ""})
-        optional["text_in"] = ("STRING", {"forceInput": True})
+        optional["text_in"] = ("STRING", {"forceInput": True, "tooltip": "从上游节点输入的文本"})
         return {
             "required": {
                 "trans_switch": (
                     "BOOLEAN",
-                    {"default": False, "label_on": "on", "label_off": "off"},
+                    {"default": False, "label_on": "on", "label_off": "off", "tooltip": "开启/关闭翻译功能"},
                 ),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ","}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": ",", "tooltip": "拼接多个字符串的分隔符"}),
             },
             "optional": optional,
         }
@@ -119,6 +119,7 @@ class StringConcatenate:
     RETURN_NAMES = ("combined",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "拼接多个字符串，支持动态槽位"
 
     def execute(self, trans_switch, delimiter, **kwargs):
         strings = [
@@ -140,13 +141,12 @@ class TextCombine:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": (IO.STRING, {"multiline": True, "default": ""}),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ","}),
-                # text 在 text_in 的前置 / 后置
-                "position": (["后置", "前置"], {"default": "后置"}),
+                "text": (IO.STRING, {"multiline": True, "default": "", "tooltip": "要合并的文本"}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": ",", "tooltip": "合并文本的分隔符"}),
+                "position": (["后置", "前置"], {"default": "后置", "tooltip": "text 放在 text_in 之前还是之后"}),
             },
             "optional": {
-                "text_in": (IO.STRING, {"forceInput": True}),
+                "text_in": (IO.STRING, {"forceInput": True, "tooltip": "从上游节点输入的文本"}),
             },
         }
 
@@ -154,6 +154,7 @@ class TextCombine:
     RETURN_NAMES = ("combined",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "合并两段文本，中间用分隔符连接"
 
     def execute(self, text, delimiter, position, text_in=None):
         """
@@ -200,12 +201,13 @@ class AnimeCharSelect:
                     {
                         "default": cls.character_options[0]["label"]
                         if cls.character_options
-                        else ""
+                        else "",
+                        "tooltip": "选择动漫角色",
                     },
                 )
             },
             "optional": {
-                "text_in": ("STRING", {"forceInput": True}),
+                "text_in": ("STRING", {"forceInput": True, "tooltip": "额外的提示文本，将附加在角色名之后"}),
             },
         }
 
@@ -213,6 +215,7 @@ class AnimeCharSelect:
     RETURN_NAMES = ("prompt", "filename")
     FUNCTION = "func"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "从 CSV 数据中选择动漫角色，返回角色提示词和文件名"
 
     def func(self, character, text_in=""):
         # 根据显示名找到对应的第二列值
@@ -242,7 +245,7 @@ class TextToFilename:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": ("STRING", {"forceInput": True}),
+                "text": ("STRING", {"forceInput": True, "tooltip": "要转换为文件名的文本"}),
             }
         }
 
@@ -250,6 +253,7 @@ class TextToFilename:
     RETURN_NAMES = ("filename",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "将文本转换为合法文件名，替换非法字符"
 
     def execute(self, text):
         filename = re.sub(r'[<>:"/\\|?*]', "", text)

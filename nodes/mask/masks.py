@@ -97,7 +97,7 @@ class CreateBlurredEdgeMask:
                 "image": (
                     "IMAGE",
                     {
-                        "tooltips": "如果未提供图像，将使用输入的宽度和高度创建一个白色图像。"
+                        "tooltip": "如果未提供图像，将使用输入的宽度和高度创建一个白色图像"
                     },
                 ),
             },
@@ -523,6 +523,7 @@ class PreviewMask(SaveImage):
 
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "预览遮罩，将遮罩以图片形式显示在临时目录"
 
     def execute(self, mask, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         preview = (
@@ -548,6 +549,7 @@ class MaskedFill:
     RETURN_TYPES = ("IMAGE",)
     CATEGORY = _CATEGORY
     FUNCTION = "fill"
+    DESCRIPTION = "用边缘修复或中性色填充遮罩覆盖的区域"
 
     def fill(self, image, mask, fill: str, falloff: int):
         image = image.detach().clone()

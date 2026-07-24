@@ -88,6 +88,7 @@ class FaceAnalysisModels:
     )
     FUNCTION = "load_insight_face"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "加载 InsightFace 人脸分析模型，支持多种模型和计算设备"
 
     def __init__(self):
         pass
@@ -155,6 +156,7 @@ class FaceEmbedDistance:
     RETURN_NAMES = ("IMAGE", "distance")
     FUNCTION = "analize"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "计算人脸嵌入距离，比较两张人脸的相似度"
 
     def analize(
         self,
@@ -320,6 +322,7 @@ class FaceSegmentation:
     )
     FUNCTION = "segment"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "使用 InsightFace 进行人脸分割，生成人脸遮罩"
 
     def segment(self, analysis_models, image, area, mask_params=None):
         steps = image.shape[0]

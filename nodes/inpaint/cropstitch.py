@@ -1474,6 +1474,7 @@ class InpaintExtendOutpaint:
         }
 
     CATEGORY = _CATEGORY
+    DESCRIPTION = "扩展图像边界用于外绘（Outpainting），支持按比例或像素扩展"
 
     RETURN_TYPES = ("IMAGE", "MASK", "MASK")
     RETURN_NAMES = ("image", "mask", "context_mask")

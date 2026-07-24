@@ -24,6 +24,7 @@ class IfElse:
     RETURN_NAMES = ("*",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "根据布尔值选择输出，条件为真时输出 on_true，否则输出 on_false"
 
     def check_lazy_status(self, boolean=True, on_true=None, on_false=None):
         if boolean and on_true is None:
@@ -55,6 +56,7 @@ class AnythingIndexSwitch:
     RETURN_NAMES = ("value",)
     FUNCTION = "index_switch"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "根据索引从多个输入中选择一个输出"
 
     def check_lazy_status(self, index, **kwargs):
         key = "value%d" % index
@@ -79,6 +81,7 @@ class IsMaskEmpty:
     RETURN_NAMES = ("boolean",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "判断遮罩是否全黑，是则返回 True，否则返回 False"
 
     def execute(self, mask):
         if mask is None:

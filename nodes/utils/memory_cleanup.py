@@ -34,6 +34,7 @@ class VRAMCleanup:
     OUTPUT_NODE = True
     FUNCTION = "empty_cache"
     CATEGORY = "sfnodes/utils"
+    DESCRIPTION = "清理 VRAM，卸载模型和清空缓存"
 
     @classmethod
     def IS_CHANGED(s, **kwargs):
@@ -99,6 +100,7 @@ class RAMCleanup:
     OUTPUT_NODE = True
     FUNCTION = "clean_ram"
     CATEGORY = "sfnodes/utils"
+    DESCRIPTION = "清理系统 RAM，释放内存"
 
     @classmethod
     def IS_CHANGED(s, **kwargs):

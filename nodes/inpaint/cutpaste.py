@@ -100,6 +100,7 @@ class InpaintCutOut:
         }
 
     CATEGORY = _CATEGORY
+    DESCRIPTION = "根据遮罩裁剪图像，缩放并生成用于修复的 cutout 信息"
 
     RETURN_TYPES = ("IMAGE", "MASK", "IMAGE", "CUTINFO", "IMAGE")
     RETURN_NAMES = (
@@ -320,7 +321,9 @@ class ExtractCutInfo:
 
     RETURN_TYPES = ("INT", "INT", "INT", "INT", "MASK", "IMAGE")
     RETURN_NAMES = ("x", "y", "width", "height", "mask", "source_image")
+    CATEGORY = _CATEGORY
     FUNCTION = "extract"
+    DESCRIPTION = "从 cutinfo 中提取裁剪坐标、尺寸、遮罩和原图"
 
     def extract(self, cutinfo):
         return (

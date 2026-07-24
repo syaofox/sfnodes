@@ -27,8 +27,10 @@ class SimpleMathFloat:
         }
 
     RETURN_TYPES = ("FLOAT",)
+    RETURN_NAMES = ("float",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出一个浮点数，步长 0.05"
 
     def execute(self, value):
         return (float(value),)
@@ -52,11 +54,14 @@ class SimpleFloat:
         }
 
     RETURN_TYPES = ("FLOAT",)
+    RETURN_NAMES = ("float",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出一个浮点数，保留两位小数，步长 0.01"
 
     def execute(self, value):
         return (round(float(value), 2),)
+
 
 
 class SimpleMathPercent:
@@ -69,8 +74,10 @@ class SimpleMathPercent:
         }
 
     RETURN_TYPES = ("FLOAT",)
+    RETURN_NAMES = ("float",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出一个 0~1 范围的浮点数，用于百分比"
 
     def execute(self, value):
         return (float(value),)
@@ -94,11 +101,14 @@ class SimpleMathInt:
         }
 
     RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("int",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出一个整数，步长为 1"
 
     def execute(self, value):
         return (int(value),)
+
 
 
 class SimpleMathSlider:
@@ -144,6 +154,7 @@ class SimpleMathSlider:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "通过滑块调节浮点数值，可设置范围和精度"
 
     def execute(self, value, min, max, rounding):
         value = min + value * (max - min)
@@ -198,6 +209,7 @@ class SimpleMathSliderLowRes:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "低精度滑块，值乘以 0.1 后映射到范围，用于粗调"
 
     def execute(self, value, min, max, rounding):
         value = 0.1 * value
@@ -221,6 +233,7 @@ class SimpleMathBoolean:
     RETURN_NAMES = ("boolean", "int")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出布尔值及其对应的整数（0/1）"
 
     def execute(self, value):
         return (
@@ -249,6 +262,7 @@ class SimpleMath:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "自由表达式计算，支持四则运算和变量 a、b、c，输出整数和浮点数"
 
     def execute(self, value, a=0.0, b=0.0, c=0.0, d=0.0):
         h, w = 0.0, 0.0
@@ -375,6 +389,7 @@ class SimpleMathDual:
     RETURN_NAMES = ("int_1", "float_1", "int_2", "float_2")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "双路表达式计算，同时输出两组整数和浮点数结果"
 
     def execute(self, value_1, value_2, a=0.0, b=0.0, c=0.0, d=0.0):
         return SimpleMath().execute(value_1, a, b, c, d) + SimpleMath().execute(
@@ -404,6 +419,7 @@ class SimpleMathCondition:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "条件表达式计算，根据 evaluate 的真假选择 on_true 或 on_false 表达式"
 
     def execute(self, evaluate, on_true, on_false, a=0.0, b=0.0, c=0.0):
         return SimpleMath().execute(on_true if evaluate else on_false, a, b, c)
@@ -428,8 +444,8 @@ class SimpleCondition:
     RETURN_TYPES = (any,)
     RETURN_NAMES = ("result",)
     FUNCTION = "execute"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "条件分支，evaluate 为真时输出 on_true，否则输出 on_false"
 
     def execute(self, evaluate, on_true, on_false=None):
         from comfy_execution.graph import ExecutionBlocker
@@ -456,8 +472,8 @@ class SimpleComparison:
 
     RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "execute"
-
     CATEGORY = _CATEGORY
+    DESCRIPTION = "比较两个值，支持 ==、!=、<、<=、>、>= 运算符"
 
     def execute(self, a, b, comparison):
         if comparison == "==":
@@ -490,6 +506,7 @@ class ConsoleDebug:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True
+    DESCRIPTION = "将值打印到控制台，用于调试"
 
     def execute(self, value, prefix):
         return (None,)
@@ -508,6 +525,7 @@ class DebugTensorShape:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True
+    DESCRIPTION = "打印张量形状到控制台，用于调试"
 
     def execute(self, tensor):
         shapes = []
@@ -539,6 +557,7 @@ class BatchCount:
     RETURN_TYPES = ("INT",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "获取 batch 的数量（第一维大小）"
 
     def execute(self, batch):
         count = 0

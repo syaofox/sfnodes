@@ -73,6 +73,7 @@ class HyperLoRALoadCharacter:
     RETURN_NAMES = ("lora", "images", "charname")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "加载 HyperLoRA 角色 LoRA，同时返回角色图片和名称"
 
     def execute(self, charname):
         filename = os.path.join(
@@ -132,6 +133,7 @@ class HyperLoRASaveCharacter:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True
+    DESCRIPTION = "保存角色 LoRA 和关联图片到 HyperLoRA 角色库"
 
     def execute(self, char_name, lora, images=None):
         filename = os.path.join(

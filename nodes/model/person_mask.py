@@ -121,8 +121,8 @@ class PersonMaskGenerator:
     CATEGORY = _CATEGORY
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("masks",)
-
     FUNCTION = "generate_mask"
+    DESCRIPTION = "生成人像遮罩，支持面部、头发、身体、衣服等部位的单独控制"
 
     def get_mediapipe_image(self, image: Image.Image) -> mp.Image:
         # 将图像转换为NumPy数组

@@ -30,11 +30,11 @@ class MultiLoraLoader:
         required = {
             "model": (
                 "MODEL",
-                {"tooltip": "The diffusion model the LoRAs will be applied to."},
+                {"tooltip": "要应用 LoRA 的扩散模型"},
             ),
             "clip": (
                 "CLIP",
-                {"tooltip": "The CLIP model the LoRAs will be applied to."},
+                {"tooltip": "要应用 LoRA 的 CLIP 模型"},
             ),
             "normalize_weight": (
                 "FLOAT",
@@ -194,7 +194,7 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
         required = {
             "model": (
                 "MODEL",
-                {"tooltip": "The diffusion model the LoRAs will be applied to."},
+                {"tooltip": "要应用 LoRA 的扩散模型"},
             ),
             "normalize_weight": (
                 "FLOAT",

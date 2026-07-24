@@ -48,12 +48,7 @@ import base64
 
 
 class ImageCompare:
-    """
-    A custom node to compare two images with a
-    draggable slider and selectable blend modes.
-    This node includes an optional passthrough
-    for image_a and a difference mask output.
-    """
+    DESCRIPTION = "通过滑块和混合模式对比两张图片，输出差异遮罩"
 
     @classmethod
     def INPUT_TYPES(cls):

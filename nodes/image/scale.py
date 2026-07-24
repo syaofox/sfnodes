@@ -60,6 +60,7 @@ class GetImageSize:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True
+    DESCRIPTION = "获取图像的宽、高、数量、最小和最大边长"
 
     def execute(self, image):
         return {
@@ -662,6 +663,7 @@ class LoadImageScaled(LoadImage):
     RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT")
     RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
     CATEGORY = _CATEGORY
+    DESCRIPTION = "加载图片并自动缩放到指定像素数"
 
     def load_image(self, image, upscale_method, total_pixels, limit):
         # 首先调用父类的load_image方法加载图像
@@ -696,6 +698,7 @@ class LoadImageFromSubfolder(LoadImage):
     RETURN_NAMES = ("image", "mask", "filename")
 
     CATEGORY = _CATEGORY
+    DESCRIPTION = "从输入目录的子文件夹中加载图片，输出包含文件名"
 
     def load_image(self, image):
         # 调用父类的load_image方法加载图像
@@ -740,6 +743,7 @@ class LoadImageByMtime(LoadImage):
     RETURN_NAMES = ("image", "mask", "filename")
 
     CATEGORY = _CATEGORY
+    DESCRIPTION = "按修改时间排序加载最新图片，输出包含文件名"
 
     def load_image(self, image):
         # 调用父类的load_image方法加载图像
@@ -752,6 +756,7 @@ class LoadImageByMtime(LoadImage):
 
 
 class ImageResizePlus:
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放"
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -819,6 +824,7 @@ class ImageResizePlus:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放"
 
     def execute(
         self,
@@ -1098,7 +1104,7 @@ class ApexSmartResize:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Show resolution candidates in console",
+                        "tooltip": "在控制台显示候选分辨率列表",
                     },
                 ),
             }
@@ -1115,6 +1121,7 @@ class ApexSmartResize:
     )
     FUNCTION = "smart_resize"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "智能分辨率缩放，自动匹配最佳兼容分辨率，支持多策略"
 
     def smart_resize(
         self,

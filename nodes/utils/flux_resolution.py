@@ -80,6 +80,7 @@ class FluxResolution:
     FUNCTION = "calculate_dimensions"
     CATEGORY = "sfnodes/utils"
     OUTPUT_NODE = True
+    DESCRIPTION = "根据百万像素和宽高比计算分辨率，并生成预览图"
 
     def create_preview_image(self, width, height, resolution, ratio_display):
         preview_size = (1024, 1024)
