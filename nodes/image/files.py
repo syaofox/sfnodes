@@ -178,7 +178,7 @@ class FaceBankLoader:
 
         return {
             "required": {
-                "face_name": (list(cls.dir_dict.keys()), {"default": ""}),
+                "face_name": (list(cls.dir_dict.keys()), {"default": next(iter(cls.dir_dict.keys()), "")}),
                 "start_index": (
                     "INT",
                     {"default": 0, "min": 0, "max": 9999, "tooltip": "设置开始索引"},
