@@ -135,7 +135,7 @@ class StringConcatenate:
 
 
 class TextCombine:
-    """合并 text_in 和 text，用 delimiter 连接。"""
+    """合并 text_in 和 text，用 delimiter 连接。保留原始值，不清空空字符。"""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -157,28 +157,14 @@ class TextCombine:
     DESCRIPTION = "合并两段文本，中间用分隔符连接"
 
     def execute(self, text, delimiter, position, text_in=None):
-        """
-        position:
-            - "后置": text 追加在 text_in 之后（兼容旧行为）
-            - "前置": text 放在 text_in 之前
-        """
-        parts = []
-
-        text_clean = text.strip() if text and text.strip() else ""
-        text_in_clean = text_in.strip() if text_in and text_in.strip() else ""
+        text = text or ""
+        if text_in is None:
+            return (text,)
 
         if position == "前置":
-            if text_clean:
-                parts.append(text_clean)
-            if text_in_clean:
-                parts.append(text_in_clean)
-        else:  # "后置" 或其他非法值都按旧行为处理
-            if text_in_clean:
-                parts.append(text_in_clean)
-            if text_clean:
-                parts.append(text_clean)
-
-        return (delimiter.join(parts),)
+            return (delimiter.join([text, text_in]),)
+        else:
+            return (delimiter.join([text_in, text]),)
 
 
 class AnimeCharSelect:
