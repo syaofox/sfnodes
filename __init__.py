@@ -111,6 +111,8 @@ from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
+from .nodes.utils.image_orientation import ImageOrientation
+
 from .nodes.logic import IfElse, AnythingIndexSwitch, IsMaskEmpty
 
 WEB_DIRECTORY = "web"
@@ -243,6 +245,8 @@ NODE_CLASS_MAPPINGS = {
     # 内存清理节点
     "SFVRAMCleanup": VRAMCleanup,
     "SFRAMCleanup": RAMCleanup,
+    # 图像方向节点
+    "SFImageOrientation": ImageOrientation,
     # 逻辑节点
     "SFIfElse": IfElse,
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
@@ -376,6 +380,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 内存清理节点
     "SFVRAMCleanup": "SF VRAM Cleanup",
     "SFRAMCleanup": "SF RAM Cleanup",
+    # 图像方向节点
+    "SFImageOrientation": "SF Image Orientation",
     # 逻辑节点
     "SFIfElse": "SF If Else",
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
