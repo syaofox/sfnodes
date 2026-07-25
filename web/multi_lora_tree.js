@@ -143,7 +143,7 @@ app.registerExtension({
             const itemsSymbol = Symbol("items");
 
             for (const item of items) {
-                const path = item.getAttribute("data-value").split(splitBy);
+                const path = (item.getAttribute("data-value") || item.textContent || "").split(splitBy);
 
                 item.textContent = path[path.length - 1];
                 if (path.length > 1) {

@@ -1,4 +1,4 @@
-import { app } from "../../scripts/app.js";
+import { app } from "/scripts/app.js";
 
 // Some fragments of this code are from https://github.com/LucianoCirino/efficiency-nodes-comfyui
 
@@ -124,7 +124,7 @@ function toggleWidget(node, widget, show = false, suffix = "") {
     widget.computeSize = show ? origProps[widget.name].origComputeSize : () => [0, -4];
     
     // Recursively handle linked widgets if they exist
-    widget.linkedWidgets?.forEach(w => toggleWidget(node, w, ":" + widget.name, show));
+    widget.linkedWidgets?.forEach(w => toggleWidget(node, w, show, ":" + widget.name));
         
     // Calculate the new height for the node based on its computeSize method
     const newHeight = node.computeSize()[1];

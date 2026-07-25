@@ -1,5 +1,5 @@
-import { app } from "../../scripts/app.js";
-import { ComfyWidgets } from "../../scripts/widgets.js";
+import { app } from "/scripts/app.js";
+import { ComfyWidgets } from "/scripts/widgets.js";
 
 app.registerExtension({
     name: "sfnodes.SFDisplayText",
@@ -16,7 +16,7 @@ app.registerExtension({
 
                 if (this.widgets) {
 					for (let i = 1; i < this.widgets.length; i++) {
-						this.widgets[i].onRemove?.();
+						this.widgets[i].onRemoved?.();
 					}
 					this.widgets.length = 1;
 				}

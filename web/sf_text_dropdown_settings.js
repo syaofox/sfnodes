@@ -12,17 +12,6 @@ let config = {
 let settingsEl = null;
 let selectedCategory = "default";
 
-function normalizeItem(x) {
-    if (x && typeof x === "object" && "alias" in x && "content" in x) {
-        return {
-            category: String(x.category || "default").trim() || "default",
-            alias: String(x.alias).trim(),
-            content: String(x.content)
-        };
-    }
-    return null;
-}
-
 async function loadConfig() {
     try {
         const resp = await fetch("/api/sfnodes/text_dropdown/load");
