@@ -809,6 +809,10 @@ class ImageResizePlus:
                         "step": 1,
                     },
                 ),
+                "crop_position": (
+                    ["center", "top", "bottom"],
+                    {"default": "center"},
+                ),
             }
         }
 
@@ -836,6 +840,7 @@ class ImageResizePlus:
         condition="always",
         multiple_of=0,
         keep_proportion=False,
+        crop_position="center",
     ):
         _, oh, ow, _ = image.shape
         x = y = x2 = y2 = 0
@@ -879,7 +884,12 @@ class ImageResizePlus:
             new_width = round(ow * ratio)
             new_height = round(oh * ratio)
             x = (new_width - width) // 2
-            y = (new_height - height) // 2
+            if crop_position == "top":
+                y = 0
+            elif crop_position == "bottom":
+                y = new_height - height
+            else:
+                y = (new_height - height) // 2
             x2 = x + width
             y2 = y + height
             if x2 > new_width:
