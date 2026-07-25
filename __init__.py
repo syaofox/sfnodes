@@ -105,6 +105,7 @@ from .nodes.utils.simple_math import (
     SimpleFloat,
 )
 from .nodes.text.dropdown import TextDropdown
+from .nodes.text.replace import SFTextReplace
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
@@ -221,6 +222,7 @@ NODE_CLASS_MAPPINGS = {
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
     "SFTextDropdown": TextDropdown,
+    "SFTextReplace": SFTextReplace,
     # 简单数学节点
     "SFSimpleMathFloat": SimpleMathFloat,
     "SFSimpleMathPercent": SimpleMathPercent,
@@ -355,6 +357,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
     "SFTextDropdown": "SF Text Dropdown",
+    "SFTextReplace": "SF Text Replace",
     # 简单数学节点
     "SFSimpleMathFloat": "SF Simple Math Float",
     "SFSimpleMathPercent": "SF Simple Math Percent",
