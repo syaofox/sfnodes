@@ -81,27 +81,22 @@ from .nodes.model.power_lora_loader import PowerLoraLoader
 from .nodes.image.compare import ImageCompare
 from .nodes.text.text import (
     TextTranslation,
-    StringConcatenate,
+
     TextCombine,
     AnimeCharSelect,
     TextToFilename,
 )
 from .nodes.utils.simple_math import (
-    SimpleMathFloat,
-    SimpleMathPercent,
-    SimpleMathInt,
+    SFNumber,
     SimpleMathSlider,
     SimpleMathSliderLowRes,
     SimpleMathBoolean,
     SimpleMath,
-    SimpleMathDual,
+
     SimpleMathCondition,
-    SimpleCondition,
     SimpleComparison,
-    ConsoleDebug,
-    DebugTensorShape,
+
     BatchCount,
-    SimpleFloat,
 )
 from .nodes.text.dropdown import TextDropdown
 from .nodes.text.replace import SFTextReplace
@@ -114,7 +109,7 @@ from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendO
 
 from .nodes.utils.image_orientation import ImageOrientation
 
-from .nodes.logic import IfElse, AnythingIndexSwitch, IsMaskEmpty
+from .nodes.logic import AnythingIndexSwitch, IsMaskEmpty
 
 WEB_DIRECTORY = "web"
 
@@ -214,28 +209,20 @@ NODE_CLASS_MAPPINGS = {
     "SFImageCompare": ImageCompare,
     # 文本节点
     "SFTextTranslation": TextTranslation,
-    "SFStringConcatenate": StringConcatenate,
     "SFTextCombine": TextCombine,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
     "SFTextDropdown": TextDropdown,
     "SFTextReplace": SFTextReplace,
     # 简单数学节点
-    "SFSimpleMathFloat": SimpleMathFloat,
-    "SFSimpleMathPercent": SimpleMathPercent,
-    "SFSimpleMathInt": SimpleMathInt,
+    "SFNumber": SFNumber,
     "SFSimpleMathSlider": SimpleMathSlider,
     "SFSimpleMathSliderLowRes": SimpleMathSliderLowRes,
     "SFSimpleMathBoolean": SimpleMathBoolean,
     "SFSimpleMath": SimpleMath,
-    "SFSimpleMathDual": SimpleMathDual,
     "SFSimpleMathCondition": SimpleMathCondition,
-    "SFSimpleCondition": SimpleCondition,
     "SFSimpleComparison": SimpleComparison,
-    "SFConsoleDebug": ConsoleDebug,
-    "SFDebugTensorShape": DebugTensorShape,
     "SFBatchCount": BatchCount,
-    "SFSimpleFloat": SimpleFloat,
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
@@ -249,7 +236,6 @@ NODE_CLASS_MAPPINGS = {
     # 种子节点
     "SFSeed": SFSeed,
     # 逻辑节点
-    "SFIfElse": IfElse,
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
     "SFIsMaskEmpty": IsMaskEmpty,
 }
@@ -349,28 +335,20 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageCompare": "SF Image Compare",
     # 文本节点
     "SFTextTranslation": "SF Text Translation",
-    "SFStringConcatenate": "SF String Concatenate",
     "SFTextCombine": "SF Text Combine",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
     "SFTextDropdown": "SF Text Dropdown",
     "SFTextReplace": "SF Text Replace",
     # 简单数学节点
-    "SFSimpleMathFloat": "SF Simple Math Float",
-    "SFSimpleMathPercent": "SF Simple Math Percent",
-    "SFSimpleMathInt": "SF Simple Math Int",
+    "SFNumber": "SF Number",
     "SFSimpleMathSlider": "SF Simple Math Slider",
     "SFSimpleMathSliderLowRes": "SF Simple Math Slider Low Res",
     "SFSimpleMathBoolean": "SF Simple Math Boolean",
     "SFSimpleMath": "SF Simple Math",
-    "SFSimpleMathDual": "SF Simple Math Dual",
     "SFSimpleMathCondition": "SF Simple Math Condition",
-    "SFSimpleCondition": "SF Simple Condition",
     "SFSimpleComparison": "SF Simple Comparison",
-    "SFConsoleDebug": "SF Console Debug",
-    "SFDebugTensorShape": "SF Debug Tensor Shape",
     "SFBatchCount": "SF Batch Count",
-    "SFSimpleFloat": "SF Simple Float",
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
@@ -384,7 +362,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 种子节点
     "SFSeed": "SF Seed",
     # 逻辑节点
-    "SFIfElse": "SF If Else",
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
     "SFIsMaskEmpty": "SF Is Mask Empty",
 }

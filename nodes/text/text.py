@@ -92,48 +92,6 @@ class TextTranslation:
         return (output_text,)
 
 
-_MAX_STRING_SLOTS = 20
-
-
-class StringConcatenate:
-    """字符串拼接节点，支持 1～N 个 string 槽位，由前端 JS 动态控制可见数量。"""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        optional = {}
-        for i in range(1, _MAX_STRING_SLOTS + 1):
-            optional[f"string_{i}"] = (IO.STRING, {"multiline": True, "default": ""})
-        optional["text_in"] = ("STRING", {"forceInput": True, "tooltip": "从上游节点输入的文本"})
-        return {
-            "required": {
-                "trans_switch": (
-                    "BOOLEAN",
-                    {"default": False, "label_on": "on", "label_off": "off", "tooltip": "开启/关闭翻译功能"},
-                ),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ",", "tooltip": "拼接多个字符串的分隔符"}),
-            },
-            "optional": optional,
-        }
-
-    RETURN_TYPES = (IO.STRING,)
-    RETURN_NAMES = ("combined",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "拼接多个字符串，支持动态槽位"
-
-    def execute(self, trans_switch, delimiter, **kwargs):
-        strings = [
-            kwargs.get(f"string_{i}", "") or "" for i in range(1, _MAX_STRING_SLOTS + 1)
-        ]
-        if trans_switch:
-            strings = [translators(text=s) for s in strings]
-        strings = [s for s in strings if s and s.strip()] # type: ignore
-        text_in = kwargs.get("text_in") or ""
-        if text_in:
-            strings.insert(0, text_in)
-        return (delimiter.join(strings),)
-
-
 class TextCombine:
     """合并 text_in 和 text，用 delimiter 连接。保留原始值，不清空空字符。"""
 

@@ -9,38 +9,15 @@ _CATEGORY = "sfnodes/utils"
 any = AnyType("*")
 
 
-class SimpleMathFloat:
+class SFNumber:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "value": (
-                    "FLOAT",
-                    {
-                        "default": 0.0,
-                        "min": -0xFFFFFFFFFFFFFFFF,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "step": 0.05,
-                    },
+                "number_type": (
+                    ["FLOAT", "INT", "PERCENT"],
+                    {"default": "FLOAT"},
                 ),
-            },
-        }
-
-    RETURN_TYPES = ("FLOAT",)
-    RETURN_NAMES = ("float",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "输出一个浮点数，步长 0.05"
-
-    def execute(self, value):
-        return (float(value),)
-
-
-class SimpleFloat:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
                 "value": (
                     "FLOAT",
                     {
@@ -48,66 +25,27 @@ class SimpleFloat:
                         "min": -0xFFFFFFFFFFFFFFFF,
                         "max": 0xFFFFFFFFFFFFFFFF,
                         "step": 0.01,
+                        "round": 0.01,
                     },
                 ),
             },
         }
 
-    RETURN_TYPES = ("FLOAT",)
-    RETURN_NAMES = ("float",)
+    RETURN_TYPES = ("INT", "FLOAT")
+    RETURN_NAMES = ("int", "float")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "输出一个浮点数，保留两位小数，步长 0.01"
+    DESCRIPTION = "输出数值，支持 INT / FLOAT / PERCENT 三种类型"
 
-    def execute(self, value):
-        return (round(float(value), 2),)
-
-
-
-class SimpleMathPercent:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "value": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
-            },
-        }
-
-    RETURN_TYPES = ("FLOAT",)
-    RETURN_NAMES = ("float",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "输出一个 0~1 范围的浮点数，用于百分比"
-
-    def execute(self, value):
-        return (float(value),)
-
-
-class SimpleMathInt:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "value": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": -0xFFFFFFFFFFFFFFFF,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "step": 1,
-                    },
-                ),
-            },
-        }
-
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("int",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "输出一个整数，步长为 1"
-
-    def execute(self, value):
-        return (int(value),)
+    def execute(self, number_type, value):
+        if number_type == "INT":
+            v = round(value)
+            return (int(v), float(v))
+        elif number_type == "PERCENT":
+            v = max(0.0, min(1.0, value))
+            return (int(v), v)
+        else:
+            return (int(value), value)
 
 
 
@@ -364,38 +302,6 @@ class SimpleMath:
         )
 
 
-class SimpleMathDual:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "optional": {
-                "a": (any, {"default": 0.0}),
-                "b": (any, {"default": 0.0}),
-                "c": (any, {"default": 0.0}),
-                "d": (any, {"default": 0.0}),
-            },
-            "required": {
-                "value_1": ("STRING", {"multiline": False, "default": ""}),
-                "value_2": ("STRING", {"multiline": False, "default": ""}),
-            },
-        }
-
-    RETURN_TYPES = (
-        "INT",
-        "FLOAT",
-        "INT",
-        "FLOAT",
-    )
-    RETURN_NAMES = ("int_1", "float_1", "int_2", "float_2")
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "双路表达式计算，同时输出两组整数和浮点数结果"
-
-    def execute(self, value_1, value_2, a=0.0, b=0.0, c=0.0, d=0.0):
-        return SimpleMath().execute(value_1, a, b, c, d) + SimpleMath().execute(
-            value_2, a, b, c, d
-        )
-
 
 class SimpleMathCondition:
     @classmethod
@@ -425,35 +331,7 @@ class SimpleMathCondition:
         return SimpleMath().execute(on_true if evaluate else on_false, a, b, c)
 
 
-class SimpleCondition:
-    def __init__(self):
-        pass
 
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "evaluate": (any, {"default": 0}),
-                "on_true": (any, {"default": 0}),
-            },
-            "optional": {
-                "on_false": (any, {"default": None}),
-            },
-        }
-
-    RETURN_TYPES = (any,)
-    RETURN_NAMES = ("result",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "条件分支，evaluate 为真时输出 on_true，否则输出 on_false"
-
-    def execute(self, evaluate, on_true, on_false=None):
-        from comfy_execution.graph import ExecutionBlocker
-
-        if not evaluate:
-            return (on_false if on_false is not None else ExecutionBlocker(None),)
-
-        return (on_true,)
 
 
 class SimpleComparison:
@@ -488,61 +366,6 @@ class SimpleComparison:
             return (a > b,)
         elif comparison == ">=":
             return (a >= b,)
-
-
-class ConsoleDebug:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "value": (any, {}),
-            },
-            "optional": {
-                "prefix": ("STRING", {"multiline": False, "default": "Value:"})
-            },
-        }
-
-    RETURN_TYPES = ()
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    OUTPUT_NODE = True
-    DESCRIPTION = "将值打印到控制台，用于调试"
-
-    def execute(self, value, prefix):
-        return (None,)
-
-
-class DebugTensorShape:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "tensor": (any, {}),
-            },
-        }
-
-    RETURN_TYPES = ()
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    OUTPUT_NODE = True
-    DESCRIPTION = "打印张量形状到控制台，用于调试"
-
-    def execute(self, tensor):
-        shapes = []
-
-        def tensorShape(tensor):
-            if isinstance(tensor, dict):
-                for k in tensor:
-                    tensorShape(tensor[k])
-            elif isinstance(tensor, list):
-                for i in range(len(tensor)):
-                    tensorShape(tensor[i])
-            elif hasattr(tensor, "shape"):
-                shapes.append(list(tensor.shape))
-
-        tensorShape(tensor)
-
-        return (None,)
 
 
 class BatchCount:

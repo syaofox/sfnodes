@@ -9,33 +9,6 @@ MAX_FLOW_NUM = 20
 _CATEGORY = "sfnodes/logic"
 
 
-class IfElse:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "boolean": ("BOOLEAN",),
-                "on_true": (any_type, lazy_options),
-                "on_false": (any_type, lazy_options),
-            },
-        }
-
-    RETURN_TYPES = (any_type,)
-    RETURN_NAMES = ("*",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "根据布尔值选择输出，条件为真时输出 on_true，否则输出 on_false"
-
-    def check_lazy_status(self, boolean=True, on_true=None, on_false=None):
-        if boolean and on_true is None:
-            return ["on_true"]
-        if not boolean and on_false is None:
-            return ["on_false"]
-
-    def execute(self, *args, **kwargs):
-        return (kwargs['on_true'] if kwargs['boolean'] else kwargs['on_false'],)
-
-
 class AnythingIndexSwitch:
     def __init__(self):
         pass
