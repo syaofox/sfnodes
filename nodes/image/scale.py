@@ -684,16 +684,21 @@ class ImageResizePlus:
                     ["center", "top", "bottom"],
                     {"default": "center"},
                 ),
-            }
+            },
+            "optional": {
+                "mask": ("MASK", {"tooltip": "可选的遮罩，将应用相同的缩放变换"}),
+            },
         }
 
     RETURN_TYPES = (
         "IMAGE",
+        "MASK",
         "INT",
         "INT",
     )
     RETURN_NAMES = (
-        "IMAGE",
+        "image",
+        "mask",
         "width",
         "height",
     )
@@ -712,6 +717,7 @@ class ImageResizePlus:
         multiple_of=0,
         keep_proportion=False,
         crop_position="center",
+        mask=None,
     ):
         _, oh, ow, _ = image.shape
         x = y = x2 = y2 = 0
@@ -777,13 +783,18 @@ class ImageResizePlus:
             width = width if width > 0 else ow
             height = height if height > 0 else oh
 
-        if (
+        if mask is not None:
+            mask_tensor = mask2tensor(mask)
+
+        do_resize = (
             "always" in condition
             or ("downscale if bigger" == condition and (oh > height or ow > width))
             or ("upscale if smaller" == condition and (oh < height or ow < width))
             or ("bigger area" in condition and (oh * ow > height * width))
             or ("smaller area" in condition and (oh * ow < height * width))
-        ):
+        )
+
+        if do_resize:
             outputs = image.permute(0, 3, 1, 2)
 
             if interpolation == "lanczos":
@@ -793,35 +804,54 @@ class ImageResizePlus:
                     outputs, size=(height, width), mode=interpolation
                 )
 
+            if mask is not None:
+                mask_tensor = mask_tensor.permute(0, 3, 1, 2)
+                mask_tensor = F.interpolate(
+                    mask_tensor, size=(height, width), mode="nearest"
+                )
+
             if method == "pad":
                 if pad_left > 0 or pad_right > 0 or pad_top > 0 or pad_bottom > 0:
                     outputs = F.pad(
                         outputs, (pad_left, pad_right, pad_top, pad_bottom), value=0
                     )
+                    if mask is not None:
+                        mask_tensor = F.pad(
+                            mask_tensor, (pad_left, pad_right, pad_top, pad_bottom), value=1
+                        )
 
             outputs = outputs.permute(0, 2, 3, 1)
+            if mask is not None:
+                mask_tensor = mask_tensor.permute(0, 2, 3, 1)
 
             if method.startswith("fill"):
                 if x > 0 or y > 0 or x2 > 0 or y2 > 0:
                     outputs = outputs[:, y:y2, x:x2, :]
+                    if mask is not None:
+                        mask_tensor = mask_tensor[:, y:y2, x:x2, :]
         else:
             outputs = image
 
         if multiple_of > 1 and (
             outputs.shape[2] % multiple_of != 0 or outputs.shape[1] % multiple_of != 0
         ):
-            width = outputs.shape[2]
-            height = outputs.shape[1]
-            x = (width % multiple_of) // 2
-            y = (height % multiple_of) // 2
-            x2 = width - ((width % multiple_of) - x)
-            y2 = height - ((height % multiple_of) - y)
-            outputs = outputs[:, y:y2, x:x2, :]
+            w = outputs.shape[2]
+            h = outputs.shape[1]
+            cx = (w % multiple_of) // 2
+            cy = (h % multiple_of) // 2
+            cx2 = w - ((w % multiple_of) - cx)
+            cy2 = h - ((h % multiple_of) - cy)
+            outputs = outputs[:, cy:cy2, cx:cx2, :]
+            if mask is not None:
+                mask_tensor = mask_tensor[:, cy:cy2, cx:cx2, :]
 
         outputs = torch.clamp(outputs, 0, 1)
 
+        out_mask = tensor2mask(mask_tensor) if mask is not None else None
+
         return (
             outputs,
+            out_mask,
             outputs.shape[2],
             outputs.shape[1],
         )
