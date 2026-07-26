@@ -150,18 +150,29 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-item:hover .sf-imgbrowser-del { display: flex; }
         .sf-imgbrowser-del:hover { background: rgba(255,0,0,0.95); }
+        .sf-imgbrowser-type-toggle {
+            display: flex; gap: 0; border: 1px solid #555; border-radius: 4px; overflow: hidden;
+        }
+        .sf-imgbrowser-typebtn {
+            background: #2a2a2a; border: none; color: #888; padding: 4px 14px;
+            cursor: pointer; font-size: 13px; transition: 0.15s;
+        }
+        .sf-imgbrowser-typebtn:hover { color: #ddd; background: #333; }
+        .sf-imgbrowser-typebtn.active { background: #89B; color: #fff; }
     `;
     document.head.appendChild(style);
 }
 
-function getThumbUrl(item) {
-    return api.apiURL(`/api/sfnodes/images/thumb?path=${encodeURIComponent(item.path)}`);
+function getThumbUrl(item, type) {
+    const params = new URLSearchParams({ path: item.path, type: type || "input" });
+    return api.apiURL(`/api/sfnodes/images/thumb?${params}`);
 }
 
 function showImageBrowser(node) {
     injectModalStyles();
 
     let allItems = [];
+    let currentType = "input";
     let currentFolder = "";
     let sortBy = "name";
     let sortAsc = true;
@@ -177,6 +188,10 @@ function showImageBrowser(node) {
         <div class="sf-imgbrowser-modal">
             <div class="sf-imgbrowser-header">
                 <h3>Select Image</h3>
+                <div class="sf-imgbrowser-type-toggle">
+                    <button class="sf-imgbrowser-typebtn active" data-type="input">Input</button>
+                    <button class="sf-imgbrowser-typebtn" data-type="output">Output</button>
+                </div>
                 <button class="sf-imgbrowser-close">&times;</button>
             </div>
             <div class="sf-imgbrowser-search">
@@ -198,10 +213,39 @@ function showImageBrowser(node) {
 
     const imageWidget = node.widgets.find(w => w.name === "image");
     const currentValue = imageWidget ? imageWidget.value : "";
+    const typeToggle = overlay.querySelector(".sf-imgbrowser-type-toggle");
+
+    function switchType(newType) {
+        if (newType === currentType) return;
+        currentType = newType;
+        typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
+            btn.classList.toggle("active", btn.dataset.type === newType);
+        });
+        currentFolder = "";
+        page = 0;
+        hasMore = true;
+        isLoadingMore = false;
+        grid.innerHTML = '<div class="sf-imgbrowser-spinner">Loading images</div>';
+        api.fetchApi(`/api/sfnodes/images/list?type=${currentType}`)
+            .then(r => { if (!r.ok) throw new Error("Failed to fetch images"); return r.json(); })
+            .then(data => {
+                allItems = data;
+                loadCurrentFolder();
+                saveState();
+            })
+            .catch(() => {
+                grid.innerHTML = '<div class="sf-imgbrowser-error">Failed to load images</div>';
+            });
+    }
+
+    typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
+        btn.addEventListener("click", () => switchType(btn.dataset.type));
+    });
 
     function saveState() {
         try {
             localStorage.setItem(STATE_KEY, JSON.stringify({
+                currentType,
                 currentFolder,
                 sortBy,
                 sortAsc,
@@ -346,8 +390,8 @@ function showImageBrowser(node) {
         e.stopPropagation();
         if (!confirm(`Delete "${item.path}"?`)) return;
 
-        const fullPath = encodeURIComponent(item.path);
-        api.fetchApi(`/api/sfnodes/images/delete?path=${fullPath}`, { method: "DELETE" })
+        const params = new URLSearchParams({ path: item.path, type: "input" });
+        api.fetchApi(`/api/sfnodes/images/delete?${params}`, { method: "DELETE" })
             .then(r => {
                 if (!r.ok) throw new Error("Delete failed");
                 allItems = allItems.filter(i => i.path !== item.path);
@@ -360,16 +404,19 @@ function showImageBrowser(node) {
     function renderImageItem(item) {
         const div = document.createElement("div");
         div.className = "sf-imgbrowser-item";
-        if (item.path === currentValue) {
+        if (item.path === currentValue || item.path + " [output]" === currentValue) {
             div.classList.add("selected");
         }
 
-        const del = document.createElement("button");
-        del.className = "sf-imgbrowser-del";
-        del.textContent = "\u2716";
-        del.addEventListener("click", (e) => deleteImage(e, item));
+        if (currentType === "input") {
+            const del = document.createElement("button");
+            del.className = "sf-imgbrowser-del";
+            del.textContent = "\u2716";
+            del.addEventListener("click", (e) => deleteImage(e, item));
+            div.appendChild(del);
+        }
 
-        const imgUrl = getThumbUrl(item);
+        const imgUrl = getThumbUrl(item, currentType);
         const img = document.createElement("img");
         img.src = imgUrl;
         img.alt = item.path;
@@ -385,15 +432,15 @@ function showImageBrowser(node) {
         label.className = "sf-imgbrowser-item-label";
         label.textContent = item.path;
 
-        div.appendChild(del);
         div.appendChild(img);
         div.appendChild(label);
 
         div.addEventListener("click", () => {
             if (imageWidget) {
-                imageWidget.value = item.path;
+                const value = currentType === "output" ? item.path + " [output]" : item.path;
+                imageWidget.value = value;
                 if (imageWidget.callback) {
-                    imageWidget.callback(item.path);
+                    imageWidget.callback(value);
                 }
                 node.setDirtyCanvas(true, true);
             }
@@ -505,13 +552,17 @@ function showImageBrowser(node) {
 
     const saved = loadState();
     if (saved) {
+        currentType = saved.currentType || "input";
         currentFolder = saved.currentFolder || "";
         sortBy = saved.sortBy || "name";
         sortAsc = saved.sortAsc !== undefined ? saved.sortAsc : true;
         if (saved.searchQuery) searchInput.value = saved.searchQuery;
     }
+    typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.type === currentType);
+    });
 
-    api.fetchApi("/api/sfnodes/images/list")
+    api.fetchApi(`/api/sfnodes/images/list?type=${currentType}`)
         .then(r => { if (!r.ok) throw new Error("Failed to fetch images"); return r.json(); })
         .then(data => {
             allItems = data;

@@ -10,14 +10,20 @@ THUMB_SIZE = 256
 _CATEGORY = "sfnodes/image"
 
 
-def _list_images_recursive():
-    input_dir = folder_paths.get_input_directory()
+def _get_base_dir(source_type="input"):
+    if source_type == "output":
+        return folder_paths.get_output_directory()
+    return folder_paths.get_input_directory()
+
+
+def _list_images_recursive(source_type="input"):
+    base_dir = _get_base_dir(source_type)
     files = []
-    for root, _, filenames in os.walk(input_dir):
+    for root, _, filenames in os.walk(base_dir):
         for f in filenames:
             full_path = os.path.join(root, f)
             if os.path.isfile(full_path):
-                rel_path = os.path.relpath(full_path, input_dir)
+                rel_path = os.path.relpath(full_path, base_dir)
                 files.append(rel_path)
     return sorted(folder_paths.filter_files_content_types(files, ["image"]))
 
@@ -36,7 +42,7 @@ class SFLoadImageBrowser(LoadImage):
     RETURN_NAMES = ("image", "mask", "filename")
     FUNCTION = "load_image"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "读取输入目录（含子文件夹）中的图片，支持网格浏览选择"
+    DESCRIPTION = "浏览 input/output 目录（含子文件夹）中的图片并加载"
 
     def load_image(self, image):
         image_output, mask = super().load_image(image)
@@ -54,11 +60,12 @@ def _register_routes():
         @routes.get("/api/sfnodes/images/list")
         async def _list_images(request: web.Request) -> web.Response:
             try:
-                input_dir = folder_paths.get_input_directory()
-                files = _list_images_recursive()
+                source_type = request.rel_url.query.get("type", "input")
+                base_dir = _get_base_dir(source_type)
+                files = _list_images_recursive(source_type)
                 result = []
                 for rel_path in files:
-                    full_path = os.path.join(input_dir, rel_path)
+                    full_path = os.path.join(base_dir, rel_path)
                     stat = os.stat(full_path)
                     result.append({
                         "filename": os.path.basename(rel_path),
@@ -75,12 +82,13 @@ def _register_routes():
         async def _image_thumb(request: web.Request) -> web.Response:
             try:
                 image_path = request.rel_url.query.get("path", "")
+                source_type = request.rel_url.query.get("type", "input")
                 if not image_path or ".." in image_path:
                     return web.Response(status=400)
 
-                input_dir = folder_paths.get_input_directory()
-                full_path = os.path.normpath(os.path.join(input_dir, image_path))
-                if not full_path.startswith(os.path.normpath(input_dir)):
+                base_dir = _get_base_dir(source_type)
+                full_path = os.path.normpath(os.path.join(base_dir, image_path))
+                if not full_path.startswith(os.path.normpath(base_dir)):
                     return web.Response(status=403)
                 if not os.path.isfile(full_path):
                     return web.Response(status=404)
@@ -89,7 +97,7 @@ def _register_routes():
                 os.makedirs(cache_dir, exist_ok=True)
 
                 cache_key = hashlib.md5(
-                    f"{image_path}:{os.path.getmtime(full_path)}".encode()
+                    f"{source_type}:{image_path}:{os.path.getmtime(full_path)}".encode()
                 ).hexdigest()
                 cache_path = os.path.join(cache_dir, f"{cache_key}.webp")
 
@@ -109,12 +117,15 @@ def _register_routes():
         async def _delete_image(request: web.Request) -> web.Response:
             try:
                 image_path = request.rel_url.query.get("path", "")
+                source_type = request.rel_url.query.get("type", "input")
+                if source_type != "input":
+                    return web.Response(status=403, text="只能删除 input 目录中的文件")
                 if not image_path or ".." in image_path:
                     return web.Response(status=400)
 
-                input_dir = folder_paths.get_input_directory()
-                full_path = os.path.normpath(os.path.join(input_dir, image_path))
-                if not full_path.startswith(os.path.normpath(input_dir)):
+                base_dir = _get_base_dir(source_type)
+                full_path = os.path.normpath(os.path.join(base_dir, image_path))
+                if not full_path.startswith(os.path.normpath(base_dir)):
                     return web.Response(status=403)
                 if not os.path.isfile(full_path):
                     return web.Response(status=404)
