@@ -72,6 +72,7 @@ from .nodes.utils.misc import (
     SDXLEmptyLatentSizePicker,
 )
 from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
+from .nodes.utils.seed import SFSeed
 
 from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacter
@@ -245,6 +246,8 @@ NODE_CLASS_MAPPINGS = {
     "SFRAMCleanup": RAMCleanup,
     # 图像方向节点
     "SFImageOrientation": ImageOrientation,
+    # 种子节点
+    "SFSeed": SFSeed,
     # 逻辑节点
     "SFIfElse": IfElse,
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
@@ -378,6 +381,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFRAMCleanup": "SF RAM Cleanup",
     # 图像方向节点
     "SFImageOrientation": "SF Image Orientation",
+    # 种子节点
+    "SFSeed": "SF Seed",
     # 逻辑节点
     "SFIfElse": "SF If Else",
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
