@@ -1018,12 +1018,16 @@ class ApexSmartResize:
                         "tooltip": "在控制台显示候选分辨率列表",
                     },
                 ),
-            }
+            },
+            "optional": {
+                "mask": ("MASK", {"tooltip": "可选的遮罩，将应用相同的缩放变换"}),
+            },
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "FLOAT", "STRING", "STRING")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "FLOAT", "STRING", "STRING")
     RETURN_NAMES = (
         "image",
+        "mask",
         "width",
         "height",
         "scale_factor",
@@ -1042,6 +1046,7 @@ class ApexSmartResize:
         resize_mode,
         interpolation,
         show_candidates,
+        mask=None,
     ):
         start_time = datetime.now()
 
@@ -1078,9 +1083,9 @@ class ApexSmartResize:
                 start_time,
             )
 
-            # Resize the image
-            resized_image = self._apply_resize(
-                image, target_w, target_h, resize_mode, interpolation
+            # Resize the image and mask
+            resized_image, resized_mask = self._apply_resize(
+                image, target_w, target_h, resize_mode, interpolation, mask
             )
 
             # Calculate processing time
@@ -1092,6 +1097,7 @@ class ApexSmartResize:
 
             return (
                 resized_image,
+                resized_mask,
                 target_w,
                 target_h,
                 scale_factor,
@@ -1109,8 +1115,8 @@ class ApexSmartResize:
                 },
                 indent=2,
             )
-
-            return (image, orig_w, orig_h, 1.0, f"Error: {str(e)}", error_console)
+            out_mask = tensor2mask(mask2tensor(mask)) if mask is not None else None
+            return (image, out_mask, orig_w, orig_h, 1.0, f"Error: {str(e)}", error_console)
 
     def _create_console_data(
         self,
@@ -1332,30 +1338,50 @@ class ApexSmartResize:
 
         return target_w, target_h, info, candidates_info
 
-    def _apply_resize(self, image, target_w, target_h, resize_mode, interpolation):
+    def _apply_resize(self, image, target_w, target_h, resize_mode, interpolation, mask=None):
         """Apply the actual resizing with specified method"""
 
+        if mask is not None:
+            mask_tensor = mask2tensor(mask)
+
         if resize_mode == "stretch":
-            return self._resize_tensor(image, target_w, target_h, interpolation)
+            img_out = self._resize_tensor(image, target_w, target_h, interpolation)
+            mask_out = self._resize_mask(mask_tensor, target_w, target_h) if mask is not None else None
 
         elif resize_mode == "crop_center":
-            return self._crop_center_resize(image, target_w, target_h, interpolation)
+            img_out, mask_out = self._crop_center_resize(
+                image, target_w, target_h, interpolation, mask_tensor if mask is not None else None
+            )
 
         elif resize_mode == "fit_pad_black":
-            return self._fit_pad_resize(
-                image, target_w, target_h, interpolation, pad_color=0.0
+            img_out, mask_out = self._fit_pad_resize(
+                image, target_w, target_h, interpolation, pad_color=0.0,
+                mask_tensor=mask_tensor if mask is not None else None
             )
 
         elif resize_mode == "fit_pad_white":
-            return self._fit_pad_resize(
-                image, target_w, target_h, interpolation, pad_color=1.0
+            img_out, mask_out = self._fit_pad_resize(
+                image, target_w, target_h, interpolation, pad_color=1.0,
+                mask_tensor=mask_tensor if mask is not None else None
             )
 
         elif resize_mode == "fit_pad_edge":
-            return self._fit_pad_edge_resize(image, target_w, target_h, interpolation)
+            img_out, mask_out = self._fit_pad_edge_resize(
+                image, target_w, target_h, interpolation,
+                mask_tensor=mask_tensor if mask is not None else None
+            )
 
         else:
-            return self._resize_tensor(image, target_w, target_h, interpolation)
+            img_out = self._resize_tensor(image, target_w, target_h, interpolation)
+            mask_out = self._resize_mask(mask_tensor, target_w, target_h) if mask is not None else None
+
+        out_mask = tensor2mask(mask_out) if mask_out is not None else None
+        return img_out, out_mask
+
+    def _resize_mask(self, mask_tensor, width, height):
+        mask_bchw = mask_tensor.permute(0, 3, 1, 2)
+        resized = F.interpolate(mask_bchw, size=(height, width), mode="nearest")
+        return resized.permute(0, 2, 3, 1)
 
     def _resize_tensor(self, image, width, height, interpolation):
         """Core tensor resize function"""
@@ -1378,7 +1404,7 @@ class ApexSmartResize:
 
         return resized.permute(0, 2, 3, 1)
 
-    def _crop_center_resize(self, image, target_w, target_h, interpolation):
+    def _crop_center_resize(self, image, target_w, target_h, interpolation, mask_tensor=None):
         """Resize to cover target, then center crop"""
 
         orig_h, orig_w = image.shape[1], image.shape[2]
@@ -1396,16 +1422,18 @@ class ApexSmartResize:
 
         # Resize to cover
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
+        mask_resized = self._resize_mask(mask_tensor, new_w, new_h) if mask_tensor is not None else None
 
         # Center crop
         crop_x = max(0, (new_w - target_w) // 2)
         crop_y = max(0, (new_h - target_h) // 2)
 
         cropped = resized[:, crop_y : crop_y + target_h, crop_x : crop_x + target_w, :]
+        cropped_mask = mask_resized[:, crop_y : crop_y + target_h, crop_x : crop_x + target_w, :] if mask_resized is not None else None
 
-        return cropped
+        return cropped, cropped_mask
 
-    def _fit_pad_resize(self, image, target_w, target_h, interpolation, pad_color):
+    def _fit_pad_resize(self, image, target_w, target_h, interpolation, pad_color, mask_tensor=None):
         """Fit image with solid color padding"""
 
         orig_h, orig_w = image.shape[1], image.shape[2]
@@ -1423,6 +1451,7 @@ class ApexSmartResize:
 
         # Resize to fit
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
+        mask_resized = self._resize_mask(mask_tensor, new_w, new_h) if mask_tensor is not None else None
 
         # Calculate padding
         pad_w = target_w - new_w
@@ -1441,12 +1470,22 @@ class ApexSmartResize:
                 value=pad_color,
             )
             result = padded.permute(0, 2, 3, 1)
+
+            if mask_resized is not None:
+                mask_bchw = mask_resized.permute(0, 3, 1, 2)
+                mask_padded = F.pad(
+                    mask_bchw,
+                    (pad_left, pad_right, pad_top, pad_bottom),
+                    mode="constant",
+                    value=1.0,
+                )
+                mask_resized = mask_padded.permute(0, 2, 3, 1)
         else:
             result = resized
 
-        return result
+        return result, mask_resized
 
-    def _fit_pad_edge_resize(self, image, target_w, target_h, interpolation):
+    def _fit_pad_edge_resize(self, image, target_w, target_h, interpolation, mask_tensor=None):
         """Fit image with edge replication padding"""
 
         orig_h, orig_w = image.shape[1], image.shape[2]
@@ -1462,6 +1501,7 @@ class ApexSmartResize:
 
         # Resize to fit
         resized = self._resize_tensor(image, new_w, new_h, interpolation)
+        mask_resized = self._resize_mask(mask_tensor, new_w, new_h) if mask_tensor is not None else None
 
         # Calculate padding
         pad_w = target_w - new_w
@@ -1477,10 +1517,20 @@ class ApexSmartResize:
                 image_bchw, (pad_left, pad_right, pad_top, pad_bottom), mode="replicate"
             )
             result = padded.permute(0, 2, 3, 1)
+
+            if mask_resized is not None:
+                mask_bchw = mask_resized.permute(0, 3, 1, 2)
+                mask_padded = F.pad(
+                    mask_bchw,
+                    (pad_left, pad_right, pad_top, pad_bottom),
+                    mode="constant",
+                    value=1.0,
+                )
+                mask_resized = mask_padded.permute(0, 2, 3, 1)
         else:
             result = resized
 
-        return result
+        return result, mask_resized
 
 
 
