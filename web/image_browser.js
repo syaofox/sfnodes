@@ -2,8 +2,17 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
 const PAGE_SIZE = 50;
+const STATE_KEY = "sfnodes_image_browser_state";
 
 let modalStyleInjected = false;
+
+function debounce(fn, ms) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+    };
+}
 
 function injectModalStyles() {
     if (modalStyleInjected) return;
@@ -17,7 +26,7 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-modal {
             background: #2a2a2a; border-radius: 8px;
-            width: 90%; height: 90%; max-width: 1200px;
+            width: 90%; height: 90%; max-width: 1400px;
             display: flex; flex-direction: column;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
         }
@@ -190,7 +199,28 @@ function showImageBrowser(node) {
     const imageWidget = node.widgets.find(w => w.name === "image");
     const currentValue = imageWidget ? imageWidget.value : "";
 
+    function saveState() {
+        try {
+            localStorage.setItem(STATE_KEY, JSON.stringify({
+                currentFolder,
+                sortBy,
+                sortAsc,
+                searchQuery: searchInput.value,
+            }));
+        } catch (e) { /* ignore */ }
+    }
+
+    function loadState() {
+        try {
+            const raw = localStorage.getItem(STATE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     function close() {
+        saveState();
         overlay.remove();
     }
 
@@ -245,6 +275,7 @@ function showImageBrowser(node) {
                 isLoadingMore = false;
                 grid.innerHTML = "";
                 loadCurrentFolder();
+                saveState();
             });
         });
     }
@@ -271,6 +302,7 @@ function showImageBrowser(node) {
                     sortAsc = key === "name";
                 }
                 loadCurrentFolder();
+                saveState();
             });
         });
     }
@@ -305,6 +337,7 @@ function showImageBrowser(node) {
             isLoadingMore = false;
             grid.innerHTML = "";
             loadCurrentFolder();
+            saveState();
         });
         return div;
     }
@@ -461,17 +494,29 @@ function showImageBrowser(node) {
         }
     });
 
+    const debouncedSaveState = debounce(saveState, 300);
+
     searchInput.addEventListener("input", () => {
         loadCurrentFolder();
+        debouncedSaveState();
     });
 
     grid.innerHTML = '<div class="sf-imgbrowser-spinner">Loading images</div>';
+
+    const saved = loadState();
+    if (saved) {
+        currentFolder = saved.currentFolder || "";
+        sortBy = saved.sortBy || "name";
+        sortAsc = saved.sortAsc !== undefined ? saved.sortAsc : true;
+        if (saved.searchQuery) searchInput.value = saved.searchQuery;
+    }
 
     api.fetchApi("/api/sfnodes/images/list")
         .then(r => { if (!r.ok) throw new Error("Failed to fetch images"); return r.json(); })
         .then(data => {
             allItems = data;
             loadCurrentFolder();
+            saveState();
         })
         .catch(() => {
             grid.innerHTML = '<div class="sf-imgbrowser-error">Failed to load images</div>';
