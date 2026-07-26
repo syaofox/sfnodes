@@ -9,6 +9,7 @@ from .nodes.face.align import (
     ExtractRotationInfo,
 )
 from .nodes.face.region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
+from .nodes.face.head_mask import SFHeadMask
 from .nodes.image.files import (
     LoadImagesFromFolder,
     LoadImageFromPath,
@@ -141,6 +142,7 @@ NODE_CLASS_MAPPINGS = {
     "SFFaceEmbedDistance": FaceEmbedDistance,
     "SFFaceSegmentation": FaceSegmentation,
     "SFFaceWarp": FaceWarp,
+    "SFHeadMask": SFHeadMask,
     # 文件节点
     "SFLoadImagesFromFolder": LoadImagesFromFolder,
     "SFLoadImageFromPath": LoadImageFromPath,
@@ -276,6 +278,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFaceEmbedDistance": "SF Face Embed Distance",
     "SFFaceSegmentation": "SF Face Segmentation",
     "SFFaceWarp": "SF Face Warp",
+    "SFHeadMask": "SF Head Mask",
     # 文件节点
     "SFLoadImagesFromFolder": "SF Load Images From Folder",
     "SFLoadImageFromPath": "SF Load Image From Path",
