@@ -1,10 +1,10 @@
 import psutil
 import ctypes
 from ctypes import wintypes
+import ctypes.util
 import time
 import platform
 import gc
-from server import PromptServer
 import comfy.model_management
 from ...sf_utils.common import AnyType
 
@@ -53,9 +53,8 @@ class VRAMCleanup:
                 comfy.model_management.unload_all_models()
 
             if offload_cache:
-                gc.collect()
+                comfy.model_management.cleanup_models_gc()
                 comfy.model_management.soft_empty_cache()
-                PromptServer.instance.prompt_queue.set_flag("free_memory", True)
 
             print(
                 f"VRAM清理完成 [卸载模型: {offload_model}, 清空缓存: {offload_cache}]"
@@ -80,7 +79,7 @@ class RAMCleanup:
                     "BOOLEAN",
                     {"default": True, "label": "清理进程内存"},
                 ),
-                "clean_dlls": ("BOOLEAN", {"default": True, "label": "清理未使用DLL"}),
+                "clean_buffers": ("BOOLEAN", {"default": True, "label": "清理系统缓冲区"}),
                 "retry_times": (
                     "INT",
                     {"default": 3, "min": 1, "max": 10, "step": 1, "label": "重试次数"},
@@ -114,7 +113,7 @@ class RAMCleanup:
         self,
         clean_file_cache,
         clean_processes,
-        clean_dlls,
+        clean_buffers,
         retry_times,
         anything=None,
         unique_id=None,
@@ -124,14 +123,20 @@ class RAMCleanup:
             before_usage, before_available = self.get_ram_usage()
             system = platform.system()
 
+            gc.collect()
+
             for attempt in range(retry_times):
                 if clean_file_cache:
                     try:
                         if system == "Windows":
                             ctypes.windll.kernel32.SetSystemFileCacheSize(-1, -1, 0)
                         elif system == "Linux":
-                            libc = ctypes.CDLL("libc.so.6")
-                            libc.malloc_trim(0)
+                            lib_path = ctypes.util.find_library('c')
+                            if lib_path:
+                                libc = ctypes.CDLL(lib_path)
+                                libc.malloc_trim(0)
+                        elif system == "Darwin":
+                            pass
                     except:
                         pass
 
@@ -149,7 +154,7 @@ class RAMCleanup:
                             except:
                                 continue
 
-                if clean_dlls:
+                if clean_buffers:
                     try:
                         if system == "Windows":
                             ctypes.windll.kernel32.SetProcessWorkingSetSize(-1, -1, -1)
@@ -157,6 +162,8 @@ class RAMCleanup:
                         pass
 
                 time.sleep(1)
+
+            gc.collect()
 
             after_usage, after_available = self.get_ram_usage()
             freed_mb = after_available - before_available
