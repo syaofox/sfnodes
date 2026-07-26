@@ -9,7 +9,7 @@ from .nodes.face.align import (
     ExtractRotationInfo,
 )
 from .nodes.face.region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
-from .nodes.face.head_mask import SFHeadMask
+from .nodes.face.person_mask import SFPersonMask
 from .nodes.image.files import (
     LoadImagesFromFolder,
     LoadImageFromPath,
@@ -60,7 +60,6 @@ from .nodes.image.processing import (
     ImageColorMatch,
 )
 from .nodes.image.imitation_hue import ImitationHue
-from .nodes.model.person_mask import PersonSegmenterLoader, PersonMaskGenerator
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
     AddCLIPSDXLParams,
@@ -142,7 +141,7 @@ NODE_CLASS_MAPPINGS = {
     "SFFaceEmbedDistance": FaceEmbedDistance,
     "SFFaceSegmentation": FaceSegmentation,
     "SFFaceWarp": FaceWarp,
-    "SFHeadMask": SFHeadMask,
+    "SFPersonMask": SFPersonMask,
     # 文件节点
     "SFLoadImagesFromFolder": LoadImagesFromFolder,
     "SFLoadImageFromPath": LoadImageFromPath,
@@ -189,9 +188,6 @@ NODE_CLASS_MAPPINGS = {
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
     "SFImitationHue": ImitationHue,
-    # 人像分割节点
-    "SFPersonSegmenterLoader": PersonSegmenterLoader,
-    "SFPersonMaskGenerator": PersonMaskGenerator,
     # 显示节点
     "SFDisplayAny": DisplayAny,
     "SFRemoveLatentMask": RemoveLatentMask,
@@ -278,7 +274,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFaceEmbedDistance": "SF Face Embed Distance",
     "SFFaceSegmentation": "SF Face Segmentation",
     "SFFaceWarp": "SF Face Warp",
-    "SFHeadMask": "SF Head Mask",
+    "SFPersonMask": "SF Person Mask",
     # 文件节点
     "SFLoadImagesFromFolder": "SF Load Images From Folder",
     "SFLoadImageFromPath": "SF Load Image From Path",
@@ -325,9 +321,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
     "SFImitationHue": "SF Imitation Hue",
-    # 人像分割节点
-    "SFPersonSegmenterLoader": "SF Person Segmenter Loader",
-    "SFPersonMaskGenerator": "SF Person Mask Generator",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
     "SFRemoveLatentMask": "SF Remove Latent Mask",
