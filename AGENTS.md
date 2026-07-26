@@ -62,7 +62,7 @@ class SFMyNode:
     RETURN_NAMES = ("name",)
     FUNCTION = "execute"          # 执行方法名
     CATEGORY = "sfnodes/<group>"  # 统一使用 sfnodes/ 前缀
-    DESCRIPTION = "..."           # 可选
+    DESCRIPTION = "..."           # 必填
 
     def execute(self, ...):
         return (result,)
@@ -78,6 +78,7 @@ class SFMyNode:
 - `sfnodes/text` — 文本相关
 - `sfnodes/utils` — 工具相关
 - `sfnodes/logic` — 逻辑相关
+- `sfnodes/inpaint` — 局部修复相关
 
 ## Key Dependencies (runtime only, do NOT install)
 
@@ -89,6 +90,7 @@ class SFMyNode:
 - `color_matcher` — 色彩匹配
 - `translators` — 文本翻译
 - `scipy`, `aiohttp`, `safetensors`, `tqdm`
+- `psutil` — 系统资源监控（内存清理节点使用）
 
 ## ComfyUI API Imports (for reference only)
 
@@ -130,6 +132,7 @@ class SFMyNode:
 7. 遮罩张量格式统一为 `[B, H, W]`
 8. `sf_utils/` 中的工具函数应当是无状态的纯函数
 9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API
+10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
 
 ## Testing
 
