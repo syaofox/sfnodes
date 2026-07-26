@@ -1,10 +1,22 @@
 import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
 
+const _DISPLAY_TEXT_NODES = new Set([
+    "SFDisplayAny",
+    "SFImageScalerForSDModels",
+    "SFImageScalerByPixels",
+    "SFImageScaleBySpecifiedSide",
+    "SFComputeImageScaleRatio",
+    "SFImageRotate",
+    "SFTrimImageBorders",
+    "SFAddImageBorder",
+    "SFGetImageSize",
+]);
+
 app.registerExtension({
     name: "sfnodes.SFDisplayText",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (!nodeData?.category?.startsWith("sfnodes")) {
+        if (!_DISPLAY_TEXT_NODES.has(nodeData?.name)) {
             return;
         }
 

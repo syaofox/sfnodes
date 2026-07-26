@@ -8,6 +8,8 @@ import gc
 import comfy.model_management
 from ...sf_utils.common import AnyType
 
+_CATEGORY = "sfnodes/utils"
+
 
 any = AnyType("*")
 
@@ -33,7 +35,7 @@ class VRAMCleanup:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "empty_cache"
-    CATEGORY = "sfnodes/utils"
+    CATEGORY = _CATEGORY
     DESCRIPTION = "清理 VRAM，卸载模型和清空缓存"
 
     @classmethod
@@ -98,7 +100,7 @@ class RAMCleanup:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "clean_ram"
-    CATEGORY = "sfnodes/utils"
+    CATEGORY = _CATEGORY
     DESCRIPTION = "清理系统 RAM，释放内存"
 
     @classmethod

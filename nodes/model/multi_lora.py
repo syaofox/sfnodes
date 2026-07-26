@@ -5,6 +5,8 @@ from ...sf_utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_CATEGORY = "sfnodes/model"
+
 
 class MultiLoraLoader:
     """
@@ -76,7 +78,7 @@ class MultiLoraLoader:
     RETURN_TYPES = ("MODEL", "CLIP")
     OUTPUT_TOOLTIPS = ("应用了多个LoRA的扩散模型", "应用了多个LoRA的CLIP模型")
     FUNCTION = "load_multiple_loras"
-    CATEGORY = "sfnodes/model"
+    CATEGORY = _CATEGORY
     DESCRIPTION = "加载多个LoRA（最多50个），每个LoRA可单独开关和设置强度，权重通过normalize_weight归一化。槽位可通过前端动态添加。"
 
     def load_multiple_loras(self, model, clip, normalize_weight, **kwargs):
@@ -236,7 +238,7 @@ class MultiLoraLoaderModelOnly(MultiLoraLoader):
     RETURN_TYPES = ("MODEL",)
     OUTPUT_TOOLTIPS = ("应用了多个LoRA的扩散模型",)
     FUNCTION = "load_multiple_loras_model_only"
-    CATEGORY = "sfnodes/model"
+    CATEGORY = _CATEGORY
     DESCRIPTION = "加载多个LoRA（最多50个）仅应用到MODEL，每个LoRA可单独开关和设置强度，权重通过normalize_weight归一化。槽位可通过前端动态添加。"
 
     def load_multiple_loras_model_only(self, model, normalize_weight, **kwargs):

@@ -45,6 +45,7 @@ class SFSeed:
     RETURN_NAMES = ("SEED",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
+    DESCRIPTION = "输出种子值，支持 -1/-2/-3 自动生成随机种子"
 
     @classmethod
     def IS_CHANGED(cls, seed, prompt=None, extra_pnginfo=None, unique_id=None):

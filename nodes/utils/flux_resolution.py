@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ...sf_utils.image_convert import pil2tensor
 
+_CATEGORY = "sfnodes/utils"
 
 def _get_font(size):
     """跨平台字体加载：优先系统 TrueType，失败则使用默认字体。"""
@@ -78,7 +79,7 @@ class FluxResolution:
     RETURN_TYPES = ("INT", "INT", "STRING", "IMAGE")
     RETURN_NAMES = ("width", "height", "resolution", "preview")
     FUNCTION = "calculate_dimensions"
-    CATEGORY = "sfnodes/utils"
+    CATEGORY = _CATEGORY
     OUTPUT_NODE = True
     DESCRIPTION = "根据百万像素和宽高比计算分辨率，并生成预览图"
 

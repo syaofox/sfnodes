@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import torch
 
+_CATEGORY = "sfnodes/image"
+
 
 def image_stats(image):
     return np.mean(image[:, :, 1:], axis=(0, 1)), np.std(image[:, :, 1:], axis=(0, 1))
@@ -217,7 +219,7 @@ class ImitationHue:
             },
         }
 
-    CATEGORY = "sfnodes/image"
+    CATEGORY = _CATEGORY
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("image",)

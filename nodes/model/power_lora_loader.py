@@ -8,6 +8,7 @@ from ...sf_utils.common import AnyType
 
 logger = get_logger(__name__)
 
+_CATEGORY = "sfnodes/model"
 
 any_type = AnyType("*")
 
@@ -95,7 +96,7 @@ class PowerLoraLoader:
     RETURN_TYPES = ("MODEL", "CLIP")
     RETURN_NAMES = ("MODEL", "CLIP")
     FUNCTION = "load_loras"
-    CATEGORY = "sfnodes/model"
+    CATEGORY = _CATEGORY
 
     def load_loras(self, normalize, normalize_weight, model=None, clip=None, **kwargs):
         # Collect enabled loras

@@ -14,6 +14,64 @@ from ...sf_utils.image_convert import pil2tensor
 _CATEGORY = "sfnodes/image"
 
 
+def _load_images_from_folder(folder_path, start_index=0, max_index=None):
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"文件夹未找到: {folder_path}")
+
+    if not os.listdir(folder_path):
+        raise ValueError(f"文件夹为空: {folder_path}")
+
+    file_list = sorted(
+        os.listdir(folder_path),
+        key=lambda s: sum(
+            ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
+        ),
+    )
+
+    if max_index is not None:
+        start_index = max(0, min(start_index, len(file_list) - 1))
+        end_index = min(start_index + max_index, len(file_list))
+    else:
+        start_index = 0
+        end_index = len(file_list)
+
+    image_list = []
+    ref_image = None
+
+    for num in range(start_index, end_index):
+        fname = os.path.join(folder_path, file_list[num])
+        img = Image.open(fname)
+        img = ImageOps.exif_transpose(img)
+        if img is None:
+            raise ValueError(f"无法从文件中读取有效图像: {fname}")
+        image = img.convert("RGB")
+
+        t_image = pil2tensor(image)
+        if ref_image is None:
+            ref_image = t_image
+        else:
+            if t_image.shape[1:] != ref_image.shape[1:]:
+                t_image = comfy.utils.common_upscale(
+                    t_image.movedim(-1, 1),
+                    ref_image.shape[2],
+                    ref_image.shape[1],
+                    "lanczos",
+                    "center",
+                ).movedim(1, -1)
+
+        image_list.append(t_image)
+
+    if not image_list:
+        raise ValueError("未找到有效图像")
+
+    image_batch = torch.cat(image_list, dim=0)
+    images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
+
+    file_list = [os.path.join(folder_path, file_list[i]) for i in range(start_index, end_index)]
+
+    return image_batch, images_out, file_list
+
+
 class LoadImageFromPath:
     @classmethod
     def INPUT_TYPES(cls):
@@ -91,71 +149,8 @@ class LoadImagesFromFolder:
     DESCRIPTION = "读取文件夹中的图片，返回图片列表和图片批次"
 
     def make_list(self, start_index, max_index, input_path):
-        # 检查输入路径是否存在
-        if not os.path.exists(input_path):
-            raise FileNotFoundError(f"文件夹未找到: {input_path}")
-
-        # 检查文件夹是否为空
-        if not os.listdir(input_path):
-            raise ValueError(f"文件夹为空: {input_path}")
-
-        # 对文件列表进行排序
-        file_list = sorted(
-            os.listdir(input_path),
-            key=lambda s: sum(
-                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
-            ),
-        )
-
-        image_list = []
-
-        # 确保 start_index 在列表范围内
-        start_index = max(0, min(start_index, len(file_list) - 1))
-
-        # 计算结束索引
-        end_index = min(start_index + max_index, len(file_list))
-
-        ref_image = None
-
-        for num in range(start_index, end_index):
-            fname = os.path.join(input_path, file_list[num])
-            img = Image.open(fname)
-            img = ImageOps.exif_transpose(img)
-            if img is None:
-                raise ValueError(f"无法从文件中读取有效图像: {fname}")
-            image = img.convert("RGB")
-
-            t_image = pil2tensor(image)
-            # 确保所有图像的尺寸相同
-            if ref_image is None:
-                ref_image = t_image
-            else:
-                if t_image.shape[1:] != ref_image.shape[1:]:
-                    t_image = comfy.utils.common_upscale(
-                        t_image.movedim(-1, 1),
-                        ref_image.shape[2],
-                        ref_image.shape[1],
-                        "lanczos",
-                        "center",
-                    ).movedim(1, -1)
-
-            image_list.append(t_image)
-
-        if not image_list:
-            raise ValueError("未找到有效图像")
-
-        image_batch = torch.cat(image_list, dim=0)
-        images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
-
-        # 完整路径
-        file_list = [
-            os.path.join(input_path, file_list[i]) for i in range(len(file_list))
-        ][start_index:end_index]
-        return (
-            images_out,
-            image_batch,
-            file_list,
-        )
+        image_batch, images_out, file_list = _load_images_from_folder(input_path, start_index, max_index)
+        return (images_out, image_batch, file_list)
 
 
 class FaceBankLoader:
@@ -218,60 +213,8 @@ class FaceBankLoader:
 
     def execute(self, face_name, start_index, max_index):
         face_path = str(self.dir_dict[face_name])
-
-        file_list = sorted(
-            os.listdir(face_path),
-            key=lambda s: sum(
-                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
-            ),
-        )
-
-        start_index = max(0, min(start_index, len(file_list) - 1))
-        end_index = min(start_index + max_index, len(file_list))
-
-        image_list = []
-        ref_image = None
-
-        for num in range(start_index, end_index):
-            fname = os.path.join(face_path, file_list[num])
-            img = Image.open(fname)
-            img = ImageOps.exif_transpose(img)
-            if img is None:
-                raise ValueError(f"无法从文件中读取有效图像: {fname}")
-            image = img.convert("RGB")
-
-            t_image = pil2tensor(image)
-            if ref_image is None:
-                ref_image = t_image
-            else:
-                if t_image.shape[1:] != ref_image.shape[1:]:
-                    t_image = comfy.utils.common_upscale(
-                        t_image.movedim(-1, 1),
-                        ref_image.shape[2],
-                        ref_image.shape[1],
-                        "lanczos",
-                        "center",
-                    ).movedim(1, -1)
-
-            image_list.append(t_image)
-
-        if not image_list:
-            raise ValueError("未找到有效图像")
-
-        image_batch = torch.cat(image_list, dim=0)
-        images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
-
-        file_list = [
-            os.path.join(face_path, file_list[i]) for i in range(len(file_list))
-        ][start_index:end_index]
-
-        return (
-            image_batch,
-            images_out,
-            file_list,
-            face_path,
-            face_name,
-        )
+        image_batch, images_out, file_list = _load_images_from_folder(face_path, start_index, max_index)
+        return (image_batch, images_out, file_list, face_path, face_name)
 
 
 class LoadImages:
@@ -306,61 +249,5 @@ class LoadImages:
     DESCRIPTION = "读取文件夹中的图片，返回图片列表和图片批次"
 
     def make_list(self, input_path):
-        # 检查输入路径是否存在
-        if not os.path.exists(input_path):
-            raise FileNotFoundError(f"文件夹未找到: {input_path}")
-
-        # 检查文件夹是否为空
-        if not os.listdir(input_path):
-            raise ValueError(f"文件夹为空: {input_path}")
-
-        # 对文件列表进行排序
-        file_list = sorted(
-            os.listdir(input_path),
-            key=lambda s: sum(
-                ((s, int(n)) for s, n in re.findall(r"(\D+)(\d+)", "a%s0" % s)), ()
-            ),
-        )
-
-        image_list = []
-
-        ref_image = None
-
-        for file in file_list:
-            fname = os.path.join(input_path, file)
-            img = Image.open(fname)
-            img = ImageOps.exif_transpose(img)
-            if img is None:
-                raise ValueError(f"无法从文件中读取有效图像: {fname}")
-            image = img.convert("RGB")
-
-            t_image = pil2tensor(image)
-            # 确保所有图像的尺寸相同
-            if ref_image is None:
-                ref_image = t_image
-            else:
-                if t_image.shape[1:] != ref_image.shape[1:]:
-                    t_image = comfy.utils.common_upscale(
-                        t_image.movedim(-1, 1),
-                        ref_image.shape[2],
-                        ref_image.shape[1],
-                        "lanczos",
-                        "center",
-                    ).movedim(1, -1)
-
-            image_list.append(t_image)
-
-        if not image_list:
-            raise ValueError("未找到有效图像")
-
-        image_batch = torch.cat(image_list, dim=0)
-        images_out = [image_batch[i : i + 1, ...] for i in range(image_batch.shape[0])]
-
-        # 完整路径
-        file_list = [os.path.join(input_path, file) for file in file_list]
-        return (
-            images_out,
-            image_batch,
-            file_list,
-            len(file_list),
-        )
+        image_batch, images_out, file_list = _load_images_from_folder(input_path)
+        return (images_out, image_batch, file_list, len(file_list))
