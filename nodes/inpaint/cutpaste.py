@@ -102,13 +102,11 @@ class InpaintCutOut:
     CATEGORY = _CATEGORY
     DESCRIPTION = "根据遮罩裁剪图像，缩放并生成用于修复的 cutout 信息"
 
-    RETURN_TYPES = ("IMAGE", "MASK", "IMAGE", "CUTINFO", "IMAGE")
+    RETURN_TYPES = ("CUTINFO", "IMAGE", "MASK")
     RETURN_NAMES = (
+        "cutinfo",
         "cutout_image",
         "cutout_mask",
-        "cutout_origin_image",
-        "cutinfo",
-        "cutout_masked_image",
     )
 
     FUNCTION = "inpaint_cutout"
@@ -222,6 +220,10 @@ class InpaintCutOut:
                 (new_width, new_height), resample=Image.Resampling.LANCZOS
             )
 
+        # 转换回tensor格式
+        cutout_image = pil2tensor(cropped_image)
+        cutout_mask = pil2mask(cropped_mask)
+
         # 创建cutinfo字典
         cutinfo = {
             "x": x_min,
@@ -229,28 +231,14 @@ class InpaintCutOut:
             "width": width,
             "height": height,
             "mask": pil2mask(edge_mask),
-            "source_image": image,
+            "original_image": image,
+            "cutout_image": cutout_image,
         }
 
-        # 创建白底图像并应用遮罩
-        white_bg = Image.new("RGB", cropped_image.size, (255, 255, 255))
-        # 确保mask是单通道L模式
-        if cropped_mask.mode != "L":
-            cropped_mask = cropped_mask.convert("L")
-        # 将遮罩区域粘贴到白底上
-        white_bg.paste(cropped_image, (0, 0), cropped_mask)
-
-        # 转换回tensor格式
-        cutout_image = pil2tensor(cropped_image)
-        cutout_mask = pil2mask(cropped_mask)
-        cutout_origin_image = pil2tensor(pil_image)
-        cutout_masked_image = pil2tensor(white_bg)
         return (
+            cutinfo,
             cutout_image,
             cutout_mask,
-            cutout_origin_image,
-            cutinfo,
-            cutout_masked_image,
         )
 
     @staticmethod
@@ -273,7 +261,9 @@ class InpaintPaste:
         return {
             "required": {
                 "cutinfo": ("CUTINFO",),
-                "source_image": ("IMAGE",),
+            },
+            "optional": {
+                "inpainted_image": ("IMAGE",),
             },
         }
 
@@ -283,17 +273,18 @@ class InpaintPaste:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将cutinfo中的图像贴回原图"
 
-    def paste(self, cutinfo, source_image):
-        # 从cutinfo中获取图像和位置信息
+    def paste(self, cutinfo, inpainted_image=None):
+        if inpainted_image is None:
+            inpainted_image = cutinfo["cutout_image"]
         x = cutinfo["x"]
         y = cutinfo["y"]
         width = cutinfo["width"]
         height = cutinfo["height"]
         mask = cutinfo["mask"]
-        destination_image = cutinfo["source_image"]
+        destination_image = cutinfo["original_image"]
 
         destination = tensor2pil(destination_image[0])
-        source = tensor2pil(source_image[0])
+        source = tensor2pil(inpainted_image[0])
 
         mask_image = mask2pil(mask)
 
@@ -320,7 +311,7 @@ class ExtractCutInfo:
         }
 
     RETURN_TYPES = ("INT", "INT", "INT", "INT", "MASK", "IMAGE")
-    RETURN_NAMES = ("x", "y", "width", "height", "mask", "source_image")
+    RETURN_NAMES = ("x", "y", "width", "height", "mask", "original_image")
     CATEGORY = _CATEGORY
     FUNCTION = "extract"
     DESCRIPTION = "从 cutinfo 中提取裁剪坐标、尺寸、遮罩和原图"
@@ -332,5 +323,5 @@ class ExtractCutInfo:
             cutinfo["width"],
             cutinfo["height"],
             cutinfo["mask"],
-            cutinfo["source_image"],
+            cutinfo["original_image"],
         )
