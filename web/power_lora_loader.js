@@ -430,7 +430,6 @@ function showLoraNotesEditor(event, loraName, meta) {
     const saveBtn = makeBtn("Save", "#4f7cff", () => {
         const tw = twInput.value.trim();
         const desc = descInput.value.trim();
-        if (!tw && !desc) return;
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving...";
         fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(loraName)}`, {
