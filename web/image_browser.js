@@ -2,17 +2,9 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
 const PAGE_SIZE = 50;
-const STATE_KEY = "sfnodes_image_browser_state";
+const SORT_KEY = "sfnodes_image_browser_sort";
 
 let modalStyleInjected = false;
-
-function debounce(fn, ms) {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn(...args), ms);
-    };
-}
 
 function injectModalStyles() {
     if (modalStyleInjected) return;
@@ -168,6 +160,15 @@ function getThumbUrl(item, type) {
     return api.apiURL(`/api/sfnodes/images/thumb?${params}`);
 }
 
+function getImageFolderFromValue(value) {
+    if (!value) return { type: "input", folder: "" };
+    const isOutput = value.endsWith(" [output]");
+    const path = isOutput ? value.slice(0, -9) : value;
+    const parts = path.split("/");
+    const folder = parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+    return { type: isOutput ? "output" : "input", folder };
+}
+
 function showImageBrowser(node) {
     injectModalStyles();
 
@@ -231,7 +232,6 @@ function showImageBrowser(node) {
             .then(data => {
                 allItems = data;
                 loadCurrentFolder();
-                saveState();
             })
             .catch(() => {
                 grid.innerHTML = '<div class="sf-imgbrowser-error">Failed to load images</div>';
@@ -242,21 +242,15 @@ function showImageBrowser(node) {
         btn.addEventListener("click", () => switchType(btn.dataset.type));
     });
 
-    function saveState() {
+    function saveSortPref() {
         try {
-            localStorage.setItem(STATE_KEY, JSON.stringify({
-                currentType,
-                currentFolder,
-                sortBy,
-                sortAsc,
-                searchQuery: searchInput.value,
-            }));
+            localStorage.setItem(SORT_KEY, JSON.stringify({ sortBy, sortAsc }));
         } catch (e) { /* ignore */ }
     }
 
-    function loadState() {
+    function loadSortPref() {
         try {
-            const raw = localStorage.getItem(STATE_KEY);
+            const raw = localStorage.getItem(SORT_KEY);
             return raw ? JSON.parse(raw) : null;
         } catch (e) {
             return null;
@@ -264,7 +258,7 @@ function showImageBrowser(node) {
     }
 
     function close() {
-        saveState();
+        saveSortPref();
         overlay.remove();
     }
 
@@ -319,7 +313,6 @@ function showImageBrowser(node) {
                 isLoadingMore = false;
                 grid.innerHTML = "";
                 loadCurrentFolder();
-                saveState();
             });
         });
     }
@@ -346,7 +339,7 @@ function showImageBrowser(node) {
                     sortAsc = key === "name";
                 }
                 loadCurrentFolder();
-                saveState();
+                saveSortPref();
             });
         });
     }
@@ -381,7 +374,6 @@ function showImageBrowser(node) {
             isLoadingMore = false;
             grid.innerHTML = "";
             loadCurrentFolder();
-            saveState();
         });
         return div;
     }
@@ -541,23 +533,25 @@ function showImageBrowser(node) {
         }
     });
 
-    const debouncedSaveState = debounce(saveState, 300);
-
     searchInput.addEventListener("input", () => {
         loadCurrentFolder();
-        debouncedSaveState();
     });
 
     grid.innerHTML = '<div class="sf-imgbrowser-spinner">Loading images</div>';
 
-    const saved = loadState();
-    if (saved) {
-        currentType = saved.currentType || "input";
-        currentFolder = saved.currentFolder || "";
-        sortBy = saved.sortBy || "name";
-        sortAsc = saved.sortAsc !== undefined ? saved.sortAsc : true;
-        if (saved.searchQuery) searchInput.value = saved.searchQuery;
+    const pref = loadSortPref();
+    if (pref) {
+        sortBy = pref.sortBy || "name";
+        sortAsc = pref.sortAsc !== undefined ? pref.sortAsc : true;
     }
+
+    // Navigate to the folder of the currently selected image
+    if (currentValue) {
+        const { type: imgType, folder: imgFolder } = getImageFolderFromValue(currentValue);
+        currentType = imgType;
+        if (imgFolder) currentFolder = imgFolder;
+    }
+
     typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.type === currentType);
     });
@@ -567,7 +561,6 @@ function showImageBrowser(node) {
         .then(data => {
             allItems = data;
             loadCurrentFolder();
-            saveState();
         })
         .catch(() => {
             grid.innerHTML = '<div class="sf-imgbrowser-error">Failed to load images</div>';
