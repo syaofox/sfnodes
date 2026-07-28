@@ -535,11 +535,22 @@ function setupNode(node) {
                 }
             });
         });
+        const removeBtnWidget = node.addWidget("button", "\u2796 Remove Lora", null, () => {
+            for (let i = this.widgets.length - 1; i >= 0; i--) {
+                if (isLoraWidget(this.widgets[i])) {
+                    this.widgets.splice(i, 1);
+                    const s = this.computeSize();
+                    this.setSize([this.size[0], Math.max(this.size[1], s[1])]);
+                    this.setDirtyCanvas(true, true);
+                    return;
+                }
+            }
+        });
 
         // Insert spacer + header after standard ComfyUI widgets (normalize, normalize_weight)
         const stdCount = this.widgets.filter(
             w => !isLoraWidget(w) && w.name !== "_header" && w.name !== "_spacer"
-                && !(w.type === "button" && w.name?.includes?.("Add Lora"))
+                && !(w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora")))
         ).length;
         this.widgets.splice(stdCount, 0, spacer, header);
         this.widgetButtonSpacer = spacer;
@@ -590,7 +601,7 @@ function setupNode(node) {
             for (const w of [...this.widgets]) {
                 if (
                     isLoraWidget(w) || w.name === "_header" || w.name === "_spacer"
-                    || (w.type === "button" && w.name?.includes?.("Add Lora"))
+                    || (w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora")))
                 ) {
                     w.onRemoved?.();
                     const idx = this.widgets.indexOf(w);
