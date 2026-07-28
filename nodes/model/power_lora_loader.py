@@ -193,3 +193,7 @@ class PowerLoraLoader:
                         lora_dict["strength_clip"] = lora["strengthTwo"]
                     result.append(lora_dict)
         return result
+
+
+# 导入以触发 LoRA 笔记 HTTP 路由注册
+from ...sf_utils import lora_notes  # noqa: F401, E402

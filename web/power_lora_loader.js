@@ -215,6 +215,267 @@ function fetchLoraList() {
 }
 
 // ---------------------------------------------------------------------------
+// LoRA Metadata (from .safetensors header via ComfyUI /view_metadata endpoint)
+// ---------------------------------------------------------------------------
+
+const _loraMetadataCache = new Map();
+const _loraMetadataPending = new Map();
+
+async function getLoraMetadata(loraName) {
+    if (!loraName || loraName === "None") return null;
+    if (_loraMetadataCache.has(loraName)) return _loraMetadataCache.get(loraName);
+    // Join an in-flight request instead of firing a duplicate
+    if (_loraMetadataPending.has(loraName)) return _loraMetadataPending.get(loraName);
+
+    const promise = (async () => {
+        try {
+            const resp = await fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(loraName)}`);
+            if (!resp.ok) { _loraMetadataCache.set(loraName, null); return null; }
+            const meta = await resp.json();
+            _loraMetadataCache.set(loraName, meta);
+            return meta;
+        } catch {
+            _loraMetadataCache.set(loraName, null);
+            return null;
+        }
+    })();
+
+    _loraMetadataPending.set(loraName, promise);
+    try { return await promise; }
+    finally { _loraMetadataPending.delete(loraName); }
+}
+
+function extractTriggerWords(meta) {
+    if (!meta) return "";
+    // Method 1: ss_tag_frequency (Kohya) — JSON: { dataset: { tag: count, ... }, ... }
+    const tagFreq = meta.ss_tag_frequency;
+    if (typeof tagFreq === "string" && tagFreq.trim().startsWith("{")) {
+        try {
+            const data = JSON.parse(tagFreq);
+            const words = new Set();
+            for (const tags of Object.values(data)) {
+                if (tags && typeof tags === "object") {
+                    Object.keys(tags).forEach(k => words.add(k));
+                }
+            }
+            if (words.size) return [...words].slice(0, 50).join(", ");
+        } catch { /* ignore parse errors */ }
+    }
+    // Method 2: trained_words (direct)
+    const tw = meta.trained_words;
+    if (typeof tw === "string") {
+        if (tw.trim().startsWith("[")) {
+            try { const p = JSON.parse(tw); if (Array.isArray(p)) return p.join(", "); } catch { /* */ }
+        }
+        return tw.split(",").map(w => w.trim()).filter(Boolean).join(", ");
+    }
+    if (Array.isArray(tw)) return tw.join(", ");
+    return "";
+}
+
+function showLoraInfoPopup(event, loraName, meta) {
+    const items = [];
+
+    if (!meta || meta._not_found) {
+        items.push({ content: "No metadata available", disabled: true });
+        items.push({ content: "Only .safetensors files contain metadata.", disabled: true });
+        items.push(null);
+        items.push({ content: "✏️ Add Notes", callback: () => {
+            showLoraNotesEditor(event, loraName, { trigger_words: "", description: "" });
+        }});
+        new LiteGraph.ContextMenu(items, {
+            title: `SF LoRA: ${loraName}`,
+            event,
+            scale: Math.max(1, app.canvas.ds?.scale ?? 1),
+            className: "dark",
+        });
+        return;
+    }
+
+    // Fields are pre-merged by the backend: custom notes > embedded metadata
+    const tw = meta.trigger_words || "";
+    const desc = meta.description || "";
+    const baseModel = meta.base_model || "";
+    const sourceUrl = meta.source_url || "";
+
+    if (tw) {
+        items.push({ content: `🔑 ${tw}`, disabled: true });
+        items.push(null);
+    }
+    if (desc) {
+        const shortDesc = desc.length > 120 ? desc.substring(0, 120) + "..." : desc;
+        items.push({ content: `📄 ${shortDesc}`, disabled: true });
+        items.push(null);
+    }
+    if (baseModel) {
+        items.push({ content: `🏗️ ${baseModel}`, disabled: true });
+        items.push(null);
+    }
+
+    // Actions
+    let hasAction = false;
+    if (tw) {
+        hasAction = true;
+        items.push({ content: "📋 Copy Trigger Words", callback: () => {
+            navigator.clipboard.writeText(tw).catch(() => {});
+        }});
+    }
+    if (sourceUrl) {
+        hasAction = true;
+        items.push({ content: "🔗 Open Source URL", callback: () => {
+            window.open(sourceUrl, "_blank");
+        }});
+    }
+    if (!hasAction && items.length === 0) {
+        items.push({ content: "No trigger words or description available.", disabled: true });
+    }
+
+    // Edit custom notes button
+    items.push(null);
+    items.push({ content: meta._has_custom ? "✏️ Edit Notes" : "✏️ Add Notes", callback: () => {
+        showLoraNotesEditor(event, loraName, meta);
+    }});
+
+    new LiteGraph.ContextMenu(items, {
+        title: `SF LoRA: ${loraName}`,
+        event,
+        scale: Math.max(1, app.canvas.ds?.scale ?? 1),
+        className: "dark",
+    });
+}
+
+function showLoraNotesEditor(event, loraName, meta) {
+    const currentTW = meta?.trigger_words || "";
+    const currentDesc = meta?.description || "";
+
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+    `;
+
+    const card = document.createElement("div");
+    card.style.cssText = `
+        background: #2a2a2e; border: 1px solid #555; border-radius: 10px;
+        padding: 24px 28px; min-width: 420px; max-width: 520px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: #ddd;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    `;
+
+    const title = document.createElement("div");
+    title.textContent = `✏️ Edit Notes`;
+    title.style.cssText = `
+        font-size: 15px; font-weight: 600; color: #fff;
+        margin-bottom: 6px; white-space: nowrap; overflow: hidden;
+        text-overflow: ellipsis;
+    `;
+    title.title = loraName;
+
+    const subtitle = document.createElement("div");
+    subtitle.textContent = loraName;
+    subtitle.style.cssText = `
+        font-size: 12px; color: #999; margin-bottom: 16px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    `;
+
+    const makeField = (label, value, rows) => {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "margin-bottom: 14px;";
+        const lbl = document.createElement("label");
+        lbl.textContent = label;
+        lbl.style.cssText = `
+            display: block; font-size: 12px; color: #aaa;
+            margin-bottom: 4px; font-weight: 500;
+        `;
+        const input = document.createElement("textarea");
+        input.value = value;
+        input.rows = rows;
+        input.style.cssText = `
+            width: 100%; box-sizing: border-box; resize: vertical;
+            background: #1a1a1e; color: #eee; border: 1px solid #444;
+            border-radius: 6px; padding: 8px 10px; font-size: 13px;
+            font-family: inherit; outline: none;
+        `;
+        input.addEventListener("focus", () => { input.style.borderColor = "#6af"; });
+        input.addEventListener("blur", () => { input.style.borderColor = "#444"; });
+        wrap.appendChild(lbl);
+        wrap.appendChild(input);
+        return { wrap, input };
+    };
+
+    const { wrap: twWrap, input: twInput } = makeField("Trigger Words", currentTW, 1);
+    const { wrap: descWrap, input: descInput } = makeField("Description", currentDesc, 3);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = `
+        display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;
+    `;
+
+    const makeBtn = (text, bg, callback) => {
+        const btn = document.createElement("button");
+        btn.textContent = text;
+        btn.style.cssText = `
+            padding: 7px 18px; border: none; border-radius: 6px;
+            font-size: 13px; cursor: pointer; color: #fff;
+            background: ${bg}; transition: filter 0.15s;
+        `;
+        btn.addEventListener("mouseenter", () => { btn.style.filter = "brightness(1.15)"; });
+        btn.addEventListener("mouseleave", () => { btn.style.filter = ""; });
+        btn.addEventListener("click", callback);
+        return btn;
+    };
+
+    const cancelBtn = makeBtn("Cancel", "#555", () => document.body.removeChild(overlay));
+    const saveBtn = makeBtn("Save", "#4f7cff", () => {
+        const tw = twInput.value.trim();
+        const desc = descInput.value.trim();
+        if (!tw && !desc) return;
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+        fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(loraName)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ trigger_words: tw, description: desc }),
+        })
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+            .then(updated => {
+                _loraMetadataCache.set(loraName, updated);
+                app.graph.setDirtyCanvas(true, true);
+                if (overlay.parentNode) document.body.removeChild(overlay);
+            })
+            .catch(e => {
+                console.warn("[SF PowerLoraLoader] Failed to save notes:", e);
+                saveBtn.disabled = false;
+                saveBtn.textContent = "Save";
+            });
+    });
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(saveBtn);
+
+    card.appendChild(title);
+    card.appendChild(subtitle);
+    card.appendChild(twWrap);
+    card.appendChild(descWrap);
+    card.appendChild(btnRow);
+    overlay.appendChild(card);
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) document.body.removeChild(overlay);
+    });
+    document.addEventListener("keydown", function onEscape(e) {
+        if (e.key === "Escape" && overlay.parentNode) {
+            document.body.removeChild(overlay);
+            document.removeEventListener("keydown", onEscape);
+        }
+    });
+
+    document.body.appendChild(overlay);
+    setTimeout(() => twInput.focus(), 50);
+}
+
+// ---------------------------------------------------------------------------
 // Constants & State
 // ---------------------------------------------------------------------------
 const PROP_KEY = "SF_ShowStrengths";
@@ -243,7 +504,10 @@ function setupNode(node) {
     node.addNewLoraWidget = function (loraName) {
         this.loraWidgetsCounter++;
         const widget = createLoraWidget("lora_" + this.loraWidgetsCounter, node);
-        if (loraName) widget._value.lora = loraName;
+        if (loraName) {
+            widget._value.lora = loraName;
+            getLoraMetadata(loraName); // prefetch metadata for info icon
+        }
         // Insert after the last lora widget, or after the header if none exist
         let insertIdx = -1;
         for (let i = this.widgets.length - 1; i >= 0; i--) {
@@ -343,6 +607,7 @@ function setupNode(node) {
         for (const v of savedLoraValues) {
             const w = this.addNewLoraWidget();
             w._value = { ...v };
+            if (w._value?.lora) getLoraMetadata(w._value.lora);
         }
         this.addNonLoraWidgets();
         const s = this.computeSize();
@@ -500,6 +765,7 @@ function createLoraWidget(name, node) {
             this._hit.strengthVal = INVALID_BOUNDS;
             this._hit.strengthInc = INVALID_BOUNDS;
             this._hit.strengthAny = INVALID_BOUNDS;
+            this._hit.info = INVALID_BOUNDS;
             this._hit.lora = INVALID_BOUNDS;
             const margin = 10, im = margin * 0.33;
             const lq = isLowQuality();
@@ -535,12 +801,43 @@ function createLoraWidget(name, node) {
                 this._hit.strengthAny = [la2[0], ra2[0] + ra2[1] - la2[0]];
                 rposX = la2[0] - im;
             }
-            // Lora name
-            const loraWidth = rposX - posX;
+            // Lora name + info icon
+            const hasLora = this._value?.lora && this._value.lora !== "None";
+            const infoSize = Math.max(12, height * 0.45);
+            const infoGap = 4;
+            const nameEndX = hasLora ? rposX - infoSize - infoGap * 2 : rposX;
+            const loraWidth = nameEndX - posX;
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(fitString(ctx, String(this._value?.lora || "None"), loraWidth), posX, midY);
             this._hit.lora = [posX, loraWidth];
+            if (hasLora) {
+                const cachedMeta = _loraMetadataCache.get(this._value.lora);
+                const hasCustom = cachedMeta?._has_custom;
+                const infoX = nameEndX + infoGap;
+                const infoCenterX = infoX + infoSize / 2;
+                this._hit.info = [infoX, infoSize + infoGap];
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(infoCenterX, midY, infoSize / 2 - 0.5, 0, Math.PI * 2);
+                if (hasCustom) {
+                    ctx.fillStyle = "rgba(79,195,247,0.3)";
+                    ctx.strokeStyle = "rgba(79,195,247,0.7)";
+                } else {
+                    ctx.fillStyle = "rgba(255,255,255,0.25)";
+                    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+                }
+                ctx.lineWidth = 1;
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = hasCustom ? "rgba(79,195,247,0.9)" : "rgba(255,255,255,0.6)";
+                ctx.font = `${Math.round(infoSize * 0.6)}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("i", infoCenterX, midY + 0.5);
+                ctx.restore();
+                if (!this._value.on) ctx.globalAlpha = app.canvas.editor_alpha * 0.4;
+            }
             ctx.globalAlpha = app.canvas.editor_alpha;
         },
         mouse(event, pos, n) {
@@ -560,9 +857,20 @@ function createLoraWidget(name, node) {
                     showLoraChooser(event, (val) => {
                         if (typeof val === "string" && val !== "None") {
                             w._value.lora = val;
+                            getLoraMetadata(val); // prefetch
                             n.setDirtyCanvas(true, true);
                         }
                     });
+                    return true;
+                }
+                // Check info icon click
+                if (hitTest(pos, w._hit.info)) {
+                    const loraName = w._value?.lora;
+                    if (loraName) {
+                        getLoraMetadata(loraName).then(meta => {
+                            showLoraInfoPopup(event, loraName, meta);
+                        });
+                    }
                     return true;
                 }
                 // Check strength arrows (rightmost widget)

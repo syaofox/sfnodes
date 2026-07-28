@@ -1,5 +1,6 @@
 import json
 import os
+import folder_paths
 
 from aiohttp import web
 from comfy.comfy_types.node_typing import IO
@@ -10,14 +11,7 @@ _CATEGORY = "sfnodes/text"
 class TextDropdown:
     @classmethod
     def _get_options_path(cls) -> str:
-        base_dir = os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                )
-            )
-        )
-        return os.path.join(base_dir, "user", "sfnodes", "text-dropdown.json")
+        return os.path.join(folder_paths.get_user_directory(), "sfnodes", "text-dropdown.json")
 
     @classmethod
     def _load_config(cls) -> dict:
