@@ -5,6 +5,35 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
+const imageCache = new Map();
+
+const restoreImagesFromCache = (node) => {
+    const cached = imageCache.get(node.id);
+    if (!cached || (!cached.imageAData && !cached.imageBData)) return;
+
+    node.imageAData = cached.imageAData;
+    node.imageBData = cached.imageBData;
+
+    let loadedCount = 0;
+    const assetsToLoad = (cached.imageAData ? 1 : 0) + (cached.imageBData ? 1 : 0);
+    const onLoaded = () => {
+        loadedCount++;
+        if (loadedCount === assetsToLoad) {
+            if (node.imageA && typeof node.autosize === 'function') {
+                node.autosize(node.imageA);
+            }
+            node.setDirtyCanvas(true, true);
+        }
+    };
+
+    node.imageA = cached.imageAData
+        ? Object.assign(new Image(), { src: `data:image/png;base64,${cached.imageAData}`, onload: onLoaded })
+        : null;
+    node.imageB = cached.imageBData
+        ? Object.assign(new Image(), { src: `data:image/png;base64,${cached.imageBData}`, onload: onLoaded })
+        : null;
+};
+
 app.registerExtension({
     name: "sfnodes.SFImageCompare",
 
@@ -67,6 +96,7 @@ app.registerExtension({
                 if (data.isManuallyResized) this.isManuallyResized = data.isManuallyResized;
                 if (data.slider_pos !== undefined) this.slider_pos = data.slider_pos;
                 if (data.showA !== undefined) this.showA = data.showA;
+                restoreImagesFromCache(this);
             };
 
             const originalSerialize = node.serialize;
@@ -343,6 +373,11 @@ app.registerExtension({
 api.addEventListener("sfnodes.image_compare_preview", ({ detail }) => {
     const node = app.graph.getNodeById(detail.node_id);
     if (!node) return;
+
+    imageCache.set(detail.node_id, {
+        imageAData: detail.image_a_data,
+        imageBData: detail.image_b_data,
+    });
 
     let assetsToLoad = (detail.image_a_data ? 1 : 0) + (detail.image_b_data ? 1 : 0);
     if (assetsToLoad === 0) {
