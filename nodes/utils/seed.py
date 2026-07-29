@@ -73,4 +73,4 @@ class SFSeed:
                             for i, v in enumerate(widgets_values):
                                 if v == original_seed:
                                     widgets_values[i] = seed
-        return (seed,)
+        return {"ui": {"SEED": (seed,)}, "result": (seed,)}
