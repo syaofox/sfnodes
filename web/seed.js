@@ -39,6 +39,9 @@ function processSeedNodes() {
       if (node.lastSeedValueWidget) {
         node.lastSeedValueWidget.value = `Last Seed: ${seedToUse}`;
       }
+      if (node.lastSeedButton) {
+        node.lastSeedButton.label = `\u267B\uFE0F ${seedToUse}`;
+      }
     }
   }
 }
@@ -72,6 +75,9 @@ app.registerExtension({
         if (this.lastSeedValueWidget) {
           this.lastSeedValueWidget.value = `Last Seed: ${this.lastSeed}`;
         }
+        if (this.lastSeedButton) {
+          this.lastSeedButton.label = `\u267B\uFE0F ${this.lastSeed}`;
+        }
       }
     };
 
@@ -103,9 +109,10 @@ app.registerExtension({
         }
       }, { serialize: false });
 
-      this.addWidget("button", "\u267B\uFE0F Use Last Queued Seed", "", () => {
+      this.lastSeedButton = this.addWidget("button", "\u267B\uFE0F Use Last Queued Seed", "", () => {
         if (seedWidget && typeof this.lastSeed === "number") {
           seedWidget.value = this.lastSeed;
+          this.lastSeedButton.label = "\u267B\uFE0F (Use Last Queued Seed)";
         }
       }, { serialize: false });
 
