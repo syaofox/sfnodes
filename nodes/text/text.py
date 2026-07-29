@@ -100,7 +100,7 @@ class TextCombine:
         return {
             "required": {
                 "text": (IO.STRING, {"multiline": True, "default": "", "tooltip": "要合并的文本"}),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ",", "tooltip": "合并文本的分隔符"}),
+                "delimiter": (IO.STRING, {"multiline": False, "default": "", "tooltip": "合并文本的分隔符"}),
                 "position": (["后置", "前置"], {"default": "后置", "tooltip": "text 放在 text_in 之前还是之后"}),
             },
             "optional": {
