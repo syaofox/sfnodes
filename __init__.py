@@ -108,6 +108,7 @@ from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
 from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
 
 from .nodes.utils.image_orientation import ImageOrientation
+from .nodes.utils.workflow_name import SFWorkflowName
 
 from .nodes.logic import AnythingIndexSwitch, IsMaskEmpty
 
@@ -235,6 +236,8 @@ NODE_CLASS_MAPPINGS = {
     "SFImageOrientation": ImageOrientation,
     # 种子节点
     "SFSeed": SFSeed,
+    # 工作流名称节点
+    "SFWorkflowName": SFWorkflowName,
     # 逻辑节点
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
     "SFIsMaskEmpty": IsMaskEmpty,
@@ -361,6 +364,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageOrientation": "SF Image Orientation",
     # 种子节点
     "SFSeed": "SF Seed",
+    # 工作流名称节点
+    "SFWorkflowName": "SF Workflow Name",
     # 逻辑节点
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
     "SFIsMaskEmpty": "SF Is Mask Empty",
