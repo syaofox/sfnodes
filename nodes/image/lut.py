@@ -36,7 +36,7 @@ def _identity_grid(lut_size):
     return np.stack([r, g, b], axis=-1)
 
 
-def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.5):
+def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.03):
     step = 1.0 / (lut_size - 1)
     grid_coords = src_colors / step
 
@@ -116,10 +116,11 @@ def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=
     np.add.at(w_acc, (r1, g1, b1), weighted_w111)
 
     if smooth_sigma > 0:
-        r_acc = scipy.ndimage.gaussian_filter(r_acc, sigma=smooth_sigma, mode="nearest")
-        g_acc = scipy.ndimage.gaussian_filter(g_acc, sigma=smooth_sigma, mode="nearest")
-        b_acc = scipy.ndimage.gaussian_filter(b_acc, sigma=smooth_sigma, mode="nearest")
-        w_acc = scipy.ndimage.gaussian_filter(w_acc, sigma=smooth_sigma, mode="nearest")
+        sigma_grid = smooth_sigma * (lut_size - 1)
+        r_acc = scipy.ndimage.gaussian_filter(r_acc, sigma=sigma_grid, mode="nearest")
+        g_acc = scipy.ndimage.gaussian_filter(g_acc, sigma=sigma_grid, mode="nearest")
+        b_acc = scipy.ndimage.gaussian_filter(b_acc, sigma=sigma_grid, mode="nearest")
+        w_acc = scipy.ndimage.gaussian_filter(w_acc, sigma=sigma_grid, mode="nearest")
 
     mask = w_acc > 0
     safe_wgt = np.maximum(w_acc, 1e-10)
@@ -243,11 +244,11 @@ class SFExtractLUT:
                 "smooth_sigma": (
                     "FLOAT",
                     {
-                        "default": 0.5,
+                        "default": 0.03,
                         "min": 0.0,
-                        "max": 5.0,
-                        "step": 0.1,
-                        "tooltip": "3D 高斯平滑强度（在归一化前对累积器做模糊，消除空单元边界阶跃），推荐 0.5~1.5",
+                        "max": 0.5,
+                        "step": 0.005,
+                        "tooltip": "RGB 色彩空间平滑半径（0=不平滑，0.01=轻度，0.03=适中，0.05=强），自动适配 lut_size",
                     },
                 ),
                 "num_clusters": (
@@ -268,7 +269,7 @@ class SFExtractLUT:
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
 
-    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=0.5, num_clusters=512):
+    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=0.03, num_clusters=512):
         src_np = source_image.cpu().numpy().astype(np.float64)
         ref_np = reference_image.cpu().numpy().astype(np.float64)
 
