@@ -1,3 +1,4 @@
+colour-science
 color_matcher
 translators
 mediapipe
