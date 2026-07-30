@@ -101,6 +101,7 @@ from .nodes.utils.simple_math import (
 from .nodes.text.dropdown import TextDropdown
 from .nodes.text.replace import SFTextReplace
 from .nodes.text.prompt_list import SFPromptList
+from .nodes.text.concatenate import SFTextConcatenate
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
@@ -217,6 +218,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextDropdown": TextDropdown,
     "SFTextReplace": SFTextReplace,
     "SFPromptList": SFPromptList,
+    "SFTextConcatenate": SFTextConcatenate,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFSimpleMathSlider": SimpleMathSlider,
@@ -346,6 +348,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextDropdown": "SF Text Dropdown",
     "SFTextReplace": "SF Text Replace",
     "SFPromptList": "SF Prompt List",
+    "SFTextConcatenate": "SF Text Concatenate",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFSimpleMathSlider": "SF Simple Math Slider",
