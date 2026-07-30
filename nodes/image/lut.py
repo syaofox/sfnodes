@@ -66,7 +66,7 @@ def _build_lut_table(r_acc, g_acc, b_acc, w_acc, lut_size):
     return lut_table
 
 
-def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.03):
+def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.0):
     step = 1.0 / (lut_size - 1)
     grid_coords = src_colors / step
 
@@ -282,11 +282,11 @@ class SFExtractLUT:
                 "smooth_sigma": (
                     "FLOAT",
                     {
-                        "default": 0.03,
+                        "default": 0.0,
                         "min": 0.0,
                         "max": 0.15,
                         "step": 0.01,
-                        "tooltip": "RGB 色彩空间平滑半径（0=不平滑，0.01=轻度，0.03=适中，0.05=强），自动适配 lut_size",
+                        "tooltip": "RGB 色彩空间平滑半径（0=不平滑，0.01=轻度，0.03=适中），不再改变颜色，仅在网格稀疏时启用",
                     },
                 ),
                 "num_clusters": (
@@ -307,7 +307,7 @@ class SFExtractLUT:
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
 
-    def extract(self, source_image, reference_image, filename, color_space="sRGB", mode="pixel", lut_size=65, smooth_sigma=0.03, num_clusters=512):
+    def extract(self, source_image, reference_image, filename, color_space="sRGB", mode="pixel", lut_size=65, smooth_sigma=0.0, num_clusters=512):
         src_np = source_image.cpu().numpy().astype(np.float64)
         ref_np = reference_image.cpu().numpy().astype(np.float64)
 
