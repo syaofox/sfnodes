@@ -224,6 +224,16 @@ class SFExtractLUT:
         src_np = source_image.cpu().numpy().astype(np.float64)
         ref_np = reference_image.cpu().numpy().astype(np.float64)
 
+        if src_np.shape[1:3] != ref_np.shape[1:3]:
+            ref_np = np.stack([cv2.resize(ref_np[b], (src_np.shape[2], src_np.shape[1]), interpolation=cv2.INTER_LINEAR) for b in range(ref_np.shape[0])], axis=0)
+
+        if src_np.shape[0] != ref_np.shape[0]:
+            if ref_np.shape[0] < src_np.shape[0]:
+                repeats = src_np.shape[0] - ref_np.shape[0]
+                ref_np = np.concatenate([ref_np, ref_np[-1:].repeat(repeats, axis=0)], axis=0)
+            else:
+                ref_np = ref_np[:src_np.shape[0]]
+
         if mode == "color":
             h, w = src_np.shape[1], src_np.shape[2]
             max_pixels = 131072
