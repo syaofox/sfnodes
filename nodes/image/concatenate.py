@@ -2,101 +2,90 @@ import torch
 from comfy.utils import common_upscale
 
 _CATEGORY = "sfnodes/image"
+_MAX_IMAGE_SLOTS = 16
 
 
 class ImageConcatenate:
     @classmethod
     def INPUT_TYPES(cls):
+        optional = {}
+        for i in range(1, _MAX_IMAGE_SLOTS + 1):
+            optional[f"image_{i}"] = ("IMAGE",)
         return {
             "required": {
-                "image1": ("IMAGE",),
-                "image2": ("IMAGE",),
                 "direction": (
-                    [
-                        "right",
-                        "down",
-                        "left",
-                        "up",
-                    ],
+                    ["right", "down", "left", "up"],
                     {"default": "right"},
                 ),
                 "match_image_size": ("BOOLEAN", {"default": True}),
-            }
+            },
+            "optional": optional,
         }
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "concatenate"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "拼接两张图片，支持右、下、左、上四个方向"
+    DESCRIPTION = "拼接多张图片，输入端口随连接自动增减，支持右、下、左、上四个方向"
 
-    def concatenate(
-        self, image1, image2, direction, match_image_size, first_image_shape=None
-    ):
-        batch_size1 = image1.shape[0]
-        batch_size2 = image2.shape[0]
+    def concatenate(self, direction, match_image_size, **kwargs):
+        images = []
+        for k in sorted(kwargs.keys()):
+            v = kwargs[k]
+            if v is not None:
+                images.append(v)
+
+        if not images:
+            return (torch.zeros((1, 64, 64, 3)),)
+
+        result = images[0]
+        for next_img in images[1:]:
+            result = self._pair_concat(result, next_img, direction, match_image_size)
+        return (result,)
+
+    @staticmethod
+    def _pair_concat(image_a, image_b, direction, match_image_size):
+        batch_size1 = image_a.shape[0]
+        batch_size2 = image_b.shape[0]
 
         if batch_size1 != batch_size2:
-            max_batch_size = max(batch_size1, batch_size2)
-            repeats1 = max_batch_size - batch_size1
-            repeats2 = max_batch_size - batch_size2
-
-            if repeats1 > 0:
-                last_image1 = image1[-1].unsqueeze(0).repeat(repeats1, 1, 1, 1)
-                image1 = torch.cat([image1.clone(), last_image1], dim=0)
-            if repeats2 > 0:
-                last_image2 = image2[-1].unsqueeze(0).repeat(repeats2, 1, 1, 1)
-                image2 = torch.cat([image2.clone(), last_image2], dim=0)
+            max_batch = max(batch_size1, batch_size2)
+            if max_batch - batch_size1 > 0:
+                last = image_a[-1].unsqueeze(0).repeat(max_batch - batch_size1, 1, 1, 1)
+                image_a = torch.cat([image_a.clone(), last], dim=0)
+            if max_batch - batch_size2 > 0:
+                last = image_b[-1].unsqueeze(0).repeat(max_batch - batch_size2, 1, 1, 1)
+                image_b = torch.cat([image_b.clone(), last], dim=0)
 
         if match_image_size:
-            target_shape = (
-                first_image_shape if first_image_shape is not None else image1.shape
-            )
-
-            original_height = image2.shape[1]
-            original_width = image2.shape[2]
-            original_aspect_ratio = original_width / original_height
-
-            if direction in ["left", "right"]:
-                target_height = target_shape[1]
-                target_width = int(target_height * original_aspect_ratio)
-            elif direction in ["up", "down"]:
-                target_width = target_shape[2]
-                target_height = int(target_width / original_aspect_ratio)
-
-            image2_for_upscale = image2.movedim(-1, 1)
-            image2_resized = common_upscale(
-                image2_for_upscale, target_width, target_height, "lanczos", "disabled"
-            )
-            image2_resized = image2_resized.movedim(1, -1)
-        else:
-            image2_resized = image2
-
-        channels_image1 = image1.shape[-1]
-        channels_image2 = image2_resized.shape[-1]
-
-        if channels_image1 != channels_image2:
-            if channels_image1 < channels_image2:
-                alpha_channel = torch.ones(
-                    (*image1.shape[:-1], channels_image2 - channels_image1),
-                    device=image1.device,
-                )
-                image1 = torch.cat((image1, alpha_channel), dim=-1)
+            orig_h, orig_w = image_b.shape[1], image_b.shape[2]
+            aspect = orig_w / orig_h
+            if direction in ("left", "right"):
+                target_h = image_a.shape[1]
+                target_w = int(target_h * aspect)
             else:
-                alpha_channel = torch.ones(
-                    (*image2_resized.shape[:-1], channels_image1 - channels_image2),
-                    device=image2_resized.device,
-                )
-                image2_resized = torch.cat((image2_resized, alpha_channel), dim=-1)
+                target_w = image_a.shape[2]
+                target_h = int(target_w / aspect)
+            img = image_b.movedim(-1, 1)
+            img = common_upscale(img, target_w, target_h, "lanczos", "disabled")
+            image_b = img.movedim(1, -1)
+
+        ch_a, ch_b = image_a.shape[-1], image_b.shape[-1]
+        if ch_a != ch_b:
+            if ch_a < ch_b:
+                pad = torch.ones((*image_a.shape[:-1], ch_b - ch_a), device=image_a.device)
+                image_a = torch.cat((image_a, pad), dim=-1)
+            else:
+                pad = torch.ones((*image_b.shape[:-1], ch_a - ch_b), device=image_b.device)
+                image_b = torch.cat((image_b, pad), dim=-1)
 
         if direction == "right":
-            concatenated_image = torch.cat((image1, image2_resized), dim=2)
+            return torch.cat((image_a, image_b), dim=2)
         elif direction == "down":
-            concatenated_image = torch.cat((image1, image2_resized), dim=1)
+            return torch.cat((image_a, image_b), dim=1)
         elif direction == "left":
-            concatenated_image = torch.cat((image2_resized, image1), dim=2)
+            return torch.cat((image_b, image_a), dim=2)
         elif direction == "up":
-            concatenated_image = torch.cat((image2_resized, image1), dim=1)
-        return (concatenated_image,)
+            return torch.cat((image_b, image_a), dim=1)
 
 
 class ImageConcatFromBatch:

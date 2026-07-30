@@ -180,18 +180,21 @@ class SimpleMathBoolean:
         )
 
 
+_VARIABLE_LETTERS = "abcdefghijklmnopqrstuvwxyz"
+_MAX_VARIABLES = len(_VARIABLE_LETTERS)
+
+
 class SimpleMath:
     @classmethod
     def INPUT_TYPES(s):
+        optional = {}
+        for ch in _VARIABLE_LETTERS:
+            optional[ch] = (any, {"default": 0.0})
         return {
-            "optional": {
-                "a": (any, {"default": 0.0}),
-                "b": (any, {"default": 0.0}),
-                "c": (any, {"default": 0.0}),
-            },
             "required": {
                 "value": ("STRING", {"multiline": False, "default": ""}),
             },
+            "optional": optional,
         }
 
     RETURN_TYPES = (
@@ -200,27 +203,21 @@ class SimpleMath:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "自由表达式计算，支持四则运算和变量 a、b、c，输出整数和浮点数"
+    DESCRIPTION = "自由表达式计算，支持四则运算和变量 a~z，输入端口随连接自动增减，输出整数和浮点数"
 
-    def execute(self, value, a=0.0, b=0.0, c=0.0, d=0.0):
-        h, w = 0.0, 0.0
-        if hasattr(a, "shape"):
-            a = list(a.shape)
-        if hasattr(b, "shape"):
-            b = list(b.shape)
-        if hasattr(c, "shape"):
-            c = list(c.shape)
-        if hasattr(d, "shape"):
-            d = list(d.shape)
-
-        if isinstance(a, str):
-            a = float(a)
-        if isinstance(b, str):
-            b = float(b)
-        if isinstance(c, str):
-            c = float(c)
-        if isinstance(d, str):
-            d = float(d)
+    def execute(self, value, **kwargs):
+        vars = {"h": 0.0, "w": 0.0}
+        for k, v in kwargs.items():
+            if v is None:
+                continue
+            if hasattr(v, "shape"):
+                v = list(v.shape)
+            if isinstance(v, str):
+                try:
+                    v = float(v)
+                except ValueError:
+                    pass
+            vars[k] = v
 
         operators = {
             ast.Add: op.add,
@@ -229,9 +226,6 @@ class SimpleMath:
             ast.Div: op.truediv,
             ast.FloorDiv: op.floordiv,
             ast.Pow: op.pow,
-            # ast.BitXor: op.xor,
-            # ast.BitOr: op.or_,
-            # ast.BitAnd: op.and_,
             ast.USub: op.neg,
             ast.Mod: op.mod,
             ast.Eq: op.eq,
@@ -254,69 +248,53 @@ class SimpleMath:
         }
 
         def eval_(node):
-            if isinstance(node, ast.Num):  # number
+            if isinstance(node, ast.Constant):
                 return node.n
-            elif isinstance(node, ast.Name):  # variable
-                if node.id == "a":
-                    return a
-                if node.id == "b":
-                    return b
-                if node.id == "c":
-                    return c
-                if node.id == "d":
-                    return d
-            elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
+            if isinstance(node, ast.Name):
+                return vars.get(node.id, 0.0)
+            if isinstance(node, ast.BinOp):
                 return operators[type(node.op)](eval_(node.left), eval_(node.right))
-            elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
+            if isinstance(node, ast.UnaryOp):
                 return operators[type(node.op)](eval_(node.operand))
-            elif isinstance(node, ast.Compare):  # comparison operators
+            if isinstance(node, ast.Compare):
                 left = eval_(node.left)
-                for op, comparator in zip(node.ops, node.comparators):
-                    if not operators[type(op)](left, eval_(comparator)):
+                for op_, comparator in zip(node.ops, node.comparators):
+                    if not operators[type(op_)](left, eval_(comparator)):
                         return 0
                 return 1
-            elif isinstance(node, ast.BoolOp):  # boolean operators (And, Or)
-                values = [eval_(value) for value in node.values]
+            if isinstance(node, ast.BoolOp):
+                values = [eval_(v) for v in node.values]
                 return operators[type(node.op)](*values)
-            elif isinstance(node, ast.Call):  # custom function
-                if node.func.id in op_functions:
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in op_functions:
                     args = [eval_(arg) for arg in node.args]
                     return op_functions[node.func.id](*args)
-            elif isinstance(node, ast.Subscript):  # indexing or slicing
-                value = eval_(node.value)
+            if isinstance(node, ast.Subscript):
+                val = eval_(node.value)
                 if isinstance(node.slice, ast.Constant):
-                    return value[node.slice.value]
-                else:
-                    return 0
-            else:
+                    return val[node.slice.value]
                 return 0
+            return 0
 
         result = eval_(ast.parse(value, mode="eval").body)
-
         if math.isnan(result):
             result = 0.0
-
-        return (
-            round(result),
-            result,
-        )
-
+        return (round(result), result)
 
 
 class SimpleMathCondition:
     @classmethod
     def INPUT_TYPES(s):
+        optional = {}
+        for ch in _VARIABLE_LETTERS:
+            optional[ch] = (any, {"default": 0.0})
         return {
-            "optional": {
-                "a": (any, {"default": 0.0}),
-                "b": (any, {"default": 0.0}),
-                "c": (any, {"default": 0.0}),
-            },
             "required": {
                 "evaluate": (any, {"default": 0}),
                 "on_true": ("STRING", {"multiline": False, "default": ""}),
                 "on_false": ("STRING", {"multiline": False, "default": ""}),
             },
+            "optional": optional,
         }
 
     RETURN_TYPES = (
@@ -325,10 +303,11 @@ class SimpleMathCondition:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "条件表达式计算，根据 evaluate 的真假选择 on_true 或 on_false 表达式"
+    DESCRIPTION = "条件表达式计算，根据 evaluate 的真假选择 on_true 或 on_false 表达式，支持变量 a~z"
 
-    def execute(self, evaluate, on_true, on_false, a=0.0, b=0.0, c=0.0):
-        return SimpleMath().execute(on_true if evaluate else on_false, a, b, c)
+    def execute(self, evaluate, on_true, on_false, **kwargs):
+        expression = on_true if evaluate else on_false
+        return SimpleMath().execute(expression, **kwargs)
 
 
 
