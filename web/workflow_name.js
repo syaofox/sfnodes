@@ -2,17 +2,18 @@ import { app } from "/scripts/app.js";
 
 function getWorkflowName() {
     const title = document.title;
+    let name = "";
     if (title && title.endsWith(" - ComfyUI")) {
-        return title.slice(0, -" - ComfyUI".length);
+        name = title.slice(0, -" - ComfyUI".length);
+    } else if (app.ui?.titleWidget?.value) {
+        name = app.ui.titleWidget.value;
+    } else {
+        const tabEl = document.querySelector(".workflow-tabs-container span");
+        if (tabEl?.textContent) {
+            name = tabEl.textContent.trim();
+        }
     }
-    if (app.ui?.titleWidget?.value) {
-        return app.ui.titleWidget.value;
-    }
-    const tabEl = document.querySelector(".workflow-tabs-container span");
-    if (tabEl?.textContent) {
-        return tabEl.textContent.trim();
-    }
-    return "Untitled";
+    return name.replace(/[•\s]+$/, "") || "Untitled";
 }
 
 const workflowNameNodes = new Set();
