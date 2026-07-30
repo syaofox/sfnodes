@@ -30,6 +30,12 @@ def _list_lut_files():
     return sorted([f for f in os.listdir(luts_dir) if f.lower().endswith(('.cube', '.spi3d', '.csp', '.spi1d', '.spimtx'))])
 
 
+def _identity_grid(lut_size):
+    grid = np.linspace(0, 1, lut_size, dtype=np.float64)
+    r, g, b = np.meshgrid(grid, grid, grid, indexing="ij")
+    return np.stack([r, g, b], axis=-1)
+
+
 def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
     step = 1.0 / (lut_size - 1)
     grid_coords = src_colors / step
@@ -66,35 +72,53 @@ def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
     weighted_w110 = weights * w110
     weighted_w111 = weights * w111
 
-    lut_acc = np.zeros((lut_size, lut_size, lut_size, 3), dtype=np.float64)
-    lut_wgt = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+    r_acc = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+    g_acc = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+    b_acc = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+    w_acc = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
 
-    for c in range(3):
-        v = ref_colors[:, c]
-        np.add.at(lut_acc[:, :, :, c], (r0, g0, b0), v * weighted_w000)
-        np.add.at(lut_acc[:, :, :, c], (r1, g0, b0), v * weighted_w100)
-        np.add.at(lut_acc[:, :, :, c], (r0, g1, b0), v * weighted_w010)
-        np.add.at(lut_acc[:, :, :, c], (r0, g0, b1), v * weighted_w001)
-        np.add.at(lut_acc[:, :, :, c], (r1, g0, b1), v * weighted_w101)
-        np.add.at(lut_acc[:, :, :, c], (r0, g1, b1), v * weighted_w011)
-        np.add.at(lut_acc[:, :, :, c], (r1, g1, b0), v * weighted_w110)
-        np.add.at(lut_acc[:, :, :, c], (r1, g1, b1), v * weighted_w111)
+    ref_r, ref_g, ref_b = ref_colors[:, 0], ref_colors[:, 1], ref_colors[:, 2]
 
-    np.add.at(lut_wgt, (r0, g0, b0), weighted_w000)
-    np.add.at(lut_wgt, (r1, g0, b0), weighted_w100)
-    np.add.at(lut_wgt, (r0, g1, b0), weighted_w010)
-    np.add.at(lut_wgt, (r0, g0, b1), weighted_w001)
-    np.add.at(lut_wgt, (r1, g0, b1), weighted_w101)
-    np.add.at(lut_wgt, (r0, g1, b1), weighted_w011)
-    np.add.at(lut_wgt, (r1, g1, b0), weighted_w110)
-    np.add.at(lut_wgt, (r1, g1, b1), weighted_w111)
+    np.add.at(r_acc, (r0, g0, b0), ref_r * weighted_w000)
+    np.add.at(r_acc, (r1, g0, b0), ref_r * weighted_w100)
+    np.add.at(r_acc, (r0, g1, b0), ref_r * weighted_w010)
+    np.add.at(r_acc, (r0, g0, b1), ref_r * weighted_w001)
+    np.add.at(r_acc, (r1, g0, b1), ref_r * weighted_w101)
+    np.add.at(r_acc, (r0, g1, b1), ref_r * weighted_w011)
+    np.add.at(r_acc, (r1, g1, b0), ref_r * weighted_w110)
+    np.add.at(r_acc, (r1, g1, b1), ref_r * weighted_w111)
 
-    mask = lut_wgt > 0
-    lut_table = np.zeros_like(lut_acc)
-    safe_wgt = np.maximum(lut_wgt, 1e-10)
-    for c in range(3):
-        lut_table[:, :, :, c] = np.where(mask, lut_acc[:, :, :, c] / safe_wgt, 0)
+    np.add.at(g_acc, (r0, g0, b0), ref_g * weighted_w000)
+    np.add.at(g_acc, (r1, g0, b0), ref_g * weighted_w100)
+    np.add.at(g_acc, (r0, g1, b0), ref_g * weighted_w010)
+    np.add.at(g_acc, (r0, g0, b1), ref_g * weighted_w001)
+    np.add.at(g_acc, (r1, g0, b1), ref_g * weighted_w101)
+    np.add.at(g_acc, (r0, g1, b1), ref_g * weighted_w011)
+    np.add.at(g_acc, (r1, g1, b0), ref_g * weighted_w110)
+    np.add.at(g_acc, (r1, g1, b1), ref_g * weighted_w111)
 
+    np.add.at(b_acc, (r0, g0, b0), ref_b * weighted_w000)
+    np.add.at(b_acc, (r1, g0, b0), ref_b * weighted_w100)
+    np.add.at(b_acc, (r0, g1, b0), ref_b * weighted_w010)
+    np.add.at(b_acc, (r0, g0, b1), ref_b * weighted_w001)
+    np.add.at(b_acc, (r1, g0, b1), ref_b * weighted_w101)
+    np.add.at(b_acc, (r0, g1, b1), ref_b * weighted_w011)
+    np.add.at(b_acc, (r1, g1, b0), ref_b * weighted_w110)
+    np.add.at(b_acc, (r1, g1, b1), ref_b * weighted_w111)
+
+    np.add.at(w_acc, (r0, g0, b0), weighted_w000)
+    np.add.at(w_acc, (r1, g0, b0), weighted_w100)
+    np.add.at(w_acc, (r0, g1, b0), weighted_w010)
+    np.add.at(w_acc, (r0, g0, b1), weighted_w001)
+    np.add.at(w_acc, (r1, g0, b1), weighted_w101)
+    np.add.at(w_acc, (r0, g1, b1), weighted_w011)
+    np.add.at(w_acc, (r1, g1, b0), weighted_w110)
+    np.add.at(w_acc, (r1, g1, b1), weighted_w111)
+
+    mask = w_acc > 0
+    safe_wgt = np.maximum(w_acc, 1e-10)
+    identity = _identity_grid(lut_size)
+    lut_table = np.where(mask[..., None], np.stack([r_acc, g_acc, b_acc], axis=-1) / safe_wgt[..., None], identity)
     return lut_table
 
 
@@ -213,11 +237,11 @@ class SFExtractLUT:
                 "smooth_sigma": (
                     "FLOAT",
                     {
-                        "default": 1.0,
+                        "default": 0.0,
                         "min": 0.0,
                         "max": 5.0,
                         "step": 0.1,
-                        "tooltip": "3D 高斯平滑强度，0=不平滑，越大 LUT 越平滑（推荐 0.5~1.5）",
+                        "tooltip": "3D 高斯平滑强度，0=不平滑，颜色不连续时适度调大（推荐 0.5~1.5）",
                     },
                 ),
                 "num_clusters": (
