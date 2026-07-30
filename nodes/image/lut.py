@@ -246,8 +246,8 @@ class SFExtractLUT:
                     {
                         "default": 0.03,
                         "min": 0.0,
-                        "max": 0.5,
-                        "step": 0.005,
+                        "max": 0.15,
+                        "step": 0.01,
                         "tooltip": "RGB 色彩空间平滑半径（0=不平滑，0.01=轻度，0.03=适中，0.05=强），自动适配 lut_size",
                     },
                 ),
