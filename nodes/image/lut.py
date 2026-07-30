@@ -1,3 +1,4 @@
+import copy
 import os
 import hashlib
 import cv2
@@ -7,6 +8,7 @@ import scipy.ndimage
 from scipy.cluster.vq import kmeans2
 import colour
 from colour import LUT3D
+from colour.algebra import table_interpolation_tetrahedral
 from colour.io import write_LUT
 
 _CATEGORY = "sfnodes/image"
@@ -30,10 +32,19 @@ def _list_lut_files():
     return sorted([f for f in os.listdir(luts_dir) if f.lower().endswith(('.cube', '.spi3d', '.csp', '.spi1d', '.spimtx'))])
 
 
-def _identity_grid(lut_size):
-    grid = np.linspace(0, 1, lut_size, dtype=np.float64)
+def _identity_grid(lut_size, dtype=np.float64):
+    grid = np.linspace(0, 1, lut_size, dtype=dtype)
     r, g, b = np.meshgrid(grid, grid, grid, indexing="ij")
     return np.stack([r, g, b], axis=-1)
+
+
+def _build_lut_table(r_acc, g_acc, b_acc, w_acc, lut_size):
+    safe_wgt = np.maximum(w_acc, 1e-10)
+    learned = np.stack([r_acc, g_acc, b_acc], axis=-1) / safe_wgt[..., None]
+    identity = _identity_grid(lut_size, dtype=learned.dtype)
+    confidence = w_acc / (w_acc + 5.0)
+    lut_table = confidence[..., None] * learned + (1.0 - confidence[..., None]) * identity
+    return lut_table
 
 
 def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.03):
@@ -122,11 +133,7 @@ def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=
         b_acc = scipy.ndimage.gaussian_filter(b_acc, sigma=sigma_grid, mode="nearest")
         w_acc = scipy.ndimage.gaussian_filter(w_acc, sigma=sigma_grid, mode="nearest")
 
-    mask = w_acc > 0
-    safe_wgt = np.maximum(w_acc, 1e-10)
-    identity = _identity_grid(lut_size)
-    lut_table = np.where(mask[..., None], np.stack([r_acc, g_acc, b_acc], axis=-1) / safe_wgt[..., None], identity)
-    return lut_table
+    return _build_lut_table(r_acc, g_acc, b_acc, w_acc, lut_size)
 
 
 class SFLoadLUT:
@@ -169,7 +176,7 @@ class SFLoadLUT:
 
 
 class SFApplyLUT:
-    DESCRIPTION = "将 3D LUT 应用到图像，支持强度混合"
+    DESCRIPTION = "将 3D LUT 应用到图像，支持四面体插值和 LUT 域强度混合"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -177,6 +184,10 @@ class SFApplyLUT:
             "required": {
                 "image": ("IMAGE", {"tooltip": "输入图像"}),
                 "lut": ("LUT", {"tooltip": "LUT 对象（来自 Load LUT 或 Extract LUT）"}),
+                "interpolation": (
+                    ["trilinear", "tetrahedral"],
+                    {"tooltip": "trilinear=三线性插值（平滑），tetrahedral=四面体插值（少色带、更快）"},
+                ),
                 "strength": (
                     "FLOAT",
                     {
@@ -184,7 +195,7 @@ class SFApplyLUT:
                         "min": 0.0,
                         "max": 2.0,
                         "step": 0.05,
-                        "tooltip": "应用强度，0=完全保留原图，1=完全应用，>1=过度拉伸",
+                        "tooltip": "LUT 域强度混合：在 LUT 表与恒等映射之间插值，再应用到图像",
                     },
                 ),
             },
@@ -194,22 +205,26 @@ class SFApplyLUT:
     FUNCTION = "apply"
     CATEGORY = _CATEGORY
 
-    def apply(self, image, lut, strength=1.0):
-        batch_size, height, width, channels = image.shape
+    def apply(self, image, lut, interpolation="tetrahedral", strength=1.0):
+        if strength != 1.0:
+            lut = copy.deepcopy(lut)
+            size = lut.table.shape[0]
+            identity = _identity_grid(size, dtype=np.float32)
+            lut.table = np.clip(strength * lut.table + (1.0 - strength) * identity, 0, 1)
+
+        kwargs = {}
+        if interpolation == "tetrahedral":
+            kwargs["interpolator"] = table_interpolation_tetrahedral
+
+        batch_size = image.shape[0]
         result = torch.zeros_like(image)
 
         for b in range(batch_size):
             img_np = image[b].cpu().numpy().astype(np.float32)
             orig_shape = img_np.shape
             pixels = img_np.reshape(-1, 3)
-
-            mapped = lut.apply(pixels).reshape(orig_shape)
-            mapped = np.clip(mapped, 0, 1)
-
-            if strength != 1.0:
-                mapped = np.clip(strength * mapped + (1.0 - strength) * img_np, 0, 1)
-
-            result[b] = torch.from_numpy(mapped)
+            mapped = lut.apply(pixels, **kwargs).reshape(orig_shape)
+            result[b] = torch.from_numpy(np.clip(mapped, 0, 1))
 
         return (result,)
 
