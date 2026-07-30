@@ -1,7 +1,9 @@
 import os
+import cv2
 import numpy as np
 import torch
 import scipy.ndimage
+from scipy.cluster.vq import kmeans2
 import colour
 from colour import LUT3D
 from colour.io import write_LUT
@@ -18,6 +20,74 @@ def _get_luts_dir():
         luts_dir = os.path.abspath(luts_dir)
     os.makedirs(luts_dir, exist_ok=True)
     return luts_dir
+
+
+def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
+    step = 1.0 / (lut_size - 1)
+    grid_coords = src_colors / step
+
+    r0 = np.floor(grid_coords[:, 0]).astype(np.int64)
+    g0 = np.floor(grid_coords[:, 1]).astype(np.int64)
+    b0 = np.floor(grid_coords[:, 2]).astype(np.int64)
+    r1 = np.clip(r0 + 1, 0, lut_size - 1)
+    g1 = np.clip(g0 + 1, 0, lut_size - 1)
+    b1 = np.clip(b0 + 1, 0, lut_size - 1)
+    r0 = np.clip(r0, 0, lut_size - 1)
+    g0 = np.clip(g0, 0, lut_size - 1)
+    b0 = np.clip(b0, 0, lut_size - 1)
+
+    rf = grid_coords[:, 0] - r0
+    gf = grid_coords[:, 1] - g0
+    bf = grid_coords[:, 2] - b0
+
+    w000 = (1 - rf) * (1 - gf) * (1 - bf)
+    w100 = rf * (1 - gf) * (1 - bf)
+    w010 = (1 - rf) * gf * (1 - bf)
+    w001 = (1 - rf) * (1 - gf) * bf
+    w101 = rf * (1 - gf) * bf
+    w011 = (1 - rf) * gf * bf
+    w110 = rf * gf * (1 - bf)
+    w111 = rf * gf * bf
+
+    weighted_w000 = weights * w000
+    weighted_w100 = weights * w100
+    weighted_w010 = weights * w010
+    weighted_w001 = weights * w001
+    weighted_w101 = weights * w101
+    weighted_w011 = weights * w011
+    weighted_w110 = weights * w110
+    weighted_w111 = weights * w111
+
+    lut_acc = np.zeros((lut_size, lut_size, lut_size, 3), dtype=np.float64)
+    lut_wgt = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+
+    for c in range(3):
+        v = ref_colors[:, c]
+        np.add.at(lut_acc[:, :, :, c], (r0, g0, b0), v * weighted_w000)
+        np.add.at(lut_acc[:, :, :, c], (r1, g0, b0), v * weighted_w100)
+        np.add.at(lut_acc[:, :, :, c], (r0, g1, b0), v * weighted_w010)
+        np.add.at(lut_acc[:, :, :, c], (r0, g0, b1), v * weighted_w001)
+        np.add.at(lut_acc[:, :, :, c], (r1, g0, b1), v * weighted_w101)
+        np.add.at(lut_acc[:, :, :, c], (r0, g1, b1), v * weighted_w011)
+        np.add.at(lut_acc[:, :, :, c], (r1, g1, b0), v * weighted_w110)
+        np.add.at(lut_acc[:, :, :, c], (r1, g1, b1), v * weighted_w111)
+
+    np.add.at(lut_wgt, (r0, g0, b0), weighted_w000)
+    np.add.at(lut_wgt, (r1, g0, b0), weighted_w100)
+    np.add.at(lut_wgt, (r0, g1, b0), weighted_w010)
+    np.add.at(lut_wgt, (r0, g0, b1), weighted_w001)
+    np.add.at(lut_wgt, (r1, g0, b1), weighted_w101)
+    np.add.at(lut_wgt, (r0, g1, b1), weighted_w011)
+    np.add.at(lut_wgt, (r1, g1, b0), weighted_w110)
+    np.add.at(lut_wgt, (r1, g1, b1), weighted_w111)
+
+    mask = lut_wgt > 0
+    lut_table = np.zeros_like(lut_acc)
+    safe_wgt = np.maximum(lut_wgt, 1e-10)
+    for c in range(3):
+        lut_table[:, :, :, c] = np.where(mask, lut_acc[:, :, :, c] / safe_wgt, 0)
+
+    return lut_table
 
 
 class SFLoadLUT:
@@ -102,6 +172,10 @@ class SFExtractLUT:
     def INPUT_TYPES(s):
         return {
             "required": {
+                "mode": (
+                    ["pixel", "color"],
+                    {"tooltip": "pixel=逐像素映射（适合内容对齐的图），color=按颜色聚类映射（适合不同内容的图）"},
+                ),
                 "source_image": ("IMAGE", {"tooltip": "源图像（调色前）"}),
                 "reference_image": ("IMAGE", {"tooltip": "参考图像（调色后，目标风格）"}),
                 "filename": (
@@ -128,6 +202,16 @@ class SFExtractLUT:
                         "tooltip": "3D 高斯平滑强度，0=不平滑，越大 LUT 越平滑（推荐 0.5~1.5）",
                     },
                 ),
+                "num_clusters": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 64,
+                        "max": 8192,
+                        "step": 64,
+                        "tooltip": "仅 color 模式有效：颜色聚类数，越大映射越精细但噪声越多（推荐 256~1024）",
+                    },
+                ),
             },
         }
 
@@ -136,86 +220,48 @@ class SFExtractLUT:
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
 
-    def extract(self, source_image, reference_image, filename, lut_size=65, smooth_sigma=1.0):
-        src = source_image.cpu().numpy().reshape(-1, 3).astype(np.float64)
-        ref = reference_image.cpu().numpy().reshape(-1, 3).astype(np.float64)
+    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=1.0, num_clusters=512):
+        src_np = source_image.cpu().numpy().astype(np.float64)
+        ref_np = reference_image.cpu().numpy().astype(np.float64)
 
-        src = np.clip(src, 0, 1)
-        ref = np.clip(ref, 0, 1)
+        if mode == "color":
+            h, w = src_np.shape[1], src_np.shape[2]
+            max_pixels = 131072
+            if h * w > max_pixels:
+                scale = np.sqrt(max_pixels / (h * w))
+                new_h, new_w = int(h * scale), int(w * scale)
+                src_resized = np.stack([cv2.resize(src_np[b], (new_w, new_h), interpolation=cv2.INTER_LINEAR) for b in range(src_np.shape[0])], axis=0)
+                ref_resized = np.stack([cv2.resize(ref_np[b], (new_w, new_h), interpolation=cv2.INTER_LINEAR) for b in range(ref_np.shape[0])], axis=0)
+            else:
+                src_resized, ref_resized = src_np, ref_np
 
-        step = 1.0 / (lut_size - 1)
-        grid_coords = src / step
-        r0 = np.floor(grid_coords[:, 0]).astype(np.int64)
-        g0 = np.floor(grid_coords[:, 1]).astype(np.int64)
-        b0 = np.floor(grid_coords[:, 2]).astype(np.int64)
-        r1 = np.clip(r0 + 1, 0, lut_size - 1)
-        g1 = np.clip(g0 + 1, 0, lut_size - 1)
-        b1 = np.clip(b0 + 1, 0, lut_size - 1)
-        r0 = np.clip(r0, 0, lut_size - 1)
-        g0 = np.clip(g0, 0, lut_size - 1)
-        b0 = np.clip(b0, 0, lut_size - 1)
+            src_pixels = src_resized.reshape(-1, 3)
+            ref_pixels = ref_resized.reshape(-1, 3)
 
-        rf = grid_coords[:, 0] - r0
-        gf = grid_coords[:, 1] - g0
-        bf = grid_coords[:, 2] - b0
+            src_pixels = np.clip(src_pixels, 0, 1)
+            ref_pixels = np.clip(ref_pixels, 0, 1)
 
-        w000 = (1 - rf) * (1 - gf) * (1 - bf)
-        w100 = rf * (1 - gf) * (1 - bf)
-        w010 = (1 - rf) * gf * (1 - bf)
-        w001 = (1 - rf) * (1 - gf) * bf
-        w101 = rf * (1 - gf) * bf
-        w011 = (1 - rf) * gf * bf
-        w110 = rf * gf * (1 - bf)
-        w111 = rf * gf * bf
+            k = min(num_clusters, len(src_pixels))
+            centroids, labels = kmeans2(src_pixels, k, minit="points", iter=50)
 
-        lut_acc = np.zeros((lut_size, lut_size, lut_size, 3), dtype=np.float64)
-        lut_wgt = np.zeros((lut_size, lut_size, lut_size), dtype=np.float64)
+            ref_means = np.zeros_like(centroids)
+            cluster_sizes = np.zeros(k, dtype=np.float64)
+            for i in range(k):
+                mask_i = labels == i
+                count = mask_i.sum()
+                cluster_sizes[i] = count
+                if count > 0:
+                    ref_means[i] = ref_pixels[mask_i].mean(axis=0)
+                else:
+                    ref_means[i] = centroids[i]
 
-        out_r = ref[:, 0]
-        out_g = ref[:, 1]
-        out_b = ref[:, 2]
-
-        np.add.at(lut_acc[:, :, :, 0], (r0, g0, b0), out_r * w000)
-        np.add.at(lut_acc[:, :, :, 0], (r1, g0, b0), out_r * w100)
-        np.add.at(lut_acc[:, :, :, 0], (r0, g1, b0), out_r * w010)
-        np.add.at(lut_acc[:, :, :, 0], (r0, g0, b1), out_r * w001)
-        np.add.at(lut_acc[:, :, :, 0], (r1, g0, b1), out_r * w101)
-        np.add.at(lut_acc[:, :, :, 0], (r0, g1, b1), out_r * w011)
-        np.add.at(lut_acc[:, :, :, 0], (r1, g1, b0), out_r * w110)
-        np.add.at(lut_acc[:, :, :, 0], (r1, g1, b1), out_r * w111)
-
-        np.add.at(lut_acc[:, :, :, 1], (r0, g0, b0), out_g * w000)
-        np.add.at(lut_acc[:, :, :, 1], (r1, g0, b0), out_g * w100)
-        np.add.at(lut_acc[:, :, :, 1], (r0, g1, b0), out_g * w010)
-        np.add.at(lut_acc[:, :, :, 1], (r0, g0, b1), out_g * w001)
-        np.add.at(lut_acc[:, :, :, 1], (r1, g0, b1), out_g * w101)
-        np.add.at(lut_acc[:, :, :, 1], (r0, g1, b1), out_g * w011)
-        np.add.at(lut_acc[:, :, :, 1], (r1, g1, b0), out_g * w110)
-        np.add.at(lut_acc[:, :, :, 1], (r1, g1, b1), out_g * w111)
-
-        np.add.at(lut_acc[:, :, :, 2], (r0, g0, b0), out_b * w000)
-        np.add.at(lut_acc[:, :, :, 2], (r1, g0, b0), out_b * w100)
-        np.add.at(lut_acc[:, :, :, 2], (r0, g1, b0), out_b * w010)
-        np.add.at(lut_acc[:, :, :, 2], (r0, g0, b1), out_b * w001)
-        np.add.at(lut_acc[:, :, :, 2], (r1, g0, b1), out_b * w101)
-        np.add.at(lut_acc[:, :, :, 2], (r0, g1, b1), out_b * w011)
-        np.add.at(lut_acc[:, :, :, 2], (r1, g1, b0), out_b * w110)
-        np.add.at(lut_acc[:, :, :, 2], (r1, g1, b1), out_b * w111)
-
-        np.add.at(lut_wgt, (r0, g0, b0), w000)
-        np.add.at(lut_wgt, (r1, g0, b0), w100)
-        np.add.at(lut_wgt, (r0, g1, b0), w010)
-        np.add.at(lut_wgt, (r0, g0, b1), w001)
-        np.add.at(lut_wgt, (r1, g0, b1), w101)
-        np.add.at(lut_wgt, (r0, g1, b1), w011)
-        np.add.at(lut_wgt, (r1, g1, b0), w110)
-        np.add.at(lut_wgt, (r1, g1, b1), w111)
-
-        mask = lut_wgt > 0
-        lut_table = np.zeros_like(lut_acc)
-        safe_wgt = np.maximum(lut_wgt, 1e-10)
-        for c in range(3):
-            lut_table[:, :, :, c] = np.where(mask, lut_acc[:, :, :, c] / safe_wgt, 0)
+            lut_table = _distribute_to_grid(centroids, ref_means, cluster_sizes, lut_size)
+        else:
+            src_pixels = src_np.reshape(-1, 3)
+            ref_pixels = ref_np.reshape(-1, 3)
+            src_pixels = np.clip(src_pixels, 0, 1)
+            ref_pixels = np.clip(ref_pixels, 0, 1)
+            lut_table = _distribute_to_grid(src_pixels, ref_pixels, np.ones(len(src_pixels), dtype=np.float64), lut_size)
 
         if smooth_sigma > 0:
             lut_table = scipy.ndimage.gaussian_filter(
