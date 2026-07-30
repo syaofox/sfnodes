@@ -14,6 +14,11 @@ app.registerExtension({
         const getDynamicInputs = () =>
             node.inputs.filter((inp) => inp.name.startsWith("text_"));
 
+        const resizeNode = () => {
+            const sz = node.computeSize();
+            if (sz) node.setSize([node.size[0] || sz[0], sz[1]]);
+        };
+
         const trimInputs = () => {
             const dynamic = getDynamicInputs();
             while (dynamic.length > INITIAL_INPUTS) {
@@ -24,6 +29,7 @@ app.registerExtension({
         };
 
         trimInputs();
+        resizeNode();
 
         node.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
             if (type !== 1) {
@@ -58,6 +64,7 @@ app.registerExtension({
                         break;
                     }
                 }
+                resizeNode();
             }
 
             if (originalOnConnectionsChange) {
