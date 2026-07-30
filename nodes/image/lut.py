@@ -36,7 +36,7 @@ def _identity_grid(lut_size):
     return np.stack([r, g, b], axis=-1)
 
 
-def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
+def _distribute_to_grid(src_colors, ref_colors, weights, lut_size, smooth_sigma=0.5):
     step = 1.0 / (lut_size - 1)
     grid_coords = src_colors / step
 
@@ -114,6 +114,12 @@ def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
     np.add.at(w_acc, (r0, g1, b1), weighted_w011)
     np.add.at(w_acc, (r1, g1, b0), weighted_w110)
     np.add.at(w_acc, (r1, g1, b1), weighted_w111)
+
+    if smooth_sigma > 0:
+        r_acc = scipy.ndimage.gaussian_filter(r_acc, sigma=smooth_sigma, mode="nearest")
+        g_acc = scipy.ndimage.gaussian_filter(g_acc, sigma=smooth_sigma, mode="nearest")
+        b_acc = scipy.ndimage.gaussian_filter(b_acc, sigma=smooth_sigma, mode="nearest")
+        w_acc = scipy.ndimage.gaussian_filter(w_acc, sigma=smooth_sigma, mode="nearest")
 
     mask = w_acc > 0
     safe_wgt = np.maximum(w_acc, 1e-10)
@@ -237,11 +243,11 @@ class SFExtractLUT:
                 "smooth_sigma": (
                     "FLOAT",
                     {
-                        "default": 0.0,
+                        "default": 0.5,
                         "min": 0.0,
                         "max": 5.0,
                         "step": 0.1,
-                        "tooltip": "3D 高斯平滑强度，0=不平滑，颜色不连续时适度调大（推荐 0.5~1.5）",
+                        "tooltip": "3D 高斯平滑强度（在归一化前对累积器做模糊，消除空单元边界阶跃），推荐 0.5~1.5",
                     },
                 ),
                 "num_clusters": (
@@ -262,7 +268,7 @@ class SFExtractLUT:
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
 
-    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=1.0, num_clusters=512):
+    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=0.5, num_clusters=512):
         src_np = source_image.cpu().numpy().astype(np.float64)
         ref_np = reference_image.cpu().numpy().astype(np.float64)
 
@@ -307,18 +313,13 @@ class SFExtractLUT:
                 else:
                     ref_means[i] = centroids[i]
 
-            lut_table = _distribute_to_grid(centroids, ref_means, cluster_sizes, lut_size)
+            lut_table = _distribute_to_grid(centroids, ref_means, cluster_sizes, lut_size, smooth_sigma)
         else:
             src_pixels = src_np.reshape(-1, 3)
             ref_pixels = ref_np.reshape(-1, 3)
             src_pixels = np.clip(src_pixels, 0, 1)
             ref_pixels = np.clip(ref_pixels, 0, 1)
-            lut_table = _distribute_to_grid(src_pixels, ref_pixels, np.ones(len(src_pixels), dtype=np.float64), lut_size)
-
-        if smooth_sigma > 0:
-            lut_table = scipy.ndimage.gaussian_filter(
-                lut_table, sigma=smooth_sigma, mode="nearest"
-            )
+            lut_table = _distribute_to_grid(src_pixels, ref_pixels, np.ones(len(src_pixels), dtype=np.float64), lut_size, smooth_sigma)
 
         lut_table = np.clip(lut_table, 0, 1).astype(np.float32)
 
