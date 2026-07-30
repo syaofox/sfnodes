@@ -124,7 +124,7 @@ class SFLoadLUT:
             m = hashlib.sha256()
             with open(file_path, "rb") as f:
                 m.update(f.read())
-            return m.digest()
+            return m.hexdigest()
         return float("NaN")
 
     def load(self, file_name):
