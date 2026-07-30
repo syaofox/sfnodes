@@ -33,7 +33,7 @@ def _list_lut_files():
 
 
 def _rgb_to_lab_norm(rgb):
-    lab = colour.RGB_to_Lab(rgb)
+    lab = colour.convert(rgb, "sRGB", "CIE Lab")
     out = np.empty_like(rgb)
     out[:, 0] = lab[:, 0] / 100.0
     out[:, 1] = (lab[:, 1] + 128.0) / 256.0
@@ -47,7 +47,7 @@ def _lab_norm_to_rgb(lab_table):
     lab[:, 0] = flat[:, 0] * 100.0
     lab[:, 1] = flat[:, 1] * 256.0 - 128.0
     lab[:, 2] = flat[:, 2] * 256.0 - 128.0
-    rgb = colour.Lab_to_RGB(lab)
+    rgb = colour.convert(lab, "CIE Lab", "sRGB")
     return rgb.reshape(lab_table.shape)
 
 
