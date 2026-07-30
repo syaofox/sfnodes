@@ -32,25 +32,6 @@ def _list_lut_files():
     return sorted([f for f in os.listdir(luts_dir) if f.lower().endswith(('.cube', '.spi3d', '.csp', '.spi1d', '.spimtx'))])
 
 
-def _rgb_to_lab_norm(rgb):
-    lab = colour.convert(rgb, "sRGB", "CIE Lab")
-    out = np.empty_like(rgb)
-    out[:, 0] = lab[:, 0] / 100.0
-    out[:, 1] = (lab[:, 1] + 128.0) / 256.0
-    out[:, 2] = (lab[:, 2] + 128.0) / 256.0
-    return out
-
-
-def _lab_norm_to_rgb(lab_table):
-    flat = lab_table.reshape(-1, 3)
-    lab = np.empty_like(flat)
-    lab[:, 0] = flat[:, 0] * 100.0
-    lab[:, 1] = flat[:, 1] * 256.0 - 128.0
-    lab[:, 2] = flat[:, 2] * 256.0 - 128.0
-    rgb = colour.convert(lab, "CIE Lab", "sRGB")
-    return rgb.reshape(lab_table.shape)
-
-
 def _identity_grid(lut_size, dtype=np.float64):
     grid = np.linspace(0, 1, lut_size, dtype=dtype)
     r, g, b = np.meshgrid(grid, grid, grid, indexing="ij")
@@ -255,10 +236,6 @@ class SFExtractLUT:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "color_space": (
-                    ["sRGB", "LAB"],
-                    {"tooltip": "提取用的色彩空间：sRGB=直接 RGB 空间，LAB=在 CIE Lab 中提取后转 sRGB（感知更准确）"},
-                ),
                 "mode": (
                     ["pixel", "color"],
                     {"tooltip": "pixel=逐像素映射（适合内容对齐的图），color=按颜色聚类映射（适合不同内容的图）"},
@@ -307,7 +284,7 @@ class SFExtractLUT:
     FUNCTION = "extract"
     CATEGORY = _CATEGORY
 
-    def extract(self, source_image, reference_image, filename, color_space="sRGB", mode="pixel", lut_size=65, smooth_sigma=0.0, num_clusters=512):
+    def extract(self, source_image, reference_image, filename, mode="pixel", lut_size=65, smooth_sigma=0.0, num_clusters=512):
         src_np = source_image.cpu().numpy().astype(np.float64)
         ref_np = reference_image.cpu().numpy().astype(np.float64)
 
@@ -338,10 +315,6 @@ class SFExtractLUT:
             src_pixels = np.clip(src_pixels, 0, 1)
             ref_pixels = np.clip(ref_pixels, 0, 1)
 
-            if color_space == "LAB":
-                src_pixels = _rgb_to_lab_norm(src_pixels)
-                ref_pixels = _rgb_to_lab_norm(ref_pixels)
-
             k = min(num_clusters, len(src_pixels))
             centroids, labels = kmeans2(src_pixels, k, minit="++", iter=100)
 
@@ -362,13 +335,7 @@ class SFExtractLUT:
             ref_pixels = ref_np.reshape(-1, 3)
             src_pixels = np.clip(src_pixels, 0, 1)
             ref_pixels = np.clip(ref_pixels, 0, 1)
-            if color_space == "LAB":
-                src_pixels = _rgb_to_lab_norm(src_pixels)
-                ref_pixels = _rgb_to_lab_norm(ref_pixels)
             lut_table = _distribute_to_grid(src_pixels, ref_pixels, np.ones(len(src_pixels), dtype=np.float64), lut_size, smooth_sigma)
-
-        if color_space == "LAB":
-            lut_table = _lab_norm_to_rgb(lut_table)
 
         lut_table = np.clip(lut_table, 0, 1).astype(np.float32)
 
