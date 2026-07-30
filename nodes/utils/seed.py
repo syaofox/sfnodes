@@ -32,6 +32,7 @@ class SFSeed:
                     "default": 0,
                     "min": -1125899906842624,
                     "max": 1125899906842624,
+                    "tooltip": "-1: 随机每次  |  -2: 继承上次+1  |  -3: 继承上次-1",
                 }),
             },
             "hidden": {
@@ -45,7 +46,7 @@ class SFSeed:
     RETURN_NAMES = ("SEED",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "输出种子值，支持 -1/-2/-3 自动生成随机种子"
+    DESCRIPTION = "增强种子节点。输入 -1 每次随机生成，-2 继承上次 +1，-3 继承上次 -1"
 
     @classmethod
     def IS_CHANGED(cls, seed, prompt=None, extra_pnginfo=None, unique_id=None):
