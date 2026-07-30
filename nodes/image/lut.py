@@ -1,4 +1,5 @@
 import os
+import hashlib
 import cv2
 import numpy as np
 import torch
@@ -14,12 +15,19 @@ _CATEGORY = "sfnodes/image"
 def _get_luts_dir():
     try:
         import folder_paths
-        luts_dir = os.path.join(folder_paths.get_output_directory(), "luts")
+        luts_dir = os.path.join(folder_paths.base_path, "user", "sfnodes", "lut")
     except Exception:
-        luts_dir = os.path.join(os.path.dirname(__file__), "..", "..", "output", "luts")
+        luts_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "user", "sfnodes", "lut")
         luts_dir = os.path.abspath(luts_dir)
     os.makedirs(luts_dir, exist_ok=True)
     return luts_dir
+
+
+def _list_lut_files():
+    luts_dir = _get_luts_dir()
+    if not os.path.exists(luts_dir):
+        return []
+    return sorted([f for f in os.listdir(luts_dir) if f.lower().endswith(('.cube', '.spi3d', '.csp', '.spi1d', '.spimtx'))])
 
 
 def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
@@ -91,16 +99,16 @@ def _distribute_to_grid(src_colors, ref_colors, weights, lut_size):
 
 
 class SFLoadLUT:
-    DESCRIPTION = "加载 .cube 或其他格式的 3D LUT 文件"
+    DESCRIPTION = "从 user/sfnodes/lut/ 加载 3D LUT 文件"
 
     @classmethod
     def INPUT_TYPES(s):
+        files = _list_lut_files()
+        if not files:
+            files = ["(no LUT files)"]
         return {
             "required": {
-                "file_path": (
-                    "STRING",
-                    {"default": "", "tooltip": "LUT 文件路径，支持 .cube / .spi3d / .csp 等格式"},
-                ),
+                "file_name": (files, {"tooltip": "选择要加载的 LUT 文件"}),
             },
         }
 
@@ -109,10 +117,20 @@ class SFLoadLUT:
     FUNCTION = "load"
     CATEGORY = _CATEGORY
 
-    def load(self, file_path):
-        file_path = file_path.strip()
-        if not file_path:
-            raise ValueError("LUT file path cannot be empty")
+    @classmethod
+    def IS_CHANGED(s, file_name):
+        file_path = os.path.join(_get_luts_dir(), file_name)
+        if os.path.exists(file_path):
+            m = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                m.update(f.read())
+            return m.digest()
+        return float("NaN")
+
+    def load(self, file_name):
+        if file_name == "(no LUT files)" or not file_name:
+            raise FileNotFoundError("No LUT files in user/sfnodes/lut/. Please add .cube files or use SF Extract LUT to create one.")
+        file_path = os.path.join(_get_luts_dir(), file_name)
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"LUT file not found: {file_path}")
         lut = colour.read_LUT(file_path)
@@ -180,7 +198,7 @@ class SFExtractLUT:
                 "reference_image": ("IMAGE", {"tooltip": "参考图像（调色后，目标风格）"}),
                 "filename": (
                     "STRING",
-                    {"default": "extracted_lut.cube", "tooltip": "输出的 .cube 文件名，保存到 ComfyUI/output/luts/"},
+                    {"default": "extracted_lut.cube", "tooltip": "输出的 .cube 文件名，保存到 user/sfnodes/lut/（与 Load 节点同级）"},
                 ),
                 "lut_size": (
                     "INT",
