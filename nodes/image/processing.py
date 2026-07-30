@@ -412,23 +412,32 @@ class FlatteningEffect:
 
 
 class ImageColorMatch:
+    DESCRIPTION = "将目标图像的颜色统计分布匹配到参考图像，支持多种色彩空间和遮罩控制"
+
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "reference": ("IMAGE",),
-                "color_space": (["LAB", "YCbCr", "RGB", "LUV", "YUV", "XYZ"],),
-                "factor": (
+                "image": ("IMAGE", {"tooltip": "目标图像（将被修改颜色分布）"}),
+                "reference": ("IMAGE", {"tooltip": "参考图像（提供目标颜色分布）"}),
+                "color_space": (
+                    ["LAB", "Linear RGB", "YCbCr", "RGB", "LUV", "YUV", "XYZ"],
+                    {"tooltip": "用于统计匹配的色彩空间，LAB 最常用（L=光照, a/b=色彩）；Linear RGB 为物理线性空间，光照迁移更准确"},
+                ),
+                "strength": (
                     "FLOAT",
                     {
                         "default": 1.0,
                         "min": 0.0,
-                        "max": 1.0,
+                        "max": 2.0,
                         "step": 0.05,
+                        "tooltip": "色彩迁移强度，0=完全保留原图，1=完全匹配，>1=过度拉伸（创意效果）",
                     },
                 ),
-                "device": (["auto", "cpu", "gpu"],),
+                "device": (
+                    ["auto", "cpu", "gpu"],
+                    {"tooltip": "计算设备，auto=自动选择"},
+                ),
                 "batch_size": (
                     "INT",
                     {
@@ -436,28 +445,30 @@ class ImageColorMatch:
                         "min": 0,
                         "max": 1024,
                         "step": 1,
+                        "tooltip": "批处理大小，0=一次处理全部帧",
                     },
                 ),
             },
             "optional": {
-                "reference_mask": ("MASK",),
+                "reference_mask": ("MASK", {"tooltip": "参考图的遮罩，仅统计遮罩区域的色彩分布"}),
+                "target_mask": ("MASK", {"tooltip": "目标图的遮罩，仅对遮罩区域应用色彩迁移"}),
             },
         }
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将目标图像的颜色统计分布匹配到参考图像，支持多种色彩空间"
 
     def execute(
         self,
         image,
         reference,
         color_space,
-        factor,
+        strength,
         device,
         batch_size,
         reference_mask=None,
+        target_mask=None,
     ):
         if "gpu" == device:
             device = comfy.model_management.get_torch_device()
@@ -478,13 +489,9 @@ class ImageColorMatch:
                 f"Frame count mismatch: reference_mask has {reference_mask.shape[0]} frames, but reference has {reference.shape[0]}"
             )
 
-            # Reshape mask to (batch, 1, height, width)
             reference_mask = reference_mask.unsqueeze(1).to(device)
-
-            # Ensure the mask is binary (0 or 1)
             reference_mask = (reference_mask > 0.5).float()
 
-            # Ensure spatial dimensions match
             if reference_mask.shape[2:] != reference.shape[2:]:
                 reference_mask = comfy.utils.common_upscale(
                     reference_mask,
@@ -494,11 +501,34 @@ class ImageColorMatch:
                     crop="center",
                 )
 
+        # target_mask: 保持原始值以实现软混合（不二值化）
+        if target_mask is not None:
+            target_mask = target_mask.unsqueeze(1).to(device)
+
+            # 匹配 spatial 维度
+            if target_mask.shape[2:] != image.shape[2:]:
+                target_mask = comfy.utils.common_upscale(
+                    target_mask,
+                    image.shape[3],
+                    image.shape[2],
+                    upscale_method="bicubic",
+                    crop="center",
+                )
+
+            # 匹配 batch 维度：不足时重复最后一帧，超出时截断
+            if target_mask.shape[0] < image.shape[0]:
+                repeats = image.shape[0] - target_mask.shape[0]
+                target_mask = torch.cat([target_mask, target_mask[-1:].repeat(repeats, 1, 1, 1)], dim=0)
+            elif target_mask.shape[0] > image.shape[0]:
+                target_mask = target_mask[:image.shape[0]]
+
         if batch_size == 0 or batch_size > image.shape[0]:
             batch_size = image.shape[0]
 
         if "LAB" == color_space:
             reference = kornia.color.rgb_to_lab(reference)
+        elif "Linear RGB" == color_space:
+            reference = kornia.color.rgb_to_linear_rgb(reference)
         elif "YCbCr" == color_space:
             reference = kornia.color.rgb_to_ycbcr(reference)
         elif "LUV" == color_space:
@@ -510,14 +540,23 @@ class ImageColorMatch:
 
         reference_mean, reference_std = self.compute_mean_std(reference, reference_mask)
 
+        # 多帧参考图时聚合为单帧统计，防止与 image batch 维度不匹配
+        if reference_mean.shape[0] > 1:
+            reference_mean = reference_mean.mean(dim=0, keepdim=True)
+            reference_std = reference_std.mean(dim=0, keepdim=True)
+
         image_batch = torch.split(image, batch_size, dim=0)
         output = []
 
+        offset = 0
         for image in image_batch:
+            cur_batch = image.shape[0]
             image = image.to(device)
 
             if color_space == "LAB":
                 image = kornia.color.rgb_to_lab(image)
+            elif color_space == "Linear RGB":
+                image = kornia.color.rgb_to_linear_rgb(image)
             elif color_space == "YCbCr":
                 image = kornia.color.rgb_to_ycbcr(image)
             elif color_space == "LUV":
@@ -534,10 +573,19 @@ class ImageColorMatch:
                 * torch.nan_to_num(reference_std)
                 + reference_mean
             )
-            matched = factor * matched + (1 - factor) * image
+            matched = strength * matched + (1.0 - strength) * image
+
+            # 应用 target_mask：仅在遮罩区域内做迁移，其余保持原图
+            if target_mask is not None:
+                mask_slice = target_mask[offset:offset + cur_batch]
+                matched = mask_slice * matched + (1.0 - mask_slice) * image
+
+            offset += cur_batch
 
             if color_space == "LAB":
                 matched = kornia.color.lab_to_rgb(matched)
+            elif color_space == "Linear RGB":
+                matched = kornia.color.linear_rgb_to_rgb(matched)
             elif color_space == "YCbCr":
                 matched = kornia.color.ycbcr_to_rgb(matched)
             elif color_space == "LUV":
@@ -554,22 +602,16 @@ class ImageColorMatch:
             )
             output.append(out)
 
-        out = None
         output = torch.cat(output, dim=0)
         return (output,)
 
     def compute_mean_std(self, tensor, mask=None):
         if mask is not None:
-            # Apply mask to the tensor
             masked_tensor = tensor * mask
 
-            # Calculate the sum of the mask for each channel
             mask_sum = mask.sum(dim=[2, 3], keepdim=True)
-
-            # Avoid division by zero
             mask_sum = torch.clamp(mask_sum, min=1e-6)
 
-            # Calculate mean and std only for masked area
             mean = torch.nan_to_num(
                 masked_tensor.sum(dim=[2, 3], keepdim=True) / mask_sum
             )
