@@ -1,0 +1,34 @@
+_CATEGORY = "sfnodes/text"
+
+
+class SFPromptList:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "multiline_text": ("STRING", {"multiline": True, "default": "body_text", "tooltip": "多行文本，每行将作为列表的一项"}),
+                "prepend_text": ("STRING", {"multiline": False, "default": "", "tooltip": "添加到每行前面的文本"}),
+                "append_text": ("STRING", {"multiline": False, "default": "", "tooltip": "添加到每行后面的文本"}),
+                "start_index": ("INT", {"default": 0, "min": 0, "max": 9999, "tooltip": "起始行索引"}),
+                "max_rows": ("INT", {"default": 1000, "min": 1, "max": 9999, "tooltip": "最大行数"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("prompt", "body_text")
+    OUTPUT_IS_LIST = (True, True)
+    FUNCTION = "make_list"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "将多行文本按行拆分，每行可添加前后缀，支持索引切片，输出字符串列表"
+
+    def make_list(self, multiline_text, prepend_text="", append_text="", start_index=0, max_rows=9999):
+        lines = multiline_text.split('\n')
+
+        start_index = max(0, min(start_index, len(lines) - 1))
+        end_index = min(start_index + max_rows, len(lines))
+
+        selected_rows = lines[start_index:end_index]
+        prompt_list = [prepend_text + line + append_text for line in selected_rows]
+        body_list = selected_rows
+
+        return (prompt_list, body_list)
