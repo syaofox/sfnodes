@@ -586,3 +586,63 @@ app.registerExtension({
         }
     },
 });
+
+// 在 window 捕获阶段抢先接管 SFLoadImageBrowser 上的图片拖拽，
+// 避免被第三方扩展（如 Fill-Nodes 的 LoadImageDropFix）在 document 捕获阶段
+// 劫持为"新建 LoadImage 节点"（其 isLoadImageNode 硬编码只识别 LoadImage/LoadImageMask）
+function registerDropFix() {
+    const getDropTarget = (event) => {
+        const canvas = app.canvas;
+        const graph = canvas?.graph;
+        if (!canvas || !graph) return null;
+
+        let node = null;
+        const domNode = event.target?.closest?.("[data-node-id]");
+        if (domNode) {
+            node = graph.getNodeById?.(domNode.dataset.nodeId);
+        }
+        if (!node) {
+            canvas.adjustMouseEvent?.(event);
+            node = graph.getNodeOnPos?.(event.canvasX, event.canvasY) ?? null;
+        }
+        return node?.comfyClass === "SFLoadImageBrowser" ? node : null;
+    };
+
+    const isDraggingFiles = (event) => {
+        return (
+            Array.from(event.dataTransfer?.items ?? []).some(item => item.kind === "file") ||
+            Array.from(event.dataTransfer?.types ?? []).includes("Files")
+        );
+    };
+
+    const isImageDrop = (event) => {
+        return Array.from(event.dataTransfer?.files ?? [])
+            .some(file => file.type.startsWith("image/"));
+    };
+
+    window.addEventListener("dragover", (event) => {
+        if (!getDropTarget(event) || !isDraggingFiles(event)) return;
+        event.preventDefault();
+    }, true);
+
+    window.addEventListener("drop", async (event) => {
+        const node = getDropTarget(event);
+        if (!node || !isImageDrop(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        try {
+            await node.onDragDrop?.(event);
+        } catch (err) {
+            console.error("SFLoadImageBrowser drop failed:", err);
+        }
+    }, true);
+}
+
+app.registerExtension({
+    name: "sfnodes.image_browser_drop",
+    setup() {
+        registerDropFix();
+    },
+});

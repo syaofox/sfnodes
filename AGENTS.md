@@ -117,6 +117,55 @@ class SFMyNode:
 - JS Widget 放在 `web/` 目录，文件名与节点功能对应
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册
 
+## ComfyUI 前端机制（图片输入节点的粘贴/拖拽，经验总结）
+
+> 以下知识来自 `SFLoadImageBrowser` 拖拽被劫持问题的排查（2026-07），属于运行时不看源码/调试难以推断的机制。
+
+### 图片输入节点如何获得粘贴/拖拽能力（前端 1.47.x）
+
+1. 后端节点定义中 combo 输入带 `{"image_upload": True}`（`SFLoadImageBrowser` 继承 `LoadImage` 的结构即可）。
+2. 前端核心扩展 `Comfy.UploadImage` 在 `beforeRegisterNodeDef` 时发现 `image_upload: true` 的输入后，会给该节点定义追加一个隐藏的 `upload` 输入（类型 `IMAGEUPLOAD`），并注入 `imageInputName` 指向原 combo 输入名。
+3. `IMAGEUPLOAD` widget 构造时安装三类接收能力（`useNodeImageUpload`）：
+   - `node.pasteFiles` — 剪贴板粘贴
+   - `node.onDragOver` / `node.onDragDrop` — 本地文件拖拽
+   - 隐藏 `<input type="file">` — 上传按钮
+   同时设置 `node.previewMediaType = 'image'`（图片预览加载后 `node.imgs` 非空）。
+4. 粘贴链路（document `paste` 监听）：目标 = 当前选中节点，且 `isImageNode(node)` 为真（`previewMediaType === 'image'` 或 `imgs` 非空）→ 调 `node.pasteFiles(files)` → 上传 `/upload/image`（子目录 `pasted`）→ 更新 combo widget 值 + 预览。若选中节点不是图片节点，则**新建一个原生 `LoadImage` 节点**接收。
+5. 拖拽链路：document `dragover` 时 `graph.getNodeOnPos()` 命中节点且 `node.onDragOver(e)` 返回真 → `canvas.dragOverNode = node`；document `drop` 时调 `node.onDragDrop(e)`，返回真则消费；否则走 `handleFile` → **新建 `LoadImage` 节点**。
+
+### 关键陷阱：第三方扩展劫持拖拽
+
+- 部分扩展（如 `ComfyUI_Fill-Nodes` 的 `load_image_drop_fix.js`）在 **document 捕获阶段** 注册 `dragover`/`drop` 监听，先于 ComfyUI 原生（冒泡阶段）执行，且其判定**硬编码节点类型**（如 `node.type === "LoadImage"`），不识别自定义加载节点 → 拖拽到自定义节点会被当空白画布处理，新建原生 `LoadImage` 节点。
+- 修复模式（`web/image_browser.js` 的 `sfnodes.image_browser_drop` 扩展）：在 **`window` 捕获阶段** 注册监听（事件传播顺序 window → document → ...，必然先于 document 上的任何扩展），仅命中 `SFLoadImageBrowser` + 图片拖拽时 `preventDefault()`（dragover）/ `preventDefault()` + `stopPropagation()` + `stopImmediatePropagation()`（drop），然后复用 `node.onDragDrop(event)` 走原生上传链路。非目标场景一律放行，不影响其他节点/工作流拖拽。
+- 事件 API 细节：`stopPropagation()` 不阻止**同一节点上**的其他监听器（需 `stopImmediatePropagation`）；`window` 捕获阶段调用 `stopPropagation` 可阻断 document 及更深层的所有监听器。
+
+### Chrome 拖拽隐私限制（易踩坑）
+
+- `dragover` 阶段 `dataTransfer.items` 与 `dataTransfer.files` **为空**（受保护），只能通过 `Array.from(dataTransfer.types).includes("Files")` 判断是否拖文件；`drop` 阶段 `files` 才可用。
+
+### 运行时诊断方法（在浏览器 Console 执行）
+
+```js
+// 检查节点是否具备接收能力（三者齐全 = 粘贴/拖拽链路完整）
+app.graph._nodes.forEach(n => console.log(n.comfyClass, {
+  onDragOver: typeof n.onDragOver,
+  onDragDrop: typeof n.onDragDrop,
+  pasteFiles: typeof n.pasteFiles,
+  previewMediaType: n.previewMediaType,
+  imgs: n.imgs?.length,
+}));
+// 监控拖拽目标（先装监听，再拖拽，无需拖拽中操作 console）
+window.addEventListener('dragover', e => {
+  if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+    setTimeout(() => console.log('[drag] dragOverNode:', app.canvas.dragOverNode?.comfyClass), 0);
+  }
+}, true);
+```
+
+### 部署注意
+
+- 用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致），修改 `web/` 下 JS 后需**同步该目录**，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效；后端改动需重启容器。
+
 ## Code Discovery
 
 优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。该系统已索引整个项目，支持语义搜索和调用链追踪。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退到 grep/glob。
