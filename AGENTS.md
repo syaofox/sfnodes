@@ -4,7 +4,7 @@
 
 sfnodes 是一个 ComfyUI 自定义节点包，提供图像处理、人脸操作、遮罩编辑、文本处理、模型管理等增强功能。
 
-ComfyUI 源码根目录即 `../..`（`<custom_nodes>/..` 的父目录，本机为 `/home/syaofox/Projects/ComfyUI/`，含 `comfy/`、`nodes.py` 等），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
+ComfyUI 源码根目录即 `../..`（`<custom_nodes>/..` 的父目录，本机为 `/home/syaofox/Projects/ComfyUI/`，含 `comfy/`、`nodes.py` 等，**仅为源码副本**，实际运行实例为 docker 部署），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
 
 ## Architecture
 
@@ -30,6 +30,7 @@ sfnodes/
 │   ├── translation.py   # 翻译封装
 │   ├── downloader.py    # 下载工具
 │   ├── model_manager.py # 模型管理
+│   ├── cutpaste.py      # 剪切/拼接工具
 │   ├── insightface_utils.py # InsightFace 封装
 │   ├── face_detector.py  # 人脸检测
 │   ├── lora_notes.py     # LoRA 笔记/说明
@@ -121,33 +122,33 @@ class SFMyNode:
 - JS Widget 放在 `web/` 目录，文件名与节点功能对应
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
 
-## ComfyUI 前端机制（图片输入节点的粘贴/拖拽，经验总结）
+## ComfyUI 前端机制（经验总结）
 
-> 以下知识来自 `SFLoadImageBrowser` 拖拽被劫持问题的排查（2026-07），属于运行时不看源码/调试难以推断的机制。
+> 背景：源自 `SFLoadImageBrowser` 的两次排查（拖拽被第三方扩展劫持、拖拽后蓝框残留，2026-07）。下述为可迁移的通用机制，落地案例见 `web/image_browser.js` 的 `sfnodes.image_browser_drop` 扩展。
 
-### 图片输入节点如何获得粘贴/拖拽能力（前端 1.47.x）
+### 1. 事件接管（拦截）的通用规则
 
-1. 后端节点定义中 combo 输入带 `{"image_upload": True}`（`SFLoadImageBrowser` 继承 `LoadImage` 的结构即可）。
-2. 前端核心扩展 `Comfy.UploadImage` 在 `beforeRegisterNodeDef` 时发现 `image_upload: true` 的输入后，会给该节点定义追加一个隐藏的 `upload` 输入（类型 `IMAGEUPLOAD`），并注入 `imageInputName` 指向原 combo 输入名。
-3. `IMAGEUPLOAD` widget 构造时安装三类接收能力（`useNodeImageUpload`）：
-   - `node.pasteFiles` — 剪贴板粘贴
-   - `node.onDragOver` / `node.onDragDrop` — 本地文件拖拽
-   - 隐藏 `<input type="file">` — 上传按钮
-   同时设置 `node.previewMediaType = 'image'`（图片预览加载后 `node.imgs` 非空）。
-4. 粘贴链路（document `paste` 监听）：目标 = 当前选中节点，且 `isImageNode(node)` 为真（`previewMediaType === 'image'` 或 `imgs` 非空）→ 调 `node.pasteFiles(files)` → 上传 `/upload/image`（子目录 `pasted`）→ 更新 combo widget 值 + 预览。若选中节点不是图片节点，则**新建一个原生 `LoadImage` 节点**接收。
-5. 拖拽链路：document `dragover` 时 `graph.getNodeOnPos()` 命中节点且 `node.onDragOver(e)` 返回真 → `canvas.dragOverNode = node`；document `drop` 时调 `node.onDragDrop(e)`，返回真则消费；否则走 `handleFile` → **新建 `LoadImage` 节点**。
+- 第三方扩展常在 **document 捕获阶段** 注册 `dragover`/`drop` 等监听，先于 ComfyUI 原生（冒泡阶段）执行；自定义扩展要"必然先执行"，就在 **`window` 捕获阶段** 注册（事件传播顺序 window → document → ...，与监听器注册先后无关）。
+- `stopPropagation()` 不阻止**同一元素上**的其他监听器（需 `stopImmediatePropagation`）；`window` 捕获阶段调用 `stopPropagation` 可阻断 document 及更深层的所有监听器。
+- **接管 = 替代了原生处理器的执行 → 必须自行补偿其状态维护职责**：被跳过的原生处理器中的清理副作用（如拖拽高亮 `app.dragOverNode = null`、hover 状态复位等）不会执行，需在自定义处理器的 `finally` 中复刻，并 `app.canvas?.setDirty?.(false, true)` 触发重绘。
+- 只接管自己的目标场景，其余一律放行（不 preventDefault/stopPropagation），避免破坏其他扩展与原生行为。
 
-### 关键陷阱：第三方扩展劫持拖拽
+### 2. 图片输入节点前端机制（做"加载图片"类节点必知）
 
-- 部分扩展（如 `ComfyUI_Fill-Nodes` 的 `load_image_drop_fix.js`）在 **document 捕获阶段** 注册 `dragover`/`drop` 监听，先于 ComfyUI 原生（冒泡阶段）执行，且其判定**硬编码节点类型**（如 `node.type === "LoadImage"`），不识别自定义加载节点 → 拖拽到自定义节点会被当空白画布处理，新建原生 `LoadImage` 节点。
-- 修复模式（`web/image_browser.js` 的 `sfnodes.image_browser_drop` 扩展）：在 **`window` 捕获阶段** 注册监听（事件传播顺序 window → document → ...，必然先于 document 上的任何扩展），仅命中 `SFLoadImageBrowser` + 图片拖拽时 `preventDefault()`（dragover）/ `preventDefault()` + `stopPropagation()` + `stopImmediatePropagation()`（drop），然后复用 `node.onDragDrop(event)` 走原生上传链路。非目标场景一律放行，不影响其他节点/工作流拖拽。
-- 事件 API 细节：`stopPropagation()` 不阻止**同一节点上**的其他监听器（需 `stopImmediatePropagation`）；`window` 捕获阶段调用 `stopPropagation` 可阻断 document 及更深层的所有监听器。
+- 后端 combo 输入带 `{"image_upload": True}` → 前端核心扩展 `Comfy.UploadImage` 自动追加隐藏 `IMAGEUPLOAD` 输入 → 节点自动获得：`node.pasteFiles`（剪贴板粘贴）、`node.onDragOver`/`node.onDragDrop`（文件拖拽）、上传按钮、`node.previewMediaType = 'image'`（预览加载后 `node.imgs` 非空）。自定义加载节点**继承 `LoadImage` 的 INPUT_TYPES 结构即可**获得全部能力。
+- 粘贴链路：document `paste` 监听，目标 = 当前选中节点且 `isImageNode(node)` 为真（`previewMediaType === 'image'` 或 `imgs` 非空）→ `node.pasteFiles(files)` → 上传 `/upload/image`（子目录 `pasted`）→ 更新 widget 值 + 预览；否则**新建原生 `LoadImage` 节点**接收。
+- 拖拽高亮（蓝框）：canvas 容器 `dragover` 命中 `graph.getNodeOnPos()` 且 `node.onDragOver(e)` 返回真 → `app.dragOverNode = node`。注意：**这是 `ComfyApp` 实例属性，不是 canvas 属性（源码中 `this` 常指 app，极易误判），且无节点类型限制**，自定义节点同样生效。原生在 canvas `dragleave` 或 document `drop` 开头无条件清除。
 
-### Chrome 拖拽隐私限制（易踩坑）
+### 3. 第三方扩展"白名单式"节点判定劫持
+
+- 部分扩展硬编码节点类型判定拖拽目标（如 `node.type === "LoadImage"`；案例：`ComfyUI_Fill-Nodes` 的 `load_image_drop_fix.js`），不识别自定义加载节点 → 拖拽到自定义节点被当空白画布处理，新建原生 `LoadImage` 节点。
+- **任何自定义替代节点都可能踩中**；排查"拖拽没进我的节点/新建了 LoadImage"类问题时，优先检查第三方扩展在 document 捕获阶段的监听器，用 setter 拦截定位赋值者（见 §5）。
+
+### 4. Chrome 拖拽隐私限制（易踩坑）
 
 - `dragover` 阶段 `dataTransfer.items` 与 `dataTransfer.files` **为空**（受保护），只能通过 `Array.from(dataTransfer.types).includes("Files")` 判断是否拖文件；`drop` 阶段 `files` 才可用。
 
-### 运行时诊断方法（在浏览器 Console 执行）
+### 5. 运行时诊断方法与部署注意
 
 ```js
 // 检查节点是否具备接收能力（三者齐全 = 粘贴/拖拽链路完整）
@@ -161,14 +162,24 @@ app.graph._nodes.forEach(n => console.log(n.comfyClass, {
 // 监控拖拽目标（先装监听，再拖拽，无需拖拽中操作 console）
 window.addEventListener('dragover', e => {
   if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-    setTimeout(() => console.log('[drag] dragOverNode:', app.canvas.dragOverNode?.comfyClass), 0);
+    setTimeout(() => console.log('[drag] dragOverNode:', app.dragOverNode?.comfyClass), 0);
   }
 }, true);
+// 拖拽后高亮残留时，确认残留状态归属
+console.log('app.dragOverNode:', app.dragOverNode?.comfyClass, '| canvas:', app.canvas.dragOverNode?.comfyClass);
+// 用 setter 拦截定位"谁在设置 app.dragOverNode"（打印调用栈，直接指向设置者）
+let _dn = app.dragOverNode;
+Object.defineProperty(app, 'dragOverNode', {
+  get() { return _dn; },
+  set(v) {
+    if (v && v !== _dn) console.log('[SET dragOverNode]', v.comfyClass ?? v.type ?? v.constructor?.name, '<<', new Error().stack?.split('\n').slice(1, 3).join(' << '));
+    _dn = v;
+  },
+  configurable: true,
+});
 ```
 
-### 部署注意
-
-- 用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致），修改 `web/` 下 JS 后需**同步该目录**，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效；后端改动需重启容器。
+**部署注意**：用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致），修改 `web/` 下 JS 后需**同步该目录**，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效；后端改动需重启容器。
 
 ## Code Discovery
 
