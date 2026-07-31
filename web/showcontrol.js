@@ -53,10 +53,10 @@ const NODE_WIDGETS_CONFIG = {
         simpleWidgets: ["landmark_type", "align_type", "onnx_device"]
     },
     "SFGeneratePreciseFaceMask": {
-        simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
+        simpleWidgets: ["grow", "grow_percent", "grow_tapered"]
     },
     "SFGenerateRegionFaceMask": {
-        simpleWidgets: ["post_process", "grow", "grow_percent", "grow_tapered"]
+        simpleWidgets: ["grow", "grow_percent", "grow_tapered"]
     }
 };
 

@@ -1,5 +1,5 @@
 from .nodes.face.analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
-from .nodes.face.occluder import OccluderLoader, GeneratePreciseFaceMask
+from .nodes.face.occluder import GeneratePreciseFaceMask
 from .nodes.face.cutpaste import FaceCutout, FacePaste, ExtractBoundingBox
 
 from .nodes.face.warp import FaceWarp
@@ -126,7 +126,6 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintStitch": InpaintStitch,
     "SFInpaintExtendOutpaint": InpaintExtendOutpaint,
     # 人脸遮挡节点
-    "SFOccluderLoader": OccluderLoader,
     "SFGeneratePreciseFaceMask": GeneratePreciseFaceMask,
     # 人脸区域节点
     "SFBiSeNetLoader": BiSeNetLoader,
@@ -262,7 +261,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintStitch": "SF Inpaint Stitch",
     "SFInpaintExtendOutpaint": "SF Inpaint Extend Outpaint",
     # 人脸遮挡节点
-    "SFOccluderLoader": "SF Occluder Loader",
     "SFGeneratePreciseFaceMask": "SF Generate Precise Face Mask",
     # 人脸区域节点
     "SFBiSeNetLoader": "SF BiSeNet Loader",
