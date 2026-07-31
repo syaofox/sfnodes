@@ -273,81 +273,14 @@ function extractTriggerWords(meta) {
     return "";
 }
 
-function showLoraInfoPopup(event, loraName, meta) {
-    const items = [];
+function showLoraInfoDialog(event, loraName, meta) {
+    meta = meta || {};
+    const state = {
+        trigger_words: meta.trigger_words || "",
+        description: meta.description || "",
+    };
 
-    if (!meta || meta._not_found) {
-        items.push({ content: "No metadata available", disabled: true });
-        items.push({ content: "Only .safetensors files contain metadata.", disabled: true });
-        items.push(null);
-        items.push({ content: "✏️ Add Notes", callback: () => {
-            showLoraNotesEditor(event, loraName, { trigger_words: "", description: "" });
-        }});
-        new LiteGraph.ContextMenu(items, {
-            title: `SF LoRA: ${loraName}`,
-            event,
-            scale: Math.max(1, app.canvas.ds?.scale ?? 1),
-            className: "dark",
-        });
-        return;
-    }
-
-    // Fields are pre-merged by the backend: custom notes > embedded metadata
-    const tw = meta.trigger_words || "";
-    const desc = meta.description || "";
-    const baseModel = meta.base_model || "";
-    const sourceUrl = meta.source_url || "";
-
-    if (tw) {
-        items.push({ content: `🔑 ${tw}`, disabled: true });
-        items.push(null);
-    }
-    if (desc) {
-        const shortDesc = desc.length > 120 ? desc.substring(0, 120) + "..." : desc;
-        items.push({ content: `📄 ${shortDesc}`, disabled: true });
-        items.push(null);
-    }
-    if (baseModel) {
-        items.push({ content: `🏗️ ${baseModel}`, disabled: true });
-        items.push(null);
-    }
-
-    // Actions
-    let hasAction = false;
-    if (tw) {
-        hasAction = true;
-        items.push({ content: "📋 Copy Trigger Words", callback: () => {
-            navigator.clipboard.writeText(tw).catch(() => {});
-        }});
-    }
-    if (sourceUrl) {
-        hasAction = true;
-        items.push({ content: "🔗 Open Source URL", callback: () => {
-            window.open(sourceUrl, "_blank");
-        }});
-    }
-    if (!hasAction && items.length === 0) {
-        items.push({ content: "No trigger words or description available.", disabled: true });
-    }
-
-    // Edit custom notes button
-    items.push(null);
-    items.push({ content: meta._has_custom ? "✏️ Edit Notes" : "✏️ Add Notes", callback: () => {
-        showLoraNotesEditor(event, loraName, meta);
-    }});
-
-    new LiteGraph.ContextMenu(items, {
-        title: `SF LoRA: ${loraName}`,
-        event,
-        scale: Math.max(1, app.canvas.ds?.scale ?? 1),
-        className: "dark",
-    });
-}
-
-function showLoraNotesEditor(event, loraName, meta) {
-    const currentTW = meta?.trigger_words || "";
-    const currentDesc = meta?.description || "";
-
+    // ---------- overlay & card ----------
     const overlay = document.createElement("div");
     overlay.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -358,120 +291,300 @@ function showLoraNotesEditor(event, loraName, meta) {
     const card = document.createElement("div");
     card.style.cssText = `
         background: #2a2a2e; border: 1px solid #555; border-radius: 10px;
-        padding: 24px 28px; min-width: 420px; max-width: 520px;
+        min-width: 460px; max-width: 580px; max-height: 85vh;
+        display: flex; flex-direction: column;
         box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: #ddd;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
-    const title = document.createElement("div");
-    title.textContent = `✏️ Edit Notes`;
-    title.style.cssText = `
-        font-size: 15px; font-weight: 600; color: #fff;
-        margin-bottom: 6px; white-space: nowrap; overflow: hidden;
-        text-overflow: ellipsis;
+    // ---------- header ----------
+    const header = document.createElement("div");
+    header.style.cssText = `
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 14px 18px; border-bottom: 1px solid #444;
     `;
+    const title = document.createElement("div");
+    title.textContent = loraName;
     title.title = loraName;
-
-    const subtitle = document.createElement("div");
-    subtitle.textContent = loraName;
-    subtitle.style.cssText = `
-        font-size: 12px; color: #999; margin-bottom: 16px;
+    title.style.cssText = `
+        font-size: 13px; font-weight: 600; color: #fff;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     `;
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✕";
+    closeBtn.title = "Close";
+    closeBtn.style.cssText = `
+        flex: 0 0 auto; background: none; border: none; cursor: pointer;
+        font-size: 14px; color: #aaa; padding: 2px 6px; border-radius: 4px;
+    `;
+    closeBtn.addEventListener("mouseenter", () => { closeBtn.style.color = "#fff"; });
+    closeBtn.addEventListener("mouseleave", () => { closeBtn.style.color = "#aaa"; });
+    closeBtn.addEventListener("click", () => closeDialog());
+    header.appendChild(title);
+    header.appendChild(closeBtn);
 
-    const makeField = (label, value, rows) => {
-        const wrap = document.createElement("div");
-        wrap.style.cssText = "margin-bottom: 14px;";
-        const lbl = document.createElement("label");
-        lbl.textContent = label;
-        lbl.style.cssText = `
-            display: block; font-size: 12px; color: #aaa;
-            margin-bottom: 4px; font-weight: 500;
+    // ---------- body ----------
+    const body = document.createElement("div");
+    body.style.cssText = "overflow-y: auto; padding: 6px 0;";
+
+    // row factory: editable rows
+    function createEditRow(label, isTextarea) {
+        const row = document.createElement("div");
+        row.style.cssText = `
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 10px 18px; border-bottom: 1px solid #3a3a3e;
         `;
-        const input = document.createElement("textarea");
-        input.value = value;
-        input.rows = rows;
-        input.style.cssText = `
-            width: 100%; box-sizing: border-box; resize: vertical;
-            background: #1a1a1e; color: #eee; border: 1px solid #444;
-            border-radius: 6px; padding: 8px 10px; font-size: 13px;
-            font-family: inherit; outline: none;
+        const labelEl = document.createElement("div");
+        labelEl.style.cssText = `
+            flex: 0 0 100px; font-size: 12px; color: #aaa;
+            padding-top: 5px; line-height: 1.4;
         `;
-        input.addEventListener("focus", () => { input.style.borderColor = "#6af"; });
-        input.addEventListener("blur", () => { input.style.borderColor = "#444"; });
-        wrap.appendChild(lbl);
-        wrap.appendChild(input);
-        return { wrap, input };
-    };
+        labelEl.textContent = label;
+        const valueEl = document.createElement("div");
+        valueEl.style.cssText = `
+            flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
+            white-space: pre-wrap; word-break: break-word; min-height: 20px;
+        `;
+        const actionEl = document.createElement("div");
+        actionEl.style.cssText = "flex: 0 0 auto; display: flex; gap: 4px; align-items: center;";
+        row.appendChild(labelEl);
+        row.appendChild(valueEl);
+        row.appendChild(actionEl);
 
-    const { wrap: twWrap, input: twInput } = makeField("Trigger Words", currentTW, 1);
-    const { wrap: descWrap, input: descInput } = makeField("Description", currentDesc, 3);
+        function renderValue() {
+            valueEl.innerHTML = "";
+            const v = state[label];
+            if (!v) valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
+            else valueEl.textContent = v;
+            valueEl.title = v;
+        }
 
-    const btnRow = document.createElement("div");
-    btnRow.style.cssText = `
-        display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;
+        function renderActions() {
+            actionEl.innerHTML = "";
+            const btn = document.createElement("button");
+            btn.textContent = "✏️";
+            btn.title = "Edit " + label;
+            btn.style.cssText = `
+                background: none; border: 1px solid #555; border-radius: 4px;
+                cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 6px;
+            `;
+            btn.addEventListener("mouseenter", () => { btn.style.background = "#3a3a3e"; });
+            btn.addEventListener("mouseleave", () => { btn.style.background = ""; });
+            btn.addEventListener("click", () => startEdit());
+            actionEl.appendChild(btn);
+        }
+
+        function startEdit() {
+            const input = isTextarea ? document.createElement("textarea") : document.createElement("input");
+            input.value = state[label];
+            if (isTextarea) {
+                input.rows = 4;
+                input.style.resize = "vertical";
+            }
+            input.style.cssText = `
+                width: 100%; box-sizing: border-box;
+                background: #1a1a1e; color: #eee; border: 1px solid #6af;
+                border-radius: 6px; padding: 6px 8px; font-size: 13px;
+                font-family: inherit; outline: none;
+            `;
+            valueEl.innerHTML = "";
+            valueEl.appendChild(input);
+            actionEl.innerHTML = "";
+            // save button
+            const saveBtn = document.createElement("button");
+            saveBtn.textContent = "💾";
+            saveBtn.title = "Save (Enter)";
+            saveBtn.style.cssText = `
+                background: none; border: 1px solid #4f7cff; border-radius: 4px;
+                cursor: pointer; font-size: 12px; color: #7aa2ff; padding: 2px 6px;
+            `;
+            saveBtn.addEventListener("click", () => saveEdit());
+            // cancel button
+            const cancelBtn = document.createElement("button");
+            cancelBtn.textContent = "✕";
+            cancelBtn.title = "Cancel (Esc)";
+            cancelBtn.style.cssText = `
+                background: none; border: 1px solid #555; border-radius: 4px;
+                cursor: pointer; font-size: 12px; color: #aaa; padding: 2px 6px;
+            `;
+            cancelBtn.addEventListener("click", () => cancelEdit());
+            actionEl.appendChild(saveBtn);
+            actionEl.appendChild(cancelBtn);
+
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !isTextarea) {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cancelEdit();
+                }
+            });
+            input.focus();
+            input.select();
+        }
+
+        function saveEdit() {
+            const input = valueEl.querySelector("input,textarea");
+            if (!input) return;
+            const newVal = input.value.trim();
+            state[label] = newVal;
+            renderValue();
+            renderActions();
+            saveNotes();
+        }
+
+        function cancelEdit() {
+            renderValue();
+            renderActions();
+        }
+
+        row.refresh = function () {
+            renderValue();
+            renderActions();
+        };
+
+        renderValue();
+        renderActions();
+        return row;
+    }
+
+    // read-only row factory
+    function createReadonlyRow(label, value, linkUrl) {
+        const row = document.createElement("div");
+        row.style.cssText = `
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 10px 18px; border-bottom: 1px solid #3a3a3e;
+        `;
+        const labelEl = document.createElement("div");
+        labelEl.style.cssText = `
+            flex: 0 0 100px; font-size: 12px; color: #aaa; padding-top: 5px;
+        `;
+        labelEl.textContent = label;
+        const valueEl = document.createElement("div");
+        valueEl.style.cssText = `
+            flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
+            white-space: pre-wrap; word-break: break-word; min-height: 20px;
+        `;
+        if (linkUrl && value) {
+            const a = document.createElement("a");
+            a.href = linkUrl;
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.textContent = value;
+            a.style.cssText = "color: #7aa2ff; text-decoration: none; word-break: break-all;";
+            a.addEventListener("mouseenter", () => { a.style.textDecoration = "underline"; });
+            a.addEventListener("mouseleave", () => { a.style.textDecoration = ""; });
+            valueEl.appendChild(a);
+        } else {
+            valueEl.textContent = value || "";
+            if (!value) valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
+        }
+        row.appendChild(labelEl);
+        row.appendChild(valueEl);
+        return row;
+    }
+
+    // ---------- build rows ----------
+    const twRow = createEditRow("trigger_words", false);
+    const descRow = createEditRow("description", true);
+    body.appendChild(twRow);
+    body.appendChild(descRow);
+    if (meta.base_model) body.appendChild(createReadonlyRow("base_model", meta.base_model));
+    if (meta.source_url) body.appendChild(createReadonlyRow("source_url", meta.source_url, meta.source_url));
+
+    // ---------- footer ----------
+    const footer = document.createElement("div");
+    footer.style.cssText = `
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 18px; border-top: 1px solid #444;
     `;
 
-    const makeBtn = (text, bg, callback) => {
+    function makeFooterBtn(text, color, callback, title) {
         const btn = document.createElement("button");
         btn.textContent = text;
+        btn.title = title || "";
         btn.style.cssText = `
-            padding: 7px 18px; border: none; border-radius: 6px;
-            font-size: 13px; cursor: pointer; color: #fff;
-            background: ${bg}; transition: filter 0.15s;
+            padding: 6px 14px; border: 1px solid ${color}; border-radius: 6px;
+            font-size: 12px; cursor: pointer; color: ${color};
+            background: transparent; transition: filter 0.15s;
         `;
-        btn.addEventListener("mouseenter", () => { btn.style.filter = "brightness(1.15)"; });
+        btn.addEventListener("mouseenter", () => { btn.style.filter = "brightness(1.3)"; });
         btn.addEventListener("mouseleave", () => { btn.style.filter = ""; });
         btn.addEventListener("click", callback);
         return btn;
-    };
+    }
 
-    const cancelBtn = makeBtn("Cancel", "#555", () => document.body.removeChild(overlay));
-    const saveBtn = makeBtn("Save", "#4f7cff", () => {
-        const tw = twInput.value.trim();
-        const desc = descInput.value.trim();
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
+    const copyBtn = makeFooterBtn("📋 Copy Trigger Words", "#aaa", () => {
+        if (state.trigger_words) {
+            navigator.clipboard.writeText(state.trigger_words).catch(() => {});
+        }
+    }, "Copy trigger words to clipboard");
+    const clearBtn = makeFooterBtn("🗑️ Clear Notes", "#e06c6c", () => {
+        state.trigger_words = "";
+        state.description = "";
+        twRow.refresh();
+        descRow.refresh();
+        saveNotes();
+    }, "Clear custom notes for this LoRA");
+    const spacer = document.createElement("div");
+    spacer.style.cssText = "flex: 1;";
+    const doneBtn = makeFooterBtn("Done", "#4f7cff", () => closeDialog());
+
+    footer.appendChild(copyBtn);
+    footer.appendChild(clearBtn);
+    footer.appendChild(spacer);
+    footer.appendChild(doneBtn);
+
+    card.appendChild(header);
+    card.appendChild(body);
+    card.appendChild(footer);
+    overlay.appendChild(card);
+
+    // ---------- actions ----------
+    function saveNotes() {
+        const bodyData = {
+            trigger_words: state.trigger_words,
+            description: state.description,
+        };
         fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(loraName)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ trigger_words: tw, description: desc }),
+            body: JSON.stringify(bodyData),
         })
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(updated => {
                 _loraMetadataCache.set(loraName, updated);
                 app.graph.setDirtyCanvas(true, true);
-                if (overlay.parentNode) document.body.removeChild(overlay);
+                state.trigger_words = updated.trigger_words || "";
+                state.description = updated.description || "";
+                twRow.refresh();
+                descRow.refresh();
             })
-            .catch(e => {
-                console.warn("[SF PowerLoraLoader] Failed to save notes:", e);
-                saveBtn.disabled = false;
-                saveBtn.textContent = "Save";
-            });
-    });
+            .catch(e => console.warn("[SF PowerLoraLoader] Failed to save notes:", e));
+    }
 
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(saveBtn);
+    function closeDialog() {
+        if (overlay.parentNode) document.body.removeChild(overlay);
+        document.removeEventListener("keydown", onKeydown);
+    }
 
-    card.appendChild(title);
-    card.appendChild(subtitle);
-    card.appendChild(twWrap);
-    card.appendChild(descWrap);
-    card.appendChild(btnRow);
-    overlay.appendChild(card);
+    function onKeydown(e) {
+        if (e.key === "Escape" && overlay.parentNode) {
+            // if a row is being edited, Escape cancels edit instead of closing
+            const editing = body.querySelector("input,textarea");
+            if (editing) return;
+            closeDialog();
+        }
+    }
 
     overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) document.body.removeChild(overlay);
+        if (e.target === overlay) closeDialog();
     });
-    document.addEventListener("keydown", function onEscape(e) {
-        if (e.key === "Escape" && overlay.parentNode) {
-            document.body.removeChild(overlay);
-            document.removeEventListener("keydown", onEscape);
-        }
-    });
+    document.addEventListener("keydown", onKeydown);
 
     document.body.appendChild(overlay);
-    setTimeout(() => twInput.focus(), 50);
 }
 
 // ---------------------------------------------------------------------------
@@ -878,7 +991,7 @@ function createLoraWidget(name, node) {
                     const loraName = w._value?.lora;
                     if (loraName) {
                         getLoraMetadata(loraName).then(meta => {
-                            showLoraInfoPopup(event, loraName, meta);
+                            showLoraInfoDialog(event, loraName, meta);
                         });
                     }
                     return true;
