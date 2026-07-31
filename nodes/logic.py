@@ -41,6 +41,52 @@ class AnythingIndexSwitch:
         return (kwargs[key],)
 
 
+class AnyPack:
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = {
+            "required": {},
+            "optional": {}
+        }
+        for i in range(MAX_FLOW_NUM):
+            inputs["optional"]["value%d" % i] = (any_type,)
+        return inputs
+
+    RETURN_TYPES = ("SF_PACK",)
+    RETURN_NAMES = ("pack",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "将多个输入按位置打包为一条线，配合 SF Any Unpack 使用，减少工作流连线"
+
+    def execute(self, **kwargs):
+        values = [kwargs.get("value%d" % i) for i in range(MAX_FLOW_NUM)]
+        return (values,)
+
+
+class AnyUnpack:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pack": ("SF_PACK",),
+            },
+        }
+
+    RETURN_TYPES = tuple(any_type for _ in range(MAX_FLOW_NUM))
+    RETURN_NAMES = tuple("out%d" % i for i in range(MAX_FLOW_NUM))
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "解包 SF Any Pack 打包的数据，按位置还原为多条输出线"
+
+    def execute(self, pack):
+        if pack is None:
+            values = [None] * MAX_FLOW_NUM
+        else:
+            values = list(pack)
+            values.extend([None] * (MAX_FLOW_NUM - len(values)))
+        return tuple(values[:MAX_FLOW_NUM])
+
+
 class IsMaskEmpty:
     @classmethod
     def INPUT_TYPES(s):

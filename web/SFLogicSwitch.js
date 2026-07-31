@@ -45,6 +45,10 @@ app.registerExtension({
         // Trim on first load
         trimInputs();
 
+        // Recompute node size after trimming hidden slots, otherwise the
+        // initial height still accounts for all 20 declared slots
+        node.setSize(node.computeSize());
+
         node.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
             // Only handle input connections (type 1)
             if (type !== 1) {

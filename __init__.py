@@ -115,7 +115,7 @@ from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendO
 from .nodes.utils.image_orientation import ImageOrientation
 from .nodes.utils.workflow_name import SFWorkflowName
 
-from .nodes.logic import AnythingIndexSwitch, IsMaskEmpty
+from .nodes.logic import AnythingIndexSwitch, IsMaskEmpty, AnyPack, AnyUnpack
 
 WEB_DIRECTORY = "web"
 
@@ -251,6 +251,8 @@ NODE_CLASS_MAPPINGS = {
     # 逻辑节点
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
     "SFIsMaskEmpty": IsMaskEmpty,
+    "SFAnyPack": AnyPack,
+    "SFAnyUnpack": AnyUnpack,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -384,6 +386,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 逻辑节点
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
     "SFIsMaskEmpty": "SF Is Mask Empty",
+    "SFAnyPack": "SF Any Pack",
+    "SFAnyUnpack": "SF Any Unpack",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
