@@ -4,7 +4,7 @@
 ## 项目背景
 - 语言/框架：Python 3.10+, ComfyUI 自定义节点包
 - 依赖管理：`requirements.txt`（仅声明，不在本机安装）
-- 运行时环境：ComfyUI（源码在 `../../ComfyUI/`，可查阅 API，**不要启动或安装依赖**）
+- 运行时环境：ComfyUI（源码根目录在 `../..`，可查阅 API，**不要启动或安装依赖**）
 - 张量格式：图像 `[B, H, W, C]`，遮罩 `[B, H, W]`（ComfyUI 标准）
 - 前端：JS Widget 使用 `app.registerExtension`（LiteGraph API），放在 `web/` 目录；根 `__init__.py` 需声明 `WEB_DIRECTORY = "web"`
 

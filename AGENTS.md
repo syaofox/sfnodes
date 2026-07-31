@@ -4,7 +4,7 @@
 
 sfnodes 是一个 ComfyUI 自定义节点包，提供图像处理、人脸操作、遮罩编辑、文本处理、模型管理等增强功能。
 
-ComfyUI 源码位于 `../../ComfyUI/`（同级目录），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
+ComfyUI 源码根目录即 `../..`（`<custom_nodes>/..` 的父目录，本机为 `/home/syaofox/Projects/ComfyUI/`，含 `comfy/`、`nodes.py` 等），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
 
 ## Architecture
 
@@ -31,9 +31,12 @@ sfnodes/
 │   ├── downloader.py    # 下载工具
 │   ├── model_manager.py # 模型管理
 │   ├── insightface_utils.py # InsightFace 封装
+│   ├── face_detector.py  # 人脸检测
+│   ├── lora_notes.py     # LoRA 笔记/说明
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget（ComfyUI LiteGraph 扩展）
-└── data/                # 静态数据（anime_char CSV、face_distance 字体等）
+├── data/                # 静态数据（anime_char CSV、face_distance 字体等）
+└── doc/                 # 项目文档（vibecoding.md 开发流程等）
 ```
 
 ## Node Registration Convention
@@ -88,13 +91,14 @@ class SFMyNode:
 - `mediapipe` — 人像分割
 - `kornia` — 图像变换
 - `color_matcher` — 色彩匹配
+- `colour-science` — 色彩科学/LUT 处理
 - `translators` — 文本翻译
 - `scipy`, `aiohttp`, `safetensors`, `tqdm`
 - `psutil` — 系统资源监控（内存清理节点使用）
 
 ## ComfyUI API Imports (for reference only)
 
-以下模块在运行时由 ComfyUI 提供，可通过源码 `../../ComfyUI/` 查阅实现：
+以下模块在运行时由 ComfyUI 提供，可通过源码 `../..` 查阅实现：
 
 - `comfy.utils` — 通用工具（缩放、文件加载等）
 - `comfy.utils.common_upscale` — 图片缩放
@@ -106,7 +110,7 @@ class SFMyNode:
 - `nodes.LoraLoader` — LoRA 加载节点
 - `folder_paths` — 路径管理
 - `comfy_extras.nodes_post_processing` — 后处理节点
-- `comfy_execution.graph.ExecutionBlocker` — 执行阻断
+- `comfy_execution.graph_utils.ExecutionBlocker` — 执行阻断
 
 ## Code Style
 
@@ -115,7 +119,7 @@ class SFMyNode:
 - 工具函数放在 `sf_utils/` 下对应模块
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
 - JS Widget 放在 `web/` 目录，文件名与节点功能对应
-- `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册
+- `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
 
 ## ComfyUI 前端机制（图片输入节点的粘贴/拖拽，经验总结）
 
@@ -173,7 +177,7 @@ window.addEventListener('dragover', e => {
 ## Development Rules
 
 1. **不要启动 ComfyUI 或运行 `pip install`** — 本机仅作为代码编辑环境
-2. 可以阅读 `../../ComfyUI/` 源码以理解 API 和参考实现
+2. 可以阅读 `../..` 源码以理解 API 和参考实现
 3. 新增节点必须同步更新根 `__init__.py` 的两个注册字典
 4. 新增依赖必须同步更新 `requirements.txt`
 5. 保持节点类命名一致性：实现类 PascalCase，注册键 `"SF"` 前缀
