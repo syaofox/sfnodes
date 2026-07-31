@@ -388,3 +388,115 @@ export function ensureEventHook() {
 export function getLastCanvasEvent() {
     return _lastCanvasEvent;
 }
+
+// ---------------------------------------------------------------------------
+// Standard-combo + info-icon mounting (shared by SFLoraLoader /
+// SFLoraLoaderModelOnly and future loader nodes)
+// ---------------------------------------------------------------------------
+const INVALID_BOUNDS = [0, -1];
+
+function getComboWidget(node, name) {
+    return node.widgets?.find((w) => w.name === name) || null;
+}
+
+function getComboValue(node, name) {
+    const v = getComboWidget(node, name)?.value;
+    return typeof v === "string" ? v : null;
+}
+
+function createInfoWidget(comboName) {
+    const w = {
+        name: "_info",
+        type: "custom",
+        options: { serialize: false },
+        value: {},
+        y: 0,
+        last_y: 0,
+        _hit: INVALID_BOUNDS,
+        computeSize(width) { return [width, 24]; },
+        draw(ctx, n, width, posY, height) {
+            this.last_y = posY;
+            this._hit = INVALID_BOUNDS;
+            const loraName = getComboValue(n, comboName);
+            if (!loraName || loraName === "None") return;
+            const cachedMeta = loraMetadataCache.get(loraName);
+            const hasCustom = cachedMeta?._has_custom;
+            const size = Math.max(14, height * 0.6);
+            const posX = 10;
+            const centerX = posX + size / 2;
+            const midY = posY + height * 0.5;
+            this._hit = [posX, size + 6];
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, midY, size / 2 - 0.5, 0, Math.PI * 2);
+            if (hasCustom) {
+                ctx.fillStyle = "rgba(79,195,247,0.3)";
+                ctx.strokeStyle = "rgba(79,195,247,0.7)";
+            } else {
+                ctx.fillStyle = "rgba(255,255,255,0.25)";
+                ctx.strokeStyle = "rgba(255,255,255,0.4)";
+            }
+            ctx.lineWidth = 1;
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = hasCustom ? "rgba(79,195,247,0.9)" : "rgba(255,255,255,0.6)";
+            ctx.font = `${Math.round(size * 0.6)}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("i", centerX, midY + 0.5);
+            if ((app.canvas.ds?.scale || 1) > 0.5) {
+                ctx.fillStyle = LiteGraph.WIDGET_TEXT_COLOR;
+                ctx.textAlign = "left";
+                ctx.fillText("Info", posX + size + 6, midY);
+            }
+            ctx.restore();
+        },
+        mouse(event, pos, n) {
+            if (event.type !== "pointerdown") return false;
+            const b = w._hit;
+            if (b[1] < 0) return false;
+            if (pos[0] >= b[0] && pos[0] <= b[0] + b[1]) {
+                const loraName = getComboValue(n, comboName);
+                if (loraName && loraName !== "None") {
+                    // 延迟到 pointerup 由 canvas 处理完成后再打开对话框，
+                    // 避免 DOM 遮罩在点击过程中出现导致 LiteGraph widget 交互状态残留
+                    getLoraMetadata(loraName).then((meta) => {
+                        requestAnimationFrame(() => {
+                            setTimeout(() => showLoraInfoDialog(event, loraName, meta, "loras"), 0);
+                        });
+                    });
+                }
+                return true;
+            }
+            return false;
+        },
+    };
+    return w;
+}
+
+// Mounts a standard combo + info-icon widget pair onto a loader node:
+// binds the combo callback to prefetch metadata, guards the positional
+// restoration of widgets_values, and prefetches the restored value after
+// configure (widget values are restored after onNodeCreated).
+export function setupLoraInfoWidget(node, comboName = "lora_name") {
+    const combo = getComboWidget(node, comboName);
+    if (combo) {
+        const origCallback = combo.callback;
+        combo.callback = (value) => {
+            if (origCallback) origCallback(value);
+            if (value && value !== "None") getLoraMetadata(value);
+        };
+    }
+
+    const _origConfigure = node.configure;
+    node.configure = function (info) {
+        const idx = this.widgets?.findIndex((w) => w.name === "_info") ?? -1;
+        if (idx !== -1) this.widgets.splice(idx, 1);
+        if (_origConfigure) _origConfigure.call(this, info);
+        const loraName = getComboValue(this, comboName);
+        if (loraName && loraName !== "None") getLoraMetadata(loraName);
+        this.widgets.push(createInfoWidget(comboName));
+    };
+
+    node.widgets.push(createInfoWidget(comboName));
+}

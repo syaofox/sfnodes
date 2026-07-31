@@ -77,6 +77,7 @@ from .nodes.utils.seed import SFSeed
 
 from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
 from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacter
+from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.model.power_lora_loader import PowerLoraLoader
@@ -214,6 +215,7 @@ NODE_CLASS_MAPPINGS = {
     "SFMultiLoraLoader": MultiLoraLoader,
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
     "SFPowerLoraLoader": PowerLoraLoader,
+    "SFLoraLoader": LoraLoader,
     "SFLoraLoaderModelOnly": LoraLoaderModelOnly,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
@@ -349,6 +351,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMultiLoraLoader": "SF Multi LoRA Loader",
     "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
     "SFPowerLoraLoader": "SF Power Lora Loader",
+    "SFLoraLoader": "SF LoRA Loader",
     "SFLoraLoaderModelOnly": "SF LoRA Loader (Model Only)",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
