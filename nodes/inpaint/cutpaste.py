@@ -1,106 +1,107 @@
-import math
-from PIL import Image, ImageDraw, ImageFilter
-from ...sf_utils.image_convert import pil2mask, pil2tensor, tensor2pil, mask2pil
+import torch
+from PIL import Image
+
+from ...sf_utils.cutpaste import (
+    calc_target_dimensions,
+    get_target_size,
+    mask_bbox,
+    resize_tensor,
+)
+from ...sf_utils.image_convert import (
+    mask2pil,
+    pil2mask,
+    pil2tensor,
+    tensor2pil,
+)
+from ...sf_utils.mask_utils import mask_process
 
 _CATEGORY = "sfnodes/inpaint"
 
 
-class InpaintCutOut:
+def _build_inputs():
+    return {
+        "required": {
+            "image": ("IMAGE",),
+            "mode": (
+                ["auto", "mask", "face"],
+                {
+                    "default": "auto",
+                    "tooltip": "auto: 有非零遮罩时用遮罩模式，否则用人脸检测模式; mask: 使用遮罩边界; face: 使用人脸检测",
+                },
+            ),
+            "padding": (
+                "INT",
+                {
+                    "default": 0,
+                    "min": 0,
+                    "max": 4096,
+                    "step": 1,
+                    "tooltip": "设置图像的填充像素数",
+                },
+            ),
+            "padding_percent": (
+                "FLOAT",
+                {
+                    "default": 0.1,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "step": 0.01,
+                    "tooltip": "设置图像的填充百分比",
+                },
+            ),
+            "rescale_mode": (
+                ["sdxl", "sd15", "sdxl+", "sd15+", "none", "custom"],
+                {
+                    "default": "sdxl",
+                    "tooltip": "选择缩放模式，sdxl: 缩放到1024x1024像素; sd15: 缩放到512x512像素; sdxl+: 缩放到1024x1280像素; sd15+: 缩放到512x768像素; none: 不缩放; custom: 使用自定义的像素数",
+                },
+            ),
+            "custom_megapixels": (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": 0.01,
+                    "max": 16.0,
+                    "step": 0.01,
+                    "tooltip": "设置自定义的像素数，如果选择custom，则使用自定义的像素数",
+                },
+            ),
+            "force_square": (
+                "BOOLEAN",
+                {
+                    "default": False,
+                    "tooltip": "如果开启，将扩展短边成为正方形裁剪区域",
+                },
+            ),
+            "face_index": (
+                "INT",
+                {
+                    "default": 0,
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "指定要使用的人脸索引，从0开始，仅在face模式下生效",
+                },
+            ),
+        },
+        "optional": {
+            "mask": ("MASK",),
+            "analysis_models": ("ANALYSIS_MODELS",),
+            "mask_params": ("MASKPARAMS",),
+        },
+    }
+
+
+class SFCutout:
     @classmethod
     def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "mask": ("MASK",),
-                "padding": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置图像的填充像素数",
-                    },
-                ),
-                "padding_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.1,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置图像的填充百分比",
-                    },
-                ),
-                "force_square": (
-                    "BOOLEAN",
-                    {
-                        "default": False,
-                        "tooltip": "如果开启，将扩展短边成为正方形裁剪区域",
-                    },
-                ),
-                "rescale_mode": (
-                    ["sdxl", "sd15", "sdxl+", "sd15+", "none", "custom"],
-                    {
-                        "default": "sdxl",
-                        "tooltip": "选择缩放模式，sdxl: 缩放到1024x1024像素; sd15: 缩放到512x512像素; sdxl+: 缩放到1024x1280像素; sd15+: 缩放到512x768像素; none: 不缩放; custom: 使用自定义的像素数",
-                    },
-                ),
-                "custom_megapixels": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.01,
-                        "max": 16.0,
-                        "step": 0.01,
-                        "tooltip": "设置自定义的像素数，如果选择custom，则使用自定义的像素数",
-                    },
-                ),
-                "margin": (
-                    "INT",
-                    {
-                        "default": 8,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置贴回去图像的边距像素数",
-                    },
-                ),
-                "margin_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.0,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置贴回去图像的边距百分比",
-                    },
-                ),
-                "blur_radius": (
-                    "INT",
-                    {
-                        "default": 4,
-                        "min": 0,
-                        "max": 4096,
-                        "step": 1,
-                        "tooltip": "设置贴回去图像的模糊半径",
-                    },
-                ),
-                "blur_percent": (
-                    "FLOAT",
-                    {
-                        "default": 0.0,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.01,
-                        "tooltip": "设置贴回去图像的模糊百分比",
-                    },
-                ),
-            }
-        }
+        return _build_inputs()
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = "根据遮罩裁剪图像，缩放并生成用于修复的 cutout 信息"
+    DESCRIPTION = (
+        "根据遮罩或人脸检测裁剪图像，缩放并生成用于修复的裁剪信息，"
+        "支持遮罩/人脸双模式，遮罩后处理由 SFMaskParams 控制"
+    )
 
     RETURN_TYPES = ("CUTINFO", "IMAGE", "MASK")
     RETURN_NAMES = (
@@ -109,52 +110,99 @@ class InpaintCutOut:
         "cutout_mask",
     )
 
-    FUNCTION = "inpaint_cutout"
+    FUNCTION = "cutout"
 
-    def inpaint_cutout(
+    def cutout(
         self,
         image,
-        mask,
+        mode,
         padding,
         padding_percent,
-        force_square,
         rescale_mode,
         custom_megapixels,
-        margin,
-        margin_percent,
-        blur_radius,
-        blur_percent,
+        force_square=False,
+        face_index=0,
+        mask=None,
+        analysis_models=None,
+        mask_params=None,
     ):
-        # 将输入转换为适当的格式
+        if mode == "auto":
+            if mask is not None and torch.any(mask > 0):
+                mode = "mask"
+            elif analysis_models is not None:
+                mode = "face"
+            else:
+                raise Exception(
+                    "未提供非零 mask 或 analysis_models，无法确定裁剪区域"
+                )
+
         img = image[0]
         pil_image = tensor2pil(img)
+
+        if mode == "mask":
+            x, y, width, height, origin_crop_pil, region_mask_pil = (
+                self._cutout_from_mask(
+                    pil_image, mask, padding, padding_percent, force_square
+                )
+            )
+        else:
+            x, y, width, height, origin_crop_pil = self._cutout_from_face(
+                pil_image,
+                analysis_models,
+                padding,
+                padding_percent,
+                face_index,
+                force_square,
+            )
+            region_mask_pil = Image.new("L", (width, height), 255)
+
+        target_size = get_target_size(rescale_mode, custom_megapixels)
+        if target_size > 0:
+            new_width, new_height = calc_target_dimensions(
+                width, height, target_size
+            )
+            cutout_pil = origin_crop_pil.resize(
+                (new_width, new_height), resample=Image.Resampling.LANCZOS
+            )
+            region_mask_pil = region_mask_pil.resize(
+                (new_width, new_height), resample=Image.Resampling.LANCZOS
+            )
+        else:
+            new_width, new_height = width, height
+            cutout_pil = origin_crop_pil
+
+        cutout_image = pil2tensor(cutout_pil)
+        cutout_mask = pil2mask(region_mask_pil)
+        if mask_params is not None:
+            cutout_mask = mask_process(cutout_mask, mask_params, unqueeze=False)
+
+        cutinfo = {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "mask": cutout_mask,
+            "original_image": image,
+            "cutout_image": cutout_image,
+            "origin_face": pil2tensor(origin_crop_pil),
+            "new_width": new_width,
+            "new_height": new_height,
+        }
+
+        return (
+            cutinfo,
+            cutout_image,
+            cutout_mask,
+        )
+
+    @staticmethod
+    def _cutout_from_mask(pil_image, mask, padding, padding_percent, force_square):
         mask_image = mask2pil(mask)
-
-        # 查找mask中非零区域的边界框
-        non_zero_coords = []
-        for y in range(mask_image.height):
-            for x in range(mask_image.width):
-                pixel_value = mask_image.getpixel((x, y))
-                if pixel_value is None:
-                    continue
-                if isinstance(pixel_value, tuple):
-                    # 如果返回值是元组（例如RGB或RGBA值），检查任何通道是否大于0
-                    if any(v > 0 for v in pixel_value):
-                        non_zero_coords.append((x, y))
-                elif (
-                    isinstance(pixel_value, (int, float)) and pixel_value > 0
-                ):  # 如果是单个值（例如灰度图像）
-                    non_zero_coords.append((x, y))
-
-        if len(non_zero_coords) == 0:
+        bbox = mask_bbox(mask_image)
+        if bbox is None:
             raise Exception("Mask没有非零区域，无法裁剪图像")
 
-        # 计算边界框
-        x_coords, y_coords = zip(*non_zero_coords)
-        x_min, x_max = min(x_coords), max(x_coords)
-        y_min, y_max = min(y_coords), max(y_coords)
-
-        # 应用padding
+        x_min, y_min, x_max, y_max = bbox
         width = x_max - x_min
         height = y_max - y_min
 
@@ -166,96 +214,60 @@ class InpaintCutOut:
         x_max = min(pil_image.width, x_max + padding_x)
         y_max = min(pil_image.height, y_max + padding_y)
 
-        # 更新宽度和高度
         width = x_max - x_min
         height = y_max - y_min
 
-        # 如果开启强制正方形选项，扩展短边
         if force_square:
-            # 计算需要扩展的像素数
-            if width > height:
-                # 高度是短边，需要扩展
-                extra = width - height
-                y_min = max(0, y_min - extra // 2)
-                y_max = min(pil_image.height, y_max + (extra - extra // 2))
-                height = y_max - y_min
-            elif height > width:
-                # 宽度是短边，需要扩展
-                extra = height - width
-                x_min = max(0, x_min - extra // 2)
-                x_max = min(pil_image.width, x_max + (extra - extra // 2))
-                width = x_max - x_min
+            x_min, y_min, width, height = SFCutout._expand_to_square(
+                x_min, y_min, width, height, pil_image.width, pil_image.height
+            )
+            x_max = x_min + width
+            y_max = y_min + height
 
-        # 裁剪图像和mask
         cropped_image = pil_image.crop((x_min, y_min, x_max, y_max))
         cropped_mask = mask_image.crop((x_min, y_min, x_max, y_max))
 
-        # 计算目标大小
-        target_size = self._get_target_size(rescale_mode, custom_megapixels)
-
-        # 缩放图像和mask（如果需要）
-        if target_size > 0:
-            scale_factor = math.sqrt(target_size / (width * height))
-            new_width = round(width * scale_factor)
-            new_height = round(height * scale_factor)
-            cropped_image = cropped_image.resize(
-                (new_width, new_height), resample=Image.Resampling.LANCZOS
-            )
-            cropped_mask = cropped_mask.resize(
-                (new_width, new_height), resample=Image.Resampling.LANCZOS
-            )
-
-        # 为边缘创建模糊mask
-        ref_size = max(width, height)
-        margin_size = int(ref_size * margin_percent) + margin
-        blur_size = int(ref_size * blur_percent) + blur_radius
-
-        edge_mask = Image.new("L", (width, height), 255)
-        draw = ImageDraw.Draw(edge_mask)
-        draw.rectangle(((0, 0), (width, height)), outline="black", width=margin_size)
-        edge_mask = edge_mask.filter(ImageFilter.GaussianBlur(blur_size))
-
-        if target_size > 0:
-            edge_mask = edge_mask.resize(
-                (new_width, new_height), resample=Image.Resampling.LANCZOS
-            )
-
-        # 转换回tensor格式
-        cutout_image = pil2tensor(cropped_image)
-        cutout_mask = pil2mask(cropped_mask)
-
-        # 创建cutinfo字典
-        cutinfo = {
-            "x": x_min,
-            "y": y_min,
-            "width": width,
-            "height": height,
-            "mask": pil2mask(edge_mask),
-            "original_image": image,
-            "cutout_image": cutout_image,
-        }
-
-        return (
-            cutinfo,
-            cutout_image,
-            cutout_mask,
-        )
+        return x_min, y_min, width, height, cropped_image, cropped_mask
 
     @staticmethod
-    def _get_target_size(rescale_mode, custom_megapixels):
-        if rescale_mode == "custom":
-            return int(custom_megapixels * 1024 * 1024)
-        size_map = {
-            "sd15": 512 * 512,
-            "sd15+": 512 * 768,
-            "sdxl": 1024 * 1024,
-            "sdxl+": 1024 * 1280,
-            "none": -1,
-        }
-        return size_map.get(rescale_mode, -1)
+    def _cutout_from_face(
+        pil_image,
+        analysis_models,
+        padding,
+        padding_percent,
+        face_index,
+        force_square,
+    ):
+        if analysis_models is None:
+            raise Exception("face 模式需要提供 analysis_models")
+        face, x, y, width, height = analysis_models.get_single_bbox(
+            pil_image, padding, padding_percent, face_index
+        )
+        if face is None:
+            raise Exception("未在图像中检测到人脸。")
+        if force_square:
+            x, y, width, height = SFCutout._expand_to_square(
+                x, y, width, height, pil_image.width, pil_image.height
+            )
+        return x, y, width, height, pil_image.crop((x, y, x + width, y + height))
+
+    @staticmethod
+    def _expand_to_square(x, y, width, height, img_w, img_h):
+        square_size = max(width, height)
+        if square_size > img_w or square_size > img_h:
+            return x, y, width, height
+        center_x = x + width // 2
+        center_y = y + height // 2
+        new_x = max(0, center_x - square_size // 2)
+        new_y = max(0, center_y - square_size // 2)
+        if new_x + square_size > img_w:
+            new_x = img_w - square_size
+        if new_y + square_size > img_h:
+            new_y = img_h - square_size
+        return new_x, new_y, square_size, square_size
 
 
-class InpaintPaste:
+class SFPaste:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -263,7 +275,12 @@ class InpaintPaste:
                 "cutinfo": ("CUTINFO",),
             },
             "optional": {
-                "inpainted_image": ("IMAGE",),
+                "source_image": ("IMAGE",),
+                "destination_image": ("IMAGE",),
+                "upscale_method": (
+                    ["lanczos", "bilinear", "bicubic", "nearest"],
+                    {"default": "lanczos", "tooltip": "设置图像缩放的方法"},
+                ),
             },
         }
 
@@ -271,37 +288,39 @@ class InpaintPaste:
     RETURN_NAMES = ("image", "mask")
     FUNCTION = "paste"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将cutinfo中的图像贴回原图"
+    DESCRIPTION = "将裁剪信息中的图像贴回原图，支持自定义源图和目标图"
 
-    def paste(self, cutinfo, inpainted_image=None):
-        if inpainted_image is None:
-            inpainted_image = cutinfo["cutout_image"]
+    def paste(
+        self,
+        cutinfo,
+        source_image=None,
+        destination_image=None,
+        upscale_method="lanczos",
+    ):
+        if source_image is None:
+            source_image = cutinfo["cutout_image"]
+        if destination_image is None:
+            destination_image = cutinfo["original_image"]
+
         x = cutinfo["x"]
         y = cutinfo["y"]
         width = cutinfo["width"]
         height = cutinfo["height"]
         mask = cutinfo["mask"]
-        destination_image = cutinfo["original_image"]
 
-        destination = tensor2pil(destination_image[0])
-        source = tensor2pil(inpainted_image[0])
+        source = resize_tensor(source_image, width, height, upscale_method)
+        mask = resize_tensor(mask, width, height, upscale_method)
 
-        mask_image = mask2pil(mask)
+        source_pil = tensor2pil(source)
+        destination_pil = tensor2pil(destination_image)
+        mask_pil = mask2pil(mask)
 
-        # 如果源图像尺寸与目标区域尺寸不匹配，进行调整
-        if source.width != width or source.height != height:
-            source = source.resize((width, height), resample=Image.Resampling.LANCZOS)
-            mask_image = mask_image.resize(
-                (width, height), resample=Image.Resampling.LANCZOS
-            )
+        destination_pil.paste(source_pil, (x, y), mask_pil)
 
-        position = (x, y)
-        destination.paste(source, position, mask_image)
-
-        return pil2tensor(destination), pil2mask(mask_image)
+        return pil2tensor(destination_pil), pil2mask(mask_pil)
 
 
-class ExtractCutInfo:
+class SFExtractCutInfo:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -310,18 +329,51 @@ class ExtractCutInfo:
             }
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "MASK", "IMAGE")
-    RETURN_NAMES = ("x", "y", "width", "height", "mask", "original_image")
+    RETURN_TYPES = (
+        "INT",
+        "INT",
+        "INT",
+        "INT",
+        "MASK",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "INT",
+        "INT",
+    )
+    RETURN_NAMES = (
+        "x",
+        "y",
+        "width",
+        "height",
+        "mask",
+        "original_image",
+        "cutout_image",
+        "origin_face",
+        "new_width",
+        "new_height",
+    )
+    INPUT_IS_LIST = (True,)
     CATEGORY = _CATEGORY
     FUNCTION = "extract"
-    DESCRIPTION = "从 cutinfo 中提取裁剪坐标、尺寸、遮罩和原图"
+    DESCRIPTION = "从裁剪信息中提取坐标、尺寸、遮罩和图像"
 
     def extract(self, cutinfo):
+        if not isinstance(cutinfo, list) or len(cutinfo) <= 0:
+            raise Exception(f"裁剪信息不是预期的列表格式: {type(cutinfo)}")
+
+        if len(cutinfo) > 0:
+            cutinfo = cutinfo[0]
+
         return (
-            cutinfo["x"],
-            cutinfo["y"],
-            cutinfo["width"],
-            cutinfo["height"],
-            cutinfo["mask"],
-            cutinfo["original_image"],
+            cutinfo.get("x", 0),
+            cutinfo.get("y", 0),
+            cutinfo.get("width", 0),
+            cutinfo.get("height", 0),
+            cutinfo.get("mask", None),
+            cutinfo.get("original_image", None),
+            cutinfo.get("cutout_image", None),
+            cutinfo.get("origin_face", None),
+            cutinfo.get("new_width", 0),
+            cutinfo.get("new_height", 0),
         )

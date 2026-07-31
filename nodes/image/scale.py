@@ -8,6 +8,7 @@ from comfy.utils import common_upscale
 from ...sf_utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from ...sf_utils.mask_utils import solid_mask
 from ...sf_utils.image_convert import contrast_adaptive_sharpening
+from ...sf_utils.cutpaste import get_target_size
 from nodes import LoadImage
 import folder_paths
 import comfy.utils
@@ -182,16 +183,7 @@ class ImageScalerForSDModels(BaseImageScaler):
 
     @staticmethod
     def _get_target_size(rescale_mode, custom_megapixels):
-        if rescale_mode == "custom":
-            return int(custom_megapixels * 1024 * 1024)
-        size_map = {
-            "sd15": 512 * 512,
-            "sd15+": 512 * 768,
-            "sdxl": 1024 * 1024,
-            "sdxl+": 1024 * 1280,
-            "none": -1,
-        }
-        return size_map.get(rescale_mode, -1)
+        return get_target_size(rescale_mode, custom_megapixels)
 
 
 class ImageScalerByPixels(BaseImageScaler):

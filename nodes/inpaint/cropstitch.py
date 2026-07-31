@@ -13,6 +13,7 @@ from scipy.ndimage import (
 )
 
 from ...sf_utils.logger import get_logger
+from ...sf_utils.cutpaste import get_target_size
 
 logger = get_logger(__name__)
 
@@ -26,12 +27,9 @@ def calculate_target_size_from_pixels(
     current_pixels = width * height
 
     # 确定目标像素数
-    if output_target_pixels_Presets == "sd15":
-        target_pixels = 512 * 512  # 262,144像素
-    elif output_target_pixels_Presets == "sdxl":
-        target_pixels = 1024 * 1024  # 1,048,576像素
-    else:  # custom，使用浮点数乘以100万表示像素
-        target_pixels = int(output_target_pixels_custom_value * 1000000)
+    target_pixels = get_target_size(
+        output_target_pixels_Presets, output_target_pixels_custom_value
+    )
 
     # 计算缩放因子
     scale_by = math.sqrt(target_pixels / current_pixels)
@@ -1397,12 +1395,9 @@ def preresize_target_pixels_imm(
     current_pixels = current_width * current_height
 
     # 确定目标像素数
-    if preresize_target_pixels_Presets == "sd15":
-        target_pixels = 512 * 512  # 262,144像素
-    elif preresize_target_pixels_Presets == "sdxl":
-        target_pixels = 1024 * 1024  # 1,048,576像素
-    else:  # custom，使用浮点数乘以100万表示像素
-        target_pixels = int(preresize_target_pixels_custom_value * 1000000)
+    target_pixels = get_target_size(
+        preresize_target_pixels_Presets, preresize_target_pixels_custom_value
+    )
 
     # 计算缩放因子
     scale_by = math.sqrt(target_pixels / current_pixels)

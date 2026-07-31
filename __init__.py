@@ -1,6 +1,5 @@
 from .nodes.face.analysis import FaceAnalysisModels, FaceEmbedDistance, FaceSegmentation
 from .nodes.face.occluder import GeneratePreciseFaceMask
-from .nodes.face.cutpaste import FaceCutout, FacePaste, ExtractBoundingBox
 
 from .nodes.face.warp import FaceWarp
 from .nodes.face.align import (
@@ -75,7 +74,7 @@ from .nodes.utils.misc import (
 from .nodes.utils.empty_latent_ratio import EmptyLatentByAspectRatio
 from .nodes.utils.seed import SFSeed
 
-from .nodes.inpaint.cutpaste import InpaintCutOut, InpaintPaste, ExtractCutInfo
+from .nodes.inpaint.cutpaste import SFCutout, SFPaste, SFExtractCutInfo
 from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacter
 from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
@@ -125,6 +124,9 @@ NODE_CLASS_MAPPINGS = {
     "SFInpaintCrop": InpaintCrop,
     "SFInpaintStitch": InpaintStitch,
     "SFInpaintExtendOutpaint": InpaintExtendOutpaint,
+    "SFCutout": SFCutout,
+    "SFPaste": SFPaste,
+    "SFExtractCutInfo": SFExtractCutInfo,
     # 人脸遮挡节点
     "SFGeneratePreciseFaceMask": GeneratePreciseFaceMask,
     # 人脸区域节点
@@ -133,9 +135,6 @@ NODE_CLASS_MAPPINGS = {
     "SFAlignImageByFace": AlignImageByFace,
     "SFRestoreRotatedImage": RestoreRotatedImage,
     "SFExtractRotationInfo": ExtractRotationInfo,
-    "SFFaceCutout": FaceCutout,
-    "SFFacePaste": FacePaste,
-    "SFExtractBoundingBox": ExtractBoundingBox,
     "SFFaceAnalysisModels": FaceAnalysisModels,
     "SFFaceEmbedDistance": FaceEmbedDistance,
     "SFFaceSegmentation": FaceSegmentation,
@@ -201,10 +200,6 @@ NODE_CLASS_MAPPINGS = {
     "SFAddCLIPSDXLParams": AddCLIPSDXLParams,
     "SFAddCLIPSDXLRParams": AddCLIPSDXLRParams,
     "SFAdvancedCLIPTextEncodeSDXL": AdvancedCLIPTextEncodeSDXL,
-    # 局部修复节点
-    "SFInpaintCutOut": InpaintCutOut,
-    "SFInpaintPaste": InpaintPaste,
-    "SFExtractCutInfo": ExtractCutInfo,
     # HyperLoRA节点
     "SFHyperLoRALoadCharacter": HyperLoRALoadCharacter,
     "SFHyperLoRASaveCharacter": HyperLoRASaveCharacter,
@@ -260,6 +255,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFInpaintCrop": "SF Inpaint Crop",
     "SFInpaintStitch": "SF Inpaint Stitch",
     "SFInpaintExtendOutpaint": "SF Inpaint Extend Outpaint",
+    "SFCutout": "SF Cutout",
+    "SFPaste": "SF Paste",
+    "SFExtractCutInfo": "SF Extract Cut Info",
     # 人脸遮挡节点
     "SFGeneratePreciseFaceMask": "SF Generate Precise Face Mask",
     # 人脸区域节点
@@ -268,9 +266,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAlignImageByFace": "SF Align Image By Face",
     "SFRestoreRotatedImage": "SF Restore Rotated Image",
     "SFExtractRotationInfo": "SF Extract Rotation Info",
-    "SFFaceCutout": "SF Face Cutout",
-    "SFFacePaste": "SF Face Paste",
-    "SFExtractBoundingBox": "SF Extract Bounding Box",
     "SFFaceAnalysisModels": "SF Face Analysis Models",
     "SFFaceEmbedDistance": "SF Face Embed Distance",
     "SFFaceSegmentation": "SF Face Segmentation",
@@ -336,10 +331,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAddCLIPSDXLParams": "SF Add CLIP SDXL Params",
     "SFAddCLIPSDXLRParams": "SF Add CLIP SDXLR Params",
     "SFAdvancedCLIPTextEncodeSDXL": "SF Advanced CLIP Text Encode SDXL",
-    # 局部修复节点
-    "SFInpaintCutOut": "SF Inpaint Cut Out",
-    "SFInpaintPaste": "SF Inpaint Paste",
-    "SFExtractCutInfo": "SF Extract Cut Info",
     # HyperLoRA节点
     "SFHyperLoRALoadCharacter": "SF HyperLoRA Load Character",
     "SFHyperLoRASaveCharacter": "SF HyperLoRA Save Character",
