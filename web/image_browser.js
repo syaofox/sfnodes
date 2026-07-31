@@ -636,6 +636,10 @@ function registerDropFix() {
             await node.onDragDrop?.(event);
         } catch (err) {
             console.error("SFLoadImageBrowser drop failed:", err);
+        } finally {
+            // 原生 drop 处理器（负责清除 app.dragOverNode 高亮）被 stopPropagation 阻断，需自行清除
+            app.dragOverNode = null;
+            app.canvas?.setDirty?.(false, true);
         }
     }, true);
 }
