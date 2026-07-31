@@ -12,9 +12,15 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _get_notes_path() -> str:
-    p = os.path.join(folder_paths.get_user_directory(), "sfnodes", "lora_notes.json")
-    logger.debug(f"Notes path: {p}")
+def _get_notes_path(model_type: str = "loras") -> str:
+    # 保持 loras 沿用旧路径，避免现有用户备注数据迁移；其他类型按类型分目录
+    if model_type == "loras":
+        p = os.path.join(folder_paths.get_user_directory(), "sfnodes", "lora_notes.json")
+    else:
+        p = os.path.join(
+            folder_paths.get_user_directory(), "sfnodes", "model_notes", f"{model_type}.json"
+        )
+    logger.debug(f"Notes path ({model_type}): {p}")
     return p
 
 
@@ -22,8 +28,8 @@ def _get_notes_path() -> str:
 # Notes CRUD
 # ---------------------------------------------------------------------------
 
-def load_all_notes() -> dict:
-    path = _get_notes_path()
+def load_all_notes(model_type: str = "loras") -> dict:
+    path = _get_notes_path(model_type)
     if not os.path.exists(path):
         return {}
     try:
@@ -34,17 +40,17 @@ def load_all_notes() -> dict:
         return {}
 
 
-def save_all_notes(notes: dict) -> None:
-    path = _get_notes_path()
+def save_all_notes(notes: dict, model_type: str = "loras") -> None:
+    path = _get_notes_path(model_type)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(notes, f, ensure_ascii=False, indent=2)
     logger.info(f"Saved {len(notes)} note(s) to {path}")
 
 
-def get_custom_notes(lora_name: str) -> dict | None:
-    notes = load_all_notes()
-    entry = notes.get(lora_name)
+def get_custom_notes(filename: str, model_type: str = "loras") -> dict | None:
+    notes = load_all_notes(model_type)
+    entry = notes.get(filename)
     if isinstance(entry, dict):
         return entry
     if isinstance(entry, str):
@@ -52,29 +58,29 @@ def get_custom_notes(lora_name: str) -> dict | None:
     return None
 
 
-def set_custom_notes(lora_name: str, data: dict) -> dict:
-    notes = load_all_notes()
+def set_custom_notes(filename: str, data: dict, model_type: str = "loras") -> dict:
+    notes = load_all_notes(model_type)
     if data and any(v for v in data.values()):
-        notes[lora_name] = {k: v for k, v in data.items() if v}
+        notes[filename] = {k: v for k, v in data.items() if v}
     else:
-        notes.pop(lora_name, None)
-    save_all_notes(notes)
-    return get_custom_notes(lora_name) or {}
+        notes.pop(filename, None)
+    save_all_notes(notes, model_type)
+    return get_custom_notes(filename, model_type) or {}
 
 
 # ---------------------------------------------------------------------------
 # Embedded metadata reader (lightweight, no tensor loading)
 # ---------------------------------------------------------------------------
 
-def read_embedded_metadata(lora_name: str) -> dict | None:
-    if not lora_name or not lora_name.endswith(".safetensors"):
+def read_embedded_metadata(filename: str, model_type: str = "loras") -> dict | None:
+    if not filename or not filename.endswith(".safetensors"):
         return None
     try:
-        lora_path = folder_paths.get_full_path("loras", lora_name)
-        if not lora_path or not os.path.isfile(lora_path):
+        file_path = folder_paths.get_full_path(model_type, filename)
+        if not file_path or not os.path.isfile(file_path):
             return None
         from comfy.utils import safetensors_header
-        header_bytes = safetensors_header(lora_path, max_size=1024 * 1024)
+        header_bytes = safetensors_header(file_path, max_size=1024 * 1024)
         if header_bytes is None:
             return None
         header = json.loads(header_bytes)
@@ -126,9 +132,9 @@ def _extract_trigger_words(meta: dict) -> str:
 # Merge logic: custom notes > embedded metadata (field-level merge)
 # ---------------------------------------------------------------------------
 
-def get_merged_metadata(lora_name: str) -> dict:
-    custom = get_custom_notes(lora_name)
-    embedded = read_embedded_metadata(lora_name)
+def get_merged_metadata(filename: str, model_type: str = "loras") -> dict:
+    custom = get_custom_notes(filename, model_type)
+    embedded = read_embedded_metadata(filename, model_type)
 
     not_found = not custom and not embedded
     if not_found:
@@ -183,13 +189,22 @@ def _register_routes():
             return
         routes = ins.routes
 
+        def _get_model_type(request: web.Request) -> str | None:
+            model_type = request.query.get("type", "loras")
+            if model_type not in folder_paths.folder_names_and_paths:
+                return None
+            return model_type
+
         @routes.get("/api/sfnodes/lora_notes")
         async def _get_notes(request: web.Request) -> web.Response:
             try:
                 filename = request.query.get("filename", "")
                 if not filename:
                     return web.json_response({"error": "filename required"}, status=400)
-                data = get_merged_metadata(filename)
+                model_type = _get_model_type(request)
+                if model_type is None:
+                    return web.json_response({"error": "invalid type"}, status=400)
+                data = get_merged_metadata(filename, model_type)
                 return web.json_response(data)
             except Exception as e:
                 logger.error(f"GET /api/sfnodes/lora_notes failed: {e}")
@@ -201,12 +216,15 @@ def _register_routes():
                 filename = request.query.get("filename", "")
                 if not filename:
                     return web.json_response({"error": "filename required"}, status=400)
+                model_type = _get_model_type(request)
+                if model_type is None:
+                    return web.json_response({"error": "invalid type"}, status=400)
                 body = await request.json()
                 if not isinstance(body, dict):
                     return web.json_response({"error": "json object required"}, status=400)
-                set_custom_notes(filename, body)
-                data = get_merged_metadata(filename)
-                logger.info(f"Saved notes for {filename}")
+                set_custom_notes(filename, body, model_type)
+                data = get_merged_metadata(filename, model_type)
+                logger.info(f"Saved notes for {filename} ({model_type})")
                 return web.json_response(data)
             except Exception as e:
                 logger.error(f"POST /api/sfnodes/lora_notes failed: {e}")
@@ -218,10 +236,13 @@ def _register_routes():
                 filename = request.query.get("filename", "")
                 if not filename:
                     return web.json_response({"error": "filename required"}, status=400)
-                notes = load_all_notes()
+                model_type = _get_model_type(request)
+                if model_type is None:
+                    return web.json_response({"error": "invalid type"}, status=400)
+                notes = load_all_notes(model_type)
                 notes.pop(filename, None)
-                save_all_notes(notes)
-                data = get_merged_metadata(filename)
+                save_all_notes(notes, model_type)
+                data = get_merged_metadata(filename, model_type)
                 return web.json_response(data)
             except Exception as e:
                 logger.error(f"DELETE /api/sfnodes/lora_notes failed: {e}")
