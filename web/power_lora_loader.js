@@ -328,7 +328,7 @@ function showLoraInfoDialog(event, loraName, meta) {
     body.style.cssText = "overflow-y: auto; padding: 6px 0;";
 
     // row factory: editable rows
-    function createEditRow(label, isTextarea) {
+    function createEditRow(displayLabel, key, isTextarea) {
         const row = document.createElement("div");
         row.style.cssText = `
             display: flex; align-items: flex-start; gap: 10px;
@@ -339,7 +339,7 @@ function showLoraInfoDialog(event, loraName, meta) {
             flex: 0 0 100px; font-size: 12px; color: #aaa;
             padding-top: 5px; line-height: 1.4;
         `;
-        labelEl.textContent = label;
+        labelEl.textContent = displayLabel;
         const valueEl = document.createElement("div");
         valueEl.style.cssText = `
             flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
@@ -353,7 +353,7 @@ function showLoraInfoDialog(event, loraName, meta) {
 
         function renderValue() {
             valueEl.innerHTML = "";
-            const v = state[label];
+            const v = state[key];
             if (!v) valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
             else valueEl.textContent = v;
             valueEl.title = v;
@@ -363,7 +363,7 @@ function showLoraInfoDialog(event, loraName, meta) {
             actionEl.innerHTML = "";
             const btn = document.createElement("button");
             btn.textContent = "✏️";
-            btn.title = "Edit " + label;
+            btn.title = "Edit " + displayLabel;
             btn.style.cssText = `
                 background: none; border: 1px solid #555; border-radius: 4px;
                 cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 6px;
@@ -376,7 +376,7 @@ function showLoraInfoDialog(event, loraName, meta) {
 
         function startEdit() {
             const input = isTextarea ? document.createElement("textarea") : document.createElement("input");
-            input.value = state[label];
+            input.value = state[key];
             if (isTextarea) {
                 input.rows = 4;
                 input.style.resize = "vertical";
@@ -429,7 +429,7 @@ function showLoraInfoDialog(event, loraName, meta) {
             const input = valueEl.querySelector("input,textarea");
             if (!input) return;
             const newVal = input.value.trim();
-            state[label] = newVal;
+            state[key] = newVal;
             renderValue();
             renderActions();
             saveNotes();
@@ -451,7 +451,7 @@ function showLoraInfoDialog(event, loraName, meta) {
     }
 
     // read-only row factory
-    function createReadonlyRow(label, value, linkUrl) {
+    function createReadonlyRow(displayLabel, value, linkUrl) {
         const row = document.createElement("div");
         row.style.cssText = `
             display: flex; align-items: flex-start; gap: 10px;
@@ -461,7 +461,7 @@ function showLoraInfoDialog(event, loraName, meta) {
         labelEl.style.cssText = `
             flex: 0 0 100px; font-size: 12px; color: #aaa; padding-top: 5px;
         `;
-        labelEl.textContent = label;
+        labelEl.textContent = displayLabel;
         const valueEl = document.createElement("div");
         valueEl.style.cssText = `
             flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
@@ -487,12 +487,12 @@ function showLoraInfoDialog(event, loraName, meta) {
     }
 
     // ---------- build rows ----------
-    const twRow = createEditRow("trigger_words", false);
-    const descRow = createEditRow("description", true);
+    const twRow = createEditRow("Trigger Words", "trigger_words", false);
+    const descRow = createEditRow("Description", "description", true);
     body.appendChild(twRow);
     body.appendChild(descRow);
-    if (meta.base_model) body.appendChild(createReadonlyRow("base_model", meta.base_model));
-    if (meta.source_url) body.appendChild(createReadonlyRow("source_url", meta.source_url, meta.source_url));
+    if (meta.base_model) body.appendChild(createReadonlyRow("Base Model", meta.base_model));
+    if (meta.source_url) body.appendChild(createReadonlyRow("Source URL", meta.source_url, meta.source_url));
 
     // ---------- footer ----------
     const footer = document.createElement("div");
