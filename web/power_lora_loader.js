@@ -280,21 +280,28 @@ function showLoraInfoDialog(event, loraName, meta) {
         description: meta.description || "",
     };
 
-    // ---------- overlay & card ----------
-    const overlay = document.createElement("div");
-    overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); z-index: 9999;
-        display: flex; align-items: center; justify-content: center;
+    // ---------- dialog (native modal, like rgthree) ----------
+    if (!showLoraInfoDialog._cssInjected) {
+        showLoraInfoDialog._cssInjected = true;
+        const style = document.createElement("style");
+        style.textContent = `
+            dialog.sf-lora-info::backdrop { background: rgba(0,0,0,0.5); }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const dialog = document.createElement("dialog");
+    dialog.className = "sf-lora-info";
+    dialog.style.cssText = `
+        background: #2a2a2e; border: 1px solid #555; border-radius: 10px;
+        min-width: 460px; max-width: 580px; max-height: 85vh;
+        padding: 0; overflow: hidden; color: #ddd;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
     const card = document.createElement("div");
     card.style.cssText = `
-        background: #2a2a2e; border: 1px solid #555; border-radius: 10px;
-        min-width: 460px; max-width: 580px; max-height: 85vh;
-        display: flex; flex-direction: column;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: #ddd;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex; flex-direction: column; max-height: 85vh;
     `;
 
     // ---------- header ----------
@@ -540,7 +547,7 @@ function showLoraInfoDialog(event, loraName, meta) {
     card.appendChild(header);
     card.appendChild(body);
     card.appendChild(footer);
-    overlay.appendChild(card);
+    dialog.appendChild(card);
 
     // ---------- actions ----------
     function saveNotes() {
@@ -566,25 +573,31 @@ function showLoraInfoDialog(event, loraName, meta) {
     }
 
     function closeDialog() {
-        if (overlay.parentNode) document.body.removeChild(overlay);
-        document.removeEventListener("keydown", onKeydown);
+        if (dialog.open) dialog.close();
     }
 
-    function onKeydown(e) {
-        if (e.key === "Escape" && overlay.parentNode) {
-            // if a row is being edited, Escape cancels edit instead of closing
-            const editing = body.querySelector("input,textarea");
-            if (editing) return;
+    // Native <dialog> modal: Esc triggers "cancel" (unless an input is being
+    // edited, whose keydown handler stopPropagation's Escape first).
+    dialog.addEventListener("cancel", (e) => {
+        e.preventDefault();
+        closeDialog();
+    });
+    dialog.addEventListener("close", () => {
+        dialog.remove();
+    });
+    // Click on the backdrop (outside the dialog box) closes it.
+    dialog.addEventListener("click", (e) => {
+        const rect = dialog.getBoundingClientRect();
+        if (
+            e.clientX < rect.left || e.clientX > rect.right ||
+            e.clientY < rect.top || e.clientY > rect.bottom
+        ) {
             closeDialog();
         }
-    }
-
-    overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) closeDialog();
     });
-    document.addEventListener("keydown", onKeydown);
 
-    document.body.appendChild(overlay);
+    document.body.appendChild(dialog);
+    dialog.showModal();
 }
 
 // ---------------------------------------------------------------------------
@@ -990,8 +1003,15 @@ function createLoraWidget(name, node) {
                 if (hitTest(pos, w._hit.info)) {
                     const loraName = w._value?.lora;
                     if (loraName) {
+                        // 清理本次点击的拖拽状态；延迟到 pointerup 由 canvas
+                        // 处理完成后再打开对话框，避免 DOM 遮罩在点击过程中
+                        // 出现导致 LiteGraph widget 交互状态残留
+                        w._mouseDown = null;
+                        w._dragTarget = null;
                         getLoraMetadata(loraName).then(meta => {
-                            showLoraInfoDialog(event, loraName, meta);
+                            requestAnimationFrame(() => {
+                                setTimeout(() => showLoraInfoDialog(event, loraName, meta), 0);
+                            });
                         });
                     }
                     return true;
