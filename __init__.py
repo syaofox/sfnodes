@@ -16,6 +16,7 @@ from .nodes.image.files import (
     LoadImages,
 )
 from .nodes.image.browser import SFLoadImageBrowser
+from .nodes.image.load_images_path import SFLoadImagesPath
 from .nodes.image.scale import (
     GetImageSize,
     ImageScalerForSDModels,
@@ -147,6 +148,7 @@ NODE_CLASS_MAPPINGS = {
     "SFFaceBankLoader": FaceBankLoader,
     "SFLoadImages": LoadImages,
     "SFLoadImageBrowser": SFLoadImageBrowser,
+    "SFLoadImagesPath": SFLoadImagesPath,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
     "SFImageScalerForSDModels": ImageScalerForSDModels,
@@ -280,6 +282,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFaceBankLoader": "SF Face Bank Loader",
     "SFLoadImages": "SF Load Images",
     "SFLoadImageBrowser": "SF Load Image Browser",
+    "SFLoadImagesPath": "SF Load Images Path",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
     "SFImageScalerForSDModels": "SF Image Scaler For SD Models",
