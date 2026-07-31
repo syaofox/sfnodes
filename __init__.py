@@ -8,7 +8,7 @@ from .nodes.face.align import (
     RestoreRotatedImage,
     ExtractRotationInfo,
 )
-from .nodes.face.region import BiSeNetLoader, RegionSelector, GenerateRegionFaceMask
+from .nodes.face.region import GenerateRegionFaceMask
 from .nodes.face.person_mask import SFPersonMask
 from .nodes.image.files import (
     LoadImagesFromFolder,
@@ -128,8 +128,6 @@ NODE_CLASS_MAPPINGS = {
     # 人脸遮挡节点
     "SFGeneratePreciseFaceMask": GeneratePreciseFaceMask,
     # 人脸区域节点
-    "SFBiSeNetLoader": BiSeNetLoader,
-    "SFRegionSelector": RegionSelector,
     "SFGenerateRegionFaceMask": GenerateRegionFaceMask,
     # 人脸分析节点
     "SFAlignImageByFace": AlignImageByFace,
@@ -263,8 +261,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 人脸遮挡节点
     "SFGeneratePreciseFaceMask": "SF Generate Precise Face Mask",
     # 人脸区域节点
-    "SFBiSeNetLoader": "SF BiSeNet Loader",
-    "SFRegionSelector": "SF Region Selector",
     "SFGenerateRegionFaceMask": "SF Generate Region Face Mask",
     # 人脸分析节点
     "SFAlignImageByFace": "SF Align Image By Face",

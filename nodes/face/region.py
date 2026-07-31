@@ -8,8 +8,8 @@ from comfy.utils import ProgressBar
 from ...sf_utils.image_convert import np2tensor, tensor2np
 from ...sf_utils.mask_utils import invert_mask, mask_process
 from ...sf_utils.logger import get_logger
-
 from ...sf_utils.model_manager import ModelManager
+from ...sf_utils.face_detector import FaceDetector
 
 logger = get_logger(__name__)
 
@@ -102,88 +102,45 @@ class RegionExtractor:
         return region_mask
 
 
-class BiSeNetLoader:
+class GenerateRegionFaceMask:
     def __init__(self):
-        # 初始化，不加载模型，等待get_region_extractor被调用
-        self.selected_model = "bisenet_resnet_34"  # 默认使用高精度模型
+        self.selected_model = "bisenet_resnet_34"
         self.region_extractor = None
         self.model_manager = ModelManager(REGION_MODELS)
+        self.face_detector = FaceDetector()
 
     @classmethod
     def INPUT_TYPES(cls):
+        region_checkboxes = {}
+        for region in FACE_MASK_REGION_SET.keys():
+            region_checkboxes[f"use_{region}"] = ("BOOLEAN", {"default": False})
         return {
             "required": {
                 "model_choice": (
                     list(REGION_MODELS.keys()),
                     {"default": "bisenet_resnet_34", "tooltip": "选择要加载的模型"},
-                )
-            }
-        }
-
-    RETURN_TYPES = ("REGION_EXTRACTOR",)
-    RETURN_NAMES = ("region_extractor",)
-    FUNCTION = "get_region_extractor"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "加载面部区域分割模型"
-
-    def get_region_extractor(self, model_choice="bisenet_resnet_34"):
-        self.selected_model = model_choice
-        model_path = self.model_manager.get_model_path(
-            self.selected_model, sub_dir="region"
-        )
-        self.region_extractor = RegionExtractor(model_path)
-        logger.info(
-            f"已加载面部区域分割模型: {self.selected_model} - {self.model_manager.get_model_description(self.selected_model)}"
-        )
-        return (self.region_extractor,)
-
-
-class RegionSelector:
-    @classmethod
-    def INPUT_TYPES(cls):
-        all_regions = list(FACE_MASK_REGION_SET.keys())
-
-        # 为每个区域创建一个开关选项
-        region_checkboxes = {}
-        for region in all_regions:
-            region_checkboxes[f"use_{region}"] = ("BOOLEAN", {"default": False})
-
-        return {"required": {}, "optional": region_checkboxes}
-
-    RETURN_TYPES = ("REGIONS",)
-    RETURN_NAMES = ("selected_regions",)
-    FUNCTION = "select_regions"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "选择要生成遮罩的面部区域（通过复选框）"
-
-    def select_regions(self, **kwargs):
-        # 通过复选框选择区域
-        selected_regions = []
-        for region in FACE_MASK_REGION_SET.keys():
-            if kwargs.get(f"use_{region}", False):
-                selected_regions.append(region)
-
-        # 如果没有选择任何区域，默认选择皮肤
-        if len(selected_regions) == 0:
-            selected_regions = ["skin"]
-
-        logger.info(f"已选择的面部区域: {', '.join(selected_regions)}")
-        return (selected_regions,)
-
-
-class GenerateRegionFaceMask:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "region_extractor": (
-                    "REGION_EXTRACTOR",
-                    {"tooltip": "面部区域分割模型"},
                 ),
                 "input_image": ("IMAGE", {"tooltip": "输入图像"}),
-                "regions": ("REGIONS", {"tooltip": "要生成的面部区域"}),
+                "detect_face_first": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "先检测人脸并裁剪放大后再推理，小脸/非主体人脸识别更准",
+                    },
+                ),
+                "bbox_padding_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.4,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "tooltip": "人脸框外扩比例，用于包裹头发",
+                    },
+                ),
             },
             "optional": {
+                **region_checkboxes,
                 "mask_params": ("MASKPARAMS",),
             },
         }
@@ -200,52 +157,42 @@ class GenerateRegionFaceMask:
     )
     FUNCTION = "generate_mask"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "生成精确面部区域遮罩"
+    DESCRIPTION = "生成精确面部区域遮罩 (支持bisenet模型，模型按需自动下载并缓存；可先检测裁剪人脸区域再推理，小脸识别更准)"
 
-    def generate_mask(
-        self,
-        region_extractor,
-        input_image,
-        regions,
-        mask_params=None,
-    ):
-        region_indices = [
-            FACE_MASK_REGION_SET[region]
-            for region in regions
-            if region in FACE_MASK_REGION_SET
-        ]
-
-        out_mask, out_inverted_mask, out_image = [], [], []
-
-        steps = input_image.shape[0]
-        if steps > 1:
-            pbar = ProgressBar(steps)
-
-        for i in range(steps):
-            mask, processed_img = self._process_single_image(
-                input_image[i],
-                region_extractor,
-                region_indices,
-                mask_params,
-            )
-            out_mask.append(mask)
-            out_inverted_mask.append(invert_mask(mask))
-            out_image.append(processed_img)
-            if steps > 1:
-                pbar.update(1)
-
-        return (
-            torch.stack(out_mask).squeeze(-1),
-            torch.stack(out_inverted_mask).squeeze(-1),
-            torch.stack(out_image),
+    def _load_region_extractor(self, model_choice):
+        if self.region_extractor is not None and self.selected_model == model_choice:
+            return
+        self.selected_model = model_choice
+        model_path = self.model_manager.get_model_path(
+            self.selected_model, sub_dir="region"
         )
+        self.region_extractor = RegionExtractor(model_path)
+        logger.info(
+            f"已加载面部区域分割模型: {self.selected_model} - {self.model_manager.get_model_description(self.selected_model)}"
+        )
+
+    def _create_cropped_region_mask(
+        self, cv2_image, region_indices, bbox_padding_percent
+    ):
+        """先检测人脸并裁剪（适当外扩包裹头发），在裁剪区域推理后贴回原图，其余区域为黑"""
+        H, W = cv2_image.shape[:2]
+        crop_result = self.face_detector.detect_crop(cv2_image, bbox_padding_percent)
+        if crop_result is None:
+            logger.warning("未检测到人脸，回退整图推理")
+            return self.region_extractor.create_region_mask(cv2_image, region_indices)
+        crop, x, y, w, h = crop_result
+        crop_mask = self.region_extractor.create_region_mask(crop, region_indices)
+        full_mask = np.zeros((H, W), dtype=crop_mask.dtype)
+        full_mask[y : y + h, x : x + w] = crop_mask
+        return full_mask
 
     def _process_single_image(
         self,
         img,
-        region_extractor,
         region_indices,
         mask_params,
+        detect_face_first=True,
+        bbox_padding_percent=0.4,
     ):
         """处理单张图像"""
         face = tensor2np(img)
@@ -254,7 +201,14 @@ class GenerateRegionFaceMask:
             return torch.zeros_like(img)[:, :, :1], torch.zeros_like(img)
 
         cv2_image = cv2.cvtColor(np.array(face), cv2.COLOR_RGB2BGR)
-        region_mask = region_extractor.create_region_mask(cv2_image, region_indices)
+        if detect_face_first:
+            region_mask = self._create_cropped_region_mask(
+                cv2_image, region_indices, bbox_padding_percent
+            )
+        else:
+            region_mask = self.region_extractor.create_region_mask(
+                cv2_image, region_indices
+            )
 
         if region_mask is None or np.max(region_mask) == 0:
             logger.warning("未能创建有效的区域遮罩")
@@ -272,26 +226,51 @@ class GenerateRegionFaceMask:
         processed_img = img * mask.repeat(1, 1, 3)
         return mask, processed_img
 
-    # def _process_mask(
-    #     self, region_mask, img, grow, grow_percent, grow_tapered, blur, fill
-    # ):
-    #     """处理遮罩"""
-    #     mask = (
-    #         np2tensor(region_mask)
-    #         .unsqueeze(0)
-    #         .squeeze(-1)
-    #         .clamp(0, 1)
-    #         .to(device=img.device)
-    #     )
+    def generate_mask(
+        self,
+        model_choice,
+        input_image,
+        detect_face_first=True,
+        bbox_padding_percent=0.4,
+        mask_params=None,
+        **kwargs,
+    ):
+        self._load_region_extractor(model_choice)
 
-    #     grow_count = int(grow_percent * max(mask.shape)) + grow
-    #     if grow_count > 0:
-    #         mask = expand_mask(mask, grow_count, grow_tapered)
+        selected_names = [
+            region
+            for region in FACE_MASK_REGION_SET.keys()
+            if kwargs.get(f"use_{region}", False)
+        ]
 
-    #     if fill:
-    #         mask = fill_holes(mask)
+        # 如果没有选择任何区域，默认选择皮肤
+        if not selected_names:
+            selected_names = ["skin"]
+        region_indices = [FACE_MASK_REGION_SET[r] for r in selected_names]
+        logger.info(f"已选择的面部区域: {', '.join(selected_names)}")
 
-    #     if blur > 0:
-    #         mask = blur_mask(mask, blur)
+        out_mask, out_inverted_mask, out_image = [], [], []
 
-    #     return mask.squeeze(0).unsqueeze(-1)
+        steps = input_image.shape[0]
+        if steps > 1:
+            pbar = ProgressBar(steps)
+
+        for i in range(steps):
+            mask, processed_img = self._process_single_image(
+                input_image[i],
+                region_indices,
+                mask_params,
+                detect_face_first,
+                bbox_padding_percent,
+            )
+            out_mask.append(mask)
+            out_inverted_mask.append(invert_mask(mask))
+            out_image.append(processed_img)
+            if steps > 1:
+                pbar.update(1)
+
+        return (
+            torch.stack(out_mask).squeeze(-1),
+            torch.stack(out_inverted_mask).squeeze(-1),
+            torch.stack(out_image),
+        )
