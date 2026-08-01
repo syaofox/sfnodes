@@ -64,7 +64,7 @@ KREA2_PRESETS = {
         "Describe the key features of the reference image, including each character's facial "
         "expressions, gender, ethnicity, hairstyle and hair color, as well as the color, shape, "
         "size, texture, objects and background. But DO NOT describe any character's facial "
-        "features, appearance or body shape and height. Generate a new image following the "
+        "features, appearance, facial contours or body shape and height. Generate a new image following the "
         "user's instruction, keeping the characters' expressions, gender, ethnicity, hairstyle "
         "and hair color consistent with the reference where appropriate, but without "
         "referencing their facial looks or physique."
