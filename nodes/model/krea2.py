@@ -365,3 +365,120 @@ def _register_krea2_routes():
 
 
 _register_krea2_routes()
+
+
+# 图像反推的默认指令（用户提示词会替换模板占位符）。
+INTERROGATOR_DEFAULT_PROMPT = (
+    "Describe this image in detail, including the subjects, facial expressions, gender, "
+    "hairstyle, hair color, ethnicity, clothing, objects, scene, art style, colors and "
+    "composition. Provide the description as a usable image generation prompt."
+)
+
+
+class SFImageInterrogator:
+    """图像反推节点：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本。
+
+    ComfyUI 官方即支持 Krea2 的 CLIP 做多模态生成（见 comfy/sd.py 中 Krea2 的注释
+    "12-layer tap for conditioning + multimodal generate"）：先 tokenize 文本与图片，
+    再 clip.generate() 采样生成 token，最后 clip.decode() 还原为字符串。
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "clip": ("CLIP", {
+                    "tooltip": "Krea2 的 CLIP 模型。使用 CLIPLoader 加载，类型选择 krea2",
+                }),
+                "image": ("IMAGE", {
+                    "tooltip": "待反推的图片，由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述文本",
+                }),
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": INTERROGATOR_DEFAULT_PROMPT,
+                    "tooltip": "给 VLM 的指令文本，默认要求详细描述图片内容以便作为生成提示词使用，"
+                               "可按需修改",
+                }),
+                "max_length": ("INT", {
+                    "default": 256, "min": 8, "max": 4096,
+                    "tooltip": "生成文本的最大 token 数上限",
+                }),
+                "do_sample": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "是否采样生成。关闭时使用贪心解码（确定性输出），适合追求稳定",
+                }),
+                "temperature": ("FLOAT", {
+                    "default": 0.7, "min": 0.01, "max": 2.0, "step": 0.01,
+                    "tooltip": "采样温度。越高越随机，越低越保守",
+                }),
+                "top_k": ("INT", {
+                    "default": 64, "min": 0, "max": 1000,
+                    "tooltip": "仅从概率最高的 top_k 个 token 中采样。0 = 禁用",
+                }),
+                "top_p": ("FLOAT", {
+                    "default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": "核采样：从累计概率不超过 top_p 的最小 token 集合中采样",
+                }),
+                "repetition_penalty": ("FLOAT", {
+                    "default": 1.05, "min": 0.0, "max": 5.0, "step": 0.01,
+                    "tooltip": "重复惩罚。>1 抑制重复，<1 鼓励重复",
+                }),
+                "seed": ("INT", {
+                    "default": 0, "min": 0, "max": 0xffffffffffffffff,
+                    "tooltip": "随机种子。相同参数与种子可复现相同结果",
+                }),
+            },
+            "optional": {
+                "system_prompt": ("STRING", {
+                    "forceInput": True,
+                    "tooltip": "可选系统指令输入。不连接则使用 Krea2 训练时的描述指令（默认模板）",
+                }),
+                "vision_megapixels": ("FLOAT", {
+                    "default": 1.0, "min": 0.1, "max": 8.0, "step": 0.1,
+                    "tooltip": "图片送入视觉编码器前的最大尺寸（百万像素）。超过上限会缩小，"
+                               "较小的保持原始大小，不会被放大",
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    FUNCTION = "interrogate"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = ("图像反推：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本，"
+                   "可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用")
+
+    @staticmethod
+    def _scale_image(image, megapixels):
+        """将单张图片 (B,H,W,C) 缩放到 megapixels 上限（只缩小不放大），返回 [B,H,W,C] 列表。"""
+        samples = image.movedim(-1, 1)
+        total = int(megapixels * 1024 * 1024)
+        scale_by = min(1.0, math.sqrt(total / (samples.shape[3] * samples.shape[2])))
+        width = round(samples.shape[3] * scale_by)
+        height = round(samples.shape[2] * scale_by)
+        s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
+        return [s.movedim(1, -1)[:, :, :, :3]]
+
+    def interrogate(self, clip, image, prompt, max_length, do_sample, temperature, top_k,
+                    top_p, repetition_penalty, seed, system_prompt=None, vision_megapixels=1.0):
+        images_vl = self._scale_image(image, vision_megapixels)
+        system = (system_prompt or "").strip() or KREA2_SYSTEM_DEFAULT
+        template = ("<|im_start|>system\n" + system + "<|im_end|>\n"
+                    "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n")
+        # 关键：必须在文本流中插入视觉占位符，tokenize 才会把图片嵌入 token 序列
+        # （qwen3vl 仅在遇到 <|image_pad|> token 时替换为图片 embedding），否则
+        # 模型生成时看不到图片，只会产生与图无关的幻觉描述。
+        text = "<|vision_start|><|image_pad|><|vision_end|>" + prompt
+
+        tokens = clip.tokenize(text, images=images_vl, llama_template=template)
+        generated_ids = clip.generate(
+            tokens,
+            do_sample=do_sample,
+            max_length=max_length,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            seed=seed,
+        )
+        return (clip.decode(generated_ids),)
