@@ -81,6 +81,7 @@ from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.model.power_lora_loader import PowerLoraLoader
+from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt
 from .nodes.image.compare import ImageCompare
 from .nodes.text.text import (
     TextTranslation,
@@ -237,6 +238,9 @@ NODE_CLASS_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
+    # Krea2节点
+    "SFTextEncodeKrea2": TextEncodeKrea2,
+    "SFKrea2SystemPrompt": Krea2SystemPrompt,
     # Flux 分辨率节点
     "SFFluxResolution": FluxResolution,
     # 内存清理节点
@@ -371,6 +375,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
+    # Krea2节点
+    "SFTextEncodeKrea2": "SF Text Encode (Krea2)",
+    "SFKrea2SystemPrompt": "SF Krea2 System Prompt",
     # Flux 分辨率节点
     "SFFluxResolution": "SF Flux Resolution Calculator",
     # 内存清理节点
