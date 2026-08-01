@@ -22,6 +22,7 @@ import re
 import torch
 
 import comfy.utils
+from aiohttp import web
 
 # 与模型自身模板保持一致；非 Krea2 版本的 ComfyUI 上回退为字面量副本。
 try:
@@ -45,11 +46,81 @@ KREA2_SYSTEM_DEFAULT = _sys.group(1) if _sys else (
 # VLM 将用户文本与参考图融合，而不是只描述图片。对 Krea2 训练时的描述指令来说属于
 # 分布外，实验性。
 KREA2_INSTRUCT_SYSTEM = (
-    "Describe the key features of the reference image (color, shape, size, texture, objects, "
-    "background), then explain how the user's instruction should combine with or alter it, and "
-    "generate a new image meeting the instruction while staying consistent with the reference "
-    "where appropriate:"
+    "Describe the key features of the reference image, especially the characters' facial "
+    "expressions, gender, hairstyle, hair color and ethnicity, as well as the color, shape, "
+    "size, texture, objects and background. Then explain how the user's instruction should "
+    "combine with or alter it, and generate a new image meeting the instruction while keeping "
+    "the characters' expressions, gender, hairstyle, hair color, ethnicity and the reference "
+    "consistent where appropriate:"
 )
+
+# Krea2SystemPrompt 的预设：键为 combo 显示名，值为系统指令文本。'none' = 自定义。
+# 唯一数据源；前端 web/krea2_system_prompt.js 通过 GET /api/sfnodes/krea2_presets
+# 获取，切换预设时自动填充 text widget。
+KREA2_PRESETS = {
+    "none": "",
+    "default": KREA2_INSTRUCT_SYSTEM,
+    "不描述人物相貌与身材": (
+        "Describe the key features of the reference image, including each character's facial "
+        "expressions, gender, ethnicity, hairstyle and hair color, as well as the color, shape, "
+        "size, texture, objects and background. But DO NOT describe any character's facial "
+        "features, appearance or body shape and height. Generate a new image following the "
+        "user's instruction, keeping the characters' expressions, gender, ethnicity, hairstyle "
+        "and hair color consistent with the reference where appropriate, but without "
+        "referencing their facial looks or physique."
+    ),
+    "黑白漫画转真人": (
+        "Describe the key features of the reference image, especially the characters' facial "
+        "expressions, gender, hairstyle, hair color and ethnicity, as well as the composition, "
+        "poses, clothing, objects and background, but DO NOT describe or preserve the "
+        "black-and-white manga art style. The output MUST be a full-color realistic photograph "
+        "with natural skin texture, realistic lighting, shadows and vibrant colors. The output "
+        "must NOT be black-and-white, grayscale, line art, screentone, or manga style in any "
+        "way. Keep the characters' expressions, gender, hairstyle, hair color, ethnicity and "
+        "the composition, poses and scene consistent with the reference where appropriate."
+    ),
+    "真人转黑白漫画": (
+        "Describe the key features of the reference image, especially the characters' facial "
+        "expressions, gender, hairstyle, hair color and ethnicity, as well as the composition, "
+        "poses, clothing, objects and background, but DO NOT describe or preserve realistic "
+        "photographic details such as skin texture, lighting and color. The output MUST be a "
+        "black-and-white manga illustration with clean line art, screentone shading and high "
+        "contrast, and must NOT look like a realistic photograph or retain natural photo "
+        "colors. Keep the characters' expressions, gender, hairstyle, hair color, ethnicity "
+        "and the composition, poses and scene consistent with the reference where appropriate."
+    ),
+    "动画截图转真人": (
+        "Describe the key features of the reference image, especially the characters' facial "
+        "expressions, gender, hairstyle, hair color and ethnicity, as well as the composition, "
+        "poses, clothing, objects and background, but DO NOT describe or preserve the anime art "
+        "style. The output MUST be a full-color realistic photograph with natural skin texture, "
+        "realistic lighting, shadows and vibrant colors. The output must NOT be anime, "
+        "illustration, or cartoon style in any way. Keep the characters' expressions, gender, "
+        "hairstyle, hair color, ethnicity and the composition, poses and scene consistent with "
+        "the reference where appropriate."
+    ),
+    "真人转动漫截图": (
+        "Describe the key features of the reference image, especially the characters' facial "
+        "expressions, gender, hairstyle, hair color and ethnicity, as well as the composition, "
+        "poses, clothing, objects and background, but DO NOT describe or preserve realistic "
+        "photographic details such as skin texture, lighting and color. The output MUST be an "
+        "anime-style illustration with clean line art and vibrant colors, and must NOT look "
+        "like a realistic photograph. Keep the characters' expressions, gender, hairstyle, "
+        "hair color, ethnicity and the composition, poses and scene consistent with the "
+        "reference where appropriate."
+    ),
+    "任意图片转真人": (
+        "Describe the key features of the reference image, especially the characters' facial "
+        "expressions, gender, hairstyle, hair color and ethnicity, as well as the composition, "
+        "poses, clothing, objects and background, but DO NOT describe or preserve any "
+        "illustration, anime, manga, cartoon, painting, sketch or other non-photographic art "
+        "style. The output MUST be a full-color realistic photograph with natural skin "
+        "texture, realistic lighting, shadows and vibrant colors. The output must NOT be "
+        "illustration, anime, manga, cartoon, painting, sketch, or any stylized art in any "
+        "way. Keep the characters' expressions, gender, hairstyle, hair color, ethnicity and "
+        "the composition, poses and scene consistent with the reference where appropriate."
+    ),
+}
 
 _CATEGORY = "sfnodes/model"
 
@@ -238,19 +309,25 @@ class TextEncodeKrea2:
 
 
 class Krea2SystemPrompt:
-    """预置 instruct/编辑风格系统提示词的文本节点。输出接入 TextEncodeKrea2 的
-    system_prompt 输入，让提示词与参考图融合（实验性 / 分布外）。文本可自由编辑。"""
+    """预置系统提示词的文本节点。输出接入 TextEncodeKrea2 的 system_prompt 输入。
+    支持预设下拉（风格转换、特征控制），选择后自动填充并可继续手动编辑。"""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "preset": (list(KREA2_PRESETS.keys()), {
+                    "default": "default",
+                    "tooltip": "预设系统指令：'none' = 自定义；'default' = 默认 instruct 编辑"
+                               "风格指令；其他预设为风格转换或特征控制指令。选择预设会自动"
+                               "填充下方文本，之后仍可手动编辑",
+                }),
                 "text": ("STRING", {
                     "multiline": True,
                     "default": KREA2_INSTRUCT_SYSTEM,
-                    "tooltip": "Krea2 VLM 的系统指令。默认为 instruct 编辑风格指令，可使提示词"
-                               "与参考图融合（实验性，分布外）。可按需编辑；粘贴普通的描述指令"
-                               "可回退到默认行为",
+                    "tooltip": "Krea2 VLM 的系统指令。选择预设会自动填充；'none' 时自由编辑。"
+                               "默认（instruct 编辑风格指令）可使提示词与参考图融合，实验性、"
+                               "分布外；粘贴普通的描述指令可回退到 Krea2 默认行为",
                 }),
             },
         }
@@ -260,7 +337,31 @@ class Krea2SystemPrompt:
     FUNCTION = "run"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("预置 instruct 风格系统提示词的文本节点，输出接入 Text Encode (Krea2) "
-                   "的 system_prompt 输入")
+                   "的 system_prompt 输入。支持预设下拉（风格转换、特征控制）与自定义")
 
-    def run(self, text):
+    def run(self, preset, text):
+        text = (text or "").strip()
+        if not text:
+            text = KREA2_PRESETS.get(preset, "")
         return (text,)
+
+
+def _register_krea2_routes():
+    """提供预设数据 API，供前端 web/krea2_system_prompt.js 获取（唯一数据源）。"""
+    try:
+        from server import PromptServer
+
+        ins = getattr(PromptServer, "instance", None)
+        if ins is None or not hasattr(ins, "routes"):
+            return
+        routes = ins.routes
+
+        @routes.get("/api/sfnodes/krea2_presets")
+        async def _krea2_presets(request: web.Request) -> web.Response:
+            return web.json_response(KREA2_PRESETS)
+
+    except Exception:
+        pass
+
+
+_register_krea2_routes()
