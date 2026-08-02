@@ -1,10 +1,11 @@
 // ==========================================================================
-// Multi LoRA Loader - Folder Tree View for Dropdown
+// SF LoRA Loader - Folder Tree View for Dropdown
 // ==========================================================================
 //
 // Description:
 // JavaScript extension that provides folder tree view for LoRA dropdown menus
-// in MultiLoraLoader and MultiLoraLoaderModelOnly nodes.
+// in SFLoraLoader, SFLoraLoaderModelOnly, MultiLoraLoader and
+// MultiLoraLoaderModelOnly nodes.
 //
 // Features:
 // - Displays LoRA files in a collapsible folder tree structure
@@ -34,7 +35,7 @@ app.registerExtension({
 
         app.ui.settings.addSetting({
             id: "sfnodes.MultiLoraLoader.DisplayMode",
-            name: "SF LoRA Loader: Multi-Lora display mode",
+            name: "SF LoRA Loader: dropdown display mode (flat list / folder tree)",
             defaultValue: DISPLAY_MODE.TREE,
             type: "combo",
             options: () => {
@@ -99,7 +100,9 @@ app.registerExtension({
             if (!node) return;
             
             const isMultiLora = node.comfyClass === "SFMultiLoraLoader" || 
-                               node.comfyClass === "SFMultiLoraLoaderModelOnly";
+                               node.comfyClass === "SFMultiLoraLoaderModelOnly" ||
+                               node.comfyClass === "SFLoraLoader" ||
+                               node.comfyClass === "SFLoraLoaderModelOnly";
             if (!isMultiLora) return;
 
             for (const mutation of mutations) {
@@ -107,7 +110,7 @@ app.registerExtension({
                     if (added.classList?.contains("litecontextmenu")) {
                         const overWidget = app.canvas.getWidgetAtCursor();
                         
-                        if (overWidget?.name?.match(/^lora_\d+_name$/)) {
+                        if (overWidget?.name?.match(/^lora(?:_\d+)?_name$/)) {
                             requestAnimationFrame(() => {
                                 if (!added.querySelector(".comfy-context-menu-filter")) return;
                                 updateMenu(added, overWidget);
