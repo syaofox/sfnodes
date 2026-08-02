@@ -37,7 +37,6 @@ def _resolve_folder(folder: str) -> str:
     target = os.path.normpath(os.path.join(base, name))
     if not (target == base or target.startswith(base + os.sep)):
         target = os.path.join(base, "default")
-    os.makedirs(target, exist_ok=True)
     return target
 
 
@@ -101,12 +100,21 @@ class SFLoadImagesPath:
 
     def load_images(self, folder, image_load_cap=0, skip_first_images=0, select_every_nth=1):
         directory = _resolve_folder(folder)
-        if not os.listdir(directory):
-            raise FileNotFoundError(f"No files in directory '{directory}'.")
+        if not os.path.isdir(directory):
+            raise FileNotFoundError(
+                f"Directory '{directory}' does not exist. "
+                "Please create it under user/sfnodes/images/ and add image files, "
+                "then click the refresh button on the node to update the folder list."
+            )
 
         dir_files = _sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
         if len(dir_files) == 0:
-            raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
+            entries = sorted(os.listdir(directory))[:5]
+            hint = ", ".join(repr(e) for e in entries) if entries else "directory is empty"
+            raise FileNotFoundError(
+                f"No images could be loaded from directory '{directory}' "
+                f"(contents: {hint}). Supported formats include png/jpg/jpeg/webp/gif/bmp/tiff."
+            )
 
         sizes = {}
         has_alpha = False
