@@ -208,8 +208,9 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                 valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
             } else if (key === "description") {
                 // Description 支持 Markdown：查看态渲染，编辑态编辑源码
+                // 相对路径（sample/xxx.png）按当前 lora 目录解析，目录改名后自动跟随
                 valueEl.style.whiteSpace = "normal";
-                valueEl.innerHTML = renderMarkdown(v);
+                valueEl.innerHTML = renderMarkdown(v, { resolveRelative: resolveNoteRelativeUrl });
             } else {
                 valueEl.style.whiteSpace = "pre-wrap";
                 valueEl.textContent = v;
@@ -429,9 +430,18 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     function buildSampleMarkdown(path) {
         const base = path.split("/").pop() || "image";
         const alt = base.replace(/\.[^.]+$/, "");
-        // encodeURIComponent 不编码括号，需手动转义，避免 markdown 解析截断 URL
-        const url = encodeURIComponent(path).replace(/\(/g, "%28").replace(/\)/g, "%29");
-        return `![${alt}](/api/sfnodes/lora_samples/image?path=${url})`;
+        // 相对 lora 目录的路径：目录改名/移动后，渲染时按当前 lora 路径解析，无需修复
+        const rel = `sample/${encodeURIComponent(base)}`;
+        return `![${alt}](${rel})`;
+    }
+
+    // 把描述中的相对路径解析为 sample 图片绝对 URL（基于当前 lora 路径）
+    function resolveNoteRelativeUrl(rel) {
+        let r = rel;
+        try { r = decodeURIComponent(rel); } catch { /* 保留原样 */ }
+        const idx = name.lastIndexOf("/");
+        const dir = idx === -1 ? "" : name.slice(0, idx + 1);
+        return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
     }
 
     function insertAtCursor(textarea, text) {

@@ -32,6 +32,14 @@ const resolveImgSrc = (u) => {
     const r = resolveUrl(u);
     return /^data:/.test(r) && !/^data:image\//.test(r) ? "" : r;
 };
+// 相对路径判定：非协议/绝对路径（`//`、`http(s):`、`data:`、`/` 开头）即相对
+const isRelativeUrl = (u) => !/^(?:https?:)?\/\//.test(u) && !/^data:/.test(u) && !u.startsWith("/");
+
+// 应用相对路径解析：优先用调用方提供的 resolveRelative，缺省退回 origin 前缀
+function resolveSrcUrl(u, resolveRelative) {
+    if (resolveRelative && isRelativeUrl(u)) return resolveRelative(u);
+    return resolveUrl(u);
+}
 
 const IMG_STYLE = "max-width:100%;border-radius:6px;display:block;margin:6px 0;border:1px solid #444;";
 const LINK_STYLE = "color:#7aa2ff;text-decoration:none;word-break:break-all;";
@@ -47,7 +55,7 @@ const HEADING_STYLES = [H1_STYLE, H2_STYLE, H3_STYLE, H4_STYLE, H5_STYLE, H6_STY
 
 // Inline parsing. Input must already be HTML-escaped; the output is a
 // whitelisted HTML fragment built from that escaped text.
-function inline(src) {
+function inline(src, resolveRelative) {
     let s = src;
 
     // Code spans (content kept verbatim)
@@ -56,15 +64,17 @@ function inline(src) {
     // Images: ![alt](url)
     // URL 可含平衡括号（如文件名 "a (1).png"），支持一层嵌套
     s = s.replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, alt, src) => {
-        const url = resolveImgSrc(src);
+        const raw = resolveSrcUrl(src, resolveRelative);
+        const url = resolveImgSrc(raw);
         if (!url) return "";
         return `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${alt}" loading="lazy" style="${IMG_STYLE}"></a>`;
     });
 
     // Links: [text](url)
-    s = s.replace(/(?<!!)\[([^\]]+)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, text, href) =>
-        `<a href="${resolveHref(href)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text)}</a>`
-    );
+    s = s.replace(/(?<!!)\[([^\]]+)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, text, href) => {
+        const raw = resolveSrcUrl(href, resolveRelative);
+        return `<a href="${resolveHref(raw)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text, resolveRelative)}</a>`;
+    });
 
     // Bold / strikethrough / italic
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -94,8 +104,9 @@ function inline(src) {
     return s;
 }
 
-function renderMarkdown(src) {
+function renderMarkdown(src, options) {
     if (!src) return "";
+    const resolveRelative = typeof options === "function" ? options : options?.resolveRelative;
     const lines = escapeHtml(src).split(/\r?\n/);
     const out = [];
     let i = 0;
@@ -115,7 +126,7 @@ function renderMarkdown(src) {
                 stack.push({ level: it.level, ordered: it.ordered });
                 h += openTag(it.ordered);
             }
-            h += `<li>${inline(it.content)}`;
+            h += `<li>${inline(it.content, resolveRelative)}`;
         }
         while (stack.length) h += "</li>" + closeTag(stack.pop().ordered);
         return h;
@@ -141,7 +152,7 @@ function renderMarkdown(src) {
         const h = line.match(/^(#{1,6})\s+(.+)$/);
         if (h) {
             const lvl = h[1].length;
-            out.push(`<h${lvl} style="${HEADING_STYLES[lvl - 1]}">${inline(h[2])}</h${lvl}>`);
+            out.push(`<h${lvl} style="${HEADING_STYLES[lvl - 1]}">${inline(h[2], resolveRelative)}</h${lvl}>`);
             i++;
             continue;
         }
@@ -160,7 +171,7 @@ function renderMarkdown(src) {
                 buf.push(lines[i].replace(/^&gt;\s?/, ""));
                 i++;
             }
-            out.push(`<blockquote style="margin:6px 0;padding:4px 12px;border-left:3px solid #6af;color:#bbb;">${inline(buf.join("<br>"))}</blockquote>`);
+            out.push(`<blockquote style="margin:6px 0;padding:4px 12px;border-left:3px solid #6af;color:#bbb;">${inline(buf.join("<br>"), resolveRelative)}</blockquote>`);
             continue;
         }
 
@@ -192,7 +203,7 @@ function renderMarkdown(src) {
             buf.push(lines[i]);
             i++;
         }
-        out.push(`<p style="margin:4px 0;">${inline(buf.join("<br>"))}</p>`);
+        out.push(`<p style="margin:4px 0;">${inline(buf.join("<br>"), resolveRelative)}</p>`);
     }
 
     return out.join("");
