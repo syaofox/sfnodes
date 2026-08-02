@@ -54,14 +54,15 @@ function inline(src) {
     s = s.replace(/`([^`\n]+)`/g, (m, code) => `<code style="${CODE_STYLE}">${code}</code>`);
 
     // Images: ![alt](url)
-    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g, (m, alt, src) => {
+    // URL 可含平衡括号（如文件名 "a (1).png"），支持一层嵌套
+    s = s.replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, alt, src) => {
         const url = resolveImgSrc(src);
         if (!url) return "";
         return `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${alt}" loading="lazy" style="${IMG_STYLE}"></a>`;
     });
 
     // Links: [text](url)
-    s = s.replace(/(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g, (m, text, href) =>
+    s = s.replace(/(?<!!)\[([^\]]+)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, text, href) =>
         `<a href="${resolveHref(href)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text)}</a>`
     );
 
@@ -70,11 +71,24 @@ function inline(src) {
     s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
     s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
 
-    // Bare http(s) URLs
+    // Bare http(s) URLs（括号需配对才保留，避免句末标点误吞）
     s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, (m, pre, url) => {
-        const trimmed = url.replace(/[.,;:!?)\]]+$/, "");
-        const tail = url.slice(trimmed.length);
-        return `${pre}<a href="${trimmed}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${trimmed}</a>${tail}`;
+        const TRAILING = ".,;:!?]。，、；：！？）";
+        while (url.length) {
+            const last = url[url.length - 1];
+            if (TRAILING.includes(last)) {
+                url = url.slice(0, -1);
+                continue;
+            }
+            const open = (url.match(/\(/g) || []).length;
+            const close = (url.match(/\)/g) || []).length;
+            if (last === ")" && close > open) {
+                url = url.slice(0, -1);
+                continue;
+            }
+            break;
+        }
+        return `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${url}</a>`;
     });
 
     return s;

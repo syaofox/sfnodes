@@ -168,7 +168,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                 input.style.resize = "vertical";
             }
             if (key === "description") {
-                input.placeholder = "支持 Markdown：**加粗**、[链接](url)、列表、代码块；点「🖼️ 示例图」插入 sample 图片";
+                input.placeholder = "支持 Markdown：**加粗**、[链接](url)、列表、代码块；下方示例图点击即可插入";
             }
             input.style.cssText = `
                 width: 100%; box-sizing: border-box;
@@ -179,24 +179,15 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             valueEl.innerHTML = "";
             valueEl.appendChild(input);
             actionEl.innerHTML = "";
+            row._editing = true;
+            row._baseValue = state[key];
+            row._dirty = false;
+            renderFooterActions();
 
-            // 描述行按钮竖向排列：示例图、上传、保存、取消
+            // 描述行：仅保留上传按钮；示例图面板默认展开；保存/取消移至底部按钮栏
             if (key === "description") {
                 actionEl.style.flexDirection = "column";
                 if (name && name !== "None") {
-                    const sampleBtn = document.createElement("button");
-                    sampleBtn.textContent = "🖼️";
-                    sampleBtn.title = "选择该 LoRA sample 目录中的图片插入";
-                    sampleBtn.style.cssText = `
-                        background: none; border: 1px solid #555; border-radius: 4px;
-                        cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 5px;
-                    `;
-                    sampleBtn.addEventListener("click", () => {
-                        if (sampleOpen) closeSamplePanel();
-                        else openSamplePanel(input);
-                    });
-                    actionEl.appendChild(sampleBtn);
-
                     const uploadBtn = document.createElement("button");
                     uploadBtn.textContent = "📤";
                     uploadBtn.title = "上传图片到该 LoRA 的 sample 目录并插入";
@@ -206,31 +197,20 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                     `;
                     uploadBtn.addEventListener("click", () => uploadInput.click());
                     actionEl.appendChild(uploadBtn);
+                    openSamplePanel(input);
                 }
             } else {
                 actionEl.style.flexDirection = "";
             }
 
-            // save button
-            const saveBtn = document.createElement("button");
-            saveBtn.textContent = "💾";
-            saveBtn.title = "Save (Enter)";
-            saveBtn.style.cssText = `
-                background: none; border: 1px solid #4f7cff; border-radius: 4px;
-                cursor: pointer; font-size: 12px; color: #7aa2ff; padding: 2px 6px;
-            `;
-            saveBtn.addEventListener("click", () => saveEdit());
-            // cancel button
-            const cancelBtn = document.createElement("button");
-            cancelBtn.textContent = "✕";
-            cancelBtn.title = "Cancel (Esc)";
-            cancelBtn.style.cssText = `
-                background: none; border: 1px solid #555; border-radius: 4px;
-                cursor: pointer; font-size: 12px; color: #aaa; padding: 2px 6px;
-            `;
-            cancelBtn.addEventListener("click", () => cancelEdit());
-            actionEl.appendChild(saveBtn);
-            actionEl.appendChild(cancelBtn);
+            // 内容改动追踪：变化时刷新底部按钮（Save 加 *）
+            input.addEventListener("input", () => {
+                const dirty = input.value !== row._baseValue;
+                if (dirty !== row._dirty) {
+                    row._dirty = dirty;
+                    renderFooterActions();
+                }
+            });
 
             input.addEventListener("keydown", (e) => {
                 if (e.key === "Enter" && !isTextarea) {
@@ -251,10 +231,13 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             const input = valueEl.querySelector("input,textarea");
             if (!input) return false;
             state[key] = input.value.trim();
+            row._editing = false;
+            row._dirty = false;
             actionEl.style.flexDirection = "";
             closeSamplePanel();
             renderValue();
             renderActions();
+            renderFooterActions();
             return true;
         };
 
@@ -263,11 +246,20 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
         }
 
         function cancelEdit() {
+            if (row._editing) {
+                // 放弃修改：恢复进入编辑前的基准值（防御其他路径中途写入 state）
+                state[key] = row._baseValue;
+            }
+            row._editing = false;
+            row._dirty = false;
             actionEl.style.flexDirection = "";
             closeSamplePanel();
             renderValue();
             renderActions();
+            renderFooterActions();
         }
+
+        row.cancelEdit = cancelEdit;
 
         row.refresh = function () {
             renderValue();
@@ -365,14 +357,16 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     function buildSampleMarkdown(path) {
         const base = path.split("/").pop() || "image";
         const alt = base.replace(/\.[^.]+$/, "");
-        return `![${alt}](/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)})`;
+        // encodeURIComponent 不编码括号，需手动转义，避免 markdown 解析截断 URL
+        const url = encodeURIComponent(path).replace(/\(/g, "%28").replace(/\)/g, "%29");
+        return `![${alt}](/api/sfnodes/lora_samples/image?path=${url})`;
     }
 
     function insertAtCursor(textarea, text) {
         const start = textarea.selectionStart ?? textarea.value.length;
         const end = textarea.selectionEnd ?? start;
         textarea.setRangeText(text, start, end, "end");
-        state.description = textarea.value;
+        // 不直接写 state：提交（Save）时统一从输入框读取，取消时保持原始内容
         textarea.focus();
         const pos = start + text.length;
         textarea.selectionStart = textarea.selectionEnd = pos;
@@ -521,18 +515,37 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     }, "Clear custom notes for this model");
     const spacer = document.createElement("div");
     spacer.style.cssText = "flex: 1;";
-    const doneBtn = makeFooterBtn("Done", "#4f7cff", () => {
-        // 先提交未保存的编辑再关闭，防止误操作丢失
-        twRow.commitEdit();
-        descRow.commitEdit();
-        saveNotes();
-        closeDialog();
-    }, "保存并关闭");
+    const footerRight = document.createElement("div");
+    footerRight.style.cssText = "display: flex; gap: 8px;";
+
+    // 底部右侧按钮随状态切换：编辑中 = 取消 + Save；浏览态 = Done（关闭）
+    function renderFooterActions() {
+        footerRight.innerHTML = "";
+        const editing = twRow._editing || descRow._editing;
+        if (editing) {
+            const cancelBtn = makeFooterBtn("✕ Cancel", "#aaa", () => {
+                twRow.cancelEdit();
+                descRow.cancelEdit();
+            }, "放弃修改返回浏览页");
+            const dirty = twRow._dirty || descRow._dirty;
+            const saveBtn = makeFooterBtn(dirty ? "Save*" : "Save", "#4f7cff", () => {
+                twRow.commitEdit();
+                descRow.commitEdit();
+                saveNotes();
+            }, "保存并返回浏览页");
+            footerRight.appendChild(cancelBtn);
+            footerRight.appendChild(saveBtn);
+        } else {
+            const doneBtn = makeFooterBtn("Done", "#4f7cff", () => closeDialog(), "关闭");
+            footerRight.appendChild(doneBtn);
+        }
+    }
 
     footer.appendChild(copyBtn);
     footer.appendChild(clearBtn);
     footer.appendChild(spacer);
-    footer.appendChild(doneBtn);
+    footer.appendChild(footerRight);
+    renderFooterActions();
 
     card.appendChild(header);
     card.appendChild(body);
@@ -564,7 +577,12 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     }
 
     function closeDialog() {
-        if (dialog.open) dialog.close();
+        if (!dialog.open) return;
+        // 有未保存的修改时确认，防止误关丢失内容
+        if ((twRow._editing && twRow._dirty) || (descRow._editing && descRow._dirty)) {
+            if (!confirm("有未保存的修改，确定要关闭吗？")) return;
+        }
+        dialog.close();
     }
 
     // Native <dialog> modal: Esc triggers "cancel" (unless an input is being
