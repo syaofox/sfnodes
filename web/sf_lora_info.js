@@ -6,6 +6,78 @@ import { app } from "/scripts/app.js";
 import { renderMarkdown } from "./sf_markdown.js";
 
 // ---------------------------------------------------------------------------
+// PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
+// 返回 { chunk: "workflow" | "prompt", data: string } 或 null
+// ---------------------------------------------------------------------------
+async function readPngWorkflowData(url) {
+    let resp;
+    try { resp = await fetch(url); } catch { return null; }
+    if (!resp.ok) return null;
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // PNG 签名 89 50 4E 47 ...
+    if (bytes.length < 24 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return null;
+    const dec = new TextDecoder();
+    let off = 8;
+    while (off + 12 <= bytes.length) {
+        const len = ((bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]) >>> 0;
+        const type = String.fromCharCode(bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]);
+        const dataStart = off + 8;
+        const dataEnd = dataStart + len;
+        if (dataEnd + 4 > bytes.length) break;
+        if (type === "workflow" || type === "prompt") {
+            return { chunk: type, data: dec.decode(bytes.slice(dataStart, dataEnd)) };
+        }
+        if (type === "tEXt") {
+            const str = dec.decode(bytes.slice(dataStart, dataEnd));
+            const nul = str.indexOf("\0");
+            if (nul > 0) {
+                const key = str.slice(0, nul);
+                const value = str.slice(nul + 1);
+                if (key === "workflow" || key === "prompt") return { chunk: key, data: value };
+            }
+        }
+        off = dataEnd + 4;
+    }
+    return null;
+}
+
+// 将图片作为工作流载入：新建工作流标签页（不替换当前画布）
+async function loadImageAsWorkflow(path, onError) {
+    const url = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+    const embedded = await readPngWorkflowData(url);
+    if (!embedded) {
+        onError("该图片未内嵌工作流数据，无法载入为工作流（可用 SaveImage 输出的 PNG 测试）。");
+        return false;
+    }
+    try {
+        const data = JSON.parse(embedded.data);
+        const load = async () => {
+            if (embedded.chunk === "prompt" && typeof app.loadApiJson === "function") {
+                await app.loadApiJson(data);
+            } else {
+                await app.loadGraphData(data, true, true);
+            }
+        };
+        // 首选：新建工作流标签页载入，保留当前画布
+        const cmd = app.extensionManager?.command;
+        if (cmd && typeof cmd.execute === "function") {
+            await cmd.execute("Comfy.NewBlankWorkflow");
+            await load();
+            return true;
+        }
+        // 兜底（旧版环境无命令系统）：替换当前画布，需确认
+        if (!confirm("当前 ComfyUI 不支持新建标签，载入将替换当前画布内容，继续吗？")) return false;
+        await load();
+        return true;
+    } catch (e) {
+        console.warn("[SF Model Info] load workflow failed:", e);
+        onError("工作流载入失败：" + (e.message || e));
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Metadata fetch (merged custom notes + embedded safetensors metadata via
 // the /api/sfnodes/lora_notes endpoint, generic over folder type)
 // ---------------------------------------------------------------------------
@@ -415,8 +487,29 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                     border: none; border-radius: 0 6px 0 6px; cursor: pointer;
                     font-size: 11px;
                 `;
-                wrap.addEventListener("mouseenter", () => { delBtn.style.display = "block"; });
-                wrap.addEventListener("mouseleave", () => { delBtn.style.display = "none"; });
+                wrap.addEventListener("mouseenter", () => {
+                    delBtn.style.display = "block";
+                    loadBtn.style.display = "block";
+                });
+                wrap.addEventListener("mouseleave", () => {
+                    delBtn.style.display = "none";
+                    loadBtn.style.display = "none";
+                });
+                // 载入工作流按钮：悬停显示，右下角 📂（解析 PNG 内嵌 workflow 数据）
+                const loadBtn = document.createElement("button");
+                loadBtn.textContent = "📂";
+                loadBtn.title = "将该图片载入为工作流（需内嵌工作流数据）";
+                loadBtn.style.cssText = `
+                    position: absolute; bottom: 0; right: 0; display: none;
+                    width: 18px; height: 18px; padding: 0; line-height: 1;
+                    background: rgba(79, 124, 255, 0.9); color: #fff;
+                    border: none; border-radius: 6px 0 6px 0; cursor: pointer;
+                    font-size: 11px;
+                `;
+                loadBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    await loadImageAsWorkflow(path, (msg) => { sampleHint.textContent = msg; });
+                });
                 delBtn.addEventListener("click", async (e) => {
                     e.stopPropagation();
                     const fileName = path.split("/").pop();
@@ -435,6 +528,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                 });
                 wrap.appendChild(thumb);
                 wrap.appendChild(delBtn);
+                wrap.appendChild(loadBtn);
                 sampleGrid.appendChild(wrap);
             }
         } catch (e) {
