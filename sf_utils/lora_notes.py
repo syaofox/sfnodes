@@ -255,3 +255,6 @@ def _register_routes():
 
 
 _register_routes()
+
+# 导入以触发 LoRA 示例图（sample）API 路由注册
+from . import lora_samples  # noqa: F401, E402

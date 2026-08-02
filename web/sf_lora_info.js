@@ -3,6 +3,7 @@
 // Used by SFPowerLoraLoader and SFLoraLoaderModelOnly (and future nodes).
 // ==========================================================================
 import { app } from "/scripts/app.js";
+import { renderMarkdown } from "./sf_markdown.js";
 
 // ---------------------------------------------------------------------------
 // Metadata fetch (merged custom notes + embedded safetensors metadata via
@@ -62,14 +63,14 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     dialog.className = "sf-lora-info";
     dialog.style.cssText = `
         background: #2a2a2e; border: 1px solid #555; border-radius: 10px;
-        min-width: 460px; max-width: 580px; max-height: 85vh;
+        min-width: 560px; max-width: 720px; max-height: 92vh;
         padding: 0; overflow: hidden; color: #ddd;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
     const card = document.createElement("div");
     card.style.cssText = `
-        display: flex; flex-direction: column; max-height: 85vh;
+        display: flex; flex-direction: column; max-height: 92vh;
     `;
 
     // ---------- header ----------
@@ -103,7 +104,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     body.style.cssText = "overflow-y: auto; padding: 6px 0;";
 
     // row factory: editable rows
-    function createEditRow(displayLabel, key, isTextarea) {
+    function createEditRow(displayLabel, key, isTextarea, hint) {
         const row = document.createElement("div");
         row.style.cssText = `
             display: flex; align-items: flex-start; gap: 10px;
@@ -115,6 +116,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             padding-top: 5px; line-height: 1.4;
         `;
         labelEl.textContent = displayLabel;
+        if (hint) labelEl.title = hint;
         const valueEl = document.createElement("div");
         valueEl.style.cssText = `
             flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
@@ -129,8 +131,17 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
         function renderValue() {
             valueEl.innerHTML = "";
             const v = state[key];
-            if (!v) valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
-            else valueEl.textContent = v;
+            if (!v) {
+                valueEl.style.whiteSpace = "pre-wrap";
+                valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
+            } else if (key === "description") {
+                // Description 支持 Markdown：查看态渲染，编辑态编辑源码
+                valueEl.style.whiteSpace = "normal";
+                valueEl.innerHTML = renderMarkdown(v);
+            } else {
+                valueEl.style.whiteSpace = "pre-wrap";
+                valueEl.textContent = v;
+            }
             valueEl.title = v;
         }
 
@@ -153,8 +164,11 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             const input = isTextarea ? document.createElement("textarea") : document.createElement("input");
             input.value = state[key];
             if (isTextarea) {
-                input.rows = 4;
+                input.rows = 12;
                 input.style.resize = "vertical";
+            }
+            if (key === "description") {
+                input.placeholder = "支持 Markdown：**加粗**、[链接](url)、列表、代码块；点「🖼️ 示例图」插入 sample 图片";
             }
             input.style.cssText = `
                 width: 100%; box-sizing: border-box;
@@ -165,6 +179,38 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             valueEl.innerHTML = "";
             valueEl.appendChild(input);
             actionEl.innerHTML = "";
+
+            // 描述行按钮竖向排列：示例图、上传、保存、取消
+            if (key === "description") {
+                actionEl.style.flexDirection = "column";
+                if (name && name !== "None") {
+                    const sampleBtn = document.createElement("button");
+                    sampleBtn.textContent = "🖼️";
+                    sampleBtn.title = "选择该 LoRA sample 目录中的图片插入";
+                    sampleBtn.style.cssText = `
+                        background: none; border: 1px solid #555; border-radius: 4px;
+                        cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 5px;
+                    `;
+                    sampleBtn.addEventListener("click", () => {
+                        if (sampleOpen) closeSamplePanel();
+                        else openSamplePanel(input);
+                    });
+                    actionEl.appendChild(sampleBtn);
+
+                    const uploadBtn = document.createElement("button");
+                    uploadBtn.textContent = "📤";
+                    uploadBtn.title = "上传图片到该 LoRA 的 sample 目录并插入";
+                    uploadBtn.style.cssText = `
+                        background: none; border: 1px solid #555; border-radius: 4px;
+                        cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 5px;
+                    `;
+                    uploadBtn.addEventListener("click", () => uploadInput.click());
+                    actionEl.appendChild(uploadBtn);
+                }
+            } else {
+                actionEl.style.flexDirection = "";
+            }
+
             // save button
             const saveBtn = document.createElement("button");
             saveBtn.textContent = "💾";
@@ -200,17 +246,25 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             input.select();
         }
 
-        function saveEdit() {
+        // 提交当前编辑（若处于编辑态），返回是否提交过
+        row.commitEdit = function () {
             const input = valueEl.querySelector("input,textarea");
-            if (!input) return;
-            const newVal = input.value.trim();
-            state[key] = newVal;
+            if (!input) return false;
+            state[key] = input.value.trim();
+            actionEl.style.flexDirection = "";
+            closeSamplePanel();
             renderValue();
             renderActions();
-            saveNotes();
+            return true;
+        };
+
+        function saveEdit() {
+            if (row.commitEdit()) saveNotes();
         }
 
         function cancelEdit() {
+            actionEl.style.flexDirection = "";
+            closeSamplePanel();
             renderValue();
             renderActions();
         }
@@ -263,11 +317,139 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
 
     // ---------- build rows ----------
     const twRow = createEditRow("Trigger Words", "trigger_words", false);
-    const descRow = createEditRow("Description", "description", true);
+    const descRow = createEditRow(
+        "Description",
+        "description",
+        true,
+        "支持 Markdown 格式：![图片](url)、[链接](url)、**加粗**、列表、代码块等"
+    );
     body.appendChild(twRow);
     body.appendChild(descRow);
     if (meta.base_model) body.appendChild(createReadonlyRow("Base Model", meta.base_model));
     if (meta.source_url) body.appendChild(createReadonlyRow("Source URL", meta.source_url, meta.source_url));
+
+    // ---------- sample images（描述 Markdown 图片插入） ----------
+    const samplePanel = document.createElement("div");
+    samplePanel.style.cssText = `
+        display: none; padding: 10px 18px; border-bottom: 1px solid #3a3a3e;
+    `;
+    const samplePanelHead = document.createElement("div");
+    samplePanelHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#aaa;";
+    const samplePanelTitle = document.createElement("span");
+    samplePanelTitle.textContent = "LoRA 示例图（点击插入）";
+    const sampleCloseBtn = document.createElement("button");
+    sampleCloseBtn.textContent = "✕";
+    sampleCloseBtn.title = "关闭";
+    sampleCloseBtn.style.cssText = "background:none;border:none;cursor:pointer;font-size:12px;color:#aaa;padding:0 4px;";
+    sampleCloseBtn.addEventListener("click", () => closeSamplePanel());
+    samplePanelHead.appendChild(samplePanelTitle);
+    samplePanelHead.appendChild(sampleCloseBtn);
+    const sampleGrid = document.createElement("div");
+    sampleGrid.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;max-height:220px;overflow-y:auto;";
+    const sampleHint = document.createElement("div");
+    sampleHint.style.cssText = "font-size:12px;color:#888;margin-top:8px;line-height:1.5;";
+    samplePanel.appendChild(samplePanelHead);
+    samplePanel.appendChild(sampleGrid);
+    samplePanel.appendChild(sampleHint);
+    body.appendChild(samplePanel);
+
+    let sampleOpen = false;
+    let activeTextarea = null;
+
+    const uploadInput = document.createElement("input");
+    uploadInput.type = "file";
+    uploadInput.accept = "image/*";
+    uploadInput.style.display = "none";
+    dialog.appendChild(uploadInput);
+
+    function buildSampleMarkdown(path) {
+        const base = path.split("/").pop() || "image";
+        const alt = base.replace(/\.[^.]+$/, "");
+        return `![${alt}](/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)})`;
+    }
+
+    function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? start;
+        textarea.setRangeText(text, start, end, "end");
+        state.description = textarea.value;
+        textarea.focus();
+        const pos = start + text.length;
+        textarea.selectionStart = textarea.selectionEnd = pos;
+    }
+
+    async function refreshSamplePanel() {
+        sampleGrid.innerHTML = "";
+        sampleHint.textContent = "";
+        if (!name || name === "None") {
+            sampleHint.textContent = "当前未选择 LoRA。";
+            return;
+        }
+        try {
+            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            if (!Array.isArray(data.images) || !data.images.length) {
+                sampleHint.textContent = `该 LoRA 没有示例图。请将图片放入 models/loras/${data.sample_dir || ""} 目录，或点击「📤 上传」。`;
+                return;
+            }
+            for (const path of data.images) {
+                const thumb = document.createElement("img");
+                thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
+                thumb.title = path.split("/").pop();
+                thumb.loading = "lazy";
+                thumb.style.cssText = `
+                    width: 96px; height: 96px; object-fit: cover;
+                    border-radius: 6px; border: 1px solid #3a3a3e; cursor: pointer;
+                `;
+                thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
+                thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
+                thumb.addEventListener("click", () => {
+                    if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
+                });
+                sampleGrid.appendChild(thumb);
+            }
+        } catch (e) {
+            console.warn("[SF Model Info] lora_samples list failed:", e);
+            sampleHint.textContent = "获取示例图失败：" + (e.message || e);
+        }
+    }
+
+    function openSamplePanel(textarea) {
+        activeTextarea = textarea;
+        sampleOpen = true;
+        samplePanel.style.display = "block";
+        refreshSamplePanel();
+    }
+
+    function closeSamplePanel() {
+        sampleOpen = false;
+        activeTextarea = null;
+        samplePanel.style.display = "none";
+    }
+
+    uploadInput.addEventListener("change", async () => {
+        const file = uploadInput.files?.[0];
+        uploadInput.value = "";
+        if (!file) return;
+        if (!name || name === "None") return;
+        const fd = new FormData();
+        fd.append("image", file);
+        fd.append("filename", name);
+        try {
+            const resp = await app.api.fetchApi("/api/sfnodes/lora_samples/upload", {
+                method: "POST",
+                body: fd,
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+            if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(data.path));
+            if (sampleOpen) refreshSamplePanel();
+        } catch (e) {
+            console.warn("[SF Model Info] sample upload failed:", e);
+            sampleHint.textContent = "上传失败：" + (e.message || e);
+        }
+    });
 
     // ---------- footer ----------
     const footer = document.createElement("div");
@@ -305,7 +487,13 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     }, "Clear custom notes for this model");
     const spacer = document.createElement("div");
     spacer.style.cssText = "flex: 1;";
-    const doneBtn = makeFooterBtn("Done", "#4f7cff", () => closeDialog());
+    const doneBtn = makeFooterBtn("Done", "#4f7cff", () => {
+        // 先提交未保存的编辑再关闭，防止误操作丢失
+        twRow.commitEdit();
+        descRow.commitEdit();
+        saveNotes();
+        closeDialog();
+    }, "保存并关闭");
 
     footer.appendChild(copyBtn);
     footer.appendChild(clearBtn);
@@ -355,7 +543,21 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
         dialog.remove();
     });
     // Click on the backdrop (outside the dialog box) closes it.
+    // 以 mousedown 位置判定：编辑中布局变化（如 markdown 渲染内容切换为
+    // textarea）会使 dialog 收缩/位移，click 事件坐标可能落到新矩形之外，
+    // 误判为背景点击而关闭弹窗。mousedown 在框内则忽略该次 click。
+    let mouseDownInside = false;
+    dialog.addEventListener("mousedown", (e) => {
+        const rect = dialog.getBoundingClientRect();
+        mouseDownInside = (
+            e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom
+        );
+    });
     dialog.addEventListener("click", (e) => {
+        if (mouseDownInside) return;
+        // 合成事件（element.click()）clientX/Y 为 0,0，按框内处理，避免误关
+        if (!e.clientX && !e.clientY) return;
         const rect = dialog.getBoundingClientRect();
         if (
             e.clientX < rect.left || e.clientX > rect.right ||
