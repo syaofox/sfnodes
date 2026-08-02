@@ -8,63 +8,82 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Path helpers
+# Sidecar 约定：每个模型的备注独立存于其同目录的 <模型文件名>.sf.json
+# 例：models/loras/krea2/xxx.safetensors →
+#     models/loras/krea2/xxx.safetensors.sf.json
 # ---------------------------------------------------------------------------
 
 
-def _get_notes_path(model_type: str = "loras") -> str:
-    # 保持 loras 沿用旧路径，避免现有用户备注数据迁移；其他类型按类型分目录
-    if model_type == "loras":
-        p = os.path.join(folder_paths.get_user_directory(), "sfnodes", "lora_notes.json")
-    else:
-        p = os.path.join(
-            folder_paths.get_user_directory(), "sfnodes", "model_notes", f"{model_type}.json"
-        )
-    logger.debug(f"Notes path ({model_type}): {p}")
-    return p
+def _resolve_model_path(filename: str, model_type: str = "loras") -> str | None:
+    """模型相对路径 → 绝对路径（须存在且在类型根目录内），非法返回 None"""
+    if not filename or not isinstance(filename, str):
+        return None
+    try:
+        full = folder_paths.get_full_path(model_type, filename)
+    except Exception:
+        return None
+    if not full or not os.path.isfile(full):
+        return None
+    # 防御：确认落在该类型已注册的根目录内
+    roots = folder_paths.get_folder_paths(model_type)
+    for root in roots:
+        if full.startswith(os.path.normpath(root) + os.sep):
+            return full
+    return None
+
+
+def _get_sidecar_path(model_path: str) -> str:
+    return model_path + ".sf.json"
+
+
+def _read_sidecar(model_path: str) -> dict | None:
+    path = _get_sidecar_path(model_path)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _write_sidecar(model_path: str, data: dict) -> None:
+    path = _get_sidecar_path(model_path)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+    logger.info(f"Saved notes: {path}")
+
+
+def _remove_sidecar(model_path: str) -> None:
+    path = _get_sidecar_path(model_path)
+    if os.path.isfile(path):
+        os.remove(path)
+        logger.info(f"Removed notes: {path}")
 
 
 # ---------------------------------------------------------------------------
 # Notes CRUD
 # ---------------------------------------------------------------------------
 
-def load_all_notes(model_type: str = "loras") -> dict:
-    path = _get_notes_path(model_type)
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
-
-
-def save_all_notes(notes: dict, model_type: str = "loras") -> None:
-    path = _get_notes_path(model_type)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(notes, f, ensure_ascii=False, indent=2)
-    logger.info(f"Saved {len(notes)} note(s) to {path}")
-
-
 def get_custom_notes(filename: str, model_type: str = "loras") -> dict | None:
-    notes = load_all_notes(model_type)
-    entry = notes.get(filename)
-    if isinstance(entry, dict):
-        return entry
-    if isinstance(entry, str):
-        return {"description": entry}
-    return None
+    model_path = _resolve_model_path(filename, model_type)
+    if model_path is None:
+        return None
+    return _read_sidecar(model_path)
 
 
 def set_custom_notes(filename: str, data: dict, model_type: str = "loras") -> dict:
-    notes = load_all_notes(model_type)
-    if data and any(v for v in data.values()):
-        notes[filename] = {k: v for k, v in data.items() if v}
+    model_path = _resolve_model_path(filename, model_type)
+    if model_path is None:
+        return {}
+    cleaned = {k: v for k, v in data.items() if v} if data else {}
+    if cleaned:
+        _write_sidecar(model_path, cleaned)
     else:
-        notes.pop(filename, None)
-    save_all_notes(notes, model_type)
+        _remove_sidecar(model_path)
     return get_custom_notes(filename, model_type) or {}
 
 
@@ -239,9 +258,7 @@ def _register_routes():
                 model_type = _get_model_type(request)
                 if model_type is None:
                     return web.json_response({"error": "invalid type"}, status=400)
-                notes = load_all_notes(model_type)
-                notes.pop(filename, None)
-                save_all_notes(notes, model_type)
+                set_custom_notes(filename, {}, model_type)
                 data = get_merged_metadata(filename, model_type)
                 return web.json_response(data)
             except Exception as e:
