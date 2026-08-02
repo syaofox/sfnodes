@@ -394,6 +394,8 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                 return;
             }
             for (const path of data.images) {
+                const wrap = document.createElement("div");
+                wrap.style.cssText = "position:relative;width:96px;height:96px;";
                 const thumb = document.createElement("img");
                 thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
                 thumb.title = path.split("/").pop();
@@ -401,13 +403,45 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
                 thumb.style.cssText = `
                     width: 96px; height: 96px; object-fit: cover;
                     border-radius: 6px; border: 1px solid #3a3a3e; cursor: pointer;
+                    display: block;
                 `;
                 thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
                 thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
                 thumb.addEventListener("click", () => {
                     if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
                 });
-                sampleGrid.appendChild(thumb);
+                // 删除按钮：悬停显示，右上角 ✕
+                const delBtn = document.createElement("button");
+                delBtn.textContent = "✕";
+                delBtn.title = "删除该示例图";
+                delBtn.style.cssText = `
+                    position: absolute; top: 0; right: 0; display: none;
+                    width: 18px; height: 18px; padding: 0; line-height: 1;
+                    background: rgba(224, 108, 108, 0.9); color: #fff;
+                    border: none; border-radius: 0 6px 0 6px; cursor: pointer;
+                    font-size: 11px;
+                `;
+                wrap.addEventListener("mouseenter", () => { delBtn.style.display = "block"; });
+                wrap.addEventListener("mouseleave", () => { delBtn.style.display = "none"; });
+                delBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const fileName = path.split("/").pop();
+                    if (!confirm(`删除示例图「${fileName}」？此操作不可恢复。`)) return;
+                    try {
+                        const resp = await app.api.fetchApi(
+                            `/api/sfnodes/lora_samples?path=${encodeURIComponent(path)}`,
+                            { method: "DELETE" }
+                        );
+                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                        refreshSamplePanel();
+                    } catch (err) {
+                        console.warn("[SF Model Info] sample delete failed:", err);
+                        sampleHint.textContent = "删除失败：" + (err.message || err);
+                    }
+                });
+                wrap.appendChild(thumb);
+                wrap.appendChild(delBtn);
+                sampleGrid.appendChild(wrap);
             }
         } catch (e) {
             console.warn("[SF Model Info] lora_samples list failed:", e);

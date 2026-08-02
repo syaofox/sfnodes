@@ -195,6 +195,20 @@ def _register_routes():
                 logger.error(f"POST /api/sfnodes/lora_samples/upload failed: {e}")
                 return web.json_response({"error": "internal error"}, status=500)
 
+        @routes.delete("/api/sfnodes/lora_samples")
+        async def _delete_sample(request: web.Request) -> web.Response:
+            try:
+                path = request.rel_url.query.get("path", "")
+                full = _resolve_sample_image(path)
+                if full is None:
+                    return web.json_response({"error": "not found"}, status=404)
+                os.remove(full)
+                logger.info(f"Deleted lora sample: {full}")
+                return web.json_response({"deleted": path})
+            except Exception as e:
+                logger.error(f"DELETE /api/sfnodes/lora_samples failed: {e}")
+                return web.json_response({"error": "internal error"}, status=500)
+
         logger.info("LoRA samples API routes registered")
 
     except Exception as e:
