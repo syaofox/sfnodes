@@ -207,28 +207,28 @@ app.registerExtension({
                         ctx.restore();
                     }
 
-                    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-                    ctx.lineWidth = 0.5;
-                    ctx.beginPath();
-                    ctx.moveTo(sliderPx, renderData.y);
-                    ctx.lineTo(sliderPx, renderData.y + renderData.height);
-                    ctx.stroke();
-
-                    ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
-                    const handleY = renderData.y + renderData.height / 2;
-                    const triangleSize = 3.5;
-                    const triangleGap = 2.5;
                     const smallValue = 0.001;
 
-                    if (this.slider_pos > smallValue) {
+                    if (this.slider_pos > smallValue && this.slider_pos < 1.0 - smallValue) {
+                        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(sliderPx, renderData.y);
+                        ctx.lineTo(sliderPx, renderData.y + renderData.height);
+                        ctx.stroke();
+
+                        ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
+                        const handleY = renderData.y + renderData.height / 2;
+                        const triangleSize = 3.5;
+                        const triangleGap = 2.5;
+
                         ctx.beginPath();
                         ctx.moveTo(sliderPx - triangleGap, handleY - triangleSize);
                         ctx.lineTo(sliderPx - triangleGap, handleY + triangleSize);
                         ctx.lineTo(sliderPx - triangleGap - triangleSize, handleY);
                         ctx.closePath();
                         ctx.fill();
-                    }
-                    if (this.slider_pos < 1.0 - smallValue) {
+
                         ctx.beginPath();
                         ctx.moveTo(sliderPx + triangleGap, handleY - triangleSize);
                         ctx.lineTo(sliderPx + triangleGap, handleY + triangleSize);
@@ -337,6 +337,9 @@ app.registerExtension({
                 onMouseLeave(event) {
                     if (!this.imageA) return;
                     this.isHovering = false;
+                    if (this.getMode() === "Slide") {
+                        this.slider_pos = 0;
+                    }
                     document.body.style.cursor = 'default';
                     this.setDirtyCanvas(true, true);
                 },
