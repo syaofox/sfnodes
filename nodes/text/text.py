@@ -190,6 +190,14 @@ class TextToFilename:
         return {
             "required": {
                 "text": ("STRING", {"forceInput": True, "tooltip": "要转换为文件名的文本"}),
+                "allow_path": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "label_on": "on",
+                        "label_off": "off",
+                    },
+                ),
             }
         }
 
@@ -197,8 +205,11 @@ class TextToFilename:
     RETURN_NAMES = ("filename",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将文本转换为合法文件名，替换非法字符"
+    DESCRIPTION = "将文本转换为合法文件名，替换非法字符；开启 allow_path 时保留 / 与 \\，可输出带目录的完整路径"
 
-    def execute(self, text):
-        filename = re.sub(r'[<>:"/\\|?*]', "", text)
+    def execute(self, text, allow_path):
+        if allow_path:
+            filename = re.sub(r'[<>:"|?*]', "", text)
+        else:
+            filename = re.sub(r'[<>:"/\\|?*]', "", text)
         return (filename,)
