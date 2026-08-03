@@ -676,6 +676,13 @@ class ImageResizePlus:
                     ["center", "top", "bottom"],
                     {"default": "center"},
                 ),
+                "pad_color": (
+                    "COLOR",
+                    {
+                        "default": [0, 0, 0],
+                        "tooltip": "pad 模式的填充颜色 (RGB)",
+                    },
+                ),
             },
             "optional": {
                 "mask": ("MASK", {"tooltip": "可选的遮罩，将应用相同的缩放变换"}),
@@ -709,6 +716,7 @@ class ImageResizePlus:
         multiple_of=0,
         keep_proportion=False,
         crop_position="center",
+        pad_color=[0, 0, 0],
         mask=None,
     ):
         _, oh, ow, _ = image.shape
@@ -804,9 +812,40 @@ class ImageResizePlus:
 
             if method == "pad":
                 if pad_left > 0 or pad_right > 0 or pad_top > 0 or pad_bottom > 0:
-                    outputs = F.pad(
-                        outputs, (pad_left, pad_right, pad_top, pad_bottom), value=0
-                    )
+                    if isinstance(pad_color, str):
+                        hex_color = pad_color.lstrip("#")
+                        pad_color_r = int(hex_color[0:2], 16)
+                        pad_color_g = int(hex_color[2:4], 16)
+                        pad_color_b = int(hex_color[4:6], 16)
+                    else:
+                        pad_color_r, pad_color_g, pad_color_b = pad_color
+
+                    if (pad_color_r, pad_color_g, pad_color_b) == (0, 0, 0):
+                        outputs = F.pad(
+                            outputs, (pad_left, pad_right, pad_top, pad_bottom), value=0
+                        )
+                    else:
+                        b, c, h, w = outputs.shape
+                        canvas = torch.zeros(
+                            (
+                                b,
+                                c,
+                                h + pad_top + pad_bottom,
+                                w + pad_left + pad_right,
+                            ),
+                            dtype=outputs.dtype,
+                            device=outputs.device,
+                        )
+                        canvas[:, 0] = pad_color_r / 255.0
+                        canvas[:, 1] = pad_color_g / 255.0
+                        canvas[:, 2] = pad_color_b / 255.0
+                        if c > 3:
+                            canvas[:, 3] = 1.0
+                        canvas[
+                            :, :, pad_top : pad_top + h, pad_left : pad_left + w
+                        ] = outputs
+                        outputs = canvas
+
                     if mask is not None:
                         mask_tensor = F.pad(
                             mask_tensor, (pad_left, pad_right, pad_top, pad_bottom), value=1

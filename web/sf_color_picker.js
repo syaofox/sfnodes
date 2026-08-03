@@ -172,14 +172,15 @@ app.registerExtension({
     },
 
     async nodeCreated(node) {
-        if (node.comfyClass === "SFMaskFillColor") {
-            const colorWidget = node.widgets.find(w => w.name === "fill_color");
+        if (node.comfyClass === "SFMaskFillColor" || node.comfyClass === "SFImageResizePlus") {
+            const colorWidget = node.widgets.find(w => w.type === "COLOR");
             if (colorWidget) {
+                const name = colorWidget.name;
                 const serialize = node.serialize;
                 node.serialize = function () {
                     const data = serialize.call(this);
                     if (this.widgets) {
-                        const cw = this.widgets.find(w => w.name === "fill_color");
+                        const cw = this.widgets.find(w => w.name === name);
                         if (cw && cw.value) {
                             const rgb = hexToRgb(cw.value);
                             if (rgb) {
@@ -199,7 +200,7 @@ app.registerExtension({
                     configure.apply(this, arguments);
                     if (data.widgets_data) {
                         for (let i = 0; i < this.widgets.length; i++) {
-                            if (this.widgets[i].name === "fill_color" && Array.isArray(data.widgets_data[i])) {
+                            if (this.widgets[i].name === name && Array.isArray(data.widgets_data[i])) {
                                 const rgb = data.widgets_data[i];
                                 this.widgets[i].value = rgbToHex(rgb[0], rgb[1], rgb[2]);
                             }
