@@ -118,6 +118,7 @@ from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendO
 
 from .nodes.utils.image_orientation import ImageOrientation
 from .nodes.utils.workflow_name import SFWorkflowName
+from .nodes.utils.path_parse import SFParsePath
 
 from .nodes.logic import (
     AnythingIndexSwitch,
@@ -270,6 +271,8 @@ NODE_CLASS_MAPPINGS = {
     "SFSeed": SFSeed,
     # 工作流名称节点
     "SFWorkflowName": SFWorkflowName,
+    # 路径解析节点
+    "SFParsePath": SFParsePath,
     # 逻辑节点
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
     "SFIsMaskEmpty": IsMaskEmpty,
@@ -419,6 +422,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSeed": "SF Seed",
     # 工作流名称节点
     "SFWorkflowName": "SF Workflow Name",
+    # 路径解析节点
+    "SFParsePath": "SF Parse Path",
     # 逻辑节点
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
     "SFIsMaskEmpty": "SF Is Mask Empty",

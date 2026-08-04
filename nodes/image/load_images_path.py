@@ -107,11 +107,13 @@ class SFLoadImagesPath:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "MASK", "INT")
-    RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "STRING", "STRING")
+    RETURN_NAMES = ("IMAGE", "MASK", "frame_count", "filenames", "file_paths")
+    OUTPUT_IS_LIST = (False, False, False, True, True)
+    OUTPUT_TOOLTIPS = ("图片批次", "遮罩批次", "加载的图片数量", "文件名列表（不含路径）", "完整文件路径列表")
     FUNCTION = "load_images"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从 input / output 目录或其子目录、user/sfnodes/images/ 下子目录批量加载图片，统一尺寸后输出图片批次与遮罩，用作反推等批量图片输入"
+    DESCRIPTION = "从 input / output 目录或其子目录、user/sfnodes/images/ 下子目录批量加载图片，统一尺寸后输出图片批次、遮罩与文件名列表，用作反推等批量图片输入"
     OUTPUT_NODE = False
 
     @classmethod
@@ -186,7 +188,8 @@ class SFLoadImagesPath:
             images_out = batch
             masks = torch.zeros((batch.size(0), 64, 64), dtype=torch.float32, device="cpu")
 
-        return (images_out, masks, len(dir_files))
+        filenames = [os.path.basename(p) for p in dir_files]
+        return (images_out, masks, len(dir_files), filenames, dir_files)
 
 
 def _register_routes():
