@@ -12,6 +12,8 @@ from aiohttp import web
 
 _CATEGORY = "sfnodes/image"
 
+_DEFAULT_FOLDER = "default"
+
 
 def _get_images_base_dir() -> str:
     base = os.path.join(folder_paths.get_user_directory(), "sfnodes", "images")
@@ -19,25 +21,57 @@ def _get_images_base_dir() -> str:
     return base
 
 
-def _list_subdirs() -> list:
-    base = _get_images_base_dir()
+def _list_one_level_subdirs(root: str) -> list:
     try:
-        return sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))
+        return sorted(d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)))
     except OSError:
         return []
 
 
-def _resolve_folder(folder: str) -> str:
-    base = os.path.normpath(_get_images_base_dir())
-    name = (folder or "default").strip()
-    if not name or os.path.isabs(name):
-        name = "default"
+def _list_folders() -> list:
+    folders = [_DEFAULT_FOLDER]
+    images_base = _get_images_base_dir()
+    folders += ["images/" + d for d in _list_one_level_subdirs(images_base) if d != _DEFAULT_FOLDER]
+    for prefix, root in (
+        ("input", folder_paths.get_input_directory()),
+        ("output", folder_paths.get_output_directory()),
+    ):
+        if not os.path.isdir(root):
+            continue
+        folders.append(prefix)
+        folders += [prefix + "/" + d for d in _list_one_level_subdirs(root)]
+    return folders
+
+
+def _resolve_under(root: str, rel: str) -> str:
+    root = os.path.normpath(root)
+    rel = (rel or "").strip()
+    if not rel or os.path.isabs(rel):
+        rel = _DEFAULT_FOLDER
     else:
-        name = name.lstrip("/\\")
-    target = os.path.normpath(os.path.join(base, name))
-    if not (target == base or target.startswith(base + os.sep)):
-        target = os.path.join(base, "default")
+        rel = rel.lstrip("/\\")
+    target = os.path.normpath(os.path.join(root, rel))
+    if target != root and not target.startswith(root + os.sep):
+        return os.path.join(_get_images_base_dir(), _DEFAULT_FOLDER)
     return target
+
+
+def _resolve_folder(folder: str) -> str:
+    name = (folder or _DEFAULT_FOLDER).strip()
+    if not name or name == _DEFAULT_FOLDER:
+        return os.path.join(_get_images_base_dir(), _DEFAULT_FOLDER)
+
+    if name == "input":
+        return os.path.normpath(folder_paths.get_input_directory())
+    if name == "output":
+        return os.path.normpath(folder_paths.get_output_directory())
+    if name.startswith("images/"):
+        return _resolve_under(_get_images_base_dir(), name[len("images/"):])
+    if name.startswith("input/"):
+        return _resolve_under(folder_paths.get_input_directory(), name[len("input/"):])
+    if name.startswith("output/"):
+        return _resolve_under(folder_paths.get_output_directory(), name[len("output/"):])
+    return _resolve_under(_get_images_base_dir(), name)
 
 
 def _sort_key(filename):
@@ -61,10 +95,10 @@ def _sorted_image_files(directory: str, image_load_cap: int = 0, skip_first_imag
 class SFLoadImagesPath:
     @classmethod
     def INPUT_TYPES(cls):
-        folders = _list_subdirs() or ["default"]
+        folders = _list_folders()
         return {
             "required": {
-                "folder": (folders, {"tooltip": "从 user/sfnodes/images/ 下选择图片子目录，批量加载其中全部图片"}),
+                "folder": (folders, {"tooltip": "选择图片目录：input / output 目录及其子目录，或 user/sfnodes/images/ 下子目录，批量加载其中全部图片"}),
             },
             "optional": {
                 "image_load_cap": ("INT", {"default": 0, "min": 0, "max": 100000, "step": 1, "tooltip": "限制加载的图片数量（0 = 无限制）"}),
@@ -77,7 +111,7 @@ class SFLoadImagesPath:
     RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
     FUNCTION = "load_images"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从 user/sfnodes/images/ 下的子目录中批量加载图片，统一尺寸后输出图片批次与遮罩，用作反推等批量图片输入"
+    DESCRIPTION = "从 input / output 目录或其子目录、user/sfnodes/images/ 下子目录批量加载图片，统一尺寸后输出图片批次与遮罩，用作反推等批量图片输入"
     OUTPUT_NODE = False
 
     @classmethod
@@ -103,7 +137,7 @@ class SFLoadImagesPath:
         if not os.path.isdir(directory):
             raise FileNotFoundError(
                 f"Directory '{directory}' does not exist. "
-                "Please create it under user/sfnodes/images/ and add image files, "
+                "Please create the folder and add image files, "
                 "then click the refresh button on the node to update the folder list."
             )
 
@@ -164,9 +198,9 @@ def _register_routes():
         routes = ins.routes
 
         @routes.get("/api/sfnodes/images_path/folders")
-        async def _list_folders(request: web.Request) -> web.Response:
+        async def _list_folders_route(request: web.Request) -> web.Response:
             try:
-                return web.json_response({"folders": _list_subdirs()})
+                return web.json_response({"folders": _list_folders()})
             except Exception:
                 return web.Response(status=500)
     except Exception:
