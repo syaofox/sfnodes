@@ -640,6 +640,7 @@ function createLoraWidget(name, node) {
             this._hit.strengthInc = INVALID_BOUNDS;
             this._hit.strengthAny = INVALID_BOUNDS;
             this._hit.info = INVALID_BOUNDS;
+            this._hit.remove = INVALID_BOUNDS;
             this._hit.lora = INVALID_BOUNDS;
             this._hit.grip = INVALID_BOUNDS;
             const margin = 10, im = margin * 0.33;
@@ -703,12 +704,28 @@ function createLoraWidget(name, node) {
                 this._hit.strengthAny = [la2[0], ra2[0] + ra2[1] - la2[0]];
                 rposX = la2[0] - im;
             }
+            // Delete icon (×) before the strength widgets
+            const removeSize = Math.max(12, height * 0.45);
+            const removeGap = 4;
+            const removeX = rposX - im - removeSize - removeGap;
+            this._hit.remove = [removeX, removeSize + removeGap];
+            ctx.save();
+            ctx.strokeStyle = "rgba(255,255,255,0.7)";
+            ctx.lineWidth = 1.2;
+            const rcx = removeX + removeSize / 2;
+            const rcy = midY;
+            const rr = removeSize * 0.32;
+            ctx.beginPath();
+            ctx.moveTo(rcx - rr, rcy - rr); ctx.lineTo(rcx + rr, rcy + rr);
+            ctx.moveTo(rcx + rr, rcy - rr); ctx.lineTo(rcx - rr, rcy + rr);
+            ctx.stroke();
+            ctx.restore();
             // Lora name + info icon
             const hasLora = this._value?.lora && this._value.lora !== "None";
             const infoSize = Math.max(12, height * 0.45);
             const infoGap = 4;
-            const nameEndX = hasLora ? rposX - infoSize - infoGap * 2 : rposX;
-            const loraWidth = nameEndX - posX;
+            const nameEndX = hasLora ? removeX - removeGap - infoSize - infoGap * 2 : removeX - removeGap;
+            const loraWidth = Math.max(0, nameEndX - posX);
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(fitString(ctx, String(this._value?.lora || "None"), loraWidth), posX, midY);
@@ -787,6 +804,16 @@ function createLoraWidget(name, node) {
                             });
                         });
                     }
+                    return true;
+                }
+                // Check delete icon
+                if (hitTest(pos, w._hit.remove)) {
+                    w.onRemoved?.();
+                    const idx = n.widgets.indexOf(w);
+                    if (idx !== -1) n.widgets.splice(idx, 1);
+                    const s = n.computeSize();
+                    n.setSize([n.size[0], Math.max(n.size[1], s[1])]);
+                    n.setDirtyCanvas(true, true);
                     return true;
                 }
                 // Check strength arrows (rightmost widget)
