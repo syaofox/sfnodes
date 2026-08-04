@@ -333,11 +333,14 @@ function setupNode(node) {
                 }
             }
         });
+        const presetBtnWidget = node.addWidget("button", "\u2630 Presets", null, () => {
+            node.openPresetMenu();
+        });
 
         // Insert spacer + header after standard ComfyUI widgets (normalize, normalize_weight)
         const stdCount = this.widgets.filter(
             w => !isLoraWidget(w) && w.name !== "_header" && w.name !== "_spacer"
-                && !(w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora")))
+                && !(w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora") || w.name?.includes?.("Presets")))
         ).length;
         this.widgets.splice(stdCount, 0, spacer, header);
         this.widgetButtonSpacer = spacer;
@@ -367,6 +370,98 @@ function setupNode(node) {
         node.setDirtyCanvas(true, true);
     };
 
+    // ---- presets ----
+    node.collectPresetData = function () {
+        const loras = this.widgets.filter(isLoraWidget).map(w => w.serializeValue());
+        const normalizeW = this.widgets.find(w => w.name === "normalize");
+        const normalizeWeightW = this.widgets.find(w => w.name === "normalize_weight");
+        return {
+            normalize: normalizeW?.value ?? false,
+            normalize_weight: normalizeWeightW?.value ?? 1.0,
+            separate: this.properties[PROP_KEY] === OPT_SEPARATE,
+            loras,
+        };
+    };
+    node.clearLoraWidgets = function () {
+        for (const w of [...this.widgets]) {
+            if (!isLoraWidget(w)) continue;
+            w.onRemoved?.();
+            const idx = this.widgets.indexOf(w);
+            if (idx !== -1) this.widgets.splice(idx, 1);
+        }
+    };
+    node.applyPresetData = function (data) {
+        if (!data || !Array.isArray(data.loras)) return;
+        this.clearLoraWidgets();
+        const normalizeW = this.widgets.find(w => w.name === "normalize");
+        const normalizeWeightW = this.widgets.find(w => w.name === "normalize_weight");
+        if (normalizeW && data.normalize !== undefined) normalizeW.value = data.normalize;
+        if (normalizeWeightW && data.normalize_weight !== undefined) normalizeWeightW.value = data.normalize_weight;
+        this.properties[PROP_KEY] = data.separate ? OPT_SEPARATE : OPT_SINGLE;
+        for (const v of data.loras) {
+            const w = this.addNewLoraWidget();
+            w._value = { on: true, lora: null, strength: 1, strengthTwo: null, ...v };
+            if (w._value?.lora) getLoraMetadata(w._value.lora);
+        }
+        const s = this.computeSize();
+        this.setSize([this.size[0], Math.max(this.size[1], s[1])]);
+        this.setDirtyCanvas(true, true);
+    };
+    node.savePreset = function () {
+        const evt = getLastCanvasEvent();
+        app.canvas.prompt("Preset name", "", (name) => {
+            name = String(name || "").trim();
+            if (!name) return;
+            fetch("/api/sfnodes/lora_presets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, data: this.collectPresetData() }),
+            })
+                .then(r => { if (!r.ok) throw new Error(`save preset failed: ${r.status}`); return r.json(); })
+                .catch(e => console.error("[PowerLoraLoader]", e));
+        }, evt);
+    };
+    node.deletePreset = function (name) {
+        fetch(`/api/sfnodes/lora_presets?name=${encodeURIComponent(name)}`, { method: "DELETE" })
+            .then(r => { if (!r.ok) throw new Error(`delete preset failed: ${r.status}`); return r.json(); })
+            .catch(e => console.error("[PowerLoraLoader]", e));
+    };
+    node.openPresetMenu = function () {
+        fetch("/api/sfnodes/lora_presets")
+            .then(r => { if (!r.ok) throw new Error(`load presets failed: ${r.status}`); return r.json(); })
+            .then(res => {
+                const presets = res?.presets || {};
+                const names = Object.keys(presets);
+                const items = [
+                    { content: "\u{1F4BE} Save current as preset\u2026", callback: () => node.savePreset() },
+                    null,
+                ];
+                if (!names.length) {
+                    items.push({ content: "(no presets yet)", disabled: true });
+                }
+                for (const name of names) {
+                    items.push({
+                        content: name,
+                        has_submenu: true,
+                        submenu: {
+                            title: name,
+                            options: [
+                                { content: "Load", callback: () => node.applyPresetData(presets[name]) },
+                                { content: "Delete", callback: () => node.deletePreset(name) },
+                            ],
+                        },
+                    });
+                }
+                new LiteGraph.ContextMenu(items, {
+                    title: "Presets",
+                    event: getLastCanvasEvent(),
+                    scale: Math.max(1, app.canvas.ds?.scale ?? 1),
+                    className: "dark",
+                });
+            })
+            .catch(e => console.error("[PowerLoraLoader]", e));
+    };
+
     // ---- override configure ----
     const _origConfigure = node.configure;
     node.configure = function (info) {
@@ -388,7 +483,7 @@ function setupNode(node) {
             for (const w of [...this.widgets]) {
                 if (
                     isLoraWidget(w) || w.name === "_header" || w.name === "_spacer"
-                    || (w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora")))
+                    || (w.type === "button" && (w.name?.includes?.("Add Lora") || w.name?.includes?.("Remove Lora") || w.name?.includes?.("Presets")))
                 ) {
                     w.onRemoved?.();
                     const idx = this.widgets.indexOf(w);

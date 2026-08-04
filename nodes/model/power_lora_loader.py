@@ -195,5 +195,6 @@ class PowerLoraLoader:
         return result
 
 
-# 导入以触发 LoRA 笔记 HTTP 路由注册
+# 导入以触发 LoRA 笔记/预设 HTTP 路由注册
 from ...sf_utils import lora_notes  # noqa: F401, E402
+from ...sf_utils import lora_presets  # noqa: F401, E402
