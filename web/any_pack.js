@@ -33,6 +33,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { isSlotConnected, uniqueName } from "./sf_dynamic_slots.js";
 
 const MAX_SLOTS = 20;
 const PACK_INITIAL_INPUTS = 2;
@@ -40,28 +41,6 @@ const UNPACK_INITIAL_OUTPUTS = 1;
 const PACK_PREFIX = "value";
 const UNPACK_PREFIX = "out";
 const MAX_PROPAGATE_DEPTH = 8;
-
-const isSlotConnected = (isInput, slot) => {
-    if (isInput) {
-        return slot.link !== null && slot.link !== undefined;
-    }
-    if (Array.isArray(slot.links)) {
-        return slot.links.length > 0;
-    }
-    return slot.link !== null && slot.link !== undefined;
-};
-
-// Returns a name that does not collide with any other slot in the same array.
-// Duplicate names would break prompt serialization (same key overwritten).
-const uniqueName = (slots, selfIndex, base) => {
-    if (!Array.isArray(slots) || slots.length === 0) return base;
-    let name = base;
-    let i = 2;
-    while (slots.some((s, idx) => idx !== selfIndex && s && s.name === name)) {
-        name = base + "_" + i++;
-    }
-    return name;
-};
 
 // ---------------------------------------------------------------------------
 // Chain propagation of slot names:
@@ -306,7 +285,7 @@ app.registerExtension({
                 // Add a new slot only when the connection lands on the last dynamic slot
                 // and all dynamic slots are already connected (prevents extra slots
                 // when adding additional links to an already-connected output)
-                const allConnected = dynamic.every((s) => isSlotConnected(isInput, s));
+                const allConnected = dynamic.every((s) => isSlotConnected(s));
                 const lastIndex = (isInput ? node.inputs : node.outputs).length - 1;
                 if (allConnected && index === lastIndex && dynamic.length < MAX_SLOTS) {
                     addSlot(prefix + dynamic.length);
@@ -321,7 +300,7 @@ app.registerExtension({
                 // (slot names are kept for remaining slots)
                 const reversed = [...dynamic].reverse();
                 for (const slot of reversed) {
-                    if (!isSlotConnected(isInput, slot) && getDynamic().length > initialCount) {
+                    if (!isSlotConnected(slot) && getDynamic().length > initialCount) {
                         removeSlot(slot);
                     } else {
                         break;

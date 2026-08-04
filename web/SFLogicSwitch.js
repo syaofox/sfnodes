@@ -16,9 +16,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-
-const MAX_INPUTS = 20;
-const INITIAL_INPUTS = 2;
+import { installDynamicSlots } from "./sf_dynamic_slots.js";
 
 app.registerExtension({
     name: "sfnodes.LogicSwitch",
@@ -26,65 +24,12 @@ app.registerExtension({
     nodeCreated(node) {
         if (node.comfyClass !== "SFAnythingIndexSwitch") return;
 
-        // Trim inputs down to initial count on creation
-        // Keep only the index widget input + value0, value1
-        const originalOnConnectionsChange = node.onConnectionsChange;
-
-        const getDynamicInputs = () =>
-            node.inputs.filter((inp) => inp.name.startsWith("value"));
-
-        const trimInputs = () => {
-            const dynamic = getDynamicInputs();
-            while (dynamic.length > INITIAL_INPUTS) {
-                const idx = node.inputs.indexOf(dynamic[dynamic.length - 1]);
-                node.removeInput(idx);
-                dynamic.pop();
-            }
-        };
-
-        // Trim on first load
-        trimInputs();
-
-        // Recompute node size after trimming hidden slots, otherwise the
-        // initial height still accounts for all 20 declared slots
-        node.setSize(node.computeSize());
-
-        node.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
-            // Only handle input connections (type 1)
-            if (type !== 1) {
-                if (originalOnConnectionsChange) {
-                    originalOnConnectionsChange.apply(this, arguments);
-                }
-                return;
-            }
-
-            const dynamicInputs = getDynamicInputs();
-
-            if (connected) {
-                // All dynamic inputs connected? Add a new one
-                const allConnected = dynamicInputs.every((inp) => inp.link !== null && inp.link !== undefined);
-                if (allConnected) {
-                    if (dynamicInputs.length >= MAX_INPUTS) return;
-                    const newName = "value" + dynamicInputs.length;
-                    this.addInput(newName, "*");
-                }
-            } else {
-                // On disconnect: remove trailing empty slots beyond INITIAL_INPUTS
-                const reversed = [...node.inputs].reverse();
-                for (const inp of reversed) {
-                    if (!inp.name.startsWith("value")) break;
-                    if ((inp.link === null || inp.link === undefined) && getDynamicInputs().length > INITIAL_INPUTS) {
-                        const idx = node.inputs.indexOf(inp);
-                        node.removeInput(idx);
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            if (originalOnConnectionsChange) {
-                originalOnConnectionsChange.apply(this, arguments);
-            }
-        };
+        installDynamicSlots(node, {
+            inputPrefix: "value",
+            inputStart: 0,
+            inputCount: 20,
+            inputType: "*",
+            initialInputs: 2,
+        });
     },
 });

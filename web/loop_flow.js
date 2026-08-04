@@ -17,8 +17,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-
-const INITIAL_SLOTS = 1;
+import { installDynamicSlots } from "./sf_dynamic_slots.js";
 
 const LOOP_NODES = {
     SFWhileLoopStart: {
@@ -55,20 +54,6 @@ const LOOP_NODES = {
     },
 };
 
-const slotName = (slot) => slot?.name ?? "";
-
-const isDynamic = (slot, prefix) => slotName(slot).startsWith(prefix);
-
-const isConnected = (slot) =>
-    slot.link !== null && slot.link !== undefined && slot.link !== -1;
-
-const isOutputEmpty = (slot) =>
-    slot.links === null ||
-    slot.links === undefined ||
-    slot.links.length === 0;
-
-const nextName = (prefix, start, count) => prefix + (start + count);
-
 app.registerExtension({
     name: "sfnodes.loop_flow",
 
@@ -76,97 +61,17 @@ app.registerExtension({
         const cfg = LOOP_NODES[node.comfyClass];
         if (!cfg) return;
 
-        const originalOnConnectionsChange = node.onConnectionsChange;
-
-        const getDynamicInputs = () =>
-            (node.inputs ?? []).filter((inp) => isDynamic(inp, cfg.inputPrefix));
-
-        const getDynamicOutputs = () =>
-            (node.outputs ?? []).filter((out) => isDynamic(out, cfg.outputPrefix));
-
-        const trimInputs = () => {
-            const dyn = getDynamicInputs();
-            while (dyn.length > INITIAL_SLOTS) {
-                const idx = node.inputs.indexOf(dyn[dyn.length - 1]);
-                if (idx < 0) break;
-                node.removeInput(idx);
-                dyn.pop();
-            }
-        };
-
-        const trimOutputs = () => {
-            const dyn = getDynamicOutputs();
-            while (dyn.length > INITIAL_SLOTS) {
-                const idx = node.outputs.indexOf(dyn[dyn.length - 1]);
-                if (idx < 0) break;
-                node.removeOutput(idx);
-                dyn.pop();
-            }
-        };
-
-        trimInputs();
-        trimOutputs();
-
-        // Recompute node size after trimming hidden slots, otherwise the
-        // initial height still accounts for all declared slots
-        node.setSize(node.computeSize());
-
-        node.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
-            if (type === 1) {
-                const dynamicInputs = getDynamicInputs();
-
-                if (connected) {
-                    const allConnected =
-                        dynamicInputs.length > 0 &&
-                        dynamicInputs.every(isConnected);
-                    if (allConnected && dynamicInputs.length < cfg.inputCount) {
-                        this.addInput(
-                            nextName(cfg.inputPrefix, cfg.inputStart, dynamicInputs.length),
-                            "*"
-                        );
-                    }
-                } else {
-                    const reversed = [...node.inputs].reverse();
-                    for (const inp of reversed) {
-                        if (!isDynamic(inp, cfg.inputPrefix)) break;
-                        if (!isConnected(inp) && getDynamicInputs().length > INITIAL_SLOTS) {
-                            const idx = node.inputs.indexOf(inp);
-                            node.removeInput(idx);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            } else if (type === 2) {
-                const dynamicOutputs = getDynamicOutputs();
-
-                if (connected) {
-                    const allConnected =
-                        dynamicOutputs.length > 0 &&
-                        dynamicOutputs.every((out) => !isOutputEmpty(out));
-                    if (allConnected && dynamicOutputs.length < cfg.outputCount) {
-                        this.addOutput(
-                            nextName(cfg.outputPrefix, cfg.outputStart, dynamicOutputs.length),
-                            "*"
-                        );
-                    }
-                } else {
-                    const reversed = [...node.outputs].reverse();
-                    for (const out of reversed) {
-                        if (!isDynamic(out, cfg.outputPrefix)) break;
-                        if (isOutputEmpty(out) && getDynamicOutputs().length > INITIAL_SLOTS) {
-                            const idx = node.outputs.indexOf(out);
-                            node.removeOutput(idx);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (originalOnConnectionsChange) {
-                originalOnConnectionsChange.apply(this, arguments);
-            }
-        };
+        installDynamicSlots(node, {
+            inputPrefix: cfg.inputPrefix,
+            inputStart: cfg.inputStart,
+            inputCount: cfg.inputCount,
+            inputType: "*",
+            initialInputs: 1,
+            outputPrefix: cfg.outputPrefix,
+            outputStart: cfg.outputStart,
+            outputCount: cfg.outputCount,
+            outputType: "*",
+            initialOutputs: 1,
+        });
     },
 });
