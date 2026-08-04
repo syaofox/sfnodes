@@ -20,7 +20,7 @@ sfnodes/
 │   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
-│   └── logic.py         # 逻辑：If-Else、索引切换
+│   └── logic.py         # 逻辑：If-Else、索引切换、循环（For/While Loop）
 ├── sf_utils/            # 共享工具库
 │   ├── common.py        # AnyType 通用类型
 │   ├── image_convert.py # tensor/pil/numpy/mask 互转
@@ -35,7 +35,7 @@ sfnodes/
 │   ├── face_detector.py  # 人脸检测
 │   ├── lora_notes.py     # LoRA 笔记/说明
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（ComfyUI LiteGraph 扩展）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体等）
 └── doc/                 # 项目文档（vibecoding.md 开发流程等）
 ```
@@ -109,9 +109,11 @@ class SFMyNode:
 - `comfy.sd` — 模型加载（load_lora_for_models 等）
 - `nodes.LoadImage`, `nodes.SaveImage`, `nodes.MAX_RESOLUTION` — 内置节点
 - `nodes.LoraLoader` — LoRA 加载节点
+- `nodes.NODE_CLASS_MAPPINGS` — **全部**节点映射（nodes.py 末尾会合并所有自定义节点），循环节点用于检查 `OUTPUT_NODE` 属性
 - `folder_paths` — 路径管理
 - `comfy_extras.nodes_post_processing` — 后处理节点
-- `comfy_execution.graph_utils.ExecutionBlocker` — 执行阻断
+- `comfy_execution.graph_utils` — `GraphBuilder`（图展开）、`is_link`、`ExecutionBlocker`（官方位置，graph.py 只是 re-export）
+- `comfy_execution.graph` — `DynamicPrompt`（DYNPROMPT 隐藏输入对象：`get_node`/`get_display_node_id`/`get_original_prompt`，支持 ephemeral 前缀 id）
 
 ## Code Style
 
@@ -119,8 +121,39 @@ class SFMyNode:
 - 使用 `_CATEGORY` 模块级常量定义分类前缀
 - 工具函数放在 `sf_utils/` 下对应模块
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
-- JS Widget 放在 `web/` 目录，文件名与节点功能对应
+- JS Widget 放在 `web/` 目录，文件名与节点功能对应；动态槽位类功能复用 `web/sf_dynamic_slots.js` 公共库（见前端机制 §7）
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
+
+## ComfyUI 后端机制（循环/图展开，经验总结）
+
+> 背景：复刻 Easy-Use 的 `easy forLoopStart`/`easy batchAnything`/`easy forLoopEnd` 三个循环节点（2026-08），落地为 `nodes/logic.py` 的 SFForLoopStart/SFForLoopEnd/SFWhileLoopStart/SFWhileLoopEnd + SFMathInt/SFCompare/SFBatchAnything。该模式源于 ComfyUI 官方测试节点 `tests/execution/testing_nodes/testing-pack/flow_control.py`（TestWhileLoopOpen/Close）。
+
+### 1. 节点"图展开"（expand）机制（做循环/动态图节点必知）
+
+- 节点 execute 可返回 `{"result": tuple, "expand": {node_id: node_info}}`：`expand` 的节点会被加入动态 prompt 并执行（`add_ephemeral_node`，id 带前缀如 `0.0.0.5`，`override_display_id` 保持缓存一致性）。
+- **result 里的 link 值 `[id, slot]` 会被 ComfyUI 特殊解析**（execution.py 对 `is_link` 的 result 做 `add_strong_link`）：下游消费者拿到的是链接目标节点的输出值，而非字面 `[id, slot]` 列表。这是循环"输出=内部节点输出"的实现基础。
+- `GraphBuilder`（comfy_execution.graph_utils）只能按**已注册的类名**创建图内节点（`graph.node("SFWhileLoopStart", condition=total, ...)`）→ 支撑节点必须注册在 `NODE_CLASS_MAPPINGS`（会出现在节点菜单，Easy-Use 同样如此）。这是 forLoopStart/End 无法"独立存在"的原因：循环机制必须依赖注册的 while/math/compare 节点。
+
+### 2. 循环实现模式（SFForLoopStart/End 如何工作）
+
+- **SFForLoopStart**：执行时用 `GraphBuilder` 展开出 `SFWhileLoopStart`（condition=total，携带初始值），自身直接返回 `("stub", index, value1..19)`。循环状态经**隐藏输入 `initial_value0`** 传递。
+- **隐藏输入初始值为 None 的坑**：前端 `graphToPrompt` 只序列化 widget 值与连线输入，**无连线的 hidden 输入不会发送** → 首轮 kwargs 无此键 → 代码默认 `i = 0`；`whileLoopEnd` 重建 open 节点时用 `set_input` 写回 index，后续轮次才能读到。
+- **SFForLoopEnd**：`flow` 输入带 `{"rawLink": True}` → 节点收到**原始链接 `[node_id, slot]`** 而非解析值 → `flow[0]` 定位起始节点 id，用 `dynprompt.get_node(id)` 读其 `total`（可能为 widget 值或 link，link 时由图内 compare 节点在运行时解析）。再展开出 `SFMathInt`（index+1）→ `SFCompare`（`index+1 < total`）→ `SFWhileLoopEnd`。
+- **SFWhileLoopEnd 的递归（Recurse 机制）**：`condition` 为真时：
+  1. `explore_dependencies`：沿 whileLoopEnd 输入链回溯依赖图（排除 `SFForLoopEnd`/`SFWhileLoopEnd` 自身防无限递归）；
+  2. `explore_output_nodes`：把循环体内 `OUTPUT_NODE = True` 的节点（如 SaveImage）并入依赖图，保证每轮重跑；
+  3. `collect_contained`：从 open 节点出发收集整个循环体（**循环体内可放任意类型节点**，重建时按 `class_type` 字符串创建）；
+  4. 用 GraphBuilder 重建全部节点（自身克隆命名 `"Recurse"` 避免 id 指数膨胀），`new_open.set_input("initial_value0..19", 当前值)` 写回状态；
+  5. result = Recurse 克隆的输出 links，expand = 重建图 → 下一轮迭代；`condition` 为假时直接返回当前 initial_value 值、不展开 → 循环终止。
+
+### 3. 复刻/实现注意事项（踩坑）
+
+- **`ByPassTypeTuple`/`TautologyStr` 是旧版遗留，可省略**：早期 ComfyUI 按索引校验链接类型时才需要它绕过；现代 ComfyUI 的类型校验仅用于 `VALIDATE_INPUTS`，链接类型不校验，RETURN_TYPES 用普通 tuple + `AnyType("*")` 即可。
+- **`ExecutionBlocker` 官方位置是 `comfy_execution.graph_utils`**（graph.py 只是 re-export，避免过早 import torch）。
+- **do-while 语义**：total 通过连线传 0 时循环体仍执行一次（widget 侧 min=1 已约束；Easy-Use 原版同行为，忠实保留）。
+- 每轮迭代 forLoopStart 重建时其 expand 会多产生一个无引用的 whileLoopStart 节点（原版同款，无害）。
+- `nodes.NODE_CLASS_MAPPINGS` 在**运行时**才包含全部自定义节点（加载器逐个合并），函数内 import 最安全。
+- **本地模拟验证**：mock `torch`/`comfy.utils` 后可直接加载 `nodes/logic.py`（构造 `sfnodes`/`sfnodes.nodes`/`sfnodes.sf_utils` 包上下文 + `spec_from_file_location`），用 FakeDynPrompt 断言 expand 图结构、result link 指向、终止分支返回值。
 
 ## ComfyUI 前端机制（经验总结）
 
@@ -191,6 +224,18 @@ Object.defineProperty(app, 'dragOverNode', {
 - **插入位置三级回退**：显式记录的鼠标 offset → `activeElement` 的 `selectionStart`（含选区替换）→ 追加末尾。
 - **菜单关闭策略**：document 捕获阶段 `mousedown` 且 `!menuEl.contains(e.target)`、Escape、滚轮滚动时关闭；菜单项用 `click`（click 晚于 mousedown，捕获阶段判断不误关菜单项）。
 
+### 7. 动态槽位机制（做"多输入/输出节点"必知）
+
+> 背景：`web/sf_dynamic_slots.js` 公共库（2026-08），将循环节点、Text/Image Concatenate、SimpleMath、LogicSwitch 等 6 个文件的动态槽位逻辑统一为配置化实现（`installDynamicSlots(node, config)`），本机用 FakeNode + 事件序列模拟测试（31 项断言）。
+
+- **四种动态槽位模式**（按复杂度）：A. 连线自动增删（前缀匹配，公共库覆盖）；B. 全动态+自动命名/右键重命名/名称传播（`any_pack.js`，特例）；C. 成组配对+自愈（`krea2_dynamic_images.js` 的 imageN/maskN，onNodeCreated/onConnectionsChange/onConfigure 三钩子）；D. 按钮 + widget 显隐 + 状态持久化（`multi_lora.js`、`text_replace.js`，`visibleSlotCount` 随 workflow 序列化）。
+- **新节点优先用公共库**：只需配置 `inputPrefix/inputStart/inputCount/inputType/initialInputs` + 输出侧同构；非连续命名用 `inputMatch`（正则，如 simple_math 的 `/^[a-z]$/`），非编号命名用 `nameFor`（如字母表回调）。
+- **optional 无 widget 输入默认全显示**：新版前端 `addInputSocket` 对 optional 槽位直接 `addInput`（无隐藏机制）→ 必须 JS 在 `nodeCreated` 时 trim 到初始数量。动态槽位名字必须与后端 `INPUT_TYPES` 完全一致。
+- **旧 workflow 恢复依赖前端合并机制**：`nodeCreated` 时 trim（此时无连线），随后 `configure` 时 litegraphService 把保存快照中多出的槽位（extraInputs/extraOutputs）合并回来（源码注释明确支持"custom nodes that dynamically add inputs/outputs via js logic"）。**configure 直赋 links 不触发 `onConnectionsChange`**，恢复时不会连锁加槽。
+- **输入/输出判空结构不同**：输入槽位 `.link`（断开为 null，旧版可能 -1）；输出槽位 `.links`（数组，断开为 null/[]）。公共库 `isSlotConnected` 两者兼容（含 `!== -1` 防御）。
+- **增删规则**：全部动态槽已连 → 追加下一个（注意空数组 `every()` 恒真，需 `length > 0` 防御）；断开时从尾部 reverse 遍历、遇已连槽即停（只回收尾部连续空槽），保底 initial 个。
+- **模拟测试经验**：`cp web/sf_dynamic_slots.js /tmp/xxx.mjs` 后 Node 直接跑（公共库无 DOM 依赖）；FakeNode 需实现 `addInput/removeInput/addOutput/removeOutput/computeSize/setSize`；**事件序列用槽位名定位索引**（动态增删后绝对索引会错位，这是测试脚本最常见的错误来源）；断开事件触发前先把 `link` 置 null。
+
 ## Code Discovery
 
 优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。该系统已索引整个项目，支持语义搜索和调用链追踪。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退到 grep/glob。
@@ -207,6 +252,8 @@ Object.defineProperty(app, 'dragOverNode', {
 8. `sf_utils/` 中的工具函数应当是无状态的纯函数
 9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API
 10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
+11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现（见前端机制 §7）
+12. 后端改动后需重启 docker 容器，`web/` JS 改动需同步 docker 目录并硬刷新（见前端机制 §5 部署注意）
 
 ## Testing
 
@@ -214,6 +261,8 @@ Object.defineProperty(app, 'dragOverNode', {
 - 静态检查：确认 `NODE_CLASS_MAPPINGS` 和 `NODE_DISPLAY_NAME_MAPPINGS` 键一致
 - 导入检查：确认所有节点类在根 `__init__.py` 中正确导入
 - 依赖检查：确认 `requirements.txt` 包含所有第三方依赖
+- 后端模拟测试（无需 ComfyUI）：mock `torch`/`comfy.utils` 后加载节点模块，用 FakeDynPrompt/FakeNode 断言图结构与返回值（循环节点、动态槽位 JS 均有先例）
+- 前端模拟测试：无 DOM 依赖的公共库复制为 `.mjs` 后用 Node 直接跑（FakeNode + 事件序列）
 
 ## 静态检查脚本经验（AST 对比踩坑）
 
