@@ -152,6 +152,9 @@ class SFMyNode:
 - **`ByPassTypeTuple`/`TautologyStr` 是旧版遗留，可省略**：早期 ComfyUI 按索引校验链接类型时才需要它绕过；现代 ComfyUI 的类型校验仅用于 `VALIDATE_INPUTS`，链接类型不校验，RETURN_TYPES 用普通 tuple + `AnyType("*")` 即可。
 - **`ExecutionBlocker` 官方位置是 `comfy_execution.graph_utils`**（graph.py 只是 re-export，避免过早 import torch）。
 - **do-while 语义**：total 通过连线传 0 时循环体仍执行一次（widget 侧 min=1 已约束；Easy-Use 原版同行为，忠实保留）。
+- **ForLoopEnd 必须被"消费"才会驱动循环（大坑）**：新版 `ExecutionList`（TopologicalSort）只调度被下游引用的节点——`add_node` 从输出节点回溯依赖链入队，**死端节点（输出无下游）从不执行**。`SFForLoopEnd` 的输出必须接一个 OUTPUT_NODE（如 PreviewImage/SaveImage）才被调度 → expand 出 `SFWhileLoopEnd` → 循环才启动。排查"循环不跑/只跑一轮"时先确认 ForLoopEnd 输出有下游消费者（2026-08 实测：删除循环外 PreviewImage 后循环完全不启动）。
+- **`explore_output_nodes` 必须收集输出节点的全部链接输入**：原实现 `output_nodes[id] = v` 在遍历多个链接输入时被**最后一个**覆盖（如 SaveImage 的 `images←RMBG` 被 `filename_prefix←TextReplace` 覆盖）→ OUTPUT_NODE 无法并入循环体 → 每轮不重跑。正确写法：`output_nodes.setdefault(id, []).append(v)`，匹配时遍历任意一个 link（2026-08 修复）。
+- **循环体内存线性累积（现状，无解）**：循环每轮重建的节点输出全部保留在 `HierarchicalCache` 嵌套 subcache 中直到 prompt 结束（`clean_unused` 只在 prompt 开始时对顶层缓存调用）。重节点（RMBG 3 输出 ~109MB/轮、LoadImagesPath 47MB/轮）× 67 轮 ≈ 13GB RAM。避免二次方增长：不要在循环内做 `SFBatchAnything` 每轮 cat 累积（Σk 张 ≈ 百 GB 级）。可用 `--cache-ram` 启动参数缓解（注意参数名是连字符 `--cache-ram`，`--cache ram` 不是合法参数会导致启动失败）。
 - 每轮迭代 forLoopStart 重建时其 expand 会多产生一个无引用的 whileLoopStart 节点（原版同款，无害）。
 - `nodes.NODE_CLASS_MAPPINGS` 在**运行时**才包含全部自定义节点（加载器逐个合并），函数内 import 最安全。
 - **本地模拟验证**：mock `torch`/`comfy.utils` 后可直接加载 `nodes/logic.py`（构造 `sfnodes`/`sfnodes.nodes`/`sfnodes.sf_utils` 包上下文 + `spec_from_file_location`），用 FakeDynPrompt 断言 expand 图结构、result link 指向、终止分支返回值。

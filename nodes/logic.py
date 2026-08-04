@@ -248,15 +248,17 @@ class SFWhileLoopEnd:
     def explore_output_nodes(self, dynprompt, upstream, output_nodes, parent_ids):
         for parent_id in upstream:
             display_id = dynprompt.get_display_node_id(parent_id)
-            for output_id in output_nodes:
-                id = output_nodes[output_id][0]
-                if id in parent_ids and display_id == id and output_id not in upstream[parent_id]:
-                    if "." in parent_id:
-                        arr = parent_id.split(".")
-                        arr[len(arr) - 1] = output_id
-                        upstream[parent_id].append(".".join(arr))
-                    else:
-                        upstream[parent_id].append(output_id)
+            for output_id, links in output_nodes.items():
+                for v in links:
+                    id = v[0]
+                    if id in parent_ids and display_id == id and output_id not in upstream[parent_id]:
+                        if "." in parent_id:
+                            arr = parent_id.split(".")
+                            arr[len(arr) - 1] = output_id
+                            upstream[parent_id].append(".".join(arr))
+                        else:
+                            upstream[parent_id].append(output_id)
+                        break
 
     def collect_contained(self, node_id, upstream, contained):
         if node_id not in upstream:
@@ -290,7 +292,7 @@ class SFWhileLoopEnd:
             if hasattr(class_def, "OUTPUT_NODE") and class_def.OUTPUT_NODE == True:
                 for k, v in node["inputs"].items():
                     if is_link(v):
-                        output_nodes[id] = v
+                        output_nodes.setdefault(id, []).append(v)
 
         graph = GraphBuilder()
         self.explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
