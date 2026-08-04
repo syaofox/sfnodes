@@ -3,7 +3,16 @@ import numpy as np
 import torch
 
 from PIL import Image
-from ...sf_utils.image_convert import np2tensor, tensor2np
+from ...sf_utils.image_convert import (
+    np2tensor,
+    tensor2np,
+    tensor2images,
+    images2tensor,
+    pil2tensor,
+)
+from ...sf_utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/image"
 
@@ -87,32 +96,64 @@ class TrimImageBorders:
             },
         }
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("cropped_image", "crop_mask")
     FUNCTION = "run"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "图片去黑边或白边"
+    DESCRIPTION = (
+        "图片去黑边或白边，支持批次逐张裁剪；输出裁剪后的图片"
+        "（批次裁剪尺寸不一致时仅保留第一张，完整裁剪信息见 crop_mask）"
+        "与原图尺寸的裁剪区域 mask"
+    )
 
-    def run(self, image, threshold, border_color="black"):
-        img = tensor2np(image[0])
-        img = Image.fromarray(img)
-        gray_image = img.convert("L")
+    def run(self, image, threshold=10, border_color="black"):
+        images = tensor2images(image)
+        cropped_list = []
+        mask_list = []
+        cropped_size = None
+        consistent = True
+        for pil_img in images:
+            gray_image = pil_img.convert("L")
 
-        if border_color == "white":
-            binary_image = gray_image.point(
-                lambda x: 0 if x > (255 - threshold) else 255
+            if border_color == "white":
+                binary_image = gray_image.point(
+                    lambda x: 0 if x > (255 - threshold) else 255
+                )
+            else:
+                binary_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+
+            bbox = binary_image.getbbox()
+
+            if bbox:
+                cropped_img = pil_img.crop(bbox)
+            else:
+                cropped_img = pil_img
+                bbox = (0, 0, pil_img.width, pil_img.height)
+
+            cropped_list.append(cropped_img)
+
+            crop_mask = np.zeros(pil_img.size[::-1], dtype=np.float32)
+            crop_mask[bbox[1] : bbox[3], bbox[0] : bbox[2]] = 1.0
+            mask_list.append(crop_mask)
+
+            if cropped_size is None:
+                cropped_size = cropped_img.size
+            elif cropped_img.size != cropped_size:
+                consistent = False
+
+        if consistent:
+            cropped_tensor = images2tensor(cropped_list)
+        else:
+            logger.warning(
+                "TrimImageBorders: 批次裁剪尺寸不一致（如 %s 与 %s），"
+                "cropped_image 仅保留第一张，完整裁剪信息见 crop_mask",
+                cropped_size,
+                cropped_list[0].size,
             )
-        else:
-            binary_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+            cropped_tensor = pil2tensor(cropped_list[0])
 
-        bbox = binary_image.getbbox()
-
-        if bbox:
-            cropped_image = img.crop(bbox)
-        else:
-            cropped_image = img
-
-        cropped_image = np2tensor(cropped_image).unsqueeze(0)
-        return (cropped_image,)
+        mask_tensor = torch.from_numpy(np.stack(mask_list))
+        return (cropped_tensor, mask_tensor)
 
 
 class AddImageBorder:
