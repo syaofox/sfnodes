@@ -91,6 +91,20 @@ function drawNumberWidget(ctx, posX, posY, height, value, direction) {
 }
 drawNumberWidget.WIDTH = 9 + 3 + 32 + 3 + 9;
 
+function drawGripHandle(ctx, posX, posY, height, alpha) {
+    const GW = 10, barW = 2, barGap = 3;
+    const midY = posY + height / 2;
+    ctx.save();
+    ctx.fillStyle = LiteGraph.WIDGET_TEXT_COLOR;
+    ctx.globalAlpha = alpha * 0.7;
+    for (let i = -1; i <= 1; i++) {
+        ctx.fillRect(posX, midY + i * barGap - 1, GW, barW);
+    }
+    ctx.restore();
+    return [[posX, GW], GW];
+}
+drawGripHandle.WIDTH = 10;
+
 // ---------------------------------------------------------------------------
 // Array Utils
 // ---------------------------------------------------------------------------
@@ -99,10 +113,7 @@ function moveArrayItem(arr, item, to) {
     if (from === -1) return;
     arr.splice(to, 0, arr.splice(from, 1)[0]);
 }
-function removeArrayItem(arr, item) {
-    const idx = arr.indexOf(item);
-    if (idx > -1) arr.splice(idx, 1);
-}
+function isLoraWidget(w) { return w?.name?.startsWith?.("lora_"); }
 
 // ---------------------------------------------------------------------------
 // Lora Chooser + Tree View
@@ -276,9 +287,6 @@ function setupNode(node) {
 
     if (!app.loras) fetchLoraList();
 
-    // ---- helper: is this widget a lora row? ----
-    function isLoraWidget(w) { return w?.name?.startsWith?.("lora_"); }
-
     // ---- add a new lora row widget ----
     node.addNewLoraWidget = function (loraName) {
         this.loraWidgetsCounter++;
@@ -414,27 +422,6 @@ function setupNode(node) {
         this.setDirtyCanvas(true, true);
     };
 
-    // ---- context menu ----
-    const _origGetSlotMenu = node.getSlotMenuOptions;
-    node.getSlotMenuOptions = function (slot) {
-        if (slot?.widget?.name?.startsWith("lora_")) {
-            const widget = slot.widget;
-            const idx = this.widgets.indexOf(widget);
-            const canUp = idx > 0 && this.widgets[idx - 1]?.name?.startsWith("lora_");
-            const canDown = idx < this.widgets.length - 1 && this.widgets[idx + 1]?.name?.startsWith("lora_");
-            new LiteGraph.ContextMenu([
-                { content: `${widget._value?.on ? "Disable" : "Enable"} Toggle`, callback: () => { widget._value.on = !widget._value.on; node.setDirtyCanvas(true, true); } },
-                null,
-                { content: "Move Up", disabled: !canUp, callback: () => { moveArrayItem(this.widgets, widget, idx - 1); node.setDirtyCanvas(true, true); } },
-                { content: "Move Down", disabled: !canDown, callback: () => { moveArrayItem(this.widgets, widget, idx + 1); node.setDirtyCanvas(true, true); } },
-                { content: "Remove", callback: () => { removeArrayItem(this.widgets, widget); node.setDirtyCanvas(true, true); } },
-            ], { title: "LORA WIDGET", event: getLastCanvasEvent() });
-            return undefined;
-        }
-        if (_origGetSlotMenu) return _origGetSlotMenu.call(this, slot);
-        return [];
-    };
-
     // ---- refresh ----
     node.refreshComboInNode = function () { fetchLoraList(); };
 }
@@ -518,6 +505,8 @@ function createLoraWidget(name, node) {
         _haveMouseMoved: false,
         _mouseDown: null,
         _dragTarget: null,
+        _reorderDrag: false,
+        _reorderSlot: -1,
         _hit: {},
         get value() { return this._value; },
         set value(v) {
@@ -557,15 +546,43 @@ function createLoraWidget(name, node) {
             this._hit.strengthAny = INVALID_BOUNDS;
             this._hit.info = INVALID_BOUNDS;
             this._hit.lora = INVALID_BOUNDS;
+            this._hit.grip = INVALID_BOUNDS;
             const margin = 10, im = margin * 0.33;
             const lq = isLowQuality();
             const midY = posY + height * 0.5;
             let posX = margin;
             // Background
             drawRoundedRect(ctx, [posX, posY], [width - margin * 2, height], height * 0.5, LiteGraph.WIDGET_BGCOLOR, LiteGraph.WIDGET_OUTLINE_COLOR);
+            // Drag grip handle (reorder by dragging vertically)
+            const gripPad = 6;
+            const [_gripB, _gripW] = drawGripHandle(
+                ctx, posX + gripPad, posY, height,
+                this._value.on ? app.canvas.editor_alpha : app.canvas.editor_alpha * 0.4
+            );
+            this._hit.grip = _gripB;
+            posX += gripPad + _gripW + im;
             // Toggle
             this._hit.toggle = drawToggle(ctx, posX, posY, height, this._value.on);
             posX += this._hit.toggle[1] + im;
+            // Insertion indicator + dragged-row highlight while reordering
+            if (this._reorderDrag && this._reorderSlot >= 0) {
+                const loras = n.widgets.filter(isLoraWidget);
+                let lineY;
+                if (this._reorderSlot === 0) lineY = loras[0]?.last_y;
+                else if (this._reorderSlot >= loras.length) lineY = loras[loras.length - 1]?.last_y + height;
+                else lineY = (loras[this._reorderSlot - 1].last_y + height + loras[this._reorderSlot].last_y) / 2;
+                ctx.save();
+                ctx.strokeStyle = "rgba(121,170,255,0.9)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(4, lineY);
+                ctx.lineTo(width - 4, lineY);
+                ctx.stroke();
+                ctx.strokeStyle = "rgba(121,170,255,0.55)";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(posX - im, posY, width - (posX - im) * 2, height);
+                ctx.restore();
+            }
             if (lq) {
                 ctx.globalAlpha = app.canvas.editor_alpha;
                 return;
@@ -636,6 +653,13 @@ function createLoraWidget(name, node) {
                 w._haveMouseMoved = false;
                 w._dragTarget = null;
                 const showSep = n.properties[PROP_KEY] === OPT_SEPARATE;
+                // Check drag grip handle
+                if (hitTest(pos, w._hit.grip)) {
+                    w._dragTarget = "reorder";
+                    w._reorderDrag = true;
+                    w._reorderSlot = n.widgets.filter(isLoraWidget).indexOf(w);
+                    return true;
+                }
                 // Check toggle
                 if (hitTest(pos, w._hit.toggle)) {
                     w._value.on = !w._value.on;
@@ -690,15 +714,39 @@ function createLoraWidget(name, node) {
                 if (hitTest(pos, w._hit.strengthAny)) { w._dragTarget = "strength"; return true; }
             }
             if (event.type === "pointermove" && w._mouseDown) {
-                if (w._dragTarget && event.deltaX) {
+                if (w._dragTarget === "reorder") {
+                    w._haveMouseMoved = true;
+                    const loras = n.widgets.filter(isLoraWidget);
+                    let slot = loras.length;
+                    for (let i = 0; i < loras.length; i++) {
+                        if (pos[1] < loras[i].last_y + LiteGraph.NODE_WIDGET_HEIGHT / 2) { slot = i; break; }
+                    }
+                    w._reorderSlot = slot;
+                    n.setDirtyCanvas(true, true);
+                } else if (w._dragTarget && event.deltaX) {
                     w._haveMouseMoved = true;
                     w._value[w._dragTarget] = (w._value[w._dragTarget] ?? 1) + event.deltaX * 0.05;
                     n.setDirtyCanvas(true, true);
                 }
             }
             if (event.type === "pointerup") {
+                if (w._dragTarget === "reorder" && w._haveMouseMoved && w._reorderSlot >= 0) {
+                    const loras = n.widgets.filter(isLoraWidget);
+                    const cur = loras.indexOf(w);
+                    const slot = w._reorderSlot;
+                    let ti = cur;
+                    if (slot <= cur) ti = slot;
+                    else if (slot > cur + 1) ti = slot - 1;
+                    if (ti !== cur) {
+                        moveArrayItem(n.widgets, w, n.widgets.indexOf(loras[ti]));
+                        n.setDirtyCanvas(true, true);
+                    }
+                }
                 w._mouseDown = null;
                 w._dragTarget = null;
+                w._reorderDrag = false;
+                w._reorderSlot = -1;
+                n.setDirtyCanvas(true, true);
             }
             return false;
         },
