@@ -105,6 +105,13 @@ class SFLoadPromptsFromFolder:
         return (prompts, file_paths)
 
 
+def _sanitize_stem(name: str) -> str:
+    base = str(name).replace("\\", "/").rsplit("/", 1)[-1]
+    stem = os.path.splitext(base)[0]
+    stem = re.sub(r'[\\/:*?"<>|\x00]', "_", stem)
+    return stem or "untitled"
+
+
 class SFSaveTextToFiles:
     @classmethod
     def INPUT_TYPES(cls):
@@ -116,7 +123,8 @@ class SFSaveTextToFiles:
             },
             "optional": {
                 "new_folder": ("STRING", {"default": "", "tooltip": "非空时优先：自动创建该子目录并保存到其中"}),
-                "file_prefix": ("STRING", {"default": "Scene", "tooltip": "生成文件名的前缀"}),
+                "file_prefix": ("STRING", {"default": "", "tooltip": "生成文件名的前缀（连 filenames 时组合为 {前缀}_{文件名}，留空则不加前缀）"}),
+                "filenames": ("STRING", {"tooltip": "保存文件名（不含扩展名，可接 SF Parse Path 的 stem 输出）；按文本行顺序一一配对命名（存在时直接覆盖），不足的行回退 file_prefix 自动递增"}),
             }
         }
 
@@ -124,27 +132,42 @@ class SFSaveTextToFiles:
     RETURN_NAMES = ("output_path", "file_prefix")
     FUNCTION = "save_text_to_files"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将多行文本的每一行保存为 user/sfnodes/prompt/ 子目录下的独立 txt 文件，文件名自动递增不覆盖已有文件"
+    DESCRIPTION = "将多行文本的每一行保存为 user/sfnodes/prompt/ 子目录下的独立 txt 文件；连接 filenames 列表时按行顺序用指定文件名保存（直接覆盖），无指定文件名的行自动递增不覆盖已有文件"
     OUTPUT_NODE = True
+    INPUT_IS_LIST = True
 
-    def save_text_to_files(self, text, folder, new_folder="", file_prefix="Scene"):
-        directory = _resolve_folder(folder, new_folder)
+    def save_text_to_files(self, text, folder, new_folder="", file_prefix="", filenames=None):
+        directory = _resolve_folder(folder[0] if isinstance(folder, list) else folder,
+                                    new_folder[0] if isinstance(new_folder, list) else new_folder)
+        prefix = file_prefix[0] if isinstance(file_prefix, list) else file_prefix
 
-        lines = text.split('\n')
+        texts = text if isinstance(text, list) else [text]
+        names = list(filenames) if isinstance(filenames, list) else []
+
+        lines = []
+        for block in texts:
+            for line in str(block).split('\n'):
+                if line.strip():
+                    lines.append(line.strip())
+
+        def make_name(stem):
+            return (prefix + "_" if prefix else "") + stem + ".txt"
+
         file_count = 1
-        for line in lines:
-            if line.strip():
+        for i, line in enumerate(lines):
+            if i < len(names) and names[i]:
+                filename = make_name(_sanitize_stem(names[i]))
+            else:
                 while True:
-                    filename = f"{file_prefix}_{file_count:05d}.txt"
-                    filepath = os.path.join(directory, filename)
-                    if not os.path.exists(filepath):
+                    filename = make_name(f"{file_count:05d}")
+                    if not os.path.exists(os.path.join(directory, filename)):
                         break
                     file_count += 1
-                with open(filepath, 'w', encoding='utf-8') as file:
-                    file.write(line.strip())
                 file_count += 1
+            with open(os.path.join(directory, filename), 'w', encoding='utf-8') as file:
+                file.write(line)
 
-        return (os.path.abspath(directory), file_prefix)
+        return (os.path.abspath(directory), prefix)
 
 
 def _register_prompt_routes():
