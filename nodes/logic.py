@@ -1,5 +1,8 @@
 import torch
 
+import comfy.utils
+from comfy_execution.graph_utils import GraphBuilder, ExecutionBlocker, is_link
+
 from ..sf_utils.common import AnyType
 
 any_type = AnyType("*")
@@ -106,3 +109,377 @@ class IsMaskEmpty:
         if mask is None:
             return (True,)
         return (torch.all(mask == 0).item(),)
+
+
+COMPARE_FUNCTIONS = {
+    "a == b": lambda a, b: a == b,
+    "a != b": lambda a, b: a != b,
+    "a < b": lambda a, b: a < b,
+    "a > b": lambda a, b: a > b,
+    "a <= b": lambda a, b: a <= b,
+    "a >= b": lambda a, b: a >= b,
+    "a > 0": lambda a, b: a > 0,
+    "a <= 0": lambda a, b: a <= 0,
+    "b > 0": lambda a, b: b > 0,
+    "b <= 0": lambda a, b: b <= 0,
+}
+
+
+class SFMathInt:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "a": ("INT", {"default": 0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 1}),
+                "b": ("INT", {"default": 0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 1}),
+                "operation": (["add", "subtract", "multiply", "divide", "modulo", "power"],),
+            },
+        }
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("INT",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "整数运算：按 operation 对 a、b 执行加减乘除模幂，输出整数结果。循环节点内部依赖此节点"
+
+    def execute(self, a, b, operation):
+        ops = {
+            "add": lambda: a + b,
+            "subtract": lambda: a - b,
+            "multiply": lambda: a * b,
+            "divide": lambda: a // b,
+            "modulo": lambda: a % b,
+            "power": lambda: a ** b,
+        }
+        return (ops[operation](),)
+
+
+class SFCompare:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "comparison": (list(COMPARE_FUNCTIONS.keys()), {"default": "a == b"}),
+            },
+            "optional": {
+                "a": (any_type, {"default": 0}),
+                "b": (any_type, {"default": 0}),
+            },
+        }
+
+    RETURN_TYPES = ("BOOLEAN",)
+    RETURN_NAMES = ("boolean",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "比较运算：按 comparison 规则比较 a、b，输出布尔结果。循环节点内部依赖此节点"
+
+    def execute(self, a=0, b=0, comparison="a == b"):
+        return (COMPARE_FUNCTIONS[comparison](a, b),)
+
+
+class SFWhileLoopStart:
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = {
+            "required": {
+                "condition": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {},
+        }
+        for i in range(MAX_FLOW_NUM):
+            inputs["optional"]["initial_value%d" % i] = (any_type,)
+        return inputs
+
+    RETURN_TYPES = ("FLOW_CONTROL",) + tuple(any_type for _ in range(MAX_FLOW_NUM))
+    RETURN_NAMES = ("flow",) + tuple("value%d" % i for i in range(MAX_FLOW_NUM))
+    FUNCTION = "while_loop_open"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "While 循环起始节点：condition 为真时输出初始值并执行循环体，为假时输出被阻断，配合 SF While Loop End 使用"
+
+    def while_loop_open(self, condition, **kwargs):
+        values = []
+        for i in range(MAX_FLOW_NUM):
+            values.append(kwargs.get("initial_value%d" % i, None) if condition else ExecutionBlocker(None))
+        return tuple(["stub"] + values)
+
+
+class SFWhileLoopEnd:
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = {
+            "required": {
+                "flow": ("FLOW_CONTROL", {"rawLink": True}),
+                "condition": ("BOOLEAN", {}),
+            },
+            "optional": {},
+            "hidden": {
+                "dynprompt": "DYNPROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+        for i in range(MAX_FLOW_NUM):
+            inputs["optional"]["initial_value%d" % i] = (any_type,)
+        return inputs
+
+    RETURN_TYPES = tuple(any_type for _ in range(MAX_FLOW_NUM))
+    RETURN_NAMES = tuple("value%d" % i for i in range(MAX_FLOW_NUM))
+    FUNCTION = "while_loop_close"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "While 循环结束节点：condition 为真时重建并重跑循环体，为假时输出当前 value0-19"
+
+    def explore_dependencies(self, node_id, dynprompt, upstream, parent_ids):
+        node_info = dynprompt.get_node(node_id)
+        if "inputs" not in node_info:
+            return
+        for k, v in node_info["inputs"].items():
+            if is_link(v):
+                parent_id = v[0]
+                display_id = dynprompt.get_display_node_id(parent_id)
+                display_node = dynprompt.get_node(display_id)
+                class_type = display_node["class_type"]
+                if class_type not in ["SFForLoopEnd", "SFWhileLoopEnd"]:
+                    parent_ids.append(display_id)
+                if parent_id not in upstream:
+                    upstream[parent_id] = []
+                    self.explore_dependencies(parent_id, dynprompt, upstream, parent_ids)
+                upstream[parent_id].append(node_id)
+
+    def explore_output_nodes(self, dynprompt, upstream, output_nodes, parent_ids):
+        for parent_id in upstream:
+            display_id = dynprompt.get_display_node_id(parent_id)
+            for output_id in output_nodes:
+                id = output_nodes[output_id][0]
+                if id in parent_ids and display_id == id and output_id not in upstream[parent_id]:
+                    if "." in parent_id:
+                        arr = parent_id.split(".")
+                        arr[len(arr) - 1] = output_id
+                        upstream[parent_id].append(".".join(arr))
+                    else:
+                        upstream[parent_id].append(output_id)
+
+    def collect_contained(self, node_id, upstream, contained):
+        if node_id not in upstream:
+            return
+        for child_id in upstream[node_id]:
+            if child_id not in contained:
+                contained[child_id] = True
+                self.collect_contained(child_id, upstream, contained)
+
+    def while_loop_close(self, flow, condition, dynprompt=None, unique_id=None, **kwargs):
+        if not condition:
+            values = []
+            for i in range(MAX_FLOW_NUM):
+                values.append(kwargs.get("initial_value%d" % i, None))
+            return tuple(values)
+
+        from nodes import NODE_CLASS_MAPPINGS as ALL_NODE_CLASS_MAPPINGS
+
+        upstream = {}
+        parent_ids = []
+        self.explore_dependencies(unique_id, dynprompt, upstream, parent_ids)
+        parent_ids = list(set(parent_ids))
+        prompts = dynprompt.get_original_prompt()
+        output_nodes = {}
+        for id in prompts:
+            node = prompts[id]
+            if "inputs" not in node:
+                continue
+            class_type = node["class_type"]
+            class_def = ALL_NODE_CLASS_MAPPINGS[class_type]
+            if hasattr(class_def, "OUTPUT_NODE") and class_def.OUTPUT_NODE == True:
+                for k, v in node["inputs"].items():
+                    if is_link(v):
+                        output_nodes[id] = v
+
+        graph = GraphBuilder()
+        self.explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
+        contained = {}
+        open_node = flow[0]
+        self.collect_contained(open_node, upstream, contained)
+        contained[unique_id] = True
+        contained[open_node] = True
+
+        for node_id in contained:
+            original_node = dynprompt.get_node(node_id)
+            node = graph.node(original_node["class_type"], "Recurse" if node_id == unique_id else node_id)
+            node.set_override_display_id(node_id)
+        for node_id in contained:
+            original_node = dynprompt.get_node(node_id)
+            node = graph.lookup_node("Recurse" if node_id == unique_id else node_id)
+            for k, v in original_node["inputs"].items():
+                if is_link(v) and v[0] in contained:
+                    parent = graph.lookup_node(v[0])
+                    node.set_input(k, parent.out(v[1]))
+                else:
+                    node.set_input(k, v)
+
+        new_open = graph.lookup_node(open_node)
+        for i in range(MAX_FLOW_NUM):
+            key = "initial_value%d" % i
+            new_open.set_input(key, kwargs.get(key, None))
+        my_clone = graph.lookup_node("Recurse")
+        result = tuple(my_clone.out(x) for x in range(MAX_FLOW_NUM))
+        return {
+            "result": result,
+            "expand": graph.finalize(),
+        }
+
+
+class SFForLoopStart:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "total": ("INT", {"default": 1, "min": 1, "max": 100000, "step": 1}),
+            },
+            "optional": {
+                "initial_value%d" % i: (any_type,) for i in range(1, MAX_FLOW_NUM)
+            },
+            "hidden": {
+                "initial_value0": (any_type,),
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = ("FLOW_CONTROL", "INT") + tuple(any_type for _ in range(1, MAX_FLOW_NUM))
+    RETURN_NAMES = ("flow", "index") + tuple("value%d" % i for i in range(1, MAX_FLOW_NUM))
+    FUNCTION = "for_loop_start"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "For 循环起始节点：按 total 次数循环，index 输出当前迭代下标，value1-19 传递循环状态，配合 SF For Loop End 使用"
+
+    def for_loop_start(self, total, prompt=None, extra_pnginfo=None, unique_id=None, **kwargs):
+        graph = GraphBuilder()
+        i = 0
+        if "initial_value0" in kwargs:
+            i = kwargs["initial_value0"]
+
+        initial_values = {("initial_value%d" % num): kwargs.get("initial_value%d" % num, None) for num in
+                          range(1, MAX_FLOW_NUM)}
+        graph.node("SFWhileLoopStart", condition=total, initial_value0=i, **initial_values)
+        outputs = [kwargs.get("initial_value%d" % num, None) for num in range(1, MAX_FLOW_NUM)]
+        return {
+            "result": tuple(["stub", i] + outputs),
+            "expand": graph.finalize(),
+        }
+
+
+class SFForLoopEnd:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "flow": ("FLOW_CONTROL", {"rawLink": True}),
+            },
+            "optional": {
+                "initial_value%d" % i: (any_type, {"rawLink": True}) for i in range(1, MAX_FLOW_NUM)
+            },
+            "hidden": {
+                "dynprompt": "DYNPROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = tuple(any_type for _ in range(1, MAX_FLOW_NUM))
+    RETURN_NAMES = tuple("value%d" % i for i in range(1, MAX_FLOW_NUM))
+    FUNCTION = "for_loop_end"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "For 循环结束节点：接收 SF For Loop Start 的 flow 与循环体末态，未达 total 时自动重建循环体继续迭代，结束后输出最终 value1-19"
+
+    def for_loop_end(self, flow, dynprompt=None, extra_pnginfo=None, unique_id=None, **kwargs):
+        graph = GraphBuilder()
+        while_open = flow[0]
+        forstart_node = dynprompt.get_node(while_open)
+        if forstart_node is None or forstart_node.get("class_type") != "SFForLoopStart":
+            raise Exception("SF For Loop End 的 flow 输入必须连接 SF For Loop Start 的 flow 输出")
+        total = forstart_node["inputs"]["total"]
+
+        sub = graph.node("SFMathInt", operation="add", a=[while_open, 1], b=1)
+        cond = graph.node("SFCompare", a=sub.out(0), b=total, comparison="a < b")
+        input_values = {("initial_value%d" % i): kwargs.get("initial_value%d" % i, None) for i in
+                        range(1, MAX_FLOW_NUM)}
+        while_close = graph.node(
+            "SFWhileLoopEnd",
+            flow=flow,
+            condition=cond.out(0),
+            initial_value0=sub.out(0),
+            **input_values,
+        )
+        return {
+            "result": tuple([while_close.out(i) for i in range(1, MAX_FLOW_NUM)]),
+            "expand": graph.finalize(),
+        }
+
+
+class SFBatchAnything:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "any_1": (any_type,),
+                "any_2": (any_type,),
+            },
+        }
+
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("batch",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "合并两个任意输入：图像/潜空间按 batch 维拼接，字符串/数字/列表/元组按顺序合并，常用于循环结果累积"
+
+    def latent_batch(self, latent_1, latent_2):
+        samples_out = latent_1.copy()
+        s1 = latent_1["samples"]
+        s2 = latent_2["samples"]
+        if s1.shape[1:] != s2.shape[1:]:
+            s2 = comfy.utils.common_upscale(s2, s1.shape[3], s1.shape[2], "bilinear", "center")
+        s = torch.cat((s1, s2), dim=0)
+        samples_out["samples"] = s
+        samples_out["batch_index"] = latent_1.get("batch_index", list(range(s1.shape[0]))) + \
+                                     latent_2.get("batch_index", list(range(s2.shape[0])))
+        return samples_out
+
+    def execute(self, any_1, any_2):
+        if isinstance(any_1, torch.Tensor) or isinstance(any_2, torch.Tensor):
+            if any_1 is None:
+                return (any_2,)
+            if any_2 is None:
+                return (any_1,)
+            if any_1.shape[1:] != any_2.shape[1:]:
+                any_2 = comfy.utils.common_upscale(any_2.movedim(-1, 1), any_1.shape[2], any_1.shape[1],
+                                                   "bilinear", "center").movedim(1, -1)
+            return (torch.cat((any_1, any_2), 0),)
+        elif isinstance(any_1, (str, float, int)):
+            if any_2 is None:
+                return (any_1,)
+            elif isinstance(any_2, tuple):
+                return (any_2 + (any_1,),)
+            elif isinstance(any_2, list):
+                return (any_2 + [any_1],)
+            return ([any_1, any_2],)
+        elif isinstance(any_2, (str, float, int)):
+            if any_1 is None:
+                return (any_2,)
+            elif isinstance(any_1, tuple):
+                return (any_1 + (any_2,),)
+            elif isinstance(any_1, list):
+                return (any_1 + [any_2],)
+            return ([any_2, any_1],)
+        elif isinstance(any_1, dict) and "samples" in any_1:
+            if any_2 is None:
+                return (any_1,)
+            if isinstance(any_2, dict) and "samples" in any_2:
+                return (self.latent_batch(any_1, any_2),)
+        elif isinstance(any_2, dict) and "samples" in any_2:
+            if any_1 is None:
+                return (any_2,)
+            if isinstance(any_1, dict) and "samples" in any_1:
+                return (self.latent_batch(any_2, any_1),)
+        if any_1 is None:
+            return (any_2,)
+        if any_2 is None:
+            return (any_1,)
+        return (any_1 + any_2,)

@@ -119,7 +119,19 @@ from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendO
 from .nodes.utils.image_orientation import ImageOrientation
 from .nodes.utils.workflow_name import SFWorkflowName
 
-from .nodes.logic import AnythingIndexSwitch, IsMaskEmpty, AnyPack, AnyUnpack
+from .nodes.logic import (
+    AnythingIndexSwitch,
+    IsMaskEmpty,
+    AnyPack,
+    AnyUnpack,
+    SFWhileLoopStart,
+    SFWhileLoopEnd,
+    SFForLoopStart,
+    SFForLoopEnd,
+    SFBatchAnything,
+    SFMathInt,
+    SFCompare,
+)
 
 WEB_DIRECTORY = "web"
 
@@ -263,6 +275,14 @@ NODE_CLASS_MAPPINGS = {
     "SFIsMaskEmpty": IsMaskEmpty,
     "SFAnyPack": AnyPack,
     "SFAnyUnpack": AnyUnpack,
+    # 循环节点
+    "SFWhileLoopStart": SFWhileLoopStart,
+    "SFWhileLoopEnd": SFWhileLoopEnd,
+    "SFForLoopStart": SFForLoopStart,
+    "SFForLoopEnd": SFForLoopEnd,
+    "SFBatchAnything": SFBatchAnything,
+    "SFMathInt": SFMathInt,
+    "SFCompare": SFCompare,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -404,6 +424,14 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFIsMaskEmpty": "SF Is Mask Empty",
     "SFAnyPack": "SF Any Pack",
     "SFAnyUnpack": "SF Any Unpack",
+    # 循环节点
+    "SFWhileLoopStart": "SF While Loop Start",
+    "SFWhileLoopEnd": "SF While Loop End",
+    "SFForLoopStart": "SF For Loop Start",
+    "SFForLoopEnd": "SF For Loop End",
+    "SFBatchAnything": "SF Batch Any",
+    "SFMathInt": "SF Math Int",
+    "SFCompare": "SF Compare",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
