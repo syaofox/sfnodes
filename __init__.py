@@ -82,6 +82,7 @@ from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.model.power_lora_loader import PowerLoraLoader
+from .nodes.model.power_lora_preset import PowerLoraPreset
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.sage_attention import SFPatchSageAttention
 from .nodes.image.compare import ImageCompare
@@ -228,6 +229,7 @@ NODE_CLASS_MAPPINGS = {
     "SFMultiLoraLoader": MultiLoraLoader,
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
     "SFPowerLoraLoader": PowerLoraLoader,
+    "SFPowerLoraPreset": PowerLoraPreset,
     "SFLoraLoader": LoraLoader,
     "SFLoraLoaderModelOnly": LoraLoaderModelOnly,
     # 图片对比节点
@@ -380,6 +382,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMultiLoraLoader": "SF Multi LoRA Loader",
     "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
     "SFPowerLoraLoader": "SF Power Lora Loader",
+    "SFPowerLoraPreset": "SF Power Lora Preset",
     "SFLoraLoader": "SF LoRA Loader",
     "SFLoraLoaderModelOnly": "SF LoRA Loader (Model Only)",
     # 图片对比节点

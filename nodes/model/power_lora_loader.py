@@ -59,7 +59,7 @@ def get_lora_by_filename(file_path, lora_paths=None):
 
 class PowerLoraLoader:
     """A powerful, flexible node to add multiple loras to a model/clip with custom UI."""
-    DESCRIPTION = "功能强大的多 LoRA 加载器，支持动态槽位和权重归一化"
+    DESCRIPTION = "功能强大的多 LoRA 加载器，支持动态槽位、权重归一化与预设输入（连接后预设优先）"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -88,6 +88,7 @@ class PowerLoraLoader:
                 data={
                     "model": ("MODEL",),
                     "clip": ("CLIP",),
+                    "preset": ("SF_LORA_PRESET",),
                 },
             ),
             "hidden": {},
@@ -98,25 +99,43 @@ class PowerLoraLoader:
     FUNCTION = "load_loras"
     CATEGORY = _CATEGORY
 
-    def load_loras(self, normalize, normalize_weight, model=None, clip=None, **kwargs):
+    def load_loras(
+        self, normalize, normalize_weight, model=None, clip=None, preset=None, **kwargs
+    ):
         # Collect enabled loras
         enabled_loras = []
-        for key, value in kwargs.items():
-            key_upper = key.upper()
-            if (
-                key_upper.startswith("LORA_")
-                and isinstance(value, dict)
-                and "on" in value
-                and "lora" in value
-                and "strength" in value
-                and value["on"]
-            ):
-                strength_model = value["strength"]
-                strength_clip = value.get("strengthTwo", None)
+        if isinstance(preset, dict) and isinstance(preset.get("loras"), list):
+            # 传入预设优先：忽略 widget 配置，使用预设的顺序/强度/normalize
+            normalize = bool(preset.get("normalize", normalize))
+            normalize_weight = float(preset.get("normalize_weight", normalize_weight))
+            for item in preset["loras"]:
+                if not isinstance(item, dict) or not item.get("on"):
+                    continue
+                strength_model = item.get("strength", 0)
+                strength_clip = item.get("strengthTwo", None)
                 if strength_model != 0 or (
                     strength_clip is not None and strength_clip != 0
                 ):
-                    enabled_loras.append((key, value, strength_model, strength_clip))
+                    enabled_loras.append((None, item, strength_model, strength_clip))
+        else:
+            for key, value in kwargs.items():
+                key_upper = key.upper()
+                if (
+                    key_upper.startswith("LORA_")
+                    and isinstance(value, dict)
+                    and "on" in value
+                    and "lora" in value
+                    and "strength" in value
+                    and value["on"]
+                ):
+                    strength_model = value["strength"]
+                    strength_clip = value.get("strengthTwo", None)
+                    if strength_model != 0 or (
+                        strength_clip is not None and strength_clip != 0
+                    ):
+                        enabled_loras.append(
+                            (key, value, strength_model, strength_clip)
+                        )
 
         if not enabled_loras:
             return (model, clip)
