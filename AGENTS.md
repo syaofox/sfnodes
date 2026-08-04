@@ -20,7 +20,7 @@ sfnodes/
 │   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
-│   └── logic.py         # 逻辑：If-Else、索引切换、循环（For/While Loop）
+│   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
 ├── sf_utils/            # 共享工具库
 │   ├── common.py        # AnyType 通用类型
 │   ├── image_convert.py # tensor/pil/numpy/mask 互转
@@ -34,6 +34,7 @@ sfnodes/
 │   ├── insightface_utils.py # InsightFace 封装
 │   ├── face_detector.py  # 人脸检测
 │   ├── lora_notes.py     # LoRA 笔记/说明
+│   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体等）
@@ -109,7 +110,7 @@ class SFMyNode:
 - `comfy.sd` — 模型加载（load_lora_for_models 等）
 - `nodes.LoadImage`, `nodes.SaveImage`, `nodes.MAX_RESOLUTION` — 内置节点
 - `nodes.LoraLoader` — LoRA 加载节点
-- `nodes.NODE_CLASS_MAPPINGS` — **全部**节点映射（nodes.py 末尾会合并所有自定义节点），循环节点用于检查 `OUTPUT_NODE` 属性
+- `nodes.NODE_CLASS_MAPPINGS` — 全部节点映射（含自定义节点；合并时机与使用注意见后端机制 §3）
 - `folder_paths` — 路径管理
 - `comfy_extras.nodes_post_processing` — 后处理节点
 - `comfy_execution.graph_utils` — `GraphBuilder`（图展开）、`is_link`、`ExecutionBlocker`（官方位置，graph.py 只是 re-export）
@@ -137,7 +138,7 @@ class SFMyNode:
 ### 2. 循环实现模式（SFForLoopStart/End 如何工作）
 
 - **SFForLoopStart**：执行时用 `GraphBuilder` 展开出 `SFWhileLoopStart`（condition=total，携带初始值），自身直接返回 `("stub", index, value1..19)`。循环状态经**隐藏输入 `initial_value0`** 传递。
-- **隐藏输入初始值为 None 的坑**：前端 `graphToPrompt` 只序列化 widget 值与连线输入，**无连线的 hidden 输入不会发送** → 首轮 kwargs 无此键 → 代码默认 `i = 0`；`whileLoopEnd` 重建 open 节点时用 `set_input` 写回 index，后续轮次才能读到。
+- **隐藏输入首轮不发送的坑**：前端 `graphToPrompt` 只序列化 widget 值与连线输入，**无连线的 hidden 输入不会出现在 prompt 中** → 首轮 kwargs 无此键（而非 None）→ 代码需默认 `i = 0`；`whileLoopEnd` 重建 open 节点时用 `set_input` 写回 index，后续轮次才能读到。
 - **SFForLoopEnd**：`flow` 输入带 `{"rawLink": True}` → 节点收到**原始链接 `[node_id, slot]`** 而非解析值 → `flow[0]` 定位起始节点 id，用 `dynprompt.get_node(id)` 读其 `total`（可能为 widget 值或 link，link 时由图内 compare 节点在运行时解析）。再展开出 `SFMathInt`（index+1）→ `SFCompare`（`index+1 < total`）→ `SFWhileLoopEnd`。
 - **SFWhileLoopEnd 的递归（Recurse 机制）**：`condition` 为真时：
   1. `explore_dependencies`：沿 whileLoopEnd 输入链回溯依赖图（排除 `SFForLoopEnd`/`SFWhileLoopEnd` 自身防无限递归）；
@@ -250,7 +251,7 @@ Object.defineProperty(app, 'dragOverNode', {
 6. 图像张量格式统一为 `[B, H, W, C]`（ComfyUI 标准）
 7. 遮罩张量格式统一为 `[B, H, W]`
 8. `sf_utils/` 中的工具函数应当是无状态的纯函数
-9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API
+9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API；纯工具模块（无扩展行为，如 `sf_dynamic_slots.js`）仅 export 函数即可，由使用者 import
 10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
 11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现（见前端机制 §7）
 12. 后端改动后需重启 docker 容器，`web/` JS 改动需同步 docker 目录并硬刷新（见前端机制 §5 部署注意）
@@ -261,8 +262,8 @@ Object.defineProperty(app, 'dragOverNode', {
 - 静态检查：确认 `NODE_CLASS_MAPPINGS` 和 `NODE_DISPLAY_NAME_MAPPINGS` 键一致
 - 导入检查：确认所有节点类在根 `__init__.py` 中正确导入
 - 依赖检查：确认 `requirements.txt` 包含所有第三方依赖
-- 后端模拟测试（无需 ComfyUI）：mock `torch`/`comfy.utils` 后加载节点模块，用 FakeDynPrompt/FakeNode 断言图结构与返回值（循环节点、动态槽位 JS 均有先例）
-- 前端模拟测试：无 DOM 依赖的公共库复制为 `.mjs` 后用 Node 直接跑（FakeNode + 事件序列）
+- 后端模拟测试（无需 ComfyUI）：mock `torch`/`comfy.utils` 后加载节点模块，用 FakeDynPrompt 断言图结构与返回值（循环节点有先例）
+- 前端模拟测试：无 DOM 依赖的公共库复制为 `.mjs` 后用 Node 直接跑（FakeNode + 事件序列，动态槽位 JS 有先例）
 
 ## 静态检查脚本经验（AST 对比踩坑）
 
