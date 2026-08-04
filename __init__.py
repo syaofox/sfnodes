@@ -17,6 +17,7 @@ from .nodes.image.files import (
 )
 from .nodes.image.browser import SFLoadImageBrowser
 from .nodes.image.load_images_path import SFLoadImagesPath
+from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.scale import (
     GetImageSize,
     ImageScalerForSDModels,
@@ -165,6 +166,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImages": LoadImages,
     "SFLoadImageBrowser": SFLoadImageBrowser,
     "SFLoadImagesPath": SFLoadImagesPath,
+    "SFImageBatchIndex": SFImageBatchIndex,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
     "SFImageScalerForSDModels": ImageScalerForSDModels,
@@ -316,6 +318,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImages": "SF Load Images",
     "SFLoadImageBrowser": "SF Load Image Browser",
     "SFLoadImagesPath": "SF Load Images Path",
+    "SFImageBatchIndex": "SF Image Batch Index",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
     "SFImageScalerForSDModels": "SF Image Scaler For SD Models",
