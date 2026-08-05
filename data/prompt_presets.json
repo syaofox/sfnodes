@@ -5538,6 +5538,216 @@
       ],
       "weight": 1.0,
       "group": "SFW"
+    },
+    "Flight Attendant Navy": {
+      "name_zh": "深蓝空姐制服",
+      "prompt": "Wearing a navy blue flight attendant uniform, fitted blazer with gold buttons, knee-length pencil skirt, white collared blouse, black stockings and heels, professional airline stewardess look.",
+      "description": "Navy flight attendant uniform set",
+      "tags": [
+        "uniform",
+        "flight attendant",
+        "navy",
+        "stockings",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Flight Attendant Red": {
+      "name_zh": "红色空姐制服",
+      "prompt": "Wearing a red flight attendant uniform, fitted scarlet blazer and skirt set, white blouse, black stockings, polished airline cabin crew look.",
+      "description": "Red flight attendant uniform set",
+      "tags": [
+        "uniform",
+        "flight attendant",
+        "red",
+        "stockings",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Office Lady Black": {
+      "name_zh": "黑色OL装",
+      "prompt": "Wearing a black office lady outfit, fitted pencil skirt suit, white silk blouse, black sheer stockings, high heels, seductive corporate look.",
+      "description": "Black office lady pencil skirt suit",
+      "tags": [
+        "office lady",
+        "pencil skirt",
+        "black",
+        "stockings",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Office Lady Grey": {
+      "name_zh": "灰色OL装",
+      "prompt": "Wearing a grey office lady outfit, tight knit pencil skirt and blazer, white blouse with low neckline, black stockings, professional yet alluring office look.",
+      "description": "Grey office lady knit suit",
+      "tags": [
+        "office lady",
+        "pencil skirt",
+        "grey",
+        "low neckline",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Secretary Outfit": {
+      "name_zh": "秘书装",
+      "prompt": "Wearing a secretary outfit, white button-up blouse with a black tight pencil skirt, black rimmed glasses, sheer black stockings, high heels, classic office seduction look.",
+      "description": "Secretary blouse and pencil skirt with glasses",
+      "tags": [
+        "secretary",
+        "pencil skirt",
+        "glasses",
+        "stockings",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Teacher Outfit": {
+      "name_zh": "教师装",
+      "prompt": "Wearing a teacher outfit, beige knee-length skirt with a white blouse, reading glasses, black stockings, modest yet alluring classroom look.",
+      "description": "Teacher skirt and blouse with glasses",
+      "tags": [
+        "teacher",
+        "knee-length skirt",
+        "glasses",
+        "stockings",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Police Woman Uniform": {
+      "name_zh": "女警制服",
+      "prompt": "Wearing a police woman uniform, dark navy shirt and fitted skirt, police cap, black leather belt, stockings and boots, authoritative seductive look.",
+      "description": "Navy police woman uniform",
+      "tags": [
+        "police",
+        "uniform",
+        "navy",
+        "cap",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Military Uniform": {
+      "name_zh": "军装制服",
+      "prompt": "Wearing a fitted military dress uniform, olive green jacket with skirt, brass buttons, peaked cap, stockings, commanding seductive look.",
+      "description": "Fitted military dress uniform",
+      "tags": [
+        "military",
+        "uniform",
+        "olive",
+        "cap",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Race Queen": {
+      "name_zh": "赛车女郎",
+      "prompt": "Wearing a race queen outfit, black and white racing suit with sponsor patches, short skirt, thigh-high boots, umbrella in hand, trackside glamour look.",
+      "description": "Black and white race queen outfit",
+      "tags": [
+        "race queen",
+        "racing suit",
+        "thigh-high boots",
+        "glamour",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Bar Girl Outfit": {
+      "name_zh": "酒吧女郎装",
+      "prompt": "Wearing a bar girl outfit, black bustier top with a short leather skirt, fishnet stockings, high heels, smoky seductive look.",
+      "description": "Black bustier with leather mini skirt",
+      "tags": [
+        "bustier",
+        "leather skirt",
+        "fishnet",
+        "high heels",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Conductor Uniform": {
+      "name_zh": "列车员制服",
+      "prompt": "Wearing a train conductor uniform, dark blue jacket with gold trim, short skirt, cap, stockings, cute yet seductive rail staff look.",
+      "description": "Dark blue conductor uniform",
+      "tags": [
+        "conductor",
+        "uniform",
+        "dark blue",
+        "cap",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Red Bodycon Dress": {
+      "name_zh": "红色紧身裙",
+      "prompt": "Wearing a tight red bodycon dress, figure-hugging fit, short hemline, high heels, bold seductive evening look.",
+      "description": "Tight red bodycon dress",
+      "tags": [
+        "bodycon",
+        "red",
+        "tight",
+        "high heels",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Black Bodycon Dress": {
+      "name_zh": "黑色紧身裙",
+      "prompt": "Wearing a tight black bodycon dress, curve-hugging silhouette, deep neckline, high heels, elegant seductive party look.",
+      "description": "Tight black bodycon dress",
+      "tags": [
+        "bodycon",
+        "black",
+        "deep neckline",
+        "high heels",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Leather Skirt Outfit": {
+      "name_zh": "皮裙套装",
+      "prompt": "Wearing a black leather mini skirt with a fitted top, thigh-high boots, edgy seductive look.",
+      "description": "Black leather mini skirt with boots",
+      "tags": [
+        "leather skirt",
+        "mini skirt",
+        "thigh-high boots",
+        "edgy",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "White Lace Dress": {
+      "name_zh": "白色蕾丝裙",
+      "prompt": "Wearing a white lace dress, delicate see-through lace fabric, fitted silhouette, soft romantic seductive look.",
+      "description": "Delicate white lace dress",
+      "tags": [
+        "lace dress",
+        "white",
+        "see-through",
+        "romantic",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
     }
   },
   "Pose": {
@@ -6204,6 +6414,279 @@
       ],
       "weight": 1.0,
       "group": "NSFW"
+    },
+    "Peace Sign": {
+      "name_zh": "比耶手势",
+      "prompt": "Standing facing the camera, one hand raised in a peace sign near the face, cheerful kawaii gesture, bright smile.",
+      "description": "Classic Japanese peace sign pose",
+      "tags": [
+        "peace sign",
+        "kawaii",
+        "gesture",
+        "cheerful"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Cavity Pose": {
+      "name_zh": "虫牙手势",
+      "prompt": "One hand placed at a slight angle over the cheek, fingers spread, toothache-style gesture creating a slim face line, cute idol pose.",
+      "description": "Japanese cavity pose slimming the face",
+      "tags": [
+        "cavity pose",
+        "cheek",
+        "idol",
+        "cute"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Hands on Cheeks": {
+      "name_zh": "双手捧脸",
+      "prompt": "Both hands placed gently on the cheeks, fingers spread, cute frame-the-face gesture, idol style look at the camera.",
+      "description": "Hands-on-cheeks idol gesture",
+      "tags": [
+        "hands on cheeks",
+        "frame face",
+        "idol",
+        "cute"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Shielding Eyes": {
+      "name_zh": "手搭凉棚",
+      "prompt": "One hand raised to the forehead shielding the eyes, looking into the distance, sunny outdoor pose, natural expression.",
+      "description": "Hand-shaded eyes looking into the distance",
+      "tags": [
+        "shielding eyes",
+        "outdoor",
+        "sunny",
+        "natural"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Touching Hair": {
+      "name_zh": "撩发",
+      "prompt": "One hand touching or tucking the hair near the ear, playful feminine gesture, soft natural expression.",
+      "description": "Playful hair-touching gesture",
+      "tags": [
+        "touching hair",
+        "feminine",
+        "playful",
+        "natural"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Adjusting Collar": {
+      "name_zh": "整理衣领",
+      "prompt": "One hand adjusting the collar or neckline, looking down slightly, natural everyday gesture, casual portrait pose.",
+      "description": "Natural collar-adjusting gesture",
+      "tags": [
+        "adjusting collar",
+        "everyday",
+        "casual",
+        "natural"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Holding Parasol": {
+      "name_zh": "撑伞",
+      "prompt": "Standing with a transparent umbrella held overhead, looking up through it or at the camera, rainy day portrait pose.",
+      "description": "Holding a transparent umbrella in the rain",
+      "tags": [
+        "umbrella",
+        "parasol",
+        "rainy",
+        "portrait"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Holding Flowers": {
+      "name_zh": "手持花束",
+      "prompt": "Standing holding a bouquet of flowers close to the chest, gentle smile, spring portrait pose, soft romantic mood.",
+      "description": "Holding a flower bouquet close",
+      "tags": [
+        "flowers",
+        "bouquet",
+        "spring",
+        "gentle"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Sitting Seiza": {
+      "name_zh": "正坐跪坐",
+      "prompt": "Kneeling in traditional seiza sitting on the heels, hands resting on the lap, upright posture, formal elegant Japanese pose.",
+      "description": "Traditional seiza kneeling pose",
+      "tags": [
+        "seiza",
+        "kneeling",
+        "japanese",
+        "formal"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Sitting on Window Sill": {
+      "name_zh": "坐窗台",
+      "prompt": "Sitting on a window sill, one leg bent, looking out the window or at the camera, cozy indoor portrait pose.",
+      "description": "Cozy window-sill seated pose",
+      "tags": [
+        "window sill",
+        "sitting",
+        "cozy",
+        "indoor"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Lying on Grass": {
+      "name_zh": "草地躺卧",
+      "prompt": "Lying on the grass, propped on one elbow, legs relaxed, peaceful outdoor rest pose, soft natural light.",
+      "description": "Peaceful grass lying pose",
+      "tags": [
+        "lying",
+        "grass",
+        "outdoor",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Reading a Book": {
+      "name_zh": "看书",
+      "prompt": "Sitting or standing while reading a book, eyes lowered to the pages, quiet studious pose, gentle concentration.",
+      "description": "Quiet book-reading pose",
+      "tags": [
+        "reading",
+        "book",
+        "studious",
+        "quiet"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Drinking a Drink": {
+      "name_zh": "喝饮料",
+      "prompt": "Holding a drink cup with both hands, taking a sip, casual cafe pose, relaxed everyday moment.",
+      "description": "Casual drink-sipping cafe pose",
+      "tags": [
+        "drinking",
+        "cup",
+        "cafe",
+        "casual"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Eating Ice Cream": {
+      "name_zh": "吃冰淇淋",
+      "prompt": "Holding an ice cream cone, licking or biting it playfully, cute summer pose, joyful expression.",
+      "description": "Playful ice cream eating pose",
+      "tags": [
+        "ice cream",
+        "summer",
+        "playful",
+        "cute"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Blowing Bubbles": {
+      "name_zh": "吹泡泡",
+      "prompt": "Blowing soap bubbles with a bubble wand, bubbles floating around, playful dreamy pose, soft focus atmosphere.",
+      "description": "Dreamy bubble-blowing pose",
+      "tags": [
+        "bubbles",
+        "playful",
+        "dreamy",
+        "outdoor"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Riding Bicycle": {
+      "name_zh": "骑自行车",
+      "prompt": "Sitting on a bicycle, hands on the handlebars, one foot on the pedal, casual street pose, relaxed ride.",
+      "description": "Casual bicycle riding pose",
+      "tags": [
+        "bicycle",
+        "street",
+        "casual",
+        "ride"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Leaning on Railing": {
+      "name_zh": "倚栏杆",
+      "prompt": "Leaning on a railing with elbows resting, relaxed outdoor pose, looking to the side, gentle breeze feel.",
+      "description": "Relaxed railing-leaning pose",
+      "tags": [
+        "railing",
+        "leaning",
+        "outdoor",
+        "relaxed"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Peeking from Behind": {
+      "name_zh": "探头张望",
+      "prompt": "Peeking from behind a wall or door, hands gripping the edge, playful hidden pose, curious expression.",
+      "description": "Playful peeking pose from cover",
+      "tags": [
+        "peeking",
+        "hidden",
+        "playful",
+        "curious"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Finger on Lip": {
+      "name_zh": "手指抵唇",
+      "prompt": "One index finger gently pressed against the lips, shushing gesture, playful cute pose, direct gaze.",
+      "description": "Playful finger-on-lips shush pose",
+      "tags": [
+        "finger on lips",
+        "shush",
+        "playful",
+        "cute"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Hands Behind Back": {
+      "name_zh": "背手站立",
+      "prompt": "Standing with hands clasped behind the back, gentle forward lean, sweet modest pose, soft smile.",
+      "description": "Sweet hands-behind-back standing pose",
+      "tags": [
+        "hands behind back",
+        "modest",
+        "sweet",
+        "standing"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
+    },
+    "Eyes Closed Smile": {
+      "name_zh": "闭眼微笑",
+      "prompt": "Standing with eyes closed and a gentle smile, face tilted slightly up, serene peaceful pose, soft natural light.",
+      "description": "Serene eyes-closed smiling pose",
+      "tags": [
+        "eyes closed",
+        "smile",
+        "serene",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "group": "SFW"
     }
   },
   "Couple Pose": {
@@ -7807,6 +8290,368 @@
       ],
       "weight": 1.0,
       "group": "自然风光"
+    },
+    "Poolside": {
+      "name_zh": "泳池边",
+      "prompt": "Bright outdoor poolside with turquoise swimming pool, white sun loungers and umbrellas, blue sky, clean tiles, refreshing summer atmosphere.",
+      "description": "Sunny outdoor poolside with loungers",
+      "tags": [
+        "pool",
+        "poolside",
+        "summer",
+        "outdoor"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Indoor Pool": {
+      "name_zh": "室内泳池",
+      "prompt": "Indoor swimming pool with clear blue water, warm lighting, glass roof, tiled walls, steam rising gently, quiet indoor aquatic atmosphere.",
+      "description": "Warm indoor swimming pool",
+      "tags": [
+        "indoor pool",
+        "swimming",
+        "tiles",
+        "warm"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "School Pool": {
+      "name_zh": "校园泳池",
+      "prompt": "Japanese school indoor pool, bright clean water, painted lane lines, changing room doors along the wall, echoing space, summer school atmosphere.",
+      "description": "Japanese school indoor swimming pool",
+      "tags": [
+        "school pool",
+        "japanese",
+        "indoor",
+        "summer"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Onsen": {
+      "name_zh": "日式温泉",
+      "prompt": "Japanese outdoor onsen hot spring, steaming water in natural rock pool, wooden fence, forest surroundings, soft steam rising, relaxing soak atmosphere.",
+      "description": "Steaming Japanese outdoor onsen",
+      "tags": [
+        "onsen",
+        "hot spring",
+        "japanese",
+        "steam"
+      ],
+      "weight": 1.0,
+      "group": "日系生活"
+    },
+    "Sento Bathhouse": {
+      "name_zh": "日式澡堂",
+      "prompt": "Traditional Japanese sento bathhouse, wooden tubs and tiled bathing area, warm dim light, steam and moisture in the air, retro communal bath atmosphere.",
+      "description": "Retro Japanese sento bathhouse",
+      "tags": [
+        "sento",
+        "bathhouse",
+        "japanese",
+        "retro"
+      ],
+      "weight": 1.0,
+      "group": "日系生活"
+    },
+    "Beach Shore": {
+      "name_zh": "海边沙滩",
+      "prompt": "Wide sandy beach with gentle waves lapping the shore, soft golden sand, scattered seashells, clear blue sky, peaceful coastal atmosphere.",
+      "description": "Peaceful sandy beach shoreline",
+      "tags": [
+        "beach",
+        "sand",
+        "shore",
+        "coastal"
+      ],
+      "weight": 1.0,
+      "group": "自然风光"
+    },
+    "Riverside Path": {
+      "name_zh": "河畔步道",
+      "prompt": "Riverside walking path with calm flowing water, willow trees and grass along the bank, soft afternoon light, serene natural atmosphere.",
+      "description": "Serene riverside walking path",
+      "tags": [
+        "river",
+        "path",
+        "willow",
+        "serene"
+      ],
+      "weight": 1.0,
+      "group": "自然风光"
+    },
+    "Campsite": {
+      "name_zh": "露营营地",
+      "prompt": "Campsite in the woods with a tent and campfire, warm fire glow, string lights, sleeping bags, dusk atmosphere, cozy outdoor camping scene.",
+      "description": "Cozy forest campsite with campfire",
+      "tags": [
+        "camping",
+        "tent",
+        "campfire",
+        "woods"
+      ],
+      "weight": 1.0,
+      "group": "自然风光"
+    },
+    "Playground": {
+      "name_zh": "游乐场",
+      "prompt": "Sunny playground with slides, swings and climbing frames, colorful equipment, soft grass, cheerful public park atmosphere.",
+      "description": "Colorful sunny playground",
+      "tags": [
+        "playground",
+        "swings",
+        "slides",
+        "park"
+      ],
+      "weight": 1.0,
+      "group": "城市街景"
+    },
+    "Supermarket Interior": {
+      "name_zh": "超市内部",
+      "prompt": "Bright supermarket interior with rows of shelves, colorful packaged goods, refrigerated cases, clean fluorescent lighting, everyday shopping atmosphere.",
+      "description": "Bright supermarket aisle interior",
+      "tags": [
+        "supermarket",
+        "shelves",
+        "shopping",
+        "bright"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Convenience Store Interior": {
+      "name_zh": "便利店内部",
+      "prompt": "Japanese convenience store interior, shelves of snacks and drinks, warm deli counter with oden, sliding glass doors, bright clean lighting, late-night shopping atmosphere.",
+      "description": "Japanese convenience store interior",
+      "tags": [
+        "convenience store",
+        "konbini",
+        "japanese",
+        "late night"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Arcade": {
+      "name_zh": "游戏厅",
+      "prompt": "Retro game arcade with rows of colorful arcade cabinets, glowing screens, neon accent lights, carpeted floor, lively gaming atmosphere.",
+      "description": "Retro neon game arcade",
+      "tags": [
+        "arcade",
+        "game cabinets",
+        "neon",
+        "retro"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Karaoke Room": {
+      "name_zh": "卡拉OK包间",
+      "prompt": "Cozy karaoke room with a large screen, microphone on the table, dim colorful lighting, comfortable sofas, playful night-out atmosphere.",
+      "description": "Dim cozy karaoke private room",
+      "tags": [
+        "karaoke",
+        "private room",
+        "sofas",
+        "night out"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Ramen Shop": {
+      "name_zh": "拉面店",
+      "prompt": "Warm ramen shop interior, wooden counter with steaming bowls, hanging lanterns, curtain noren at the entrance, steam rising, cozy Japanese noodle bar atmosphere.",
+      "description": "Cozy Japanese ramen counter shop",
+      "tags": [
+        "ramen",
+        "noodle bar",
+        "japanese",
+        "cozy"
+      ],
+      "weight": 1.0,
+      "group": "日系生活"
+    },
+    "Sushi Bar": {
+      "name_zh": "寿司店",
+      "prompt": "Elegant sushi bar with a long wooden counter, fresh seafood display, chef's preparation area, warm lighting, refined Japanese dining atmosphere.",
+      "description": "Elegant sushi counter bar",
+      "tags": [
+        "sushi",
+        "counter",
+        "japanese",
+        "elegant"
+      ],
+      "weight": 1.0,
+      "group": "日系生活"
+    },
+    "Gym Interior": {
+      "name_zh": "健身房",
+      "prompt": "Modern gym interior with exercise machines, dumbbells, full-length mirrors, bright clean lighting, energetic fitness atmosphere.",
+      "description": "Modern bright gym interior",
+      "tags": [
+        "gym",
+        "fitness",
+        "machines",
+        "bright"
+      ],
+      "weight": 1.0,
+      "group": "室内空间"
+    },
+    "Love Hotel Room": {
+      "name_zh": "情趣酒店",
+      "prompt": "Japanese love hotel room with a round bed, mirror ceiling, dim purple and pink neon lighting, mood lighting panels, provocative intimate atmosphere.",
+      "description": "Neon-lit love hotel room with round bed",
+      "tags": [
+        "love hotel",
+        "round bed",
+        "neon",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Hotel Suite Bedroom": {
+      "name_zh": "酒店大床房",
+      "prompt": "Hotel suite bedroom with a large white-sheeted bed, floor-to-ceiling windows with city view, bedside lamps, luxurious intimate hotel room atmosphere.",
+      "description": "Luxurious hotel suite bedroom",
+      "tags": [
+        "hotel",
+        "suite",
+        "large bed",
+        "city view",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Sauna Room": {
+      "name_zh": "桑拿房",
+      "prompt": "Wooden sauna room with heated stone stove, dim warm light, steam and heat haze, wooden benches, sweat-glistening intimate atmosphere.",
+      "description": "Steamy wooden sauna room",
+      "tags": [
+        "sauna",
+        "wooden",
+        "steam",
+        "hot",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Massage Room": {
+      "name_zh": "按摩院",
+      "prompt": "Massage room with a padded massage table, warm dim lighting, towels and essential oil bottles, soft curtains, relaxing sensual atmosphere.",
+      "description": "Dim warm massage parlor room",
+      "tags": [
+        "massage",
+        "table",
+        "dim",
+        "sensual",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Shower Stall": {
+      "name_zh": "淋浴间",
+      "prompt": "Glass-walled shower stall with water flowing, tiled walls, steam and mist, warm lighting, wet intimate atmosphere.",
+      "description": "Steamy glass shower stall",
+      "tags": [
+        "shower",
+        "glass stall",
+        "steam",
+        "wet",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Bathtub Bathroom": {
+      "name_zh": "浴室浴缸",
+      "prompt": "Bathroom with a large bathtub filled with foam, candles around the rim, rose petals floating, warm dim light, romantic intimate bath atmosphere.",
+      "description": "Candlelit bathtub bathroom",
+      "tags": [
+        "bathtub",
+        "candles",
+        "foam",
+        "romantic",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Locker Room": {
+      "name_zh": "更衣室",
+      "prompt": "Sports locker room with rows of metal lockers, wooden benches, gym bags, dim fluorescent light, private changing atmosphere.",
+      "description": "Dim sports locker room",
+      "tags": [
+        "locker room",
+        "lockers",
+        "benches",
+        "private",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Fitting Room": {
+      "name_zh": "试衣间",
+      "prompt": "Clothing store fitting room with a full-length mirror, curtain entrance, warm spotlights, clothes hanging, private try-on atmosphere.",
+      "description": "Mirrored clothing fitting room",
+      "tags": [
+        "fitting room",
+        "mirror",
+        "curtain",
+        "private",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Office Room": {
+      "name_zh": "办公室",
+      "prompt": "Executive office room with a large desk, leather chair, venetian blind windows, dim lamp light, private after-hours atmosphere.",
+      "description": "Dim executive office after hours",
+      "tags": [
+        "office",
+        "desk",
+        "leather chair",
+        "private",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Nightclub": {
+      "name_zh": "夜店",
+      "prompt": "Nightclub interior with a dance floor, colorful strobe and laser lights, smoke haze, DJ booth, loud energetic party atmosphere.",
+      "description": "Colorful smoky nightclub",
+      "tags": [
+        "nightclub",
+        "dance floor",
+        "strobe",
+        "smoke",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
+    },
+    "Rooftop Night": {
+      "name_zh": "天台夜色",
+      "prompt": "Rooftop at night with city lights spread below, railing, string lights, cool night breeze, private late-night atmosphere.",
+      "description": "City-view rooftop at night",
+      "tags": [
+        "rooftop",
+        "night",
+        "city lights",
+        "private",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "私密场所"
     }
   },
   "Lighting": {

@@ -93,10 +93,10 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
 check("celebrity 429 项", len(opt["celebrity_preset"][0]) == 431)
-check("outfit 56 项", len(opt["outfit_preset"][0]) == 58)
-check("pose 50 项", len(opt["pose_preset"][0]) == 52)
+check("outfit 71 项", len(opt["outfit_preset"][0]) == 73)
+check("pose 71 项", len(opt["pose_preset"][0]) == 73)
 check("couple 32 项", len(opt["couple_preset"][0]) == 34)
-check("environment 84 项", len(opt["environment_preset"][0]) == 86)
+check("environment 111 项", len(opt["environment_preset"][0]) == 113)
 check("lighting 62 项", len(opt["lighting_preset"][0]) == 64)
 check("style 48 项", len(opt["style_preset"][0]) == 50)
 check("angle 26 项", len(opt["camera_angle_preset"][0]) == 28)
@@ -264,7 +264,7 @@ seen_pose = set()
 for s in range(200):
     r = node.execute("", seed=s, pose_preset="随机")
     seen_pose.add(r[3])
-check(f"姿势随机多样性 ({len(seen_pose)}/50)", len(seen_pose) > 20)
+check(f"姿势随机多样性 ({len(seen_pose)}/71)", len(seen_pose) > 25)
 seen_couple = set()
 for s in range(200):
     r = node.execute("", seed=s, couple_preset="随机")
@@ -323,8 +323,11 @@ check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"�
 
 # Environment 数据驱动分组
 _env_groups = [v["group"] for v in _data["Environment"].values()]
-check("Environment 全部有分组", len(_env_groups) == 84 and set(_env_groups) ==
-      {"自然风光", "城市街景", "科幻未来", "历史复古", "恐怖暗黑", "室内空间", "日系生活"})
+check("Environment 全部有分组", len(_env_groups) == 111 and set(_env_groups) ==
+      {"自然风光", "城市街景", "科幻未来", "历史复古", "恐怖暗黑", "室内空间", "日系生活", "私密场所"})
+check("私密场所分组", _data["Environment"]["Love Hotel Room"]["group"] == "私密场所"
+      and _data["Environment"]["Poolside"]["group"] == "室内空间"
+      and _data["Environment"]["Onsen"]["group"] == "日系生活")
 check("Environment 分组抽查", _data["Environment"]["Modern Subway Train"]["group"] == "室内空间"
       and _data["Environment"]["Space Station Hub"]["group"] == "科幻未来"
       and _data["Environment"]["Cherry Blossom Avenue"]["group"] == "日系生活"
