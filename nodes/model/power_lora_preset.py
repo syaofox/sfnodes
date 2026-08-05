@@ -30,13 +30,13 @@ class PowerLoraPreset:
             },
         }
 
-    RETURN_TYPES = (PRESET_TYPE,)
-    RETURN_NAMES = ("preset",)
+    RETURN_TYPES = (PRESET_TYPE, "STRING")
+    RETURN_NAMES = ("preset", "preset_name")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
     def execute(self, preset):
         if not preset or preset == "None":
-            return (None,)
+            return (None, "")
         data = lora_presets._load_presets().get(preset)
-        return (data,)
+        return (data, preset)
