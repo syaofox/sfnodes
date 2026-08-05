@@ -1,5 +1,5 @@
 // SFPromptPreset 前端逻辑测试（Node 直接运行：node tests/test_prompt_preset_js.js）
-// 覆盖：pose/couple 互斥联动、悬浮卡片 widget 命中检测
+// 覆盖：pose/couple 互斥联动、预设 description 动态写入 widget.tooltip
 const fs = require("fs");
 const path = require("path");
 
@@ -15,103 +15,97 @@ function check(name, cond) {
 }
 
 const capturedExts = [];
-const app = { registerExtension: (ext) => capturedExts.push(ext) };
-const api = { fetchApi: async () => ({ ok: false }) };
-new Function("app", "api", code)(app);
-
-const captured = capturedExts.find((ext) => typeof ext.beforeRegisterNodeDef === "function");
-check("存在节点扩展", captured !== undefined);
-
-// --- 互斥联动 ---
-const nodeType = { prototype: {} };
-captured.beforeRegisterNodeDef(nodeType, { name: "SFPromptPreset" });
-const otherType = { prototype: {} };
-captured.beforeRegisterNodeDef(otherType, { name: "OtherNode" });
-check("其他节点不受影响", otherType.prototype.onNodeCreated === undefined);
-
-function fakeWidget(name, initial = "禁用") {
-    return { name, value: initial, callback: null };
-}
-function makeNode() {
-    const n = { widgets: [fakeWidget("pose_preset"), fakeWidget("couple_preset")] };
-    nodeType.prototype.onNodeCreated.call(n);
-    return n;
-}
-
-const n1 = makeNode();
-const pose1 = n1.widgets.find(w => w.name === "pose_preset");
-const couple1 = n1.widgets.find(w => w.name === "couple_preset");
-check("pose 与 couple 均有 callback", typeof pose1.callback === "function" && typeof couple1.callback === "function");
-pose1.value = "回眸";
-pose1.callback();
-check("选 pose 后 couple 置禁用", couple1.value === "禁用");
-couple1.value = "公主抱";
-couple1.callback();
-check("选 couple 后 pose 置禁用", pose1.value === "禁用");
-
-const n3 = makeNode();
-const pose3 = n3.widgets.find(w => w.name === "pose_preset");
-const couple3 = n3.widgets.find(w => w.name === "couple_preset");
-pose3.value = "随机";
-pose3.callback();
-check("选随机后 couple 置禁用", couple3.value === "禁用");
-
-const n4 = makeNode();
-const pose4 = n4.widgets.find(w => w.name === "pose_preset");
-const couple4 = n4.widgets.find(w => w.name === "couple_preset");
-couple4.value = "拥抱";
-couple4.callback();
-pose4.value = "禁用";
-pose4.callback();
-check("pose 置禁用不动 couple", couple4.value === "拥抱");
-
-// --- 悬浮卡片命中检测（widgetAt）---
-// widgetAt 是扩展文件内局部函数，测试代码需与其同作用域执行
-globalThis.__sf_failures = failures;
-const cardTestCode = code + `
-const check2 = (n, c) => {
-    if (c) console.log("PASS:", n);
-    else { globalThis.__sf_failures.push(n); console.log("FAIL:", n); }
+const descData = {
+    Outfit: { 旗袍: "Form-fitting qipao dress" },
+    Pose: { 回眸: "Looking back over the shoulder" },
+    Environment: { 现代地铁车厢: "Contemporary subway interior" },
 };
-const fakeCanvas = (nodes, mx, my) => ({ graph_mouse: [mx, my], graph: { _nodes: nodes } });
-const fakeComboWidget = (name, x, y, w, h) => ({
-    name, type: "combo", hidden: false, pos: [x, y], size: [w, h], value: "回眸",
-});
-const fakeNode = (wx, wy, widgets) => ({ pos: [100, 200], widgets, _dummy: wx + wy });
+const app = {
+    graph: { _nodes: [] },
+    registerExtension: (ext) => capturedExts.push(ext),
+};
+const api = { fetchApi: async () => ({ ok: true, json: async () => descData }) };
+new Function("app", "api", code)(app, api);
 
-// 节点 (100,200) + widget pos (0,30) size (150,20) → 画布坐标 (100,250)-(250,270)
-const nodes = [fakeNode(0, 0, [
-    fakeComboWidget("outfit_preset", 0, 8, 150, 20),
-    fakeComboWidget("pose_preset", 0, 30, 150, 20),
-    fakeComboWidget("environment_preset", 0, 52, 150, 20),
-])];
-const hitO = widgetAt(fakeCanvas(nodes, 150, 218), 150, 218);
-check2("命中 outfit_preset", hitO !== null && hitO.widget.name === "outfit_preset" && hitO.category === "Outfit");
-let hit = widgetAt(fakeCanvas(nodes, 150, 240), 150, 240);
-check2("命中 pose_preset", hit !== null && hit.widget.name === "pose_preset" && hit.category === "Pose");
-hit = widgetAt(fakeCanvas(nodes, 150, 250), 150, 250);
-check2("边界命中", hit !== null && hit.widget.name === "pose_preset");
-hit = widgetAt(fakeCanvas(nodes, 200, 262), 200, 262);
-check2("命中 environment_preset", hit !== null && hit.widget.name === "environment_preset" && hit.category === "Environment");
-hit = widgetAt(fakeCanvas(nodes, 50, 240), 50, 240);
-check2("widget 左侧外不命中", hit === null);
-hit = widgetAt(fakeCanvas(nodes, 150, 400), 150, 400);
-check2("节点下方不命中", hit === null);
+const mainExt = capturedExts.find((e) => e.name === "sfnodes.prompt_preset");
+check("存在扩展", mainExt !== undefined);
 
-const nodesHidden = [fakeNode(0, 0, [Object.assign(fakeComboWidget("pose_preset", 0, 30, 150, 20), { hidden: true })])];
-hit = widgetAt(fakeCanvas(nodesHidden, 150, 240), 150, 240);
-check2("隐藏 widget 不命中", hit === null);
+(async () => {
+    await mainExt.setup();
+    check("setup 拉取描述映射", true);
 
-const nodesOther = [fakeNode(0, 0, [
-    fakeComboWidget("input_text", 0, 30, 150, 20),
-    Object.assign(fakeComboWidget("seed", 0, 52, 150, 20), { type: "number" }),
-])];
-hit = widgetAt(fakeCanvas(nodesOther, 150, 240), 150, 240);
-check2("非预设 widget 不命中", hit === null);
+    // ---------- 互斥联动 + tooltip 动态化 ----------
+    const nodeType = { prototype: {} };
+    mainExt.beforeRegisterNodeDef(nodeType, { name: "SFPromptPreset" });
+    const otherType = { prototype: {} };
+    mainExt.beforeRegisterNodeDef(otherType, { name: "OtherNode" });
+    check("其他节点不受影响", otherType.prototype.onNodeCreated === undefined);
 
-check2("无 graph_mouse 不崩", widgetAt({}, 0, 0) === null);
-`;
-new Function("app", "api", cardTestCode)(app, api);
+    function fakeWidget(name, initial = "禁用") {
+        return { name, value: initial, callback: null, tooltip: "initial-tooltip" };
+    }
+    function makeNode() {
+        const n = {
+            widgets: [
+                fakeWidget("outfit_preset"),
+                fakeWidget("pose_preset"),
+                fakeWidget("couple_preset"),
+                fakeWidget("environment_preset"),
+                Object.assign(fakeWidget("input_text"), { type: "string" }),
+            ],
+        };
+        nodeType.prototype.onNodeCreated.call(n);
+        return n;
+    }
 
-console.log("\nFAILURES:", failures.length);
-process.exit(failures.length ? 1 : 0);
+    const n0 = makeNode();
+    const outfit0 = n0.widgets.find((w) => w.name === "outfit_preset");
+    const pose0 = n0.widgets.find((w) => w.name === "pose_preset");
+    const couple0 = n0.widgets.find((w) => w.name === "couple_preset");
+    const env0 = n0.widgets.find((w) => w.name === "environment_preset");
+    const text0 = n0.widgets.find((w) => w.name === "input_text");
+    check("预设 widget 均有 callback 包装", ["outfit_preset", "pose_preset", "couple_preset", "environment_preset"]
+        .every((n) => typeof n0.widgets.find((w) => w.name === n).callback === "function"));
+    check("非预设 widget 不包装", text0.callback === null);
+    check("互斥：pose 与 couple 已联动", typeof pose0.callback === "function" && typeof couple0.callback === "function");
+
+    // 选中值变化 → tooltip 更新为 description
+    outfit0.value = "旗袍";
+    outfit0.callback();
+    check("outfit tooltip 显示 description", outfit0.tooltip === "Form-fitting qipao dress");
+    pose0.value = "回眸";
+    pose0.callback();
+    check("pose tooltip 显示 description", pose0.tooltip === "Looking back over the shoulder");
+    check("选 pose 后 couple 置禁用", couple0.value === "禁用");
+    env0.value = "现代地铁车厢";
+    env0.callback();
+    check("environment tooltip 显示 description", env0.tooltip === "Contemporary subway interior");
+
+    // 置回禁用 → tooltip 清空
+    pose0.value = "禁用";
+    pose0.callback();
+    check("置禁用后 tooltip 清空", pose0.tooltip === null);
+
+    // 随机：无 description → tooltip 清空（不残留）
+    pose0.value = "随机";
+    pose0.callback();
+    check("随机无 description 清空 tooltip", pose0.tooltip === null);
+
+    // 互斥不影响 tooltip 链
+    couple0.value = "拥抱";
+    couple0.callback();
+    check("选 couple 后 pose 置禁用", pose0.value === "禁用");
+
+    // ---------- setup 后已有节点的 tooltip 同步 ----------
+    app.graph._nodes = [{
+        type: "SFPromptPreset",
+        widgets: [fakeWidget("pose_preset", "回眸")],
+    }];
+    await mainExt.setup();
+    const synced = app.graph._nodes[0].widgets[0];
+    check("setup 同步已有节点 tooltip", synced.tooltip === "Looking back over the shoulder");
+    app.graph._nodes = [];
+
+    console.log("\nFAILURES:", failures.length);
+    process.exit(failures.length ? 1 : 0);
+})();

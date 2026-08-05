@@ -16,70 +16,14 @@ const WIDGET_CATEGORY = {
 };
 
 let presetDescriptions = null;
-let cardEl = null;
-let mouseInsideCanvas = false;
 
-function showDescriptionCard(text, x, y) {
-    if (!cardEl) {
-        cardEl = document.createElement("div");
-        cardEl.style.cssText = [
-            "position:fixed",
-            "z-index:99999",
-            "max-width:320px",
-            "background:rgba(28,28,28,0.95)",
-            "color:#ddd",
-            "padding:6px 10px",
-            "border:1px solid #555",
-            "border-radius:4px",
-            "font-size:12px",
-            "line-height:1.5",
-            "pointer-events:none",
-            "display:none",
-        ].join(";");
-        document.body.appendChild(cardEl);
-    }
-    cardEl.textContent = text;
-    cardEl.style.display = "block";
-    cardEl.style.left = Math.min(x + 14, window.innerWidth - cardEl.offsetWidth - 8) + "px";
-    cardEl.style.top = Math.min(y + 14, window.innerHeight - cardEl.offsetHeight - 8) + "px";
-}
-
-function hideDescriptionCard() {
-    if (cardEl) cardEl.style.display = "none";
-}
-
-function widgetAt(canvas, mx, my) {
-    if (!canvas?.graph_mouse) return null;
-    for (const node of canvas.graph?._nodes ?? []) {
-        if (!node.widgets) continue;
-        for (const w of node.widgets) {
-            const category = WIDGET_CATEGORY[w.name];
-            if (!category || w.type !== "combo" || w.hidden) continue;
-            if (!w.pos || !w.size) continue;
-            const px = node.pos[0] + w.pos[0];
-            const py = node.pos[1] + w.pos[1];
-            if (mx >= px && mx <= px + w.size[0] && my >= py && my <= py + w.size[1]) {
-                return { widget: w, category };
-            }
-        }
-    }
-    return null;
-}
-
-function onCanvasMouseMove(e) {
-    const canvas = app.canvas;
-    if (!canvas?.graph_mouse) return;
-    const hit = widgetAt(canvas, canvas.graph_mouse[0], canvas.graph_mouse[1]);
-    if (!hit) {
-        hideDescriptionCard();
-        return;
-    }
-    const desc = presetDescriptions?.[hit.category]?.[hit.widget.value];
-    if (desc) {
-        showDescriptionCard(desc, e.clientX, e.clientY);
-    } else {
-        hideDescriptionCard();
-    }
+// 把当前选中预设的英文 description 写入 widget.tooltip，
+// ComfyUI（新旧前端）均优先显示 widget.tooltip，随选中值变化自动更新
+function syncWidgetTooltip(w) {
+    const category = WIDGET_CATEGORY[w?.name];
+    if (!category) return;
+    const desc = presetDescriptions?.[category]?.[w.value];
+    w.tooltip = desc || null;
 }
 
 app.registerExtension({
@@ -90,9 +34,18 @@ app.registerExtension({
             const resp = await api.fetchApi("/api/sfnodes/prompt_presets");
             if (resp.ok) {
                 presetDescriptions = await resp.json();
+                // 工作流恢复后节点已存在的情况：加载完成后统一同步一次
+                for (const node of app.graph?._nodes ?? []) {
+                    if (node?.type !== "SFPromptPreset" || !node.widgets) continue;
+                    for (const w of node.widgets) {
+                        if (WIDGET_CATEGORY[w.name]) {
+                            syncWidgetTooltip(w);
+                        }
+                    }
+                }
             }
         } catch (err) {
-            console.log("[SFPromptPreset] 描述加载失败，悬浮卡片不可用:", err);
+            console.log("[SFPromptPreset] 描述加载失败，预设说明不可用:", err);
         }
     },
 
@@ -103,11 +56,11 @@ app.registerExtension({
         nodeType.prototype.onNodeCreated = function () {
             onNodeCreated?.apply(this, arguments);
 
-            const poseWidget = this.widgets?.find((w) => w.name === "pose_preset");
-            const coupleWidget = this.widgets?.find((w) => w.name === "couple_preset");
-            if (!poseWidget || !coupleWidget) return;
+            const widgets = this.widgets ?? [];
 
             // 单人/双人动作互斥：选择其一自动将另一个置为"禁用"
+            const poseWidget = widgets.find((w) => w.name === "pose_preset");
+            const coupleWidget = widgets.find((w) => w.name === "couple_preset");
             const linkMutualExclusion = (w1, w2) => {
                 const originalCallback = w1.callback;
                 w1.callback = function (...args) {
@@ -119,21 +72,25 @@ app.registerExtension({
                     }
                 };
             };
-            linkMutualExclusion(poseWidget, coupleWidget);
-            linkMutualExclusion(coupleWidget, poseWidget);
-        };
-    },
-});
+            if (poseWidget && coupleWidget) {
+                linkMutualExclusion(poseWidget, coupleWidget);
+                linkMutualExclusion(coupleWidget, poseWidget);
+            }
 
-// 悬浮描述卡片：canvas mousemove 命中检测（仅挂载一次）
-app.registerExtension({
-    name: "sfnodes.prompt_preset.desc_card",
-    async setup() {
-        const canvas = app.canvas;
-        if (!canvas) return;
-        canvas.addEventListener("mousemove", onCanvasMouseMove);
-        canvas.addEventListener("mouseleave", hideDescriptionCard);
-        window.addEventListener("scroll", hideDescriptionCard, true);
-        window.addEventListener("dragstart", hideDescriptionCard, true);
+            // 预设 widget：选中值变化时把 description 同步到 tooltip
+            for (const w of widgets) {
+                if (!WIDGET_CATEGORY[w.name]) continue;
+                const originalCallback = w.callback;
+                w.callback = function (...args) {
+                    syncWidgetTooltip(this);
+                    if (typeof originalCallback === "function") {
+                        return originalCallback.apply(this, args);
+                    }
+                };
+                if (presetDescriptions) {
+                    syncWidgetTooltip(w);
+                }
+            }
+        };
     },
 });
