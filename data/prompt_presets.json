@@ -2,7 +2,7 @@
   "Celebrity": {
     "Taylor Swift": {
       "name_zh": "Taylor Swift",
-      "prompt": "Taylor Swift, the world-famous American singer-songwriter, blonde hair, blue eyes, slim figure, elegant stage presence, photorealistic portrait.",
+      "prompt": "Taylor Swift, the world-famous American singer-songwriter, blonde hair, blue eyes, slim figure, elegant stage presence.",
       "description": "American singer-songwriter",
       "tags": [
         "singer",
@@ -14,7 +14,7 @@
     },
     "Beyoncé": {
       "name_zh": "Beyoncé",
-      "prompt": "Beyoncé, the world-famous American singer, long golden-blonde hair, warm brown skin, glamorous stage look, confident powerful presence, photorealistic portrait.",
+      "prompt": "Beyoncé, the world-famous American singer, long golden-blonde hair, warm brown skin, glamorous stage look, confident powerful presence.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -26,7 +26,7 @@
     },
     "Ariana Grande": {
       "name_zh": "Ariana Grande",
-      "prompt": "Ariana Grande, the famous American singer, long dark hair tied in a high ponytail, fair skin, big brown eyes, cute pop star look, photorealistic portrait.",
+      "prompt": "Ariana Grande, the famous American singer, long dark hair tied in a high ponytail, fair skin, big brown eyes, cute pop star look.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -38,7 +38,7 @@
     },
     "Rihanna": {
       "name_zh": "Rihanna",
-      "prompt": "Rihanna, the world-famous Barbadian singer and businesswoman, long dark hair, warm brown skin, glamorous edgy style, confident presence, photorealistic portrait.",
+      "prompt": "Rihanna, the world-famous Barbadian singer and businesswoman, long dark hair, warm brown skin, glamorous edgy style, confident presence.",
       "description": "Barbadian singer",
       "tags": [
         "singer",
@@ -50,7 +50,7 @@
     },
     "Lady Gaga": {
       "name_zh": "Lady Gaga",
-      "prompt": "Lady Gaga, the famous American singer and actress, blonde hair, fair skin, bold dramatic fashion style, striking expressive look, photorealistic portrait.",
+      "prompt": "Lady Gaga, the famous American singer and actress, blonde hair, fair skin, bold dramatic fashion style, striking expressive look.",
       "description": "American singer and actress",
       "tags": [
         "singer",
@@ -62,7 +62,7 @@
     },
     "Adele": {
       "name_zh": "Adele",
-      "prompt": "Adele, the famous British singer, shoulder-length blonde hair, fair skin, brown eyes, soft elegant look, powerful soulful presence, photorealistic portrait.",
+      "prompt": "Adele, the famous British singer, shoulder-length blonde hair, fair skin, brown eyes, soft elegant look, powerful soulful presence.",
       "description": "British singer",
       "tags": [
         "singer",
@@ -74,7 +74,7 @@
     },
     "Miley Cyrus": {
       "name_zh": "Miley Cyrus",
-      "prompt": "Miley Cyrus, the famous American singer, long blonde hair, fair skin, tanned glow, free-spirited rockstar look, photorealistic portrait.",
+      "prompt": "Miley Cyrus, the famous American singer, long blonde hair, fair skin, tanned glow, free-spirited rockstar look.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -86,7 +86,7 @@
     },
     "Dua Lipa": {
       "name_zh": "Dua Lipa",
-      "prompt": "Dua Lipa, the famous British singer, long dark brown hair, warm skin, stylish fashion look, confident pop star presence, photorealistic portrait.",
+      "prompt": "Dua Lipa, the famous British singer, long dark brown hair, warm skin, stylish fashion look, confident pop star presence.",
       "description": "British singer",
       "tags": [
         "singer",
@@ -98,7 +98,7 @@
     },
     "Billie Eilish": {
       "name_zh": "Billie Eilish",
-      "prompt": "Billie Eilish, the famous American singer, long black hair often dyed, pale skin, oversized streetwear style, unique youthful look, photorealistic portrait.",
+      "prompt": "Billie Eilish, the famous American singer, long black hair often dyed, pale skin, oversized streetwear style, unique youthful look.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -110,7 +110,7 @@
     },
     "Selena Gomez": {
       "name_zh": "Selena Gomez",
-      "prompt": "Selena Gomez, the famous American singer and actress, long dark brown hair, warm skin, cute glamorous look, photorealistic portrait.",
+      "prompt": "Selena Gomez, the famous American singer and actress, long dark brown hair, warm skin, cute glamorous look.",
       "description": "American singer and actress",
       "tags": [
         "singer",
@@ -122,7 +122,7 @@
     },
     "Shakira": {
       "name_zh": "Shakira",
-      "prompt": "Shakira, the world-famous Colombian singer, long golden-blonde wavy hair, warm skin, expressive dance presence, glamorous Latina look, photorealistic portrait.",
+      "prompt": "Shakira, the world-famous Colombian singer, long golden-blonde wavy hair, warm skin, expressive dance presence, glamorous Latina look.",
       "description": "Colombian singer",
       "tags": [
         "singer",
@@ -134,7 +134,7 @@
     },
     "Britney Spears": {
       "name_zh": "Britney Spears",
-      "prompt": "Britney Spears, the famous American singer, long blonde hair, fair skin, iconic pop star look, photorealistic portrait.",
+      "prompt": "Britney Spears, the famous American singer, long blonde hair, fair skin, iconic pop star look.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -146,7 +146,7 @@
     },
     "Madonna": {
       "name_zh": "Madonna",
-      "prompt": "Madonna, the world-famous American singer, blonde hair, fair skin, legendary pop icon presence, glamorous look, photorealistic portrait.",
+      "prompt": "Madonna, the world-famous American singer, blonde hair, fair skin, legendary pop icon presence, glamorous look.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -158,7 +158,7 @@
     },
     "Katy Perry": {
       "name_zh": "Katy Perry",
-      "prompt": "Katy Perry, the famous American singer, long dark hair, big blue eyes, playful colorful pop star style, photorealistic portrait.",
+      "prompt": "Katy Perry, the famous American singer, long dark hair, big blue eyes, playful colorful pop star style.",
       "description": "American singer",
       "tags": [
         "singer",
@@ -170,7 +170,7 @@
     },
     "Jennifer Lopez": {
       "name_zh": "Jennifer Lopez",
-      "prompt": "Jennifer Lopez, the world-famous American singer and actress, long brown hair, warm skin, glamorous Latina beauty, confident presence, photorealistic portrait.",
+      "prompt": "Jennifer Lopez, the world-famous American singer and actress, long brown hair, warm skin, glamorous Latina beauty, confident presence.",
       "description": "American singer and actress",
       "tags": [
         "singer",
@@ -182,7 +182,7 @@
     },
     "Scarlett Johansson": {
       "name_zh": "Scarlett Johansson",
-      "prompt": "Scarlett Johansson, the famous American actress, wavy blonde hair, fair skin, green eyes, classic Hollywood beauty, photorealistic portrait.",
+      "prompt": "Scarlett Johansson, the famous American actress, wavy blonde hair, fair skin, green eyes, classic Hollywood beauty.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -194,7 +194,7 @@
     },
     "Emma Watson": {
       "name_zh": "Emma Watson",
-      "prompt": "Emma Watson, the famous British actress, shoulder-length brown hair, fair skin, elegant intelligent look, photorealistic portrait.",
+      "prompt": "Emma Watson, the famous British actress, shoulder-length brown hair, fair skin, elegant intelligent look.",
       "description": "British actress",
       "tags": [
         "actress",
@@ -206,7 +206,7 @@
     },
     "Jennifer Aniston": {
       "name_zh": "Jennifer Aniston",
-      "prompt": "Jennifer Aniston, the famous American actress, long straight brown hair, fair skin, radiant classic beauty, photorealistic portrait.",
+      "prompt": "Jennifer Aniston, the famous American actress, long straight brown hair, fair skin, radiant classic beauty.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -218,7 +218,7 @@
     },
     "Angelina Jolie": {
       "name_zh": "Angelina Jolie",
-      "prompt": "Angelina Jolie, the world-famous American actress, long dark hair, fair skin, full lips, striking elegant features, photorealistic portrait.",
+      "prompt": "Angelina Jolie, the world-famous American actress, long dark hair, fair skin, full lips, striking elegant features.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -230,7 +230,7 @@
     },
     "Natalie Portman": {
       "name_zh": "Natalie Portman",
-      "prompt": "Natalie Portman, the famous American actress, dark brown hair, fair skin, delicate elegant features, refined look, photorealistic portrait.",
+      "prompt": "Natalie Portman, the famous American actress, dark brown hair, fair skin, delicate elegant features, refined look.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -242,7 +242,7 @@
     },
     "Margot Robbie": {
       "name_zh": "Margot Robbie",
-      "prompt": "Margot Robbie, the famous Australian actress, long blonde hair, fair skin, blue eyes, fresh glamorous beauty, photorealistic portrait.",
+      "prompt": "Margot Robbie, the famous Australian actress, long blonde hair, fair skin, blue eyes, fresh glamorous beauty.",
       "description": "Australian actress",
       "tags": [
         "actress",
@@ -254,7 +254,7 @@
     },
     "Emma Stone": {
       "name_zh": "Emma Stone",
-      "prompt": "Emma Stone, the famous American actress, red hair, fair skin with freckles, green eyes, charming expressive look, photorealistic portrait.",
+      "prompt": "Emma Stone, the famous American actress, red hair, fair skin with freckles, green eyes, charming expressive look.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -266,7 +266,7 @@
     },
     "Anne Hathaway": {
       "name_zh": "Anne Hathaway",
-      "prompt": "Anne Hathaway, the famous American actress, long dark brown hair, fair skin, big brown eyes, elegant warm look, photorealistic portrait.",
+      "prompt": "Anne Hathaway, the famous American actress, long dark brown hair, fair skin, big brown eyes, elegant warm look.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -278,7 +278,7 @@
     },
     "Zendaya": {
       "name_zh": "Zendaya",
-      "prompt": "Zendaya, the famous American actress and singer, long dark hair, warm brown skin, stylish elegant look, confident presence, photorealistic portrait.",
+      "prompt": "Zendaya, the famous American actress and singer, long dark hair, warm brown skin, stylish elegant look, confident presence.",
       "description": "American actress and singer",
       "tags": [
         "actress",
@@ -290,7 +290,7 @@
     },
     "Ana de Armas": {
       "name_zh": "Ana de Armas",
-      "prompt": "Ana de Armas, the famous Cuban actress, long wavy brown hair, fair skin, classic elegant beauty, photorealistic portrait.",
+      "prompt": "Ana de Armas, the famous Cuban actress, long wavy brown hair, fair skin, classic elegant beauty.",
       "description": "Cuban actress",
       "tags": [
         "actress",
@@ -302,7 +302,7 @@
     },
     "Jennifer Lawrence": {
       "name_zh": "Jennifer Lawrence",
-      "prompt": "Jennifer Lawrence, the famous American actress, long blonde hair, fair skin, blue eyes, friendly natural beauty, photorealistic portrait.",
+      "prompt": "Jennifer Lawrence, the famous American actress, long blonde hair, fair skin, blue eyes, friendly natural beauty.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -314,7 +314,7 @@
     },
     "Gal Gadot": {
       "name_zh": "Gal Gadot",
-      "prompt": "Gal Gadot, the famous Israeli actress, long dark brown hair, fair skin, striking elegant features, photorealistic portrait.",
+      "prompt": "Gal Gadot, the famous Israeli actress, long dark brown hair, fair skin, striking elegant features.",
       "description": "Israeli actress",
       "tags": [
         "actress",
@@ -326,7 +326,7 @@
     },
     "Anya Taylor-Joy": {
       "name_zh": "Anya Taylor-Joy",
-      "prompt": "Anya Taylor-Joy, the famous British-Argentine actress, platinum blonde hair, fair skin, large expressive eyes, ethereal striking look, photorealistic portrait.",
+      "prompt": "Anya Taylor-Joy, the famous British-Argentine actress, platinum blonde hair, fair skin, large expressive eyes, ethereal striking look.",
       "description": "British-Argentine actress",
       "tags": [
         "actress",
@@ -338,7 +338,7 @@
     },
     "Sydney Sweeney": {
       "name_zh": "Sydney Sweeney",
-      "prompt": "Sydney Sweeney, the famous American actress, long blonde hair, blue eyes, fresh young beauty, photorealistic portrait.",
+      "prompt": "Sydney Sweeney, the famous American actress, long blonde hair, blue eyes, fresh young beauty.",
       "description": "American actress",
       "tags": [
         "actress",
@@ -350,7 +350,7 @@
     },
     "Tom Cruise": {
       "name_zh": "Tom Cruise",
-      "prompt": "Tom Cruise, the world-famous American actor, brown hair, blue eyes, charismatic smile, action hero presence, photorealistic portrait.",
+      "prompt": "Tom Cruise, the world-famous American actor, brown hair, blue eyes, charismatic smile, action hero presence.",
       "description": "American actor",
       "tags": [
         "actor",
@@ -362,7 +362,7 @@
     },
     "Leonardo DiCaprio": {
       "name_zh": "Leonardo DiCaprio",
-      "prompt": "Leonardo DiCaprio, the world-famous American actor, blonde-brown hair, blue eyes, rugged handsome features, photorealistic portrait.",
+      "prompt": "Leonardo DiCaprio, the world-famous American actor, blonde-brown hair, blue eyes, rugged handsome features.",
       "description": "American actor",
       "tags": [
         "actor",
@@ -374,7 +374,7 @@
     },
     "Brad Pitt": {
       "name_zh": "Brad Pitt",
-      "prompt": "Brad Pitt, the world-famous American actor, short blonde hair, blue eyes, classic Hollywood handsome look, photorealistic portrait.",
+      "prompt": "Brad Pitt, the world-famous American actor, short blonde hair, blue eyes, classic Hollywood handsome look.",
       "description": "American actor",
       "tags": [
         "actor",
@@ -386,7 +386,7 @@
     },
     "Johnny Depp": {
       "name_zh": "Johnny Depp",
-      "prompt": "Johnny Depp, the famous American actor, dark hair, pale skin, distinctive edgy features, mysterious charisma, photorealistic portrait.",
+      "prompt": "Johnny Depp, the famous American actor, dark hair, pale skin, distinctive edgy features, mysterious charisma.",
       "description": "American actor",
       "tags": [
         "actor",
@@ -398,7 +398,7 @@
     },
     "Kendall Jenner": {
       "name_zh": "Kendall Jenner",
-      "prompt": "Kendall Jenner, the famous American supermodel, long dark brown hair, tall slim figure, high-fashion look, photorealistic portrait.",
+      "prompt": "Kendall Jenner, the famous American supermodel, long dark brown hair, tall slim figure, high-fashion look.",
       "description": "American supermodel",
       "tags": [
         "model",
@@ -410,7 +410,7 @@
     },
     "Gigi Hadid": {
       "name_zh": "Gigi Hadid",
-      "prompt": "Gigi Hadid, the famous American supermodel, long blonde hair, blue eyes, fresh glamorous look, photorealistic portrait.",
+      "prompt": "Gigi Hadid, the famous American supermodel, long blonde hair, blue eyes, fresh glamorous look.",
       "description": "American supermodel",
       "tags": [
         "model",
@@ -422,7 +422,7 @@
     },
     "Bella Hadid": {
       "name_zh": "Bella Hadid",
-      "prompt": "Bella Hadid, the famous American supermodel, long dark brown hair, sharp elegant features, high-fashion look, photorealistic portrait.",
+      "prompt": "Bella Hadid, the famous American supermodel, long dark brown hair, sharp elegant features, high-fashion look.",
       "description": "American supermodel",
       "tags": [
         "model",
@@ -434,7 +434,7 @@
     },
     "Cara Delevingne": {
       "name_zh": "Cara Delevingne",
-      "prompt": "Cara Delevingne, the famous British model and actress, long blonde hair, thick eyebrows, distinctive features, edgy look, photorealistic portrait.",
+      "prompt": "Cara Delevingne, the famous British model and actress, long blonde hair, thick eyebrows, distinctive features, edgy look.",
       "description": "British model and actress",
       "tags": [
         "model",
@@ -446,7 +446,7 @@
     },
     "Adriana Lima": {
       "name_zh": "Adriana Lima",
-      "prompt": "Adriana Lima, the famous Brazilian supermodel, long dark brown hair, warm skin, blue eyes, classic glamorous beauty, photorealistic portrait.",
+      "prompt": "Adriana Lima, the famous Brazilian supermodel, long dark brown hair, warm skin, blue eyes, classic glamorous beauty.",
       "description": "Brazilian supermodel",
       "tags": [
         "model",
@@ -458,7 +458,7 @@
     },
     "Naomi Campbell": {
       "name_zh": "Naomi Campbell",
-      "prompt": "Naomi Campbell, the famous British supermodel, long dark hair, warm brown skin, legendary runway presence, photorealistic portrait.",
+      "prompt": "Naomi Campbell, the famous British supermodel, long dark hair, warm brown skin, legendary runway presence.",
       "description": "British supermodel",
       "tags": [
         "model",
@@ -470,7 +470,7 @@
     },
     "Emily Ratajkowski": {
       "name_zh": "Emily Ratajkowski",
-      "prompt": "Emily Ratajkowski, the famous American model and actress, long dark brown hair, fair skin, glamorous look, photorealistic portrait.",
+      "prompt": "Emily Ratajkowski, the famous American model and actress, long dark brown hair, fair skin, glamorous look.",
       "description": "American model and actress",
       "tags": [
         "model",
@@ -482,7 +482,7 @@
     },
     "Kim Kardashian": {
       "name_zh": "Kim Kardashian",
-      "prompt": "Kim Kardashian, the famous American media personality, long dark hair, warm skin, glamorous curvy look, photorealistic portrait.",
+      "prompt": "Kim Kardashian, the famous American media personality, long dark hair, warm skin, glamorous curvy look.",
       "description": "American media personality",
       "tags": [
         "celebrity",
@@ -494,7 +494,7 @@
     },
     "Cristiano Ronaldo": {
       "name_zh": "Cristiano Ronaldo",
-      "prompt": "Cristiano Ronaldo, the world-famous Portuguese footballer, athletic muscular build, short dark hair, confident smile, photorealistic portrait.",
+      "prompt": "Cristiano Ronaldo, the world-famous Portuguese footballer, athletic muscular build, short dark hair, confident smile.",
       "description": "Portuguese footballer",
       "tags": [
         "athlete",
@@ -506,7 +506,7 @@
     },
     "Lionel Messi": {
       "name_zh": "Lionel Messi",
-      "prompt": "Lionel Messi, the world-famous Argentine footballer, short dark hair and beard, small athletic build, iconic soccer legend look, photorealistic portrait.",
+      "prompt": "Lionel Messi, the world-famous Argentine footballer, short dark hair and beard, small athletic build, iconic soccer legend look.",
       "description": "Argentine footballer",
       "tags": [
         "athlete",
@@ -518,7 +518,7 @@
     },
     "Kylian Mbappé": {
       "name_zh": "Kylian Mbappé",
-      "prompt": "Kylian Mbappé, the famous French footballer, short dark hair, young athletic look, confident smile, photorealistic portrait.",
+      "prompt": "Kylian Mbappé, the famous French footballer, short dark hair, young athletic look, confident smile.",
       "description": "French footballer",
       "tags": [
         "athlete",
@@ -530,7 +530,7 @@
     },
     "LeBron James": {
       "name_zh": "LeBron James",
-      "prompt": "LeBron James, the world-famous American basketball player, tall athletic build, shaved head, warm brown skin, powerful presence, photorealistic portrait.",
+      "prompt": "LeBron James, the world-famous American basketball player, tall athletic build, shaved head, warm brown skin, powerful presence.",
       "description": "American basketball player",
       "tags": [
         "athlete",
@@ -542,7 +542,7 @@
     },
     "Michael Jordan": {
       "name_zh": "Michael Jordan",
-      "prompt": "Michael Jordan, the world-famous American basketball legend, shaved head, warm brown skin, iconic athletic presence, photorealistic portrait.",
+      "prompt": "Michael Jordan, the world-famous American basketball legend, shaved head, warm brown skin, iconic athletic presence.",
       "description": "American basketball legend",
       "tags": [
         "athlete",
@@ -554,7 +554,7 @@
     },
     "Serena Williams": {
       "name_zh": "Serena Williams",
-      "prompt": "Serena Williams, the world-famous American tennis player, dark brown hair, warm brown skin, athletic muscular build, powerful confident presence, photorealistic portrait.",
+      "prompt": "Serena Williams, the world-famous American tennis player, dark brown hair, warm brown skin, athletic muscular build, powerful confident presence.",
       "description": "American tennis player",
       "tags": [
         "athlete",
@@ -566,7 +566,7 @@
     },
     "Roger Federer": {
       "name_zh": "Roger Federer",
-      "prompt": "Roger Federer, the famous Swiss tennis player, short brown hair, elegant classic look, gentlemanly presence, photorealistic portrait.",
+      "prompt": "Roger Federer, the famous Swiss tennis player, short brown hair, elegant classic look, gentlemanly presence.",
       "description": "Swiss tennis player",
       "tags": [
         "athlete",
@@ -578,7 +578,7 @@
     },
     "Jay Chou": {
       "name_zh": "周杰伦",
-      "prompt": "Jay Chou, the famous Taiwanese singer and actor, short dark hair, single-lidded eyes, gentle smile, iconic Mandopop star look, photorealistic portrait.",
+      "prompt": "Jay Chou, the famous Taiwanese singer and actor, short dark hair, single-lidded eyes, gentle smile, iconic Mandopop star look.",
       "description": "Taiwanese singer and actor",
       "tags": [
         "singer",
@@ -590,7 +590,7 @@
     },
     "Faye Wong": {
       "name_zh": "王菲",
-      "prompt": "Faye Wong, the famous Chinese singer and actress, straight dark hair, delicate features, cool elegant presence, photorealistic portrait.",
+      "prompt": "Faye Wong, the famous Chinese singer and actress, straight dark hair, delicate features, cool elegant presence.",
       "description": "Chinese singer and actress",
       "tags": [
         "singer",
@@ -602,7 +602,7 @@
     },
     "Liu Yifei": {
       "name_zh": "刘亦菲",
-      "prompt": "Liu Yifei, the famous Chinese actress, long black hair, fair skin, elegant classical beauty, ethereal graceful look, photorealistic portrait.",
+      "prompt": "Liu Yifei, the famous Chinese actress, long black hair, fair skin, elegant classical beauty, ethereal graceful look.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -614,7 +614,7 @@
     },
     "Yang Mi": {
       "name_zh": "杨幂",
-      "prompt": "Yang Mi, the famous Chinese actress, long dark hair, fair skin, big expressive eyes, trendy stylish look, photorealistic portrait.",
+      "prompt": "Yang Mi, the famous Chinese actress, long dark hair, fair skin, big expressive eyes, trendy stylish look.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -626,7 +626,7 @@
     },
     "Dilraba": {
       "name_zh": "迪丽热巴",
-      "prompt": "Dilraba, the famous Chinese actress, long dark hair, fair skin, large deep eyes, striking exotic beauty, photorealistic portrait.",
+      "prompt": "Dilraba, the famous Chinese actress, long dark hair, fair skin, large deep eyes, striking exotic beauty.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -638,7 +638,7 @@
     },
     "Zhao Liying": {
       "name_zh": "赵丽颖",
-      "prompt": "Zhao Liying, the famous Chinese actress, long dark hair, fair skin, round gentle face, cute sweet look, photorealistic portrait.",
+      "prompt": "Zhao Liying, the famous Chinese actress, long dark hair, fair skin, round gentle face, cute sweet look.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -650,7 +650,7 @@
     },
     "Zhang Ziyi": {
       "name_zh": "章子怡",
-      "prompt": "Zhang Ziyi, the famous Chinese actress, long black hair, fair skin, elegant classical beauty, photorealistic portrait.",
+      "prompt": "Zhang Ziyi, the famous Chinese actress, long black hair, fair skin, elegant classical beauty.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -662,7 +662,7 @@
     },
     "Gong Li": {
       "name_zh": "巩俐",
-      "prompt": "Gong Li, the famous Chinese actress, long dark hair, warm skin, distinctive elegant features, commanding presence, photorealistic portrait.",
+      "prompt": "Gong Li, the famous Chinese actress, long dark hair, warm skin, distinctive elegant features, commanding presence.",
       "description": "Chinese actress",
       "tags": [
         "actress",
@@ -674,7 +674,7 @@
     },
     "Song Hye-kyo": {
       "name_zh": "宋慧乔",
-      "prompt": "Song Hye-kyo, the famous South Korean actress, shoulder-length dark hair, fair skin, soft gentle beauty, photorealistic portrait.",
+      "prompt": "Song Hye-kyo, the famous South Korean actress, shoulder-length dark hair, fair skin, soft gentle beauty.",
       "description": "South Korean actress",
       "tags": [
         "actress",
@@ -686,7 +686,7 @@
     },
     "Jun Ji-hyun": {
       "name_zh": "全智贤",
-      "prompt": "Jun Ji-hyun, the famous South Korean actress, long dark hair, fair skin, elegant striking beauty, photorealistic portrait.",
+      "prompt": "Jun Ji-hyun, the famous South Korean actress, long dark hair, fair skin, elegant striking beauty.",
       "description": "South Korean actress",
       "tags": [
         "actress",
@@ -698,7 +698,7 @@
     },
     "Suzy Bae": {
       "name_zh": "裴秀智",
-      "prompt": "Suzy Bae, the famous South Korean singer and actress, long dark brown hair, fair skin, fresh girl-next-door beauty, photorealistic portrait.",
+      "prompt": "Suzy Bae, the famous South Korean singer and actress, long dark brown hair, fair skin, fresh girl-next-door beauty.",
       "description": "South Korean singer and actress",
       "tags": [
         "singer",
@@ -710,7 +710,7 @@
     },
     "IU": {
       "name_zh": "李知恩",
-      "prompt": "IU, the famous South Korean singer and actress, long dark hair, fair skin, delicate cute features, sweet innocent look, photorealistic portrait.",
+      "prompt": "IU, the famous South Korean singer and actress, long dark hair, fair skin, delicate cute features, sweet innocent look.",
       "description": "South Korean singer and actress",
       "tags": [
         "singer",
@@ -722,7 +722,7 @@
     },
     "Jennie Kim": {
       "name_zh": "金珍妮",
-      "prompt": "Jennie Kim, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, chic fashionable look, confident presence, photorealistic portrait.",
+      "prompt": "Jennie Kim, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, chic fashionable look, confident presence.",
       "description": "South Korean singer (BLACKPINK)",
       "tags": [
         "singer",
@@ -734,7 +734,7 @@
     },
     "Lisa": {
       "name_zh": "丽莎",
-      "prompt": "Lisa, the famous Thai singer of BLACKPINK, long black hair, warm skin, sharp expressive eyes, trendy idol look, photorealistic portrait.",
+      "prompt": "Lisa, the famous Thai singer of BLACKPINK, long black hair, warm skin, sharp expressive eyes, trendy idol look.",
       "description": "Thai singer (BLACKPINK)",
       "tags": [
         "singer",
@@ -746,7 +746,7 @@
     },
     "Jisoo": {
       "name_zh": "金智秀",
-      "prompt": "Jisoo, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, elegant classic beauty, photorealistic portrait.",
+      "prompt": "Jisoo, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, elegant classic beauty.",
       "description": "South Korean singer (BLACKPINK)",
       "tags": [
         "singer",
@@ -758,7 +758,7 @@
     },
     "Rosé": {
       "name_zh": "朴彩英",
-      "prompt": "Rosé, the famous Korean-New Zealand singer of BLACKPINK, long blonde hair, fair skin, delicate stylish look, photorealistic portrait.",
+      "prompt": "Rosé, the famous Korean-New Zealand singer of BLACKPINK, long blonde hair, fair skin, delicate stylish look.",
       "description": "Korean-New Zealand singer (BLACKPINK)",
       "tags": [
         "singer",
@@ -770,7 +770,7 @@
     },
     "Yui Aragaki": {
       "name_zh": "新垣结衣",
-      "prompt": "Yui Aragaki, the famous Japanese actress and singer, shoulder-length brown hair, bright smile, fresh natural beauty, photorealistic portrait.",
+      "prompt": "Yui Aragaki, the famous Japanese actress and singer, shoulder-length brown hair, bright smile, fresh natural beauty.",
       "description": "Japanese actress and singer",
       "tags": [
         "actress",
@@ -782,7 +782,7 @@
     },
     "Kanna Hashimoto": {
       "name_zh": "桥本环奈",
-      "prompt": "Kanna Hashimoto, the famous Japanese actress, long dark brown hair, big bright eyes, cute idol-like look, photorealistic portrait.",
+      "prompt": "Kanna Hashimoto, the famous Japanese actress, long dark brown hair, big bright eyes, cute idol-like look.",
       "description": "Japanese actress",
       "tags": [
         "actress",
@@ -794,7 +794,7 @@
     },
     "Satomi Ishihara": {
       "name_zh": "石原里美",
-      "prompt": "Satomi Ishihara, the famous Japanese actress, long dark hair, fair skin, bright charming smile, photorealistic portrait.",
+      "prompt": "Satomi Ishihara, the famous Japanese actress, long dark hair, fair skin, bright charming smile.",
       "description": "Japanese actress",
       "tags": [
         "actress",
@@ -806,7 +806,7 @@
     },
     "Ayumi Hamasaki": {
       "name_zh": "滨崎步",
-      "prompt": "Ayumi Hamasaki, the famous Japanese singer, long light brown hair, fair skin, iconic J-pop diva look, photorealistic portrait.",
+      "prompt": "Ayumi Hamasaki, the famous Japanese singer, long light brown hair, fair skin, iconic J-pop diva look.",
       "description": "Japanese singer",
       "tags": [
         "singer",
@@ -818,7 +818,7 @@
     },
     "Nozomi Sasaki": {
       "name_zh": "佐佐木希",
-      "prompt": "Nozomi Sasaki, the famous Japanese model and actress, long dark hair, fair skin, classic beautiful features, photorealistic portrait.",
+      "prompt": "Nozomi Sasaki, the famous Japanese model and actress, long dark hair, fair skin, classic beautiful features.",
       "description": "Japanese model and actress",
       "tags": [
         "model",
@@ -830,7 +830,7 @@
     },
     "Keiko Kitagawa": {
       "name_zh": "北川景子",
-      "prompt": "Keiko Kitagawa, the famous Japanese actress, long dark hair, fair skin, elegant refined beauty, photorealistic portrait.",
+      "prompt": "Keiko Kitagawa, the famous Japanese actress, long dark hair, fair skin, elegant refined beauty.",
       "description": "Japanese actress",
       "tags": [
         "actress",
@@ -842,7 +842,7 @@
     },
     "50 Cent": {
       "name_zh": "50 Cent",
-      "prompt": "50 Cent, the famous rapper, photorealistic portrait.",
+      "prompt": "50 Cent, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -853,7 +853,7 @@
     },
     "Adam Driver": {
       "name_zh": "Adam Driver",
-      "prompt": "Adam Driver, the famous actor, photorealistic portrait.",
+      "prompt": "Adam Driver, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -864,7 +864,7 @@
     },
     "Adam Sandler": {
       "name_zh": "Adam Sandler",
-      "prompt": "Adam Sandler, the famous actor, photorealistic portrait.",
+      "prompt": "Adam Sandler, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -875,7 +875,7 @@
     },
     "Al Pacino": {
       "name_zh": "Al Pacino",
-      "prompt": "Al Pacino, the famous actor, photorealistic portrait.",
+      "prompt": "Al Pacino, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -886,7 +886,7 @@
     },
     "Alan Jackson": {
       "name_zh": "Alan Jackson",
-      "prompt": "Alan Jackson, the famous singer, photorealistic portrait.",
+      "prompt": "Alan Jackson, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -897,7 +897,7 @@
     },
     "Alan Rickman": {
       "name_zh": "Alan Rickman",
-      "prompt": "Alan Rickman, the famous actor, photorealistic portrait.",
+      "prompt": "Alan Rickman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -908,7 +908,7 @@
     },
     "Alessia Cara": {
       "name_zh": "Alessia Cara",
-      "prompt": "Alessia Cara, the famous singer, photorealistic portrait.",
+      "prompt": "Alessia Cara, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -919,7 +919,7 @@
     },
     "Ali Shaheed Muhammad": {
       "name_zh": "Ali Shaheed Muhammad",
-      "prompt": "Ali Shaheed Muhammad, the famous rapper, photorealistic portrait.",
+      "prompt": "Ali Shaheed Muhammad, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -930,7 +930,7 @@
     },
     "Amanda Seyfried": {
       "name_zh": "Amanda Seyfried",
-      "prompt": "Amanda Seyfried, the famous actress, photorealistic portrait.",
+      "prompt": "Amanda Seyfried, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -941,7 +941,7 @@
     },
     "Amy Poehler": {
       "name_zh": "Amy Poehler",
-      "prompt": "Amy Poehler, the famous comedian, photorealistic portrait.",
+      "prompt": "Amy Poehler, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -952,7 +952,7 @@
     },
     "Amy Schumer": {
       "name_zh": "Amy Schumer",
-      "prompt": "Amy Schumer, the famous comedian, photorealistic portrait.",
+      "prompt": "Amy Schumer, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -963,7 +963,7 @@
     },
     "Andre 3000": {
       "name_zh": "Andre 3000",
-      "prompt": "Andre 3000, the famous rapper, photorealistic portrait.",
+      "prompt": "Andre 3000, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -974,7 +974,7 @@
     },
     "Andrew Garfield": {
       "name_zh": "Andrew Garfield",
-      "prompt": "Andrew Garfield, the famous actor, photorealistic portrait.",
+      "prompt": "Andrew Garfield, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -985,7 +985,7 @@
     },
     "Angela Bassett": {
       "name_zh": "Angela Bassett",
-      "prompt": "Angela Bassett, the famous actress, photorealistic portrait.",
+      "prompt": "Angela Bassett, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -996,7 +996,7 @@
     },
     "Anitta": {
       "name_zh": "Anitta",
-      "prompt": "Anitta, the famous singer, photorealistic portrait.",
+      "prompt": "Anitta, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1007,7 +1007,7 @@
     },
     "Anthony Hopkins": {
       "name_zh": "Anthony Hopkins",
-      "prompt": "Anthony Hopkins, the famous actor, photorealistic portrait.",
+      "prompt": "Anthony Hopkins, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1018,7 +1018,7 @@
     },
     "Antonio Banderas": {
       "name_zh": "Antonio Banderas",
-      "prompt": "Antonio Banderas, the famous actor, photorealistic portrait.",
+      "prompt": "Antonio Banderas, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1029,7 +1029,7 @@
     },
     "Aretha Franklin": {
       "name_zh": "Aretha Franklin",
-      "prompt": "Aretha Franklin, the famous singer, photorealistic portrait.",
+      "prompt": "Aretha Franklin, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1040,7 +1040,7 @@
     },
     "Armando Iannucci": {
       "name_zh": "Armando Iannucci",
-      "prompt": "Armando Iannucci, the famous comedian, photorealistic portrait.",
+      "prompt": "Armando Iannucci, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1051,7 +1051,7 @@
     },
     "Arnold Schwarzenegger": {
       "name_zh": "Arnold Schwarzenegger",
-      "prompt": "Arnold Schwarzenegger, the famous actor, photorealistic portrait.",
+      "prompt": "Arnold Schwarzenegger, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1062,7 +1062,7 @@
     },
     "Art Garfunkel": {
       "name_zh": "Art Garfunkel",
-      "prompt": "Art Garfunkel, the famous singer, photorealistic portrait.",
+      "prompt": "Art Garfunkel, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1073,7 +1073,7 @@
     },
     "Aziz Ansari": {
       "name_zh": "Aziz Ansari",
-      "prompt": "Aziz Ansari, the famous comedian, photorealistic portrait.",
+      "prompt": "Aziz Ansari, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1084,7 +1084,7 @@
     },
     "Bad Bunny": {
       "name_zh": "Bad Bunny",
-      "prompt": "Bad Bunny, the famous singer, photorealistic portrait.",
+      "prompt": "Bad Bunny, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1095,7 +1095,7 @@
     },
     "Barry Keoghan": {
       "name_zh": "Barry Keoghan",
-      "prompt": "Barry Keoghan, the famous actor, photorealistic portrait.",
+      "prompt": "Barry Keoghan, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1106,7 +1106,7 @@
     },
     "Bebe Rexha": {
       "name_zh": "Bebe Rexha",
-      "prompt": "Bebe Rexha, the famous singer, photorealistic portrait.",
+      "prompt": "Bebe Rexha, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1117,7 +1117,7 @@
     },
     "Becky G": {
       "name_zh": "Becky G",
-      "prompt": "Becky G, the famous singer, photorealistic portrait.",
+      "prompt": "Becky G, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1128,7 +1128,7 @@
     },
     "Bela Lugosi": {
       "name_zh": "Bela Lugosi",
-      "prompt": "Bela Lugosi, the famous actor, photorealistic portrait.",
+      "prompt": "Bela Lugosi, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1139,7 +1139,7 @@
     },
     "Ben Affleck": {
       "name_zh": "Ben Affleck",
-      "prompt": "Ben Affleck, the famous actor, photorealistic portrait.",
+      "prompt": "Ben Affleck, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1150,7 +1150,7 @@
     },
     "Ben Stiller": {
       "name_zh": "Ben Stiller",
-      "prompt": "Ben Stiller, the famous comedian, photorealistic portrait.",
+      "prompt": "Ben Stiller, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1161,7 +1161,7 @@
     },
     "Benedict Cumberbatch": {
       "name_zh": "Benedict Cumberbatch",
-      "prompt": "Benedict Cumberbatch, the famous actor, photorealistic portrait.",
+      "prompt": "Benedict Cumberbatch, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1172,7 +1172,7 @@
     },
     "Big Boi": {
       "name_zh": "Big Boi",
-      "prompt": "Big Boi, the famous rapper, photorealistic portrait.",
+      "prompt": "Big Boi, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1183,7 +1183,7 @@
     },
     "Big Daddy Kane": {
       "name_zh": "Big Daddy Kane",
-      "prompt": "Big Daddy Kane, the famous rapper, photorealistic portrait.",
+      "prompt": "Big Daddy Kane, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1194,7 +1194,7 @@
     },
     "Billie Holiday": {
       "name_zh": "Billie Holiday",
-      "prompt": "Billie Holiday, the famous singer, photorealistic portrait.",
+      "prompt": "Billie Holiday, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1205,7 +1205,7 @@
     },
     "Bing Crosby": {
       "name_zh": "Bing Crosby",
-      "prompt": "Bing Crosby, the famous singer, photorealistic portrait.",
+      "prompt": "Bing Crosby, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1216,7 +1216,7 @@
     },
     "Biz Markie": {
       "name_zh": "Biz Markie",
-      "prompt": "Biz Markie, the famous rapper, photorealistic portrait.",
+      "prompt": "Biz Markie, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1227,7 +1227,7 @@
     },
     "Blake Shelton": {
       "name_zh": "Blake Shelton",
-      "prompt": "Blake Shelton, the famous singer, photorealistic portrait.",
+      "prompt": "Blake Shelton, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1238,7 +1238,7 @@
     },
     "Bo Burnham": {
       "name_zh": "Bo Burnham",
-      "prompt": "Bo Burnham, the famous comedian, photorealistic portrait.",
+      "prompt": "Bo Burnham, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1249,7 +1249,7 @@
     },
     "Bob Dylan": {
       "name_zh": "Bob Dylan",
-      "prompt": "Bob Dylan, the famous singer, photorealistic portrait.",
+      "prompt": "Bob Dylan, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1260,7 +1260,7 @@
     },
     "Bob Marley": {
       "name_zh": "Bob Marley",
-      "prompt": "Bob Marley, the famous singer, photorealistic portrait.",
+      "prompt": "Bob Marley, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1271,7 +1271,7 @@
     },
     "Bono": {
       "name_zh": "Bono",
-      "prompt": "Bono, the famous singer, photorealistic portrait.",
+      "prompt": "Bono, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1282,7 +1282,7 @@
     },
     "Boris Karloff": {
       "name_zh": "Boris Karloff",
-      "prompt": "Boris Karloff, the famous actor, photorealistic portrait.",
+      "prompt": "Boris Karloff, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1293,7 +1293,7 @@
     },
     "Brandi Carlile": {
       "name_zh": "Brandi Carlile",
-      "prompt": "Brandi Carlile, the famous singer, photorealistic portrait.",
+      "prompt": "Brandi Carlile, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1304,7 +1304,7 @@
     },
     "Bret Hart": {
       "name_zh": "Bret Hart",
-      "prompt": "Bret Hart, the famous wrestler, photorealistic portrait.",
+      "prompt": "Bret Hart, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -1315,7 +1315,7 @@
     },
     "Bruce Springsteen": {
       "name_zh": "Bruce Springsteen",
-      "prompt": "Bruce Springsteen, the famous singer, photorealistic portrait.",
+      "prompt": "Bruce Springsteen, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1326,7 +1326,7 @@
     },
     "Bruce Willis": {
       "name_zh": "Bruce Willis",
-      "prompt": "Bruce Willis, the famous actor, photorealistic portrait.",
+      "prompt": "Bruce Willis, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1337,7 +1337,7 @@
     },
     "Bruno Mars": {
       "name_zh": "Bruno Mars",
-      "prompt": "Bruno Mars, the famous singer, photorealistic portrait.",
+      "prompt": "Bruno Mars, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1348,7 +1348,7 @@
     },
     "Cameron Diaz": {
       "name_zh": "Cameron Diaz",
-      "prompt": "Cameron Diaz, the famous actress, photorealistic portrait.",
+      "prompt": "Cameron Diaz, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1359,7 +1359,7 @@
     },
     "Cappadonna": {
       "name_zh": "Cappadonna",
-      "prompt": "Cappadonna, the famous rapper, photorealistic portrait.",
+      "prompt": "Cappadonna, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1370,7 +1370,7 @@
     },
     "Cardi B": {
       "name_zh": "Cardi B",
-      "prompt": "Cardi B, the famous singer, photorealistic portrait.",
+      "prompt": "Cardi B, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1381,7 +1381,7 @@
     },
     "Carmen Maura": {
       "name_zh": "Carmen Maura",
-      "prompt": "Carmen Maura, the famous actress, photorealistic portrait.",
+      "prompt": "Carmen Maura, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1392,7 +1392,7 @@
     },
     "Carrie Underwood": {
       "name_zh": "Carrie Underwood",
-      "prompt": "Carrie Underwood, the famous singer, photorealistic portrait.",
+      "prompt": "Carrie Underwood, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1403,7 +1403,7 @@
     },
     "Cate Blanchett": {
       "name_zh": "Cate Blanchett",
-      "prompt": "Cate Blanchett, the famous actress, photorealistic portrait.",
+      "prompt": "Cate Blanchett, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1414,7 +1414,7 @@
     },
     "Charles Laughton": {
       "name_zh": "Charles Laughton",
-      "prompt": "Charles Laughton, the famous actor, photorealistic portrait.",
+      "prompt": "Charles Laughton, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1425,7 +1425,7 @@
     },
     "Charli XCX": {
       "name_zh": "Charli XCX",
-      "prompt": "Charli XCX, the famous singer, photorealistic portrait.",
+      "prompt": "Charli XCX, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1436,7 +1436,7 @@
     },
     "Charlize Theron": {
       "name_zh": "Charlize Theron",
-      "prompt": "Charlize Theron, the famous actress, photorealistic portrait.",
+      "prompt": "Charlize Theron, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1447,7 +1447,7 @@
     },
     "Chris Evans": {
       "name_zh": "Chris Evans",
-      "prompt": "Chris Evans, the famous actor, photorealistic portrait.",
+      "prompt": "Chris Evans, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1458,7 +1458,7 @@
     },
     "Chris Hemsworth": {
       "name_zh": "Chris Hemsworth",
-      "prompt": "Chris Hemsworth, the famous actor, photorealistic portrait.",
+      "prompt": "Chris Hemsworth, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1469,7 +1469,7 @@
     },
     "Chris Morris": {
       "name_zh": "Chris Morris",
-      "prompt": "Chris Morris, the famous comedian, photorealistic portrait.",
+      "prompt": "Chris Morris, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1480,7 +1480,7 @@
     },
     "Chris Pratt": {
       "name_zh": "Chris Pratt",
-      "prompt": "Chris Pratt, the famous actor, photorealistic portrait.",
+      "prompt": "Chris Pratt, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1491,7 +1491,7 @@
     },
     "Chris Rock": {
       "name_zh": "Chris Rock",
-      "prompt": "Chris Rock, the famous comedian, photorealistic portrait.",
+      "prompt": "Chris Rock, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1502,7 +1502,7 @@
     },
     "Christian Bale": {
       "name_zh": "Christian Bale",
-      "prompt": "Christian Bale, the famous actor, photorealistic portrait.",
+      "prompt": "Christian Bale, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1513,7 +1513,7 @@
     },
     "Christoph Waltz": {
       "name_zh": "Christoph Waltz",
-      "prompt": "Christoph Waltz, the famous actor, photorealistic portrait.",
+      "prompt": "Christoph Waltz, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1524,7 +1524,7 @@
     },
     "Christopher Eccleston": {
       "name_zh": "Christopher Eccleston",
-      "prompt": "Christopher Eccleston, the famous actor, photorealistic portrait.",
+      "prompt": "Christopher Eccleston, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1535,7 +1535,7 @@
     },
     "Christopher Lee": {
       "name_zh": "Christopher Lee",
-      "prompt": "Christopher Lee, the famous actor, photorealistic portrait.",
+      "prompt": "Christopher Lee, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1546,7 +1546,7 @@
     },
     "Cillian Murphy": {
       "name_zh": "Cillian Murphy",
-      "prompt": "Cillian Murphy, the famous actor, photorealistic portrait.",
+      "prompt": "Cillian Murphy, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1557,7 +1557,7 @@
     },
     "Claude Rains": {
       "name_zh": "Claude Rains",
-      "prompt": "Claude Rains, the famous actor, photorealistic portrait.",
+      "prompt": "Claude Rains, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1568,7 +1568,7 @@
     },
     "Clive Owen": {
       "name_zh": "Clive Owen",
-      "prompt": "Clive Owen, the famous actor, photorealistic portrait.",
+      "prompt": "Clive Owen, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1579,7 +1579,7 @@
     },
     "Colin Baker": {
       "name_zh": "Colin Baker",
-      "prompt": "Colin Baker, the famous actor, photorealistic portrait.",
+      "prompt": "Colin Baker, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1590,7 +1590,7 @@
     },
     "Colin Farrell": {
       "name_zh": "Colin Farrell",
-      "prompt": "Colin Farrell, the famous actor, photorealistic portrait.",
+      "prompt": "Colin Farrell, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1601,7 +1601,7 @@
     },
     "Common": {
       "name_zh": "Common",
-      "prompt": "Common, the famous rapper, photorealistic portrait.",
+      "prompt": "Common, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1612,7 +1612,7 @@
     },
     "Dakota Fanning": {
       "name_zh": "Dakota Fanning",
-      "prompt": "Dakota Fanning, the famous actress, photorealistic portrait.",
+      "prompt": "Dakota Fanning, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1623,7 +1623,7 @@
     },
     "Dakota Johnson": {
       "name_zh": "Dakota Johnson",
-      "prompt": "Dakota Johnson, the famous actress, photorealistic portrait.",
+      "prompt": "Dakota Johnson, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1634,7 +1634,7 @@
     },
     "Daniel Craig": {
       "name_zh": "Daniel Craig",
-      "prompt": "Daniel Craig, the famous actor, photorealistic portrait.",
+      "prompt": "Daniel Craig, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1645,7 +1645,7 @@
     },
     "Daniel Kaluuya": {
       "name_zh": "Daniel Kaluuya",
-      "prompt": "Daniel Kaluuya, the famous actor, photorealistic portrait.",
+      "prompt": "Daniel Kaluuya, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1656,7 +1656,7 @@
     },
     "Dave Bautista": {
       "name_zh": "Dave Bautista",
-      "prompt": "Dave Bautista, the famous actor, photorealistic portrait.",
+      "prompt": "Dave Bautista, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1667,7 +1667,7 @@
     },
     "Dave Chappelle": {
       "name_zh": "Dave Chappelle",
-      "prompt": "Dave Chappelle, the famous comedian, photorealistic portrait.",
+      "prompt": "Dave Chappelle, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1678,7 +1678,7 @@
     },
     "Dave Franco": {
       "name_zh": "Dave Franco",
-      "prompt": "Dave Franco, the famous actor, photorealistic portrait.",
+      "prompt": "Dave Franco, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1689,7 +1689,7 @@
     },
     "David Bowie": {
       "name_zh": "David Bowie",
-      "prompt": "David Bowie, the famous singer, photorealistic portrait.",
+      "prompt": "David Bowie, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1700,7 +1700,7 @@
     },
     "David Mitchell": {
       "name_zh": "David Mitchell",
-      "prompt": "David Mitchell, the famous comedian, photorealistic portrait.",
+      "prompt": "David Mitchell, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -1711,7 +1711,7 @@
     },
     "David Niven": {
       "name_zh": "David Niven",
-      "prompt": "David Niven, the famous actor, photorealistic portrait.",
+      "prompt": "David Niven, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1722,7 +1722,7 @@
     },
     "David Tennant": {
       "name_zh": "David Tennant",
-      "prompt": "David Tennant, the famous actor, photorealistic portrait.",
+      "prompt": "David Tennant, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1733,7 +1733,7 @@
     },
     "Daya": {
       "name_zh": "Daya",
-      "prompt": "Daya, the famous singer, photorealistic portrait.",
+      "prompt": "Daya, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1744,7 +1744,7 @@
     },
     "Dean Martin": {
       "name_zh": "Dean Martin",
-      "prompt": "Dean Martin, the famous singer, photorealistic portrait.",
+      "prompt": "Dean Martin, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1755,7 +1755,7 @@
     },
     "Demi Lovato": {
       "name_zh": "Demi Lovato",
-      "prompt": "Demi Lovato, the famous singer, photorealistic portrait.",
+      "prompt": "Demi Lovato, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1766,7 +1766,7 @@
     },
     "Denzel Washington": {
       "name_zh": "Denzel Washington",
-      "prompt": "Denzel Washington, the famous actor, photorealistic portrait.",
+      "prompt": "Denzel Washington, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1777,7 +1777,7 @@
     },
     "Diahan Carroll": {
       "name_zh": "Diahan Carroll",
-      "prompt": "Diahan Carroll, the famous actress, photorealistic portrait.",
+      "prompt": "Diahan Carroll, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1788,7 +1788,7 @@
     },
     "Diana Ross": {
       "name_zh": "Diana Ross",
-      "prompt": "Diana Ross, the famous actress, photorealistic portrait.",
+      "prompt": "Diana Ross, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1799,7 +1799,7 @@
     },
     "Doja Cat": {
       "name_zh": "Doja Cat",
-      "prompt": "Doja Cat, the famous singer, photorealistic portrait.",
+      "prompt": "Doja Cat, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1810,7 +1810,7 @@
     },
     "Dolly Parton": {
       "name_zh": "Dolly Parton",
-      "prompt": "Dolly Parton, the famous actress, photorealistic portrait.",
+      "prompt": "Dolly Parton, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1821,7 +1821,7 @@
     },
     "Dr. Dre": {
       "name_zh": "Dr. Dre",
-      "prompt": "Dr. Dre, the famous rapper, photorealistic portrait.",
+      "prompt": "Dr. Dre, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1832,7 +1832,7 @@
     },
     "Drake": {
       "name_zh": "Drake",
-      "prompt": "Drake, the famous rapper, photorealistic portrait.",
+      "prompt": "Drake, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1843,7 +1843,7 @@
     },
     "Drew Barrymore": {
       "name_zh": "Drew Barrymore",
-      "prompt": "Drew Barrymore, the famous actress, photorealistic portrait.",
+      "prompt": "Drew Barrymore, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1854,7 +1854,7 @@
     },
     "Dustin Hoffman": {
       "name_zh": "Dustin Hoffman",
-      "prompt": "Dustin Hoffman, the famous actor, photorealistic portrait.",
+      "prompt": "Dustin Hoffman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1865,7 +1865,7 @@
     },
     "Dwayne Johnson": {
       "name_zh": "Dwayne Johnson",
-      "prompt": "Dwayne Johnson, the famous actor, photorealistic portrait.",
+      "prompt": "Dwayne Johnson, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1876,7 +1876,7 @@
     },
     "Ed Sheeran": {
       "name_zh": "Ed Sheeran",
-      "prompt": "Ed Sheeran, the famous singer, photorealistic portrait.",
+      "prompt": "Ed Sheeran, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1887,7 +1887,7 @@
     },
     "Eddie Murphy": {
       "name_zh": "Eddie Murphy",
-      "prompt": "Eddie Murphy, the famous actor, photorealistic portrait.",
+      "prompt": "Eddie Murphy, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1898,7 +1898,7 @@
     },
     "Eddie Redmayne": {
       "name_zh": "Eddie Redmayne",
-      "prompt": "Eddie Redmayne, the famous actor, photorealistic portrait.",
+      "prompt": "Eddie Redmayne, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -1909,7 +1909,7 @@
     },
     "Ella Fitzgerald": {
       "name_zh": "Ella Fitzgerald",
-      "prompt": "Ella Fitzgerald, the famous singer, photorealistic portrait.",
+      "prompt": "Ella Fitzgerald, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1920,7 +1920,7 @@
     },
     "Elle Fanning": {
       "name_zh": "Elle Fanning",
-      "prompt": "Elle Fanning, the famous actress, photorealistic portrait.",
+      "prompt": "Elle Fanning, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1931,7 +1931,7 @@
     },
     "Ellie Goulding": {
       "name_zh": "Ellie Goulding",
-      "prompt": "Ellie Goulding, the famous singer, photorealistic portrait.",
+      "prompt": "Ellie Goulding, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1942,7 +1942,7 @@
     },
     "Elton John": {
       "name_zh": "Elton John",
-      "prompt": "Elton John, the famous singer, photorealistic portrait.",
+      "prompt": "Elton John, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1953,7 +1953,7 @@
     },
     "Elvis Presley": {
       "name_zh": "Elvis Presley",
-      "prompt": "Elvis Presley, the famous singer, photorealistic portrait.",
+      "prompt": "Elvis Presley, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -1964,7 +1964,7 @@
     },
     "Eminem": {
       "name_zh": "Eminem",
-      "prompt": "Eminem, the famous rapper, photorealistic portrait.",
+      "prompt": "Eminem, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1975,7 +1975,7 @@
     },
     "Emma Roberts": {
       "name_zh": "Emma Roberts",
-      "prompt": "Emma Roberts, the famous actress, photorealistic portrait.",
+      "prompt": "Emma Roberts, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -1986,7 +1986,7 @@
     },
     "Eric B.": {
       "name_zh": "Eric B.",
-      "prompt": "Eric B., the famous rapper, photorealistic portrait.",
+      "prompt": "Eric B., the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -1997,7 +1997,7 @@
     },
     "Evangeline Lilly": {
       "name_zh": "Evangeline Lilly",
-      "prompt": "Evangeline Lilly, the famous actress, photorealistic portrait.",
+      "prompt": "Evangeline Lilly, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2008,7 +2008,7 @@
     },
     "Ewan McGregor": {
       "name_zh": "Ewan McGregor",
-      "prompt": "Ewan McGregor, the famous actor, photorealistic portrait.",
+      "prompt": "Ewan McGregor, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2019,7 +2019,7 @@
     },
     "Faith Hill": {
       "name_zh": "Faith Hill",
-      "prompt": "Faith Hill, the famous singer, photorealistic portrait.",
+      "prompt": "Faith Hill, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2030,7 +2030,7 @@
     },
     "Florence Pugh": {
       "name_zh": "Florence Pugh",
-      "prompt": "Florence Pugh, the famous actress, photorealistic portrait.",
+      "prompt": "Florence Pugh, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2041,7 +2041,7 @@
     },
     "Frank Sinatra": {
       "name_zh": "Frank Sinatra",
-      "prompt": "Frank Sinatra, the famous singer, photorealistic portrait.",
+      "prompt": "Frank Sinatra, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2052,7 +2052,7 @@
     },
     "Freddie Mercury": {
       "name_zh": "Freddie Mercury",
-      "prompt": "Freddie Mercury, the famous singer, photorealistic portrait.",
+      "prompt": "Freddie Mercury, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2063,7 +2063,7 @@
     },
     "Future": {
       "name_zh": "Future",
-      "prompt": "Future, the famous rapper, photorealistic portrait.",
+      "prompt": "Future, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2074,7 +2074,7 @@
     },
     "GZA": {
       "name_zh": "GZA",
-      "prompt": "GZA, the famous rapper, photorealistic portrait.",
+      "prompt": "GZA, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2085,7 +2085,7 @@
     },
     "Gabrielle Union": {
       "name_zh": "Gabrielle Union",
-      "prompt": "Gabrielle Union, the famous actress, photorealistic portrait.",
+      "prompt": "Gabrielle Union, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2096,7 +2096,7 @@
     },
     "Garth Brooks": {
       "name_zh": "Garth Brooks",
-      "prompt": "Garth Brooks, the famous singer, photorealistic portrait.",
+      "prompt": "Garth Brooks, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2107,7 +2107,7 @@
     },
     "Gary Oldman": {
       "name_zh": "Gary Oldman",
-      "prompt": "Gary Oldman, the famous actor, photorealistic portrait.",
+      "prompt": "Gary Oldman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2118,7 +2118,7 @@
     },
     "Gene Hackman": {
       "name_zh": "Gene Hackman",
-      "prompt": "Gene Hackman, the famous actor, photorealistic portrait.",
+      "prompt": "Gene Hackman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2129,7 +2129,7 @@
     },
     "George Clooney": {
       "name_zh": "George Clooney",
-      "prompt": "George Clooney, the famous actor, photorealistic portrait.",
+      "prompt": "George Clooney, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2140,7 +2140,7 @@
     },
     "George Harrison": {
       "name_zh": "George Harrison",
-      "prompt": "George Harrison, the famous singer, photorealistic portrait.",
+      "prompt": "George Harrison, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2151,7 +2151,7 @@
     },
     "George Lazenby": {
       "name_zh": "George Lazenby",
-      "prompt": "George Lazenby, the famous actor, photorealistic portrait.",
+      "prompt": "George Lazenby, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2162,7 +2162,7 @@
     },
     "Gerard Butler": {
       "name_zh": "Gerard Butler",
-      "prompt": "Gerard Butler, the famous actor, photorealistic portrait.",
+      "prompt": "Gerard Butler, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2173,7 +2173,7 @@
     },
     "Ghostface Killah": {
       "name_zh": "Ghostface Killah",
-      "prompt": "Ghostface Killah, the famous rapper, photorealistic portrait.",
+      "prompt": "Ghostface Killah, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2184,7 +2184,7 @@
     },
     "Halle Berry": {
       "name_zh": "Halle Berry",
-      "prompt": "Halle Berry, the famous actress, photorealistic portrait.",
+      "prompt": "Halle Berry, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2195,7 +2195,7 @@
     },
     "Halsey": {
       "name_zh": "Halsey",
-      "prompt": "Halsey, the famous singer, photorealistic portrait.",
+      "prompt": "Halsey, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2206,7 +2206,7 @@
     },
     "Harrison Ford": {
       "name_zh": "Harrison Ford",
-      "prompt": "Harrison Ford, the famous actor, photorealistic portrait.",
+      "prompt": "Harrison Ford, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2217,7 +2217,7 @@
     },
     "Harry Belafonte": {
       "name_zh": "Harry Belafonte",
-      "prompt": "Harry Belafonte, the famous actor, photorealistic portrait.",
+      "prompt": "Harry Belafonte, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2228,7 +2228,7 @@
     },
     "Harry Styles": {
       "name_zh": "Harry Styles",
-      "prompt": "Harry Styles, the famous singer, photorealistic portrait.",
+      "prompt": "Harry Styles, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2239,7 +2239,7 @@
     },
     "Hasan Minhaj": {
       "name_zh": "Hasan Minhaj",
-      "prompt": "Hasan Minhaj, the famous comedian, photorealistic portrait.",
+      "prompt": "Hasan Minhaj, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2250,7 +2250,7 @@
     },
     "Heath Ledger": {
       "name_zh": "Heath Ledger",
-      "prompt": "Heath Ledger, the famous actor, photorealistic portrait.",
+      "prompt": "Heath Ledger, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2261,7 +2261,7 @@
     },
     "Helena Bonham Carter": {
       "name_zh": "Helena Bonham Carter",
-      "prompt": "Helena Bonham Carter, the famous actress, photorealistic portrait.",
+      "prompt": "Helena Bonham Carter, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2272,7 +2272,7 @@
     },
     "Hugh Jackman": {
       "name_zh": "Hugh Jackman",
-      "prompt": "Hugh Jackman, the famous actor, photorealistic portrait.",
+      "prompt": "Hugh Jackman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2283,7 +2283,7 @@
     },
     "Hugh Laurie": {
       "name_zh": "Hugh Laurie",
-      "prompt": "Hugh Laurie, the famous comedian, photorealistic portrait.",
+      "prompt": "Hugh Laurie, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2294,7 +2294,7 @@
     },
     "Hulk Hogan": {
       "name_zh": "Hulk Hogan",
-      "prompt": "Hulk Hogan, the famous wrestler, photorealistic portrait.",
+      "prompt": "Hulk Hogan, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -2305,7 +2305,7 @@
     },
     "Ice Cube": {
       "name_zh": "Ice Cube",
-      "prompt": "Ice Cube, the famous rapper, photorealistic portrait.",
+      "prompt": "Ice Cube, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2316,7 +2316,7 @@
     },
     "Idris Elba": {
       "name_zh": "Idris Elba",
-      "prompt": "Idris Elba, the famous actor, photorealistic portrait.",
+      "prompt": "Idris Elba, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2327,7 +2327,7 @@
     },
     "Inspectah Deck": {
       "name_zh": "Inspectah Deck",
-      "prompt": "Inspectah Deck, the famous rapper, photorealistic portrait.",
+      "prompt": "Inspectah Deck, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2338,7 +2338,7 @@
     },
     "J Balvin": {
       "name_zh": "J Balvin",
-      "prompt": "J Balvin, the famous singer, photorealistic portrait.",
+      "prompt": "J Balvin, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2349,7 +2349,7 @@
     },
     "J. Cole": {
       "name_zh": "J. Cole",
-      "prompt": "J. Cole, the famous rapper, photorealistic portrait.",
+      "prompt": "J. Cole, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2360,7 +2360,7 @@
     },
     "Jack Black": {
       "name_zh": "Jack Black",
-      "prompt": "Jack Black, the famous actor, photorealistic portrait.",
+      "prompt": "Jack Black, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2371,7 +2371,7 @@
     },
     "Jack Nicholson": {
       "name_zh": "Jack Nicholson",
-      "prompt": "Jack Nicholson, the famous actor, photorealistic portrait.",
+      "prompt": "Jack Nicholson, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2382,7 +2382,7 @@
     },
     "Jake Gyllenhaal": {
       "name_zh": "Jake Gyllenhaal",
-      "prompt": "Jake Gyllenhaal, the famous actor, photorealistic portrait.",
+      "prompt": "Jake Gyllenhaal, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2393,7 +2393,7 @@
     },
     "James Corden": {
       "name_zh": "James Corden",
-      "prompt": "James Corden, the famous comedian, photorealistic portrait.",
+      "prompt": "James Corden, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2404,7 +2404,7 @@
     },
     "James Dean": {
       "name_zh": "James Dean",
-      "prompt": "James Dean, the famous actor, photorealistic portrait.",
+      "prompt": "James Dean, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2415,7 +2415,7 @@
     },
     "James Franco": {
       "name_zh": "James Franco",
-      "prompt": "James Franco, the famous actor, photorealistic portrait.",
+      "prompt": "James Franco, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2426,7 +2426,7 @@
     },
     "James McAvoy": {
       "name_zh": "James McAvoy",
-      "prompt": "James McAvoy, the famous actor, photorealistic portrait.",
+      "prompt": "James McAvoy, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2437,7 +2437,7 @@
     },
     "Janelle Monáe": {
       "name_zh": "Janelle Monáe",
-      "prompt": "Janelle Monáe, the famous actress, photorealistic portrait.",
+      "prompt": "Janelle Monáe, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2448,7 +2448,7 @@
     },
     "Jarobi White": {
       "name_zh": "Jarobi White",
-      "prompt": "Jarobi White, the famous rapper, photorealistic portrait.",
+      "prompt": "Jarobi White, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2459,7 +2459,7 @@
     },
     "Jason Statham": {
       "name_zh": "Jason Statham",
-      "prompt": "Jason Statham, the famous actor, photorealistic portrait.",
+      "prompt": "Jason Statham, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2470,7 +2470,7 @@
     },
     "Javier Bardem": {
       "name_zh": "Javier Bardem",
-      "prompt": "Javier Bardem, the famous actor, photorealistic portrait.",
+      "prompt": "Javier Bardem, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2481,7 +2481,7 @@
     },
     "Jay-Z": {
       "name_zh": "Jay-Z",
-      "prompt": "Jay-Z, the famous rapper, photorealistic portrait.",
+      "prompt": "Jay-Z, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2492,7 +2492,7 @@
     },
     "Jennifer Garner": {
       "name_zh": "Jennifer Garner",
-      "prompt": "Jennifer Garner, the famous actress, photorealistic portrait.",
+      "prompt": "Jennifer Garner, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2503,7 +2503,7 @@
     },
     "Jeremy Renner": {
       "name_zh": "Jeremy Renner",
-      "prompt": "Jeremy Renner, the famous actor, photorealistic portrait.",
+      "prompt": "Jeremy Renner, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2514,7 +2514,7 @@
     },
     "Jesse Eisenberg": {
       "name_zh": "Jesse Eisenberg",
-      "prompt": "Jesse Eisenberg, the famous actor, photorealistic portrait.",
+      "prompt": "Jesse Eisenberg, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2525,7 +2525,7 @@
     },
     "Jessica Chastain": {
       "name_zh": "Jessica Chastain",
-      "prompt": "Jessica Chastain, the famous actress, photorealistic portrait.",
+      "prompt": "Jessica Chastain, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2536,7 +2536,7 @@
     },
     "Jessie Ware": {
       "name_zh": "Jessie Ware",
-      "prompt": "Jessie Ware, the famous singer, photorealistic portrait.",
+      "prompt": "Jessie Ware, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2547,7 +2547,7 @@
     },
     "Jim Carrey": {
       "name_zh": "Jim Carrey",
-      "prompt": "Jim Carrey, the famous actor, photorealistic portrait.",
+      "prompt": "Jim Carrey, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2558,7 +2558,7 @@
     },
     "Jimmy Buffett": {
       "name_zh": "Jimmy Buffett",
-      "prompt": "Jimmy Buffett, the famous singer, photorealistic portrait.",
+      "prompt": "Jimmy Buffett, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2569,7 +2569,7 @@
     },
     "Joan Baez": {
       "name_zh": "Joan Baez",
-      "prompt": "Joan Baez, the famous singer, photorealistic portrait.",
+      "prompt": "Joan Baez, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2580,7 +2580,7 @@
     },
     "Jodie Whittaker": {
       "name_zh": "Jodie Whittaker",
-      "prompt": "Jodie Whittaker, the famous actress, photorealistic portrait.",
+      "prompt": "Jodie Whittaker, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2591,7 +2591,7 @@
     },
     "John Boyega": {
       "name_zh": "John Boyega",
-      "prompt": "John Boyega, the famous actor, photorealistic portrait.",
+      "prompt": "John Boyega, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2602,7 +2602,7 @@
     },
     "John Cena": {
       "name_zh": "John Cena",
-      "prompt": "John Cena, the famous actor, photorealistic portrait.",
+      "prompt": "John Cena, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2613,7 +2613,7 @@
     },
     "John Lennon": {
       "name_zh": "John Lennon",
-      "prompt": "John Lennon, the famous singer, photorealistic portrait.",
+      "prompt": "John Lennon, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2624,7 +2624,7 @@
     },
     "John Malkovich": {
       "name_zh": "John Malkovich",
-      "prompt": "John Malkovich, the famous actor, photorealistic portrait.",
+      "prompt": "John Malkovich, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2635,7 +2635,7 @@
     },
     "John Mulaney": {
       "name_zh": "John Mulaney",
-      "prompt": "John Mulaney, the famous comedian, photorealistic portrait.",
+      "prompt": "John Mulaney, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2646,7 +2646,7 @@
     },
     "Johnny Cash": {
       "name_zh": "Johnny Cash",
-      "prompt": "Johnny Cash, the famous singer, photorealistic portrait.",
+      "prompt": "Johnny Cash, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2657,7 +2657,7 @@
     },
     "Jon Pertwee": {
       "name_zh": "Jon Pertwee",
-      "prompt": "Jon Pertwee, the famous actor, photorealistic portrait.",
+      "prompt": "Jon Pertwee, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2668,7 +2668,7 @@
     },
     "Jonah Hill": {
       "name_zh": "Jonah Hill",
-      "prompt": "Jonah Hill, the famous actor, photorealistic portrait.",
+      "prompt": "Jonah Hill, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2679,7 +2679,7 @@
     },
     "Jonathan Majors": {
       "name_zh": "Jonathan Majors",
-      "prompt": "Jonathan Majors, the famous actor, photorealistic portrait.",
+      "prompt": "Jonathan Majors, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2690,7 +2690,7 @@
     },
     "Joni Mitchell": {
       "name_zh": "Joni Mitchell",
-      "prompt": "Joni Mitchell, the famous singer, photorealistic portrait.",
+      "prompt": "Joni Mitchell, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2701,7 +2701,7 @@
     },
     "Jordan Peele": {
       "name_zh": "Jordan Peele",
-      "prompt": "Jordan Peele, the famous comedian, photorealistic portrait.",
+      "prompt": "Jordan Peele, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2712,7 +2712,7 @@
     },
     "Jorja Smith": {
       "name_zh": "Jorja Smith",
-      "prompt": "Jorja Smith, the famous singer, photorealistic portrait.",
+      "prompt": "Jorja Smith, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2723,7 +2723,7 @@
     },
     "Jude Law": {
       "name_zh": "Jude Law",
-      "prompt": "Jude Law, the famous actor, photorealistic portrait.",
+      "prompt": "Jude Law, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2734,7 +2734,7 @@
     },
     "Julia Roberts": {
       "name_zh": "Julia Roberts",
-      "prompt": "Julia Roberts, the famous actress, photorealistic portrait.",
+      "prompt": "Julia Roberts, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2745,7 +2745,7 @@
     },
     "Justin Bieber": {
       "name_zh": "Justin Bieber",
-      "prompt": "Justin Bieber, the famous singer, photorealistic portrait.",
+      "prompt": "Justin Bieber, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2756,7 +2756,7 @@
     },
     "Justin Timberlake": {
       "name_zh": "Justin Timberlake",
-      "prompt": "Justin Timberlake, the famous singer, photorealistic portrait.",
+      "prompt": "Justin Timberlake, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2767,7 +2767,7 @@
     },
     "KRS-One": {
       "name_zh": "KRS-One",
-      "prompt": "KRS-One, the famous rapper, photorealistic portrait.",
+      "prompt": "KRS-One, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2778,7 +2778,7 @@
     },
     "Kacey Musgraves": {
       "name_zh": "Kacey Musgraves",
-      "prompt": "Kacey Musgraves, the famous singer, photorealistic portrait.",
+      "prompt": "Kacey Musgraves, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2789,7 +2789,7 @@
     },
     "Kanye West": {
       "name_zh": "Kanye West",
-      "prompt": "Kanye West, the famous rapper, photorealistic portrait.",
+      "prompt": "Kanye West, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2800,7 +2800,7 @@
     },
     "Karol G": {
       "name_zh": "Karol G",
-      "prompt": "Karol G, the famous singer, photorealistic portrait.",
+      "prompt": "Karol G, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2811,7 +2811,7 @@
     },
     "Kate McKinnon": {
       "name_zh": "Kate McKinnon",
-      "prompt": "Kate McKinnon, the famous comedian, photorealistic portrait.",
+      "prompt": "Kate McKinnon, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2822,7 +2822,7 @@
     },
     "Kate Winslet": {
       "name_zh": "Kate Winslet",
-      "prompt": "Kate Winslet, the famous actress, photorealistic portrait.",
+      "prompt": "Kate Winslet, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2833,7 +2833,7 @@
     },
     "Keanu Reeves": {
       "name_zh": "Keanu Reeves",
-      "prompt": "Keanu Reeves, the famous actor, photorealistic portrait.",
+      "prompt": "Keanu Reeves, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2844,7 +2844,7 @@
     },
     "Keegan-Michael Key": {
       "name_zh": "Keegan-Michael Key",
-      "prompt": "Keegan-Michael Key, the famous comedian, photorealistic portrait.",
+      "prompt": "Keegan-Michael Key, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2855,7 +2855,7 @@
     },
     "Keith Richards": {
       "name_zh": "Keith Richards",
-      "prompt": "Keith Richards, the famous singer, photorealistic portrait.",
+      "prompt": "Keith Richards, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2866,7 +2866,7 @@
     },
     "Kelsea Ballerini": {
       "name_zh": "Kelsea Ballerini",
-      "prompt": "Kelsea Ballerini, the famous singer, photorealistic portrait.",
+      "prompt": "Kelsea Ballerini, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2877,7 +2877,7 @@
     },
     "Kendrick Lamar": {
       "name_zh": "Kendrick Lamar",
-      "prompt": "Kendrick Lamar, the famous rapper, photorealistic portrait.",
+      "prompt": "Kendrick Lamar, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -2888,7 +2888,7 @@
     },
     "Kenny Rogers": {
       "name_zh": "Kenny Rogers",
-      "prompt": "Kenny Rogers, the famous singer, photorealistic portrait.",
+      "prompt": "Kenny Rogers, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2899,7 +2899,7 @@
     },
     "Kevin Hart": {
       "name_zh": "Kevin Hart",
-      "prompt": "Kevin Hart, the famous actor, photorealistic portrait.",
+      "prompt": "Kevin Hart, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2910,7 +2910,7 @@
     },
     "Kirk Douglas": {
       "name_zh": "Kirk Douglas",
-      "prompt": "Kirk Douglas, the famous actor, photorealistic portrait.",
+      "prompt": "Kirk Douglas, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2921,7 +2921,7 @@
     },
     "Kris Kristofferson": {
       "name_zh": "Kris Kristofferson",
-      "prompt": "Kris Kristofferson, the famous singer, photorealistic portrait.",
+      "prompt": "Kris Kristofferson, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2932,7 +2932,7 @@
     },
     "Kristen Stewart": {
       "name_zh": "Kristen Stewart",
-      "prompt": "Kristen Stewart, the famous actress, photorealistic portrait.",
+      "prompt": "Kristen Stewart, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2943,7 +2943,7 @@
     },
     "Kristen Wiig": {
       "name_zh": "Kristen Wiig",
-      "prompt": "Kristen Wiig, the famous comedian, photorealistic portrait.",
+      "prompt": "Kristen Wiig, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2954,7 +2954,7 @@
     },
     "Kumail Nanjiani": {
       "name_zh": "Kumail Nanjiani",
-      "prompt": "Kumail Nanjiani, the famous comedian, photorealistic portrait.",
+      "prompt": "Kumail Nanjiani, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -2965,7 +2965,7 @@
     },
     "Lakeith Stanfield": {
       "name_zh": "Lakeith Stanfield",
-      "prompt": "Lakeith Stanfield, the famous actor, photorealistic portrait.",
+      "prompt": "Lakeith Stanfield, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -2976,7 +2976,7 @@
     },
     "Lana Del Rey": {
       "name_zh": "Lana Del Rey",
-      "prompt": "Lana Del Rey, the famous singer, photorealistic portrait.",
+      "prompt": "Lana Del Rey, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -2987,7 +2987,7 @@
     },
     "Lashana Lynch": {
       "name_zh": "Lashana Lynch",
-      "prompt": "Lashana Lynch, the famous actress, photorealistic portrait.",
+      "prompt": "Lashana Lynch, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -2998,7 +2998,7 @@
     },
     "Laurence Olivier": {
       "name_zh": "Laurence Olivier",
-      "prompt": "Laurence Olivier, the famous actor, photorealistic portrait.",
+      "prompt": "Laurence Olivier, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3009,7 +3009,7 @@
     },
     "Lena Horne": {
       "name_zh": "Lena Horne",
-      "prompt": "Lena Horne, the famous actress, photorealistic portrait.",
+      "prompt": "Lena Horne, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3020,7 +3020,7 @@
     },
     "Letitia Wright": {
       "name_zh": "Letitia Wright",
-      "prompt": "Letitia Wright, the famous actress, photorealistic portrait.",
+      "prompt": "Letitia Wright, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3031,7 +3031,7 @@
     },
     "Liam Neeson": {
       "name_zh": "Liam Neeson",
-      "prompt": "Liam Neeson, the famous actor, photorealistic portrait.",
+      "prompt": "Liam Neeson, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3042,7 +3042,7 @@
     },
     "Lizzo": {
       "name_zh": "Lizzo",
-      "prompt": "Lizzo, the famous singer, photorealistic portrait.",
+      "prompt": "Lizzo, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3053,7 +3053,7 @@
     },
     "Lon Chaney Jr.": {
       "name_zh": "Lon Chaney Jr.",
-      "prompt": "Lon Chaney Jr., the famous actor, photorealistic portrait.",
+      "prompt": "Lon Chaney Jr., the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3064,7 +3064,7 @@
     },
     "Lorde": {
       "name_zh": "Lorde",
-      "prompt": "Lorde, the famous singer, photorealistic portrait.",
+      "prompt": "Lorde, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3075,7 +3075,7 @@
     },
     "Louis Armstrong": {
       "name_zh": "Louis Armstrong",
-      "prompt": "Louis Armstrong, the famous singer, photorealistic portrait.",
+      "prompt": "Louis Armstrong, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3086,7 +3086,7 @@
     },
     "Ludmilla": {
       "name_zh": "Ludmilla",
-      "prompt": "Ludmilla, the famous singer, photorealistic portrait.",
+      "prompt": "Ludmilla, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3097,7 +3097,7 @@
     },
     "Luke Bryan": {
       "name_zh": "Luke Bryan",
-      "prompt": "Luke Bryan, the famous singer, photorealistic portrait.",
+      "prompt": "Luke Bryan, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3108,7 +3108,7 @@
     },
     "Lupe Fiasco": {
       "name_zh": "Lupe Fiasco",
-      "prompt": "Lupe Fiasco, the famous rapper, photorealistic portrait.",
+      "prompt": "Lupe Fiasco, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3119,7 +3119,7 @@
     },
     "Lupita Nyong'o": {
       "name_zh": "Lupita Nyong'o",
-      "prompt": "Lupita Nyong'o, the famous actress, photorealistic portrait.",
+      "prompt": "Lupita Nyong'o, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3130,7 +3130,7 @@
     },
     "MC Lyte": {
       "name_zh": "MC Lyte",
-      "prompt": "MC Lyte, the famous rapper, photorealistic portrait.",
+      "prompt": "MC Lyte, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3141,7 +3141,7 @@
     },
     "MF DOOM": {
       "name_zh": "MF DOOM",
-      "prompt": "MF DOOM, the famous rapper, photorealistic portrait.",
+      "prompt": "MF DOOM, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3152,7 +3152,7 @@
     },
     "Mads Mikkelsen": {
       "name_zh": "Mads Mikkelsen",
-      "prompt": "Mads Mikkelsen, the famous actor, photorealistic portrait.",
+      "prompt": "Mads Mikkelsen, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3163,7 +3163,7 @@
     },
     "Mahershala Ali": {
       "name_zh": "Mahershala Ali",
-      "prompt": "Mahershala Ali, the famous actor, photorealistic portrait.",
+      "prompt": "Mahershala Ali, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3174,7 +3174,7 @@
     },
     "Maren Morris": {
       "name_zh": "Maren Morris",
-      "prompt": "Maren Morris, the famous singer, photorealistic portrait.",
+      "prompt": "Maren Morris, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3185,7 +3185,7 @@
     },
     "Margaret Qualley": {
       "name_zh": "Margaret Qualley",
-      "prompt": "Margaret Qualley, the famous actress, photorealistic portrait.",
+      "prompt": "Margaret Qualley, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3196,7 +3196,7 @@
     },
     "Mark Ruffalo": {
       "name_zh": "Mark Ruffalo",
-      "prompt": "Mark Ruffalo, the famous actor, photorealistic portrait.",
+      "prompt": "Mark Ruffalo, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3207,7 +3207,7 @@
     },
     "Marlon Brando": {
       "name_zh": "Marlon Brando",
-      "prompt": "Marlon Brando, the famous actor, photorealistic portrait.",
+      "prompt": "Marlon Brando, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3218,7 +3218,7 @@
     },
     "Masta Killa": {
       "name_zh": "Masta Killa",
-      "prompt": "Masta Killa, the famous rapper, photorealistic portrait.",
+      "prompt": "Masta Killa, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3229,7 +3229,7 @@
     },
     "Matt Damon": {
       "name_zh": "Matt Damon",
-      "prompt": "Matt Damon, the famous actor, photorealistic portrait.",
+      "prompt": "Matt Damon, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3240,7 +3240,7 @@
     },
     "Matt Smith": {
       "name_zh": "Matt Smith",
-      "prompt": "Matt Smith, the famous actor, photorealistic portrait.",
+      "prompt": "Matt Smith, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3251,7 +3251,7 @@
     },
     "Maya Hawke": {
       "name_zh": "Maya Hawke",
-      "prompt": "Maya Hawke, the famous actress, photorealistic portrait.",
+      "prompt": "Maya Hawke, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3262,7 +3262,7 @@
     },
     "Maya Rudolph": {
       "name_zh": "Maya Rudolph",
-      "prompt": "Maya Rudolph, the famous comedian, photorealistic portrait.",
+      "prompt": "Maya Rudolph, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -3273,7 +3273,7 @@
     },
     "Megan Thee Stallion": {
       "name_zh": "Megan Thee Stallion",
-      "prompt": "Megan Thee Stallion, the famous singer, photorealistic portrait.",
+      "prompt": "Megan Thee Stallion, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3284,7 +3284,7 @@
     },
     "Meghan Trainor": {
       "name_zh": "Meghan Trainor",
-      "prompt": "Meghan Trainor, the famous singer, photorealistic portrait.",
+      "prompt": "Meghan Trainor, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3295,7 +3295,7 @@
     },
     "Melissa McCarthy": {
       "name_zh": "Melissa McCarthy",
-      "prompt": "Melissa McCarthy, the famous comedian, photorealistic portrait.",
+      "prompt": "Melissa McCarthy, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -3306,7 +3306,7 @@
     },
     "Merle Haggard": {
       "name_zh": "Merle Haggard",
-      "prompt": "Merle Haggard, the famous singer, photorealistic portrait.",
+      "prompt": "Merle Haggard, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3317,7 +3317,7 @@
     },
     "Meryl Streep": {
       "name_zh": "Meryl Streep",
-      "prompt": "Meryl Streep, the famous actress, photorealistic portrait.",
+      "prompt": "Meryl Streep, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3328,7 +3328,7 @@
     },
     "Method Man": {
       "name_zh": "Method Man",
-      "prompt": "Method Man, the famous rapper, photorealistic portrait.",
+      "prompt": "Method Man, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3339,7 +3339,7 @@
     },
     "Michael B. Jordan": {
       "name_zh": "Michael B. Jordan",
-      "prompt": "Michael B. Jordan, the famous actor, photorealistic portrait.",
+      "prompt": "Michael B. Jordan, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3350,7 +3350,7 @@
     },
     "Michael Caine": {
       "name_zh": "Michael Caine",
-      "prompt": "Michael Caine, the famous actor, photorealistic portrait.",
+      "prompt": "Michael Caine, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3361,7 +3361,7 @@
     },
     "Michael Cera": {
       "name_zh": "Michael Cera",
-      "prompt": "Michael Cera, the famous actor, photorealistic portrait.",
+      "prompt": "Michael Cera, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3372,7 +3372,7 @@
     },
     "Michael Douglas": {
       "name_zh": "Michael Douglas",
-      "prompt": "Michael Douglas, the famous actor, photorealistic portrait.",
+      "prompt": "Michael Douglas, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3383,7 +3383,7 @@
     },
     "Michael Fassbender": {
       "name_zh": "Michael Fassbender",
-      "prompt": "Michael Fassbender, the famous actor, photorealistic portrait.",
+      "prompt": "Michael Fassbender, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3394,7 +3394,7 @@
     },
     "Michael Jackson": {
       "name_zh": "Michael Jackson",
-      "prompt": "Michael Jackson, the famous singer, photorealistic portrait.",
+      "prompt": "Michael Jackson, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3405,7 +3405,7 @@
     },
     "Michelle Pfeiffer": {
       "name_zh": "Michelle Pfeiffer",
-      "prompt": "Michelle Pfeiffer, the famous actress, photorealistic portrait.",
+      "prompt": "Michelle Pfeiffer, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3416,7 +3416,7 @@
     },
     "Mick Jagger": {
       "name_zh": "Mick Jagger",
-      "prompt": "Mick Jagger, the famous singer, photorealistic portrait.",
+      "prompt": "Mick Jagger, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3427,7 +3427,7 @@
     },
     "Missy Elliott": {
       "name_zh": "Missy Elliott",
-      "prompt": "Missy Elliott, the famous rapper, photorealistic portrait.",
+      "prompt": "Missy Elliott, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3438,7 +3438,7 @@
     },
     "Morgan Freeman": {
       "name_zh": "Morgan Freeman",
-      "prompt": "Morgan Freeman, the famous actor, photorealistic portrait.",
+      "prompt": "Morgan Freeman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3449,7 +3449,7 @@
     },
     "Mos Def": {
       "name_zh": "Mos Def",
-      "prompt": "Mos Def, the famous rapper, photorealistic portrait.",
+      "prompt": "Mos Def, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3460,7 +3460,7 @@
     },
     "Naomie Harris": {
       "name_zh": "Naomie Harris",
-      "prompt": "Naomie Harris, the famous actress, photorealistic portrait.",
+      "prompt": "Naomie Harris, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3471,7 +3471,7 @@
     },
     "Ncuti Gatwa": {
       "name_zh": "Ncuti Gatwa",
-      "prompt": "Ncuti Gatwa, the famous actor, photorealistic portrait.",
+      "prompt": "Ncuti Gatwa, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3482,7 +3482,7 @@
     },
     "Neil Young": {
       "name_zh": "Neil Young",
-      "prompt": "Neil Young, the famous singer, photorealistic portrait.",
+      "prompt": "Neil Young, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3493,7 +3493,7 @@
     },
     "Nicki Minaj": {
       "name_zh": "Nicki Minaj",
-      "prompt": "Nicki Minaj, the famous singer, photorealistic portrait.",
+      "prompt": "Nicki Minaj, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3504,7 +3504,7 @@
     },
     "Nicole Kidman": {
       "name_zh": "Nicole Kidman",
-      "prompt": "Nicole Kidman, the famous actress, photorealistic portrait.",
+      "prompt": "Nicole Kidman, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3515,7 +3515,7 @@
     },
     "Nina Simone": {
       "name_zh": "Nina Simone",
-      "prompt": "Nina Simone, the famous singer, photorealistic portrait.",
+      "prompt": "Nina Simone, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3526,7 +3526,7 @@
     },
     "Octavia Spencer": {
       "name_zh": "Octavia Spencer",
-      "prompt": "Octavia Spencer, the famous actress, photorealistic portrait.",
+      "prompt": "Octavia Spencer, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3537,7 +3537,7 @@
     },
     "Oscar Isaac": {
       "name_zh": "Oscar Isaac",
-      "prompt": "Oscar Isaac, the famous actor, photorealistic portrait.",
+      "prompt": "Oscar Isaac, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3548,7 +3548,7 @@
     },
     "Ossie Davis": {
       "name_zh": "Ossie Davis",
-      "prompt": "Ossie Davis, the famous actor, photorealistic portrait.",
+      "prompt": "Ossie Davis, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3559,7 +3559,7 @@
     },
     "Owen Wilson": {
       "name_zh": "Owen Wilson",
-      "prompt": "Owen Wilson, the famous comedian, photorealistic portrait.",
+      "prompt": "Owen Wilson, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -3570,7 +3570,7 @@
     },
     "Pabllo Vittar": {
       "name_zh": "Pabllo Vittar",
-      "prompt": "Pabllo Vittar, the famous singer, photorealistic portrait.",
+      "prompt": "Pabllo Vittar, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3581,7 +3581,7 @@
     },
     "Patrick Troughton": {
       "name_zh": "Patrick Troughton",
-      "prompt": "Patrick Troughton, the famous actor, photorealistic portrait.",
+      "prompt": "Patrick Troughton, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3592,7 +3592,7 @@
     },
     "Patty Smith": {
       "name_zh": "Patty Smith",
-      "prompt": "Patty Smith, the famous singer, photorealistic portrait.",
+      "prompt": "Patty Smith, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3603,7 +3603,7 @@
     },
     "Paul McCartney": {
       "name_zh": "Paul McCartney",
-      "prompt": "Paul McCartney, the famous singer, photorealistic portrait.",
+      "prompt": "Paul McCartney, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3614,7 +3614,7 @@
     },
     "Paul McGann": {
       "name_zh": "Paul McGann",
-      "prompt": "Paul McGann, the famous actor, photorealistic portrait.",
+      "prompt": "Paul McGann, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3625,7 +3625,7 @@
     },
     "Paul Mescal": {
       "name_zh": "Paul Mescal",
-      "prompt": "Paul Mescal, the famous actor, photorealistic portrait.",
+      "prompt": "Paul Mescal, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3636,7 +3636,7 @@
     },
     "Paul Newman": {
       "name_zh": "Paul Newman",
-      "prompt": "Paul Newman, the famous actor, photorealistic portrait.",
+      "prompt": "Paul Newman, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3647,7 +3647,7 @@
     },
     "Paul Rudd": {
       "name_zh": "Paul Rudd",
-      "prompt": "Paul Rudd, the famous actor, photorealistic portrait.",
+      "prompt": "Paul Rudd, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3658,7 +3658,7 @@
     },
     "Paul Simon": {
       "name_zh": "Paul Simon",
-      "prompt": "Paul Simon, the famous singer, photorealistic portrait.",
+      "prompt": "Paul Simon, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3669,7 +3669,7 @@
     },
     "Pedro Pascal": {
       "name_zh": "Pedro Pascal",
-      "prompt": "Pedro Pascal, the famous actor, photorealistic portrait.",
+      "prompt": "Pedro Pascal, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3680,7 +3680,7 @@
     },
     "Penélope Cruz": {
       "name_zh": "Penélope Cruz",
-      "prompt": "Penélope Cruz, the famous actress, photorealistic portrait.",
+      "prompt": "Penélope Cruz, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3691,7 +3691,7 @@
     },
     "Peter Capaldi": {
       "name_zh": "Peter Capaldi",
-      "prompt": "Peter Capaldi, the famous actor, photorealistic portrait.",
+      "prompt": "Peter Capaldi, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3702,7 +3702,7 @@
     },
     "Peter Cushing": {
       "name_zh": "Peter Cushing",
-      "prompt": "Peter Cushing, the famous actor, photorealistic portrait.",
+      "prompt": "Peter Cushing, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3713,7 +3713,7 @@
     },
     "Peter Davison": {
       "name_zh": "Peter Davison",
-      "prompt": "Peter Davison, the famous actor, photorealistic portrait.",
+      "prompt": "Peter Davison, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3724,7 +3724,7 @@
     },
     "Peter Sellers": {
       "name_zh": "Peter Sellers",
-      "prompt": "Peter Sellers, the famous actor, photorealistic portrait.",
+      "prompt": "Peter Sellers, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3735,7 +3735,7 @@
     },
     "Phife Dawg": {
       "name_zh": "Phife Dawg",
-      "prompt": "Phife Dawg, the famous rapper, photorealistic portrait.",
+      "prompt": "Phife Dawg, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3746,7 +3746,7 @@
     },
     "Pierce Brosnan": {
       "name_zh": "Pierce Brosnan",
-      "prompt": "Pierce Brosnan, the famous actor, photorealistic portrait.",
+      "prompt": "Pierce Brosnan, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3757,7 +3757,7 @@
     },
     "Prince": {
       "name_zh": "Prince",
-      "prompt": "Prince, the famous singer, photorealistic portrait.",
+      "prompt": "Prince, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3768,7 +3768,7 @@
     },
     "Q-Tip": {
       "name_zh": "Q-Tip",
-      "prompt": "Q-Tip, the famous rapper, photorealistic portrait.",
+      "prompt": "Q-Tip, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3779,7 +3779,7 @@
     },
     "Queen Latifah": {
       "name_zh": "Queen Latifah",
-      "prompt": "Queen Latifah, the famous rapper, photorealistic portrait.",
+      "prompt": "Queen Latifah, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3790,7 +3790,7 @@
     },
     "RZA": {
       "name_zh": "RZA",
-      "prompt": "RZA, the famous rapper, photorealistic portrait.",
+      "prompt": "RZA, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3801,7 +3801,7 @@
     },
     "Rachel Platten": {
       "name_zh": "Rachel Platten",
-      "prompt": "Rachel Platten, the famous singer, photorealistic portrait.",
+      "prompt": "Rachel Platten, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3812,7 +3812,7 @@
     },
     "Raekwon": {
       "name_zh": "Raekwon",
-      "prompt": "Raekwon, the famous rapper, photorealistic portrait.",
+      "prompt": "Raekwon, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3823,7 +3823,7 @@
     },
     "Rakim": {
       "name_zh": "Rakim",
-      "prompt": "Rakim, the famous rapper, photorealistic portrait.",
+      "prompt": "Rakim, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -3834,7 +3834,7 @@
     },
     "Ralph Fiennes": {
       "name_zh": "Ralph Fiennes",
-      "prompt": "Ralph Fiennes, the famous actor, photorealistic portrait.",
+      "prompt": "Ralph Fiennes, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3845,7 +3845,7 @@
     },
     "Rami Malek": {
       "name_zh": "Rami Malek",
-      "prompt": "Rami Malek, the famous actor, photorealistic portrait.",
+      "prompt": "Rami Malek, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3856,7 +3856,7 @@
     },
     "Reese Witherspoon": {
       "name_zh": "Reese Witherspoon",
-      "prompt": "Reese Witherspoon, the famous actress, photorealistic portrait.",
+      "prompt": "Reese Witherspoon, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3867,7 +3867,7 @@
     },
     "Regina Hall": {
       "name_zh": "Regina Hall",
-      "prompt": "Regina Hall, the famous actress, photorealistic portrait.",
+      "prompt": "Regina Hall, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3878,7 +3878,7 @@
     },
     "Regina King": {
       "name_zh": "Regina King",
-      "prompt": "Regina King, the famous actress, photorealistic portrait.",
+      "prompt": "Regina King, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -3889,7 +3889,7 @@
     },
     "Rey Mysterio": {
       "name_zh": "Rey Mysterio",
-      "prompt": "Rey Mysterio, the famous wrestler, photorealistic portrait.",
+      "prompt": "Rey Mysterio, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -3900,7 +3900,7 @@
     },
     "Richard E. Grant": {
       "name_zh": "Richard E. Grant",
-      "prompt": "Richard E. Grant, the famous actor, photorealistic portrait.",
+      "prompt": "Richard E. Grant, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3911,7 +3911,7 @@
     },
     "Rina Sawayama": {
       "name_zh": "Rina Sawayama",
-      "prompt": "Rina Sawayama, the famous singer, photorealistic portrait.",
+      "prompt": "Rina Sawayama, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3922,7 +3922,7 @@
     },
     "Ringo Starr": {
       "name_zh": "Ringo Starr",
-      "prompt": "Ringo Starr, the famous singer, photorealistic portrait.",
+      "prompt": "Ringo Starr, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3933,7 +3933,7 @@
     },
     "Rita Ora": {
       "name_zh": "Rita Ora",
-      "prompt": "Rita Ora, the famous singer, photorealistic portrait.",
+      "prompt": "Rita Ora, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -3944,7 +3944,7 @@
     },
     "Robert De Niro": {
       "name_zh": "Robert De Niro",
-      "prompt": "Robert De Niro, the famous actor, photorealistic portrait.",
+      "prompt": "Robert De Niro, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3955,7 +3955,7 @@
     },
     "Robert Downey Jr.": {
       "name_zh": "Robert Downey Jr.",
-      "prompt": "Robert Downey Jr., the famous actor, photorealistic portrait.",
+      "prompt": "Robert Downey Jr., the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3966,7 +3966,7 @@
     },
     "Robert Pattinson": {
       "name_zh": "Robert Pattinson",
-      "prompt": "Robert Pattinson, the famous actor, photorealistic portrait.",
+      "prompt": "Robert Pattinson, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3977,7 +3977,7 @@
     },
     "Robert Redford": {
       "name_zh": "Robert Redford",
-      "prompt": "Robert Redford, the famous actor, photorealistic portrait.",
+      "prompt": "Robert Redford, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -3988,7 +3988,7 @@
     },
     "Robert Webb": {
       "name_zh": "Robert Webb",
-      "prompt": "Robert Webb, the famous comedian, photorealistic portrait.",
+      "prompt": "Robert Webb, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -3999,7 +3999,7 @@
     },
     "Robin Williams": {
       "name_zh": "Robin Williams",
-      "prompt": "Robin Williams, the famous actor, photorealistic portrait.",
+      "prompt": "Robin Williams, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4010,7 +4010,7 @@
     },
     "Rod Stewart": {
       "name_zh": "Rod Stewart",
-      "prompt": "Rod Stewart, the famous singer, photorealistic portrait.",
+      "prompt": "Rod Stewart, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4021,7 +4021,7 @@
     },
     "Roger Moore": {
       "name_zh": "Roger Moore",
-      "prompt": "Roger Moore, the famous actor, photorealistic portrait.",
+      "prompt": "Roger Moore, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4032,7 +4032,7 @@
     },
     "Rosalía": {
       "name_zh": "Rosalía",
-      "prompt": "Rosalía, the famous singer, photorealistic portrait.",
+      "prompt": "Rosalía, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4043,7 +4043,7 @@
     },
     "Rowan Atkinson": {
       "name_zh": "Rowan Atkinson",
-      "prompt": "Rowan Atkinson, the famous comedian, photorealistic portrait.",
+      "prompt": "Rowan Atkinson, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4054,7 +4054,7 @@
     },
     "Ruby Dee": {
       "name_zh": "Ruby Dee",
-      "prompt": "Ruby Dee, the famous actress, photorealistic portrait.",
+      "prompt": "Ruby Dee, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4065,7 +4065,7 @@
     },
     "Ryan Gosling": {
       "name_zh": "Ryan Gosling",
-      "prompt": "Ryan Gosling, the famous actor, photorealistic portrait.",
+      "prompt": "Ryan Gosling, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4076,7 +4076,7 @@
     },
     "Ryan Reynolds": {
       "name_zh": "Ryan Reynolds",
-      "prompt": "Ryan Reynolds, the famous actor, photorealistic portrait.",
+      "prompt": "Ryan Reynolds, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4087,7 +4087,7 @@
     },
     "SZA": {
       "name_zh": "SZA",
-      "prompt": "SZA, the famous singer, photorealistic portrait.",
+      "prompt": "SZA, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4098,7 +4098,7 @@
     },
     "Sacha Baron Cohen": {
       "name_zh": "Sacha Baron Cohen",
-      "prompt": "Sacha Baron Cohen, the famous comedian, photorealistic portrait.",
+      "prompt": "Sacha Baron Cohen, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4109,7 +4109,7 @@
     },
     "Salma Hayek": {
       "name_zh": "Salma Hayek",
-      "prompt": "Salma Hayek, the famous actress, photorealistic portrait.",
+      "prompt": "Salma Hayek, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4120,7 +4120,7 @@
     },
     "Sammy Davis Jr.": {
       "name_zh": "Sammy Davis Jr.",
-      "prompt": "Sammy Davis Jr., the famous singer, photorealistic portrait.",
+      "prompt": "Sammy Davis Jr., the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4131,7 +4131,7 @@
     },
     "Samuel L. Jackson": {
       "name_zh": "Samuel L. Jackson",
-      "prompt": "Samuel L. Jackson, the famous actor, photorealistic portrait.",
+      "prompt": "Samuel L. Jackson, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4142,7 +4142,7 @@
     },
     "Sandra Bullock": {
       "name_zh": "Sandra Bullock",
-      "prompt": "Sandra Bullock, the famous actress, photorealistic portrait.",
+      "prompt": "Sandra Bullock, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4153,7 +4153,7 @@
     },
     "Saoirse Ronan": {
       "name_zh": "Saoirse Ronan",
-      "prompt": "Saoirse Ronan, the famous actress, photorealistic portrait.",
+      "prompt": "Saoirse Ronan, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4164,7 +4164,7 @@
     },
     "Sean Connery": {
       "name_zh": "Sean Connery",
-      "prompt": "Sean Connery, the famous actor, photorealistic portrait.",
+      "prompt": "Sean Connery, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4175,7 +4175,7 @@
     },
     "Sebastian Maniscalco": {
       "name_zh": "Sebastian Maniscalco",
-      "prompt": "Sebastian Maniscalco, the famous comedian, photorealistic portrait.",
+      "prompt": "Sebastian Maniscalco, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4186,7 +4186,7 @@
     },
     "Seth Rogen": {
       "name_zh": "Seth Rogen",
-      "prompt": "Seth Rogen, the famous actor, photorealistic portrait.",
+      "prompt": "Seth Rogen, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4197,7 +4197,7 @@
     },
     "Shania Twain": {
       "name_zh": "Shania Twain",
-      "prompt": "Shania Twain, the famous singer, photorealistic portrait.",
+      "prompt": "Shania Twain, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4208,7 +4208,7 @@
     },
     "Shawn Mendes": {
       "name_zh": "Shawn Mendes",
-      "prompt": "Shawn Mendes, the famous singer, photorealistic portrait.",
+      "prompt": "Shawn Mendes, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4219,7 +4219,7 @@
     },
     "Shawn Michaels": {
       "name_zh": "Shawn Michaels",
-      "prompt": "Shawn Michaels, the famous wrestler, photorealistic portrait.",
+      "prompt": "Shawn Michaels, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -4230,7 +4230,7 @@
     },
     "Sidney Poitier": {
       "name_zh": "Sidney Poitier",
-      "prompt": "Sidney Poitier, the famous actor, photorealistic portrait.",
+      "prompt": "Sidney Poitier, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4241,7 +4241,7 @@
     },
     "Snoop Dogg": {
       "name_zh": "Snoop Dogg",
-      "prompt": "Snoop Dogg, the famous rapper, photorealistic portrait.",
+      "prompt": "Snoop Dogg, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -4252,7 +4252,7 @@
     },
     "Stephen Fry": {
       "name_zh": "Stephen Fry",
-      "prompt": "Stephen Fry, the famous comedian, photorealistic portrait.",
+      "prompt": "Stephen Fry, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4263,7 +4263,7 @@
     },
     "Steve Buscemi": {
       "name_zh": "Steve Buscemi",
-      "prompt": "Steve Buscemi, the famous actor, photorealistic portrait.",
+      "prompt": "Steve Buscemi, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4274,7 +4274,7 @@
     },
     "Steve Carell": {
       "name_zh": "Steve Carell",
-      "prompt": "Steve Carell, the famous comedian, photorealistic portrait.",
+      "prompt": "Steve Carell, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4285,7 +4285,7 @@
     },
     "Steve Coogan": {
       "name_zh": "Steve Coogan",
-      "prompt": "Steve Coogan, the famous comedian, photorealistic portrait.",
+      "prompt": "Steve Coogan, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4296,7 +4296,7 @@
     },
     "Sting": {
       "name_zh": "Sting",
-      "prompt": "Sting, the famous singer, photorealistic portrait.",
+      "prompt": "Sting, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4307,7 +4307,7 @@
     },
     "Stone Cold Steve Austin": {
       "name_zh": "Stone Cold Steve Austin",
-      "prompt": "Stone Cold Steve Austin, the famous wrestler, photorealistic portrait.",
+      "prompt": "Stone Cold Steve Austin, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -4318,7 +4318,7 @@
     },
     "Summer Walker": {
       "name_zh": "Summer Walker",
-      "prompt": "Summer Walker, the famous singer, photorealistic portrait.",
+      "prompt": "Summer Walker, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4329,7 +4329,7 @@
     },
     "Sylvester McCoy": {
       "name_zh": "Sylvester McCoy",
-      "prompt": "Sylvester McCoy, the famous actor, photorealistic portrait.",
+      "prompt": "Sylvester McCoy, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4340,7 +4340,7 @@
     },
     "Sylvester Stallone": {
       "name_zh": "Sylvester Stallone",
-      "prompt": "Sylvester Stallone, the famous actor, photorealistic portrait.",
+      "prompt": "Sylvester Stallone, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4351,7 +4351,7 @@
     },
     "Talib Kweli": {
       "name_zh": "Talib Kweli",
-      "prompt": "Talib Kweli, the famous rapper, photorealistic portrait.",
+      "prompt": "Talib Kweli, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -4362,7 +4362,7 @@
     },
     "Taraji P. Henson": {
       "name_zh": "Taraji P. Henson",
-      "prompt": "Taraji P. Henson, the famous actress, photorealistic portrait.",
+      "prompt": "Taraji P. Henson, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4373,7 +4373,7 @@
     },
     "Taylor Lautner": {
       "name_zh": "Taylor Lautner",
-      "prompt": "Taylor Lautner, the famous actor, photorealistic portrait.",
+      "prompt": "Taylor Lautner, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4384,7 +4384,7 @@
     },
     "Tessa Thompson": {
       "name_zh": "Tessa Thompson",
-      "prompt": "Tessa Thompson, the famous actress, photorealistic portrait.",
+      "prompt": "Tessa Thompson, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4395,7 +4395,7 @@
     },
     "Thandiwe Newton": {
       "name_zh": "Thandiwe Newton",
-      "prompt": "Thandiwe Newton, the famous actress, photorealistic portrait.",
+      "prompt": "Thandiwe Newton, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4406,7 +4406,7 @@
     },
     "The Undertaker": {
       "name_zh": "The Undertaker",
-      "prompt": "The Undertaker, the famous wrestler, photorealistic portrait.",
+      "prompt": "The Undertaker, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -4417,7 +4417,7 @@
     },
     "Tiffany Haddish": {
       "name_zh": "Tiffany Haddish",
-      "prompt": "Tiffany Haddish, the famous actress, photorealistic portrait.",
+      "prompt": "Tiffany Haddish, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4428,7 +4428,7 @@
     },
     "Tilda Swinton": {
       "name_zh": "Tilda Swinton",
-      "prompt": "Tilda Swinton, the famous actress, photorealistic portrait.",
+      "prompt": "Tilda Swinton, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4439,7 +4439,7 @@
     },
     "Tim McGraw": {
       "name_zh": "Tim McGraw",
-      "prompt": "Tim McGraw, the famous singer, photorealistic portrait.",
+      "prompt": "Tim McGraw, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4450,7 +4450,7 @@
     },
     "Tim Roth": {
       "name_zh": "Tim Roth",
-      "prompt": "Tim Roth, the famous actor, photorealistic portrait.",
+      "prompt": "Tim Roth, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4461,7 +4461,7 @@
     },
     "Timothy Dalton": {
       "name_zh": "Timothy Dalton",
-      "prompt": "Timothy Dalton, the famous actor, photorealistic portrait.",
+      "prompt": "Timothy Dalton, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4472,7 +4472,7 @@
     },
     "Timothée Chalamet": {
       "name_zh": "Timothée Chalamet",
-      "prompt": "Timothée Chalamet, the famous actor, photorealistic portrait.",
+      "prompt": "Timothée Chalamet, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4483,7 +4483,7 @@
     },
     "Tina Fey": {
       "name_zh": "Tina Fey",
-      "prompt": "Tina Fey, the famous comedian, photorealistic portrait.",
+      "prompt": "Tina Fey, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4494,7 +4494,7 @@
     },
     "Tina Turner": {
       "name_zh": "Tina Turner",
-      "prompt": "Tina Turner, the famous singer, photorealistic portrait.",
+      "prompt": "Tina Turner, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4505,7 +4505,7 @@
     },
     "Tobey Maguire": {
       "name_zh": "Tobey Maguire",
-      "prompt": "Tobey Maguire, the famous actor, photorealistic portrait.",
+      "prompt": "Tobey Maguire, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4516,7 +4516,7 @@
     },
     "Tom Baker": {
       "name_zh": "Tom Baker",
-      "prompt": "Tom Baker, the famous actor, photorealistic portrait.",
+      "prompt": "Tom Baker, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4527,7 +4527,7 @@
     },
     "Tom Hanks": {
       "name_zh": "Tom Hanks",
-      "prompt": "Tom Hanks, the famous actor, photorealistic portrait.",
+      "prompt": "Tom Hanks, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4538,7 +4538,7 @@
     },
     "Tom Hardy": {
       "name_zh": "Tom Hardy",
-      "prompt": "Tom Hardy, the famous actor, photorealistic portrait.",
+      "prompt": "Tom Hardy, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4549,7 +4549,7 @@
     },
     "Tom Hiddleston": {
       "name_zh": "Tom Hiddleston",
-      "prompt": "Tom Hiddleston, the famous actor, photorealistic portrait.",
+      "prompt": "Tom Hiddleston, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4560,7 +4560,7 @@
     },
     "Tom Holland": {
       "name_zh": "Tom Holland",
-      "prompt": "Tom Holland, the famous actor, photorealistic portrait.",
+      "prompt": "Tom Holland, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4571,7 +4571,7 @@
     },
     "Tom Petty": {
       "name_zh": "Tom Petty",
-      "prompt": "Tom Petty, the famous singer, photorealistic portrait.",
+      "prompt": "Tom Petty, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4582,7 +4582,7 @@
     },
     "Tony Bennett": {
       "name_zh": "Tony Bennett",
-      "prompt": "Tony Bennett, the famous singer, photorealistic portrait.",
+      "prompt": "Tony Bennett, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4593,7 +4593,7 @@
     },
     "Tove Lo": {
       "name_zh": "Tove Lo",
-      "prompt": "Tove Lo, the famous singer, photorealistic portrait.",
+      "prompt": "Tove Lo, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4604,7 +4604,7 @@
     },
     "Travis Scott": {
       "name_zh": "Travis Scott",
-      "prompt": "Travis Scott, the famous rapper, photorealistic portrait.",
+      "prompt": "Travis Scott, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -4615,7 +4615,7 @@
     },
     "Triple H": {
       "name_zh": "Triple H",
-      "prompt": "Triple H, the famous wrestler, photorealistic portrait.",
+      "prompt": "Triple H, the famous wrestler.",
       "description": "Wrestler (community tested)",
       "tags": [
         "wrestler",
@@ -4626,7 +4626,7 @@
     },
     "Tyler, The Creator": {
       "name_zh": "Tyler, The Creator",
-      "prompt": "Tyler, The Creator, the famous rapper, photorealistic portrait.",
+      "prompt": "Tyler, The Creator, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -4637,7 +4637,7 @@
     },
     "U-God": {
       "name_zh": "U-God",
-      "prompt": "U-God, the famous rapper, photorealistic portrait.",
+      "prompt": "U-God, the famous rapper.",
       "description": "Rapper (community tested)",
       "tags": [
         "rapper",
@@ -4648,7 +4648,7 @@
     },
     "Vin Diesel": {
       "name_zh": "Vin Diesel",
-      "prompt": "Vin Diesel, the famous actor, photorealistic portrait.",
+      "prompt": "Vin Diesel, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4659,7 +4659,7 @@
     },
     "Vince Vaughn": {
       "name_zh": "Vince Vaughn",
-      "prompt": "Vince Vaughn, the famous comedian, photorealistic portrait.",
+      "prompt": "Vince Vaughn, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4670,7 +4670,7 @@
     },
     "Vincent Price": {
       "name_zh": "Vincent Price",
-      "prompt": "Vincent Price, the famous actor, photorealistic portrait.",
+      "prompt": "Vincent Price, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4681,7 +4681,7 @@
     },
     "Viola Davis": {
       "name_zh": "Viola Davis",
-      "prompt": "Viola Davis, the famous actress, photorealistic portrait.",
+      "prompt": "Viola Davis, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4692,7 +4692,7 @@
     },
     "Waylon Jennings": {
       "name_zh": "Waylon Jennings",
-      "prompt": "Waylon Jennings, the famous singer, photorealistic portrait.",
+      "prompt": "Waylon Jennings, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4703,7 +4703,7 @@
     },
     "Whoopi Goldberg": {
       "name_zh": "Whoopi Goldberg",
-      "prompt": "Whoopi Goldberg, the famous actress, photorealistic portrait.",
+      "prompt": "Whoopi Goldberg, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -4714,7 +4714,7 @@
     },
     "Will Ferrell": {
       "name_zh": "Will Ferrell",
-      "prompt": "Will Ferrell, the famous comedian, photorealistic portrait.",
+      "prompt": "Will Ferrell, the famous comedian.",
       "description": "Comedian (community tested)",
       "tags": [
         "comedian",
@@ -4725,7 +4725,7 @@
     },
     "Will Smith": {
       "name_zh": "Will Smith",
-      "prompt": "Will Smith, the famous actor, photorealistic portrait.",
+      "prompt": "Will Smith, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4736,7 +4736,7 @@
     },
     "Willem Dafoe": {
       "name_zh": "Willem Dafoe",
-      "prompt": "Willem Dafoe, the famous actor, photorealistic portrait.",
+      "prompt": "Willem Dafoe, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4747,7 +4747,7 @@
     },
     "William Hartnell": {
       "name_zh": "William Hartnell",
-      "prompt": "William Hartnell, the famous actor, photorealistic portrait.",
+      "prompt": "William Hartnell, the famous actor.",
       "description": "Actor (community tested)",
       "tags": [
         "actor",
@@ -4758,7 +4758,7 @@
     },
     "Willie Nelson": {
       "name_zh": "Willie Nelson",
-      "prompt": "Willie Nelson, the famous singer, photorealistic portrait.",
+      "prompt": "Willie Nelson, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4769,7 +4769,7 @@
     },
     "Zara Larsson": {
       "name_zh": "Zara Larsson",
-      "prompt": "Zara Larsson, the famous singer, photorealistic portrait.",
+      "prompt": "Zara Larsson, the famous singer.",
       "description": "Singer (community tested)",
       "tags": [
         "singer",
@@ -4780,7 +4780,7 @@
     },
     "Zoe Saldana": {
       "name_zh": "Zoe Saldana",
-      "prompt": "Zoe Saldana, the famous actress, photorealistic portrait.",
+      "prompt": "Zoe Saldana, the famous actress.",
       "description": "Actress (community tested)",
       "tags": [
         "actress",
@@ -7552,7 +7552,7 @@
       "group": "室内空间"
     },
     "Subway Fashion Portrait": {
-      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting, photorealistic. Detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), realistic facial features, realistic eyes, natural skin pores, subtle skin texture, shallow depth of field, creamy bokeh.",
+      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting. Detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), realistic facial features, realistic eyes, natural skin pores, subtle skin texture.",
       "description": "Subway fashion portrait with Korean street style and camera specs",
       "tags": [
         "subway",
@@ -9461,7 +9461,7 @@
     },
     "Curtain Filtered Light": {
       "name_zh": "窗帘柔光",
-      "prompt": "Light filtered through sheer curtains, soft diffused glow, gentle patterns of light and shade, dreamy bedroom atmosphere, delicate soft tones.",
+      "prompt": "Light filtered through sheer curtains, soft diffused glow, gentle patterns of light and shade, dreamy intimate atmosphere, delicate soft tones.",
       "description": "Dreamy light filtered through curtains",
       "tags": [
         "curtain",
@@ -9887,7 +9887,7 @@
       ],
       "weight": 1.1,
       "name_zh": "北欧极简",
-      "group": "非写实"
+      "group": "写实"
     },
     "Japanese Wabi-Sabi": {
       "prompt": "Japanese wabi-sabi aesthetic, beauty in imperfection, natural aging and patina, rustic organic materials, asymmetrical composition, zen-inspired simplicity, transient beauty appreciation, mindful imperfection, serene contemplative mood.",

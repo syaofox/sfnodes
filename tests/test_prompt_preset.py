@@ -192,6 +192,29 @@ check("组随机命中写实组", _g1[7] in {v["prompt"] for v in _data["Style"]
 _g3 = node.execute("", seed=55, pose_preset="随机·NSFW")
 _nsfw_pose = {v["prompt"] for v in _data["Pose"].values() if v["group"] == "NSFW"}
 check("组随机不越界(NSFW)", _g3[3] in _nsfw_pose)
+_g4 = node.execute("", seed=55, style_preset="随机·非写实")
+_nr_style = {v["prompt"] for v in _data["Style"].values() if v["group"] == "非写实"}
+check("非写实随机不越界", _g4[7] in _nr_style)
+check("北欧极简归写实", _data["Style"]["Nordic Minimalism"]["group"] == "写实")
+
+# 分类正交：非 Style 分类无写实风格强制词（风格由 Style 分类控制）
+import re as _re_style
+_real_pat = _re_style.compile(r"photorealistic|hyperrealistic|ultra-realistic|realistic photo", _re_style.I)
+_style_left = {cat: [n for n, v in _data[cat].items() if _real_pat.search(v["prompt"])]
+               for cat in _data if cat != "Style"}
+_style_left = {k: v for k, v in _style_left.items() if v}
+check(f"非 Style 无写实风格词 ({_style_left})", len(_style_left) == 0)
+check("名人无写实强制词且保留特征", "photorealistic" not in _data["Celebrity"]["Taylor Swift"]["prompt"].lower()
+      and "singer-songwriter" in _data["Celebrity"]["Taylor Swift"]["prompt"]
+      and "blonde hair" in _data["Celebrity"]["Taylor Swift"]["prompt"])
+
+# 镜头效果词只允许出现在 Camera Lens（其余分类正交）
+_doF_pat = _re_style.compile(r"\bdepth of field\b|\bbokeh\b", _re_style.I)
+_dof_left = [f"{cat}/{n}" for cat, items in _data.items() if cat != "Camera Lens"
+             for n, v in items.items() if _doF_pat.search(v["prompt"])]
+check(f"非镜头分类无景深/散景词 ({_dof_left})", len(_dof_left) == 0)
+check("地铁时尚肖像已去镜头词", "bokeh" not in _data["Environment"]["Subway Fashion Portrait"]["prompt"].lower())
+check("窗帘柔光已去场景词", "bedroom" not in _data["Lighting"]["Curtain Filtered Light"]["prompt"].lower())
 check("组随机选项存在", "随机·写实" in opt["style_preset"][0] and "随机·NSFW" in opt["pose_preset"][0])
 check("组随机选项顺序", opt["style_preset"][0][2] == "随机·写实")
 
@@ -330,7 +353,8 @@ check("group 字段优先于推导", _g("Outfit", "全裸", {"tags": ["adult"], 
 check("路由 Style 分组", _resp.data["Style"]["写实摄影风"]["group"] == "写实"
       and _resp.data["Style"]["动漫手绘风"]["group"] == "非写实")
 _all_style = [v["group"] for v in _data["Style"].values()]
-check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"写实", "非写实"})
+check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"写实", "非写实"}
+      and _all_style.count("写实") == 22 and _all_style.count("非写实") == 26)
 
 # Environment 数据驱动分组
 _env_groups = [v["group"] for v in _data["Environment"].values()]
