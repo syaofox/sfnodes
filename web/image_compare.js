@@ -305,9 +305,16 @@ app.registerExtension({
                     const mode = this.getMode();
 
                     if (mode === "Click") {
-                        this.showA = !this.showA;
-                        this.setDirtyCanvas(true, true);
-                        return true;
+                        const renderData = this.getImageRenderData(this.imageA, this.getContainerArea());
+                        const localPos = app.canvas.convertEventToCanvasOffset(event);
+                        const mouseX = localPos[0] - this.pos[0];
+                        const mouseY = localPos[1] - this.pos[1];
+                        if (mouseX >= renderData.x && mouseX <= renderData.x + renderData.width &&
+                            mouseY >= renderData.y && mouseY <= renderData.y + renderData.height) {
+                            this.showA = !this.showA;
+                            this.setDirtyCanvas(true, true);
+                            return true;
+                        }
                     }
 
                     if (mode === "Slide") {
@@ -349,7 +356,11 @@ app.registerExtension({
 
                     const mode = this.getMode();
                     if (mode !== "Slide") {
-                        document.body.style.cursor = 'default';
+                        const renderData = this.getImageRenderData(this.imageA, this.getContainerArea());
+                        const isOverImage = mode === "Click" && renderData &&
+                            pos[0] >= renderData.x && pos[0] <= renderData.x + renderData.width &&
+                            pos[1] >= renderData.y && pos[1] <= renderData.y + renderData.height;
+                        document.body.style.cursor = isOverImage ? 'pointer' : 'default';
                         return;
                     }
 
