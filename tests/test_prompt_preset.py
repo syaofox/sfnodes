@@ -84,7 +84,7 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     pure_ascii = [o for o in opts[2:] if o.isascii()]
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
-check("outfit 41 项", len(opt["outfit_preset"][0]) == 43)
+check("outfit 56 项", len(opt["outfit_preset"][0]) == 58)
 check("pose 50 项", len(opt["pose_preset"][0]) == 52)
 check("couple 32 项", len(opt["couple_preset"][0]) == 34)
 check("environment 84 项", len(opt["environment_preset"][0]) == 86)
@@ -313,6 +313,10 @@ _, outfit_nsfw, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset
 check("服装 NSFW 命中", "transparent" in outfit_nsfw and "adult" in outfit_nsfw.lower() or "see-through" in outfit_nsfw)
 _, outfit_nude, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全裸")
 check("全裸选项命中", "fully nude" in outfit_nude and "no clothing" in outfit_nude)
+_, outfit_swim, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="死库水（深蓝）")
+check("死库水命中", "sukumizu" in outfit_swim and "navy" in outfit_swim)
+_, outfit_bikini, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="黑色比基尼")
+check("纯色比基尼命中", "black bikini" in outfit_bikini and "solid" in outfit_bikini)
 
 # 7e. 分类正交化：姿势不含场景/灯光，Style 不含镜头参数
 import re as _re_orth

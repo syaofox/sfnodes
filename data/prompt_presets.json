@@ -258,18 +258,6 @@
       ],
       "weight": 1.0
     },
-    "Bikini": {
-      "name_zh": "比基尼泳装",
-      "prompt": "Wearing a colorful bikini swimsuit, minimal two-piece swimwear, beach-ready look, sunny summer style.",
-      "description": "Colorful two-piece bikini swimwear",
-      "tags": [
-        "bikini",
-        "swimwear",
-        "beach",
-        "summer"
-      ],
-      "weight": 1.0
-    },
     "Sportswear": {
       "name_zh": "运动装",
       "prompt": "Wearing athletic sportswear, fitted leggings with a sports top, breathable activewear, energetic workout look.",
@@ -507,6 +495,200 @@
         "bare",
         "unclothed",
         "adult"
+      ],
+      "weight": 1.0
+    },
+    "Black Bikini": {
+      "name_zh": "黑色比基尼",
+      "prompt": "Wearing a black bikini, solid pure black two-piece swimsuit, minimal clean design, beach-ready summer look.",
+      "description": "Solid black bikini swimwear",
+      "tags": [
+        "bikini",
+        "black",
+        "solid color",
+        "beach"
+      ],
+      "weight": 1.0
+    },
+    "White Bikini": {
+      "name_zh": "白色比基尼",
+      "prompt": "Wearing a white bikini, solid pure white two-piece swimsuit, clean minimal design, fresh summer beach look.",
+      "description": "Solid white bikini swimwear",
+      "tags": [
+        "bikini",
+        "white",
+        "solid color",
+        "beach"
+      ],
+      "weight": 1.0
+    },
+    "Red Bikini": {
+      "name_zh": "红色比基尼",
+      "prompt": "Wearing a red bikini, solid vivid red two-piece swimsuit, bold striking color, beach-ready summer look.",
+      "description": "Solid red bikini swimwear",
+      "tags": [
+        "bikini",
+        "red",
+        "solid color",
+        "bold"
+      ],
+      "weight": 1.0
+    },
+    "Blue Bikini": {
+      "name_zh": "蓝色比基尼",
+      "prompt": "Wearing a blue bikini, solid pure blue two-piece swimsuit, clean summer beach look.",
+      "description": "Solid blue bikini swimwear",
+      "tags": [
+        "bikini",
+        "blue",
+        "solid color",
+        "beach"
+      ],
+      "weight": 1.0
+    },
+    "Pink Bikini": {
+      "name_zh": "粉色比基尼",
+      "prompt": "Wearing a pink bikini, solid soft pink two-piece swimsuit, cute feminine summer beach look.",
+      "description": "Solid pink bikini swimwear",
+      "tags": [
+        "bikini",
+        "pink",
+        "solid color",
+        "cute"
+      ],
+      "weight": 1.0
+    },
+    "Black One-Piece": {
+      "name_zh": "黑色连体泳衣",
+      "prompt": "Wearing a black one-piece swimsuit, solid pure black athletic swimsuit with clean lines, elegant sporty look.",
+      "description": "Solid black one-piece swimsuit",
+      "tags": [
+        "one-piece",
+        "black",
+        "solid color",
+        "sporty"
+      ],
+      "weight": 1.0
+    },
+    "White One-Piece": {
+      "name_zh": "白色连体泳衣",
+      "prompt": "Wearing a white one-piece swimsuit, solid pure white athletic swimsuit, clean fresh elegant look.",
+      "description": "Solid white one-piece swimsuit",
+      "tags": [
+        "one-piece",
+        "white",
+        "solid color",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Red One-Piece": {
+      "name_zh": "红色连体泳衣",
+      "prompt": "Wearing a red one-piece swimsuit, solid vivid red athletic swimsuit, bold striking poolside look.",
+      "description": "Solid red one-piece swimsuit",
+      "tags": [
+        "one-piece",
+        "red",
+        "solid color",
+        "bold"
+      ],
+      "weight": 1.0
+    },
+    "Blue One-Piece": {
+      "name_zh": "蓝色连体泳衣",
+      "prompt": "Wearing a blue one-piece swimsuit, solid pure blue athletic swimsuit, clean sporty poolside look.",
+      "description": "Solid blue one-piece swimsuit",
+      "tags": [
+        "one-piece",
+        "blue",
+        "solid color",
+        "sporty"
+      ],
+      "weight": 1.0
+    },
+    "Pink One-Piece": {
+      "name_zh": "粉色连体泳衣",
+      "prompt": "Wearing a pink one-piece swimsuit, solid soft pink athletic swimsuit, cute feminine poolside look.",
+      "description": "Solid pink one-piece swimsuit",
+      "tags": [
+        "one-piece",
+        "pink",
+        "solid color",
+        "cute"
+      ],
+      "weight": 1.0
+    },
+    "High-Waist Bikini": {
+      "name_zh": "高腰比基尼",
+      "prompt": "Wearing a high-waist bikini, retro high-rise bottoms with a matching top, vintage feminine beach style.",
+      "description": "Retro high-waist bikini style",
+      "tags": [
+        "bikini",
+        "high-waist",
+        "retro",
+        "vintage"
+      ],
+      "weight": 1.0
+    },
+    "Athletic Swimsuit": {
+      "name_zh": "运动连体泳衣",
+      "prompt": "Wearing an athletic competition swimsuit, sleek racing one-piece with high-cut legs, sporty professional swimwear.",
+      "description": "Sleek athletic racing swimsuit",
+      "tags": [
+        "one-piece",
+        "athletic",
+        "racing",
+        "competition"
+      ],
+      "weight": 1.0
+    },
+    "Swimsuit with Skirt": {
+      "name_zh": "泳裙",
+      "prompt": "Wearing a swimsuit with a matching skirt overlay, modest flirty beachwear, flowing skirt hem.",
+      "description": "Swimsuit with matching skirt overlay",
+      "tags": [
+        "swimsuit",
+        "skirt",
+        "modest",
+        "beachwear"
+      ],
+      "weight": 1.0
+    },
+    "Triangle Bikini": {
+      "name_zh": "三角比基尼",
+      "prompt": "Wearing a triangle bikini, minimal triangular top with tiny bottoms, classic simple beach style.",
+      "description": "Classic minimal triangle bikini",
+      "tags": [
+        "bikini",
+        "triangle",
+        "minimal",
+        "classic"
+      ],
+      "weight": 1.0
+    },
+    "Navy School Swimsuit": {
+      "name_zh": "死库水（深蓝）",
+      "prompt": "Wearing a traditional Japanese school swimsuit (sukumizu), navy blue one-piece racing swimsuit with white trim and a small name tag, snug athletic fit, school swimming class uniform.",
+      "description": "Navy Japanese school swimsuit (sukumizu)",
+      "tags": [
+        "school swimsuit",
+        "sukumizu",
+        "navy",
+        "racing swimsuit",
+        "japanese"
+      ],
+      "weight": 1.0
+    },
+    "Black School Swimsuit": {
+      "name_zh": "死库水（黑）",
+      "prompt": "Wearing a traditional Japanese school swimsuit (sukumizu), black one-piece racing swimsuit with white trim and a small name tag, snug athletic fit, school swimming class uniform.",
+      "description": "Black Japanese school swimsuit (sukumizu)",
+      "tags": [
+        "school swimsuit",
+        "sukumizu",
+        "black",
+        "racing swimsuit",
+        "japanese"
       ],
       "weight": 1.0
     }
