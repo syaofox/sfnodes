@@ -1907,6 +1907,199 @@
       ],
       "weight": 1.0,
       "name_zh": "城市屋顶花园"
+    },
+    "Japanese Residential Street": {
+      "name_zh": "日式街道",
+      "prompt": "Clean Japanese residential street, neat rows of houses with tiled roofs, utility poles and wires overhead, vending machines along the sidewalk, soft sunlight filtering between buildings, quiet neighborhood atmosphere.",
+      "description": "Clean quiet Japanese residential street",
+      "tags": [
+        "japanese",
+        "residential street",
+        "neighborhood",
+        "vending machine",
+        "clean"
+      ],
+      "weight": 1.0
+    },
+    "Tatami Room": {
+      "name_zh": "榻榻米房间",
+      "prompt": "Warm tatami room interior, woven straw floor mats, sliding wooden shoji doors, low table with tea set, soft natural light through paper screens, cozy traditional Japanese room.",
+      "description": "Cozy traditional tatami room interior",
+      "tags": [
+        "japanese",
+        "tatami",
+        "interior",
+        "shoji",
+        "cozy"
+      ],
+      "weight": 1.0
+    },
+    "School Classroom": {
+      "name_zh": "学校教室",
+      "prompt": "Sunlit school classroom, rows of wooden desks, chalkboard with eraser dust, open windows with white curtains, afternoon light streaming across the floor, nostalgic student atmosphere.",
+      "description": "Sunlit nostalgic school classroom",
+      "tags": [
+        "school",
+        "classroom",
+        "sunlit",
+        "nostalgic"
+      ],
+      "weight": 1.0
+    },
+    "School Corridor": {
+      "name_zh": "学校走廊",
+      "prompt": "Quiet school corridor at noon, rows of lockers and classroom doors, sunlight casting long shadows through the windows, polished floor reflecting light, serene school atmosphere.",
+      "description": "Serene noon school corridor",
+      "tags": [
+        "school",
+        "corridor",
+        "noon",
+        "serene"
+      ],
+      "weight": 1.0
+    },
+    "Japanese Bedroom": {
+      "name_zh": "日系卧室",
+      "prompt": "Cozy Japanese bedroom, low bed with soft pastel bedding, wooden furniture, warm lamp glow, plush toys on the shelf, gentle morning light through lace curtains, comfortable private room.",
+      "description": "Cozy pastel Japanese bedroom",
+      "tags": [
+        "japanese",
+        "bedroom",
+        "cozy",
+        "pastel",
+        "private"
+      ],
+      "weight": 1.0
+    },
+    "Cozy Cafe": {
+      "name_zh": "温馨咖啡馆",
+      "prompt": "Cozy neighborhood cafe interior, wooden tables, warm pendant lights, pastry display by the counter, soft jazz atmosphere, afternoon light through the front window, relaxed hangout spot.",
+      "description": "Cozy neighborhood cafe interior",
+      "tags": [
+        "cafe",
+        "cozy",
+        "neighborhood",
+        "wooden",
+        "relaxed"
+      ],
+      "weight": 1.0
+    },
+    "Shrine Approach": {
+      "name_zh": "神社参道",
+      "prompt": "Japanese shrine approach path, stone lanterns lining the walkway, red torii gate ahead, moss-covered steps, dappled sunlight through cedar trees, sacred quiet atmosphere.",
+      "description": "Quiet shrine approach with torii gate",
+      "tags": [
+        "shrine",
+        "torii",
+        "japanese",
+        "stone lantern",
+        "sacred"
+      ],
+      "weight": 1.0
+    },
+    "Cherry Blossom Avenue": {
+      "name_zh": "樱花大道",
+      "prompt": "Cherry blossom avenue in full bloom, pink petals drifting in the breeze, petals carpeting the sidewalk, sunlight filtering through the blossom canopy, dreamy spring atmosphere.",
+      "description": "Dreamy cherry blossom avenue in spring",
+      "tags": [
+        "cherry blossom",
+        "sakura",
+        "spring",
+        "avenue",
+        "dreamy"
+      ],
+      "weight": 1.0
+    },
+    "Japanese Balcony": {
+      "name_zh": "日系阳台",
+      "prompt": "Small Japanese apartment balcony, laundry drying on a rack, potted plants along the railing, open sliding door to the room, soft evening light, everyday life atmosphere.",
+      "description": "Everyday Japanese apartment balcony",
+      "tags": [
+        "balcony",
+        "japanese",
+        "apartment",
+        "laundry",
+        "everyday"
+      ],
+      "weight": 1.0
+    },
+    "Summer Festival Street": {
+      "name_zh": "夏日祭街道",
+      "prompt": "Summer festival street in Japan, strings of paper lanterns overhead, food stalls with colorful banners, crowds in yukata, warm festival lights, lively evening atmosphere.",
+      "description": "Lively summer festival street with lanterns",
+      "tags": [
+        "summer festival",
+        "japanese",
+        "lanterns",
+        "yukata",
+        "evening"
+      ],
+      "weight": 1.0
+    },
+    "Seaside Town Street": {
+      "name_zh": "海边小镇街道",
+      "prompt": "Seaside town street with a glimpse of the ocean at the end, low houses with pastel walls, bicycles parked by the curb, salty breeze, bright clear sky, relaxing coastal atmosphere.",
+      "description": "Relaxing pastel seaside town street",
+      "tags": [
+        "seaside",
+        "town street",
+        "coastal",
+        "pastel",
+        "relaxing"
+      ],
+      "weight": 1.0
+    },
+    "School Rooftop": {
+      "name_zh": "学校天台",
+      "prompt": "School rooftop with wire mesh fence, blue sky and distant city view, water tanks and vents, gentle wind, open-air private atmosphere, summer afternoon.",
+      "description": "Open-air school rooftop with city view",
+      "tags": [
+        "school rooftop",
+        "rooftop",
+        "fence",
+        "sky",
+        "summer"
+      ],
+      "weight": 1.0
+    },
+    "Train Carriage Interior": {
+      "name_zh": "电车车厢内部",
+      "prompt": "Japanese train carriage interior, rows of seats by the windows, strap handles overhead, station signs passing outside, soft fluorescent light mixed with daylight, everyday commute atmosphere.",
+      "description": "Everyday Japanese train carriage interior",
+      "tags": [
+        "train",
+        "carriage",
+        "japanese",
+        "commute",
+        "interior"
+      ],
+      "weight": 1.0
+    },
+    "Bakery Interior": {
+      "name_zh": "面包店内部",
+      "prompt": "Warm bakery interior, shelves of fresh bread, golden pastries in the display case, oven glow from the back, wooden counters, inviting smell of baking, cozy morning atmosphere.",
+      "description": "Cozy warm bakery interior",
+      "tags": [
+        "bakery",
+        "bread",
+        "cozy",
+        "morning",
+        "warm"
+      ],
+      "weight": 1.0
+    },
+    "Park Bench Scene": {
+      "name_zh": "公园长椅场景",
+      "prompt": "Quiet park scene with a wooden bench under a large tree, gravel path, flower beds, soft morning light through the leaves, peaceful community park atmosphere.",
+      "description": "Peaceful park bench under a tree",
+      "tags": [
+        "park",
+        "bench",
+        "quiet",
+        "morning",
+        "peaceful"
+      ],
+      "weight": 1.0
     }
   },
   "Lighting": {
@@ -2552,6 +2745,161 @@
       ],
       "weight": 1.0,
       "name_zh": "医用检查灯"
+    },
+    "Japanese Soft Window Light": {
+      "name_zh": "日系柔和窗光",
+      "prompt": "Soft Japanese window light, gentle diffused daylight through thin curtains, bright but soft illumination, clean low-contrast tones, fresh airy atmosphere, subtle natural highlights.",
+      "description": "Soft clean Japanese window light",
+      "tags": [
+        "japanese",
+        "window light",
+        "soft",
+        "clean",
+        "airy"
+      ],
+      "weight": 1.0
+    },
+    "Clear Japanese Daylight": {
+      "name_zh": "日系清透日光",
+      "prompt": "Clear bright Japanese daylight, crisp clean illumination, soft shadows, high-key bright tones, transparent airy quality, cheerful fresh atmosphere.",
+      "description": "Crisp high-key Japanese daylight",
+      "tags": [
+        "japanese",
+        "daylight",
+        "bright",
+        "high-key",
+        "clean"
+      ],
+      "weight": 1.0
+    },
+    "Warm Home Lighting": {
+      "name_zh": "暖黄居家光",
+      "prompt": "Warm home lighting, cozy yellowish lamp glow filling the room, soft warm shadows, intimate domestic atmosphere, gentle tungsten warmth.",
+      "description": "Cozy warm home lamp glow",
+      "tags": [
+        "warm",
+        "home",
+        "cozy",
+        "domestic",
+        "lamp"
+      ],
+      "weight": 1.0
+    },
+    "Morning Sunlight": {
+      "name_zh": "清晨晨光",
+      "prompt": "Fresh morning sunlight, low golden rays streaming through the window, gentle warm glow, soft long shadows, dewy clean atmosphere, peaceful start of the day.",
+      "description": "Fresh golden morning sunlight",
+      "tags": [
+        "morning",
+        "sunlight",
+        "golden",
+        "fresh",
+        "peaceful"
+      ],
+      "weight": 1.0
+    },
+    "Golden Afternoon Slant": {
+      "name_zh": "午后斜阳",
+      "prompt": "Golden afternoon sunlight slanting into the room, warm orange rays across the floor, long soft shadows, nostalgic peaceful tone, quiet afternoon atmosphere.",
+      "description": "Nostalgic golden afternoon slanting light",
+      "tags": [
+        "afternoon",
+        "slanting light",
+        "golden",
+        "nostalgic"
+      ],
+      "weight": 1.0
+    },
+    "Backlit Sunset Glow": {
+      "name_zh": "逆光黄昏",
+      "prompt": "Backlit sunset glow, warm orange light from behind the subject, gentle rim light on the silhouette, soft atmospheric haze, romantic evening tone.",
+      "description": "Romantic backlit sunset glow",
+      "tags": [
+        "backlit",
+        "sunset",
+        "rim light",
+        "romantic",
+        "warm"
+      ],
+      "weight": 1.0
+    },
+    "Street Lamp Night Light": {
+      "name_zh": "路灯夜光",
+      "prompt": "Warm street lamp light at night, soft yellow pools of light on the pavement, gentle glow on the surroundings, quiet night atmosphere, cozy urban evening.",
+      "description": "Cozy warm street lamp night light",
+      "tags": [
+        "street lamp",
+        "night",
+        "warm",
+        "cozy",
+        "quiet"
+      ],
+      "weight": 1.0
+    },
+    "Paper Lantern Warmth": {
+      "name_zh": "纸灯笼暖光",
+      "prompt": "Warm paper lantern light, soft glowing red and orange lanterns casting gentle illumination, festive warm tone, intimate evening atmosphere.",
+      "description": "Festive warm paper lantern glow",
+      "tags": [
+        "paper lantern",
+        "warm",
+        "festive",
+        "glowing",
+        "evening"
+      ],
+      "weight": 1.0
+    },
+    "Curtain Filtered Light": {
+      "name_zh": "窗帘柔光",
+      "prompt": "Light filtered through sheer curtains, soft diffused glow, gentle patterns of light and shade, dreamy bedroom atmosphere, delicate soft tones.",
+      "description": "Dreamy light filtered through curtains",
+      "tags": [
+        "curtain",
+        "filtered",
+        "soft",
+        "dreamy",
+        "diffused"
+      ],
+      "weight": 1.0
+    },
+    "Rainy Day Soft Light": {
+      "name_zh": "雨天柔光",
+      "prompt": "Soft rainy day light, even diffused illumination through overcast sky, muted cool tones, gentle glow on wet surfaces, calm contemplative atmosphere.",
+      "description": "Calm soft rainy day illumination",
+      "tags": [
+        "rainy",
+        "soft light",
+        "overcast",
+        "muted",
+        "calm"
+      ],
+      "weight": 1.0
+    },
+    "Snowy Day Soft Light": {
+      "name_zh": "雪天柔光",
+      "prompt": "Soft snowy day light, bright diffused illumination reflecting off fresh snow, cool clean tones, gentle shadows, serene winter atmosphere.",
+      "description": "Serene bright snowy day illumination",
+      "tags": [
+        "snowy",
+        "soft light",
+        "bright",
+        "clean",
+        "serene"
+      ],
+      "weight": 1.0
+    },
+    "Summer Bright Sunlight": {
+      "name_zh": "夏日明亮日光",
+      "prompt": "Bright summer sunlight, intense clear illumination, crisp shadows, vivid saturated colors, energetic lively atmosphere, sparkling highlights.",
+      "description": "Vivid energetic summer sunlight",
+      "tags": [
+        "summer",
+        "bright",
+        "sunlight",
+        "vivid",
+        "lively"
+      ],
+      "weight": 1.0
     }
   },
   "Style": {
