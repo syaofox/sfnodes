@@ -1,4 +1,504 @@
 {
+  "Outfit": {
+    "Floral Sundress": {
+      "name_zh": "碎花连衣裙",
+      "prompt": "Wearing a light floral sundress with small flower prints, flowing skirt reaching the knees, soft pastel fabric, delicate feminine style.",
+      "description": "Light floral print summer dress",
+      "tags": [
+        "dress",
+        "floral",
+        "sundress",
+        "feminine"
+      ],
+      "weight": 1.0
+    },
+    "Black Cocktail Dress": {
+      "name_zh": "黑色小礼服",
+      "prompt": "Wearing a sleek black cocktail dress, fitted silhouette, elegant neckline, above-the-knee hemline, refined evening style.",
+      "description": "Sleek fitted black cocktail dress",
+      "tags": [
+        "dress",
+        "cocktail",
+        "black",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "White Blouse & Skirt": {
+      "name_zh": "白衬衫半裙",
+      "prompt": "Wearing a crisp white blouse tucked into a high-waist pencil skirt, clean office-appropriate look, neat elegant styling.",
+      "description": "Crisp white blouse with pencil skirt",
+      "tags": [
+        "blouse",
+        "skirt",
+        "office",
+        "clean"
+      ],
+      "weight": 1.0
+    },
+    "High-Waist Jeans & Tee": {
+      "name_zh": "高腰牛仔裤T恤",
+      "prompt": "Wearing a casual graphic tee tucked into high-waist blue jeans, relaxed everyday streetwear look, effortless casual style.",
+      "description": "Casual tee with high-waist jeans",
+      "tags": [
+        "jeans",
+        "tee",
+        "casual",
+        "streetwear"
+      ],
+      "weight": 1.0
+    },
+    "Pleated Mini Skirt": {
+      "name_zh": "百褶短裙",
+      "prompt": "Wearing a pleated mini skirt with a fitted top, playful youthful silhouette, swishing skirt pleats, cute campus style.",
+      "description": "Playful pleated mini skirt outfit",
+      "tags": [
+        "pleated skirt",
+        "mini",
+        "youthful",
+        "campus"
+      ],
+      "weight": 1.0
+    },
+    "Sailor Uniform": {
+      "name_zh": "水手服",
+      "prompt": "Wearing a classic Japanese sailor school uniform, navy collar with white stripes, pleated skirt, red neckerchief, traditional seifuku style.",
+      "description": "Classic Japanese sailor school uniform",
+      "tags": [
+        "sailor uniform",
+        "seifuku",
+        "school",
+        "japanese"
+      ],
+      "weight": 1.0
+    },
+    "School Blazer Uniform": {
+      "name_zh": "西式校服",
+      "prompt": "Wearing a Western-style school uniform, tailored blazer with a pleated skirt, white shirt and ribbon tie, polished academy look.",
+      "description": "Tailored Western-style school blazer uniform",
+      "tags": [
+        "school uniform",
+        "blazer",
+        "academy",
+        "tailored"
+      ],
+      "weight": 1.0
+    },
+    "Kimono": {
+      "name_zh": "和服",
+      "prompt": "Wearing an elegant kimono with intricate traditional patterns, obi sash tied at the waist, long flowing sleeves, refined Japanese formal attire.",
+      "description": "Elegant traditional kimono with obi",
+      "tags": [
+        "kimono",
+        "japanese",
+        "traditional",
+        "obi",
+        "formal"
+      ],
+      "weight": 1.0
+    },
+    "Yukata": {
+      "name_zh": "浴衣",
+      "prompt": "Wearing a light summer yukata with festival patterns, cotton fabric, simple obi belt, casual summer festival attire.",
+      "description": "Light casual summer festival yukata",
+      "tags": [
+        "yukata",
+        "summer",
+        "festival",
+        "japanese",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Miko Outfit": {
+      "name_zh": "巫女服",
+      "prompt": "Wearing a traditional shrine maiden miko outfit, white top with red hakama skirt, red and white color scheme, sacred shrine attire.",
+      "description": "Traditional shrine maiden miko outfit",
+      "tags": [
+        "miko",
+        "shrine maiden",
+        "hakama",
+        "japanese",
+        "sacred"
+      ],
+      "weight": 1.0
+    },
+    "Maid Dress": {
+      "name_zh": "女仆装",
+      "prompt": "Wearing a classic French maid dress, black dress with white apron, frilly lace trim, headband and stockings, cute waitress costume.",
+      "description": "Classic French maid costume dress",
+      "tags": [
+        "maid",
+        "costume",
+        "frilly",
+        "lace",
+        "cute"
+      ],
+      "weight": 1.0
+    },
+    "Lolita Dress": {
+      "name_zh": "洛丽塔裙",
+      "prompt": "Wearing a Lolita fashion dress, layered ruffled skirt with petticoat, lace and bow decorations, doll-like elegant cuteness.",
+      "description": "Ruffled lace Lolita fashion dress",
+      "tags": [
+        "lolita",
+        "ruffled",
+        "lace",
+        "bows",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Hanfu": {
+      "name_zh": "汉服",
+      "prompt": "Wearing an elegant hanfu with flowing wide sleeves, cross-collar robe, layered silk fabrics, traditional Chinese historical attire.",
+      "description": "Elegant flowing traditional hanfu",
+      "tags": [
+        "hanfu",
+        "chinese",
+        "traditional",
+        "flowing sleeves"
+      ],
+      "weight": 1.0
+    },
+    "Qipao": {
+      "name_zh": "旗袍",
+      "prompt": "Wearing a form-fitting qipao dress with high collar, side slit, embroidered silk fabric, elegant vintage Chinese style.",
+      "description": "Form-fitting embroidered qipao dress",
+      "tags": [
+        "qipao",
+        "cheongsam",
+        "chinese",
+        "vintage",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Hoodie & Sweatpants": {
+      "name_zh": "卫衣运动裤",
+      "prompt": "Wearing a soft oversized hoodie with comfortable sweatpants, relaxed loungewear look, cozy casual street style.",
+      "description": "Cozy oversized hoodie with sweatpants",
+      "tags": [
+        "hoodie",
+        "sweatpants",
+        "loungewear",
+        "cozy"
+      ],
+      "weight": 1.0
+    },
+    "Trench Coat": {
+      "name_zh": "风衣",
+      "prompt": "Wearing a long beige trench coat with belt and lapels, refined outerwear layer, classic sophisticated autumn look.",
+      "description": "Classic beige trench coat outerwear",
+      "tags": [
+        "trench coat",
+        "outerwear",
+        "sophisticated",
+        "autumn"
+      ],
+      "weight": 1.0
+    },
+    "Leather Jacket & Jeans": {
+      "name_zh": "皮夹克牛仔裤",
+      "prompt": "Wearing a black leather jacket over a tee with tight jeans, edgy rocker style, cool rebellious look.",
+      "description": "Edgy black leather jacket with jeans",
+      "tags": [
+        "leather jacket",
+        "jeans",
+        "edgy",
+        "rocker"
+      ],
+      "weight": 1.0
+    },
+    "Knit Sweater & Skirt": {
+      "name_zh": "针织衫半裙",
+      "prompt": "Wearing a soft knit sweater with a flowing midi skirt, warm autumn tones, gentle feminine casual look.",
+      "description": "Soft knit sweater with midi skirt",
+      "tags": [
+        "knit sweater",
+        "midi skirt",
+        "autumn",
+        "feminine"
+      ],
+      "weight": 1.0
+    },
+    "Jumpsuit": {
+      "name_zh": "连体裤",
+      "prompt": "Wearing a sleek one-piece jumpsuit, tailored silhouette, deep neckline, modern fashionable statement outfit.",
+      "description": "Sleek tailored one-piece jumpsuit",
+      "tags": [
+        "jumpsuit",
+        "one-piece",
+        "tailored",
+        "fashionable"
+      ],
+      "weight": 1.0
+    },
+    "Tailored Suit": {
+      "name_zh": "西装套装",
+      "prompt": "Wearing a sharp tailored women's suit, fitted blazer and trousers, power dressing style, confident professional look.",
+      "description": "Sharp tailored women's suit",
+      "tags": [
+        "suit",
+        "blazer",
+        "professional",
+        "power dressing"
+      ],
+      "weight": 1.0
+    },
+    "Evening Gown": {
+      "name_zh": "晚礼服",
+      "prompt": "Wearing a glamorous floor-length evening gown, luxurious fabric with subtle shimmer, elegant draping, red carpet style.",
+      "description": "Glamorous floor-length evening gown",
+      "tags": [
+        "evening gown",
+        "glamorous",
+        "floor-length",
+        "red carpet"
+      ],
+      "weight": 1.0
+    },
+    "Bikini": {
+      "name_zh": "比基尼泳装",
+      "prompt": "Wearing a colorful bikini swimsuit, minimal two-piece swimwear, beach-ready look, sunny summer style.",
+      "description": "Colorful two-piece bikini swimwear",
+      "tags": [
+        "bikini",
+        "swimwear",
+        "beach",
+        "summer"
+      ],
+      "weight": 1.0
+    },
+    "Sportswear": {
+      "name_zh": "运动装",
+      "prompt": "Wearing athletic sportswear, fitted leggings with a sports top, breathable activewear, energetic workout look.",
+      "description": "Athletic leggings with sports top",
+      "tags": [
+        "sportswear",
+        "leggings",
+        "activewear",
+        "athletic"
+      ],
+      "weight": 1.0
+    },
+    "Nurse Uniform": {
+      "name_zh": "护士服",
+      "prompt": "Wearing a professional nurse uniform, white dress with cap, practical medical work attire, clean clinical look.",
+      "description": "Professional white nurse uniform",
+      "tags": [
+        "nurse uniform",
+        "medical",
+        "white",
+        "professional"
+      ],
+      "weight": 1.0
+    },
+    "Office Attire": {
+      "name_zh": "职场通勤装",
+      "prompt": "Wearing polished office attire, smart shirt with tailored trousers or skirt, blazer accents, neat business casual look.",
+      "description": "Polished business casual office attire",
+      "tags": [
+        "office",
+        "business casual",
+        "smart",
+        "polished"
+      ],
+      "weight": 1.0
+    },
+    "Denim Jacket & Skirt": {
+      "name_zh": "牛仔外套短裙",
+      "prompt": "Wearing a denim jacket over a top with a short skirt, casual Americana vibe, playful youthful styling.",
+      "description": "Casual denim jacket with short skirt",
+      "tags": [
+        "denim jacket",
+        "short skirt",
+        "casual",
+        "youthful"
+      ],
+      "weight": 1.0
+    },
+    "Sweater Dress": {
+      "name_zh": "针织连衣裙",
+      "prompt": "Wearing a cozy knit sweater dress, soft ribbed fabric, above-the-knee length, warm comfortable winter style.",
+      "description": "Cozy knit sweater dress",
+      "tags": [
+        "sweater dress",
+        "knit",
+        "cozy",
+        "winter"
+      ],
+      "weight": 1.0
+    },
+    "Ripped Jeans & Crop Top": {
+      "name_zh": "破洞牛仔裤短上衣",
+      "prompt": "Wearing a crop top with ripped skinny jeans, trendy streetwear combination, edgy casual style.",
+      "description": "Trendy crop top with ripped skinny jeans",
+      "tags": [
+        "crop top",
+        "ripped jeans",
+        "streetwear",
+        "trendy"
+      ],
+      "weight": 1.0
+    },
+    "Lace Lingerie Set": {
+      "name_zh": "蕾丝内衣套装",
+      "prompt": "Wearing an elegant lace lingerie set, delicate black lace bra and panties, sheer fabric details, seductive intimate apparel.",
+      "description": "Delicate black lace lingerie set",
+      "tags": [
+        "lingerie",
+        "lace",
+        "bra",
+        "seductive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Black Babydoll": {
+      "name_zh": "黑色情趣睡衣",
+      "prompt": "Wearing a black babydoll nightie, sheer flowing fabric with lace trim, short flirty silhouette, alluring sleepwear.",
+      "description": "Sheer black babydoll nightie",
+      "tags": [
+        "babydoll",
+        "nightie",
+        "sheer",
+        "lace",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Stockings & Garter Belt": {
+      "name_zh": "吊带袜套装",
+      "prompt": "Wearing sheer stockings held by a lace garter belt, classic seductive legwear combination, elegant provocative styling.",
+      "description": "Sheer stockings with lace garter belt",
+      "tags": [
+        "stockings",
+        "garter belt",
+        "legwear",
+        "seductive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Sheer Blouse": {
+      "name_zh": "透明衬衫",
+      "prompt": "Wearing a sheer see-through blouse with no bra, translucent fabric revealing the silhouette, provocative elegant styling.",
+      "description": "Sheer see-through blouse revealing silhouette",
+      "tags": [
+        "sheer",
+        "blouse",
+        "see-through",
+        "revealing",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Bunny Suit": {
+      "name_zh": "兔女郎装",
+      "prompt": "Wearing a classic bunny suit, black corseted bodysuit with mesh stockings, rabbit ears headband, playful seductive costume.",
+      "description": "Classic bunny suit playboy costume",
+      "tags": [
+        "bunny suit",
+        "costume",
+        "corset",
+        "ears",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Leather Bodysuit": {
+      "name_zh": "皮革连体衣",
+      "prompt": "Wearing a glossy black leather bodysuit, skin-tight second-skin fit, high cut design, dominatrix style seductive look.",
+      "description": "Skin-tight glossy leather bodysuit",
+      "tags": [
+        "leather",
+        "bodysuit",
+        "skin-tight",
+        "dominatrix",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Sheer Evening Dress": {
+      "name_zh": "透视晚礼服",
+      "prompt": "Wearing a sheer illusion evening gown, transparent fabric with strategic opaque panels, revealing silhouette, glamorous daring style.",
+      "description": "Sheer illusion evening gown",
+      "tags": [
+        "sheer",
+        "evening gown",
+        "illusion",
+        "revealing",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Naughty Nurse": {
+      "name_zh": "情趣护士装",
+      "prompt": "Wearing a sexy naughty nurse costume, short white dress with red crosses, fishnet stockings, provocative medical cosplay.",
+      "description": "Provocative naughty nurse costume",
+      "tags": [
+        "nurse costume",
+        "cosplay",
+        "fishnet",
+        "provocative",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Mini Sailor Skirt": {
+      "name_zh": "超短水手裙",
+      "prompt": "Wearing a very short sailor-style skirt with a cropped top, mini hemline barely covering, playful seductive school style.",
+      "description": "Ultra-short sailor mini skirt outfit",
+      "tags": [
+        "mini skirt",
+        "sailor",
+        "short hemline",
+        "seductive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lace Camisole Sleepwear": {
+      "name_zh": "蕾丝吊带睡裙",
+      "prompt": "Wearing a lace-trimmed satin camisole sleepwear set, delicate straps, soft flowing fabric, intimate bedroom lingerie.",
+      "description": "Satin lace-trimmed camisole sleepwear",
+      "tags": [
+        "camisole",
+        "sleepwear",
+        "satin",
+        "lace",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Transparent Dress": {
+      "name_zh": "全透明连衣裙",
+      "prompt": "Wearing a fully transparent dress, completely see-through fabric with no undergarments, bold exhibitionist style, nude silhouette fully visible.",
+      "description": "Fully transparent see-through dress",
+      "tags": [
+        "transparent",
+        "see-through",
+        "nude under",
+        "exhibitionist",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Fishnet Stockings": {
+      "name_zh": "渔网袜",
+      "prompt": "Wearing black fishnet stockings with a garter belt and high heels, bold seductive legwear, edgy provocative styling.",
+      "description": "Bold black fishnet stockings look",
+      "tags": [
+        "fishnet",
+        "stockings",
+        "garter",
+        "high heels",
+        "adult"
+      ],
+      "weight": 1.0
+    }
+  },
   "Pose": {
     "Standing Portrait": {
       "name_zh": "站立肖像",

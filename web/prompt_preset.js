@@ -4,6 +4,7 @@ import { api } from "/scripts/api.js";
 const DISABLED = "禁用";
 
 const WIDGET_CATEGORY = {
+    outfit_preset: "Outfit",
     pose_preset: "Pose",
     couple_preset: "Couple Pose",
     environment_preset: "Environment",

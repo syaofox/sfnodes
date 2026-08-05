@@ -81,9 +81,12 @@ const fakeNode = (wx, wy, widgets) => ({ pos: [100, 200], widgets, _dummy: wx + 
 
 // 节点 (100,200) + widget pos (0,30) size (150,20) → 画布坐标 (100,250)-(250,270)
 const nodes = [fakeNode(0, 0, [
+    fakeComboWidget("outfit_preset", 0, 8, 150, 20),
     fakeComboWidget("pose_preset", 0, 30, 150, 20),
     fakeComboWidget("environment_preset", 0, 52, 150, 20),
 ])];
+const hitO = widgetAt(fakeCanvas(nodes, 150, 218), 150, 218);
+check2("命中 outfit_preset", hitO !== null && hitO.widget.name === "outfit_preset" && hitO.category === "Outfit");
 let hit = widgetAt(fakeCanvas(nodes, 150, 240), 150, 240);
 check2("命中 pose_preset", hit !== null && hit.widget.name === "pose_preset" && hit.category === "Pose");
 hit = widgetAt(fakeCanvas(nodes, 150, 250), 150, 250);

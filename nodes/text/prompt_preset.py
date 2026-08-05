@@ -12,7 +12,7 @@ _CATEGORY = "sfnodes/text"
 _DISABLED = "禁用"
 _RANDOM = "随机"
 
-_CATEGORY_KEYS = ("Pose", "Couple Pose", "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
+_CATEGORY_KEYS = ("Outfit", "Pose", "Couple Pose", "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
 
 _presets = {}
 _presets_lock = threading.Lock()
@@ -82,6 +82,10 @@ class SFPromptPreset:
                 }),
             },
             "optional": {
+                "outfit_preset": (_category_options("Outfit"), {
+                    "default": _DISABLED,
+                    "tooltip": "服装预设（下拉显示中文，输出保持英文提示词，含成人向内容）",
+                }),
                 "pose_preset": (_category_options("Pose"), {
                     "default": _DISABLED,
                     "tooltip": "单人动作/姿势预设（下拉显示中文，输出保持英文提示词，含成人向内容）",
@@ -117,20 +121,20 @@ class SFPromptPreset:
             },
         }
 
-    RETURN_TYPES = (IO.STRING,) * 9
-    RETURN_NAMES = ("combined_prompt", "pose_text", "couple_text", "environment_text", "lighting_text", "style_text", "camera_angle_text", "camera_distance_text", "camera_lens_text")
+    RETURN_TYPES = (IO.STRING,) * 10
+    RETURN_NAMES = ("combined_prompt", "outfit_text", "pose_text", "couple_text", "environment_text", "lighting_text", "style_text", "camera_angle_text", "camera_distance_text", "camera_lens_text")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "按单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头八类预设组合提示词：下拉选项为中文，输出保持英文提示词；支持加权随机选择与 [选项A, 选项B] 括号随机"
+    DESCRIPTION = "按服装、单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头九类预设组合提示词：下拉选项为中文，输出保持英文提示词；支持加权随机选择与 [选项A, 选项B] 括号随机"
 
     @classmethod
     def IS_CHANGED(cls, seed, **kwargs):
         return seed
 
-    def execute(self, input_text, seed=0, pose_preset=_DISABLED, couple_preset=_DISABLED,
-                environment_preset=_DISABLED, lighting_preset=_DISABLED, style_preset=_DISABLED,
-                camera_angle_preset=_DISABLED, camera_distance_preset=_DISABLED,
-                camera_lens_preset=_DISABLED):
+    def execute(self, input_text, seed=0, outfit_preset=_DISABLED, pose_preset=_DISABLED,
+                couple_preset=_DISABLED, environment_preset=_DISABLED, lighting_preset=_DISABLED,
+                style_preset=_DISABLED, camera_angle_preset=_DISABLED,
+                camera_distance_preset=_DISABLED, camera_lens_preset=_DISABLED):
         seed = seed if seed is not None else 0
 
         # 单人/双人动作互斥（前端已联动，此处兜底旧工作流）：同时启用时保留 pose
@@ -140,25 +144,26 @@ class SFPromptPreset:
         if input_text.strip():
             input_text = self._process_random_brackets(input_text, seed)
 
-        pose_text = self._resolve_preset("Pose", pose_preset, seed + 1)
-        couple_text = self._resolve_preset("Couple Pose", couple_preset, seed + 2)
-        env_text = self._resolve_preset("Environment", environment_preset, seed + 3)
-        light_text = self._resolve_preset("Lighting", lighting_preset, seed + 4)
-        style_text = self._resolve_preset("Style", style_preset, seed + 5)
-        angle_text = self._resolve_preset("Camera Angle", camera_angle_preset, seed + 6)
-        distance_text = self._resolve_preset("Camera Distance", camera_distance_preset, seed + 7)
-        camera_text = self._resolve_preset("Camera Lens", camera_lens_preset, seed + 8)
+        outfit_text = self._resolve_preset("Outfit", outfit_preset, seed + 1)
+        pose_text = self._resolve_preset("Pose", pose_preset, seed + 2)
+        couple_text = self._resolve_preset("Couple Pose", couple_preset, seed + 3)
+        env_text = self._resolve_preset("Environment", environment_preset, seed + 4)
+        light_text = self._resolve_preset("Lighting", lighting_preset, seed + 5)
+        style_text = self._resolve_preset("Style", style_preset, seed + 6)
+        angle_text = self._resolve_preset("Camera Angle", camera_angle_preset, seed + 7)
+        distance_text = self._resolve_preset("Camera Distance", camera_distance_preset, seed + 8)
+        camera_text = self._resolve_preset("Camera Lens", camera_lens_preset, seed + 9)
 
         parts = [input_text.strip()] if input_text.strip() else []
         preset_parts = [
             p.strip().rstrip(".")
-            for p in (pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
+            for p in (outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
             if p
         ]
         parts.extend(preset_parts)
         combined = self._clean_prompt(", ".join(parts))
 
-        return (combined, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
+        return (combined, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
 
     def _resolve_preset(self, category, selection, seed):
         """获取预设英文提示词；仅支持中文名 / 随机 / 禁用。"""
