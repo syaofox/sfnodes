@@ -58,10 +58,25 @@ def _load_presets():
     return _presets, _zh_to_preset
 
 
+_GROUP_RANDOM_PREFIX = "随机·"
+
+
+def _category_groups(category):
+    """分类内 group 集合（按数据出现顺序去重）。"""
+    presets, _ = _load_presets()
+    groups = []
+    for preset in presets.get(category, {}).values():
+        g = preset.get("group")
+        if g and g not in groups:
+            groups.append(g)
+    return groups
+
+
 def _category_options(category):
     presets, _ = _load_presets()
     names = list(presets.get(category, {}).keys())
-    return [_DISABLED, _RANDOM] + [presets[category][n].get("name_zh") or n for n in names]
+    group_randoms = [_GROUP_RANDOM_PREFIX + g for g in _category_groups(category)]
+    return [_DISABLED, _RANDOM] + group_randoms + [presets[category][n].get("name_zh") or n for n in names]
 
 
 class SFPromptPreset:
@@ -176,11 +191,13 @@ class SFPromptPreset:
         return (combined, celebrity_text, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
 
     def _resolve_preset(self, category, selection, seed):
-        """获取预设英文提示词；仅支持中文名 / 随机 / 禁用。"""
+        """获取预设英文提示词；支持中文名 / 随机 / 组随机(随机·组名) / 禁用。"""
         if selection == _DISABLED:
             return ""
         if selection == _RANDOM:
             return self._random_preset(category, seed)
+        if selection.startswith(_GROUP_RANDOM_PREFIX):
+            return self._random_preset(category, seed, selection[len(_GROUP_RANDOM_PREFIX):])
         presets, zh_to_preset = _load_presets()
         entry = zh_to_preset.get(selection)
         if entry is None:
@@ -188,12 +205,17 @@ class SFPromptPreset:
         preset = presets.get(entry[0], {}).get(entry[1])
         return preset.get("prompt", "") if preset else ""
 
-    def _random_preset(self, category, seed):
-        """按权重随机选择一个预设，同一种子结果可复现。"""
+    def _random_preset(self, category, seed, group=None):
+        """按权重随机选择一个预设（可限定 group），同一种子结果可复现。"""
         presets = _load_presets()[0].get(category, {})
         if not presets:
             return ""
-        names = list(presets.keys())
+        if group is not None:
+            names = [n for n, v in presets.items() if v.get("group") == group]
+        else:
+            names = list(presets.keys())
+        if not names:
+            return ""
         weights = [presets[n].get("weight", 1.0) for n in names]
         rng = random.Random()
         rng.seed(seed)

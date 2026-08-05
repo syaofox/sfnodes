@@ -144,8 +144,9 @@ check("存在扩展", mainExt !== undefined);
 
     // 默认 Celebrity tab：分组标题 + 选项
     const list = panel.children[4];
-    const groups = list.children.filter((c) => c.textContent === "歌手" || c.textContent === "亚洲名人");
+    const groups = list.children.filter((c) => c.children?.[0]?.textContent === "歌手" || c.children?.[0]?.textContent === "亚洲名人");
     check("Celebrity 分组标题渲染", groups.length === 2);
+    check("分组标题含随机按钮", groups[0].children.length === 2 && groups[0].children[1].textContent.includes("随机"));
     const celebItems = list.children.filter((c) => c.textContent === "Taylor Swift" || c.textContent === "周杰伦");
     check("Celebrity 选项渲染", celebItems.length === 2);
 
@@ -161,7 +162,7 @@ check("存在扩展", mainExt !== undefined);
     const poseGroupBar = panel.children[2];
     check("tab 切换 group 重置为全部", poseGroupBar.children[0].className.includes("active"));
     const poseList = panel.children[4];
-    const poseGroups = poseList.children.filter((c) => c.textContent === "SFW" || c.textContent === "NSFW");
+    const poseGroups = poseList.children.filter((c) => c.children?.[0]?.textContent === "SFW" || c.children?.[0]?.textContent === "NSFW");
     check("Pose SFW/NSFW 分组", poseGroups.length === 2);
 
     // NSFW 筛选
@@ -193,6 +194,18 @@ check("存在扩展", mainExt !== undefined);
     const overlay2 = createdEls.slice(before2).find((e) => e.className === "sf-preset-picker-overlay");
     docHandlers.keydown({ key: "Escape" });
     check("Escape 关闭弹窗", overlay2.removed === true);
+
+    // 组标题 🎲 随机按钮写入 随机·组名
+    const before3 = createdEls.length;
+    pickerCallback();
+    const overlay3 = createdEls.slice(before3).find((e) => e.className === "sf-preset-picker-overlay");
+    const panel3 = overlay3.children[0];
+    panel3.children[1].children.find((c) => c.textContent === "单人动作").click();
+    const poseList3 = panel3.children[4];
+    const nsfwTitle3 = poseList3.children.find((c) => c.children?.[0]?.textContent === "NSFW");
+    nsfwTitle3.children[1].click();
+    check("🎲 随机按钮写入组随机值", pose0.value === "随机·NSFW");
+    check("🎲 后弹窗关闭", overlay3.removed === true);
 
     console.log("\nFAILURES:", failures.length);
     process.exit(failures.length ? 1 : 0);

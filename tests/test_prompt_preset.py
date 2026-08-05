@@ -92,16 +92,16 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     pure_ascii = [o for o in opts[2:] if o.isascii()]
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
-check("celebrity 429 项", len(opt["celebrity_preset"][0]) == 431)
-check("outfit 71 项", len(opt["outfit_preset"][0]) == 73)
-check("pose 71 项", len(opt["pose_preset"][0]) == 73)
-check("couple 32 项", len(opt["couple_preset"][0]) == 34)
-check("environment 111 项", len(opt["environment_preset"][0]) == 113)
-check("lighting 62 项", len(opt["lighting_preset"][0]) == 64)
-check("style 48 项", len(opt["style_preset"][0]) == 50)
-check("angle 26 项", len(opt["camera_angle_preset"][0]) == 28)
-check("distance 11 项", len(opt["camera_distance_preset"][0]) == 13)
-check("camera 43 项", len(opt["camera_lens_preset"][0]) == 45)
+check("celebrity 439 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
+check("outfit 73 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
+check("pose 73 项(含2组随机)", len(opt["pose_preset"][0]) == 75)
+check("couple 34 项(含2组随机)", len(opt["couple_preset"][0]) == 36)
+check("environment 119 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
+check("lighting 69 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
+check("style 50 项(含2组随机)", len(opt["style_preset"][0]) == 52)
+check("angle 31 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
+check("distance 15 项(含4组随机)", len(opt["camera_distance_preset"][0]) == 17)
+check("camera 54 项(含11组随机)", len(opt["camera_lens_preset"][0]) == 56)
 
 # category keys match JSON data keys
 import json as _json
@@ -183,6 +183,17 @@ r3 = node.execute("", seed=100, celebrity_preset="随机", outfit_preset="随机
 check("随机输出非空", all(r3[:4] + r3[5:]))
 r4 = node.execute("", seed=200, celebrity_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
 check("不同 seed 可能不同", r1 != r4 or r3 != r4)
+
+# 组随机：随机·组名 限定在指定 group 内（seed 确定性）
+_g1 = node.execute("", seed=55, style_preset="随机·写实")
+_g2 = node.execute("", seed=55, style_preset="随机·写实")
+check("组随机 seed 确定性", _g1[7] == _g2[7])
+check("组随机命中写实组", _g1[7] in {v["prompt"] for v in _data["Style"].values() if v["group"] == "写实"})
+_g3 = node.execute("", seed=55, pose_preset="随机·NSFW")
+_nsfw_pose = {v["prompt"] for v in _data["Pose"].values() if v["group"] == "NSFW"}
+check("组随机不越界(NSFW)", _g3[3] in _nsfw_pose)
+check("组随机选项存在", "随机·写实" in opt["style_preset"][0] and "随机·NSFW" in opt["pose_preset"][0])
+check("组随机选项顺序", opt["style_preset"][0][2] == "随机·写实")
 
 # seed offsets: celebrity +1, outfit +2, pose +3, couple +4, environment +5, angle +8, distance +9, lens +10
 c_off2 = node._resolve_preset("Celebrity", "随机", 100 + 1)

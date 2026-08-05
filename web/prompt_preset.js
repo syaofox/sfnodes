@@ -123,7 +123,27 @@ function renderPickerList() {
             currentGroup = group;
             const title = document.createElement("div");
             title.className = "sf-preset-picker-group";
-            title.textContent = group;
+            title.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
+            const titleText = document.createElement("span");
+            titleText.textContent = group;
+            const dice = document.createElement("button");
+            dice.type = "button";
+            dice.textContent = "🎲 随机";
+            dice.style.cssText = [
+                "background:none", "border:none", "color:#9a9a9a", "cursor:pointer",
+                "font-size:11px", "padding:0 4px", "border-radius:3px",
+            ].join(";");
+            dice.addEventListener("mouseenter", () => { dice.style.color = "#fff"; });
+            dice.addEventListener("mouseleave", () => { dice.style.color = "#9a9a9a"; });
+            dice.addEventListener("click", () => {
+                if (!widget) return;
+                widget.value = "随机·" + group;
+                widget.callback?.();
+                app.graph?.setDirtyCanvas?.(true, true);
+                closePicker();
+            });
+            title.appendChild(titleText);
+            title.appendChild(dice);
             listEl.appendChild(title);
         }
         const item = document.createElement("div");
