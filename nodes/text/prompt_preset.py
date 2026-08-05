@@ -144,11 +144,11 @@ class SFPromptPreset:
             },
         }
 
-    RETURN_TYPES = (IO.STRING,) * 12
-    RETURN_NAMES = ("combined_prompt", "celebrity_text", "expression_text", "outfit_text", "pose_text", "couple_text", "environment_text", "lighting_text", "style_text", "camera_angle_text", "camera_distance_text", "camera_lens_text")
+    RETURN_TYPES = ("STRING", "SF_PROMPT_PACK")
+    RETURN_NAMES = ("combined_prompt", "prompt_pack")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "按名人、表情、服装、单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头十一类预设组合提示词：下拉选项为中文（欧美名人显示英文名），输出保持英文提示词；支持加权随机选择与 [选项A, 选项B] 括号随机"
+    DESCRIPTION = "按名人、表情、服装、单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头十一类预设组合提示词：下拉选项为中文（欧美名人显示英文名），输出保持英文提示词；分类文本打包为 SF_PROMPT_PACK，配合 SFUnpackPromptPreset 解包；支持加权随机选择与 [选项A, 选项B] 括号随机"
 
     @classmethod
     def IS_CHANGED(cls, seed, **kwargs):
@@ -194,7 +194,20 @@ class SFPromptPreset:
         parts.extend(preset_parts)
         combined = self._clean_prompt(", ".join(parts))
 
-        return (combined, celebrity_text, expression_text, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
+        pack = {
+            "Celebrity": celebrity_text,
+            "Expression": expression_text,
+            "Outfit": outfit_text,
+            "Pose": pose_text,
+            "Couple Pose": couple_text,
+            "Environment": env_text,
+            "Lighting": light_text,
+            "Style": style_text,
+            "Camera Angle": angle_text,
+            "Camera Distance": distance_text,
+            "Camera Lens": camera_text,
+        }
+        return (combined, pack)
 
     def _resolve_preset(self, category, selection, seed):
         """获取预设英文提示词；支持中文名 / 随机 / 组随机(随机·组名) / 禁用。"""
@@ -273,6 +286,33 @@ def _preset_group(category, name_zh, preset):
     if category in ("Outfit", "Pose", "Couple Pose"):
         return "NSFW" if "adult" in tags else "SFW"
     return None
+
+
+_PACK_CATEGORY_KEYS = ("Celebrity", "Expression", "Outfit", "Pose", "Couple Pose",
+                      "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
+
+
+class SFUnpackPromptPreset:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pack": ("SF_PROMPT_PACK", {"forceInput": True, "tooltip": "SFPromptPreset 打包输出的分类文本"}),
+            },
+        }
+
+    RETURN_TYPES = (IO.STRING,) * 11
+    RETURN_NAMES = ("celebrity_text", "expression_text", "outfit_text", "pose_text", "couple_text",
+                    "environment_text", "lighting_text", "style_text", "camera_angle_text",
+                    "camera_distance_text", "camera_lens_text")
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "解包 SFPromptPreset 打包输出的分类文本（SF_PROMPT_PACK → 11 条 STRING）"
+
+    def execute(self, pack):
+        if not isinstance(pack, dict):
+            return ("",) * 11
+        return tuple(pack.get(cat, "") for cat in _PACK_CATEGORY_KEYS)
 
 
 def _register_prompt_preset_routes():

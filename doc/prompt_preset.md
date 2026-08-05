@@ -22,22 +22,16 @@
 | `seed` | 随机种子（0 ~ 2^64-1） |
 | 10 个 combo | 各分类选择：`禁用` / `随机` / `随机·组名` / 具体预设 |
 
-输出 12 个 STRING（索引）：
+输出 2 个：
 
-| 索引 | 输出 | 说明 |
+| 输出 | 类型 | 说明 |
 |---|---|---|
-| 0 | `combined_prompt` | 全部分类拼接（预设片段首字母小写化，与 Krea2 官方短语流一致） |
-| 1 | `celebrity_text` | 名人描述（名字+职业+外观特征，不强制风格） |
-| 2 | `expression_text` | 表情（开心/诱惑/色气/情绪/冷淡/害羞） |
-| 3 | `outfit_text` | 服装 |
-| 4 | `pose_text` | 单人动作 |
-| 5 | `couple_text` | 双人动作 |
-| 6 | `environment_text` | 环境 |
-| 7 | `lighting_text` | 灯光 |
-| 8 | `style_text` | 风格 |
-| 9 | `camera_angle_text` | 镜头角度 |
-| 10 | `camera_distance_text` | 镜头距离 |
-| 11 | `camera_lens_text` | 镜头 |
+| `combined_prompt` | STRING | 全部分类拼接（预设片段首字母小写化，与 Krea2 官方短语流一致） |
+| `prompt_pack` | SF_PROMPT_PACK | 11 个分类文本打包（dict：Celebrity/Expression/Outfit/Pose/Couple Pose/Environment/Lighting/Style/Camera Angle/Camera Distance/Camera Lens），配合 **SFUnpackPromptPreset** 解包 |
+
+> **破坏性变更提示**：旧版本输出 12 条 STRING，现改为 2 条（combined + pack），需在 `SFPromptPreset` 后接 `SFUnpackPromptPreset` 节点还原 11 条分类文本。打包值为运行时对象，**不可**接入 Primitive/保存类节点。
+
+`SFUnpackPromptPreset` 输出 11 个 STRING（celebrity_text/expression_text/outfit_text/pose_text/couple_text/environment_text/lighting_text/style_text/camera_angle_text/camera_distance_text/camera_lens_text），顺序与旧版一致。
 
 随机 seed 偏移：名人 `seed+1`、表情 `+2`、服装 `+3`、单人 `+4`、双人 `+5`、环境 `+6`、灯光 `+7`、风格 `+8`、角度 `+9`、距离 `+10`、镜头 `+11`。
 

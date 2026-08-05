@@ -112,7 +112,7 @@ from .nodes.text.prompt_list import SFPromptList
 from .nodes.text.concatenate import SFTextConcatenate
 from .nodes.text.prompt_batcher import SFLoadPromptsFromFolder, SFSaveTextToFiles
 from .nodes.text.random_edit_prompt import SFRandomEditPrompt
-from .nodes.text.prompt_preset import SFPromptPreset
+from .nodes.text.prompt_preset import SFPromptPreset, SFUnpackPromptPreset
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
@@ -250,6 +250,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSaveTextToFiles": SFSaveTextToFiles,
     "SFRandomEditPrompt": SFRandomEditPrompt,
     "SFPromptPreset": SFPromptPreset,
+    "SFUnpackPromptPreset": SFUnpackPromptPreset,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFSimpleMathSlider": SimpleMathSlider,
@@ -405,6 +406,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSaveTextToFiles": "SF Save Text To Files",
     "SFRandomEditPrompt": "SF Random Edit Prompt",
     "SFPromptPreset": "SF Prompt Preset",
+    "SFUnpackPromptPreset": "SF Unpack Prompt Preset",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFSimpleMathSlider": "SF Simple Math Slider",
