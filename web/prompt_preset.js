@@ -46,6 +46,8 @@ let pickerEl = null;
 let pickerCategory = "Celebrity";
 let pickerGroup = null; // null = 全部
 let pickerSearch = "";
+let lastPickerCategory = null;
+let lastPickerGroup = null;
 let pickerStyleInjected = false;
 
 const PICKER_CSS = `
@@ -69,6 +71,7 @@ const PICKER_CSS = `
 .sf-preset-picker-item:hover{background:#3a3a3a;}
 .sf-preset-picker-item.active{background:#3a5f8a;}
 .sf-preset-picker-empty{padding:20px;text-align:center;color:#888;}
+.sf-preset-picker-preview{padding:6px 12px;border-top:1px solid #3a3a3a;color:#aaa;font-size:11px;line-height:1.5;min-height:16px;max-height:48px;overflow:hidden;}
 `;
 
 function injectPickerStyle() {
@@ -92,6 +95,8 @@ function closePicker() {
         pickerEl.remove();
         pickerEl = null;
     }
+    lastPickerCategory = pickerCategory;
+    lastPickerGroup = pickerGroup;
     pickerGroup = null;
     pickerSearch = "";
 }
@@ -116,10 +121,19 @@ function renderPickerList() {
         return;
     }
 
-    const addItem = (value) => {
+    const previewEl = pickerEl.querySelector(".sf-preset-picker-preview");
+    const addItem = (value, meta) => {
         const item = document.createElement("div");
         item.className = "sf-preset-picker-item" + (widget?.value === value ? " active" : "");
         item.textContent = value;
+        item.addEventListener("mouseenter", () => {
+            if (previewEl && meta?.description) {
+                previewEl.textContent = meta.description;
+            }
+        });
+        item.addEventListener("mouseleave", () => {
+            if (previewEl) previewEl.textContent = "";
+        });
         item.addEventListener("click", () => {
             if (!widget) return;
             widget.value = value;
@@ -161,11 +175,11 @@ function renderPickerList() {
     for (const [value, meta] of filtered) {
         const g = meta?.group ?? "";
         if (!grouped.has(g)) grouped.set(g, []);
-        grouped.get(g).push(value);
+        grouped.get(g).push([value, meta]);
     }
     for (const [group, values] of grouped) {
         if (group) addGroupTitle(group);
-        for (const value of values) addItem(value);
+        for (const [value, meta] of values) addItem(value, meta);
     }
 }
 
@@ -207,6 +221,10 @@ function renderGroupBar() {
 function openGroupPicker() {
     injectPickerStyle();
     if (pickerEl) closePicker();
+    if (lastPickerCategory) {
+        pickerCategory = lastPickerCategory;
+        pickerGroup = lastPickerGroup;
+    }
 
     pickerEl = document.createElement("div");
     pickerEl.className = "sf-preset-picker-overlay";
@@ -267,6 +285,10 @@ function openGroupPicker() {
     const list = document.createElement("div");
     list.className = "sf-preset-picker-list";
     panel.appendChild(list);
+
+    const preview = document.createElement("div");
+    preview.className = "sf-preset-picker-preview";
+    panel.appendChild(preview);
 
     pickerEl.appendChild(panel);
     document.body.appendChild(pickerEl);

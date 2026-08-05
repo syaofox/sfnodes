@@ -154,6 +154,15 @@ check("存在扩展", mainExt !== undefined);
     const celebItems = list.children.filter((c) => c.textContent === "Taylor Swift" || c.textContent === "周杰伦");
     check("Celebrity 选项渲染", celebItems.length === 2);
 
+    // 选项 hover 显示 description 预览
+    const preview = panel.children[5];
+    check("预览条存在", preview.className.includes("sf-preset-picker-preview"));
+    const tsItem = celebItems.find((c) => c.textContent === "Taylor Swift");
+    tsItem.trigger("mouseenter");
+    check("hover 显示 description", preview.textContent === "American singer-songwriter");
+    tsItem.trigger("mouseleave");
+    check("mouseleave 清空预览", preview.textContent === "");
+
     // group 筛选：点"歌手"只显示歌手
     const singerChip = groupBar.children.find((c) => c.textContent === "歌手");
     singerChip.click();
@@ -228,6 +237,26 @@ check("存在扩展", mainExt !== undefined);
     randomChip4.click();
     check("全随机写入当前分类 widget", pose0.value === "随机");
     check("全随机后弹窗关闭", overlay4.removed === true);
+
+    // 弹窗记忆：上次 tab 为 Pose（关闭时已保存），重新打开应保持
+    const before5 = createdEls.length;
+    pickerCallback();
+    const overlay5 = createdEls.slice(before5).find((e) => e.className === "sf-preset-picker-overlay");
+    const panel5 = overlay5.children[0];
+    const tabs5 = panel5.children[1];
+    const activeTab5 = tabs5.children.find((c) => c.className.includes("active"));
+    check("弹窗记忆上次 tab", activeTab5.textContent === "单人动作");
+    // 组筛选记忆：Pose tab 下选 NSFW 后关闭，再开应保持 NSFW
+    const poseGroupBar5 = panel5.children[2];
+    poseGroupBar5.children.find((c) => c.textContent === "NSFW").click();
+    docHandlers.keydown({ key: "Escape" });
+    const before6 = createdEls.length;
+    pickerCallback();
+    const overlay6 = createdEls.slice(before6).find((e) => e.className === "sf-preset-picker-overlay");
+    const panel6 = overlay6.children[0];
+    const groupBar6 = panel6.children[2];
+    check("弹窗记忆 group 筛选", groupBar6.children.find((c) => c.textContent === "NSFW").className.includes("active"));
+    docHandlers.keydown({ key: "Escape" });
 
     console.log("\nFAILURES:", failures.length);
     process.exit(failures.length ? 1 : 0);
