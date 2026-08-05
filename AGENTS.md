@@ -36,7 +36,7 @@ sfnodes/
 │   ├── lora_notes.py     # LoRA 笔记/说明
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/描述悬浮卡片）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 └── doc/                 # 项目文档（vibecoding.md 开发流程等）
 ```
@@ -239,6 +239,17 @@ Object.defineProperty(app, 'dragOverNode', {
 - **输入/输出判空结构不同**：输入槽位 `.link`（断开为 null，旧版可能 -1）；输出槽位 `.links`（数组，断开为 null/[]）。公共库 `isSlotConnected` 两者兼容（含 `!== -1` 防御）。
 - **增删规则**：全部动态槽已连 → 追加下一个（注意空数组 `every()` 恒真，需 `length > 0` 防御）；断开时从尾部 reverse 遍历、遇已连槽即停（只回收尾部连续空槽），保底 initial 个。
 - **模拟测试经验**：`cp web/sf_dynamic_slots.js /tmp/xxx.mjs` 后 Node 直接跑（公共库无 DOM 依赖）；FakeNode 需实现 `addInput/removeInput/addOutput/removeOutput/computeSize/setSize`；**事件序列用槽位名定位索引**（动态增删后绝对索引会错位，这是测试脚本最常见的错误来源）；断开事件触发前先把 `link` 置 null。
+
+### 8. ComfyUI 新版 Vue 前端机制（做"悬停提示/DOM 交互"必知）
+
+> 背景：SFPromptPreset 预设说明展示两次翻车（2026-08）。先做 canvas mousemove + 固定 DOM 卡片 → 完全不生效；清除 `widget.tooltip` 抑制原生提示 → 依然显示。最终发现用户跑的是 ComfyUI 新版 Vue 前端（comfyui_frontend_package 1.47.10），旧 LiteGraph canvas 机制已废弃。最终方案：动态写入 `widget.tooltip`，见 `web/prompt_preset.js`。
+
+- **先确认前端版本再选方案**：ComfyUI 前端自 2025 年起从仓库 `web/` 目录改为独立 pip 包 `comfyui-frontend-package`（新版 Vue 重构）。判断方法：容器内 `pip show comfyui-frontend-package`（Version 1.x = Vue 前端）；**后端版本号 ≠ 前端版本号**；仓库源码副本（`../..`）无前端代码，需查 `Comfy-Org/ComfyUI_frontend` GitHub 仓库或容器内 pip 包 static 目录。
+- **Vue 前端下 canvas 事件/坐标方案全部失效**：widget 是 Vue 渲染的 DOM 元素（覆盖在 canvas 上方），`app.canvas` 的 mousemove 监听收不到悬停 widget 的事件（DOM 遮挡）；`node.pos + widget.pos/size` 几何命中同样失去意义。做"悬停 widget 显示信息"类功能**不要走 canvas 事件路线**。
+- **tooltip 是 PrimeVue v-tooltip 指令（DOM `.p-tooltip`），不是 canvas 绘制**：来源链 `createTooltipConfig(getWidgetTooltip(widget))`，`getWidgetTooltip` **优先读 `widget.tooltip`，其次 nodeDef 输入定义（后端 `/object_info` 的 tooltip）** → 仅清 `widget.tooltip`/`widget.options.tooltip` 无法抑制原生提示（nodeDef 兜底还在，JS 改不掉后端数据）。
+- **动态 tooltip 的正确姿势（通用做法）**：把"当前选中值对应的说明"直接写入 `widget.tooltip`（callback 里随值更新；工作流恢复场景在数据就绪后遍历全图节点同步一次）。新旧前端均优先显示 widget.tooltip：旧版 canvas 绘制 tooltip 读 widget.tooltip，新版 Vue 前端 processedWidgets 为 computed（值变化 → v-tooltip 指令更新）。**后端 INPUT_TYPES 的 `"tooltip"` 键只适合静态提示；逐选项动态说明必须 JS 写 `widget.tooltip` + 前端拉数据**。
+- **前端拿后端数据**：注册 `GET /api/sfnodes/...` 路由（server.PromptServer.instance.routes），前端 `api.fetchApi()` 拉取；路由在模块导入时注册，**改动后必须重启容器**，否则 404 且前端静默降级（表现为"功能不生效但无报错"）。
+- **模拟测试**：`new Function("app", "api", code)`（去 import 行）注入 mock app/api，Node 直接跑；断言 callback 链（互斥/说明同步）与 `widget.tooltip` 赋值，无需真实 DOM。
 
 ## Code Discovery
 
