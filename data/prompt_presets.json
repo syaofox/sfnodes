@@ -769,6 +769,3596 @@
         "refined"
       ],
       "weight": 1.0
+    },
+    "50 Cent": {
+      "name_zh": "50 Cent",
+      "prompt": "50 Cent, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Adam Driver": {
+      "name_zh": "Adam Driver",
+      "prompt": "Adam Driver, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Adam Sandler": {
+      "name_zh": "Adam Sandler",
+      "prompt": "Adam Sandler, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Al Pacino": {
+      "name_zh": "Al Pacino",
+      "prompt": "Al Pacino, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Alan Jackson": {
+      "name_zh": "Alan Jackson",
+      "prompt": "Alan Jackson, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Alan Rickman": {
+      "name_zh": "Alan Rickman",
+      "prompt": "Alan Rickman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Alessia Cara": {
+      "name_zh": "Alessia Cara",
+      "prompt": "Alessia Cara, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ali Shaheed Muhammad": {
+      "name_zh": "Ali Shaheed Muhammad",
+      "prompt": "Ali Shaheed Muhammad, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Amanda Seyfried": {
+      "name_zh": "Amanda Seyfried",
+      "prompt": "Amanda Seyfried, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Amy Poehler": {
+      "name_zh": "Amy Poehler",
+      "prompt": "Amy Poehler, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Amy Schumer": {
+      "name_zh": "Amy Schumer",
+      "prompt": "Amy Schumer, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Andre 3000": {
+      "name_zh": "Andre 3000",
+      "prompt": "Andre 3000, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Andrew Garfield": {
+      "name_zh": "Andrew Garfield",
+      "prompt": "Andrew Garfield, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Angela Bassett": {
+      "name_zh": "Angela Bassett",
+      "prompt": "Angela Bassett, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Anitta": {
+      "name_zh": "Anitta",
+      "prompt": "Anitta, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Anthony Hopkins": {
+      "name_zh": "Anthony Hopkins",
+      "prompt": "Anthony Hopkins, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Antonio Banderas": {
+      "name_zh": "Antonio Banderas",
+      "prompt": "Antonio Banderas, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Aretha Franklin": {
+      "name_zh": "Aretha Franklin",
+      "prompt": "Aretha Franklin, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Armando Iannucci": {
+      "name_zh": "Armando Iannucci",
+      "prompt": "Armando Iannucci, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Arnold Schwarzenegger": {
+      "name_zh": "Arnold Schwarzenegger",
+      "prompt": "Arnold Schwarzenegger, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Art Garfunkel": {
+      "name_zh": "Art Garfunkel",
+      "prompt": "Art Garfunkel, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Aziz Ansari": {
+      "name_zh": "Aziz Ansari",
+      "prompt": "Aziz Ansari, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bad Bunny": {
+      "name_zh": "Bad Bunny",
+      "prompt": "Bad Bunny, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Barry Keoghan": {
+      "name_zh": "Barry Keoghan",
+      "prompt": "Barry Keoghan, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bebe Rexha": {
+      "name_zh": "Bebe Rexha",
+      "prompt": "Bebe Rexha, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Becky G": {
+      "name_zh": "Becky G",
+      "prompt": "Becky G, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bela Lugosi": {
+      "name_zh": "Bela Lugosi",
+      "prompt": "Bela Lugosi, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ben Affleck": {
+      "name_zh": "Ben Affleck",
+      "prompt": "Ben Affleck, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ben Stiller": {
+      "name_zh": "Ben Stiller",
+      "prompt": "Ben Stiller, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Benedict Cumberbatch": {
+      "name_zh": "Benedict Cumberbatch",
+      "prompt": "Benedict Cumberbatch, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Big Boi": {
+      "name_zh": "Big Boi",
+      "prompt": "Big Boi, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Big Daddy Kane": {
+      "name_zh": "Big Daddy Kane",
+      "prompt": "Big Daddy Kane, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Billie Holiday": {
+      "name_zh": "Billie Holiday",
+      "prompt": "Billie Holiday, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bing Crosby": {
+      "name_zh": "Bing Crosby",
+      "prompt": "Bing Crosby, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Biz Markie": {
+      "name_zh": "Biz Markie",
+      "prompt": "Biz Markie, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Blake Shelton": {
+      "name_zh": "Blake Shelton",
+      "prompt": "Blake Shelton, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bo Burnham": {
+      "name_zh": "Bo Burnham",
+      "prompt": "Bo Burnham, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bob Dylan": {
+      "name_zh": "Bob Dylan",
+      "prompt": "Bob Dylan, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bob Marley": {
+      "name_zh": "Bob Marley",
+      "prompt": "Bob Marley, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bono": {
+      "name_zh": "Bono",
+      "prompt": "Bono, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Boris Karloff": {
+      "name_zh": "Boris Karloff",
+      "prompt": "Boris Karloff, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Brandi Carlile": {
+      "name_zh": "Brandi Carlile",
+      "prompt": "Brandi Carlile, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bret Hart": {
+      "name_zh": "Bret Hart",
+      "prompt": "Bret Hart, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bruce Springsteen": {
+      "name_zh": "Bruce Springsteen",
+      "prompt": "Bruce Springsteen, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bruce Willis": {
+      "name_zh": "Bruce Willis",
+      "prompt": "Bruce Willis, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Bruno Mars": {
+      "name_zh": "Bruno Mars",
+      "prompt": "Bruno Mars, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Cameron Diaz": {
+      "name_zh": "Cameron Diaz",
+      "prompt": "Cameron Diaz, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Cappadonna": {
+      "name_zh": "Cappadonna",
+      "prompt": "Cappadonna, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Cardi B": {
+      "name_zh": "Cardi B",
+      "prompt": "Cardi B, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Carmen Maura": {
+      "name_zh": "Carmen Maura",
+      "prompt": "Carmen Maura, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Carrie Underwood": {
+      "name_zh": "Carrie Underwood",
+      "prompt": "Carrie Underwood, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Cate Blanchett": {
+      "name_zh": "Cate Blanchett",
+      "prompt": "Cate Blanchett, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Charles Laughton": {
+      "name_zh": "Charles Laughton",
+      "prompt": "Charles Laughton, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Charli XCX": {
+      "name_zh": "Charli XCX",
+      "prompt": "Charli XCX, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Charlize Theron": {
+      "name_zh": "Charlize Theron",
+      "prompt": "Charlize Theron, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Chris Evans": {
+      "name_zh": "Chris Evans",
+      "prompt": "Chris Evans, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Chris Hemsworth": {
+      "name_zh": "Chris Hemsworth",
+      "prompt": "Chris Hemsworth, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Chris Morris": {
+      "name_zh": "Chris Morris",
+      "prompt": "Chris Morris, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Chris Pratt": {
+      "name_zh": "Chris Pratt",
+      "prompt": "Chris Pratt, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Chris Rock": {
+      "name_zh": "Chris Rock",
+      "prompt": "Chris Rock, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Christian Bale": {
+      "name_zh": "Christian Bale",
+      "prompt": "Christian Bale, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Christoph Waltz": {
+      "name_zh": "Christoph Waltz",
+      "prompt": "Christoph Waltz, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Christopher Eccleston": {
+      "name_zh": "Christopher Eccleston",
+      "prompt": "Christopher Eccleston, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Christopher Lee": {
+      "name_zh": "Christopher Lee",
+      "prompt": "Christopher Lee, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Cillian Murphy": {
+      "name_zh": "Cillian Murphy",
+      "prompt": "Cillian Murphy, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Claude Rains": {
+      "name_zh": "Claude Rains",
+      "prompt": "Claude Rains, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Clive Owen": {
+      "name_zh": "Clive Owen",
+      "prompt": "Clive Owen, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Colin Baker": {
+      "name_zh": "Colin Baker",
+      "prompt": "Colin Baker, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Colin Farrell": {
+      "name_zh": "Colin Farrell",
+      "prompt": "Colin Farrell, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Common": {
+      "name_zh": "Common",
+      "prompt": "Common, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dakota Fanning": {
+      "name_zh": "Dakota Fanning",
+      "prompt": "Dakota Fanning, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dakota Johnson": {
+      "name_zh": "Dakota Johnson",
+      "prompt": "Dakota Johnson, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Daniel Craig": {
+      "name_zh": "Daniel Craig",
+      "prompt": "Daniel Craig, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Daniel Kaluuya": {
+      "name_zh": "Daniel Kaluuya",
+      "prompt": "Daniel Kaluuya, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dave Bautista": {
+      "name_zh": "Dave Bautista",
+      "prompt": "Dave Bautista, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dave Chappelle": {
+      "name_zh": "Dave Chappelle",
+      "prompt": "Dave Chappelle, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dave Franco": {
+      "name_zh": "Dave Franco",
+      "prompt": "Dave Franco, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "David Bowie": {
+      "name_zh": "David Bowie",
+      "prompt": "David Bowie, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "David Mitchell": {
+      "name_zh": "David Mitchell",
+      "prompt": "David Mitchell, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "David Niven": {
+      "name_zh": "David Niven",
+      "prompt": "David Niven, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "David Tennant": {
+      "name_zh": "David Tennant",
+      "prompt": "David Tennant, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Daya": {
+      "name_zh": "Daya",
+      "prompt": "Daya, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dean Martin": {
+      "name_zh": "Dean Martin",
+      "prompt": "Dean Martin, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Demi Lovato": {
+      "name_zh": "Demi Lovato",
+      "prompt": "Demi Lovato, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Denzel Washington": {
+      "name_zh": "Denzel Washington",
+      "prompt": "Denzel Washington, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Diahan Carroll": {
+      "name_zh": "Diahan Carroll",
+      "prompt": "Diahan Carroll, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Diana Ross": {
+      "name_zh": "Diana Ross",
+      "prompt": "Diana Ross, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Doja Cat": {
+      "name_zh": "Doja Cat",
+      "prompt": "Doja Cat, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dolly Parton": {
+      "name_zh": "Dolly Parton",
+      "prompt": "Dolly Parton, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dr. Dre": {
+      "name_zh": "Dr. Dre",
+      "prompt": "Dr. Dre, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Drake": {
+      "name_zh": "Drake",
+      "prompt": "Drake, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Drew Barrymore": {
+      "name_zh": "Drew Barrymore",
+      "prompt": "Drew Barrymore, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dustin Hoffman": {
+      "name_zh": "Dustin Hoffman",
+      "prompt": "Dustin Hoffman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Dwayne Johnson": {
+      "name_zh": "Dwayne Johnson",
+      "prompt": "Dwayne Johnson, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ed Sheeran": {
+      "name_zh": "Ed Sheeran",
+      "prompt": "Ed Sheeran, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Eddie Murphy": {
+      "name_zh": "Eddie Murphy",
+      "prompt": "Eddie Murphy, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Eddie Redmayne": {
+      "name_zh": "Eddie Redmayne",
+      "prompt": "Eddie Redmayne, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ella Fitzgerald": {
+      "name_zh": "Ella Fitzgerald",
+      "prompt": "Ella Fitzgerald, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Elle Fanning": {
+      "name_zh": "Elle Fanning",
+      "prompt": "Elle Fanning, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ellie Goulding": {
+      "name_zh": "Ellie Goulding",
+      "prompt": "Ellie Goulding, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Elton John": {
+      "name_zh": "Elton John",
+      "prompt": "Elton John, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Elvis Presley": {
+      "name_zh": "Elvis Presley",
+      "prompt": "Elvis Presley, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Eminem": {
+      "name_zh": "Eminem",
+      "prompt": "Eminem, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Emma Roberts": {
+      "name_zh": "Emma Roberts",
+      "prompt": "Emma Roberts, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Eric B.": {
+      "name_zh": "Eric B.",
+      "prompt": "Eric B., the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Evangeline Lilly": {
+      "name_zh": "Evangeline Lilly",
+      "prompt": "Evangeline Lilly, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ewan McGregor": {
+      "name_zh": "Ewan McGregor",
+      "prompt": "Ewan McGregor, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Faith Hill": {
+      "name_zh": "Faith Hill",
+      "prompt": "Faith Hill, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Florence Pugh": {
+      "name_zh": "Florence Pugh",
+      "prompt": "Florence Pugh, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Frank Sinatra": {
+      "name_zh": "Frank Sinatra",
+      "prompt": "Frank Sinatra, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Freddie Mercury": {
+      "name_zh": "Freddie Mercury",
+      "prompt": "Freddie Mercury, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Future": {
+      "name_zh": "Future",
+      "prompt": "Future, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "GZA": {
+      "name_zh": "GZA",
+      "prompt": "GZA, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Gabrielle Union": {
+      "name_zh": "Gabrielle Union",
+      "prompt": "Gabrielle Union, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Garth Brooks": {
+      "name_zh": "Garth Brooks",
+      "prompt": "Garth Brooks, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Gary Oldman": {
+      "name_zh": "Gary Oldman",
+      "prompt": "Gary Oldman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Gene Hackman": {
+      "name_zh": "Gene Hackman",
+      "prompt": "Gene Hackman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "George Clooney": {
+      "name_zh": "George Clooney",
+      "prompt": "George Clooney, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "George Harrison": {
+      "name_zh": "George Harrison",
+      "prompt": "George Harrison, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "George Lazenby": {
+      "name_zh": "George Lazenby",
+      "prompt": "George Lazenby, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Gerard Butler": {
+      "name_zh": "Gerard Butler",
+      "prompt": "Gerard Butler, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ghostface Killah": {
+      "name_zh": "Ghostface Killah",
+      "prompt": "Ghostface Killah, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Halle Berry": {
+      "name_zh": "Halle Berry",
+      "prompt": "Halle Berry, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Halsey": {
+      "name_zh": "Halsey",
+      "prompt": "Halsey, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Harrison Ford": {
+      "name_zh": "Harrison Ford",
+      "prompt": "Harrison Ford, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Harry Belafonte": {
+      "name_zh": "Harry Belafonte",
+      "prompt": "Harry Belafonte, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Harry Styles": {
+      "name_zh": "Harry Styles",
+      "prompt": "Harry Styles, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Hasan Minhaj": {
+      "name_zh": "Hasan Minhaj",
+      "prompt": "Hasan Minhaj, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Heath Ledger": {
+      "name_zh": "Heath Ledger",
+      "prompt": "Heath Ledger, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Helena Bonham Carter": {
+      "name_zh": "Helena Bonham Carter",
+      "prompt": "Helena Bonham Carter, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Hugh Jackman": {
+      "name_zh": "Hugh Jackman",
+      "prompt": "Hugh Jackman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Hugh Laurie": {
+      "name_zh": "Hugh Laurie",
+      "prompt": "Hugh Laurie, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Hulk Hogan": {
+      "name_zh": "Hulk Hogan",
+      "prompt": "Hulk Hogan, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ice Cube": {
+      "name_zh": "Ice Cube",
+      "prompt": "Ice Cube, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Idris Elba": {
+      "name_zh": "Idris Elba",
+      "prompt": "Idris Elba, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Inspectah Deck": {
+      "name_zh": "Inspectah Deck",
+      "prompt": "Inspectah Deck, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "J Balvin": {
+      "name_zh": "J Balvin",
+      "prompt": "J Balvin, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "J. Cole": {
+      "name_zh": "J. Cole",
+      "prompt": "J. Cole, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jack Black": {
+      "name_zh": "Jack Black",
+      "prompt": "Jack Black, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jack Nicholson": {
+      "name_zh": "Jack Nicholson",
+      "prompt": "Jack Nicholson, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jake Gyllenhaal": {
+      "name_zh": "Jake Gyllenhaal",
+      "prompt": "Jake Gyllenhaal, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "James Corden": {
+      "name_zh": "James Corden",
+      "prompt": "James Corden, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "James Dean": {
+      "name_zh": "James Dean",
+      "prompt": "James Dean, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "James Franco": {
+      "name_zh": "James Franco",
+      "prompt": "James Franco, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "James McAvoy": {
+      "name_zh": "James McAvoy",
+      "prompt": "James McAvoy, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Janelle Monáe": {
+      "name_zh": "Janelle Monáe",
+      "prompt": "Janelle Monáe, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jarobi White": {
+      "name_zh": "Jarobi White",
+      "prompt": "Jarobi White, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jason Statham": {
+      "name_zh": "Jason Statham",
+      "prompt": "Jason Statham, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Javier Bardem": {
+      "name_zh": "Javier Bardem",
+      "prompt": "Javier Bardem, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jay-Z": {
+      "name_zh": "Jay-Z",
+      "prompt": "Jay-Z, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jennifer Garner": {
+      "name_zh": "Jennifer Garner",
+      "prompt": "Jennifer Garner, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jeremy Renner": {
+      "name_zh": "Jeremy Renner",
+      "prompt": "Jeremy Renner, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jesse Eisenberg": {
+      "name_zh": "Jesse Eisenberg",
+      "prompt": "Jesse Eisenberg, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jessica Chastain": {
+      "name_zh": "Jessica Chastain",
+      "prompt": "Jessica Chastain, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jessie Ware": {
+      "name_zh": "Jessie Ware",
+      "prompt": "Jessie Ware, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jim Carrey": {
+      "name_zh": "Jim Carrey",
+      "prompt": "Jim Carrey, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jimmy Buffett": {
+      "name_zh": "Jimmy Buffett",
+      "prompt": "Jimmy Buffett, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Joan Baez": {
+      "name_zh": "Joan Baez",
+      "prompt": "Joan Baez, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jodie Whittaker": {
+      "name_zh": "Jodie Whittaker",
+      "prompt": "Jodie Whittaker, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "John Boyega": {
+      "name_zh": "John Boyega",
+      "prompt": "John Boyega, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "John Cena": {
+      "name_zh": "John Cena",
+      "prompt": "John Cena, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "John Lennon": {
+      "name_zh": "John Lennon",
+      "prompt": "John Lennon, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "John Malkovich": {
+      "name_zh": "John Malkovich",
+      "prompt": "John Malkovich, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "John Mulaney": {
+      "name_zh": "John Mulaney",
+      "prompt": "John Mulaney, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Johnny Cash": {
+      "name_zh": "Johnny Cash",
+      "prompt": "Johnny Cash, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jon Pertwee": {
+      "name_zh": "Jon Pertwee",
+      "prompt": "Jon Pertwee, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jonah Hill": {
+      "name_zh": "Jonah Hill",
+      "prompt": "Jonah Hill, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jonathan Majors": {
+      "name_zh": "Jonathan Majors",
+      "prompt": "Jonathan Majors, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Joni Mitchell": {
+      "name_zh": "Joni Mitchell",
+      "prompt": "Joni Mitchell, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jordan Peele": {
+      "name_zh": "Jordan Peele",
+      "prompt": "Jordan Peele, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jorja Smith": {
+      "name_zh": "Jorja Smith",
+      "prompt": "Jorja Smith, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Jude Law": {
+      "name_zh": "Jude Law",
+      "prompt": "Jude Law, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Julia Roberts": {
+      "name_zh": "Julia Roberts",
+      "prompt": "Julia Roberts, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Justin Bieber": {
+      "name_zh": "Justin Bieber",
+      "prompt": "Justin Bieber, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Justin Timberlake": {
+      "name_zh": "Justin Timberlake",
+      "prompt": "Justin Timberlake, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "KRS-One": {
+      "name_zh": "KRS-One",
+      "prompt": "KRS-One, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kacey Musgraves": {
+      "name_zh": "Kacey Musgraves",
+      "prompt": "Kacey Musgraves, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kanye West": {
+      "name_zh": "Kanye West",
+      "prompt": "Kanye West, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Karol G": {
+      "name_zh": "Karol G",
+      "prompt": "Karol G, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kate McKinnon": {
+      "name_zh": "Kate McKinnon",
+      "prompt": "Kate McKinnon, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kate Winslet": {
+      "name_zh": "Kate Winslet",
+      "prompt": "Kate Winslet, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Keanu Reeves": {
+      "name_zh": "Keanu Reeves",
+      "prompt": "Keanu Reeves, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Keegan-Michael Key": {
+      "name_zh": "Keegan-Michael Key",
+      "prompt": "Keegan-Michael Key, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Keith Richards": {
+      "name_zh": "Keith Richards",
+      "prompt": "Keith Richards, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kelsea Ballerini": {
+      "name_zh": "Kelsea Ballerini",
+      "prompt": "Kelsea Ballerini, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kendrick Lamar": {
+      "name_zh": "Kendrick Lamar",
+      "prompt": "Kendrick Lamar, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kenny Rogers": {
+      "name_zh": "Kenny Rogers",
+      "prompt": "Kenny Rogers, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kevin Hart": {
+      "name_zh": "Kevin Hart",
+      "prompt": "Kevin Hart, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kirk Douglas": {
+      "name_zh": "Kirk Douglas",
+      "prompt": "Kirk Douglas, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kris Kristofferson": {
+      "name_zh": "Kris Kristofferson",
+      "prompt": "Kris Kristofferson, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kristen Stewart": {
+      "name_zh": "Kristen Stewart",
+      "prompt": "Kristen Stewart, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kristen Wiig": {
+      "name_zh": "Kristen Wiig",
+      "prompt": "Kristen Wiig, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Kumail Nanjiani": {
+      "name_zh": "Kumail Nanjiani",
+      "prompt": "Kumail Nanjiani, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lakeith Stanfield": {
+      "name_zh": "Lakeith Stanfield",
+      "prompt": "Lakeith Stanfield, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lana Del Rey": {
+      "name_zh": "Lana Del Rey",
+      "prompt": "Lana Del Rey, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lashana Lynch": {
+      "name_zh": "Lashana Lynch",
+      "prompt": "Lashana Lynch, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Laurence Olivier": {
+      "name_zh": "Laurence Olivier",
+      "prompt": "Laurence Olivier, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lena Horne": {
+      "name_zh": "Lena Horne",
+      "prompt": "Lena Horne, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Letitia Wright": {
+      "name_zh": "Letitia Wright",
+      "prompt": "Letitia Wright, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Liam Neeson": {
+      "name_zh": "Liam Neeson",
+      "prompt": "Liam Neeson, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lizzo": {
+      "name_zh": "Lizzo",
+      "prompt": "Lizzo, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lon Chaney Jr.": {
+      "name_zh": "Lon Chaney Jr.",
+      "prompt": "Lon Chaney Jr., the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lorde": {
+      "name_zh": "Lorde",
+      "prompt": "Lorde, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Louis Armstrong": {
+      "name_zh": "Louis Armstrong",
+      "prompt": "Louis Armstrong, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ludmilla": {
+      "name_zh": "Ludmilla",
+      "prompt": "Ludmilla, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Luke Bryan": {
+      "name_zh": "Luke Bryan",
+      "prompt": "Luke Bryan, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lupe Fiasco": {
+      "name_zh": "Lupe Fiasco",
+      "prompt": "Lupe Fiasco, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Lupita Nyong'o": {
+      "name_zh": "Lupita Nyong'o",
+      "prompt": "Lupita Nyong'o, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "MC Lyte": {
+      "name_zh": "MC Lyte",
+      "prompt": "MC Lyte, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "MF DOOM": {
+      "name_zh": "MF DOOM",
+      "prompt": "MF DOOM, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Mads Mikkelsen": {
+      "name_zh": "Mads Mikkelsen",
+      "prompt": "Mads Mikkelsen, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Mahershala Ali": {
+      "name_zh": "Mahershala Ali",
+      "prompt": "Mahershala Ali, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Maren Morris": {
+      "name_zh": "Maren Morris",
+      "prompt": "Maren Morris, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Margaret Qualley": {
+      "name_zh": "Margaret Qualley",
+      "prompt": "Margaret Qualley, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Mark Ruffalo": {
+      "name_zh": "Mark Ruffalo",
+      "prompt": "Mark Ruffalo, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Marlon Brando": {
+      "name_zh": "Marlon Brando",
+      "prompt": "Marlon Brando, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Masta Killa": {
+      "name_zh": "Masta Killa",
+      "prompt": "Masta Killa, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Matt Damon": {
+      "name_zh": "Matt Damon",
+      "prompt": "Matt Damon, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Matt Smith": {
+      "name_zh": "Matt Smith",
+      "prompt": "Matt Smith, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Maya Hawke": {
+      "name_zh": "Maya Hawke",
+      "prompt": "Maya Hawke, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Maya Rudolph": {
+      "name_zh": "Maya Rudolph",
+      "prompt": "Maya Rudolph, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Megan Thee Stallion": {
+      "name_zh": "Megan Thee Stallion",
+      "prompt": "Megan Thee Stallion, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Meghan Trainor": {
+      "name_zh": "Meghan Trainor",
+      "prompt": "Meghan Trainor, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Melissa McCarthy": {
+      "name_zh": "Melissa McCarthy",
+      "prompt": "Melissa McCarthy, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Merle Haggard": {
+      "name_zh": "Merle Haggard",
+      "prompt": "Merle Haggard, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Meryl Streep": {
+      "name_zh": "Meryl Streep",
+      "prompt": "Meryl Streep, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Method Man": {
+      "name_zh": "Method Man",
+      "prompt": "Method Man, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael B. Jordan": {
+      "name_zh": "Michael B. Jordan",
+      "prompt": "Michael B. Jordan, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael Caine": {
+      "name_zh": "Michael Caine",
+      "prompt": "Michael Caine, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael Cera": {
+      "name_zh": "Michael Cera",
+      "prompt": "Michael Cera, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael Douglas": {
+      "name_zh": "Michael Douglas",
+      "prompt": "Michael Douglas, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael Fassbender": {
+      "name_zh": "Michael Fassbender",
+      "prompt": "Michael Fassbender, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michael Jackson": {
+      "name_zh": "Michael Jackson",
+      "prompt": "Michael Jackson, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Michelle Pfeiffer": {
+      "name_zh": "Michelle Pfeiffer",
+      "prompt": "Michelle Pfeiffer, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Mick Jagger": {
+      "name_zh": "Mick Jagger",
+      "prompt": "Mick Jagger, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Missy Elliott": {
+      "name_zh": "Missy Elliott",
+      "prompt": "Missy Elliott, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Morgan Freeman": {
+      "name_zh": "Morgan Freeman",
+      "prompt": "Morgan Freeman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Mos Def": {
+      "name_zh": "Mos Def",
+      "prompt": "Mos Def, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Naomie Harris": {
+      "name_zh": "Naomie Harris",
+      "prompt": "Naomie Harris, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ncuti Gatwa": {
+      "name_zh": "Ncuti Gatwa",
+      "prompt": "Ncuti Gatwa, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Neil Young": {
+      "name_zh": "Neil Young",
+      "prompt": "Neil Young, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Nicki Minaj": {
+      "name_zh": "Nicki Minaj",
+      "prompt": "Nicki Minaj, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Nicole Kidman": {
+      "name_zh": "Nicole Kidman",
+      "prompt": "Nicole Kidman, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Nina Simone": {
+      "name_zh": "Nina Simone",
+      "prompt": "Nina Simone, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Octavia Spencer": {
+      "name_zh": "Octavia Spencer",
+      "prompt": "Octavia Spencer, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Oscar Isaac": {
+      "name_zh": "Oscar Isaac",
+      "prompt": "Oscar Isaac, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ossie Davis": {
+      "name_zh": "Ossie Davis",
+      "prompt": "Ossie Davis, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Owen Wilson": {
+      "name_zh": "Owen Wilson",
+      "prompt": "Owen Wilson, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Pabllo Vittar": {
+      "name_zh": "Pabllo Vittar",
+      "prompt": "Pabllo Vittar, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Patrick Troughton": {
+      "name_zh": "Patrick Troughton",
+      "prompt": "Patrick Troughton, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Patty Smith": {
+      "name_zh": "Patty Smith",
+      "prompt": "Patty Smith, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul McCartney": {
+      "name_zh": "Paul McCartney",
+      "prompt": "Paul McCartney, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul McGann": {
+      "name_zh": "Paul McGann",
+      "prompt": "Paul McGann, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul Mescal": {
+      "name_zh": "Paul Mescal",
+      "prompt": "Paul Mescal, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul Newman": {
+      "name_zh": "Paul Newman",
+      "prompt": "Paul Newman, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul Rudd": {
+      "name_zh": "Paul Rudd",
+      "prompt": "Paul Rudd, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Paul Simon": {
+      "name_zh": "Paul Simon",
+      "prompt": "Paul Simon, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Pedro Pascal": {
+      "name_zh": "Pedro Pascal",
+      "prompt": "Pedro Pascal, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Penélope Cruz": {
+      "name_zh": "Penélope Cruz",
+      "prompt": "Penélope Cruz, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Peter Capaldi": {
+      "name_zh": "Peter Capaldi",
+      "prompt": "Peter Capaldi, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Peter Cushing": {
+      "name_zh": "Peter Cushing",
+      "prompt": "Peter Cushing, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Peter Davison": {
+      "name_zh": "Peter Davison",
+      "prompt": "Peter Davison, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Peter Sellers": {
+      "name_zh": "Peter Sellers",
+      "prompt": "Peter Sellers, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Phife Dawg": {
+      "name_zh": "Phife Dawg",
+      "prompt": "Phife Dawg, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Pierce Brosnan": {
+      "name_zh": "Pierce Brosnan",
+      "prompt": "Pierce Brosnan, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Prince": {
+      "name_zh": "Prince",
+      "prompt": "Prince, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Q-Tip": {
+      "name_zh": "Q-Tip",
+      "prompt": "Q-Tip, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Queen Latifah": {
+      "name_zh": "Queen Latifah",
+      "prompt": "Queen Latifah, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "RZA": {
+      "name_zh": "RZA",
+      "prompt": "RZA, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rachel Platten": {
+      "name_zh": "Rachel Platten",
+      "prompt": "Rachel Platten, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Raekwon": {
+      "name_zh": "Raekwon",
+      "prompt": "Raekwon, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rakim": {
+      "name_zh": "Rakim",
+      "prompt": "Rakim, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ralph Fiennes": {
+      "name_zh": "Ralph Fiennes",
+      "prompt": "Ralph Fiennes, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rami Malek": {
+      "name_zh": "Rami Malek",
+      "prompt": "Rami Malek, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Reese Witherspoon": {
+      "name_zh": "Reese Witherspoon",
+      "prompt": "Reese Witherspoon, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Regina Hall": {
+      "name_zh": "Regina Hall",
+      "prompt": "Regina Hall, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Regina King": {
+      "name_zh": "Regina King",
+      "prompt": "Regina King, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rey Mysterio": {
+      "name_zh": "Rey Mysterio",
+      "prompt": "Rey Mysterio, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Richard E. Grant": {
+      "name_zh": "Richard E. Grant",
+      "prompt": "Richard E. Grant, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rina Sawayama": {
+      "name_zh": "Rina Sawayama",
+      "prompt": "Rina Sawayama, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ringo Starr": {
+      "name_zh": "Ringo Starr",
+      "prompt": "Ringo Starr, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rita Ora": {
+      "name_zh": "Rita Ora",
+      "prompt": "Rita Ora, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robert De Niro": {
+      "name_zh": "Robert De Niro",
+      "prompt": "Robert De Niro, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robert Downey Jr.": {
+      "name_zh": "Robert Downey Jr.",
+      "prompt": "Robert Downey Jr., the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robert Pattinson": {
+      "name_zh": "Robert Pattinson",
+      "prompt": "Robert Pattinson, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robert Redford": {
+      "name_zh": "Robert Redford",
+      "prompt": "Robert Redford, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robert Webb": {
+      "name_zh": "Robert Webb",
+      "prompt": "Robert Webb, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Robin Williams": {
+      "name_zh": "Robin Williams",
+      "prompt": "Robin Williams, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rod Stewart": {
+      "name_zh": "Rod Stewart",
+      "prompt": "Rod Stewart, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Roger Moore": {
+      "name_zh": "Roger Moore",
+      "prompt": "Roger Moore, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rosalía": {
+      "name_zh": "Rosalía",
+      "prompt": "Rosalía, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Rowan Atkinson": {
+      "name_zh": "Rowan Atkinson",
+      "prompt": "Rowan Atkinson, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ruby Dee": {
+      "name_zh": "Ruby Dee",
+      "prompt": "Ruby Dee, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ryan Gosling": {
+      "name_zh": "Ryan Gosling",
+      "prompt": "Ryan Gosling, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Ryan Reynolds": {
+      "name_zh": "Ryan Reynolds",
+      "prompt": "Ryan Reynolds, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "SZA": {
+      "name_zh": "SZA",
+      "prompt": "SZA, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sacha Baron Cohen": {
+      "name_zh": "Sacha Baron Cohen",
+      "prompt": "Sacha Baron Cohen, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Salma Hayek": {
+      "name_zh": "Salma Hayek",
+      "prompt": "Salma Hayek, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sammy Davis Jr.": {
+      "name_zh": "Sammy Davis Jr.",
+      "prompt": "Sammy Davis Jr., the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Samuel L. Jackson": {
+      "name_zh": "Samuel L. Jackson",
+      "prompt": "Samuel L. Jackson, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sandra Bullock": {
+      "name_zh": "Sandra Bullock",
+      "prompt": "Sandra Bullock, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Saoirse Ronan": {
+      "name_zh": "Saoirse Ronan",
+      "prompt": "Saoirse Ronan, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sean Connery": {
+      "name_zh": "Sean Connery",
+      "prompt": "Sean Connery, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sebastian Maniscalco": {
+      "name_zh": "Sebastian Maniscalco",
+      "prompt": "Sebastian Maniscalco, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Seth Rogen": {
+      "name_zh": "Seth Rogen",
+      "prompt": "Seth Rogen, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Shania Twain": {
+      "name_zh": "Shania Twain",
+      "prompt": "Shania Twain, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Shawn Mendes": {
+      "name_zh": "Shawn Mendes",
+      "prompt": "Shawn Mendes, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Shawn Michaels": {
+      "name_zh": "Shawn Michaels",
+      "prompt": "Shawn Michaels, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sidney Poitier": {
+      "name_zh": "Sidney Poitier",
+      "prompt": "Sidney Poitier, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Snoop Dogg": {
+      "name_zh": "Snoop Dogg",
+      "prompt": "Snoop Dogg, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Stephen Fry": {
+      "name_zh": "Stephen Fry",
+      "prompt": "Stephen Fry, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Steve Buscemi": {
+      "name_zh": "Steve Buscemi",
+      "prompt": "Steve Buscemi, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Steve Carell": {
+      "name_zh": "Steve Carell",
+      "prompt": "Steve Carell, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Steve Coogan": {
+      "name_zh": "Steve Coogan",
+      "prompt": "Steve Coogan, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sting": {
+      "name_zh": "Sting",
+      "prompt": "Sting, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Stone Cold Steve Austin": {
+      "name_zh": "Stone Cold Steve Austin",
+      "prompt": "Stone Cold Steve Austin, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Summer Walker": {
+      "name_zh": "Summer Walker",
+      "prompt": "Summer Walker, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sylvester McCoy": {
+      "name_zh": "Sylvester McCoy",
+      "prompt": "Sylvester McCoy, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Sylvester Stallone": {
+      "name_zh": "Sylvester Stallone",
+      "prompt": "Sylvester Stallone, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Talib Kweli": {
+      "name_zh": "Talib Kweli",
+      "prompt": "Talib Kweli, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Taraji P. Henson": {
+      "name_zh": "Taraji P. Henson",
+      "prompt": "Taraji P. Henson, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Taylor Lautner": {
+      "name_zh": "Taylor Lautner",
+      "prompt": "Taylor Lautner, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tessa Thompson": {
+      "name_zh": "Tessa Thompson",
+      "prompt": "Tessa Thompson, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Thandiwe Newton": {
+      "name_zh": "Thandiwe Newton",
+      "prompt": "Thandiwe Newton, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "The Undertaker": {
+      "name_zh": "The Undertaker",
+      "prompt": "The Undertaker, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tiffany Haddish": {
+      "name_zh": "Tiffany Haddish",
+      "prompt": "Tiffany Haddish, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tilda Swinton": {
+      "name_zh": "Tilda Swinton",
+      "prompt": "Tilda Swinton, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tim McGraw": {
+      "name_zh": "Tim McGraw",
+      "prompt": "Tim McGraw, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tim Roth": {
+      "name_zh": "Tim Roth",
+      "prompt": "Tim Roth, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Timothy Dalton": {
+      "name_zh": "Timothy Dalton",
+      "prompt": "Timothy Dalton, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Timothée Chalamet": {
+      "name_zh": "Timothée Chalamet",
+      "prompt": "Timothée Chalamet, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tina Fey": {
+      "name_zh": "Tina Fey",
+      "prompt": "Tina Fey, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tina Turner": {
+      "name_zh": "Tina Turner",
+      "prompt": "Tina Turner, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tobey Maguire": {
+      "name_zh": "Tobey Maguire",
+      "prompt": "Tobey Maguire, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Baker": {
+      "name_zh": "Tom Baker",
+      "prompt": "Tom Baker, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Hanks": {
+      "name_zh": "Tom Hanks",
+      "prompt": "Tom Hanks, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Hardy": {
+      "name_zh": "Tom Hardy",
+      "prompt": "Tom Hardy, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Hiddleston": {
+      "name_zh": "Tom Hiddleston",
+      "prompt": "Tom Hiddleston, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Holland": {
+      "name_zh": "Tom Holland",
+      "prompt": "Tom Holland, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tom Petty": {
+      "name_zh": "Tom Petty",
+      "prompt": "Tom Petty, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tony Bennett": {
+      "name_zh": "Tony Bennett",
+      "prompt": "Tony Bennett, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tove Lo": {
+      "name_zh": "Tove Lo",
+      "prompt": "Tove Lo, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Travis Scott": {
+      "name_zh": "Travis Scott",
+      "prompt": "Travis Scott, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Triple H": {
+      "name_zh": "Triple H",
+      "prompt": "Triple H, the famous wrestler, photorealistic portrait.",
+      "description": "Wrestler (community tested)",
+      "tags": [
+        "wrestler",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Tyler, The Creator": {
+      "name_zh": "Tyler, The Creator",
+      "prompt": "Tyler, The Creator, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "U-God": {
+      "name_zh": "U-God",
+      "prompt": "U-God, the famous rapper, photorealistic portrait.",
+      "description": "Rapper (community tested)",
+      "tags": [
+        "rapper",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Vin Diesel": {
+      "name_zh": "Vin Diesel",
+      "prompt": "Vin Diesel, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Vince Vaughn": {
+      "name_zh": "Vince Vaughn",
+      "prompt": "Vince Vaughn, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Vincent Price": {
+      "name_zh": "Vincent Price",
+      "prompt": "Vincent Price, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Viola Davis": {
+      "name_zh": "Viola Davis",
+      "prompt": "Viola Davis, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Waylon Jennings": {
+      "name_zh": "Waylon Jennings",
+      "prompt": "Waylon Jennings, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Whoopi Goldberg": {
+      "name_zh": "Whoopi Goldberg",
+      "prompt": "Whoopi Goldberg, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Will Ferrell": {
+      "name_zh": "Will Ferrell",
+      "prompt": "Will Ferrell, the famous comedian, photorealistic portrait.",
+      "description": "Comedian (community tested)",
+      "tags": [
+        "comedian",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Will Smith": {
+      "name_zh": "Will Smith",
+      "prompt": "Will Smith, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Willem Dafoe": {
+      "name_zh": "Willem Dafoe",
+      "prompt": "Willem Dafoe, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "William Hartnell": {
+      "name_zh": "William Hartnell",
+      "prompt": "William Hartnell, the famous actor, photorealistic portrait.",
+      "description": "Actor (community tested)",
+      "tags": [
+        "actor",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Willie Nelson": {
+      "name_zh": "Willie Nelson",
+      "prompt": "Willie Nelson, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Zara Larsson": {
+      "name_zh": "Zara Larsson",
+      "prompt": "Zara Larsson, the famous singer, photorealistic portrait.",
+      "description": "Singer (community tested)",
+      "tags": [
+        "singer",
+        "tested"
+      ],
+      "weight": 1.0
+    },
+    "Zoe Saldana": {
+      "name_zh": "Zoe Saldana",
+      "prompt": "Zoe Saldana, the famous actress, photorealistic portrait.",
+      "description": "Actress (community tested)",
+      "tags": [
+        "actress",
+        "tested"
+      ],
+      "weight": 1.0
     }
   },
   "Outfit": {

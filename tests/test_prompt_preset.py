@@ -81,6 +81,7 @@ check("celebrity 首项为 禁用", _celeb_opts[0] == "禁用")
 check("celebrity 次项为 随机", _celeb_opts[1] == "随机")
 check("celebrity 无英文 Disabled/Random", "Disabled" not in _celeb_opts and "Random" not in _celeb_opts)
 check("celebrity 含英文名选项", any(o.isascii() and o not in ("禁用", "随机") for o in _celeb_opts))
+check("celebrity 实测新增反查", "Tom Hanks" in _celeb_opts and "Denzel Washington" in _celeb_opts)
 check("celebrity 含中文名选项", any(not o.isascii() for o in _celeb_opts))
 check("celebrity 默认 禁用", opt["celebrity_preset"][1]["default"] == "禁用")
 for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset", "lighting_preset", "style_preset", "camera_angle_preset", "camera_distance_preset", "camera_lens_preset"):
@@ -91,7 +92,7 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     pure_ascii = [o for o in opts[2:] if o.isascii()]
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
-check("celebrity 70 项", len(opt["celebrity_preset"][0]) == 72)
+check("celebrity 429 项", len(opt["celebrity_preset"][0]) == 431)
 check("outfit 56 项", len(opt["outfit_preset"][0]) == 58)
 check("pose 50 项", len(opt["pose_preset"][0]) == 52)
 check("couple 32 项", len(opt["couple_preset"][0]) == 34)
@@ -258,7 +259,7 @@ seen_celeb = set()
 for s in range(300):
     r = node.execute("", seed=s, celebrity_preset="随机")
     seen_celeb.add(r[1])
-check(f"名人随机多样性 ({len(seen_celeb)}/70)", len(seen_celeb) > 25)
+check(f"名人随机多样性 ({len(seen_celeb)}/429)", len(seen_celeb) > 50)
 seen_pose = set()
 for s in range(200):
     r = node.execute("", seed=s, pose_preset="随机")
