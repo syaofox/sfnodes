@@ -178,6 +178,19 @@ function renderGroupBar() {
         });
         groupBar.appendChild(chip);
     };
+    // 全随机：当前分类整体随机（与"随机" combo 值一致）
+    const randomChip = document.createElement("div");
+    randomChip.className = "sf-preset-picker-group-chip";
+    randomChip.textContent = "🎲 全随机";
+    randomChip.addEventListener("click", () => {
+        const widget = widgetForCategory(pickerCategory);
+        if (!widget) return;
+        widget.value = "随机";
+        widget.callback?.();
+        app.graph?.setDirtyCanvas?.(true, true);
+        closePicker();
+    });
+    groupBar.appendChild(randomChip);
     addChip("全部", null);
     for (const g of groups) addChip(g, g);
 }

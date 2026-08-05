@@ -139,8 +139,9 @@ check("存在扩展", mainExt !== undefined);
 
     // group 筛选行（默认 Celebrity tab）
     const groupBar = panel.children[2];
-    check("group 筛选行渲染", groupBar.children.length === 3); // 全部/歌手/亚洲名人
-    check("默认选中全部", groupBar.children[0].className.includes("active"));
+    check("group 筛选行渲染", groupBar.children.length === 4); // 全随机/全部/歌手/亚洲名人
+    check("全随机 chip 存在", groupBar.children[0].textContent === "🎲 全随机");
+    check("默认选中全部", groupBar.children[1].className.includes("active"));
 
     // 默认 Celebrity tab：分组标题 + 选项
     const list = panel.children[4];
@@ -160,7 +161,7 @@ check("存在扩展", mainExt !== undefined);
     // 切换到 单人动作 tab → SFW/NSFW 分组 + group 筛选重置
     poseTab.click();
     const poseGroupBar = panel.children[2];
-    check("tab 切换 group 重置为全部", poseGroupBar.children[0].className.includes("active"));
+    check("tab 切换 group 重置为全部", poseGroupBar.children[1].className.includes("active"));
     const poseList = panel.children[4];
     const poseGroups = poseList.children.filter((c) => c.children?.[0]?.textContent === "SFW" || c.children?.[0]?.textContent === "NSFW");
     check("Pose SFW/NSFW 分组", poseGroups.length === 2);
@@ -206,6 +207,18 @@ check("存在扩展", mainExt !== undefined);
     nsfwTitle3.children[1].click();
     check("🎲 随机按钮写入组随机值", pose0.value === "随机·NSFW");
     check("🎲 后弹窗关闭", overlay3.removed === true);
+
+    // 全随机 chip：当前分类整体随机
+    const before4 = createdEls.length;
+    pickerCallback();
+    const overlay4 = createdEls.slice(before4).find((e) => e.className === "sf-preset-picker-overlay");
+    const panel4 = overlay4.children[0];
+    panel4.children[1].children.find((c) => c.textContent === "单人动作").click();
+    const randomChip4 = panel4.children[2].children[0];
+    check("全随机 chip 位于筛选行首", randomChip4.textContent === "🎲 全随机");
+    randomChip4.click();
+    check("全随机写入当前分类 widget", pose0.value === "随机");
+    check("全随机后弹窗关闭", overlay4.removed === true);
 
     console.log("\nFAILURES:", failures.length);
     process.exit(failures.length ? 1 : 0);
