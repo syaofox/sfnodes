@@ -60,6 +60,9 @@ const presetData = {
     Pose: {
         回眸: { description: "Looking back over the shoulder", group: "SFW" },
         裸卧张开腿: { description: "Nude lying pose", group: "NSFW" },
+        站立肖像: { description: "Standing portrait", group: "SFW" },
+        床上自慰: { description: "Masturbating", group: "NSFW" },
+        侧卧: { description: "Side lying", group: "SFW" },
     },
     Outfit: {
         旗袍: { description: "Form-fitting qipao dress", group: "SFW" },
@@ -164,7 +167,13 @@ check("存在扩展", mainExt !== undefined);
     check("tab 切换 group 重置为全部", poseGroupBar.children[1].className.includes("active"));
     const poseList = panel.children[4];
     const poseGroups = poseList.children.filter((c) => c.children?.[0]?.textContent === "SFW" || c.children?.[0]?.textContent === "NSFW");
-    check("Pose SFW/NSFW 分组", poseGroups.length === 2);
+    check("Pose SFW/NSFW 分组（交错数据仅 2 个标题）", poseGroups.length === 2);
+    const sfwTitleIdx = poseList.children.findIndex((c) => c.children?.[0]?.textContent === "SFW");
+    const nsfwTitleIdx = poseList.children.findIndex((c) => c.children?.[0]?.textContent === "NSFW");
+    const sfwBlock = poseList.children.slice(sfwTitleIdx + 1, nsfwTitleIdx).filter((c) => c.className.includes("sf-preset-picker-item"));
+    const nsfwBlock = poseList.children.slice(nsfwTitleIdx + 1).filter((c) => c.className.includes("sf-preset-picker-item"));
+    check("SFW 组内选项完整", sfwBlock.map((c) => c.textContent).join(",") === "回眸,站立肖像,侧卧");
+    check("NSFW 组内选项完整", nsfwBlock.map((c) => c.textContent).join(",") === "裸卧张开腿,床上自慰");
 
     // NSFW 筛选
     const nsfwChip = poseGroupBar.children.find((c) => c.textContent === "NSFW");

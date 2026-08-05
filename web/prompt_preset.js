@@ -116,36 +116,7 @@ function renderPickerList() {
         return;
     }
 
-    let currentGroup = null;
-    for (const [value, meta] of filtered) {
-        const group = meta?.group;
-        if (group !== currentGroup) {
-            currentGroup = group;
-            const title = document.createElement("div");
-            title.className = "sf-preset-picker-group";
-            title.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
-            const titleText = document.createElement("span");
-            titleText.textContent = group;
-            const dice = document.createElement("button");
-            dice.type = "button";
-            dice.textContent = "🎲 随机";
-            dice.style.cssText = [
-                "background:none", "border:none", "color:#9a9a9a", "cursor:pointer",
-                "font-size:11px", "padding:0 4px", "border-radius:3px",
-            ].join(";");
-            dice.addEventListener("mouseenter", () => { dice.style.color = "#fff"; });
-            dice.addEventListener("mouseleave", () => { dice.style.color = "#9a9a9a"; });
-            dice.addEventListener("click", () => {
-                if (!widget) return;
-                widget.value = "随机·" + group;
-                widget.callback?.();
-                app.graph?.setDirtyCanvas?.(true, true);
-                closePicker();
-            });
-            title.appendChild(titleText);
-            title.appendChild(dice);
-            listEl.appendChild(title);
-        }
+    const addItem = (value) => {
         const item = document.createElement("div");
         item.className = "sf-preset-picker-item" + (widget?.value === value ? " active" : "");
         item.textContent = value;
@@ -157,6 +128,44 @@ function renderPickerList() {
             closePicker();
         });
         listEl.appendChild(item);
+    };
+    const addGroupTitle = (group) => {
+        const title = document.createElement("div");
+        title.className = "sf-preset-picker-group";
+        title.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
+        const titleText = document.createElement("span");
+        titleText.textContent = group;
+        const dice = document.createElement("button");
+        dice.type = "button";
+        dice.textContent = "🎲 随机";
+        dice.style.cssText = [
+            "background:none", "border:none", "color:#9a9a9a", "cursor:pointer",
+            "font-size:11px", "padding:0 4px", "border-radius:3px",
+        ].join(";");
+        dice.addEventListener("mouseenter", () => { dice.style.color = "#fff"; });
+        dice.addEventListener("mouseleave", () => { dice.style.color = "#9a9a9a"; });
+        dice.addEventListener("click", () => {
+            if (!widget) return;
+            widget.value = "随机·" + group;
+            widget.callback?.();
+            app.graph?.setDirtyCanvas?.(true, true);
+            closePicker();
+        });
+        title.appendChild(titleText);
+        title.appendChild(dice);
+        listEl.appendChild(title);
+    };
+
+    // 按 group 稳定分组（组顺序 = 首次出现顺序，组内保持数据顺序），同组标题只渲染一次
+    const grouped = new Map();
+    for (const [value, meta] of filtered) {
+        const g = meta?.group ?? "";
+        if (!grouped.has(g)) grouped.set(g, []);
+        grouped.get(g).push(value);
+    }
+    for (const [group, values] of grouped) {
+        if (group) addGroupTitle(group);
+        for (const value of values) addItem(value);
     }
 }
 
