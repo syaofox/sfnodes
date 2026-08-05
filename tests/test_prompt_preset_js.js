@@ -137,24 +137,45 @@ check("存在扩展", mainExt !== undefined);
     const poseTab = tabs.children.find((c) => c.textContent === "单人动作");
     check("tab 内容正确", poseTab !== undefined);
 
+    // group 筛选行（默认 Celebrity tab）
+    const groupBar = panel.children[2];
+    check("group 筛选行渲染", groupBar.children.length === 3); // 全部/歌手/亚洲名人
+    check("默认选中全部", groupBar.children[0].className.includes("active"));
+
     // 默认 Celebrity tab：分组标题 + 选项
-    const list = panel.children[3];
+    const list = panel.children[4];
     const groups = list.children.filter((c) => c.textContent === "歌手" || c.textContent === "亚洲名人");
     check("Celebrity 分组标题渲染", groups.length === 2);
     const celebItems = list.children.filter((c) => c.textContent === "Taylor Swift" || c.textContent === "周杰伦");
     check("Celebrity 选项渲染", celebItems.length === 2);
 
-    // 切换到 单人动作 tab → SFW/NSFW 分组
+    // group 筛选：点"歌手"只显示歌手
+    const singerChip = groupBar.children.find((c) => c.textContent === "歌手");
+    singerChip.click();
+    const singerList = panel.children[4];
+    check("group 筛选只显示歌手", singerList.children.some((c) => c.textContent === "Taylor Swift")
+        && !singerList.children.some((c) => c.textContent === "周杰伦"));
+
+    // 切换到 单人动作 tab → SFW/NSFW 分组 + group 筛选重置
     poseTab.click();
-    const poseList = panel.children[3];
+    const poseGroupBar = panel.children[2];
+    check("tab 切换 group 重置为全部", poseGroupBar.children[0].className.includes("active"));
+    const poseList = panel.children[4];
     const poseGroups = poseList.children.filter((c) => c.textContent === "SFW" || c.textContent === "NSFW");
     check("Pose SFW/NSFW 分组", poseGroups.length === 2);
 
-    // 搜索过滤
-    const search = panel.children[2];
+    // NSFW 筛选
+    const nsfwChip = poseGroupBar.children.find((c) => c.textContent === "NSFW");
+    nsfwChip.click();
+    const nsfwList = panel.children[4];
+    check("NSFW 筛选只显示 NSFW", nsfwList.children.some((c) => c.textContent === "裸卧张开腿")
+        && !nsfwList.children.some((c) => c.textContent === "回眸"));
+
+    // 搜索过滤（在 NSFW 筛选基础上再搜索）
+    const search = panel.children[3];
     search.value = "裸卧";
     search.trigger("input");
-    const listAfterSearch = panel.children[3];
+    const listAfterSearch = panel.children[4];
     const nsfwOnly = listAfterSearch.children.filter((c) => c.textContent === "裸卧张开腿");
     check("搜索后目标选项保留", nsfwOnly.length === 1);
     check("搜索过滤掉无关选项", !listAfterSearch.children.some((c) => c.textContent === "回眸"));

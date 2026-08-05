@@ -44,6 +44,7 @@ function syncWidgetTooltip(w) {
 // ---------------- 分组选择器弹窗 ----------------
 let pickerEl = null;
 let pickerCategory = "Celebrity";
+let pickerGroup = null; // null = 全部
 let pickerSearch = "";
 let pickerStyleInjected = false;
 
@@ -57,6 +58,10 @@ const PICKER_CSS = `
 .sf-preset-picker-tab{padding:3px 10px;border-radius:4px;cursor:pointer;background:#2c2c2c;border:1px solid transparent;color:#bbb;}
 .sf-preset-picker-tab:hover{background:#3a3a3a;color:#fff;}
 .sf-preset-picker-tab.active{background:#3a5f8a;border-color:#4a7ab0;color:#fff;}
+.sf-preset-picker-groups{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px;}
+.sf-preset-picker-group-chip{padding:2px 10px;border-radius:10px;cursor:pointer;background:#2c2c2c;color:#bbb;font-size:11px;border:1px solid transparent;}
+.sf-preset-picker-group-chip:hover{background:#3a3a3a;color:#fff;}
+.sf-preset-picker-group-chip.active{background:#3a5f8a;border-color:#4a7ab0;color:#fff;}
 .sf-preset-picker-search{margin:8px 12px;padding:5px 8px;background:#2c2c2c;border:1px solid #555;border-radius:4px;color:#ddd;font-size:12px;box-sizing:border-box;width:calc(100% - 24px);}
 .sf-preset-picker-list{overflow-y:auto;padding:4px 8px 12px;min-height:200px;}
 .sf-preset-picker-group{position:sticky;top:0;background:#232323;padding:5px 8px 3px;font-size:11px;color:#9a9a9a;font-weight:600;border-bottom:1px solid #3a3a3a;margin-top:4px;}
@@ -87,6 +92,7 @@ function closePicker() {
         pickerEl.remove();
         pickerEl = null;
     }
+    pickerGroup = null;
     pickerSearch = "";
 }
 
@@ -96,9 +102,10 @@ function renderPickerList() {
     const widget = widgetForCategory(pickerCategory);
     const categoryData = presetData?.[pickerCategory] ?? {};
     const entries = Object.entries(categoryData);
-    const filtered = pickerSearch
-        ? entries.filter(([v]) => v.toLowerCase().includes(pickerSearch))
-        : entries;
+    const filtered = entries.filter(([v, meta]) =>
+        (!pickerGroup || meta?.group === pickerGroup) &&
+        (!pickerSearch || v.toLowerCase().includes(pickerSearch))
+    );
 
     listEl.replaceChildren();
     if (filtered.length === 0) {
@@ -131,6 +138,28 @@ function renderPickerList() {
         });
         listEl.appendChild(item);
     }
+}
+
+function renderGroupBar() {
+    if (!pickerEl) return;
+    const groupBar = pickerEl.querySelector(".sf-preset-picker-groups");
+    if (!groupBar) return;
+    const categoryData = presetData?.[pickerCategory] ?? {};
+    const groups = [...new Set(Object.values(categoryData).map((m) => m?.group).filter(Boolean))];
+    groupBar.replaceChildren();
+    const addChip = (label, value) => {
+        const chip = document.createElement("div");
+        chip.className = "sf-preset-picker-group-chip" + (pickerGroup === value ? " active" : "");
+        chip.textContent = label;
+        chip.addEventListener("click", () => {
+            pickerGroup = value;
+            renderGroupBar();
+            renderPickerList();
+        });
+        groupBar.appendChild(chip);
+    };
+    addChip("全部", null);
+    for (const g of groups) addChip(g, g);
 }
 
 function openGroupPicker() {
@@ -166,16 +195,22 @@ function openGroupPicker() {
         tab.textContent = label;
         tab.addEventListener("click", () => {
             pickerCategory = category;
+            pickerGroup = null;
             tabs.querySelectorAll(".sf-preset-picker-tab").forEach((t) => t.classList.remove("active"));
             tab.classList.add("active");
             const searchEl = pickerEl.querySelector(".sf-preset-picker-search");
             searchEl.value = "";
             pickerSearch = "";
+            renderGroupBar();
             renderPickerList();
         });
         tabs.appendChild(tab);
     }
     panel.appendChild(tabs);
+
+    const groupBar = document.createElement("div");
+    groupBar.className = "sf-preset-picker-groups";
+    panel.appendChild(groupBar);
 
     const search = document.createElement("input");
     search.className = "sf-preset-picker-search";
@@ -198,6 +233,7 @@ function openGroupPicker() {
         if (e.target === pickerEl) closePicker();
     });
 
+    renderGroupBar();
     renderPickerList();
     search.focus();
 }
