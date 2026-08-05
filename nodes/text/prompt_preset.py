@@ -12,7 +12,7 @@ _CATEGORY = "sfnodes/text"
 _DISABLED = "禁用"
 _RANDOM = "随机"
 
-_CATEGORY_KEYS = ("Outfit", "Pose", "Couple Pose", "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
+_CATEGORY_KEYS = ("Celebrity", "Outfit", "Pose", "Couple Pose", "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
 
 _presets = {}
 _presets_lock = threading.Lock()
@@ -82,6 +82,10 @@ class SFPromptPreset:
                 }),
             },
             "optional": {
+                "celebrity_preset": (_category_options("Celebrity"), {
+                    "default": _DISABLED,
+                    "tooltip": "名人预设（欧美显示英文名、亚洲显示中文名，输出保持英文提示词）",
+                }),
                 "outfit_preset": (_category_options("Outfit"), {
                     "default": _DISABLED,
                     "tooltip": "服装预设（下拉显示中文，输出保持英文提示词，含成人向内容）",
@@ -121,19 +125,19 @@ class SFPromptPreset:
             },
         }
 
-    RETURN_TYPES = (IO.STRING,) * 10
-    RETURN_NAMES = ("combined_prompt", "outfit_text", "pose_text", "couple_text", "environment_text", "lighting_text", "style_text", "camera_angle_text", "camera_distance_text", "camera_lens_text")
+    RETURN_TYPES = (IO.STRING,) * 11
+    RETURN_NAMES = ("combined_prompt", "celebrity_text", "outfit_text", "pose_text", "couple_text", "environment_text", "lighting_text", "style_text", "camera_angle_text", "camera_distance_text", "camera_lens_text")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "按服装、单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头九类预设组合提示词：下拉选项为中文，输出保持英文提示词；支持加权随机选择与 [选项A, 选项B] 括号随机"
+    DESCRIPTION = "按名人、服装、单人动作、双人动作、环境、灯光、风格、镜头角度、镜头距离、镜头十类预设组合提示词：下拉选项为中文（欧美名人显示英文名），输出保持英文提示词；支持加权随机选择与 [选项A, 选项B] 括号随机"
 
     @classmethod
     def IS_CHANGED(cls, seed, **kwargs):
         return seed
 
-    def execute(self, input_text, seed=0, outfit_preset=_DISABLED, pose_preset=_DISABLED,
-                couple_preset=_DISABLED, environment_preset=_DISABLED, lighting_preset=_DISABLED,
-                style_preset=_DISABLED, camera_angle_preset=_DISABLED,
+    def execute(self, input_text, seed=0, celebrity_preset=_DISABLED, outfit_preset=_DISABLED,
+                pose_preset=_DISABLED, couple_preset=_DISABLED, environment_preset=_DISABLED,
+                lighting_preset=_DISABLED, style_preset=_DISABLED, camera_angle_preset=_DISABLED,
                 camera_distance_preset=_DISABLED, camera_lens_preset=_DISABLED):
         seed = seed if seed is not None else 0
 
@@ -144,27 +148,32 @@ class SFPromptPreset:
         if input_text.strip():
             input_text = self._process_random_brackets(input_text, seed)
 
-        outfit_text = self._resolve_preset("Outfit", outfit_preset, seed + 1)
-        pose_text = self._resolve_preset("Pose", pose_preset, seed + 2)
-        couple_text = self._resolve_preset("Couple Pose", couple_preset, seed + 3)
-        env_text = self._resolve_preset("Environment", environment_preset, seed + 4)
-        light_text = self._resolve_preset("Lighting", lighting_preset, seed + 5)
-        style_text = self._resolve_preset("Style", style_preset, seed + 6)
-        angle_text = self._resolve_preset("Camera Angle", camera_angle_preset, seed + 7)
-        distance_text = self._resolve_preset("Camera Distance", camera_distance_preset, seed + 8)
-        camera_text = self._resolve_preset("Camera Lens", camera_lens_preset, seed + 9)
+        celebrity_text = self._resolve_preset("Celebrity", celebrity_preset, seed + 1)
+        outfit_text = self._resolve_preset("Outfit", outfit_preset, seed + 2)
+        pose_text = self._resolve_preset("Pose", pose_preset, seed + 3)
+        couple_text = self._resolve_preset("Couple Pose", couple_preset, seed + 4)
+        env_text = self._resolve_preset("Environment", environment_preset, seed + 5)
+        light_text = self._resolve_preset("Lighting", lighting_preset, seed + 6)
+        style_text = self._resolve_preset("Style", style_preset, seed + 7)
+        angle_text = self._resolve_preset("Camera Angle", camera_angle_preset, seed + 8)
+        distance_text = self._resolve_preset("Camera Distance", camera_distance_preset, seed + 9)
+        camera_text = self._resolve_preset("Camera Lens", camera_lens_preset, seed + 10)
 
         parts = [input_text.strip()] if input_text.strip() else []
         preset_parts = []
+        c_text = celebrity_text.strip().rstrip(".")
+        if c_text:
+            # 名人片段保持专有名词大小写（Taylor Swift）
+            preset_parts.append(c_text)
         for p in (outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text):
             p = p.strip().rstrip(".")
             if p:
-                # 片段首字母小写化，与 Krea2 官方小写短语流风格一致（input_text 保持原样）
+                # 其余片段首字母小写化，与 Krea2 官方小写短语流风格一致（input_text 保持原样）
                 preset_parts.append(p[0].lower() + p[1:])
         parts.extend(preset_parts)
         combined = self._clean_prompt(", ".join(parts))
 
-        return (combined, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
+        return (combined, celebrity_text, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
 
     def _resolve_preset(self, category, selection, seed):
         """获取预设英文提示词；仅支持中文名 / 随机 / 禁用。"""

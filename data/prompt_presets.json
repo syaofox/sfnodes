@@ -1,4 +1,776 @@
 {
+  "Celebrity": {
+    "Taylor Swift": {
+      "name_zh": "Taylor Swift",
+      "prompt": "Taylor Swift, the world-famous American singer-songwriter, blonde hair, blue eyes, slim figure, elegant stage presence, photorealistic portrait.",
+      "description": "American singer-songwriter",
+      "tags": [
+        "singer",
+        "american",
+        "blonde"
+      ],
+      "weight": 1.0
+    },
+    "Beyoncé": {
+      "name_zh": "Beyoncé",
+      "prompt": "Beyoncé, the world-famous American singer, long golden-blonde hair, warm brown skin, glamorous stage look, confident powerful presence, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Ariana Grande": {
+      "name_zh": "Ariana Grande",
+      "prompt": "Ariana Grande, the famous American singer, long dark hair tied in a high ponytail, fair skin, big brown eyes, cute pop star look, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "ponytail"
+      ],
+      "weight": 1.0
+    },
+    "Rihanna": {
+      "name_zh": "Rihanna",
+      "prompt": "Rihanna, the world-famous Barbadian singer and businesswoman, long dark hair, warm brown skin, glamorous edgy style, confident presence, photorealistic portrait.",
+      "description": "Barbadian singer",
+      "tags": [
+        "singer",
+        "barbadian",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Lady Gaga": {
+      "name_zh": "Lady Gaga",
+      "prompt": "Lady Gaga, the famous American singer and actress, blonde hair, fair skin, bold dramatic fashion style, striking expressive look, photorealistic portrait.",
+      "description": "American singer and actress",
+      "tags": [
+        "singer",
+        "american",
+        "bold style"
+      ],
+      "weight": 1.0
+    },
+    "Adele": {
+      "name_zh": "Adele",
+      "prompt": "Adele, the famous British singer, shoulder-length blonde hair, fair skin, brown eyes, soft elegant look, powerful soulful presence, photorealistic portrait.",
+      "description": "British singer",
+      "tags": [
+        "singer",
+        "british",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Miley Cyrus": {
+      "name_zh": "Miley Cyrus",
+      "prompt": "Miley Cyrus, the famous American singer, long blonde hair, fair skin, tanned glow, free-spirited rockstar look, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "blonde"
+      ],
+      "weight": 1.0
+    },
+    "Dua Lipa": {
+      "name_zh": "Dua Lipa",
+      "prompt": "Dua Lipa, the famous British singer, long dark brown hair, warm skin, stylish fashion look, confident pop star presence, photorealistic portrait.",
+      "description": "British singer",
+      "tags": [
+        "singer",
+        "british",
+        "stylish"
+      ],
+      "weight": 1.0
+    },
+    "Billie Eilish": {
+      "name_zh": "Billie Eilish",
+      "prompt": "Billie Eilish, the famous American singer, long black hair often dyed, pale skin, oversized streetwear style, unique youthful look, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "streetwear"
+      ],
+      "weight": 1.0
+    },
+    "Selena Gomez": {
+      "name_zh": "Selena Gomez",
+      "prompt": "Selena Gomez, the famous American singer and actress, long dark brown hair, warm skin, cute glamorous look, photorealistic portrait.",
+      "description": "American singer and actress",
+      "tags": [
+        "singer",
+        "american",
+        "cute"
+      ],
+      "weight": 1.0
+    },
+    "Shakira": {
+      "name_zh": "Shakira",
+      "prompt": "Shakira, the world-famous Colombian singer, long golden-blonde wavy hair, warm skin, expressive dance presence, glamorous Latina look, photorealistic portrait.",
+      "description": "Colombian singer",
+      "tags": [
+        "singer",
+        "colombian",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Britney Spears": {
+      "name_zh": "Britney Spears",
+      "prompt": "Britney Spears, the famous American singer, long blonde hair, fair skin, iconic pop star look, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "pop icon"
+      ],
+      "weight": 1.0
+    },
+    "Madonna": {
+      "name_zh": "Madonna",
+      "prompt": "Madonna, the world-famous American singer, blonde hair, fair skin, legendary pop icon presence, glamorous look, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "legend"
+      ],
+      "weight": 1.0
+    },
+    "Katy Perry": {
+      "name_zh": "Katy Perry",
+      "prompt": "Katy Perry, the famous American singer, long dark hair, big blue eyes, playful colorful pop star style, photorealistic portrait.",
+      "description": "American singer",
+      "tags": [
+        "singer",
+        "american",
+        "playful"
+      ],
+      "weight": 1.0
+    },
+    "Jennifer Lopez": {
+      "name_zh": "Jennifer Lopez",
+      "prompt": "Jennifer Lopez, the world-famous American singer and actress, long brown hair, warm skin, glamorous Latina beauty, confident presence, photorealistic portrait.",
+      "description": "American singer and actress",
+      "tags": [
+        "singer",
+        "american",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Scarlett Johansson": {
+      "name_zh": "Scarlett Johansson",
+      "prompt": "Scarlett Johansson, the famous American actress, wavy blonde hair, fair skin, green eyes, classic Hollywood beauty, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "blonde"
+      ],
+      "weight": 1.0
+    },
+    "Emma Watson": {
+      "name_zh": "Emma Watson",
+      "prompt": "Emma Watson, the famous British actress, shoulder-length brown hair, fair skin, elegant intelligent look, photorealistic portrait.",
+      "description": "British actress",
+      "tags": [
+        "actress",
+        "british",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Jennifer Aniston": {
+      "name_zh": "Jennifer Aniston",
+      "prompt": "Jennifer Aniston, the famous American actress, long straight brown hair, fair skin, radiant classic beauty, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "classic"
+      ],
+      "weight": 1.0
+    },
+    "Angelina Jolie": {
+      "name_zh": "Angelina Jolie",
+      "prompt": "Angelina Jolie, the world-famous American actress, long dark hair, fair skin, full lips, striking elegant features, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "striking"
+      ],
+      "weight": 1.0
+    },
+    "Natalie Portman": {
+      "name_zh": "Natalie Portman",
+      "prompt": "Natalie Portman, the famous American actress, dark brown hair, fair skin, delicate elegant features, refined look, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "delicate"
+      ],
+      "weight": 1.0
+    },
+    "Margot Robbie": {
+      "name_zh": "Margot Robbie",
+      "prompt": "Margot Robbie, the famous Australian actress, long blonde hair, fair skin, blue eyes, fresh glamorous beauty, photorealistic portrait.",
+      "description": "Australian actress",
+      "tags": [
+        "actress",
+        "australian",
+        "blonde"
+      ],
+      "weight": 1.0
+    },
+    "Emma Stone": {
+      "name_zh": "Emma Stone",
+      "prompt": "Emma Stone, the famous American actress, red hair, fair skin with freckles, green eyes, charming expressive look, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "red hair"
+      ],
+      "weight": 1.0
+    },
+    "Anne Hathaway": {
+      "name_zh": "Anne Hathaway",
+      "prompt": "Anne Hathaway, the famous American actress, long dark brown hair, fair skin, big brown eyes, elegant warm look, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Zendaya": {
+      "name_zh": "Zendaya",
+      "prompt": "Zendaya, the famous American actress and singer, long dark hair, warm brown skin, stylish elegant look, confident presence, photorealistic portrait.",
+      "description": "American actress and singer",
+      "tags": [
+        "actress",
+        "american",
+        "stylish"
+      ],
+      "weight": 1.0
+    },
+    "Ana de Armas": {
+      "name_zh": "Ana de Armas",
+      "prompt": "Ana de Armas, the famous Cuban actress, long wavy brown hair, fair skin, classic elegant beauty, photorealistic portrait.",
+      "description": "Cuban actress",
+      "tags": [
+        "actress",
+        "cuban",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Jennifer Lawrence": {
+      "name_zh": "Jennifer Lawrence",
+      "prompt": "Jennifer Lawrence, the famous American actress, long blonde hair, fair skin, blue eyes, friendly natural beauty, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "natural"
+      ],
+      "weight": 1.0
+    },
+    "Gal Gadot": {
+      "name_zh": "Gal Gadot",
+      "prompt": "Gal Gadot, the famous Israeli actress, long dark brown hair, fair skin, striking elegant features, photorealistic portrait.",
+      "description": "Israeli actress",
+      "tags": [
+        "actress",
+        "israeli",
+        "striking"
+      ],
+      "weight": 1.0
+    },
+    "Anya Taylor-Joy": {
+      "name_zh": "Anya Taylor-Joy",
+      "prompt": "Anya Taylor-Joy, the famous British-Argentine actress, platinum blonde hair, fair skin, large expressive eyes, ethereal striking look, photorealistic portrait.",
+      "description": "British-Argentine actress",
+      "tags": [
+        "actress",
+        "ethereal",
+        "blonde"
+      ],
+      "weight": 1.0
+    },
+    "Sydney Sweeney": {
+      "name_zh": "Sydney Sweeney",
+      "prompt": "Sydney Sweeney, the famous American actress, long blonde hair, blue eyes, fresh young beauty, photorealistic portrait.",
+      "description": "American actress",
+      "tags": [
+        "actress",
+        "american",
+        "young"
+      ],
+      "weight": 1.0
+    },
+    "Tom Cruise": {
+      "name_zh": "Tom Cruise",
+      "prompt": "Tom Cruise, the world-famous American actor, brown hair, blue eyes, charismatic smile, action hero presence, photorealistic portrait.",
+      "description": "American actor",
+      "tags": [
+        "actor",
+        "american",
+        "charismatic"
+      ],
+      "weight": 1.0
+    },
+    "Leonardo DiCaprio": {
+      "name_zh": "Leonardo DiCaprio",
+      "prompt": "Leonardo DiCaprio, the world-famous American actor, blonde-brown hair, blue eyes, rugged handsome features, photorealistic portrait.",
+      "description": "American actor",
+      "tags": [
+        "actor",
+        "american",
+        "handsome"
+      ],
+      "weight": 1.0
+    },
+    "Brad Pitt": {
+      "name_zh": "Brad Pitt",
+      "prompt": "Brad Pitt, the world-famous American actor, short blonde hair, blue eyes, classic Hollywood handsome look, photorealistic portrait.",
+      "description": "American actor",
+      "tags": [
+        "actor",
+        "american",
+        "hollywood"
+      ],
+      "weight": 1.0
+    },
+    "Johnny Depp": {
+      "name_zh": "Johnny Depp",
+      "prompt": "Johnny Depp, the famous American actor, dark hair, pale skin, distinctive edgy features, mysterious charisma, photorealistic portrait.",
+      "description": "American actor",
+      "tags": [
+        "actor",
+        "american",
+        "edgy"
+      ],
+      "weight": 1.0
+    },
+    "Kendall Jenner": {
+      "name_zh": "Kendall Jenner",
+      "prompt": "Kendall Jenner, the famous American supermodel, long dark brown hair, tall slim figure, high-fashion look, photorealistic portrait.",
+      "description": "American supermodel",
+      "tags": [
+        "model",
+        "american",
+        "high fashion"
+      ],
+      "weight": 1.0
+    },
+    "Gigi Hadid": {
+      "name_zh": "Gigi Hadid",
+      "prompt": "Gigi Hadid, the famous American supermodel, long blonde hair, blue eyes, fresh glamorous look, photorealistic portrait.",
+      "description": "American supermodel",
+      "tags": [
+        "model",
+        "american",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Bella Hadid": {
+      "name_zh": "Bella Hadid",
+      "prompt": "Bella Hadid, the famous American supermodel, long dark brown hair, sharp elegant features, high-fashion look, photorealistic portrait.",
+      "description": "American supermodel",
+      "tags": [
+        "model",
+        "american",
+        "high fashion"
+      ],
+      "weight": 1.0
+    },
+    "Cara Delevingne": {
+      "name_zh": "Cara Delevingne",
+      "prompt": "Cara Delevingne, the famous British model and actress, long blonde hair, thick eyebrows, distinctive features, edgy look, photorealistic portrait.",
+      "description": "British model and actress",
+      "tags": [
+        "model",
+        "british",
+        "distinctive"
+      ],
+      "weight": 1.0
+    },
+    "Adriana Lima": {
+      "name_zh": "Adriana Lima",
+      "prompt": "Adriana Lima, the famous Brazilian supermodel, long dark brown hair, warm skin, blue eyes, classic glamorous beauty, photorealistic portrait.",
+      "description": "Brazilian supermodel",
+      "tags": [
+        "model",
+        "brazilian",
+        "classic"
+      ],
+      "weight": 1.0
+    },
+    "Naomi Campbell": {
+      "name_zh": "Naomi Campbell",
+      "prompt": "Naomi Campbell, the famous British supermodel, long dark hair, warm brown skin, legendary runway presence, photorealistic portrait.",
+      "description": "British supermodel",
+      "tags": [
+        "model",
+        "british",
+        "legendary"
+      ],
+      "weight": 1.0
+    },
+    "Emily Ratajkowski": {
+      "name_zh": "Emily Ratajkowski",
+      "prompt": "Emily Ratajkowski, the famous American model and actress, long dark brown hair, fair skin, glamorous look, photorealistic portrait.",
+      "description": "American model and actress",
+      "tags": [
+        "model",
+        "american",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Kim Kardashian": {
+      "name_zh": "Kim Kardashian",
+      "prompt": "Kim Kardashian, the famous American media personality, long dark hair, warm skin, glamorous curvy look, photorealistic portrait.",
+      "description": "American media personality",
+      "tags": [
+        "celebrity",
+        "american",
+        "glamorous"
+      ],
+      "weight": 1.0
+    },
+    "Cristiano Ronaldo": {
+      "name_zh": "Cristiano Ronaldo",
+      "prompt": "Cristiano Ronaldo, the world-famous Portuguese footballer, athletic muscular build, short dark hair, confident smile, photorealistic portrait.",
+      "description": "Portuguese footballer",
+      "tags": [
+        "athlete",
+        "portuguese",
+        "football"
+      ],
+      "weight": 1.0
+    },
+    "Lionel Messi": {
+      "name_zh": "Lionel Messi",
+      "prompt": "Lionel Messi, the world-famous Argentine footballer, short dark hair and beard, small athletic build, iconic soccer legend look, photorealistic portrait.",
+      "description": "Argentine footballer",
+      "tags": [
+        "athlete",
+        "argentine",
+        "football"
+      ],
+      "weight": 1.0
+    },
+    "Kylian Mbappé": {
+      "name_zh": "Kylian Mbappé",
+      "prompt": "Kylian Mbappé, the famous French footballer, short dark hair, young athletic look, confident smile, photorealistic portrait.",
+      "description": "French footballer",
+      "tags": [
+        "athlete",
+        "french",
+        "football"
+      ],
+      "weight": 1.0
+    },
+    "LeBron James": {
+      "name_zh": "LeBron James",
+      "prompt": "LeBron James, the world-famous American basketball player, tall athletic build, shaved head, warm brown skin, powerful presence, photorealistic portrait.",
+      "description": "American basketball player",
+      "tags": [
+        "athlete",
+        "american",
+        "basketball"
+      ],
+      "weight": 1.0
+    },
+    "Michael Jordan": {
+      "name_zh": "Michael Jordan",
+      "prompt": "Michael Jordan, the world-famous American basketball legend, shaved head, warm brown skin, iconic athletic presence, photorealistic portrait.",
+      "description": "American basketball legend",
+      "tags": [
+        "athlete",
+        "american",
+        "basketball"
+      ],
+      "weight": 1.0
+    },
+    "Serena Williams": {
+      "name_zh": "Serena Williams",
+      "prompt": "Serena Williams, the world-famous American tennis player, dark brown hair, warm brown skin, athletic muscular build, powerful confident presence, photorealistic portrait.",
+      "description": "American tennis player",
+      "tags": [
+        "athlete",
+        "american",
+        "tennis"
+      ],
+      "weight": 1.0
+    },
+    "Roger Federer": {
+      "name_zh": "Roger Federer",
+      "prompt": "Roger Federer, the famous Swiss tennis player, short brown hair, elegant classic look, gentlemanly presence, photorealistic portrait.",
+      "description": "Swiss tennis player",
+      "tags": [
+        "athlete",
+        "swiss",
+        "tennis"
+      ],
+      "weight": 1.0
+    },
+    "Jay Chou": {
+      "name_zh": "周杰伦",
+      "prompt": "Jay Chou, the famous Taiwanese singer and actor, short dark hair, single-lidded eyes, gentle smile, iconic Mandopop star look, photorealistic portrait.",
+      "description": "Taiwanese singer and actor",
+      "tags": [
+        "singer",
+        "taiwanese",
+        "mandopop"
+      ],
+      "weight": 1.0
+    },
+    "Faye Wong": {
+      "name_zh": "王菲",
+      "prompt": "Faye Wong, the famous Chinese singer and actress, straight dark hair, delicate features, cool elegant presence, photorealistic portrait.",
+      "description": "Chinese singer and actress",
+      "tags": [
+        "singer",
+        "chinese",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Liu Yifei": {
+      "name_zh": "刘亦菲",
+      "prompt": "Liu Yifei, the famous Chinese actress, long black hair, fair skin, elegant classical beauty, ethereal graceful look, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "classical"
+      ],
+      "weight": 1.0
+    },
+    "Yang Mi": {
+      "name_zh": "杨幂",
+      "prompt": "Yang Mi, the famous Chinese actress, long dark hair, fair skin, big expressive eyes, trendy stylish look, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "stylish"
+      ],
+      "weight": 1.0
+    },
+    "Dilraba": {
+      "name_zh": "迪丽热巴",
+      "prompt": "Dilraba, the famous Chinese actress, long dark hair, fair skin, large deep eyes, striking exotic beauty, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "striking"
+      ],
+      "weight": 1.0
+    },
+    "Zhao Liying": {
+      "name_zh": "赵丽颖",
+      "prompt": "Zhao Liying, the famous Chinese actress, long dark hair, fair skin, round gentle face, cute sweet look, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "sweet"
+      ],
+      "weight": 1.0
+    },
+    "Zhang Ziyi": {
+      "name_zh": "章子怡",
+      "prompt": "Zhang Ziyi, the famous Chinese actress, long black hair, fair skin, elegant classical beauty, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "classical"
+      ],
+      "weight": 1.0
+    },
+    "Gong Li": {
+      "name_zh": "巩俐",
+      "prompt": "Gong Li, the famous Chinese actress, long dark hair, warm skin, distinctive elegant features, commanding presence, photorealistic portrait.",
+      "description": "Chinese actress",
+      "tags": [
+        "actress",
+        "chinese",
+        "distinctive"
+      ],
+      "weight": 1.0
+    },
+    "Song Hye-kyo": {
+      "name_zh": "宋慧乔",
+      "prompt": "Song Hye-kyo, the famous South Korean actress, shoulder-length dark hair, fair skin, soft gentle beauty, photorealistic portrait.",
+      "description": "South Korean actress",
+      "tags": [
+        "actress",
+        "korean",
+        "gentle"
+      ],
+      "weight": 1.0
+    },
+    "Jun Ji-hyun": {
+      "name_zh": "全智贤",
+      "prompt": "Jun Ji-hyun, the famous South Korean actress, long dark hair, fair skin, elegant striking beauty, photorealistic portrait.",
+      "description": "South Korean actress",
+      "tags": [
+        "actress",
+        "korean",
+        "striking"
+      ],
+      "weight": 1.0
+    },
+    "Suzy Bae": {
+      "name_zh": "裴秀智",
+      "prompt": "Suzy Bae, the famous South Korean singer and actress, long dark brown hair, fair skin, fresh girl-next-door beauty, photorealistic portrait.",
+      "description": "South Korean singer and actress",
+      "tags": [
+        "singer",
+        "korean",
+        "fresh"
+      ],
+      "weight": 1.0
+    },
+    "IU": {
+      "name_zh": "李知恩",
+      "prompt": "IU, the famous South Korean singer and actress, long dark hair, fair skin, delicate cute features, sweet innocent look, photorealistic portrait.",
+      "description": "South Korean singer and actress",
+      "tags": [
+        "singer",
+        "korean",
+        "sweet"
+      ],
+      "weight": 1.0
+    },
+    "Jennie Kim": {
+      "name_zh": "金珍妮",
+      "prompt": "Jennie Kim, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, chic fashionable look, confident presence, photorealistic portrait.",
+      "description": "South Korean singer (BLACKPINK)",
+      "tags": [
+        "singer",
+        "korean",
+        "blackpink"
+      ],
+      "weight": 1.0
+    },
+    "Lisa": {
+      "name_zh": "丽莎",
+      "prompt": "Lisa, the famous Thai singer of BLACKPINK, long black hair, warm skin, sharp expressive eyes, trendy idol look, photorealistic portrait.",
+      "description": "Thai singer (BLACKPINK)",
+      "tags": [
+        "singer",
+        "thai",
+        "blackpink"
+      ],
+      "weight": 1.0
+    },
+    "Jisoo": {
+      "name_zh": "金智秀",
+      "prompt": "Jisoo, the famous South Korean singer of BLACKPINK, long dark hair, fair skin, elegant classic beauty, photorealistic portrait.",
+      "description": "South Korean singer (BLACKPINK)",
+      "tags": [
+        "singer",
+        "korean",
+        "blackpink"
+      ],
+      "weight": 1.0
+    },
+    "Rosé": {
+      "name_zh": "朴彩英",
+      "prompt": "Rosé, the famous Korean-New Zealand singer of BLACKPINK, long blonde hair, fair skin, delicate stylish look, photorealistic portrait.",
+      "description": "Korean-New Zealand singer (BLACKPINK)",
+      "tags": [
+        "singer",
+        "korean",
+        "blackpink"
+      ],
+      "weight": 1.0
+    },
+    "Yui Aragaki": {
+      "name_zh": "新垣结衣",
+      "prompt": "Yui Aragaki, the famous Japanese actress and singer, shoulder-length brown hair, bright smile, fresh natural beauty, photorealistic portrait.",
+      "description": "Japanese actress and singer",
+      "tags": [
+        "actress",
+        "japanese",
+        "fresh"
+      ],
+      "weight": 1.0
+    },
+    "Kanna Hashimoto": {
+      "name_zh": "桥本环奈",
+      "prompt": "Kanna Hashimoto, the famous Japanese actress, long dark brown hair, big bright eyes, cute idol-like look, photorealistic portrait.",
+      "description": "Japanese actress",
+      "tags": [
+        "actress",
+        "japanese",
+        "cute"
+      ],
+      "weight": 1.0
+    },
+    "Satomi Ishihara": {
+      "name_zh": "石原里美",
+      "prompt": "Satomi Ishihara, the famous Japanese actress, long dark hair, fair skin, bright charming smile, photorealistic portrait.",
+      "description": "Japanese actress",
+      "tags": [
+        "actress",
+        "japanese",
+        "charming"
+      ],
+      "weight": 1.0
+    },
+    "Ayumi Hamasaki": {
+      "name_zh": "滨崎步",
+      "prompt": "Ayumi Hamasaki, the famous Japanese singer, long light brown hair, fair skin, iconic J-pop diva look, photorealistic portrait.",
+      "description": "Japanese singer",
+      "tags": [
+        "singer",
+        "japanese",
+        "diva"
+      ],
+      "weight": 1.0
+    },
+    "Nozomi Sasaki": {
+      "name_zh": "佐佐木希",
+      "prompt": "Nozomi Sasaki, the famous Japanese model and actress, long dark hair, fair skin, classic beautiful features, photorealistic portrait.",
+      "description": "Japanese model and actress",
+      "tags": [
+        "model",
+        "japanese",
+        "classic"
+      ],
+      "weight": 1.0
+    },
+    "Keiko Kitagawa": {
+      "name_zh": "北川景子",
+      "prompt": "Keiko Kitagawa, the famous Japanese actress, long dark hair, fair skin, elegant refined beauty, photorealistic portrait.",
+      "description": "Japanese actress",
+      "tags": [
+        "actress",
+        "japanese",
+        "refined"
+      ],
+      "weight": 1.0
+    }
+  },
   "Outfit": {
     "Floral Sundress": {
       "name_zh": "碎花连衣裙",
