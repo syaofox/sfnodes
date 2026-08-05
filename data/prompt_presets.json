@@ -4790,6 +4790,470 @@
       "group": "女演员"
     }
   },
+  "Expression": {
+    "Bright Smile": {
+      "name_zh": "灿烂微笑",
+      "prompt": "with a bright genuine smile, eyes slightly crinkled, cheerful happy expression, radiating warmth.",
+      "description": "Bright genuine smile",
+      "tags": [
+        "smile",
+        "happy",
+        "cheerful"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Gentle Smile": {
+      "name_zh": "温柔微笑",
+      "prompt": "with a gentle soft smile, calm warm expression, tender serene mood.",
+      "description": "Gentle warm smile",
+      "tags": [
+        "smile",
+        "gentle",
+        "serene"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Laughing": {
+      "name_zh": "开怀大笑",
+      "prompt": "laughing openly with a wide smile, eyes nearly closed in joy, cheerful delighted expression.",
+      "description": "Open joyful laughter",
+      "tags": [
+        "laughing",
+        "joyful",
+        "wide smile"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Grinning": {
+      "name_zh": "咧嘴笑",
+      "prompt": "with a wide grin showing teeth, playful cheerful expression, bright eyes.",
+      "description": "Wide toothy grin",
+      "tags": [
+        "grin",
+        "playful",
+        "cheerful"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Eyes Smiling": {
+      "name_zh": "眯眼笑",
+      "prompt": "smiling with eyes curved into happy crescents, warm joyful expression.",
+      "description": "Happy crescent-eye smile",
+      "tags": [
+        "smiling eyes",
+        "joyful",
+        "warm"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Smile with Tongue": {
+      "name_zh": "吐舌笑",
+      "prompt": "with a playful smile and tongue poking out, cheeky cute expression.",
+      "description": "Playful tongue-out smile",
+      "tags": [
+        "tongue out",
+        "playful",
+        "cute"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Hand Covering Laugh": {
+      "name_zh": "捂嘴笑",
+      "prompt": "giggling with one hand covering the mouth, amused playful expression, eyes sparkling.",
+      "description": "Giggling hand-covered laugh",
+      "tags": [
+        "giggling",
+        "hand over mouth",
+        "amused"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Content Smile": {
+      "name_zh": "满足微笑",
+      "prompt": "with a peaceful content smile, relaxed satisfied expression, soft serene mood.",
+      "description": "Peaceful content smile",
+      "tags": [
+        "content",
+        "peaceful",
+        "relaxed"
+      ],
+      "weight": 1.0,
+      "group": "开心微笑"
+    },
+    "Seductive Gaze": {
+      "name_zh": "诱惑凝视",
+      "prompt": "with a seductive gaze, half-lidded eyes looking up at the viewer, alluring tempting expression.",
+      "description": "Alluring seductive gaze",
+      "tags": [
+        "seductive",
+        "half-lidded",
+        "alluring"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Wink": {
+      "name_zh": "眨眼放电",
+      "prompt": "winking one eye with a playful smile, teasing flirtatious expression.",
+      "description": "Playful winking flirt",
+      "tags": [
+        "wink",
+        "flirtatious",
+        "playful"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Biting Lip": {
+      "name_zh": "咬唇",
+      "prompt": "biting the lower lip gently, suggestive enticing expression, half-lidded eyes.",
+      "description": "Suggestive lip-biting",
+      "tags": [
+        "biting lip",
+        "suggestive",
+        "enticing"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Licking Lips": {
+      "name_zh": "舔唇",
+      "prompt": "licking the lips slowly with a seductive gaze, provocative tempting expression.",
+      "description": "Provocative lip-licking",
+      "tags": [
+        "licking lips",
+        "seductive",
+        "provocative"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Playful Smirk": {
+      "name_zh": "俏皮坏笑",
+      "prompt": "with a playful smirk, one eyebrow raised, teasing confident expression.",
+      "description": "Playful confident smirk",
+      "tags": [
+        "smirk",
+        "teasing",
+        "confident"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Flirty Gaze": {
+      "name_zh": "勾人眼神",
+      "prompt": "with a flirty gaze, eyes tilted up at the viewer, charming inviting expression.",
+      "description": "Charming flirty gaze",
+      "tags": [
+        "flirty",
+        "charming",
+        "inviting"
+      ],
+      "weight": 1.0,
+      "group": "诱惑挑逗"
+    },
+    "Ahegao": {
+      "name_zh": "高潮脸",
+      "prompt": "ahegao face, eyes rolled back, tongue sticking out, flushed cheeks, ecstatic lewd expression.",
+      "description": "Ecstatic ahegao lewd face",
+      "tags": [
+        "ahegao",
+        "lewd",
+        "ecstatic",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Yearning Aroused": {
+      "name_zh": "欲求不满",
+      "prompt": "with a yearning aroused expression, half-lidded hazy eyes, parted lips, flushed cheeks, longing desire.",
+      "description": "Yearning aroused expression",
+      "tags": [
+        "aroused",
+        "yearning",
+        "flushed",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Moaning Face": {
+      "name_zh": "娇喘表情",
+      "prompt": "with a moaning expression, mouth slightly open, eyes half closed, flushed cheeks, pleasure-filled face.",
+      "description": "Pleasure-filled moaning face",
+      "tags": [
+        "moaning",
+        "pleasure",
+        "flushed",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Flushed Ecstasy": {
+      "name_zh": "潮红迷离",
+      "prompt": "with a deeply flushed face, eyes glazed in ecstasy, mouth open in pleasure, blissful aroused expression.",
+      "description": "Blissful ecstatic flushed face",
+      "tags": [
+        "ecstasy",
+        "blissful",
+        "glazed eyes",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Teary Seduction": {
+      "name_zh": "含泪诱惑",
+      "prompt": "with teary seductive eyes, glossy wet gaze, pleading tempting expression, lips parted.",
+      "description": "Teary seductive gaze",
+      "tags": [
+        "teary",
+        "seductive",
+        "pleading",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Tongue Out Lewd": {
+      "name_zh": "吐舌色气",
+      "prompt": "with the tongue out in a lewd pose, licking the lips, half-lidded teasing eyes, shameless flirtatious expression.",
+      "description": "Lewd tongue-out tease",
+      "tags": [
+        "tongue out",
+        "lewd",
+        "teasing",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "色气娇媚"
+    },
+    "Crying": {
+      "name_zh": "哭泣",
+      "prompt": "with tears streaming down the cheeks, crying expression, reddened eyes, sorrowful face.",
+      "description": "Tearful crying face",
+      "tags": [
+        "crying",
+        "tears",
+        "sorrowful"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Teary Eyes": {
+      "name_zh": "泪眼朦胧",
+      "prompt": "with teary eyes welling up, glistening wet gaze, emotional fragile expression, lips trembling.",
+      "description": "Welled-up teary eyes",
+      "tags": [
+        "teary eyes",
+        "emotional",
+        "fragile"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Angry": {
+      "name_zh": "生气",
+      "prompt": "with an angry expression, furrowed brows, glaring eyes, tense jaw, irritated face.",
+      "description": "Angry furrowed-brow face",
+      "tags": [
+        "angry",
+        "furrowed brows",
+        "glaring"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Surprised": {
+      "name_zh": "惊讶",
+      "prompt": "with a surprised expression, wide eyes, raised eyebrows, open mouth, astonished face.",
+      "description": "Wide-eyed surprised face",
+      "tags": [
+        "surprised",
+        "wide eyes",
+        "astonished"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Shocked": {
+      "name_zh": "震惊",
+      "prompt": "with a shocked expression, eyes wide in disbelief, dropped jaw, stunned face.",
+      "description": "Stunned shocked face",
+      "tags": [
+        "shocked",
+        "disbelief",
+        "stunned"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Sad": {
+      "name_zh": "难过",
+      "prompt": "with a sad expression, downturned mouth, drooping eyes, melancholy face, subdued mood.",
+      "description": "Melancholy sad face",
+      "tags": [
+        "sad",
+        "melancholy",
+        "downturned mouth"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Worried": {
+      "name_zh": "担忧",
+      "prompt": "with a worried expression, knitted brows, anxious eyes, concerned face, tense mood.",
+      "description": "Anxious worried face",
+      "tags": [
+        "worried",
+        "anxious",
+        "knitted brows"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Scared": {
+      "name_zh": "恐惧",
+      "prompt": "with a scared expression, wide fearful eyes, pale face, trembling lips, frightened look.",
+      "description": "Frightened scared face",
+      "tags": [
+        "scared",
+        "fearful",
+        "frightened"
+      ],
+      "weight": 1.0,
+      "group": "情绪波动"
+    },
+    "Aloof": {
+      "name_zh": "冷漠",
+      "prompt": "with an aloof expression, cool distant eyes, composed face, detached calm mood.",
+      "description": "Cool aloof expression",
+      "tags": [
+        "aloof",
+        "distant",
+        "detached"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Arrogant": {
+      "name_zh": "高傲",
+      "prompt": "with an arrogant expression, chin slightly raised, condescending gaze, proud face.",
+      "description": "Proud arrogant expression",
+      "tags": [
+        "arrogant",
+        "condescending",
+        "proud"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Contemptuous": {
+      "name_zh": "轻蔑",
+      "prompt": "with a contemptuous expression, sneering slight smile, dismissive gaze, disdainful face.",
+      "description": "Disdainful contemptuous face",
+      "tags": [
+        "contemptuous",
+        "sneering",
+        "disdainful"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Smirking": {
+      "name_zh": "坏笑",
+      "prompt": "with a sly smirk, knowing half smile, amused smug expression, one eyebrow raised.",
+      "description": "Sly knowing smirk",
+      "tags": [
+        "smirk",
+        "sly",
+        "smug"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Unimpressed": {
+      "name_zh": "无语",
+      "prompt": "with an unimpressed expression, flat stare, straight mouth, bored deadpan face.",
+      "description": "Deadpan unimpressed face",
+      "tags": [
+        "unimpressed",
+        "deadpan",
+        "bored"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Dismissive": {
+      "name_zh": "不屑",
+      "prompt": "with a dismissive expression, eyes looking away, slight frown, unbothered face.",
+      "description": "Unbothered dismissive face",
+      "tags": [
+        "dismissive",
+        "unbothered",
+        "frown"
+      ],
+      "weight": 1.0,
+      "group": "高冷淡漠"
+    },
+    "Blushing": {
+      "name_zh": "脸红",
+      "prompt": "with a deep blush on the cheeks, shy downward gaze, flustered cute expression.",
+      "description": "Deep-blush shy face",
+      "tags": [
+        "blushing",
+        "shy",
+        "flustered"
+      ],
+      "weight": 1.0,
+      "group": "害羞脸红"
+    },
+    "Shy Smile": {
+      "name_zh": "害羞微笑",
+      "prompt": "with a shy smile, looking away slightly, rosy cheeks, bashful endearing expression.",
+      "description": "Bashful shy smile",
+      "tags": [
+        "shy",
+        "bashful",
+        "rosy cheeks"
+      ],
+      "weight": 1.0,
+      "group": "害羞脸红"
+    },
+    "Shy Gaze": {
+      "name_zh": "羞涩目光",
+      "prompt": "with a shy gaze, eyes glancing up timidly, light blush, hesitant cute expression.",
+      "description": "Timid shy upward gaze",
+      "tags": [
+        "shy gaze",
+        "timid",
+        "hesitant"
+      ],
+      "weight": 1.0,
+      "group": "害羞脸红"
+    },
+    "Flustered": {
+      "name_zh": "慌乱脸红",
+      "prompt": "with a flustered expression, flushed cheeks, wide flustered eyes, embarrassed mood.",
+      "description": "Embarrassed flustered face",
+      "tags": [
+        "flustered",
+        "embarrassed",
+        "flushed"
+      ],
+      "weight": 1.0,
+      "group": "害羞脸红"
+    }
+  },
   "Outfit": {
     "Floral Sundress": {
       "name_zh": "碎花连衣裙",

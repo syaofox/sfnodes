@@ -4,7 +4,7 @@
 
 ## 功能一览
 
-- **组合拼接**：`input_text → 名人 → 服装 → 单人动作 → 双人动作 → 环境 → 灯光 → 风格 → 镜头角度 → 镜头距离 → 镜头`
+- **组合拼接**：`input_text → 名人 → 表情 → 服装 → 单人动作 → 双人动作 → 环境 → 灯光 → 风格 → 镜头角度 → 镜头距离 → 镜头`
 - **随机机制**：全分类随机（`随机`）/ 组内随机（`随机·组名`，如 `随机·NSFW`）/ `[选项A, 选项B]` 括号随机；同 seed 结果可复现（`IS_CHANGED` 随 seed 重跑）
 - **pose/couple 互斥**：单人/双人动作同时启用时保留 pose（前端联动 + 后端兜底）
 - **分组选择器弹窗**（节点上"☰ 预设"按钮）：
@@ -22,29 +22,31 @@
 | `seed` | 随机种子（0 ~ 2^64-1） |
 | 10 个 combo | 各分类选择：`禁用` / `随机` / `随机·组名` / 具体预设 |
 
-输出 11 个 STRING（索引）：
+输出 12 个 STRING（索引）：
 
 | 索引 | 输出 | 说明 |
 |---|---|---|
 | 0 | `combined_prompt` | 全部分类拼接（预设片段首字母小写化，与 Krea2 官方短语流一致） |
 | 1 | `celebrity_text` | 名人描述（名字+职业+外观特征，不强制风格） |
-| 2 | `outfit_text` | 服装 |
-| 3 | `pose_text` | 单人动作 |
-| 4 | `couple_text` | 双人动作 |
-| 5 | `environment_text` | 环境 |
-| 6 | `lighting_text` | 灯光 |
-| 7 | `style_text` | 风格 |
-| 8 | `camera_angle_text` | 镜头角度 |
-| 9 | `camera_distance_text` | 镜头距离 |
-| 10 | `camera_lens_text` | 镜头 |
+| 2 | `expression_text` | 表情（开心/诱惑/色气/情绪/冷淡/害羞） |
+| 3 | `outfit_text` | 服装 |
+| 4 | `pose_text` | 单人动作 |
+| 5 | `couple_text` | 双人动作 |
+| 6 | `environment_text` | 环境 |
+| 7 | `lighting_text` | 灯光 |
+| 8 | `style_text` | 风格 |
+| 9 | `camera_angle_text` | 镜头角度 |
+| 10 | `camera_distance_text` | 镜头距离 |
+| 11 | `camera_lens_text` | 镜头 |
 
-随机 seed 偏移：名人 `seed+1`、服装 `+2`、单人 `+3`、双人 `+4`、环境 `+5`、灯光 `+6`、风格 `+7`、角度 `+8`、距离 `+9`、镜头 `+10`。
+随机 seed 偏移：名人 `seed+1`、表情 `+2`、服装 `+3`、单人 `+4`、双人 `+5`、环境 `+6`、灯光 `+7`、风格 `+8`、角度 `+9`、距离 `+10`、镜头 `+11`。
 
 ## 分组体系（53 组）
 
 | 分类 | 分组 |
 |---|---|
 | 名人（429） | 歌手/女演员/男演员/说唱歌手/喜剧演员/摔角手/模特/运动员/亚洲名人/其他 |
+| 表情（38） | 开心微笑/诱惑挑逗/色气娇媚/情绪波动/高冷淡漠/害羞脸红 |
 | 服装（71） | SFW / NSFW |
 | 单人动作（71） | SFW / NSFW |
 | 双人动作（32） | SFW / NSFW |
@@ -105,6 +107,6 @@
 ## 测试
 
 ```bash
-python3 tests/test_prompt_preset.py   # 后端 195 项断言（mock 环境，无需 ComfyUI）
-node tests/test_prompt_preset_js.js   # 前端 41 项断言（Node 直接运行）
+python3 tests/test_prompt_preset.py   # 后端 203 项断言（mock 环境，无需 ComfyUI）
+node tests/test_prompt_preset_js.js   # 前端 42 项断言（Node 直接运行）
 ```

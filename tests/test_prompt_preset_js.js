@@ -136,7 +136,8 @@ check("存在扩展", mainExt !== undefined);
     check("面板已创建", panel !== undefined);
 
     const tabs = panel.children[1];
-    check("10 个分类 tab", tabs.children.length === 10);
+    check("11 个分类 tab", tabs.children.length === 11);
+    check("表情 tab 存在", tabs.children.some((c) => c.textContent === "表情"));
     const poseTab = tabs.children.find((c) => c.textContent === "单人动作");
     check("tab 内容正确", poseTab !== undefined);
 

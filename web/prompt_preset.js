@@ -5,6 +5,7 @@ const DISABLED = "禁用";
 
 const WIDGET_CATEGORY = {
     celebrity_preset: "Celebrity",
+    expression_preset: "Expression",
     outfit_preset: "Outfit",
     pose_preset: "Pose",
     couple_preset: "Couple Pose",
@@ -19,6 +20,7 @@ const WIDGET_CATEGORY = {
 // 分类 tab 顺序（与后端 _CATEGORY_KEYS 一致）
 const CATEGORY_TABS = [
     ["Celebrity", "名人"],
+    ["Expression", "表情"],
     ["Outfit", "服装"],
     ["Pose", "单人动作"],
     ["Couple Pose", "双人动作"],

@@ -74,8 +74,8 @@ def check(name, cond):
 # 1. combo options are Chinese
 it = mod.SFPromptPreset.INPUT_TYPES()
 opt = it["optional"]
-check("输入顺序 celebrity/outfit/pose", list(opt)[:3] == ["celebrity_preset", "outfit_preset", "pose_preset"])
-check("角度/距离/镜头顺序", list(opt)[7:10] == ["camera_angle_preset", "camera_distance_preset", "camera_lens_preset"])
+check("输入顺序 celebrity/expression/outfit", list(opt)[:3] == ["celebrity_preset", "expression_preset", "outfit_preset"])
+check("角度/距离/镜头顺序", list(opt)[8:11] == ["camera_angle_preset", "camera_distance_preset", "camera_lens_preset"])
 _celeb_opts = opt["celebrity_preset"][0]
 check("celebrity 首项为 禁用", _celeb_opts[0] == "禁用")
 check("celebrity 次项为 随机", _celeb_opts[1] == "随机")
@@ -93,6 +93,7 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
 check("celebrity 439 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
+check("expression 44 项(含6组随机)", len(opt["expression_preset"][0]) == 46)
 check("outfit 73 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
 check("pose 79 项(含2组随机)", len(opt["pose_preset"][0]) == 81)
 check("couple 50 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
@@ -112,7 +113,7 @@ check("分类键无 Apex 前缀", all(not k.startswith("Apex") for k in mod._CAT
 node = mod.SFPromptPreset()
 
 # 2. specific zh selection -> english prompt (non-empty, no Chinese in output)
-combined, celebrity, outfit, pose, couple, env, light, style, angle, dist, cam = node.execute(
+combined, celebrity, _, outfit, pose, couple, env, light, style, angle, dist, cam = node.execute(
     "test subject", seed=42,
     celebrity_preset="周杰伦",
     outfit_preset="旗袍",
@@ -131,7 +132,7 @@ check("服装中文反查命中", "qipao" in outfit)
 check("名人中文反查命中", "jay chou" in celebrity.lower() and "taiwanese" in celebrity.lower())
 check("名人片段保持专名大小写", "Jay Chou" in combined)
 
-_, _, _, pose_only, _, env_only, _, _, _, _, _ = node.execute(
+_, _, _, _, pose_only, _, env_only, _, _, _, _, _ = node.execute(
     "test subject", seed=42, pose_preset="回眸", environment_preset="现代地铁车厢")
 check("姿势中文反查命中", "looking back over the shoulder" in pose_only)
 check("角度中文反查命中", "low-angle" in angle.lower())
@@ -149,52 +150,52 @@ _segs = [s.strip().rstrip(".") if s is celebrity else _seg(s) for s in (celebrit
 check("combined 含全部部分", all(s in combined for s in _segs))
 check("拼接顺序 celebrity < outfit < couple", combined.index(_segs[0]) < combined.index(_segs[1]) < combined.index(_segs[2]))
 check("拼接顺序 angle < dist < lens", combined.index(_segs[6]) < combined.index(_segs[7]) < combined.index(_segs[8]))
-comb_only, _, _, _, _, env_only_text, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
+comb_only, _, _, _, _, _, env_only_text, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
 check("拼接顺序 pose < env", comb_only.index(_seg(pose_only)) < comb_only.index(_seg(env_only_text)))
-_, _, _, _, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
-comb_op, _, outfit_op, pose_op, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, outfit_preset="旗袍", pose_preset="回眸")
+_, _, _, _, _, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
+comb_op, _, _, outfit_op, pose_op, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, outfit_preset="旗袍", pose_preset="回眸")
 check("拼接顺序 outfit < pose", comb_op.index(_seg(outfit_op)) < comb_op.index(_seg(pose_op)))
 
 # 2b. NSFW pose resolution
-_, _, _, pose_nsfw, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="床上自慰")
+_, _, _, _, pose_nsfw, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="床上自慰")
 check("NSFW 姿势命中", "masturbat" in pose_nsfw and "nude" in pose_nsfw)
-_, _, _, _, couple_nsfw, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="女女交叉体位")
+_, _, _, _, _, couple_nsfw, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="女女交叉体位")
 check("NSFW 女女命中", "scissor" in couple_nsfw and "lesbian" in couple_nsfw)
 
 # 3. english values are ignored
-_, _, _, _, _, env2, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Ocean Sunrise")
+_, _, _, _, _, _, env2, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Ocean Sunrise")
 check("英文预设名忽略", env2 == "")
-_, _, _, _, _, env3, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Disabled")
+_, _, _, _, _, _, env3, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Disabled")
 check("英文 Disabled 忽略", env3 == "")
-_, _, _, _, _, env4, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Random")
+_, _, _, _, _, _, env4, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="Random")
 check("英文 Random 忽略", env4 == "")
-_, _, _, _, _, env5, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="None")
+_, _, _, _, _, _, env5, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="None")
 check("英文 None 忽略", env5 == "")
 
 # 3b. pose english name ignored
-_, _, _, pose_en, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="Running")
+_, _, _, _, pose_en, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="Running")
 check("姿势英文名忽略", pose_en == "")
 
 # 4. deterministic weighted random
-r1 = node.execute("", seed=100, celebrity_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
-r2 = node.execute("", seed=100, celebrity_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
+r1 = node.execute("", seed=100, celebrity_preset="随机", expression_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
+r2 = node.execute("", seed=100, celebrity_preset="随机", expression_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
 check("随机预设 seed 确定性", r1 == r2)
-r3 = node.execute("", seed=100, celebrity_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
-check("随机输出非空", all(r3[:4] + r3[5:]))
-r4 = node.execute("", seed=200, celebrity_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
+r3 = node.execute("", seed=100, celebrity_preset="随机", expression_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
+check("随机输出非空", all(r3[:5] + r3[6:]))
+r4 = node.execute("", seed=200, celebrity_preset="随机", expression_preset="随机", outfit_preset="随机", pose_preset="随机", couple_preset="禁用", environment_preset="随机", lighting_preset="随机", style_preset="随机", camera_angle_preset="随机", camera_distance_preset="随机", camera_lens_preset="随机")
 check("不同 seed 可能不同", r1 != r4 or r3 != r4)
 
 # 组随机：随机·组名 限定在指定 group 内（seed 确定性）
 _g1 = node.execute("", seed=55, style_preset="随机·写实")
 _g2 = node.execute("", seed=55, style_preset="随机·写实")
-check("组随机 seed 确定性", _g1[7] == _g2[7])
-check("组随机命中写实组", _g1[7] in {v["prompt"] for v in _data["Style"].values() if v["group"] == "写实"})
+check("组随机 seed 确定性", _g1[8] == _g2[8])
+check("组随机命中写实组", _g1[8] in {v["prompt"] for v in _data["Style"].values() if v["group"] == "写实"})
 _g3 = node.execute("", seed=55, pose_preset="随机·NSFW")
 _nsfw_pose = {v["prompt"] for v in _data["Pose"].values() if v["group"] == "NSFW"}
-check("组随机不越界(NSFW)", _g3[3] in _nsfw_pose)
+check("组随机不越界(NSFW)", _g3[4] in _nsfw_pose)
 _g4 = node.execute("", seed=55, style_preset="随机·非写实")
 _nr_style = {v["prompt"] for v in _data["Style"].values() if v["group"] == "非写实"}
-check("非写实随机不越界", _g4[7] in _nr_style)
+check("非写实随机不越界", _g4[8] in _nr_style)
 check("北欧极简归写实", _data["Style"]["Nordic Minimalism"]["group"] == "写实")
 
 # 分类正交：非 Style 分类无写实风格强制词（风格由 Style 分类控制）
@@ -220,43 +221,45 @@ check("组随机选项顺序", opt["style_preset"][0][2] == "随机·写实")
 
 # seed offsets: celebrity +1, outfit +2, pose +3, couple +4, environment +5, angle +8, distance +9, lens +10
 c_off2 = node._resolve_preset("Celebrity", "随机", 100 + 1)
-o_off = node._resolve_preset("Outfit", "随机", 100 + 2)
-p_off = node._resolve_preset("Pose", "随机", 100 + 3)
-c_off = node._resolve_preset("Couple Pose", "随机", 100 + 4)
-e_off = node._resolve_preset("Environment", "随机", 100 + 5)
-a_off = node._resolve_preset("Camera Angle", "随机", 100 + 8)
-d_off = node._resolve_preset("Camera Distance", "随机", 100 + 9)
-l_off = node._resolve_preset("Camera Lens", "随机", 100 + 10)
+o_off = node._resolve_preset("Outfit", "随机", 100 + 3)
+p_off = node._resolve_preset("Pose", "随机", 100 + 4)
+c_off = node._resolve_preset("Couple Pose", "随机", 100 + 5)
+e_off = node._resolve_preset("Environment", "随机", 100 + 6)
+a_off = node._resolve_preset("Camera Angle", "随机", 100 + 9)
+d_off = node._resolve_preset("Camera Distance", "随机", 100 + 10)
+l_off = node._resolve_preset("Camera Lens", "随机", 100 + 11)
+e_off2 = node._resolve_preset("Expression", "随机", 100 + 2)
 check("名人随机偏移 seed+1", r1[1] == c_off2)
-check("服装随机偏移 seed+2", r1[2] == o_off)
-check("姿势随机偏移 seed+3", r1[3] == p_off)
-check("环境随机偏移 seed+5", r1[5] == e_off)
-check("角度随机偏移 seed+8", r1[8] == a_off)
-check("距离随机偏移 seed+9", r1[9] == d_off)
-check("镜头随机偏移 seed+10", r1[10] == l_off)
-rc = node.execute("", seed=100, celebrity_preset="禁用", outfit_preset="禁用", pose_preset="禁用", couple_preset="随机")
-check("双人随机偏移 seed+4", rc[4] == c_off)
+check("表情随机偏移 seed+2", r1[2] == e_off2)
+check("服装随机偏移 seed+3", r1[3] == o_off)
+check("姿势随机偏移 seed+4", r1[4] == p_off)
+check("环境随机偏移 seed+6", r1[6] == e_off)
+check("角度随机偏移 seed+9", r1[9] == a_off)
+check("距离随机偏移 seed+10", r1[10] == d_off)
+check("镜头随机偏移 seed+11", r1[11] == l_off)
+rc = node.execute("", seed=100, celebrity_preset="禁用", expression_preset="禁用", outfit_preset="禁用", pose_preset="禁用", couple_preset="随机")
+check("双人随机偏移 seed+5", rc[5] == c_off)
 
 # 3c. enriched presets resolve correctly
-_, _, _, _, _, env_new, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="薰衣草田日落")
+_, _, _, _, _, _, env_new, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="薰衣草田日落")
 check("新增环境反查", "lavender" in env_new)
-_, _, _, _, _, env_life, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="樱花大道")
+_, _, _, _, _, _, env_life, _, _, _, _, _ = node.execute("x", seed=1, environment_preset="樱花大道")
 check("樱花大道反查", "cherry blossom" in env_life.lower())
-_, _, _, _, _, _, light_life, _, _, _, _ = node.execute("x", seed=1, lighting_preset="日系柔和窗光")
+_, _, _, _, _, _, _, light_life, _, _, _, _ = node.execute("x", seed=1, lighting_preset="日系柔和窗光")
 check("日系窗光反查", "japanese" in light_life.lower() and "window light" in light_life.lower())
-_, _, _, pose_new, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="仰卧举腿")
+_, _, _, _, pose_new, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="仰卧举腿")
 check("新增姿势 NSFW 反查", "legs raised" in pose_new and "nude" in pose_new)
-_, _, _, _, couple_new, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="反向女上位")
+_, _, _, _, _, couple_new, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="反向女上位")
 check("新增双人 NSFW 反查", "reverse cowgirl" in couple_new)
-_, _, _, _, _, _, _, _, angle_new, _, _ = node.execute("x", seed=1, camera_angle_preset="荷兰角")
+_, _, _, _, _, _, _, _, _, angle_new, _, _ = node.execute("x", seed=1, camera_angle_preset="荷兰角")
 check("角度反查命中", "dutch" in angle_new.lower())
-_, _, _, _, _, _, _, _, angle_new3, _, _ = node.execute("x", seed=1, camera_angle_preset="极限低角特写")
+_, _, _, _, _, _, _, _, _, angle_new3, _, _ = node.execute("x", seed=1, camera_angle_preset="极限低角特写")
 check("Krea2 视角反查", "low-angle" in angle_new3.lower() and "close-up" in angle_new3.lower())
-_, _, _, _, _, _, _, _, angle_new2, _, _ = node.execute("x", seed=1, camera_angle_preset="过肩镜头")
+_, _, _, _, _, _, _, _, _, angle_new2, _, _ = node.execute("x", seed=1, camera_angle_preset="过肩镜头")
 check("过肩反查命中", "over-the-shoulder" in angle_new2.lower())
-_, _, _, _, _, _, _, _, _, dist_new, _ = node.execute("x", seed=1, camera_distance_preset="大远景")
+_, _, _, _, _, _, _, _, _, _, dist_new, _ = node.execute("x", seed=1, camera_distance_preset="大远景")
 check("大远景反查命中", "extreme long shot" in dist_new.lower())
-_, _, _, _, _, _, _, _, _, dist_new2, _ = node.execute("x", seed=1, camera_distance_preset="牛仔镜头")
+_, _, _, _, _, _, _, _, _, _, dist_new2, _ = node.execute("x", seed=1, camera_distance_preset="牛仔镜头")
 check("牛仔镜头反查命中", "cowboy" in dist_new2.lower())
 
 # 5. bracket random
@@ -272,22 +275,22 @@ check("无括号原样", br3[0] == "no brackets here")
 seen = set()
 for s in range(300):
     r = node.execute("", seed=s, camera_lens_preset="随机")
-    seen.add(r[10])
+    seen.add(r[11])
 check(f"随机多样性 ({len(seen)}/43)", len(seen) > 20)
 seen_angle = set()
 for s in range(200):
     r = node.execute("", seed=s, camera_angle_preset="随机")
-    seen_angle.add(r[8])
+    seen_angle.add(r[9])
 check(f"角度随机多样性 ({len(seen_angle)}/22)", len(seen_angle) > 10)
 seen_dist = set()
 for s in range(150):
     r = node.execute("", seed=s, camera_distance_preset="随机")
-    seen_dist.add(r[9])
+    seen_dist.add(r[10])
 check(f"距离随机多样性 ({len(seen_dist)}/11)", len(seen_dist) > 5)
 seen_outfit = set()
 for s in range(200):
     r = node.execute("", seed=s, outfit_preset="随机")
-    seen_outfit.add(r[2])
+    seen_outfit.add(r[3])
 check(f"服装随机多样性 ({len(seen_outfit)}/56)", len(seen_outfit) > 20)
 seen_celeb = set()
 for s in range(300):
@@ -297,12 +300,12 @@ check(f"名人随机多样性 ({len(seen_celeb)}/429)", len(seen_celeb) > 50)
 seen_pose = set()
 for s in range(200):
     r = node.execute("", seed=s, pose_preset="随机")
-    seen_pose.add(r[3])
+    seen_pose.add(r[4])
 check(f"姿势随机多样性 ({len(seen_pose)}/71)", len(seen_pose) > 25)
 seen_couple = set()
 for s in range(200):
     r = node.execute("", seed=s, couple_preset="随机")
-    seen_couple.add(r[4])
+    seen_couple.add(r[5])
 check(f"双人随机多样性 ({len(seen_couple)}/32)", len(seen_couple) > 15)
 
 # 7. IS_CHANGED
@@ -343,13 +346,13 @@ check("Couple 性别细分", _data["Couple Pose"]["Missionary Position"]["group"
 _couple_groups = [v["group"] for v in _data["Couple Pose"].values()]
 check("Couple 分组覆盖", len(_couple_groups) == 47 and set(_couple_groups) == {"通用", "男女", "女女"}
       and _couple_groups.count("男女") == 18 and _couple_groups.count("女女") == 13)
-check("Couple 男女随机不越界", node.execute("", seed=9, couple_preset="随机·男女")[4] in
+check("Couple 男女随机不越界", node.execute("", seed=9, couple_preset="随机·男女")[5] in
       {v["prompt"] for v in _data["Couple Pose"].values() if v["group"] == "男女"})
-_, _, _, _, couple_anal, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="肛交")
+_, _, _, _, _, couple_anal, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="肛交")
 check("男女肛交反查", "anal" in couple_anal and "man" in couple_anal)
-_, _, _, _, couple_dd, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="双头龙")
+_, _, _, _, _, couple_dd, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="双头龙")
 check("女女双头龙反查", "double-ended dildo" in couple_dd and "lesbian" in couple_dd)
-_, _, _, pose_vib, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="跳蛋自慰")
+_, _, _, _, pose_vib, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="跳蛋自慰")
 check("跳蛋自慰反查", "vibrator" in pose_vib and "nude" in pose_vib)
 check("Environment 无分组", _g("Environment", "樱花大道", {"tags": []}) is None)
 check("路由 group 字段", _resp.data["Celebrity"]["Taylor Swift"]["group"] == "歌手"
@@ -427,7 +430,7 @@ _bad3 = [n for n, v in _data["Camera Distance"].items() if "close-up" not in v["
 check("Camera Distance 景别完整", len(_bad3) == 0)
 
 # 7c. combined prompt has no "., " stitching artifacts
-_, _, _, _, _, _, _, _, _, _, _ = node.execute("", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
+_, _, _, _, _, _, _, _, _, _, _, _ = node.execute("", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
 _c1, *_ = node.execute("test subject.", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
 check("拼接无 . , 粘连", "., " not in _c1)
 _c2, *_ = node.execute("test subject", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
@@ -437,22 +440,22 @@ check("input_text 首字母保持原样", _c2.startswith("test subject,"))
 check("数字开头片段不受影响", "85mm classic" in _c2)
 
 # 7d. pose/couple mutual exclusion (backend fallback, pose wins)
-_, _, _, p_m, c_m, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
+_, _, _, _, p_m, c_m, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
 check("互斥兜底 pose 生效", "looking back over the shoulder" in p_m)
 check("互斥兜底 couple 忽略", c_m == "")
-_, _, _, p_m2, c_m2, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="禁用", couple_preset="公主抱")
+_, _, _, _, p_m2, c_m2, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="禁用", couple_preset="公主抱")
 check("仅 couple 时生效", c_m2 != "" and "bridal carry" in c_m2 and p_m2 == "")
-_, _, _, p_m3, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="随机", couple_preset="公主抱")
+_, _, _, _, p_m3, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="随机", couple_preset="公主抱")
 check("互斥 pose=随机 生效", p_m3 != "")
 
 # 服装 NSFW 反查
-_, _, outfit_nsfw, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
+_, _, _, outfit_nsfw, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
 check("服装 NSFW 命中", "transparent" in outfit_nsfw and "adult" in outfit_nsfw.lower() or "see-through" in outfit_nsfw)
-_, _, outfit_nude, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全裸")
+_, _, _, outfit_nude, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全裸")
 check("全裸选项命中", "fully nude" in outfit_nude and "no clothing" in outfit_nude)
-_, _, outfit_swim, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="死库水（深蓝）")
+_, _, _, outfit_swim, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="死库水（深蓝）")
 check("死库水命中", "sukumizu" in outfit_swim and "navy" in outfit_swim)
-_, _, outfit_bikini, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="黑色比基尼")
+_, _, _, outfit_bikini, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="黑色比基尼")
 check("纯色比基尼命中", "black bikini" in outfit_bikini and "solid" in outfit_bikini)
 
 # 7e. 分类正交化：姿势不含场景/灯光，Style 不含镜头参数
