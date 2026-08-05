@@ -290,10 +290,76 @@ _route = _handlers.get("/api/sfnodes/prompt_presets")
 check("路由已注册", _route is not None)
 _resp = asyncio.run(_route(None))
 check("路由返回分类数据", "Pose" in _resp.data and "Environment" in _resp.data)
-check("路由返回中文名->描述", _resp.data["Environment"]["现代地铁车厢"].startswith("Contemporary subway"))
+check("路由返回中文名->描述", _resp.data["Environment"]["现代地铁车厢"]["description"].startswith("Contemporary subway"))
 check("路由描述为英文", all(
-    all(not any('\u4e00' <= c <= '\u9fff' for c in d) for d in cat.values())
+    all(not any('\u4e00' <= c <= '\u9fff' for c in d["description"]) for d in cat.values())
     for cat in _resp.data.values()))
+
+# 分组推导
+_g = mod._preset_group
+check("Celebrity 女演员组", _g("Celebrity", "Scarlett Johansson", {"tags": ["actress", "american"]}) == "女演员")
+check("Celebrity 歌手组", _g("Celebrity", "Taylor Swift", {"tags": ["singer", "american"]}) == "歌手")
+check("Celebrity 亚洲组", _g("Celebrity", "周杰伦", {"tags": ["singer", "taiwanese"]}) == "亚洲名人")
+check("Outfit NSFW", _g("Outfit", "全裸", {"tags": ["nude", "adult"]}) == "NSFW")
+check("Pose SFW", _g("Pose", "站立肖像", {"tags": ["standing"]}) == "SFW")
+check("Couple SFW", _g("Couple Pose", "拥抱", {"tags": ["two people"]}) == "SFW")
+check("Environment 无分组", _g("Environment", "樱花大道", {"tags": []}) is None)
+check("路由 group 字段", _resp.data["Celebrity"]["Taylor Swift"]["group"] == "歌手"
+      and _resp.data["Outfit"]["全裸"]["group"] == "NSFW"
+      and _resp.data["Environment"]["樱花大道"]["group"] == "日系生活"
+      and _resp.data["Lighting"]["自然窗光"]["group"] == "自然日光")
+check("重音英文名不误判亚洲", _resp.data["Celebrity"]["Beyoncé"]["group"] == "歌手"
+      and _resp.data["Celebrity"]["Timothée Chalamet"]["group"] == "男演员")
+check("数据驱动 group 全覆盖", all("group" in v for cat in ("Celebrity", "Outfit", "Pose", "Couple Pose") for v in _data[cat].values()))
+
+# Style 数据驱动分组（JSON group 字段）
+check("Style 写实（数据字段）", _g("Style", "写实摄影风", _data["Style"]["Photorealistic"]) == "写实")
+check("Style 非写实（数据字段）", _g("Style", "动漫手绘风", _data["Style"]["Anime Painterly"]) == "非写实")
+check("group 字段优先于推导", _g("Outfit", "全裸", {"tags": ["adult"], "group": "自定义组"}) == "自定义组")
+check("路由 Style 分组", _resp.data["Style"]["写实摄影风"]["group"] == "写实"
+      and _resp.data["Style"]["动漫手绘风"]["group"] == "非写实")
+_all_style = [v["group"] for v in _data["Style"].values()]
+check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"写实", "非写实"})
+
+# Environment 数据驱动分组
+_env_groups = [v["group"] for v in _data["Environment"].values()]
+check("Environment 全部有分组", len(_env_groups) == 84 and set(_env_groups) ==
+      {"自然风光", "城市街景", "科幻未来", "历史复古", "恐怖暗黑", "室内空间", "日系生活"})
+check("Environment 分组抽查", _data["Environment"]["Modern Subway Train"]["group"] == "室内空间"
+      and _data["Environment"]["Space Station Hub"]["group"] == "科幻未来"
+      and _data["Environment"]["Cherry Blossom Avenue"]["group"] == "日系生活"
+      and _data["Environment"]["Haunted Manor"]["group"] == "恐怖暗黑")
+
+# Camera Angle / Camera Lens 数据驱动分组
+_angle_groups = [v["group"] for v in _data["Camera Angle"].values()]
+check("Camera Angle 全部有分组", len(_angle_groups) == 26 and set(_angle_groups) ==
+      {"机位高度", "俯仰角度", "水平朝向", "视角叙事", "创意特殊"})
+_lens_groups = [v["group"] for v in _data["Camera Lens"].values()]
+check("Camera Lens 全部有分组", len(_lens_groups) == 43 and set(_lens_groups) ==
+      {"广角镜头", "标准镜头", "人像镜头", "长焦镜头", "微距镜头", "特殊镜头", "变焦镜头",
+       "电影定焦", "变形宽银幕", "电影变焦", "复古镜头"})
+check("镜头分组抽查", _data["Camera Lens"]["14mm Fisheye"]["group"] == "广角镜头"
+      and _data["Camera Lens"]["Anamorphic 50mm"]["group"] == "变形宽银幕"
+      and _data["Camera Angle"]["Dutch Angle"]["group"] == "创意特殊"
+      and _data["Camera Angle"]["Eye Level"]["group"] == "机位高度")
+
+# Lighting 数据驱动分组
+_light_groups = [v["group"] for v in _data["Lighting"].values()]
+check("Lighting 全部有分组", len(_light_groups) == 62 and set(_light_groups) ==
+      {"自然日光", "人工光源", "光效氛围", "柔光漫射", "人像布光", "夜晚星光", "黄昏日落"})
+check("Lighting 分组抽查", _data["Lighting"]["Natural Daylight Window"]["group"] == "自然日光"
+      and _data["Lighting"]["Studio Professional"]["group"] == "人像布光"
+      and _data["Lighting"]["Neon Urban Night"]["group"] == "人工光源"
+      and _data["Lighting"]["Volumetric Moonlight"]["group"] == "夜晚星光")
+
+# Camera Distance 数据驱动分组
+_dist_groups = [v["group"] for v in _data["Camera Distance"].values()]
+check("Camera Distance 全部有分组", len(_dist_groups) == 11 and set(_dist_groups) ==
+      {"特写景别", "近景景别", "全景景别", "远景景别"})
+check("景别分组抽查", _data["Camera Distance"]["Extreme Close-Up"]["group"] == "特写景别"
+      and _data["Camera Distance"]["Full Shot"]["group"] == "全景景别"
+      and _data["Camera Distance"]["Establishing Shot"]["group"] == "远景景别")
+check("全部分类均有分组", all("group" in v for cat in _data.values() for v in cat.values()))
 
 # 7b. lens presets free of shot-size wording (orthogonal to Camera Distance)
 import re as _re

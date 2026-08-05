@@ -216,8 +216,39 @@ class SFPromptPreset:
         return prompt.replace("., ", ", ")
 
 
+_CELEBRITY_GROUPS = (
+    ("actress", "女演员"),
+    ("actor", "男演员"),
+    ("singer", "歌手"),
+    ("rapper", "说唱歌手"),
+    ("comedian", "喜剧演员"),
+    ("wrestler", "摔角手"),
+    ("model", "模特"),
+    ("athlete", "运动员"),
+)
+
+
+def _preset_group(category, name_zh, preset):
+    """推导预设分组（下拉分组展示用）：优先读 JSON 的 group 字段（数据驱动）；
+    Celebrity 无字段时按职业/亚洲，动作服装无字段时按 SFW/NSFW，其余无分组。"""
+    if isinstance(preset, dict) and preset.get("group"):
+        return preset["group"]
+    tags = preset.get("tags", []) if isinstance(preset, dict) else []
+    if category == "Celebrity":
+        # 含 CJK 字符（中文名）判为亚洲名人；重音英文名（Beyoncé 等）不受影响
+        if any("\u4e00" <= c <= "\u9fff" for c in str(name_zh)):
+            return "亚洲名人"
+        for tag, group in _CELEBRITY_GROUPS:
+            if tag in tags:
+                return group
+        return "其他"
+    if category in ("Outfit", "Pose", "Couple Pose"):
+        return "NSFW" if "adult" in tags else "SFW"
+    return None
+
+
 def _register_prompt_preset_routes():
-    """注册描述映射 API：{分类: {中文选项名: 英文 description}}，供前端悬浮卡片展示。"""
+    """注册预设 API：{分类: {中文选项名: {description, group}}}，供前端悬浮卡片与分组下拉展示。"""
     try:
         from server import PromptServer
 
@@ -232,10 +263,13 @@ def _register_prompt_preset_routes():
                 presets, _ = _load_presets()
                 result = {}
                 for category, items in presets.items():
-                    result[category] = {
-                        (item.get("name_zh") or name): item.get("description", "")
-                        for name, item in items.items()
-                    }
+                    result[category] = {}
+                    for name, item in items.items():
+                        zh = item.get("name_zh") or name
+                        result[category][zh] = {
+                            "description": item.get("description", ""),
+                            "group": _preset_group(category, zh, item),
+                        }
                 return web.json_response(result)
             except Exception:
                 return web.Response(status=500)
