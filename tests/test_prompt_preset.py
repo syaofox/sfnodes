@@ -303,6 +303,23 @@ check("互斥 pose=随机 生效", p_m3 != "")
 _, outfit_nsfw, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
 check("服装 NSFW 命中", "transparent" in outfit_nsfw and "adult" in outfit_nsfw.lower() or "see-through" in outfit_nsfw)
 
+# 7e. 分类正交化：姿势不含场景/灯光，Style 不含镜头参数
+import re as _re_orth
+_pose_allowed = {"Sitting on a Chair", "Sitting Crossed Ankle", "Sitting Masturbating",
+                 "Leaning on Doorframe", "In Bathtub", "Sitting on Bed Edge", "Grinding on Pillow"}
+_pose_bad = [n for n, v in _data["Pose"].items()
+             if n not in _pose_allowed and _re_orth.search(r"\bbed\b|bedroom|lighting", v["prompt"], _re_orth.I)]
+check(f"Pose 无场景/灯光残留 ({len(_pose_bad)})", len(_pose_bad) == 0)
+_couple_bad = [n for n, v in _data["Couple Pose"].items()
+               if _re_orth.search(r"\bbed\b|bedroom|lighting", v["prompt"], _re_orth.I)]
+check(f"Couple 无场景/灯光残留 ({len(_couple_bad)})", len(_couple_bad) == 0)
+_style_bad = [n for n, v in _data["Style"].items()
+              if _re_orth.search(r"\d+mm|f/\d|bokeh|depth of field", v["prompt"], _re_orth.I)]
+check(f"Style 无镜头参数残留 ({len(_style_bad)})", len(_style_bad) == 0)
+# 动作要素保留
+check("动作要素保留", all(_re_orth.search(r"chair|doorframe|bathtub|pillow|\bbed\b", _data["Pose"][n]["prompt"], _re_orth.I)
+      for n in _pose_allowed))
+
 # 8. registration keys
 sys.modules["comfy.comfy_types.node_typing"].IO = IO
 import ast

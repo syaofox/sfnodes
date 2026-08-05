@@ -741,7 +741,7 @@
     },
     "Fully Nude Standing": {
       "name_zh": "全裸站立",
-      "prompt": "Fully nude, standing facing the viewer, hands resting at the sides, intimate bare exposure, soft natural lighting, confident nude pose.",
+      "prompt": "Fully nude, standing facing the viewer, hands resting at the sides, intimate bare exposure, confident nude pose.",
       "description": "Nude standing pose facing the viewer",
       "tags": [
         "nude",
@@ -754,7 +754,7 @@
     },
     "Nude Lying Legs Spread": {
       "name_zh": "裸卧张开腿",
-      "prompt": "Fully nude, lying on the back on a bed, legs spread apart, knees slightly bent, arms above the head, fully exposed, inviting intimate pose.",
+      "prompt": "Fully nude, lying on the back, legs spread apart, knees slightly bent, arms above the head, fully exposed, inviting intimate pose.",
       "description": "Nude reclining pose with spread legs",
       "tags": [
         "nude",
@@ -767,7 +767,7 @@
     },
     "On All Fours": {
       "name_zh": "跪爬姿势",
-      "prompt": "Fully nude, on all fours on a bed, arched back, hips raised, looking back over the shoulder, submissive intimate pose.",
+      "prompt": "Fully nude, on all fours, arched back, hips raised, looking back over the shoulder, submissive intimate pose.",
       "description": "Nude arched all-fours pose looking back",
       "tags": [
         "nude",
@@ -780,7 +780,7 @@
     },
     "Side Arching Hips": {
       "name_zh": "侧卧翘臀",
-      "prompt": "Fully nude, lying on the side, arching the hips backward, one leg raised, seductive curvy pose, intimate bedroom setting.",
+      "prompt": "Fully nude, lying on the side, arching the hips backward, one leg raised, seductive curvy pose, intimate pose.",
       "description": "Nude side pose arching the hips",
       "tags": [
         "nude",
@@ -793,7 +793,7 @@
     },
     "Sitting Legs Spread": {
       "name_zh": "坐姿张开腿",
-      "prompt": "Fully nude, sitting on the bed edge, legs spread wide, leaning back on the hands, open intimate posture, direct gaze.",
+      "prompt": "Fully nude, sitting with legs spread wide, leaning back on the hands, open intimate posture, direct gaze.",
       "description": "Nude sitting pose with spread legs",
       "tags": [
         "nude",
@@ -819,7 +819,7 @@
     },
     "Caressing Body": {
       "name_zh": "抚摸身体",
-      "prompt": "Fully nude, lying on the back, one hand caressing the chest and stomach, eyes closed in pleasure, intimate self-touch pose, soft warm light.",
+      "prompt": "Fully nude, lying on the back, one hand caressing the chest and stomach, eyes closed in pleasure, intimate self-touch pose.",
       "description": "Nude reclining pose with self-caress",
       "tags": [
         "nude",
@@ -832,7 +832,7 @@
     },
     "Masturbating on Bed": {
       "name_zh": "床上自慰",
-      "prompt": "Fully nude, lying on a bed, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene, soft warm lighting.",
+      "prompt": "Fully nude, lying on the back, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
       "description": "Nude masturbation pose on bed",
       "tags": [
         "nude",
@@ -858,7 +858,7 @@
     },
     "Starfish on Bed": {
       "name_zh": "床上仰躺展开",
-      "prompt": "Fully nude, lying on a bed in a starfish pose, arms and legs spread wide, fully exposed, submissive presentation, soft bedroom lighting.",
+      "prompt": "Fully nude, lying in a starfish pose, arms and legs spread wide, fully exposed, submissive presentation.",
       "description": "Nude starfish pose with limbs spread",
       "tags": [
         "nude",
@@ -1103,7 +1103,7 @@
     },
     "Grinding on Pillow": {
       "name_zh": "枕头磨蹭",
-      "prompt": "Fully nude, lying face down on a bed, grinding the hips against a pillow, eyes closed in pleasure, intimate self-stimulation scene.",
+      "prompt": "Fully nude, lying face down, grinding the hips against a pillow, eyes closed in pleasure, intimate self-stimulation scene.",
       "description": "Nude pillow grinding self-stimulation pose",
       "tags": [
         "nude",
@@ -1238,7 +1238,7 @@
     },
     "Missionary Position": {
       "name_zh": "传教士体位",
-      "prompt": "Two adults having sex in missionary position, man on top of the woman, face to face, intimate lovemaking scene, soft bedroom lighting.",
+      "prompt": "Two adults having sex in missionary position, man on top of the woman, face to face, intimate lovemaking scene.",
       "description": "Heterosexual missionary position sex scene",
       "tags": [
         "two people",
@@ -1291,7 +1291,7 @@
     },
     "Oral Sex": {
       "name_zh": "口交",
-      "prompt": "Two adults engaging in oral sex, the woman kneeling before the standing man, intimate fellatio scene, warm lighting.",
+      "prompt": "Two adults engaging in oral sex, the woman kneeling before the standing man, intimate fellatio scene.",
       "description": "Heterosexual oral sex scene",
       "tags": [
         "two people",
@@ -1317,7 +1317,7 @@
     },
     "Lesbian Mutual Caress": {
       "name_zh": "女女相互爱抚",
-      "prompt": "Two nude adult women lying together, caressing each other's bodies, intimate lesbian foreplay scene, soft warm lighting.",
+      "prompt": "Two nude adult women lying together, caressing each other's bodies, intimate lesbian foreplay scene.",
       "description": "Lesbian mutual caressing scene",
       "tags": [
         "two people",
@@ -3404,7 +3404,7 @@
   },
   "Style": {
     "Fashion Editorial": {
-      "prompt": "Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, ultra-detailed clothing textures, realistic skin detail, soft color grading, photorealistic, hyperrealistic, masterpiece, best quality, DSLR photography, 85mm lens, f/1.8, shallow depth of field, creamy bokeh.",
+      "prompt": "Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, ultra-detailed clothing textures, realistic skin detail, soft color grading, photorealistic, hyperrealistic, masterpiece, best quality.",
       "description": "Premium fashion editorial with detailed textures",
       "tags": [
         "fashion",
@@ -3541,7 +3541,7 @@
       "name_zh": "俏皮粉彩艺术"
     },
     "Fashion Studio Portrait": {
-      "prompt": "Ultra-realistic IMAX-level Netflix-style cinematic elegant portrait, premium luxury fashion editorial aesthetic, ultra-rich color grading with deep saturated fabric tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop. Creamy bokeh, elegant portrait separation, HDR lighting, global illumination, photorealistic rendering, shallow depth of field, masterpiece quality, ultra-sharp details, 8K production detail.",
+      "prompt": "Ultra-realistic IMAX-level Netflix-style cinematic elegant collage visual, premium five-panel collage layout, premium luxury editorial collage aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering, masterpiece quality, ultra-sharp details, 8K production detail.",
       "description": "Premium fashion portrait with ultra-realistic cinematic rendering",
       "tags": [
         "fashion",
