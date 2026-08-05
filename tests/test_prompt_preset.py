@@ -90,7 +90,7 @@ check("couple 32 项", len(opt["couple_preset"][0]) == 34)
 check("environment 84 项", len(opt["environment_preset"][0]) == 86)
 check("lighting 62 项", len(opt["lighting_preset"][0]) == 64)
 check("style 48 项", len(opt["style_preset"][0]) == 50)
-check("angle 22 项", len(opt["camera_angle_preset"][0]) == 24)
+check("angle 26 项", len(opt["camera_angle_preset"][0]) == 28)
 check("distance 11 项", len(opt["camera_distance_preset"][0]) == 13)
 check("camera 43 项", len(opt["camera_lens_preset"][0]) == 45)
 
@@ -122,22 +122,26 @@ check("服装中文反查命中", "qipao" in outfit)
 _, _, pose_only, _, env_only, _, _, _, _, _ = node.execute(
     "test subject", seed=42, pose_preset="回眸", environment_preset="现代地铁车厢")
 check("姿势中文反查命中", "looking back over the shoulder" in pose_only)
-check("角度中文反查命中", "low angle" in angle.lower())
+check("角度中文反查命中", "low-angle" in angle.lower())
 check("距离中文反查命中", "close-up" in dist.lower())
 check("环境中文反查命中", "subway train" in env)
 check("灯光中文反查命中", "Natural daylight" in light)
 check("风格中文反查命中", "Photorealistic" in style)
 check("镜头中文反查命中", "85mm" in cam)
 check("输出无中文", not any(any('\u4e00' <= c <= '\u9fff' for c in s) for s in (combined, pose, couple, env, light, style, angle, dist, cam)))
-_segs = [s.strip().rstrip(".") for s in (outfit, couple, env, light, style, angle, dist, cam)]
+def _seg(s):
+    s = s.strip().rstrip(".")
+    return s[0].lower() + s[1:] if s else s
+
+_segs = [_seg(s) for s in (outfit, couple, env, light, style, angle, dist, cam)]
 check("combined 含全部部分", all(s in combined for s in _segs))
 check("拼接顺序 outfit < couple < env", combined.index(_segs[0]) < combined.index(_segs[1]) < combined.index(_segs[2]))
 check("拼接顺序 angle < dist < lens", combined.index(_segs[5]) < combined.index(_segs[6]) < combined.index(_segs[7]))
 comb_only, _, _, _, env_only_text, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
-check("拼接顺序 pose < env", comb_only.index(pose_only.strip().rstrip(".")) < comb_only.index(env_only_text.strip().rstrip(".")))
+check("拼接顺序 pose < env", comb_only.index(_seg(pose_only)) < comb_only.index(_seg(env_only_text)))
 _, _, _, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
 comb_op, outfit_op, pose_op, _, _, _, _, _, _, _ = node.execute("test subject", seed=42, outfit_preset="旗袍", pose_preset="回眸")
-check("拼接顺序 outfit < pose", comb_op.index(outfit_op.strip().rstrip(".")) < comb_op.index(pose_op.strip().rstrip(".")))
+check("拼接顺序 outfit < pose", comb_op.index(_seg(outfit_op)) < comb_op.index(_seg(pose_op)))
 
 # 2b. NSFW pose resolution
 _, _, pose_nsfw, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="床上自慰")
@@ -198,6 +202,8 @@ _, _, _, couple_new, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset=
 check("新增双人 NSFW 反查", "reverse cowgirl" in couple_new)
 _, _, _, _, _, _, _, angle_new, _, _ = node.execute("x", seed=1, camera_angle_preset="荷兰角")
 check("角度反查命中", "dutch" in angle_new.lower())
+_, _, _, _, _, _, _, angle_new3, _, _ = node.execute("x", seed=1, camera_angle_preset="极限低角特写")
+check("Krea2 视角反查", "low-angle" in angle_new3.lower() and "close-up" in angle_new3.lower())
 _, _, _, _, _, _, _, angle_new2, _, _ = node.execute("x", seed=1, camera_angle_preset="过肩镜头")
 check("过肩反查命中", "over-the-shoulder" in angle_new2.lower())
 _, _, _, _, _, _, _, _, dist_new, _ = node.execute("x", seed=1, camera_distance_preset="大远景")
@@ -289,6 +295,9 @@ _c1, *_ = node.execute("test subject.", seed=1, camera_distance_preset="特写",
 check("拼接无 . , 粘连", "., " not in _c1)
 _c2, *_ = node.execute("test subject", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
 check("拼接无 . , 粘连(无输入句号)", "., " not in _c2)
+check("片段首字母小写化", _c2.split(", ")[1].startswith("close-up shot"))
+check("input_text 首字母保持原样", _c2.startswith("test subject,"))
+check("数字开头片段不受影响", "85mm classic" in _c2)
 
 # 7d. pose/couple mutual exclusion (backend fallback, pose wins)
 _, _, p_m, c_m, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
@@ -319,6 +328,32 @@ check(f"Style 无镜头参数残留 ({len(_style_bad)})", len(_style_bad) == 0)
 # 动作要素保留
 check("动作要素保留", all(_re_orth.search(r"chair|doorframe|bathtub|pillow|\bbed\b", _data["Pose"][n]["prompt"], _re_orth.I)
       for n in _pose_allowed))
+
+# 7f. Krea2SystemPrompt 预设含官方扩展
+import ast as _ast
+_k2 = open(os.path.join(root, "nodes", "model", "krea2.py"), encoding="utf-8").read()
+_k2_tree = _ast.parse(_k2)
+_k2_keys = []
+for _stmt in _k2_tree.body:
+    if isinstance(_stmt, _ast.Assign) and any(getattr(t, "id", "") == "KREA2_PRESETS" for t in _stmt.targets):
+        for _k in _stmt.value.keys:
+            _k2_keys.append(_k.value if isinstance(_k, _ast.Constant) else None)
+        break
+check("Krea2 预设含官方扩展", "Krea2 提示词扩展（官方规则）" in _k2_keys)
+check("Krea2 预设键无重复", len(_k2_keys) == len(set(_k2_keys)))
+
+# 7g. Krea2 适配：非镜头分类无 SD 质量标签/营销词
+import re as _re_k2
+_K2_BAD = _re_k2.compile(r"\b(masterpiece|best quality|8K|DSLR|ultra sharp|hyperrealistic|highly detailed|IMAX|Netflix)\b", _re_k2.I)
+_k2_left = {}
+for _cat, _items in _data.items():
+    for _n, _v in _items.items():
+        _m = _K2_BAD.findall(_v["prompt"])
+        if _m:
+            _k2_left.setdefault(_cat, {})[_n] = sorted(set(_m))
+check(f"非镜头分类无 SD 标签残留 ({_k2_left})", len(_k2_left) == 0)
+_lens_mkt = [n for n, v in _data["Camera Lens"].items() if _re_k2.search(r"IMAX|Netflix", v["prompt"], _re_k2.I)]
+check(f"镜头分类无营销词 ({len(_lens_mkt)})", len(_lens_mkt) == 0)
 
 # 8. registration keys
 sys.modules["comfy.comfy_types.node_typing"].IO = IO

@@ -120,6 +120,24 @@ KREA2_PRESETS = {
         "way. Keep the characters' expressions, gender, hairstyle, hair color, ethnicity and "
         "the composition, poses and scene consistent with the reference where appropriate."
     ),
+    "Krea2 提示词扩展（官方规则）": (
+        "You are an expert prompt engineer for text-to-image models. Expand the user's prompt "
+        "into a highly effective image-generation prompt for Krea 2. Think step by step about "
+        "the subject and mood, suitable visual styles and lighting, and composition and framing "
+        "details, then output a single expanded prompt paragraph. Rules: 1) Faithfulness "
+        "first: preserve all original subjects, actions, colors and spatial relationships; do "
+        "not add new objects, props, characters or animals. 2) Use practical T2I structure: "
+        "group subjects with their own attributes and actions, use grounded phrasing for poses, "
+        "interactions and spatial layout. 3) Keep style planning internal; do not emit "
+        "planning tags or wrappers. 4) If visible text is requested, specify the exact words "
+        "wrapped in quotes. 5) Avoid over-specification: do not invent clothing, colors, "
+        "materials or scene details unless supported. 6) Output one cohesive paragraph, no "
+        "bullets, JSON or markdown. 7) If the prompt is already detailed, lightly polish "
+        "rather than heavily expand. 8) Describe camera angle, shot size and perspective "
+        "naturally (e.g. low-angle perspective, extreme close-up, high-angle wide perspective, "
+        "over-the-shoulder framing) when they serve the image. 9) Respect the human form: "
+        "assume clothing covers intimate anatomy."
+    ),
 }
 
 _CATEGORY = "sfnodes/model"

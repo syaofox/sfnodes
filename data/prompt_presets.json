@@ -1915,7 +1915,7 @@
       "name_zh": "时尚影棚肖像"
     },
     "Subway Fashion Portrait": {
-      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting, ray tracing, masterpiece, best quality, photorealistic, hyperrealistic, 8K, DSLR photography quality. Ultra-detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), highly detailed facial features, realistic eyes, natural skin pores, subtle skin texture, shallow depth of field, creamy bokeh, ultra sharp focus. Camera specs: Canon EOS R5, 85mm lens, f/1.8, ISO 100.",
+      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting, photorealistic. Detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), realistic facial features, realistic eyes, natural skin pores, subtle skin texture, shallow depth of field, creamy bokeh.",
       "description": "Subway fashion portrait with Korean street style and camera specs",
       "tags": [
         "subway",
@@ -3404,7 +3404,7 @@
   },
   "Style": {
     "Fashion Editorial": {
-      "prompt": "Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, ultra-detailed clothing textures, realistic skin detail, soft color grading, photorealistic, hyperrealistic, masterpiece, best quality.",
+      "prompt": "Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, detailed clothing textures, realistic skin detail, soft color grading, photorealistic.",
       "description": "Premium fashion editorial with detailed textures",
       "tags": [
         "fashion",
@@ -3416,7 +3416,7 @@
       "name_zh": "时尚社论风"
     },
     "Cinematic Elegance": {
-      "prompt": "Ultra-realistic cinematic, premium movie-poster quality, photorealistic, 8K, HDR, low-contrast cinematic color grading, dramatic but peaceful mood, emotionally powerful, elegant, minimalist composition, Hollywood poster aesthetic.",
+      "prompt": "Ultra-realistic cinematic, premium movie-poster quality, photorealistic, HDR, low-contrast cinematic color grading, dramatic but peaceful mood, emotionally powerful, elegant, minimalist composition, Hollywood poster aesthetic.",
       "description": "Cinematic elegant aesthetic with dramatic mood",
       "tags": [
         "cinematic",
@@ -3428,7 +3428,7 @@
       "name_zh": "电影优雅风"
     },
     "Anime Painterly": {
-      "prompt": "Semi-realistic anime painting with subtle 3D depth, painterly anime realism, soft realistic shading, handcrafted digital painting look, Makoto Shinkai + Studio Ghibli inspired, semi-3D anime render, visual novel CG style, ultra detailed environment art.",
+      "prompt": "Semi-realistic anime painting with subtle 3D depth, painterly anime realism, soft realistic shading, handcrafted digital painting look, Makoto Shinkai + Studio Ghibli inspired, semi-3D anime render, visual novel CG style, detailed environment art.",
       "description": "Anime painterly style with Studio Ghibli influence",
       "tags": [
         "anime",
@@ -3452,7 +3452,7 @@
       "name_zh": "高级商业风"
     },
     "Photorealistic": {
-      "prompt": "Photorealistic, hyperrealistic, ultra-detailed, realistic textures, physically based rendering, ray-traced lighting, photorealistic rendering, film-quality realism, 8K resolution, ultra sharp focus, masterpiece, best quality.",
+      "prompt": "Photorealistic, realistic textures, physically based rendering, ray-traced lighting, film-quality realism, sharp focus.",
       "description": "Ultra-realistic photographic render",
       "tags": [
         "photorealistic",
@@ -3464,7 +3464,7 @@
       "name_zh": "写实摄影风"
     },
     "Luxury Album Cover": {
-      "prompt": "Ultra-realistic cinematic album cover, premium movie-poster quality, photorealistic, 8K, HDR, premium Future Bass aesthetic, emotional and uplifting, luxury music album artwork, professional Spotify and Apple Music promotional artwork, minimalist elegant composition.",
+      "prompt": "Ultra-realistic cinematic album cover, premium movie-poster quality, photorealistic, HDR, premium Future Bass aesthetic, emotional and uplifting, luxury music album artwork, professional Spotify and Apple Music promotional artwork, minimalist elegant composition.",
       "description": "Luxury music album artwork aesthetic",
       "tags": [
         "album",
@@ -3541,7 +3541,7 @@
       "name_zh": "俏皮粉彩艺术"
     },
     "Fashion Studio Portrait": {
-      "prompt": "Ultra-realistic IMAX-level Netflix-style cinematic elegant collage visual, premium five-panel collage layout, premium luxury editorial collage aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering, masterpiece quality, ultra-sharp details, 8K production detail.",
+      "prompt": "Ultra-realistic cinematic elegant collage visual, premium five-panel collage layout, premium luxury editorial collage aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering.",
       "description": "Premium fashion portrait with ultra-realistic cinematic rendering",
       "tags": [
         "fashion",
@@ -4025,7 +4025,7 @@
   "Camera Angle": {
     "Eye Level": {
       "name_zh": "平视",
-      "prompt": "Eye-level camera angle, camera positioned at the subject's eye height, natural neutral perspective, standard viewing angle.",
+      "prompt": "Eye-level perspective, camera at the subject's eye height, natural neutral framing, standard viewing angle.",
       "description": "Neutral eye-level camera angle",
       "tags": [
         "eye level",
@@ -4037,7 +4037,7 @@
     },
     "High Angle": {
       "name_zh": "俯拍",
-      "prompt": "High angle camera shot, camera positioned above the subject looking down, diminishing perspective, overview composition.",
+      "prompt": "High-angle perspective, camera looking down from above, overview composition, subject diminished below.",
       "description": "High angle shot looking down at the subject",
       "tags": [
         "high angle",
@@ -4049,7 +4049,7 @@
     },
     "Low Angle": {
       "name_zh": "仰拍",
-      "prompt": "Low angle camera shot, camera positioned below the subject looking up, imposing heroic perspective, towering composition.",
+      "prompt": "Dynamic low-angle perspective, camera looking up from below, imposing heroic composition, towering subject.",
       "description": "Low angle shot looking up at the subject",
       "tags": [
         "low angle",
@@ -4061,7 +4061,7 @@
     },
     "Top Down": {
       "name_zh": "顶部俯拍",
-      "prompt": "Top-down camera shot, camera directly above the subject looking straight down, flat overhead composition.",
+      "prompt": "Top-down perspective, camera directly overhead looking straight down, flat planar composition.",
       "description": "Top-down shot directly above the subject",
       "tags": [
         "top down",
@@ -4073,7 +4073,7 @@
     },
     "Aerial View": {
       "name_zh": "鸟瞰航拍",
-      "prompt": "Aerial view camera angle, camera high above the scene, sweeping bird's-eye perspective, wide landscape composition.",
+      "prompt": "Aerial perspective, sweeping bird's-eye view from high above, expansive landscape composition.",
       "description": "Sweeping aerial bird's-eye perspective",
       "tags": [
         "aerial",
@@ -4085,7 +4085,7 @@
     },
     "Worm's Eye View": {
       "name_zh": "虫眼视角",
-      "prompt": "Worm's-eye view camera angle, camera near the ground looking steeply upward, dramatic extreme low perspective.",
+      "prompt": "Worm's-eye perspective, extreme low angle from near ground level, dramatic upward view.",
       "description": "Extreme low angle from near ground level",
       "tags": [
         "worm's eye",
@@ -4097,7 +4097,7 @@
     },
     "Dutch Angle": {
       "name_zh": "荷兰角",
-      "prompt": "Dutch angle camera shot, camera tilted on its axis, skewed horizon line, disorienting cinematic composition.",
+      "prompt": "Dutch angle, camera tilted off-axis, skewed horizon, disorienting dynamic composition.",
       "description": "Tilted Dutch angle composition",
       "tags": [
         "dutch angle",
@@ -4109,7 +4109,7 @@
     },
     "Over-the-Shoulder": {
       "name_zh": "过肩镜头",
-      "prompt": "Over-the-shoulder camera angle, camera positioned behind one person's shoulder framing the other, intimate conversational composition.",
+      "prompt": "Over-the-shoulder perspective, framed from behind one figure's shoulder toward the other, intimate conversational composition.",
       "description": "Over-the-shoulder conversational framing",
       "tags": [
         "over the shoulder",
@@ -4121,7 +4121,7 @@
     },
     "Shoulder Level": {
       "name_zh": "肩平视角",
-      "prompt": "Shoulder-level camera angle, camera positioned at the subject's shoulder height, natural portrait perspective.",
+      "prompt": "Shoulder-level perspective, camera at shoulder height, natural portrait framing.",
       "description": "Shoulder-height portrait perspective",
       "tags": [
         "shoulder level",
@@ -4133,7 +4133,7 @@
     },
     "Waist Level": {
       "name_zh": "腰平视角",
-      "prompt": "Waist-level camera angle, camera positioned at the subject's waist height, grounded human-scale perspective.",
+      "prompt": "Waist-level perspective, camera at waist height, grounded human-scale framing.",
       "description": "Waist-height human-scale perspective",
       "tags": [
         "waist level",
@@ -4145,7 +4145,7 @@
     },
     "Hip Level": {
       "name_zh": "臀平视角",
-      "prompt": "Hip-level camera angle, camera positioned at the subject's hip height, lower natural perspective.",
+      "prompt": "Hip-level perspective, camera at hip height, low grounded framing.",
       "description": "Hip-height lower natural perspective",
       "tags": [
         "hip level",
@@ -4157,7 +4157,7 @@
     },
     "Knee Level": {
       "name_zh": "膝平视角",
-      "prompt": "Knee-level camera angle, camera positioned at the subject's knee height, low grounded perspective.",
+      "prompt": "Knee-level perspective, camera at knee height, low grounded framing.",
       "description": "Knee-height low perspective",
       "tags": [
         "knee level",
@@ -4169,7 +4169,7 @@
     },
     "Ground Level": {
       "name_zh": "贴地视角",
-      "prompt": "Ground-level camera angle, camera placed directly on the ground looking forward, immersive low perspective.",
+      "prompt": "Ground-level perspective, camera placed at ground height, immersive low forward view.",
       "description": "Immersive ground-level perspective",
       "tags": [
         "ground level",
@@ -4181,7 +4181,7 @@
     },
     "First-Person POV": {
       "name_zh": "第一人称视角",
-      "prompt": "First-person point-of-view camera, camera representing the subject's own eyes, immersive personal perspective.",
+      "prompt": "First-person point-of-view, camera as the subject's own eyes, immersive subjective framing.",
       "description": "Immersive first-person point of view",
       "tags": [
         "first person",
@@ -4193,7 +4193,7 @@
     },
     "Third-Person View": {
       "name_zh": "第三人称视角",
-      "prompt": "Third-person camera view, camera observing the subject from outside, detached narrative perspective.",
+      "prompt": "Third-person perspective, camera observing the subject from outside, detached narrative framing.",
       "description": "Detached third-person observational view",
       "tags": [
         "third person",
@@ -4205,7 +4205,7 @@
     },
     "Front View": {
       "name_zh": "正面视角",
-      "prompt": "Front camera angle, subject directly facing the camera, symmetrical straightforward composition.",
+      "prompt": "Front-facing perspective, subject directly facing the camera, symmetrical straightforward composition.",
       "description": "Direct frontal composition",
       "tags": [
         "front view",
@@ -4217,7 +4217,7 @@
     },
     "Three-Quarter View": {
       "name_zh": "四分之三侧视角",
-      "prompt": "Three-quarter camera angle, subject turned at roughly 45 degrees from the camera, dynamic balanced portrait composition.",
+      "prompt": "Three-quarter perspective, subject turned about 45 degrees from the camera, dynamic balanced portrait framing.",
       "description": "Three-quarter turned portrait composition",
       "tags": [
         "three-quarter",
@@ -4229,7 +4229,7 @@
     },
     "Side View": {
       "name_zh": "侧面视角",
-      "prompt": "Side camera angle, subject viewed from the side in profile, clean silhouette composition.",
+      "prompt": "Side perspective, subject viewed in profile, clean silhouette framing.",
       "description": "Profile side view composition",
       "tags": [
         "side view",
@@ -4241,7 +4241,7 @@
     },
     "Back View": {
       "name_zh": "背面视角",
-      "prompt": "Back camera angle, subject viewed from behind, mysterious anonymous perspective.",
+      "prompt": "Back perspective, subject viewed from behind, mysterious anonymous framing.",
       "description": "Mysterious back view composition",
       "tags": [
         "back view",
@@ -4253,7 +4253,7 @@
     },
     "Direct Gaze": {
       "name_zh": "直视镜头",
-      "prompt": "Direct gaze camera angle, subject looking straight into the lens, strong eye contact with the viewer.",
+      "prompt": "Direct gaze, subject looking straight into the camera lens, strong eye contact.",
       "description": "Strong direct eye contact with the camera",
       "tags": [
         "direct gaze",
@@ -4265,7 +4265,7 @@
     },
     "Dramatic Low Angle": {
       "name_zh": "戏剧化仰角",
-      "prompt": "Dramatic low angle camera shot, extreme upward perspective, powerful imposing composition, cinematic hero framing.",
+      "prompt": "Extreme dramatic low-angle perspective, powerful upward view, imposing cinematic hero framing.",
       "description": "Extreme dramatic upward hero framing",
       "tags": [
         "dramatic low angle",
@@ -4277,7 +4277,7 @@
     },
     "Cinematic Overhead": {
       "name_zh": "电影化俯拍",
-      "prompt": "Cinematic overhead camera shot, elegant top-down composition, controlled elevated framing, film production perspective.",
+      "prompt": "Cinematic overhead perspective, elegant top-down framing, controlled elevated composition.",
       "description": "Elegant cinematic top-down framing",
       "tags": [
         "cinematic",
@@ -4286,12 +4286,60 @@
         "elevated framing"
       ],
       "weight": 1.0
+    },
+    "Extreme Low-Angle Close-Up": {
+      "name_zh": "极限低角特写",
+      "prompt": "Extreme low-angle close-up, camera close to the subject looking steeply upward, monumental intimate framing.",
+      "description": "Monumental extreme low-angle close-up framing",
+      "tags": [
+        "extreme low-angle",
+        "close-up",
+        "monumental",
+        "upward"
+      ],
+      "weight": 1.0
+    },
+    "High-Angle Wide Perspective": {
+      "name_zh": "高角宽幅视角",
+      "prompt": "High-angle wide perspective, camera elevated looking down across a broad scene, expansive overview composition.",
+      "description": "Elevated wide high-angle overview",
+      "tags": [
+        "high-angle",
+        "wide",
+        "overview",
+        "elevated"
+      ],
+      "weight": 1.0
+    },
+    "Dynamic Tilted Framing": {
+      "name_zh": "动态倾斜取景",
+      "prompt": "Dynamic tilted framing, camera angled off horizontal for energetic motion, kinetic cinematic composition.",
+      "description": "Kinetic tilted dynamic framing",
+      "tags": [
+        "tilted",
+        "dynamic",
+        "kinetic",
+        "energetic"
+      ],
+      "weight": 1.0
+    },
+    "Seen from Extremely Close Up": {
+      "name_zh": "极近距视角",
+      "prompt": "As seen from extremely close up, the camera pressed near the subject, immersive intimate perspective.",
+      "description": "Immersive extremely close viewpoint",
+      "tags": [
+        "extremely close",
+        "immersive",
+        "intimate",
+        "near"
+      ],
+      "weight": 1.0
     }
   },
   "Camera Distance": {
     "Extreme Close-Up": {
       "name_zh": "大特写",
-      "prompt": "Extreme close-up framing, camera very close to the subject, filling the frame with a small detail such as the eyes or lips, intense intimate composition.",
+      "prompt": "Extreme close-up, framing a small detail such as the eyes or lips, intense intimate composition.",
       "description": "Extreme close-up on a small facial detail",
       "tags": [
         "extreme close-up",
@@ -4303,7 +4351,7 @@
     },
     "Close-Up": {
       "name_zh": "特写",
-      "prompt": "Close-up framing, subject's head and shoulders filling the frame, detailed facial expression, intimate portrait composition.",
+      "prompt": "Close-up shot, head and shoulders filling the frame, detailed facial expression, intimate portrait framing.",
       "description": "Head-and-shoulders close-up framing",
       "tags": [
         "close-up",
@@ -4315,7 +4363,7 @@
     },
     "Bust Shot": {
       "name_zh": "半身像",
-      "prompt": "Bust shot framing, subject cropped at the chest, head and upper torso in frame, classic portrait composition.",
+      "prompt": "Bust shot, cropped at the chest, head and upper torso in frame, classic portrait composition.",
       "description": "Chest-cropped bust shot framing",
       "tags": [
         "bust shot",
@@ -4327,7 +4375,7 @@
     },
     "Medium Close-Up": {
       "name_zh": "中特写",
-      "prompt": "Medium close-up framing, subject cropped from the chest upward, balanced between intimacy and context.",
+      "prompt": "Medium close-up shot, cropped from the chest upward, balanced intimate framing.",
       "description": "Balanced medium close-up framing",
       "tags": [
         "medium close-up",
@@ -4339,7 +4387,7 @@
     },
     "Medium Shot": {
       "name_zh": "中景",
-      "prompt": "Medium shot framing, subject cropped around the waist, balanced body language and environment composition.",
+      "prompt": "Medium shot, cropped around the waist, balanced body and environment composition.",
       "description": "Waist-cropped medium shot framing",
       "tags": [
         "medium shot",
@@ -4351,7 +4399,7 @@
     },
     "Cowboy Shot": {
       "name_zh": "牛仔镜头",
-      "prompt": "Cowboy shot framing, subject cropped around mid-thigh, western-style shot size, dynamic action composition.",
+      "prompt": "Cowboy shot, cropped around mid-thigh, dynamic western-style framing.",
       "description": "Mid-thigh cowboy shot framing",
       "tags": [
         "cowboy shot",
@@ -4363,7 +4411,7 @@
     },
     "Medium Full Shot": {
       "name_zh": "中全景",
-      "prompt": "Medium full shot framing, subject cropped around the knees, most of the body visible, full-figure composition.",
+      "prompt": "Medium full shot, cropped around the knees, most of the body in frame.",
       "description": "Knee-cropped medium full shot framing",
       "tags": [
         "medium full shot",
@@ -4375,7 +4423,7 @@
     },
     "Full Shot": {
       "name_zh": "全景",
-      "prompt": "Full shot framing, entire subject visible from head to toe, full body in frame, complete figure composition.",
+      "prompt": "Full shot, entire subject from head to toe, complete figure composition.",
       "description": "Head-to-toe full shot framing",
       "tags": [
         "full shot",
@@ -4387,7 +4435,7 @@
     },
     "Long Shot": {
       "name_zh": "远景",
-      "prompt": "Long shot framing, subject small within the surrounding environment, figure and setting balanced, scene composition.",
+      "prompt": "Long shot, subject small within the surrounding environment, balanced figure and setting.",
       "description": "Subject small within the environment",
       "tags": [
         "long shot",
@@ -4399,7 +4447,7 @@
     },
     "Extreme Long Shot": {
       "name_zh": "大远景",
-      "prompt": "Extreme long shot framing, subject tiny within a vast landscape, environment dominates the composition.",
+      "prompt": "Extreme long shot, tiny subject in a vast landscape, environment-dominant composition.",
       "description": "Tiny subject in a vast landscape",
       "tags": [
         "extreme long shot",
@@ -4410,7 +4458,7 @@
     },
     "Establishing Shot": {
       "name_zh": "建立镜头",
-      "prompt": "Establishing shot framing, wide view of the entire setting, context-establishing composition, subject placed within the broader scene.",
+      "prompt": "Establishing shot, wide view of the entire setting, context-establishing composition.",
       "description": "Wide context-establishing framing",
       "tags": [
         "establishing shot",
@@ -4774,7 +4822,7 @@
       "name_zh": "蔡司Master Prime 25mm"
     },
     "Zeiss Master Prime 50mm": {
-      "prompt": "Zeiss Master Prime 50mm cinema lens, natural film perspective with subtle compression, T1.3 maximum aperture, clinical precision with organic falloff characteristics, minimal focus breathing, professional cinema production standard, Netflix and IMAX optical quality.",
+      "prompt": "Zeiss Master Prime 50mm cinema lens, natural film perspective with subtle compression, T1.3 maximum aperture, clinical precision with organic falloff characteristics, minimal focus breathing, professional cinema production standard, professional cinema optical quality.",
       "description": "Cinema standard prime - cinematic medium shot",
       "tags": [
         "50mm",
@@ -4826,7 +4874,7 @@
       "name_zh": "库克S4 65mm"
     },
     "Arri Signature Prime 40mm": {
-      "prompt": "Arri Signature Prime 40mm cinema lens, contemporary cinema optical design, T1.8 maximum aperture, large format coverage capability, smooth natural bokeh with modern optical formula, minimal aberrations, Netflix and IMAX production optical standard, modern digital cinema characteristics.",
+      "prompt": "Arri Signature Prime 40mm cinema lens, contemporary cinema optical design, T1.8 maximum aperture, large format coverage capability, smooth natural bokeh with modern optical formula, minimal aberrations, professional cinema production standard, modern digital cinema characteristics.",
       "description": "Arri cinema prime - modern medium framing",
       "tags": [
         "40mm",
@@ -4917,7 +4965,7 @@
       "name_zh": "安琴25-250mm"
     },
     "Fujinon Premier 18-85mm": {
-      "prompt": "Fujinon Premier 18-85mm cinema zoom, T2.0 constant aperture, flexible range from wide environmental to portrait focal lengths, professional documentary cinema quality, consistent color and contrast throughout range, modern cinema zoom for Netflix and documentary production, natural rendering with cinema character.",
+      "prompt": "Fujinon Premier 18-85mm cinema zoom, T2.0 constant aperture, flexible range from wide environmental to portrait focal lengths, professional documentary cinema quality, consistent color and contrast throughout range, modern cinema zoom for documentary production, natural rendering with cinema character.",
       "description": "Cinema zoom - documentary production range",
       "tags": [
         "18-85mm",

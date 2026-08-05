@@ -155,11 +155,12 @@ class SFPromptPreset:
         camera_text = self._resolve_preset("Camera Lens", camera_lens_preset, seed + 9)
 
         parts = [input_text.strip()] if input_text.strip() else []
-        preset_parts = [
-            p.strip().rstrip(".")
-            for p in (outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text)
-            if p
-        ]
+        preset_parts = []
+        for p in (outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text):
+            p = p.strip().rstrip(".")
+            if p:
+                # 片段首字母小写化，与 Krea2 官方小写短语流风格一致（input_text 保持原样）
+                preset_parts.append(p[0].lower() + p[1:])
         parts.extend(preset_parts)
         combined = self._clean_prompt(", ".join(parts))
 
