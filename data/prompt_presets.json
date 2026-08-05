@@ -3364,6 +3364,162 @@
       ],
       "weight": 1.2,
       "name_zh": "魔幻现实主义"
+    },
+    "Japanese Film Photography": {
+      "name_zh": "日系胶片风",
+      "prompt": "Japanese film photography aesthetic, soft muted tones, gentle grain, nostalgic film look, delicate skin tones, dreamy soft focus, everyday moments captured with warmth.",
+      "description": "Nostalgic soft Japanese film photography",
+      "tags": [
+        "japanese",
+        "film",
+        "nostalgic",
+        "soft",
+        "grain"
+      ],
+      "weight": 1.0
+    },
+    "Japanese Fresh Portrait": {
+      "name_zh": "日系清新写真",
+      "prompt": "Japanese fresh portrait aesthetic, clean bright tones, airy high-key lighting, natural minimal makeup look, soft youthful atmosphere, pure refreshing composition, everyday girl photo style.",
+      "description": "Clean bright Japanese fresh portrait",
+      "tags": [
+        "japanese",
+        "fresh",
+        "portrait",
+        "high-key",
+        "youthful"
+      ],
+      "weight": 1.0
+    },
+    "Showa Retro": {
+      "name_zh": "昭和复古",
+      "prompt": "Showa-era retro aesthetic, warm vintage color palette, 1970s-80s Japanese style, nostalgic film tones, retro fashion and interior details, gentle faded colors, period atmosphere.",
+      "description": "Warm nostalgic Showa-era retro style",
+      "tags": [
+        "showa",
+        "retro",
+        "vintage",
+        "1970s",
+        "nostalgic"
+      ],
+      "weight": 1.0
+    },
+    "Shojo Manga": {
+      "name_zh": "少女漫风",
+      "prompt": "Shojo manga illustration style, delicate linework, sparkly expressive eyes, soft pastel palette, flower and sparkle accents, romantic dreamy atmosphere, clean cel shading.",
+      "description": "Romantic pastel shojo manga style",
+      "tags": [
+        "shojo",
+        "manga",
+        "illustration",
+        "pastel",
+        "romantic"
+      ],
+      "weight": 1.0
+    },
+    "Mori Girl": {
+      "name_zh": "森系风格",
+      "prompt": "Mori girl aesthetic, natural earthy tones, layered soft clothing, forest and woodland vibes, gentle bohemian style, cozy natural atmosphere, warm muted palette.",
+      "description": "Cozy natural earthy mori girl style",
+      "tags": [
+        "mori girl",
+        "natural",
+        "earthy",
+        "forest",
+        "cozy"
+      ],
+      "weight": 1.0
+    },
+    "Salt Style": {
+      "name_zh": "盐系风格",
+      "prompt": "Salt style photography, cool muted tones with subtle warmth, low-contrast clean look, minimalist neutral palette, calm quiet atmosphere, natural unposed feel.",
+      "description": "Calm minimalist salt style photography",
+      "tags": [
+        "salt style",
+        "muted",
+        "minimalist",
+        "cool tones",
+        "calm"
+      ],
+      "weight": 1.0
+    },
+    "High-Key Japanese": {
+      "name_zh": "高曝光日系",
+      "prompt": "High-key Japanese aesthetic, bright overexposed clean whites, soft blown-out highlights, airy luminous atmosphere, minimal shadows, dreamy bright portrait style.",
+      "description": "Bright luminous high-key Japanese style",
+      "tags": [
+        "high-key",
+        "japanese",
+        "bright",
+        "luminous",
+        "dreamy"
+      ],
+      "weight": 1.0
+    },
+    "School Photo": {
+      "name_zh": "校园写真",
+      "prompt": "Japanese school photo aesthetic, uniform-clad campus scenes, youthful nostalgic mood, bright daytime colors, cheerful student atmosphere, spring and summer school memories.",
+      "description": "Youthful nostalgic school photo style",
+      "tags": [
+        "school",
+        "uniform",
+        "campus",
+        "youthful",
+        "nostalgic"
+      ],
+      "weight": 1.0
+    },
+    "Japanese Magazine": {
+      "name_zh": "日系杂志排版",
+      "prompt": "Japanese fashion magazine editorial aesthetic, clean stylish layout feel, trendy street fashion, polished magazine-quality composition, modern minimal graphic style.",
+      "description": "Clean polished Japanese magazine editorial",
+      "tags": [
+        "japanese",
+        "magazine",
+        "editorial",
+        "fashion",
+        "minimal"
+      ],
+      "weight": 1.0
+    },
+    "Kawaii Sweet": {
+      "name_zh": "日系甜酷风",
+      "prompt": "Kawaii sweet aesthetic, pastel candy colors, cute accessories and bows, soft glossy tones, playful charming atmosphere, adorable idol-like presentation.",
+      "description": "Playful pastel kawaii sweet style",
+      "tags": [
+        "kawaii",
+        "sweet",
+        "pastel",
+        "cute",
+        "playful"
+      ],
+      "weight": 1.0
+    },
+    "Tokyo Street Snap": {
+      "name_zh": "东京街头随拍",
+      "prompt": "Tokyo street snapshot aesthetic, candid everyday moments, urban streetscape with signs and vending machines, natural documentary feel, vibrant city colors, spontaneous photography style.",
+      "description": "Candid vibrant Tokyo street snapshot",
+      "tags": [
+        "tokyo",
+        "street",
+        "snapshot",
+        "candid",
+        "urban"
+      ],
+      "weight": 1.0
+    },
+    "Japanese Minimal Poster": {
+      "name_zh": "日式极简海报",
+      "prompt": "Japanese minimalist poster aesthetic, clean negative space, subtle typography-like composition, restrained color palette, elegant simplicity, modern graphic design feel.",
+      "description": "Elegant restrained Japanese minimal poster",
+      "tags": [
+        "japanese",
+        "minimalist",
+        "poster",
+        "elegant",
+        "graphic design"
+      ],
+      "weight": 1.0
     }
   },
   "Camera Angle": {

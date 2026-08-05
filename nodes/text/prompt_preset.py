@@ -4,6 +4,7 @@ import random
 import re
 import threading
 
+from aiohttp import web
 from comfy.comfy_types.node_typing import IO
 
 _CATEGORY = "sfnodes/text"
@@ -16,6 +17,7 @@ _CATEGORY_KEYS = ("Pose", "Couple Pose", "Environment", "Lighting", "Style", "Ca
 _presets = {}
 _presets_lock = threading.Lock()
 _zh_to_preset = {}
+_presets_mtime = None
 
 
 def _presets_path():
@@ -26,19 +28,25 @@ def _presets_path():
 
 
 def _load_presets():
-    """加载预设数据（线程安全，仅一次），并构建中文名 -> (分类, 英文名) 反查索引。"""
-    global _presets, _zh_to_preset
-    if _presets:
+    """加载预设数据（线程安全；数据文件 mtime 变化时自动重载），并构建中文名 -> (分类, 英文名) 反查索引。"""
+    global _presets, _zh_to_preset, _presets_mtime
+    path = _presets_path()
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        mtime = None
+    if _presets and _presets_mtime == mtime:
         return _presets, _zh_to_preset
     with _presets_lock:
-        if _presets:
+        if _presets and _presets_mtime == mtime:
             return _presets, _zh_to_preset
         data = {}
         try:
-            with open(_presets_path(), "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
             if isinstance(loaded, dict):
                 data = loaded
+            _presets_mtime = mtime
         except Exception as e:
             print(f"[SFPromptPreset] 加载预设数据失败: {e}")
         _presets = data
@@ -191,3 +199,34 @@ class SFPromptPreset:
     def _clean_prompt(prompt):
         prompt = ", ".join([part.strip() for part in prompt.split(",") if part.strip()])
         return prompt.replace("., ", ", ")
+
+
+def _register_prompt_preset_routes():
+    """注册描述映射 API：{分类: {中文选项名: 英文 description}}，供前端悬浮卡片展示。"""
+    try:
+        from server import PromptServer
+
+        ins = getattr(PromptServer, "instance", None)
+        if ins is None or not hasattr(ins, "routes"):
+            return
+        routes = ins.routes
+
+        @routes.get("/api/sfnodes/prompt_presets")
+        async def _prompt_presets(request: web.Request) -> web.Response:
+            try:
+                presets, _ = _load_presets()
+                result = {}
+                for category, items in presets.items():
+                    result[category] = {
+                        (item.get("name_zh") or name): item.get("description", "")
+                        for name, item in items.items()
+                    }
+                return web.json_response(result)
+            except Exception:
+                return web.Response(status=500)
+
+    except Exception:
+        pass
+
+
+_register_prompt_preset_routes()

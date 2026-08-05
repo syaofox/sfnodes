@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放、拼接、处理、对比
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择
+│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
@@ -36,8 +36,8 @@ sfnodes/
 │   ├── lora_notes.py     # LoRA 笔记/说明
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库）
-├── data/                # 静态数据（anime_char CSV、face_distance 字体等）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/描述悬浮卡片）
+├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 └── doc/                 # 项目文档（vibecoding.md 开发流程等）
 ```
 
