@@ -497,6 +497,18 @@
         "adult"
       ],
       "weight": 1.0
+    },
+    "Fully Nude": {
+      "name_zh": "全裸",
+      "prompt": "fully nude with bare skin, wearing no clothing at all, completely unclothed body.",
+      "description": "Completely unclothed nude body",
+      "tags": [
+        "nude",
+        "bare",
+        "unclothed",
+        "adult"
+      ],
+      "weight": 1.0
     }
   },
   "Pose": {

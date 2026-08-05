@@ -84,7 +84,7 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     pure_ascii = [o for o in opts[2:] if o.isascii()]
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
-check("outfit 40 项", len(opt["outfit_preset"][0]) == 42)
+check("outfit 41 项", len(opt["outfit_preset"][0]) == 43)
 check("pose 50 项", len(opt["pose_preset"][0]) == 52)
 check("couple 32 项", len(opt["couple_preset"][0]) == 34)
 check("environment 84 项", len(opt["environment_preset"][0]) == 86)
@@ -311,6 +311,8 @@ check("互斥 pose=随机 生效", p_m3 != "")
 # 服装 NSFW 反查
 _, outfit_nsfw, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
 check("服装 NSFW 命中", "transparent" in outfit_nsfw and "adult" in outfit_nsfw.lower() or "see-through" in outfit_nsfw)
+_, outfit_nude, _, _, _, _, _, _, _, _ = node.execute("x", seed=1, outfit_preset="全裸")
+check("全裸选项命中", "fully nude" in outfit_nude and "no clothing" in outfit_nude)
 
 # 7e. 分类正交化：姿势不含场景/灯光，Style 不含镜头参数
 import re as _re_orth
