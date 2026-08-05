@@ -33,6 +33,7 @@ from .nodes.image.concatenate import (
     ImageConcatenate,
     ImageConcatFromBatch,
 )
+from .nodes.image.blend import SFImageBlend
 from .nodes.mask.masks import (
     MaskParams,
     MaskParamsEdges,
@@ -182,6 +183,7 @@ NODE_CLASS_MAPPINGS = {
     "SFAddImageBorder": AddImageBorder,
     "SFImageConcatenate": ImageConcatenate,
     "SFImageConcatFromBatch": ImageConcatFromBatch,
+    "SFImageBlend": SFImageBlend,
     # 遮罩节点
     "SFMaskParams": MaskParams,
     "SFMaskParamsEdges": MaskParamsEdges,
@@ -335,6 +337,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAddImageBorder": "SF Add Image Border",
     "SFImageConcatenate": "SF Image Concatenate",
     "SFImageConcatFromBatch": "SF Image Concat From Batch",
+    "SFImageBlend": "SF Image Blend",
     # 遮罩节点
     "SFMaskParams": "SF Mask Params",
     "SFMaskParamsEdges": "SF Mask Params Edges",
