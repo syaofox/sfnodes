@@ -6687,6 +6687,88 @@
       ],
       "weight": 1.0,
       "group": "SFW"
+    },
+    "Vibrator Play": {
+      "name_zh": "跳蛋自慰",
+      "prompt": "Fully nude, lying on the back with legs spread, holding a small vibrator against the clitoris, eyes closed in pleasure, flushed expression, intimate vibrator play scene.",
+      "description": "Nude vibrator masturbation scene",
+      "tags": [
+        "nude",
+        "vibrator",
+        "masturbating",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Dildo Play": {
+      "name_zh": "假阳具自慰",
+      "prompt": "Fully nude, lying on the back, inserting a dildo between the legs, one hand holding it, the other touching the chest, intimate dildo play scene.",
+      "description": "Nude dildo masturbation scene",
+      "tags": [
+        "nude",
+        "dildo",
+        "masturbating",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Orgasm Climax": {
+      "name_zh": "高潮瞬间",
+      "prompt": "Fully nude, arching the back in climax, head tilted back, mouth open in pleasure, body tensed, intense orgasm moment, flushed skin.",
+      "description": "Intense nude orgasm climax moment",
+      "tags": [
+        "nude",
+        "orgasm",
+        "climax",
+        "intense",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Squirting": {
+      "name_zh": "潮吹",
+      "prompt": "Fully nude, lying on the back with legs spread, squirting fluid during climax, body arched, eyes rolled back in pleasure, intense female ejaculation scene.",
+      "description": "Intense squirting female ejaculation scene",
+      "tags": [
+        "nude",
+        "squirting",
+        "ejaculation",
+        "climax",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Spreading Display": {
+      "name_zh": "掰开展示",
+      "prompt": "Fully nude, lying on the back, spreading the legs wide with both hands holding them open, fully exposed to the viewer, exhibitionist display pose.",
+      "description": "Nude exhibitionist spreading display",
+      "tags": [
+        "nude",
+        "spreading",
+        "display",
+        "exposed",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
+    },
+    "Shower Masturbation": {
+      "name_zh": "淋浴自慰",
+      "prompt": "Fully nude, standing in the shower with water running over the body, one hand between the legs, wet skin glistening, intimate shower masturbation scene.",
+      "description": "Nude shower masturbation scene",
+      "tags": [
+        "nude",
+        "shower",
+        "masturbating",
+        "wet",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "NSFW"
     }
   },
   "Couple Pose": {
@@ -6701,7 +6783,7 @@
         "companionable"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Walking Hand in Hand": {
       "name_zh": "牵手同行",
@@ -6714,7 +6796,7 @@
         "couple"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Hugging": {
       "name_zh": "拥抱",
@@ -6727,7 +6809,7 @@
         "intimate"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Back to Back": {
       "name_zh": "背靠背",
@@ -6740,7 +6822,7 @@
         "composed"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Bridal Carry": {
       "name_zh": "公主抱",
@@ -6753,7 +6835,7 @@
         "lifted"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Cuddling Seated": {
       "name_zh": "依偎而坐",
@@ -6766,7 +6848,7 @@
         "cozy"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Dancing Together": {
       "name_zh": "共舞",
@@ -6779,7 +6861,7 @@
         "graceful"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "High Five": {
       "name_zh": "击掌庆祝",
@@ -6792,7 +6874,7 @@
         "celebration"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Foreheads Touching": {
       "name_zh": "额头相抵",
@@ -6805,7 +6887,7 @@
         "intimate"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Looking at Each Other": {
       "name_zh": "相视一笑",
@@ -6818,7 +6900,7 @@
         "affectionate"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Missionary Position": {
       "name_zh": "传教士体位",
@@ -6832,7 +6914,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Doggy Style": {
       "name_zh": "后入体位",
@@ -6846,7 +6928,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Cowgirl Position": {
       "name_zh": "女上位",
@@ -6860,7 +6942,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Sex Sitting Face to Face": {
       "name_zh": "面对面性爱坐姿",
@@ -6875,7 +6957,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Oral Sex": {
       "name_zh": "口交",
@@ -6889,7 +6971,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Lesbian Kissing Embrace": {
       "name_zh": "女女拥吻",
@@ -6903,7 +6985,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Lesbian Mutual Caress": {
       "name_zh": "女女相互爱抚",
@@ -6917,7 +6999,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Scissoring": {
       "name_zh": "女女交叉体位",
@@ -6931,7 +7013,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Lesbian Oral": {
       "name_zh": "女女口交",
@@ -6945,7 +7027,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Lesbian 69": {
       "name_zh": "女女69式",
@@ -6959,7 +7041,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Piggyback Ride": {
       "name_zh": "驮背",
@@ -6972,7 +7054,7 @@
         "playful"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Arm in Arm": {
       "name_zh": "挽臂",
@@ -6985,7 +7067,7 @@
         "standing"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Face Cradle": {
       "name_zh": "捧脸",
@@ -6998,7 +7080,7 @@
         "intimate"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Cheek to Cheek Dance": {
       "name_zh": "贴面共舞",
@@ -7011,7 +7093,7 @@
         "romantic"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Cuddling on Sofa": {
       "name_zh": "沙发依偎",
@@ -7024,7 +7106,7 @@
         "cozy"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Head on Shoulder": {
       "name_zh": "头靠肩",
@@ -7037,7 +7119,7 @@
         "relaxed"
       ],
       "weight": 1.0,
-      "group": "SFW"
+      "group": "通用"
     },
     "Standing Sex": {
       "name_zh": "男女站立性爱",
@@ -7051,7 +7133,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Spooning Sex": {
       "name_zh": "汤匙体位",
@@ -7065,7 +7147,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Reverse Cowgirl": {
       "name_zh": "反向女上位",
@@ -7079,7 +7161,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "男女"
     },
     "Lesbian Fingering": {
       "name_zh": "女女指交",
@@ -7093,7 +7175,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Lesbian Shower Scene": {
       "name_zh": "女女淋浴",
@@ -7107,7 +7189,7 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
     },
     "Lesbian Tribadism": {
       "name_zh": "女女磨镜",
@@ -7121,7 +7203,217 @@
         "adult"
       ],
       "weight": 1.0,
-      "group": "NSFW"
+      "group": "女女"
+    },
+    "69 Position": {
+      "name_zh": "男女69式",
+      "prompt": "Two adults in a 69 position, the man lying on his back with the woman on top facing his groin, each performing oral sex on the other, intimately entwined.",
+      "description": "Heterosexual 69 position oral sex",
+      "tags": [
+        "two people",
+        "69 position",
+        "oral sex",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Titty Fuck": {
+      "name_zh": "乳交",
+      "prompt": "Two adults engaged in titty fuck, the woman lying on her back squeezing her breasts around the man's erect penis, intimate breast sex scene.",
+      "description": "Heterosexual titty fuck breast sex",
+      "tags": [
+        "two people",
+        "titty fuck",
+        "breast sex",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Intercrural Sex": {
+      "name_zh": "素股",
+      "prompt": "Two adults engaging in intercrural sex, the man thrusting between the woman's closed thighs, bodies pressed together, no penetration, intimate dry-humping scene.",
+      "description": "Heterosexual intercrural thigh sex",
+      "tags": [
+        "two people",
+        "intercrural",
+        "thigh sex",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Foot Job": {
+      "name_zh": "脚交",
+      "prompt": "Two adults engaged in a foot job, the woman using her feet to stimulate the man's erect penis, soles pressed against him, intimate foot play scene.",
+      "description": "Heterosexual foot job scene",
+      "tags": [
+        "two people",
+        "foot job",
+        "feet",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Fingering": {
+      "name_zh": "指交",
+      "prompt": "Two adults engaged in fingering, the man kneeling between the woman's spread legs, fingers inside her, intimate manual sex scene.",
+      "description": "Heterosexual fingering scene",
+      "tags": [
+        "two people",
+        "fingering",
+        "manual",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Anal Sex": {
+      "name_zh": "肛交",
+      "prompt": "Two adults having anal sex, the man penetrating the woman from behind as she arches her back on all fours, intimate rear-entry anal scene.",
+      "description": "Heterosexual anal sex scene",
+      "tags": [
+        "two people",
+        "anal sex",
+        "rear entry",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Lateral Position": {
+      "name_zh": "侧入体位",
+      "prompt": "Two adults having sex in the lateral position, lying on their sides facing each other, legs intertwined, intimate side-entry lovemaking.",
+      "description": "Heterosexual lateral side-entry position",
+      "tags": [
+        "two people",
+        "lateral position",
+        "side entry",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Tabletop Position": {
+      "name_zh": "桌面式",
+      "prompt": "Two adults having sex on a table, the woman lying back on the tabletop with legs raised, the man standing between her legs, intimate tabletop position.",
+      "description": "Heterosexual tabletop position",
+      "tags": [
+        "two people",
+        "tabletop",
+        "elevated legs",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Piledriver": {
+      "name_zh": "打桩式",
+      "prompt": "Two adults having sex in the piledriver position, the woman on her shoulders with legs over the man's shoulders, deep penetration, intense acrobatic position.",
+      "description": "Heterosexual piledriver deep penetration",
+      "tags": [
+        "two people",
+        "piledriver",
+        "deep penetration",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Deep Throat": {
+      "name_zh": "深喉",
+      "prompt": "Two adults engaged in deep throat oral sex, the woman kneeling with the man's erect penis fully in her mouth, hands on the back of her head, intense fellatio scene.",
+      "description": "Heterosexual deep throat fellatio",
+      "tags": [
+        "two people",
+        "deep throat",
+        "fellatio",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "男女"
+    },
+    "Double Dildo": {
+      "name_zh": "双头龙",
+      "prompt": "Two nude adult women using a double-ended dildo, one on each end, lying facing each other with the toy between them, intimate lesbian toy scene.",
+      "description": "Lesbian double dildo toy scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "double dildo",
+        "toy",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "女女"
+    },
+    "Strap-On Cowgirl": {
+      "name_zh": "佩带式骑乘",
+      "prompt": "Two nude adult women, one wearing a strap-on harness riding the other on her back, lesbian strap-on cowgirl position.",
+      "description": "Lesbian strap-on cowgirl position",
+      "tags": [
+        "two people",
+        "lesbian",
+        "strap-on",
+        "cowgirl",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "女女"
+    },
+    "Strap-On Doggy": {
+      "name_zh": "佩带式后入",
+      "prompt": "Two nude adult women, one wearing a strap-on penetrating the other from behind on all fours, lesbian strap-on doggy position.",
+      "description": "Lesbian strap-on doggy position",
+      "tags": [
+        "two people",
+        "lesbian",
+        "strap-on",
+        "doggy",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "女女"
+    },
+    "Lesbian Breast Play": {
+      "name_zh": "女女舔乳",
+      "prompt": "Two nude adult women, one licking and sucking the other's breasts, hand caressing her body, intimate lesbian breast play scene.",
+      "description": "Lesbian breast licking scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "breast play",
+        "licking",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "女女"
+    },
+    "Lesbian Face-to-Face Lap": {
+      "name_zh": "女女面对面坐姿",
+      "prompt": "Two nude adult women sitting face to face on each other's laps, grinding against each other, intimate lesbian lap sex scene.",
+      "description": "Lesbian face-to-face lap grinding",
+      "tags": [
+        "two people",
+        "lesbian",
+        "lap",
+        "face to face",
+        "adult"
+      ],
+      "weight": 1.0,
+      "group": "女女"
     }
   },
   "Environment": {

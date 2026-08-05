@@ -94,8 +94,8 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
 check("celebrity 439 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
 check("outfit 73 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
-check("pose 73 项(含2组随机)", len(opt["pose_preset"][0]) == 75)
-check("couple 34 项(含2组随机)", len(opt["couple_preset"][0]) == 36)
+check("pose 79 项(含2组随机)", len(opt["pose_preset"][0]) == 81)
+check("couple 50 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
 check("environment 119 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
 check("lighting 69 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
 check("style 50 项(含2组随机)", len(opt["style_preset"][0]) == 52)
@@ -337,6 +337,20 @@ check("Celebrity 亚洲组", _g("Celebrity", "周杰伦", {"tags": ["singer", "t
 check("Outfit NSFW", _g("Outfit", "全裸", {"tags": ["nude", "adult"]}) == "NSFW")
 check("Pose SFW", _g("Pose", "站立肖像", {"tags": ["standing"]}) == "SFW")
 check("Couple SFW", _g("Couple Pose", "拥抱", {"tags": ["two people"]}) == "SFW")
+check("Couple 性别细分", _data["Couple Pose"]["Missionary Position"]["group"] == "男女"
+      and _data["Couple Pose"]["Lesbian Mutual Caress"]["group"] == "女女"
+      and _data["Couple Pose"]["Hugging"]["group"] == "通用")
+_couple_groups = [v["group"] for v in _data["Couple Pose"].values()]
+check("Couple 分组覆盖", len(_couple_groups) == 47 and set(_couple_groups) == {"通用", "男女", "女女"}
+      and _couple_groups.count("男女") == 18 and _couple_groups.count("女女") == 13)
+check("Couple 男女随机不越界", node.execute("", seed=9, couple_preset="随机·男女")[4] in
+      {v["prompt"] for v in _data["Couple Pose"].values() if v["group"] == "男女"})
+_, _, _, _, couple_anal, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="肛交")
+check("男女肛交反查", "anal" in couple_anal and "man" in couple_anal)
+_, _, _, _, couple_dd, _, _, _, _, _, _ = node.execute("x", seed=1, couple_preset="双头龙")
+check("女女双头龙反查", "double-ended dildo" in couple_dd and "lesbian" in couple_dd)
+_, _, _, pose_vib, _, _, _, _, _, _, _ = node.execute("x", seed=1, pose_preset="跳蛋自慰")
+check("跳蛋自慰反查", "vibrator" in pose_vib and "nude" in pose_vib)
 check("Environment 无分组", _g("Environment", "樱花大道", {"tags": []}) is None)
 check("路由 group 字段", _resp.data["Celebrity"]["Taylor Swift"]["group"] == "歌手"
       and _resp.data["Outfit"]["全裸"]["group"] == "NSFW"
