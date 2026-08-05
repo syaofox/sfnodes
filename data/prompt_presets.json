@@ -1,0 +1,3981 @@
+{
+  "Pose": {
+    "Standing Portrait": {
+      "name_zh": "站立肖像",
+      "prompt": "Standing upright facing the camera, relaxed natural posture, full body view, confident calm presence.",
+      "description": "Relaxed standing pose facing the viewer",
+      "tags": [
+        "standing",
+        "full body",
+        "portrait",
+        "natural"
+      ],
+      "weight": 1.0
+    },
+    "Side Profile Standing": {
+      "name_zh": "侧身站立",
+      "prompt": "Standing in side profile, looking straight ahead, elegant silhouette, natural relaxed stance, full body view.",
+      "description": "Elegant standing pose in side profile",
+      "tags": [
+        "side profile",
+        "standing",
+        "silhouette",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Looking Back Over Shoulder": {
+      "name_zh": "回眸",
+      "prompt": "Standing with the back to the camera, looking back over the shoulder, catching the viewer's gaze, natural turning pose.",
+      "description": "Looking back over the shoulder at the camera",
+      "tags": [
+        "looking back",
+        "over shoulder",
+        "standing",
+        "gaze"
+      ],
+      "weight": 1.0
+    },
+    "Walking Down Street": {
+      "name_zh": "街头行走",
+      "prompt": "Walking with a natural stride, mid-step motion, casual street walking pose, relaxed urban movement.",
+      "description": "Casual walking pose with natural stride",
+      "tags": [
+        "walking",
+        "stride",
+        "street",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Running": {
+      "name_zh": "奔跑",
+      "prompt": "Running with a dynamic stride, mid-action motion, athletic pose, energetic movement.",
+      "description": "Dynamic running pose in motion",
+      "tags": [
+        "running",
+        "dynamic",
+        "athletic",
+        "motion"
+      ],
+      "weight": 1.0
+    },
+    "Jumping in the Air": {
+      "name_zh": "腾空跳跃",
+      "prompt": "Jumping with arms spread, suspended mid-air, joyful energetic pose, dynamic motion, full body airborne.",
+      "description": "Energetic jump suspended mid-air",
+      "tags": [
+        "jumping",
+        "mid-air",
+        "dynamic",
+        "joyful"
+      ],
+      "weight": 1.0
+    },
+    "Sitting on a Chair": {
+      "name_zh": "坐椅",
+      "prompt": "Sitting on a chair, legs crossed, relaxed casual posture, natural seated pose, full body view.",
+      "description": "Relaxed seated pose on a chair",
+      "tags": [
+        "sitting",
+        "chair",
+        "crossed legs",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Sitting Cross-Legged": {
+      "name_zh": "盘腿坐",
+      "prompt": "Sitting cross-legged on the floor, upright posture, relaxed casual pose, hands resting on knees.",
+      "description": "Casual cross-legged seated pose on the floor",
+      "tags": [
+        "sitting",
+        "cross-legged",
+        "floor",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Kneeling": {
+      "name_zh": "跪姿",
+      "prompt": "Kneeling on the floor, upright posture, hands resting on thighs, calm composed pose.",
+      "description": "Upright kneeling pose",
+      "tags": [
+        "kneeling",
+        "upright",
+        "composed"
+      ],
+      "weight": 1.0
+    },
+    "Crouching Squat": {
+      "name_zh": "蹲姿",
+      "prompt": "Crouching in a deep squat, arms resting on the knees, casual urban pose, relaxed lower stance.",
+      "description": "Casual crouching squat pose",
+      "tags": [
+        "crouching",
+        "squat",
+        "urban",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Lying Relaxed": {
+      "name_zh": "仰卧放松",
+      "prompt": "Lying flat on the back, relaxed natural pose, arms resting at the sides, peaceful resting position.",
+      "description": "Relaxed lying pose on the back",
+      "tags": [
+        "lying",
+        "on back",
+        "relaxed",
+        "resting"
+      ],
+      "weight": 1.0
+    },
+    "Lying on Side": {
+      "name_zh": "侧卧",
+      "prompt": "Lying on the side, propped on one elbow, legs slightly bent, relaxed reclining pose.",
+      "description": "Relaxed side-lying pose propped on elbow",
+      "tags": [
+        "lying",
+        "side",
+        "propped",
+        "relaxed"
+      ],
+      "weight": 1.0
+    },
+    "Leaning Against Wall": {
+      "name_zh": "靠墙",
+      "prompt": "Leaning against a wall, one shoulder resting on the surface, casual confident pose, relaxed posture.",
+      "description": "Casual leaning pose against a wall",
+      "tags": [
+        "leaning",
+        "wall",
+        "casual",
+        "confident"
+      ],
+      "weight": 1.0
+    },
+    "Leaning on Doorframe": {
+      "name_zh": "倚门",
+      "prompt": "Leaning on a doorframe, arms resting at the side, relaxed doorway pose, casual intimate stance.",
+      "description": "Relaxed leaning pose on a doorframe",
+      "tags": [
+        "leaning",
+        "doorframe",
+        "casual",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Hands on Hips": {
+      "name_zh": "叉腰",
+      "prompt": "Standing with hands on hips, confident assertive posture, weight on one leg, commanding presence.",
+      "description": "Confident hands-on-hips standing pose",
+      "tags": [
+        "hands on hips",
+        "confident",
+        "standing",
+        "assertive"
+      ],
+      "weight": 1.0
+    },
+    "Arms Crossed": {
+      "name_zh": "抱臂",
+      "prompt": "Standing with arms crossed over the chest, confident composed posture, relaxed weight distribution.",
+      "description": "Composed arms-crossed standing pose",
+      "tags": [
+        "arms crossed",
+        "confident",
+        "standing",
+        "composed"
+      ],
+      "weight": 1.0
+    },
+    "Waving Hello": {
+      "name_zh": "挥手",
+      "prompt": "Standing and waving one hand, cheerful greeting gesture, casual friendly pose, warm expression.",
+      "description": "Cheerful waving greeting pose",
+      "tags": [
+        "waving",
+        "greeting",
+        "friendly",
+        "cheerful"
+      ],
+      "weight": 1.0
+    },
+    "Ballet Pose": {
+      "name_zh": "芭蕾姿势",
+      "prompt": "Ballet pose, standing on one foot with an extended leg, graceful arms, elegant dance posture, poised balance.",
+      "description": "Elegant ballet pose with extended leg",
+      "tags": [
+        "ballet",
+        "dance",
+        "graceful",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Yoga Pose": {
+      "name_zh": "瑜伽姿势",
+      "prompt": "Yoga pose, balanced and centered, graceful alignment, serene posture, controlled breathing stillness.",
+      "description": "Balanced serene yoga pose",
+      "tags": [
+        "yoga",
+        "balanced",
+        "serene",
+        "graceful"
+      ],
+      "weight": 1.0
+    },
+    "Stretching Arms": {
+      "name_zh": "伸懒腰",
+      "prompt": "Stretching arms overhead, arching the back, relaxed morning stretch pose, arms raised and extended.",
+      "description": "Relaxed arms-overhead stretch pose",
+      "tags": [
+        "stretching",
+        "arms overhead",
+        "relaxed",
+        "morning"
+      ],
+      "weight": 1.0
+    },
+    "Fully Nude Standing": {
+      "name_zh": "全裸站立",
+      "prompt": "Fully nude, standing facing the viewer, hands resting at the sides, intimate bare exposure, soft natural lighting, confident nude pose.",
+      "description": "Nude standing pose facing the viewer",
+      "tags": [
+        "nude",
+        "standing",
+        "bare",
+        "exposed",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Nude Lying Legs Spread": {
+      "name_zh": "裸卧张开腿",
+      "prompt": "Fully nude, lying on the back on a bed, legs spread apart, knees slightly bent, arms above the head, fully exposed, inviting intimate pose.",
+      "description": "Nude reclining pose with spread legs",
+      "tags": [
+        "nude",
+        "lying",
+        "spread legs",
+        "exposed",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "On All Fours": {
+      "name_zh": "跪爬姿势",
+      "prompt": "Fully nude, on all fours on a bed, arched back, hips raised, looking back over the shoulder, submissive intimate pose.",
+      "description": "Nude arched all-fours pose looking back",
+      "tags": [
+        "nude",
+        "all fours",
+        "arched back",
+        "submissive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Side Arching Hips": {
+      "name_zh": "侧卧翘臀",
+      "prompt": "Fully nude, lying on the side, arching the hips backward, one leg raised, seductive curvy pose, intimate bedroom setting.",
+      "description": "Nude side pose arching the hips",
+      "tags": [
+        "nude",
+        "side pose",
+        "arched hips",
+        "seductive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Sitting Legs Spread": {
+      "name_zh": "坐姿张开腿",
+      "prompt": "Fully nude, sitting on the bed edge, legs spread wide, leaning back on the hands, open intimate posture, direct gaze.",
+      "description": "Nude sitting pose with spread legs",
+      "tags": [
+        "nude",
+        "sitting",
+        "spread legs",
+        "open",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Bending Over Back View": {
+      "name_zh": "弯腰背对",
+      "prompt": "Fully nude, bending over with the back to the camera, hips raised toward the viewer, looking back, intimate view.",
+      "description": "Nude bending pose viewed from behind",
+      "tags": [
+        "nude",
+        "bending over",
+        "back view",
+        "raised hips",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Caressing Body": {
+      "name_zh": "抚摸身体",
+      "prompt": "Fully nude, lying on the back, one hand caressing the chest and stomach, eyes closed in pleasure, intimate self-touch pose, soft warm light.",
+      "description": "Nude reclining pose with self-caress",
+      "tags": [
+        "nude",
+        "caressing",
+        "self-touch",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Masturbating on Bed": {
+      "name_zh": "床上自慰",
+      "prompt": "Fully nude, lying on a bed, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene, soft warm lighting.",
+      "description": "Nude masturbation pose on bed",
+      "tags": [
+        "nude",
+        "masturbating",
+        "bed",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "In Bathtub": {
+      "name_zh": "浴缸姿态",
+      "prompt": "Fully nude, reclining in a bathtub, wet skin glistening, legs visible above the waterline, sensual relaxed bath pose, steamy atmosphere.",
+      "description": "Nude reclining pose in a bathtub",
+      "tags": [
+        "nude",
+        "bathtub",
+        "wet skin",
+        "sensual",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Starfish on Bed": {
+      "name_zh": "床上仰躺展开",
+      "prompt": "Fully nude, lying on a bed in a starfish pose, arms and legs spread wide, fully exposed, submissive presentation, soft bedroom lighting.",
+      "description": "Nude starfish pose with limbs spread",
+      "tags": [
+        "nude",
+        "starfish pose",
+        "spread limbs",
+        "submissive",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Sitting Legs Extended": {
+      "name_zh": "伸腿坐",
+      "prompt": "Sitting on the floor with legs extended straight forward, hands resting at the sides, relaxed casual pose.",
+      "description": "Sitting with legs extended on the floor",
+      "tags": [
+        "sitting",
+        "legs extended",
+        "floor",
+        "relaxed"
+      ],
+      "weight": 1.0
+    },
+    "Sitting Crossed Ankle": {
+      "name_zh": "二郎腿坐",
+      "prompt": "Sitting on a chair with one leg crossed over the other at the ankle, relaxed casual seated pose.",
+      "description": "Casual seated pose with crossed ankles",
+      "tags": [
+        "sitting",
+        "crossed legs",
+        "chair",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Sitting on Bed Edge": {
+      "name_zh": "坐床边",
+      "prompt": "Sitting on the edge of a bed, feet resting on the floor, hands on the lap, natural casual pose.",
+      "description": "Casual seated pose on the edge of a bed",
+      "tags": [
+        "sitting",
+        "bed",
+        "bedside",
+        "casual"
+      ],
+      "weight": 1.0
+    },
+    "Reclining in Lounge Chair": {
+      "name_zh": "躺椅放松",
+      "prompt": "Reclining back in a lounge chair, legs extended, relaxed leisurely pose, arms resting on the armrests.",
+      "description": "Relaxed reclining pose in a lounge chair",
+      "tags": [
+        "reclining",
+        "lounge chair",
+        "relaxed",
+        "leisurely"
+      ],
+      "weight": 1.0
+    },
+    "Prone on Stomach": {
+      "name_zh": "俯卧",
+      "prompt": "Lying flat on the stomach, face turned to the side, arms relaxed at the sides, relaxed resting pose.",
+      "description": "Relaxed prone pose on the stomach",
+      "tags": [
+        "lying",
+        "prone",
+        "stomach",
+        "resting"
+      ],
+      "weight": 1.0
+    },
+    "Lying Looking Up": {
+      "name_zh": "侧躺抬头",
+      "prompt": "Lying on the side, looking up toward the camera, propped slightly on one arm, casual reclining pose.",
+      "description": "Side-lying pose looking up at the camera",
+      "tags": [
+        "lying",
+        "side",
+        "looking up",
+        "reclining"
+      ],
+      "weight": 1.0
+    },
+    "One Knee Kneeling": {
+      "name_zh": "单膝跪地",
+      "prompt": "Kneeling on one knee, the other leg bent forward, upright torso, elegant chivalrous pose.",
+      "description": "Elegant one-knee kneeling pose",
+      "tags": [
+        "kneeling",
+        "one knee",
+        "upright",
+        "elegant"
+      ],
+      "weight": 1.0
+    },
+    "Bowing Deep": {
+      "name_zh": "深鞠躬",
+      "prompt": "Bowing forward deeply from the waist, arms at the sides, respectful formal gesture.",
+      "description": "Deep formal bowing pose",
+      "tags": [
+        "bowing",
+        "formal",
+        "respectful",
+        "bent forward"
+      ],
+      "weight": 1.0
+    },
+    "Standing at Attention": {
+      "name_zh": "立正",
+      "prompt": "Standing straight at attention, arms resting at the sides, feet together, upright formal posture.",
+      "description": "Upright formal standing pose",
+      "tags": [
+        "standing",
+        "attention",
+        "formal",
+        "upright"
+      ],
+      "weight": 1.0
+    },
+    "Catwalk Pose": {
+      "name_zh": "走台步",
+      "prompt": "Catwalk walking pose, one foot in front of the other, confident stride, model runway walk, poised posture.",
+      "description": "Confident model catwalk pose",
+      "tags": [
+        "catwalk",
+        "model",
+        "runway",
+        "confident"
+      ],
+      "weight": 1.0
+    },
+    "Standing on Tiptoes": {
+      "name_zh": "踮脚站立",
+      "prompt": "Standing on tiptoes, arms raised slightly for balance, light airy pose, playful upright stretch.",
+      "description": "Playful tiptoe standing pose",
+      "tags": [
+        "standing",
+        "tiptoes",
+        "balance",
+        "playful"
+      ],
+      "weight": 1.0
+    },
+    "Leaning on Table": {
+      "name_zh": "倚桌",
+      "prompt": "Leaning against a table, one hand supporting the weight on the surface, relaxed casual standing pose.",
+      "description": "Casual leaning pose against a table",
+      "tags": [
+        "leaning",
+        "table",
+        "casual",
+        "relaxed"
+      ],
+      "weight": 1.0
+    },
+    "Chin Resting on Hand": {
+      "name_zh": "手托腮",
+      "prompt": "Sitting with the chin resting on one hand, elbow on the knee or table, thoughtful contemplative pose.",
+      "description": "Thoughtful chin-on-hand pose",
+      "tags": [
+        "sitting",
+        "chin on hand",
+        "thoughtful",
+        "contemplative"
+      ],
+      "weight": 1.0
+    },
+    "Crossed Legs Standing": {
+      "name_zh": "交叠腿站",
+      "prompt": "Standing with the legs crossed at the ankles, relaxed casual stance, weight on one leg, easygoing pose.",
+      "description": "Casual standing pose with crossed ankles",
+      "tags": [
+        "standing",
+        "crossed legs",
+        "casual",
+        "easygoing"
+      ],
+      "weight": 1.0
+    },
+    "Bending Down Pick Up": {
+      "name_zh": "俯身拾物",
+      "prompt": "Bending down at the waist to pick something up, reaching toward the floor, natural everyday motion.",
+      "description": "Natural bending pose reaching down",
+      "tags": [
+        "bending",
+        "picking up",
+        "motion",
+        "natural"
+      ],
+      "weight": 1.0
+    },
+    "Sitting Masturbating": {
+      "name_zh": "坐姿自慰",
+      "prompt": "Fully nude, sitting on a chair with legs spread, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
+      "description": "Nude sitting masturbation pose",
+      "tags": [
+        "nude",
+        "sitting",
+        "masturbating",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Standing Masturbating": {
+      "name_zh": "站立自慰",
+      "prompt": "Fully nude, standing upright, one hand between the legs, head tilted back, intimate standing masturbation scene.",
+      "description": "Nude standing masturbation pose",
+      "tags": [
+        "nude",
+        "standing",
+        "masturbating",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Nude in Front of Mirror": {
+      "name_zh": "对镜全裸",
+      "prompt": "Fully nude, standing in front of a full-length mirror, hands tracing the body, admiring the reflection, intimate self-viewing scene.",
+      "description": "Nude pose admiring the mirror reflection",
+      "tags": [
+        "nude",
+        "mirror",
+        "reflection",
+        "self-viewing",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lying Legs in Air": {
+      "name_zh": "仰卧举腿",
+      "prompt": "Fully nude, lying on the back with legs raised straight in the air, knees slightly bent, arms above the head, fully exposed inviting pose.",
+      "description": "Nude lying pose with legs raised",
+      "tags": [
+        "nude",
+        "lying",
+        "legs raised",
+        "exposed",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Grinding on Pillow": {
+      "name_zh": "枕头磨蹭",
+      "prompt": "Fully nude, lying face down on a bed, grinding the hips against a pillow, eyes closed in pleasure, intimate self-stimulation scene.",
+      "description": "Nude pillow grinding self-stimulation pose",
+      "tags": [
+        "nude",
+        "pillow",
+        "grinding",
+        "self-stimulation",
+        "adult"
+      ],
+      "weight": 1.0
+    }
+  },
+  "Couple Pose": {
+    "Standing Side by Side": {
+      "name_zh": "并肩站立",
+      "prompt": "Two people standing side by side, shoulders touching, facing the camera, friendly companionable pose, full body view.",
+      "description": "Standing side by side together",
+      "tags": [
+        "two people",
+        "standing",
+        "side by side",
+        "companionable"
+      ],
+      "weight": 1.0
+    },
+    "Walking Hand in Hand": {
+      "name_zh": "牵手同行",
+      "prompt": "Two people walking hand in hand, natural stride, holding hands between them, casual couple walking pose.",
+      "description": "Walking together while holding hands",
+      "tags": [
+        "two people",
+        "walking",
+        "holding hands",
+        "couple"
+      ],
+      "weight": 1.0
+    },
+    "Hugging": {
+      "name_zh": "拥抱",
+      "prompt": "Two people embracing in a warm hug, arms wrapped around each other, intimate affectionate pose.",
+      "description": "Warm affectionate hug between two people",
+      "tags": [
+        "two people",
+        "hugging",
+        "affectionate",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Back to Back": {
+      "name_zh": "背靠背",
+      "prompt": "Two people standing back to back, shoulders touching, looking away in opposite directions, calm composed pose.",
+      "description": "Standing back to back in opposite directions",
+      "tags": [
+        "two people",
+        "back to back",
+        "standing",
+        "composed"
+      ],
+      "weight": 1.0
+    },
+    "Bridal Carry": {
+      "name_zh": "公主抱",
+      "prompt": "One person carrying the other in a bridal carry, arms supporting the back and knees, romantic lifted pose.",
+      "description": "Bridal style carry pose",
+      "tags": [
+        "two people",
+        "bridal carry",
+        "romantic",
+        "lifted"
+      ],
+      "weight": 1.0
+    },
+    "Cuddling Seated": {
+      "name_zh": "依偎而坐",
+      "prompt": "Two people sitting together, one leaning against the other, arms around each other, cozy intimate seated pose.",
+      "description": "Cozy seated cuddling pose",
+      "tags": [
+        "two people",
+        "sitting",
+        "cuddling",
+        "cozy"
+      ],
+      "weight": 1.0
+    },
+    "Dancing Together": {
+      "name_zh": "共舞",
+      "prompt": "Two people dancing together, one leading with a hand on the waist, graceful dance posture, elegant movement.",
+      "description": "Elegant partner dancing pose",
+      "tags": [
+        "two people",
+        "dancing",
+        "partner dance",
+        "graceful"
+      ],
+      "weight": 1.0
+    },
+    "High Five": {
+      "name_zh": "击掌庆祝",
+      "prompt": "Two people giving each other a high five, hands meeting in the air, cheerful celebratory gesture.",
+      "description": "Cheerful high five between two people",
+      "tags": [
+        "two people",
+        "high five",
+        "cheerful",
+        "celebration"
+      ],
+      "weight": 1.0
+    },
+    "Foreheads Touching": {
+      "name_zh": "额头相抵",
+      "prompt": "Two people standing close, foreheads touching, eyes closed, tender intimate pose, soft emotional connection.",
+      "description": "Tender forehead-to-forehead pose",
+      "tags": [
+        "two people",
+        "foreheads touching",
+        "tender",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Looking at Each Other": {
+      "name_zh": "相视一笑",
+      "prompt": "Two people facing each other, looking into each other's eyes, gentle smiles, warm affectionate connection.",
+      "description": "Affectionate eye contact between two people",
+      "tags": [
+        "two people",
+        "eye contact",
+        "smiling",
+        "affectionate"
+      ],
+      "weight": 1.0
+    },
+    "Missionary Position": {
+      "name_zh": "传教士体位",
+      "prompt": "Two adults having sex in missionary position, man on top of the woman, face to face, intimate lovemaking scene, soft bedroom lighting.",
+      "description": "Heterosexual missionary position sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "missionary",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Doggy Style": {
+      "name_zh": "后入体位",
+      "prompt": "Two adults having sex doggy style, woman on all fours with the man kneeling behind her, intimate rear-entry lovemaking scene.",
+      "description": "Heterosexual doggy style sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "doggy style",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Cowgirl Position": {
+      "name_zh": "女上位",
+      "prompt": "Two adults having sex in cowgirl position, woman straddling the man on his back, riding motion, face to face, intimate lovemaking.",
+      "description": "Heterosexual cowgirl position sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "cowgirl",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Sex Sitting Face to Face": {
+      "name_zh": "面对面性爱坐姿",
+      "prompt": "Two adults having sex sitting face to face, the woman on the man's lap, legs wrapped around his waist, intimate lap sex pose.",
+      "description": "Heterosexual face-to-face lap sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "lap",
+        "face to face",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Oral Sex": {
+      "name_zh": "口交",
+      "prompt": "Two adults engaging in oral sex, the woman kneeling before the standing man, intimate fellatio scene, warm lighting.",
+      "description": "Heterosexual oral sex scene",
+      "tags": [
+        "two people",
+        "oral sex",
+        "fellatio",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Kissing Embrace": {
+      "name_zh": "女女拥吻",
+      "prompt": "Two adult women kissing passionately, bodies pressed together in an embrace, hands in each other's hair, intimate lesbian scene.",
+      "description": "Lesbian kissing embrace scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "kissing",
+        "embrace",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Mutual Caress": {
+      "name_zh": "女女相互爱抚",
+      "prompt": "Two nude adult women lying together, caressing each other's bodies, intimate lesbian foreplay scene, soft warm lighting.",
+      "description": "Lesbian mutual caressing scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "caressing",
+        "foreplay",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Scissoring": {
+      "name_zh": "女女交叉体位",
+      "prompt": "Two nude adult women making love in scissoring position, legs intertwined, pressed together, intimate lesbian lovemaking scene.",
+      "description": "Lesbian scissoring sex scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "scissoring",
+        "sex",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Oral": {
+      "name_zh": "女女口交",
+      "prompt": "Two adult women engaging in oral sex, one kneeling between the other's spread legs, intimate lesbian cunnilingus scene.",
+      "description": "Lesbian oral sex scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "oral sex",
+        "cunnilingus",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian 69": {
+      "name_zh": "女女69式",
+      "prompt": "Two nude adult women in a 69 position, each performing oral sex on the other, intimately entwined, lesbian lovemaking scene.",
+      "description": "Lesbian 69 position sex scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "69 position",
+        "oral sex",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Piggyback Ride": {
+      "name_zh": "驮背",
+      "prompt": "One person carrying the other on the back in a piggyback ride, arms holding the legs, playful friendly pose.",
+      "description": "Playful piggyback ride pose",
+      "tags": [
+        "two people",
+        "piggyback",
+        "carrying",
+        "playful"
+      ],
+      "weight": 1.0
+    },
+    "Arm in Arm": {
+      "name_zh": "挽臂",
+      "prompt": "Two people standing close together, arms interlocked at the elbow, warm companionable pose.",
+      "description": "Warm arm-in-arm standing pose",
+      "tags": [
+        "two people",
+        "arm in arm",
+        "companionable",
+        "standing"
+      ],
+      "weight": 1.0
+    },
+    "Face Cradle": {
+      "name_zh": "捧脸",
+      "prompt": "Two people facing each other, one holding the other's face gently in both hands, tender intimate gaze.",
+      "description": "Tender face-holding intimate pose",
+      "tags": [
+        "two people",
+        "holding face",
+        "tender",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Cheek to Cheek Dance": {
+      "name_zh": "贴面共舞",
+      "prompt": "Two people slow dancing cheek to cheek, bodies close together, arms wrapped around each other, romantic intimate dance pose.",
+      "description": "Romantic cheek-to-cheek slow dance",
+      "tags": [
+        "two people",
+        "slow dance",
+        "cheek to cheek",
+        "romantic"
+      ],
+      "weight": 1.0
+    },
+    "Cuddling on Sofa": {
+      "name_zh": "沙发依偎",
+      "prompt": "Two people cuddling together on a sofa, one resting against the other, blanket over the legs, cozy intimate scene.",
+      "description": "Cozy sofa cuddling scene",
+      "tags": [
+        "two people",
+        "sofa",
+        "cuddling",
+        "cozy"
+      ],
+      "weight": 1.0
+    },
+    "Head on Shoulder": {
+      "name_zh": "头靠肩",
+      "prompt": "Two people sitting close, one resting the head on the other's shoulder, warm affectionate relaxed pose.",
+      "description": "Affectionate head-on-shoulder pose",
+      "tags": [
+        "two people",
+        "head on shoulder",
+        "affectionate",
+        "relaxed"
+      ],
+      "weight": 1.0
+    },
+    "Standing Sex": {
+      "name_zh": "男女站立性爱",
+      "prompt": "Two adults having sex standing up, the woman with her legs wrapped around the man's waist, back against the wall, passionate lovemaking scene.",
+      "description": "Heterosexual standing sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "standing",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Spooning Sex": {
+      "name_zh": "汤匙体位",
+      "prompt": "Two adults having sex spooning, lying on the side with the man behind the woman, bodies pressed together, intimate rear-entry lovemaking.",
+      "description": "Heterosexual spooning sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "spooning",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Reverse Cowgirl": {
+      "name_zh": "反向女上位",
+      "prompt": "Two adults having sex in reverse cowgirl position, the woman straddling the man facing away from him, riding motion, intimate lovemaking scene.",
+      "description": "Heterosexual reverse cowgirl sex scene",
+      "tags": [
+        "two people",
+        "sex",
+        "reverse cowgirl",
+        "male and female",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Fingering": {
+      "name_zh": "女女指交",
+      "prompt": "Two nude adult women engaged in fingering, one lying with legs spread while the other kneels between them, intimate lesbian scene.",
+      "description": "Lesbian fingering scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "fingering",
+        "intimate",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Shower Scene": {
+      "name_zh": "女女淋浴",
+      "prompt": "Two nude adult women in a shower together, wet skin glistening, bodies pressed together, kissing under the water, intimate lesbian scene.",
+      "description": "Lesbian shower scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "shower",
+        "wet",
+        "adult"
+      ],
+      "weight": 1.0
+    },
+    "Lesbian Tribadism": {
+      "name_zh": "女女磨镜",
+      "prompt": "Two nude adult women grinding against each other, bodies pressed together, legs intertwined, intimate lesbian lovemaking scene.",
+      "description": "Lesbian tribadism grinding scene",
+      "tags": [
+        "two people",
+        "lesbian",
+        "tribadism",
+        "grinding",
+        "adult"
+      ],
+      "weight": 1.0
+    }
+  },
+  "Environment": {
+    "Modern Subway Train": {
+      "prompt": "Modern subway train interior, stainless steel poles, clean white walls, large windows showing passing city skyline, softly blurred seated passengers in background, realistic subway environment.",
+      "description": "Contemporary subway interior with urban views",
+      "tags": [
+        "subway",
+        "urban",
+        "interior",
+        "modern"
+      ],
+      "weight": 1.0,
+      "name_zh": "现代地铁车厢"
+    },
+    "Ocean Sunrise": {
+      "prompt": "Endless ocean at sunrise, towering crystal-blue waves, dramatic clouds, soft sea mist, atmospheric haze, teal and turquoise ocean water, subtle warm orange sunrise tones.",
+      "description": "Seascape with dramatic waves and sunrise lighting",
+      "tags": [
+        "ocean",
+        "sunrise",
+        "seascape",
+        "dramatic"
+      ],
+      "weight": 1.0,
+      "name_zh": "海上日出"
+    },
+    "Rice Paddy Night": {
+      "prompt": "Lush glowing rice paddies at night, picnic setting beside reflective water canal, distant village with warm yellow lights, colorful green paddy fields stretching into distance, vibrant blue night sky with stars and fluffy cinematic clouds.",
+      "description": "Nighttime rural rice paddy landscape with village",
+      "tags": [
+        "rice field",
+        "rural",
+        "night",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "name_zh": "夜晚稻田"
+    },
+    "Urban Street": {
+      "prompt": "Nighttime urban street scene with sleek sports cars positioned on wet asphalt, glowing neon signs, colorful city lights reflecting on street surface, tall buildings creating an urban canyon, moody cinematic atmosphere.",
+      "description": "Urban night street with neon and city lights",
+      "tags": [
+        "urban",
+        "street",
+        "night",
+        "neon"
+      ],
+      "weight": 1.0,
+      "name_zh": "都市街头"
+    },
+    "Studio Collage": {
+      "prompt": "Studio setting with dark charcoal-gray background, soft studio depth, clean premium backdrop, no competing environmental details, focus entirely on subject and lighting.",
+      "description": "Clean studio environment with minimal backdrop",
+      "tags": [
+        "studio",
+        "clean",
+        "minimal",
+        "professional"
+      ],
+      "weight": 1.0,
+      "name_zh": "影棚拼贴"
+    },
+    "Garage Workshop": {
+      "prompt": "Roadside workshop shelter during heavy rain at night, wet reflective asphalt road, storm clouds, distant car headlights through fog and rain, steaming coffee cups, scattered mechanic tools, telephone poles fading into distance.",
+      "description": "Rainy workshop garage with intimate working space",
+      "tags": [
+        "garage",
+        "workshop",
+        "rain",
+        "industrial"
+      ],
+      "weight": 1.0,
+      "name_zh": "车库工坊"
+    },
+    "Countryside Village": {
+      "prompt": "Rural countryside landscape with distant village houses, long passenger train moving across horizon, lush vegetation, natural trees, peaceful pastoral setting extending into the distance.",
+      "description": "Peaceful rural village and countryside vista",
+      "tags": [
+        "countryside",
+        "village",
+        "rural",
+        "pastoral"
+      ],
+      "weight": 1.0,
+      "name_zh": "乡村田园"
+    },
+    "Alpine Mountain Vista": {
+      "prompt": "Majestic alpine mountain landscape, snow-capped peaks piercing through clouds, pine forest covering lower slopes, crystal clear alpine lake reflecting the sky, wildflower meadow in foreground, dramatic rocky terrain, fresh mountain atmosphere.",
+      "description": "Dramatic alpine mountain scenery with lake and forest",
+      "tags": [
+        "mountain",
+        "alpine",
+        "snow",
+        "nature",
+        "majestic"
+      ],
+      "weight": 1.0,
+      "name_zh": "阿尔卑斯山景"
+    },
+    "Tropical Beach Paradise": {
+      "prompt": "Pristine tropical beach with powdery white sand, crystal clear turquoise water gently lapping shore, swaying palm trees with green fronds, colorful coral reef visible offshore, bright blue sky with puffy white clouds, warm sunny tropical atmosphere.",
+      "description": "Tropical beach paradise with white sand and palm trees",
+      "tags": [
+        "beach",
+        "tropical",
+        "ocean",
+        "paradise",
+        "summer"
+      ],
+      "weight": 1.0,
+      "name_zh": "热带海滩天堂"
+    },
+    "Desert Oasis": {
+      "prompt": "Vast golden desert landscape with towering sand dunes, a lush green oasis with palm trees surrounding a sparkling water pool, ancient ruins partially buried in sand, dramatic heat haze on horizon, warm golden sand stretching to horizon.",
+      "description": "Golden desert landscape with lush oasis",
+      "tags": [
+        "desert",
+        "oasis",
+        "sand",
+        "arid",
+        "ancient"
+      ],
+      "weight": 1.0,
+      "name_zh": "沙漠绿洲"
+    },
+    "Misty Forest Path": {
+      "prompt": "Enchanted forest path winding through ancient trees, thick morning mist floating between trunks, soft moss-covered ground, shafts of light penetrating through canopy, ferns and wildflowers lining the path, mysterious ethereal woodland atmosphere.",
+      "description": "Mysterious misty forest with ancient trees",
+      "tags": [
+        "forest",
+        "misty",
+        "enchanted",
+        "nature",
+        "moody"
+      ],
+      "weight": 1.0,
+      "name_zh": "薄雾森林小径"
+    },
+    "Medieval Castle Interior": {
+      "prompt": "Grand medieval castle interior, towering stone walls adorned with tapestries, massive arched windows casting colored light, iron chandeliers with flickering candles, stone floor polished by centuries of footsteps, heavy wooden doors with iron hinges.",
+      "description": "Grand medieval castle interior with stone architecture",
+      "tags": [
+        "castle",
+        "medieval",
+        "stone",
+        "interior",
+        "historic"
+      ],
+      "weight": 1.0,
+      "name_zh": "中世纪古堡内部"
+    },
+    "Space Station Hub": {
+      "prompt": "Futuristic space station hub with sweeping curved corridors, holographic displays showing star charts, large observation windows revealing earth and stars, floating indicator panels, sleek metallic surfaces with soft blue ambient lighting, zero-gravity environment details.",
+      "description": "Futuristic space station interior with star views",
+      "tags": [
+        "space",
+        "futuristic",
+        "sci-fi",
+        "space station",
+        "interior"
+      ],
+      "weight": 1.0,
+      "name_zh": "空间站核心"
+    },
+    "Underwater Coral Reef": {
+      "prompt": "Vibrant underwater coral reef ecosystem, colorful coral formations in orange and purple, schools of tropical fish swimming through sun rays piercing the water surface, floating plankton particles catching light, deep blue water fading into darkness below.",
+      "description": "Colorful underwater coral reef with marine life",
+      "tags": [
+        "underwater",
+        "coral",
+        "reef",
+        "ocean",
+        "marine"
+      ],
+      "weight": 1.0,
+      "name_zh": "海底珊瑚礁"
+    },
+    "Rooftop Cityscape": {
+      "prompt": "Urban rooftop overlooking a sprawling cityscape, AC units and water towers nearby, string lights draped across the roof, comfortable seating area with potted plants, panoramic view of skyscrapers and city lights, sunset sky painted in orange and purple hues.",
+      "description": "Rooftop terrace with panoramic city views",
+      "tags": [
+        "rooftop",
+        "cityscape",
+        "urban",
+        "sunset",
+        "panoramic"
+      ],
+      "weight": 1.0,
+      "name_zh": "屋顶城市景观"
+    },
+    "Snowy Winter Cabin": {
+      "prompt": "Cozy wooden cabin nestled in snowy mountains, snow accumulating on roof and pine trees, warm golden light spilling from windows, chimney smoke rising into crisp winter air, snow-covered pathway leading to the front door, serene winter landscape surrounding the cabin.",
+      "description": "Cozy cabin in snowy winter landscape",
+      "tags": [
+        "cabin",
+        "snow",
+        "winter",
+        "cozy",
+        "mountain"
+      ],
+      "weight": 1.0,
+      "name_zh": "雪景木屋"
+    },
+    "Cyberpunk Alley": {
+      "prompt": "Narrow cyberpunk alley in a rain-soaked megacity, vibrant neon signs in pink and cyan illuminating wet pavement, steam rising from street vents, exposed pipes and cables along building walls, flickering holographic advertisements, distant flying vehicles between towering skyscrapers.",
+      "description": "Rainy cyberpunk alley with neon lights",
+      "tags": [
+        "cyberpunk",
+        "alley",
+        "neon",
+        "rain",
+        "futuristic"
+      ],
+      "weight": 1.0,
+      "name_zh": "赛博朋克小巷"
+    },
+    "Ancient Temple Ruins": {
+      "prompt": "Ancient temple ruins overtaken by jungle vegetation, massive stone columns and crumbling walls covered in moss and vines, intricate carvings partially eroded by time, large stone altar at center, shafts of light breaking through the jungle canopy above.",
+      "description": "Ancient temple ruins reclaimed by jungle",
+      "tags": [
+        "temple",
+        "ruins",
+        "ancient",
+        "jungle",
+        "mysterious"
+      ],
+      "weight": 1.0,
+      "name_zh": "古神庙遗迹"
+    },
+    "Futuristic Laboratory": {
+      "prompt": "Sleek futuristic laboratory with white glossy surfaces, holographic data displays floating above workstations, rows of glowing cylindrical chambers filled with liquid, advanced scientific equipment with blinking LEDs, clean minimalist design with blue accent lighting.",
+      "description": "Advanced futuristic scientific laboratory",
+      "tags": [
+        "laboratory",
+        "futuristic",
+        "sci-fi",
+        "clean",
+        "minimalist"
+      ],
+      "weight": 1.0,
+      "name_zh": "未来实验室"
+    },
+    "Cozy Library Interior": {
+      "prompt": "Grand cozy library with floor to ceiling bookshelves filled with leather-bound books, warm reading lamps on oak tables, tall arched windows with stained glass, comfortable armchairs arranged for reading, spiral staircase leading to upper galleries, peaceful studious atmosphere.",
+      "description": "Grand traditional library with warm intimate atmosphere",
+      "tags": [
+        "library",
+        "cozy",
+        "books",
+        "interior",
+        "academic"
+      ],
+      "weight": 1.0,
+      "name_zh": "温馨图书馆"
+    },
+    "Rainforest Canopy": {
+      "prompt": "Lush tropical rainforest canopy viewed from above, dense green foliage spreading in all directions, exotic flowers in bright colors dotting the greenery, morning mist rising from the jungle floor, vibrant parrot and butterfly species visible, sunlight filtering through multiple leaf layers.",
+      "description": "Lush tropical rainforest canopy from above",
+      "tags": [
+        "rainforest",
+        "canopy",
+        "jungle",
+        "tropical",
+        "lush"
+      ],
+      "weight": 1.0,
+      "name_zh": "雨林树冠"
+    },
+    "Volcanic Wasteland": {
+      "prompt": "Dark volcanic landscape with jagged black rock formations, active lava flows glowing orange cutting through the terrain, plumes of smoke rising from volcanic vents, ash-covered ground with occasional hardy plants, ominous red glow illuminating the scene from below.",
+      "description": "Dark volcanic landscape with flowing lava",
+      "tags": [
+        "volcano",
+        "lava",
+        "wasteland",
+        "dramatic",
+        "dark"
+      ],
+      "weight": 1.0,
+      "name_zh": "火山荒原"
+    },
+    "Zen Garden": {
+      "prompt": "Peaceful Japanese zen garden with carefully raked sand patterns, smooth rounded stones of varying sizes, carefully pruned bonsai trees, bamboo water feature trickling into a stone basin, moss-covered stone lantern, cherry blossom petals scattered on the sand.",
+      "description": "Serene Japanese zen garden with raked sand",
+      "tags": [
+        "garden",
+        "zen",
+        "japanese",
+        "peaceful",
+        "minimalist"
+      ],
+      "weight": 1.0,
+      "name_zh": "禅意庭院"
+    },
+    "Steampunk Airship Deck": {
+      "prompt": "Steampunk airship observation deck with brass fittings and copper pipes, large glass panels offering views of clouds below, leather-bound control panels with pressure gauges and steam vents, intricate gear mechanisms visible through glass floor panels, warm orange glow from gas lamps.",
+      "description": "Steampunk airship deck with brass and copper details",
+      "tags": [
+        "steampunk",
+        "airship",
+        "deck",
+        "brass",
+        "vintage"
+      ],
+      "weight": 1.0,
+      "name_zh": "蒸汽朋克飞艇甲板"
+    },
+    "Abandoned Hospital": {
+      "prompt": "Abandoned hospital corridor with peeling paint and cracked tiles, dim fluorescent lights flickering overhead, gurneys overturned and medical equipment scattered, broken windows covered by dusty blinds, strange shadows cast by unknown sources, decaying institutional atmosphere.",
+      "description": "Decaying abandoned hospital corridor",
+      "tags": [
+        "abandoned",
+        "hospital",
+        "horror",
+        "decay",
+        "creepy"
+      ],
+      "weight": 1.0,
+      "name_zh": "废弃医院"
+    },
+    "Lavender Field Sunset": {
+      "prompt": "Endless lavender fields stretching to the horizon, rows of purple blooms creating sweeping color patterns, warm golden sunset light casting long shadows across the fields, distant farmhouse and cypress trees, bees buzzing among the flowers, peaceful rural evening atmosphere.",
+      "description": "Purple lavender fields at golden sunset",
+      "tags": [
+        "lavender",
+        "field",
+        "sunset",
+        "provence",
+        "nature"
+      ],
+      "weight": 1.0,
+      "name_zh": "薰衣草田日落"
+    },
+    "Wildflower Meadow": {
+      "prompt": "Peaceful wildflower meadow, soft grass, small winding stream, diverse botanical plants and flowers including daisies wildflowers and tall grass, rocks along the water, natural landscape with depth, gentle rolling terrain.",
+      "description": "Serene wildflower meadow with stream and diverse botanicals",
+      "tags": [
+        "meadow",
+        "wildflower",
+        "pastoral",
+        "nature",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "name_zh": "野花草地"
+    },
+    "Pastoral Hillside Stream": {
+      "prompt": "Grassy rolling hill with vibrant green grass, small stream with blue water, tall grass tufts, colorful wildflowers including pink daisies white flowers and yellow blooms, blue sky with soft white clouds, rounded hill landscape stretching into distance.",
+      "description": "Rolling grassy hillside with stream and colorful flowers",
+      "tags": [
+        "hillside",
+        "pastoral",
+        "stream",
+        "flowers",
+        "rolling hills"
+      ],
+      "weight": 1.0,
+      "name_zh": "田园山坡溪流"
+    },
+    "Enchanted Storybook Garden": {
+      "prompt": "Gentle sloped hillside with vibrant green grass, stream with flowing water ripples, rounded white and gray stones, tall golden grass tufts, colorful flower clusters forming pink clouds yellow blooms and white petals, blue sky background, peaceful pastoral fairy-tale setting.",
+      "description": "Enchanted storybook garden with flower clusters and stream",
+      "tags": [
+        "storybook",
+        "garden",
+        "enchanted",
+        "flowers",
+        "fairy tale"
+      ],
+      "weight": 1.0,
+      "name_zh": "童话魔法花园"
+    },
+    "Peaceful Countryside Pasture": {
+      "prompt": "Open wildflower meadow with diverse botanical flowers scattered throughout including orange coral daisies yellow flowers blue flowers and white blooms, natural grass field, light clouds in sky, pastoral landscape stretching into distance, peaceful countryside setting with gentle rolling terrain.",
+      "description": "Peaceful countryside pasture with diverse wildflowers",
+      "tags": [
+        "countryside",
+        "pasture",
+        "wildflowers",
+        "peaceful",
+        "natural"
+      ],
+      "weight": 1.0,
+      "name_zh": "宁静乡村牧场"
+    },
+    "Fashion Studio Portrait": {
+      "prompt": "Studio setting, dark charcoal-gray background with soft studio depth, elegant portrait separation, moody dark backdrop contrast.",
+      "description": "Studio fashion portrait with dark backdrop",
+      "tags": [
+        "studio",
+        "fashion",
+        "portrait",
+        "elegant"
+      ],
+      "weight": 1.0,
+      "name_zh": "时尚影棚肖像"
+    },
+    "Subway Fashion Portrait": {
+      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting, ray tracing, masterpiece, best quality, photorealistic, hyperrealistic, 8K, DSLR photography quality. Ultra-detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), highly detailed facial features, realistic eyes, natural skin pores, subtle skin texture, shallow depth of field, creamy bokeh, ultra sharp focus. Camera specs: Canon EOS R5, 85mm lens, f/1.8, ISO 100.",
+      "description": "Subway fashion portrait with Korean street style and camera specs",
+      "tags": [
+        "subway",
+        "fashion",
+        "portrait",
+        "Korean street style",
+        "camera"
+      ],
+      "weight": 1.3,
+      "name_zh": "地铁时尚肖像"
+    },
+    "Industrial Warehouse": {
+      "prompt": "Vast industrial warehouse interior with exposed steel beams and concrete floors, scattered wooden crates and metal barrels, dramatic shafts of dusty light streaming through high windows, industrial pipes running along ceiling, worn brick walls with graffiti, atmospheric haze and floating dust particles, gritty urban decay aesthetic.",
+      "description": "Gritty industrial warehouse with dramatic lighting",
+      "tags": [
+        "warehouse",
+        "industrial",
+        "urban",
+        "action",
+        "gritty"
+      ],
+      "weight": 1.0,
+      "name_zh": "工业仓库"
+    },
+    "Underground Parking Garage": {
+      "prompt": "Multi-level underground parking garage with concrete pillars, yellow parking lines on dark asphalt, overhead fluorescent lighting casting harsh shadows, rows of parked vehicles, exit signs glowing in the distance, damp concrete walls with water stains, tense urban thriller atmosphere.",
+      "description": "Underground parking garage with thriller atmosphere",
+      "tags": [
+        "parking garage",
+        "underground",
+        "urban",
+        "thriller",
+        "tense"
+      ],
+      "weight": 1.0,
+      "name_zh": "地下停车场"
+    },
+    "Subway Tunnel": {
+      "prompt": "Dark subway tunnel with train tracks disappearing into darkness, industrial lighting fixtures creating pools of light, moisture-slicked walls covered in cables and pipes, distant tunnel lights creating atmospheric depth, urban exploration aesthetic, mysterious underground environment.",
+      "description": "Dark atmospheric subway tunnel",
+      "tags": [
+        "subway",
+        "tunnel",
+        "underground",
+        "dark",
+        "urban"
+      ],
+      "weight": 1.0,
+      "name_zh": "地铁隧道"
+    },
+    "Airport Terminal": {
+      "prompt": "Modern airport terminal with soaring glass ceiling allowing natural light, polished floors reflecting overhead lights, rows of check-in counters, departure boards displaying flight information, hurried travelers with luggage, contemporary architectural design, clean professional atmosphere.",
+      "description": "Modern airport terminal with glass architecture",
+      "tags": [
+        "airport",
+        "terminal",
+        "modern",
+        "travel",
+        "architectural"
+      ],
+      "weight": 1.0,
+      "name_zh": "机场航站楼"
+    },
+    "Suspension Bridge": {
+      "prompt": "Dramatic suspension bridge spanning across water or valley, massive steel cables and towers, roadway stretching into distance with city skyline beyond, vehicles crossing the span, cloudy dramatic sky, architectural marvel engineering feat, cinematic scale and perspective.",
+      "description": "Dramatic suspension bridge with architectural scale",
+      "tags": [
+        "bridge",
+        "suspension",
+        "architectural",
+        "dramatic",
+        "engineering"
+      ],
+      "weight": 1.0,
+      "name_zh": "悬索桥"
+    },
+    "Hospital Emergency Room": {
+      "prompt": "Busy hospital emergency room with medical equipment, examination beds with curtain dividers, bright overhead surgical lighting, medical monitors displaying vital signs, IV stands and crash carts, medical staff moving urgently in background, sterile white walls with blue accents, tense medical drama atmosphere.",
+      "description": "Busy hospital ER with medical drama atmosphere",
+      "tags": [
+        "hospital",
+        "emergency room",
+        "medical",
+        "drama",
+        "urgent"
+      ],
+      "weight": 1.0,
+      "name_zh": "医院急诊室"
+    },
+    "Courtroom Interior": {
+      "prompt": "Grand courtroom interior with judge's bench elevated on platform, wooden jury box and witness stand, rows of gallery seating, American flag and state seal on wall, rich wood paneling throughout, formal legal atmosphere, dramatic lighting highlighting the bench, justice and authority ambiance.",
+      "description": "Formal courtroom with legal drama atmosphere",
+      "tags": [
+        "courtroom",
+        "legal",
+        "formal",
+        "drama",
+        "justice"
+      ],
+      "weight": 1.0,
+      "name_zh": "法庭内部"
+    },
+    "Victorian Mansion": {
+      "prompt": "Elegant Victorian mansion interior with ornate woodwork and crown molding, crystal chandelier hanging from decorative ceiling, grand staircase with carved banister, antique furniture and Persian rugs, tall windows with heavy velvet drapes, oil paintings in gilt frames, period-authentic atmospheric lighting.",
+      "description": "Elegant Victorian mansion interior with period details",
+      "tags": [
+        "victorian",
+        "mansion",
+        "period",
+        "elegant",
+        "historical"
+      ],
+      "weight": 1.0,
+      "name_zh": "维多利亚宅邸"
+    },
+    "1920s Speakeasy": {
+      "prompt": "Hidden 1920s speakeasy with art deco design elements, intimate jazz club atmosphere, small round tables with red velvet chairs, brass fixtures and mood lighting, brick walls with vintage posters, wooden bar with rows of bottles, cigarette smoke haze catching light, prohibition-era ambiance.",
+      "description": "1920s speakeasy with art deco jazz club atmosphere",
+      "tags": [
+        "speakeasy",
+        "1920s",
+        "jazz",
+        "prohibition",
+        "vintage"
+      ],
+      "weight": 1.0,
+      "name_zh": "1920年代地下酒吧"
+    },
+    "Western Saloon": {
+      "prompt": "Old West saloon interior with wooden swinging doors, long bar with brass foot rail, dusty bottles on shelves behind bartender, round card tables scattered throughout, wooden floors with sawdust, kerosene lanterns providing warm light, period-accurate Wild West atmosphere.",
+      "description": "Old West saloon with authentic frontier atmosphere",
+      "tags": [
+        "saloon",
+        "western",
+        "frontier",
+        "period",
+        "wild west"
+      ],
+      "weight": 1.0,
+      "name_zh": "西部酒馆"
+    },
+    "WWII Bunker": {
+      "prompt": "World War II military bunker interior with thick concrete walls, vintage radio equipment and maps on tables, ammunition crates stacked in corners, dim overhead bulbs creating dramatic shadows, period-accurate military furnishings, tense wartime atmosphere, historical authenticity.",
+      "description": "WWII military bunker with period-accurate details",
+      "tags": [
+        "bunker",
+        "WWII",
+        "military",
+        "historical",
+        "wartime"
+      ],
+      "weight": 1.0,
+      "name_zh": "二战地堡"
+    },
+    "Medieval Tavern": {
+      "prompt": "Medieval tavern interior with rough wooden tables and benches, stone fireplace with crackling fire, wooden barrels serving as storage, iron candle holders providing flickering light, hanging herbs and dried meats, period-authentic medieval atmosphere with rustic charm.",
+      "description": "Rustic medieval tavern with fireplace",
+      "tags": [
+        "tavern",
+        "medieval",
+        "rustic",
+        "period",
+        "cozy"
+      ],
+      "weight": 1.0,
+      "name_zh": "中世纪酒馆"
+    },
+    "Abandoned Asylum": {
+      "prompt": "Decaying abandoned asylum with peeling wallpaper revealing cracked plaster, rusted metal bed frames, broken windows with shattered glass, dark corridors with flickering lights, disturbing medical equipment left behind, oppressive horror atmosphere, decay and abandonment.",
+      "description": "Creepy abandoned asylum with horror atmosphere",
+      "tags": [
+        "asylum",
+        "abandoned",
+        "horror",
+        "creepy",
+        "decay"
+      ],
+      "weight": 1.0,
+      "name_zh": "废弃疯人院"
+    },
+    "Foggy Cemetery": {
+      "prompt": "Misty cemetery at dusk with weathered gravestones and monuments, ancient trees with gnarled branches, thick ground fog rolling between graves, iron fence surrounding the grounds, Gothic statues casting eerie shadows, mysterious supernatural atmosphere.",
+      "description": "Misty cemetery with Gothic atmosphere",
+      "tags": [
+        "cemetery",
+        "foggy",
+        "gothic",
+        "horror",
+        "eerie"
+      ],
+      "weight": 1.0,
+      "name_zh": "雾中墓地"
+    },
+    "Dark Basement": {
+      "prompt": "Creepy basement with exposed stone foundation, old wooden support beams, cobwebs in corners, single bare bulb swinging from ceiling, stacked boxes and covered furniture, water stains on walls, claustrophobic horror atmosphere, shadows concealing unknown threats.",
+      "description": "Claustrophobic basement with horror atmosphere",
+      "tags": [
+        "basement",
+        "dark",
+        "horror",
+        "claustrophobic",
+        "creepy"
+      ],
+      "weight": 1.0,
+      "name_zh": "昏暗地下室"
+    },
+    "Haunted Manor": {
+      "prompt": "Grand haunted manor interior with dust-covered antique furniture, cobweb-draped chandeliers, faded portraits on walls seeming to watch, torn velvet curtains, moonlight streaming through broken windows, Victorian Gothic atmosphere, supernatural presence.",
+      "description": "Victorian haunted manor with Gothic atmosphere",
+      "tags": [
+        "manor",
+        "haunted",
+        "gothic",
+        "victorian",
+        "supernatural"
+      ],
+      "weight": 1.0,
+      "name_zh": "鬼宅"
+    },
+    "Isolated Lighthouse": {
+      "prompt": "Isolated lighthouse perched on rocky cliff overlooking stormy ocean, powerful beam cutting through fog and rain, weathered stone structure, crashing waves below, spiral staircase inside, dramatic coastal atmosphere, solitude and isolation.",
+      "description": "Isolated lighthouse on stormy coast",
+      "tags": [
+        "lighthouse",
+        "isolated",
+        "coastal",
+        "stormy",
+        "dramatic"
+      ],
+      "weight": 1.0,
+      "name_zh": "孤岛灯塔"
+    },
+    "Cryogenic Laboratory": {
+      "prompt": "Advanced cryogenic laboratory with rows of frozen suspension pods emitting blue light, frost-covered surfaces, holographic displays showing vital signs, sterile white environment with chrome fixtures, futuristic medical equipment, cold sci-fi atmosphere.",
+      "description": "Futuristic cryogenic lab with suspension pods",
+      "tags": [
+        "cryogenic",
+        "laboratory",
+        "sci-fi",
+        "futuristic",
+        "cold"
+      ],
+      "weight": 1.0,
+      "name_zh": "低温实验室"
+    },
+    "Alien Planet Surface": {
+      "prompt": "Alien planet surface with bizarre rock formations in exotic colors, strange flora with bioluminescent properties, multiple moons visible in alien sky, unfamiliar atmospheric conditions, otherworldly landscape with no Earth-like features, science fiction exploration atmosphere.",
+      "description": "Exotic alien planet with strange landscape",
+      "tags": [
+        "alien",
+        "planet",
+        "sci-fi",
+        "otherworldly",
+        "exotic"
+      ],
+      "weight": 1.0,
+      "name_zh": "外星地表"
+    },
+    "Starship Bridge": {
+      "prompt": "Futuristic starship command bridge with captain's chair elevated at center, holographic tactical displays floating in air, crew stations with glowing control panels, large viewport showing star field, sleek sci-fi design with blue ambient lighting, space exploration atmosphere.",
+      "description": "Futuristic starship bridge with holographic displays",
+      "tags": [
+        "starship",
+        "bridge",
+        "sci-fi",
+        "space",
+        "futuristic"
+      ],
+      "weight": 1.0,
+      "name_zh": "星舰舰桥"
+    },
+    "Mars Colony": {
+      "prompt": "Futuristic Mars colony with pressurized habitat domes, red desert landscape visible through transparent sections, high-tech life support systems, hydroponic farming areas with green plants contrasting rust-colored terrain, astronauts in background, sci-fi colonization atmosphere.",
+      "description": "Mars colony habitat with futuristic tech",
+      "tags": [
+        "mars",
+        "colony",
+        "sci-fi",
+        "space",
+        "habitat"
+      ],
+      "weight": 1.0,
+      "name_zh": "火星殖民地"
+    },
+    "Noir Detective Office": {
+      "prompt": "1940s noir detective office with frosted glass door showing reversed name, wooden desk with scattered case files, vintage rotary phone, whiskey bottle and glass, venetian blinds casting dramatic shadows, cigarette smoke in air, black and white noir atmosphere.",
+      "description": "Classic noir detective office with period details",
+      "tags": [
+        "noir",
+        "detective",
+        "office",
+        "1940s",
+        "mystery"
+      ],
+      "weight": 1.0,
+      "name_zh": "黑色电影侦探办公室"
+    },
+    "Rain-Soaked Alley": {
+      "prompt": "Dark rain-soaked alley at night with wet cobblestones reflecting streetlights, brick walls with fire escapes, trash cans and mysterious shadows, single flickering street lamp, noir mystery atmosphere, urban decay and danger.",
+      "description": "Noir rain-soaked alley with mystery atmosphere",
+      "tags": [
+        "alley",
+        "noir",
+        "rain",
+        "mystery",
+        "urban"
+      ],
+      "weight": 1.0,
+      "name_zh": "雨浸小巷"
+    },
+    "Jazz Club Interior": {
+      "prompt": "Intimate jazz club with small stage, vintage microphone and instruments, red velvet curtains, round tables with candles, dim moody lighting with spotlights on performers, smoky atmosphere, 1950s noir ambiance, sophisticated nightlife setting.",
+      "description": "Intimate jazz club with noir ambiance",
+      "tags": [
+        "jazz club",
+        "noir",
+        "music",
+        "nightlife",
+        "intimate"
+      ],
+      "weight": 1.0,
+      "name_zh": "爵士俱乐部"
+    },
+    "Hotel Corridor": {
+      "prompt": "Vintage hotel corridor with ornate wallpaper and numbered doors, red carpet runner down center, wall sconces providing dim lighting, mysterious figure at far end, noir thriller atmosphere, suspenseful and claustrophobic mood.",
+      "description": "Vintage hotel corridor with noir mystery",
+      "tags": [
+        "hotel",
+        "corridor",
+        "noir",
+        "mystery",
+        "suspense"
+      ],
+      "weight": 1.0,
+      "name_zh": "酒店走廊"
+    },
+    "Candlelit Restaurant": {
+      "prompt": "Romantic candlelit restaurant with intimate two-person tables, white tablecloths and fine china, soft ambient lighting from candles and wall sconces, elegant floral centerpieces, wine glasses catching light, sophisticated romantic atmosphere.",
+      "description": "Romantic candlelit restaurant with intimate setting",
+      "tags": [
+        "restaurant",
+        "candlelit",
+        "romantic",
+        "intimate",
+        "elegant"
+      ],
+      "weight": 1.0,
+      "name_zh": "烛光餐厅"
+    },
+    "Observation Deck Sunset": {
+      "prompt": "Glass-walled observation deck overlooking city skyline at sunset, comfortable seating areas, potted plants, warm golden light flooding through windows, romantic panoramic views, intimate couple setting, peaceful evening atmosphere.",
+      "description": "Observation deck with romantic sunset views",
+      "tags": [
+        "observation deck",
+        "sunset",
+        "romantic",
+        "city view",
+        "intimate"
+      ],
+      "weight": 1.0,
+      "name_zh": "观景台日落"
+    },
+    "Garden Gazebo": {
+      "prompt": "White wooden gazebo in lush garden setting, climbing roses and flowering vines, soft afternoon light filtering through leaves, garden path leading to entrance, peaceful romantic atmosphere, fairy lights beginning to glow at dusk.",
+      "description": "Garden gazebo with romantic floral setting",
+      "tags": [
+        "gazebo",
+        "garden",
+        "romantic",
+        "flowers",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "name_zh": "花园凉亭"
+    },
+    "Beach Bonfire": {
+      "prompt": "Beach bonfire at twilight with flames dancing against darkening sky, driftwood seating arranged in circle, ocean waves gently lapping shore, stars beginning to appear, romantic coastal atmosphere, warm intimate gathering.",
+      "description": "Beach bonfire with romantic twilight atmosphere",
+      "tags": [
+        "beach",
+        "bonfire",
+        "romantic",
+        "twilight",
+        "coastal"
+      ],
+      "weight": 1.0,
+      "name_zh": "海滩篝火"
+    },
+    "Fighter Jet Hangar": {
+      "prompt": "Military fighter jet hangar with sleek combat aircraft, ground crew performing maintenance, high ceiling with industrial lighting, tools and equipment scattered around, American flag hanging from wall, military aviation atmosphere, organized controlled chaos.",
+      "description": "Military fighter jet hangar with aviation atmosphere",
+      "tags": [
+        "hangar",
+        "fighter jet",
+        "military",
+        "aviation",
+        "war"
+      ],
+      "weight": 1.0,
+      "name_zh": "战斗机机库"
+    },
+    "WWI Trench": {
+      "prompt": "World War I muddy trench with wooden support beams, sandbags lining top, soldiers' equipment scattered about, duckboards on floor, periscope or ladder to no man's land, barbed wire visible above, grim wartime atmosphere, historical authenticity.",
+      "description": "WWI trench with authentic wartime atmosphere",
+      "tags": [
+        "trench",
+        "WWI",
+        "war",
+        "military",
+        "historical"
+      ],
+      "weight": 1.0,
+      "name_zh": "一战战壕"
+    },
+    "Command Center": {
+      "prompt": "Military command center with large situation map on wall, multiple computer screens displaying tactical information, communications equipment, officers coordinating operations, serious focused atmosphere, modern military technology.",
+      "description": "Military command center with tactical operations",
+      "tags": [
+        "command center",
+        "military",
+        "tactical",
+        "war",
+        "operations"
+      ],
+      "weight": 1.0,
+      "name_zh": "指挥中心"
+    },
+    "Desert Outpost": {
+      "prompt": "Remote desert military outpost with watchtowers and sandbag fortifications, military vehicles parked nearby, tents and temporary structures, harsh sunlight and heat haze, barren landscape surrounding, isolated frontier atmosphere.",
+      "description": "Remote desert military outpost with frontier feel",
+      "tags": [
+        "outpost",
+        "desert",
+        "military",
+        "war",
+        "isolated"
+      ],
+      "weight": 1.0,
+      "name_zh": "沙漠前哨站"
+    },
+    "Train Platform Farewell": {
+      "prompt": "Vintage train platform with steam locomotive, passengers boarding and saying goodbyes, period luggage and clothing, station clock showing departure time, nostalgic emotional atmosphere, classic romantic drama setting.",
+      "description": "Vintage train platform with emotional farewell atmosphere",
+      "tags": [
+        "train platform",
+        "vintage",
+        "romantic",
+        "farewell",
+        "nostalgic"
+      ],
+      "weight": 1.0,
+      "name_zh": "月台送别"
+    },
+    "Penthouse Balcony": {
+      "prompt": "Luxury penthouse balcony with modern furniture and city skyline views, glass railing, elegant outdoor lighting, potted plants and decorative elements, champagne glasses on table, sophisticated urban luxury atmosphere.",
+      "description": "Luxury penthouse balcony with skyline views",
+      "tags": [
+        "penthouse",
+        "balcony",
+        "luxury",
+        "urban",
+        "sophisticated"
+      ],
+      "weight": 1.0,
+      "name_zh": "顶层公寓阳台"
+    },
+    "Mountain Cabin Porch": {
+      "prompt": "Rustic mountain cabin porch with wooden rocking chairs, scenic mountain vista, warm blankets draped over railings, morning coffee setting, peaceful wilderness atmosphere, serene natural beauty surrounding.",
+      "description": "Mountain cabin porch with scenic wilderness views",
+      "tags": [
+        "cabin",
+        "porch",
+        "mountain",
+        "rustic",
+        "peaceful"
+      ],
+      "weight": 1.0,
+      "name_zh": "山间小屋门廊"
+    },
+    "City Rooftop Garden": {
+      "prompt": "Urban rooftop garden with raised plant beds, string lights overhead, wooden deck flooring, city buildings visible beyond, green plants contrasting concrete jungle, peaceful urban oasis atmosphere, sunset golden hour lighting.",
+      "description": "Urban rooftop garden oasis with city views",
+      "tags": [
+        "rooftop",
+        "garden",
+        "urban",
+        "peaceful",
+        "oasis"
+      ],
+      "weight": 1.0,
+      "name_zh": "城市屋顶花园"
+    }
+  },
+  "Lighting": {
+    "Natural Daylight Window": {
+      "prompt": "Natural daylight streams through large window, soft diffused key light on subject, gentle shadows, bright and open illumination, soft color grading, high dynamic range appearance, controlled highlights, detail-rich shadows.",
+      "description": "Soft natural window light with diffused illumination",
+      "tags": [
+        "daylight",
+        "natural",
+        "window",
+        "soft"
+      ],
+      "weight": 1.2,
+      "name_zh": "自然窗光"
+    },
+    "Volumetric Moonlight": {
+      "prompt": "Bright full moon illuminating landscape, moonlight reflecting beautifully on water and wet grass, volumetric moonlight, atmospheric fog, gentle fill light, cool-neutral color temperature, dreamy ethereal quality.",
+      "description": "Dramatic moonlit scene with volumetric effects",
+      "tags": [
+        "moonlight",
+        "night",
+        "volumetric",
+        "dreamy"
+      ],
+      "weight": 1.3,
+      "name_zh": "体积月光"
+    },
+    "Golden Cinematic Rays": {
+      "prompt": "Golden rays of light breaking through dramatic clouds, intense golden backlight, heavenly volumetric rays, bright rim light, warm orange glow, cinematic color grading, high dynamic range, unclipped highlights.",
+      "description": "Dramatic golden light with volumetric rays",
+      "tags": [
+        "cinematic",
+        "golden",
+        "dramatic",
+        "rays"
+      ],
+      "weight": 1.3,
+      "name_zh": "金色电影光束"
+    },
+    "Studio Professional": {
+      "prompt": "Professional studio lighting with carefully positioned key light and fill light, even illumination across face and body, subtle rim lighting highlighting edges, soft flattering light without harsh shadows, neutral white balance, perfect exposure.",
+      "description": "Professional studio setup with even balanced light",
+      "tags": [
+        "studio",
+        "professional",
+        "even",
+        "balanced"
+      ],
+      "weight": 1.3,
+      "name_zh": "专业影棚灯光"
+    },
+    "Warm Lantern Mix": {
+      "prompt": "Cozy warm lantern glow mixed with cool moonlight, soft ambient fill from interior sources, warm tungsten bulb quality contrasting cool night atmosphere, intimate localized lighting, realistic material reflections.",
+      "description": "Warm intimate light mixed with cool night tones",
+      "tags": [
+        "warm",
+        "lantern",
+        "cozy",
+        "atmospheric"
+      ],
+      "weight": 1.2,
+      "name_zh": "温暖灯笼混合光"
+    },
+    "Neon Urban Night": {
+      "prompt": "Neon signs and colorful city lights, teal-blue shadows contrasting warm orange highlights, light reflecting on wet surfaces, bright dynamic color palette, harsh clean urban lighting, high contrast dramatic illumination.",
+      "description": "Vibrant neon urban night lighting",
+      "tags": [
+        "neon",
+        "urban",
+        "night",
+        "colorful"
+      ],
+      "weight": 1.3,
+      "name_zh": "霓虹都市之夜"
+    },
+    "HDR Balanced": {
+      "prompt": "Cinematic color grading, high dynamic range, low-contrast balanced exposure, teal and orange color grading, soft bloom, realistic skin rendering, smooth tonal transitions, no blown highlights, preserved shadow detail.",
+      "description": "Modern HDR color grading with balanced exposure",
+      "tags": [
+        "HDR",
+        "cinematic",
+        "balanced",
+        "modern"
+      ],
+      "weight": 1.2,
+      "name_zh": "HDR均衡光"
+    },
+    "Moody Rembrandt Lighting": {
+      "prompt": "Rembrandt lighting with strong key light from above and to the side, characteristic triangle of light on the shadow side of the face, deep dramatic shadows, rich chiaroscuro contrast, warm amber tones in highlights, painterly shadow quality.",
+      "description": "Classic Rembrandt portrait lighting with deep shadows",
+      "tags": [
+        "rembrandt",
+        "chiaroscuro",
+        "dramatic",
+        "classic",
+        "painterly"
+      ],
+      "weight": 1.3,
+      "name_zh": "伦勃朗氛围光"
+    },
+    "Sunrise Golden Hour": {
+      "prompt": "Early morning golden hour light, warm golden-orange sunlight at low angle, long soft shadows stretching across the scene, gentle warm glow on everything, subtle morning haze, dewdrops catching light, fresh vibrant color temperature.",
+      "description": "Warm golden hour sunrise lighting",
+      "tags": [
+        "sunrise",
+        "golden hour",
+        "warm",
+        "morning",
+        "soft"
+      ],
+      "weight": 1.2,
+      "name_zh": "日出黄金时刻"
+    },
+    "Sunset Purple Dusk": {
+      "prompt": "Twilight sunset lighting with rich purple and magenta sky tones, warm orange horizon fading to cool purple overhead, soft ambient fill from scattered sky light, silhouettes against the colorful sky, romantic and nostalgic atmosphere.",
+      "description": "Rich purple dusk twilight lighting",
+      "tags": [
+        "sunset",
+        "dusk",
+        "purple",
+        "twilight",
+        "romantic"
+      ],
+      "weight": 1.2,
+      "name_zh": "紫霞黄昏"
+    },
+    "Bioluminescent Glow": {
+      "prompt": "Ethereal bioluminescent lighting with glowing blue and green particles floating in the air, soft cool-colored illumination from natural sources, magical luminous quality, organic light patterns resembling fireflies or deep-sea creatures, dreamlike atmosphere.",
+      "description": "Ethereal bioluminescent glowing light",
+      "tags": [
+        "bioluminescent",
+        "glowing",
+        "magical",
+        "ethereal",
+        "blue"
+      ],
+      "weight": 1.3,
+      "name_zh": "生物荧光"
+    },
+    "Candlelit Warmth": {
+      "prompt": "Intimate candlelit scene with warm flickering orange light, soft golden glow on faces and surfaces, deep warm shadows, dramatic contrast between light and dark, cozy romantic atmosphere, subtle smoke trails catching light above flames.",
+      "description": "Warm intimate candlelight illumination",
+      "tags": [
+        "candle",
+        "warm",
+        "intimate",
+        "romantic",
+        "cozy"
+      ],
+      "weight": 1.2,
+      "name_zh": "烛光暖意"
+    },
+    "Overcast Diffuse Skylight": {
+      "prompt": "Soft overcast sky providing even diffuse lighting, no harsh shadows, completely uniform illumination, soft cloud-filtered daylight, muted natural colors, ideal for product photography, smooth gradients across all surfaces, gently wrapped light.",
+      "description": "Soft even overcast skylight with no shadows",
+      "tags": [
+        "overcast",
+        "diffuse",
+        "soft",
+        "even",
+        "cloudy"
+      ],
+      "weight": 1.1,
+      "name_zh": "阴天漫射天光"
+    },
+    "Midnight Starlight": {
+      "prompt": "Deep midnight scene illuminated only by starlight, very low light levels with subtle blue ambient glow, scattered stars visible in the sky, faint Milky Way band, organic dark shadows, visible constellations, peaceful vastness of the night sky.",
+      "description": "Minimal starlight illumination in deep night",
+      "tags": [
+        "starlight",
+        "midnight",
+        "dark",
+        "stars",
+        "peaceful"
+      ],
+      "weight": 1.1,
+      "name_zh": "午夜星光"
+    },
+    "Fluorescent Office Cool": {
+      "prompt": "Cool fluorescent overhead lighting, even flat illumination with slight greenish-blue cast, harsh shadows under desks and equipment, clinical institutional feel, bright ceiling panels creating multiple light sources, sterile workplace atmosphere.",
+      "description": "Cool fluorescent office lighting",
+      "tags": [
+        "fluorescent",
+        "office",
+        "cool",
+        "clinical",
+        "industrial"
+      ],
+      "weight": 1.0,
+      "name_zh": "冷调办公室荧光灯"
+    },
+    "Fireworks Explosive Color": {
+      "prompt": "Dynamic colored light from fireworks and sparklers, explosive bursts of red gold blue and green light, rapidly changing colorful highlights, dramatic contrast between dark sky and brilliant explosions, festive celebratory atmosphere, sparkling particles trailing through air.",
+      "description": "Explosive colorful fireworks illumination",
+      "tags": [
+        "fireworks",
+        "colorful",
+        "explosive",
+        "festive",
+        "dynamic"
+      ],
+      "weight": 1.3,
+      "name_zh": "烟花绚彩光"
+    },
+    "Lightning Storm Flash": {
+      "prompt": "Brief intense lightning flash illumination, stark white-blue light revealing landscape in sharp detail, deep crushing shadows immediately following the flash, dramatic storm clouds backlit by electrical discharge, high contrast monochromatic moment, rain visible in frozen light.",
+      "description": "Stark lightning flash illumination during storm",
+      "tags": [
+        "lightning",
+        "storm",
+        "flash",
+        "dramatic",
+        "intense"
+      ],
+      "weight": 1.3,
+      "name_zh": "雷暴闪光"
+    },
+    "Underwater Caustic Light": {
+      "prompt": "Underwater lighting with dancing caustic light patterns on surfaces, sunlight filtering through water creating moving rippled light, blue-green color cast, soft volumetric water haze, light rays scattering through particles, organic flowing illumination patterns.",
+      "description": "Dancing underwater caustic light patterns",
+      "tags": [
+        "underwater",
+        "caustic",
+        "ripple",
+        "aquatic",
+        "pattern"
+      ],
+      "weight": 1.2,
+      "name_zh": "水下焦散光"
+    },
+    "Dappled Forest Sunlight": {
+      "prompt": "Dappled sunlight filtering through a forest canopy, small bright spots of light scattered across the forest floor, long shafts of light between tree trunks, warm yellow-green color palette, organic light patterns dancing on leaves, magical woodland atmosphere.",
+      "description": "Dappled sunlight through forest canopy",
+      "tags": [
+        "dappled",
+        "forest",
+        "sunlight",
+        "magical",
+        "nature"
+      ],
+      "weight": 1.2,
+      "name_zh": "林间斑驳日光"
+    },
+    "Silhouette Backlight": {
+      "prompt": "Strong dramatic backlight creating clean silhouettes, bright light source behind subject with minimal or no fill light, dark shadow details with bright rim light on edges, high contrast scene, atmospheric haze catching the backlight, moody and cinematic.",
+      "description": "Dramatic backlight creating silhouettes",
+      "tags": [
+        "silhouette",
+        "backlight",
+        "dramatic",
+        "contrast",
+        "rim light"
+      ],
+      "weight": 1.3,
+      "name_zh": "剪影逆光"
+    },
+    "Ring Light Beauty": {
+      "prompt": "Professional ring light beauty lighting, soft even illumination with characteristic circular catchlights in the eyes, minimal shadows behind the subject, flattering wraparound light on the face, clean bright beauty photography look, smooth skin rendering.",
+      "description": "Flattering ring light beauty photography lighting",
+      "tags": [
+        "ring light",
+        "beauty",
+        "flattering",
+        "soft",
+        "portrait"
+      ],
+      "weight": 1.2,
+      "name_zh": "环形美颜灯"
+    },
+    "LED Strip Color Wash": {
+      "prompt": "Modern LED strip lighting creating colored accent washes on walls and subjects, vibrant saturated color in pink blue and purple, gradient transitions between colors, contemporary studio aesthetic, creative mixed color temperatures, artistic RGB illumination.",
+      "description": "Modern colored LED strip accent lighting",
+      "tags": [
+        "LED",
+        "colorful",
+        "modern",
+        "RGB",
+        "artistic"
+      ],
+      "weight": 1.1,
+      "name_zh": "LED灯带彩光"
+    },
+    "Twilight Blue Hour": {
+      "prompt": "Blue hour twilight lighting with deep blue sky fading to warm horizon, soft cool ambient light with subtle warm accents from distant city lights, calm serene atmosphere, rich blue tones dominating the scene, peaceful transition between day and night.",
+      "description": "Twilight blue hour with cool blue tones",
+      "tags": [
+        "twilight",
+        "blue hour",
+        "cool",
+        "serene",
+        "evening"
+      ],
+      "weight": 1.2,
+      "name_zh": "蓝色时刻"
+    },
+    "Dramatic Side Light": {
+      "prompt": "Strong side lighting creating bold contrast, light raking across the subject from one side, deep shadows on the opposite side, pronounced texture enhancement, sculptural quality revealing every surface detail, intense dramatic mood.",
+      "description": "Strong side light creating texture and contrast",
+      "tags": [
+        "side light",
+        "dramatic",
+        "texture",
+        "contrast",
+        "sculptural"
+      ],
+      "weight": 1.3,
+      "name_zh": "戏剧性侧光"
+    },
+    "Soft Porch Light": {
+      "prompt": "Warm welcoming porch light illumination, soft golden glow spreading across doorway and steps, gentle light pooling on the ground, inviting warm atmosphere, subtle insect shadows in the light cone, cozy domestic evening setting, nostalgic homely feeling.",
+      "description": "Warm welcoming porch light at evening",
+      "tags": [
+        "porch light",
+        "warm",
+        "cozy",
+        "home",
+        "evening"
+      ],
+      "weight": 1.1,
+      "name_zh": "温馨门廊灯"
+    },
+    "Soft Watercolor Wash": {
+      "prompt": "Soft watercolor wash background in pale mint and cream tones, diffused gentle light throughout the scene, muted natural colors including greens golds corals and soft blues, low contrast, peaceful dreamy atmosphere, watercolor bloom effects, gentle ethereal quality.",
+      "description": "Soft watercolor wash with muted pastel tones",
+      "tags": [
+        "watercolor",
+        "wash",
+        "soft",
+        "pastel",
+        "dreamy"
+      ],
+      "weight": 1.1,
+      "name_zh": "柔和水彩洗光"
+    },
+    "Pastel Dream Light": {
+      "prompt": "Bright cheerful even studio lighting, soft pastel colors with soft orange white gray and pink accents, saturated but gentle color palette, clear blue sky light, no harsh shadows, warm inviting atmosphere, diffused wraparound illumination.",
+      "description": "Bright cheerful pastel lighting with soft tones",
+      "tags": [
+        "pastel",
+        "bright",
+        "cheerful",
+        "soft",
+        "even"
+      ],
+      "weight": 1.1,
+      "name_zh": "马卡龙梦幻光"
+    },
+    "Gentle Storybook Diffuse": {
+      "prompt": "Bright cheerful lighting with soft pastel palette dominated by mint green grass tones sky blue coral pink and soft golden tones, even illumination throughout, warm inviting mood, clear visibility, no harsh shadows, gentle dreamy quality, soft rounded light.",
+      "description": "Gentle even diffuse light with storybook warmth",
+      "tags": [
+        "diffuse",
+        "storybook",
+        "gentle",
+        "warm",
+        "soft"
+      ],
+      "weight": 1.1,
+      "name_zh": "童话柔光"
+    },
+    "Warm Pastoral Glow": {
+      "prompt": "Soft warm natural light with golden-hour quality, warm natural tones, muted earth tones mixed with gentle flower colors, diffused gentle light, warm spiritual mood, calm peaceful atmosphere, soft amber and cream highlights.",
+      "description": "Warm pastoral glow with golden-hour quality",
+      "tags": [
+        "warm",
+        "pastoral",
+        "golden hour",
+        "peaceful",
+        "natural"
+      ],
+      "weight": 1.2,
+      "name_zh": "温暖田园辉光"
+    },
+    "Film Noir Shadow": {
+      "prompt": "Classic film noir dramatic lighting with deep black shadows, high contrast venetian blind patterns casting dramatic stripes across scene, single source harsh key light, no fill light, chiaroscuro film aesthetic, mysterious noir atmosphere, stark black and white contrast.",
+      "description": "Film noir with venetian blind shadow patterns",
+      "tags": [
+        "noir",
+        "shadows",
+        "dramatic",
+        "contrast",
+        "classic"
+      ],
+      "weight": 1.3,
+      "name_zh": "黑色电影阴影"
+    },
+    "Practical Light Only": {
+      "prompt": "Natural practical lighting sources only, visible lamps and fixtures providing all illumination, realistic motivated lighting, warm tungsten bulbs, no artificial fill light, authentic environmental lighting, organic light falloff from visible sources.",
+      "description": "Realistic practical light sources only",
+      "tags": [
+        "practical",
+        "realistic",
+        "natural",
+        "motivated",
+        "authentic"
+      ],
+      "weight": 1.2,
+      "name_zh": "纯实用光"
+    },
+    "Bounce Light Soft": {
+      "prompt": "Soft indirect bounce lighting, light reflected off walls and ceilings providing gentle fill, wraparound diffused illumination, no harsh direct light, photographic bounce card quality, flattering soft shadows, studio bounce lighting technique.",
+      "description": "Soft indirect bounce light fill",
+      "tags": [
+        "bounce",
+        "soft",
+        "indirect",
+        "flattering",
+        "studio"
+      ],
+      "weight": 1.1,
+      "name_zh": "柔和跳灯"
+    },
+    "Colored Gel Drama": {
+      "prompt": "Theatrical colored gel lighting with bold saturated colors, contrasting red and blue gels creating dramatic color splits, vibrant magenta and cyan tones, theatrical stage lighting aesthetic, artistic color temperature conflicts, music video lighting style.",
+      "description": "Dramatic colored theatrical gel lighting",
+      "tags": [
+        "colored gel",
+        "theatrical",
+        "dramatic",
+        "saturated",
+        "artistic"
+      ],
+      "weight": 1.2,
+      "name_zh": "彩色滤光片戏剧光"
+    },
+    "Butterfly Beauty Light": {
+      "prompt": "Classic butterfly beauty lighting with light source directly above and in front of subject, small butterfly-shaped shadow under nose, symmetrical flattering illumination on face, glamour photography technique, soft even facial lighting, beauty portrait standard.",
+      "description": "Classic butterfly beauty portrait lighting",
+      "tags": [
+        "butterfly",
+        "beauty",
+        "glamour",
+        "portrait",
+        "flattering"
+      ],
+      "weight": 1.2,
+      "name_zh": "蝴蝶光"
+    },
+    "Split Lighting": {
+      "prompt": "Dramatic split lighting with light source 90 degrees to the side, exactly half of face illuminated and half in shadow, clean division down center of face, dramatic portrait technique, strong character lighting, theatrical facial sculpting.",
+      "description": "Split lighting with half face illuminated",
+      "tags": [
+        "split",
+        "dramatic",
+        "portrait",
+        "theatrical",
+        "half-shadow"
+      ],
+      "weight": 1.3,
+      "name_zh": "分割光"
+    },
+    "Loop Lighting": {
+      "prompt": "Classic loop lighting portrait technique, light positioned 30-45 degrees to side and slightly above, small nose shadow looping down toward corner of mouth, flattering dimensional facial sculpting, professional portrait lighting standard, natural dimensional quality.",
+      "description": "Loop lighting portrait with dimensional sculpting",
+      "tags": [
+        "loop",
+        "portrait",
+        "flattering",
+        "professional",
+        "dimensional"
+      ],
+      "weight": 1.2,
+      "name_zh": "环形光"
+    },
+    "Broad Lighting": {
+      "prompt": "Broad lighting technique with illuminated side of face toward camera, fuller broader face appearance, light on near side of face, portrait photography technique making face appear wider, commercial portrait standard for narrow faces.",
+      "description": "Broad lighting for fuller face appearance",
+      "tags": [
+        "broad",
+        "portrait",
+        "commercial",
+        "fuller",
+        "technique"
+      ],
+      "weight": 1.1,
+      "name_zh": "宽光"
+    },
+    "Short Lighting": {
+      "prompt": "Short lighting technique with shadow side of face toward camera, slimming portrait effect, light on far side of face, narrow dimensional appearance, dramatic portrait technique, sculpted chiseled look, professional character lighting.",
+      "description": "Short lighting for slimming portrait effect",
+      "tags": [
+        "short",
+        "portrait",
+        "slimming",
+        "dramatic",
+        "sculpted"
+      ],
+      "weight": 1.2,
+      "name_zh": "窄光"
+    },
+    "Clamshell Beauty": {
+      "prompt": "Clamshell beauty lighting with light above and reflector below, soft wraparound illumination on face, minimal shadows under chin and nose, fashion and beauty photography standard, even flattering facial lighting, professional beauty technique.",
+      "description": "Clamshell lighting for beauty photography",
+      "tags": [
+        "clamshell",
+        "beauty",
+        "fashion",
+        "flattering",
+        "professional"
+      ],
+      "weight": 1.2,
+      "name_zh": "贝壳美颜光"
+    },
+    "Hard Midday Sun": {
+      "prompt": "Harsh overhead midday sunlight, strong direct sun from above creating deep shadows under eyes and nose, high contrast unforgiving light, bright hot highlights, documentary reality aesthetic, no diffusion, authentic harsh daylight.",
+      "description": "Harsh overhead midday sun with deep shadows",
+      "tags": [
+        "midday",
+        "harsh",
+        "overhead",
+        "documentary",
+        "unforgiving"
+      ],
+      "weight": 1.1,
+      "name_zh": "正午硬光"
+    },
+    "Magic Hour Glow": {
+      "prompt": "Magic hour golden light just after sunrise or before sunset, warm amber and rose gold tones, soft directional glow, long dramatic shadows, romantic dreamy quality, cinematic golden warmth, perfect outdoor portrait light, ethereal atmospheric glow.",
+      "description": "Magic hour golden glow with warm tones",
+      "tags": [
+        "magic hour",
+        "golden",
+        "romantic",
+        "cinematic",
+        "ethereal"
+      ],
+      "weight": 1.3,
+      "name_zh": "魔法时刻辉光"
+    },
+    "Overcast Soft Box": {
+      "prompt": "Overcast sky acting as giant natural softbox, completely even diffused light from above, no visible shadows, soft neutral illumination, professional product photography quality, clean commercial lighting, perfect for even exposure throughout scene.",
+      "description": "Overcast sky natural softbox lighting",
+      "tags": [
+        "overcast",
+        "softbox",
+        "even",
+        "commercial",
+        "clean"
+      ],
+      "weight": 1.1,
+      "name_zh": "阴天柔光箱"
+    },
+    "Spotlight Solo": {
+      "prompt": "Single dramatic spotlight in darkness, tight beam illuminating subject in void of black, theatrical stage lighting, hard spotlight edge, dramatic isolation technique, performance lighting aesthetic, subject emerging from darkness.",
+      "description": "Dramatic single spotlight in darkness",
+      "tags": [
+        "spotlight",
+        "dramatic",
+        "theatrical",
+        "isolated",
+        "stage"
+      ],
+      "weight": 1.3,
+      "name_zh": "独束聚光"
+    },
+    "Bounce Flash": {
+      "prompt": "Bounced camera flash off ceiling or wall, soft diffused flash lighting, no harsh direct flash shadows, natural-looking artificial light, photojournalism technique, realistic event lighting, subtle fill flash aesthetic.",
+      "description": "Soft bounced flash lighting technique",
+      "tags": [
+        "flash",
+        "bounced",
+        "soft",
+        "photojournalism",
+        "realistic"
+      ],
+      "weight": 1.1,
+      "name_zh": "反射闪光"
+    },
+    "Car Headlight Drama": {
+      "prompt": "Dramatic car headlight illumination at night, bright white beams cutting through darkness, fog and mist catching light, twin parallel light sources, automotive lighting aesthetic, urban night thriller atmosphere, harsh beam quality.",
+      "description": "Dramatic car headlight beams at night",
+      "tags": [
+        "headlight",
+        "automotive",
+        "night",
+        "dramatic",
+        "urban"
+      ],
+      "weight": 1.2,
+      "name_zh": "车灯戏剧光"
+    },
+    "Smoky Atmosphere": {
+      "prompt": "Heavy atmospheric smoke or haze illuminated by light sources, visible volumetric god rays through smoke, dramatic light shafts, mysterious atmosphere, concert and stage lighting effect, particles catching light, ethereal smoky ambiance.",
+      "description": "Volumetric smoky atmosphere with light rays",
+      "tags": [
+        "smoke",
+        "volumetric",
+        "atmospheric",
+        "dramatic",
+        "mysterious"
+      ],
+      "weight": 1.3,
+      "name_zh": "烟雾氛围"
+    },
+    "Window Frame Pattern": {
+      "prompt": "Window frame casting geometric shadow patterns across scene, architectural light and shadow interplay, mullion and frame shapes projected onto surfaces, natural window light creating graphic patterns, architectural photography aesthetic.",
+      "description": "Window frame creating shadow patterns",
+      "tags": [
+        "window",
+        "pattern",
+        "geometric",
+        "architectural",
+        "shadows"
+      ],
+      "weight": 1.2,
+      "name_zh": "窗框光影"
+    },
+    "Contre-Jour Silhouette": {
+      "prompt": "Contre-jour backlighting technique with subject silhouetted against bright background, minimal visible detail on subject, bright glowing rim light on edges, dramatic contour lighting, artistic high-contrast composition, subject as dark shape.",
+      "description": "Contre-jour silhouette backlighting",
+      "tags": [
+        "contre-jour",
+        "silhouette",
+        "backlight",
+        "artistic",
+        "contour"
+      ],
+      "weight": 1.3,
+      "name_zh": "逆光剪影"
+    },
+    "Diffusion Filter Glow": {
+      "prompt": "Soft diffusion filter creating dreamy glow in highlights, gentle halation around bright areas, romantic soft-focus quality, bloom in light sources, vintage Hollywood glamour aesthetic, ethereal glowing highlights, delicate soft rendering.",
+      "description": "Diffusion filter creating soft glow effect",
+      "tags": [
+        "diffusion",
+        "glow",
+        "soft",
+        "romantic",
+        "vintage"
+      ],
+      "weight": 1.2,
+      "name_zh": "柔焦滤镜辉光"
+    },
+    "Medical Examination Light": {
+      "prompt": "Clinical medical examination lighting, bright white fluorescent overhead illumination, harsh even lighting showing every detail, sterile hospital atmosphere, no shadows, cold white color temperature, documentary medical aesthetic, unforgiving clarity.",
+      "description": "Clinical medical examination lighting",
+      "tags": [
+        "medical",
+        "clinical",
+        "fluorescent",
+        "harsh",
+        "sterile"
+      ],
+      "weight": 1.0,
+      "name_zh": "医用检查灯"
+    }
+  },
+  "Style": {
+    "Fashion Editorial": {
+      "prompt": "Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, ultra-detailed clothing textures, realistic skin detail, soft color grading, photorealistic, hyperrealistic, masterpiece, best quality, DSLR photography, 85mm lens, f/1.8, shallow depth of field, creamy bokeh.",
+      "description": "Premium fashion editorial with detailed textures",
+      "tags": [
+        "fashion",
+        "editorial",
+        "cinematic",
+        "urban"
+      ],
+      "weight": 1.3,
+      "name_zh": "时尚社论风"
+    },
+    "Cinematic Elegance": {
+      "prompt": "Ultra-realistic cinematic, premium movie-poster quality, photorealistic, 8K, HDR, low-contrast cinematic color grading, dramatic but peaceful mood, emotionally powerful, elegant, minimalist composition, Hollywood poster aesthetic.",
+      "description": "Cinematic elegant aesthetic with dramatic mood",
+      "tags": [
+        "cinematic",
+        "elegant",
+        "emotional",
+        "dramatic"
+      ],
+      "weight": 1.3,
+      "name_zh": "电影优雅风"
+    },
+    "Anime Painterly": {
+      "prompt": "Semi-realistic anime painting with subtle 3D depth, painterly anime realism, soft realistic shading, handcrafted digital painting look, Makoto Shinkai + Studio Ghibli inspired, semi-3D anime render, visual novel CG style, ultra detailed environment art.",
+      "description": "Anime painterly style with Studio Ghibli influence",
+      "tags": [
+        "anime",
+        "painterly",
+        "ghibli",
+        "3D"
+      ],
+      "weight": 1.2,
+      "name_zh": "动漫手绘风"
+    },
+    "Premium Commercial": {
+      "prompt": "Premium social media aesthetic, clean premium look, commercial fashion photography, soft minimalist polished style, naturally captured instead of heavily staged, emphasizing realism and subtle elegance, high-end digital finish, fine textures preserved.",
+      "description": "Commercial premium polished aesthetic",
+      "tags": [
+        "commercial",
+        "premium",
+        "clean",
+        "polished"
+      ],
+      "weight": 1.2,
+      "name_zh": "高级商业风"
+    },
+    "Photorealistic": {
+      "prompt": "Photorealistic, hyperrealistic, ultra-detailed, realistic textures, physically based rendering, ray-traced lighting, photorealistic rendering, film-quality realism, 8K resolution, ultra sharp focus, masterpiece, best quality.",
+      "description": "Ultra-realistic photographic render",
+      "tags": [
+        "photorealistic",
+        "hyperrealistic",
+        "detailed",
+        "8K"
+      ],
+      "weight": 1.3,
+      "name_zh": "写实摄影风"
+    },
+    "Luxury Album Cover": {
+      "prompt": "Ultra-realistic cinematic album cover, premium movie-poster quality, photorealistic, 8K, HDR, premium Future Bass aesthetic, emotional and uplifting, luxury music album artwork, professional Spotify and Apple Music promotional artwork, minimalist elegant composition.",
+      "description": "Luxury music album artwork aesthetic",
+      "tags": [
+        "album",
+        "luxury",
+        "music",
+        "professional"
+      ],
+      "weight": 1.3,
+      "name_zh": "奢华专辑封面"
+    },
+    "Visual Novel CG": {
+      "prompt": "Visual novel CG style, detailed anime background, anime matte painting, soft rendered anime, cozy rural aesthetic, emotional anime scene, dreamy atmosphere, atmospheric perspective, immersive environmental storytelling, high detail environment art.",
+      "description": "Visual novel game CG aesthetic",
+      "tags": [
+        "visual novel",
+        "game",
+        "CG",
+        "atmospheric"
+      ],
+      "weight": 1.2,
+      "name_zh": "视觉小说CG"
+    },
+    "Watercolor Storybook": {
+      "prompt": "Watercolor illustration, soft botanical aesthetic, whimsical children's book illustration, gentle and contemplative mood, hand-painted quality, delicate linework, subtle texture, artistic storybook aesthetic, soft watercolor washes, creative artistic style.",
+      "description": "Watercolor storybook illustration with soft botanical feel",
+      "tags": [
+        "watercolor",
+        "storybook",
+        "illustration",
+        "botanical",
+        "artistic"
+      ],
+      "weight": 1.2,
+      "name_zh": "水彩童话书"
+    },
+    "3D Clay Render": {
+      "prompt": "3D rendered illustration, clay felt aesthetic, soft rounded forms, chibi cute character design, pastel color palette, toy-like quality, digital 3D art with soft shading, children's illustration style, playful and charming mood, soft surface texture quality.",
+      "description": "3D clay/felt rendered illustration with soft rounded forms",
+      "tags": [
+        "3D",
+        "clay",
+        "render",
+        "chibi",
+        "toy-like",
+        "cute"
+      ],
+      "weight": 1.2,
+      "name_zh": "3D黏土渲染"
+    },
+    "Children's Book Illustration": {
+      "prompt": "Children's book illustration style, soft narrative storytelling quality, gentle and compassionate mood, traditional storybook aesthetic, warm inviting visual language, whimsical playful charm, soft composition, delicate hand-painted look, charming storybook design.",
+      "description": "Classic children's book illustration with narrative warmth",
+      "tags": [
+        "children's book",
+        "illustration",
+        "storybook",
+        "whimsical",
+        "narrative"
+      ],
+      "weight": 1.2,
+      "name_zh": "儿童绘本插画"
+    },
+    "Whimsical Pastel Art": {
+      "prompt": "Soft rounded volumetric forms, cute character aesthetic, digital 3D art with soft shading, children's book illustration style, playful whimsical mood, soft surface texture quality, charming storybook design, pastel color palette, dreamy storybook atmosphere.",
+      "description": "Whimsical pastel art with soft volumetric forms",
+      "tags": [
+        "whimsical",
+        "pastel",
+        "volumetric",
+        "cute",
+        "playful"
+      ],
+      "weight": 1.2,
+      "name_zh": "俏皮粉彩艺术"
+    },
+    "Fashion Studio Portrait": {
+      "prompt": "Ultra-realistic IMAX-level Netflix-style cinematic elegant portrait, premium luxury fashion editorial aesthetic, ultra-rich color grading with deep saturated fabric tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop. Creamy bokeh, elegant portrait separation, HDR lighting, global illumination, photorealistic rendering, shallow depth of field, masterpiece quality, ultra-sharp details, 8K production detail.",
+      "description": "Premium fashion portrait with ultra-realistic cinematic rendering",
+      "tags": [
+        "fashion",
+        "portrait",
+        "cinematic",
+        "ultra-realistic",
+        "editorial"
+      ],
+      "weight": 1.3,
+      "name_zh": "时尚影棚肖像"
+    },
+    "Documentary Realism": {
+      "prompt": "Documentary photojournalism style, authentic unposed moments, natural lighting preserved, reportage aesthetic, candid street photography, raw genuine emotion, unmanipulated realism, authentic human moments, photojournalistic integrity, real-world texture and grain.",
+      "description": "Documentary photojournalism with authentic realism",
+      "tags": [
+        "documentary",
+        "photojournalism",
+        "authentic",
+        "candid",
+        "raw"
+      ],
+      "weight": 1.2,
+      "name_zh": "纪实写实"
+    },
+    "Film Noir Classic": {
+      "prompt": "Classic film noir aesthetic, high contrast black and white, dramatic shadow play, hard-boiled detective atmosphere, 1940s cinematography style, venetian blind shadows, femme fatale lighting, classic Hollywood noir mood, stark chiaroscuro contrast.",
+      "description": "Classic film noir with dramatic shadows",
+      "tags": [
+        "film noir",
+        "black and white",
+        "dramatic",
+        "classic",
+        "1940s"
+      ],
+      "weight": 1.3,
+      "name_zh": "经典黑色电影"
+    },
+    "Vintage Film Grain": {
+      "prompt": "Vintage film photography aesthetic, authentic film grain texture, analog camera character, nostalgic color palette, slight color shift and fading, organic film artifacts, retro photo processing look, warm nostalgic memories feel, classic photo album quality.",
+      "description": "Vintage film with authentic grain and color",
+      "tags": [
+        "vintage",
+        "film grain",
+        "analog",
+        "nostalgic",
+        "retro"
+      ],
+      "weight": 1.2,
+      "name_zh": "复古胶片颗粒"
+    },
+    "Cyberpunk Neon": {
+      "prompt": "Cyberpunk aesthetic, neon-soaked futuristic cityscape, vibrant pink cyan and purple neon colors, high-tech low-life atmosphere, dystopian urban future, holographic elements, rain-slicked surfaces reflecting neon, Blade Runner inspired mood, technological noir aesthetic.",
+      "description": "Cyberpunk with neon colors and futuristic mood",
+      "tags": [
+        "cyberpunk",
+        "neon",
+        "futuristic",
+        "dystopian",
+        "sci-fi"
+      ],
+      "weight": 1.3,
+      "name_zh": "赛博朋克霓虹"
+    },
+    "Oil Painting Classical": {
+      "prompt": "Classical oil painting technique, rich painterly brushstrokes, Renaissance master quality, deep saturated colors, traditional fine art aesthetic, museum-quality rendering, chiaroscuro light and shadow, Old Master painting style, timeless artistic elegance.",
+      "description": "Classical oil painting with Renaissance quality",
+      "tags": [
+        "oil painting",
+        "classical",
+        "renaissance",
+        "fine art",
+        "painterly"
+      ],
+      "weight": 1.2,
+      "name_zh": "古典油画"
+    },
+    "Impressionist Soft": {
+      "prompt": "Impressionist painting style, soft broken brushstrokes, atmospheric light effects, Monet-inspired color palette, dreamy ethereal quality, emphasis on light and color over detail, plein air painting aesthetic, gentle pastel tones, romantic atmospheric mood.",
+      "description": "Impressionist with soft brushstrokes and light",
+      "tags": [
+        "impressionist",
+        "soft",
+        "painterly",
+        "atmospheric",
+        "monet"
+      ],
+      "weight": 1.2,
+      "name_zh": "印象派柔美"
+    },
+    "Art Nouveau Elegant": {
+      "prompt": "Art Nouveau decorative style, flowing organic lines and curves, elegant ornamental details, nature-inspired motifs, Alphonse Mucha influence, sophisticated vintage aesthetic, decorative arts movement, graceful flowing composition, elegant period style.",
+      "description": "Art Nouveau with flowing organic elegance",
+      "tags": [
+        "art nouveau",
+        "elegant",
+        "decorative",
+        "organic",
+        "vintage"
+      ],
+      "weight": 1.2,
+      "name_zh": "新艺术优雅"
+    },
+    "Art Deco Geometric": {
+      "prompt": "Art Deco style, geometric patterns and bold shapes, 1920s glamour aesthetic, luxurious metallic accents, streamlined modern elegance, jazz age sophistication, symmetrical geometric design, vintage luxury aesthetic, Great Gatsby era style.",
+      "description": "Art Deco with geometric patterns and glamour",
+      "tags": [
+        "art deco",
+        "geometric",
+        "1920s",
+        "luxury",
+        "glamour"
+      ],
+      "weight": 1.2,
+      "name_zh": "装饰艺术几何"
+    },
+    "Pop Art Bold": {
+      "prompt": "Pop Art style, bold vibrant colors, comic book aesthetic, Ben-Day dots pattern, high contrast graphic design, Andy Warhol influence, mass culture imagery, screen print quality, bright saturated pop culture aesthetic.",
+      "description": "Pop Art with bold colors and comic style",
+      "tags": [
+        "pop art",
+        "bold",
+        "vibrant",
+        "comic",
+        "warhol"
+      ],
+      "weight": 1.2,
+      "name_zh": "波普艺术"
+    },
+    "Minimalist Modern": {
+      "prompt": "Minimalist modern aesthetic, clean simple composition, negative space emphasis, reduced color palette, contemporary gallery art style, essential elements only, sophisticated simplicity, modernist design principles, elegant restraint.",
+      "description": "Minimalist with clean modern simplicity",
+      "tags": [
+        "minimalist",
+        "modern",
+        "clean",
+        "simple",
+        "contemporary"
+      ],
+      "weight": 1.2,
+      "name_zh": "极简现代"
+    },
+    "Surrealist Dream": {
+      "prompt": "Surrealist dream imagery, impossible combinations and perspectives, Salvador Dali inspired, subconscious dreamscape aesthetic, magical realism elements, unexpected juxtapositions, fantastical surreal atmosphere, dream logic composition.",
+      "description": "Surrealist with dreamlike impossibilities",
+      "tags": [
+        "surrealist",
+        "dream",
+        "fantastical",
+        "dali",
+        "magical"
+      ],
+      "weight": 1.2,
+      "name_zh": "超现实梦境"
+    },
+    "Gothic Dark Romance": {
+      "prompt": "Gothic romantic aesthetic, dark moody atmosphere, Victorian Gothic elegance, dramatic shadows and candlelight, romantic melancholy mood, baroque ornamental details, mysterious ethereal quality, dark romance atmosphere.",
+      "description": "Gothic with dark romantic elegance",
+      "tags": [
+        "gothic",
+        "dark",
+        "romantic",
+        "victorian",
+        "moody"
+      ],
+      "weight": 1.3,
+      "name_zh": "哥特暗黑浪漫"
+    },
+    "Steampunk Victorian": {
+      "prompt": "Steampunk aesthetic, Victorian era meets industrial technology, brass copper and leather materials, clockwork mechanical details, retro-futuristic invention style, steam-powered machinery aesthetic, vintage industrial elegance, Jules Verne inspired atmosphere.",
+      "description": "Steampunk with Victorian industrial elegance",
+      "tags": [
+        "steampunk",
+        "victorian",
+        "industrial",
+        "brass",
+        "retro-futuristic"
+      ],
+      "weight": 1.2,
+      "name_zh": "蒸汽朋克维多利亚"
+    },
+    "Vaporwave Aesthetic": {
+      "prompt": "Vaporwave aesthetic, 1980s-90s nostalgia, pink and cyan color scheme, retro computer graphics, Roman bust sculptures, geometric patterns, digital glitch effects, internet culture aesthetic, nostalgic digital surrealism.",
+      "description": "Vaporwave with retro digital nostalgia",
+      "tags": [
+        "vaporwave",
+        "retro",
+        "nostalgia",
+        "1980s",
+        "digital"
+      ],
+      "weight": 1.1,
+      "name_zh": "蒸汽波美学"
+    },
+    "Nordic Minimalism": {
+      "prompt": "Scandinavian minimalist design, clean functional aesthetics, natural materials and textures, muted neutral color palette, hygge cozy atmosphere, modern Nordic simplicity, organic minimalist approach, serene peaceful mood.",
+      "description": "Nordic minimalism with natural simplicity",
+      "tags": [
+        "nordic",
+        "scandinavian",
+        "minimalist",
+        "hygge",
+        "natural"
+      ],
+      "weight": 1.1,
+      "name_zh": "北欧极简"
+    },
+    "Japanese Wabi-Sabi": {
+      "prompt": "Japanese wabi-sabi aesthetic, beauty in imperfection, natural aging and patina, rustic organic materials, asymmetrical composition, zen-inspired simplicity, transient beauty appreciation, mindful imperfection, serene contemplative mood.",
+      "description": "Wabi-sabi with beauty in imperfection",
+      "tags": [
+        "japanese",
+        "wabi-sabi",
+        "zen",
+        "imperfection",
+        "organic"
+      ],
+      "weight": 1.2,
+      "name_zh": "日本侘寂"
+    },
+    "Baroque Dramatic": {
+      "prompt": "Baroque dramatic style, ornate elaborate details, dynamic diagonal compositions, rich deep colors, theatrical dramatic lighting, emotional grandeur, extravagant decorative elements, classical European opulence, dramatic movement and energy.",
+      "description": "Baroque with dramatic ornate grandeur",
+      "tags": [
+        "baroque",
+        "dramatic",
+        "ornate",
+        "theatrical",
+        "opulent"
+      ],
+      "weight": 1.2,
+      "name_zh": "巴洛克戏剧"
+    },
+    "Grunge Texture": {
+      "prompt": "Grunge aesthetic, rough weathered textures, distressed worn surfaces, urban decay quality, 1990s alternative culture, raw unpolished finish, gritty authentic character, imperfect organic texture, rebellious anti-aesthetic.",
+      "description": "Grunge with rough weathered textures",
+      "tags": [
+        "grunge",
+        "texture",
+        "weathered",
+        "distressed",
+        "raw"
+      ],
+      "weight": 1.1,
+      "name_zh": "垃圾摇滚质感"
+    },
+    "Cottagecore Pastoral": {
+      "prompt": "Cottagecore aesthetic, pastoral countryside romance, vintage homemade quality, natural botanical elements, soft romantic nostalgia, handcrafted artisan feel, rustic farmhouse charm, gentle rural beauty, cozy pastoral life.",
+      "description": "Cottagecore with pastoral romantic charm",
+      "tags": [
+        "cottagecore",
+        "pastoral",
+        "romantic",
+        "rustic",
+        "botanical"
+      ],
+      "weight": 1.1,
+      "name_zh": "田园牧歌"
+    },
+    "Dark Academia": {
+      "prompt": "Dark academia aesthetic, scholarly intellectual atmosphere, Gothic university setting, vintage books and candlelight, classical education mood, burgundy and dark green tones, romantic scholarly pursuit, literary artistic atmosphere.",
+      "description": "Dark academia with scholarly Gothic mood",
+      "tags": [
+        "dark academia",
+        "scholarly",
+        "gothic",
+        "vintage",
+        "intellectual"
+      ],
+      "weight": 1.2,
+      "name_zh": "暗黑学院风"
+    },
+    "Solarpunk Utopia": {
+      "prompt": "Solarpunk aesthetic, optimistic eco-future, renewable energy integration, lush green technology, sustainable utopian vision, Art Nouveau meets futurism, hopeful bright atmosphere, nature and technology harmony, vibrant ecological future.",
+      "description": "Solarpunk with optimistic eco-future",
+      "tags": [
+        "solarpunk",
+        "eco",
+        "utopian",
+        "sustainable",
+        "hopeful"
+      ],
+      "weight": 1.1,
+      "name_zh": "太阳朋克乌托邦"
+    },
+    "Dieselpunk Industrial": {
+      "prompt": "Dieselpunk aesthetic, 1920s-1950s diesel technology, industrial machinery design, wartime retro-futurism, Art Deco meets industrial, oil and metal aesthetic, gritty mechanical atmosphere, alternate history technology, noir industrial mood.",
+      "description": "Dieselpunk with industrial retro-futurism",
+      "tags": [
+        "dieselpunk",
+        "industrial",
+        "retro-futurism",
+        "mechanical",
+        "1940s"
+      ],
+      "weight": 1.1,
+      "name_zh": "柴油朋克工业"
+    },
+    "Afrofuturism": {
+      "prompt": "Afrofuturism aesthetic, African diaspora meets science fiction, vibrant cultural patterns and technology, bold colorful designs, Afrocentric futuristic vision, traditional meets technological, celebratory empowering atmosphere, unique cultural sci-fi perspective.",
+      "description": "Afrofuturism with cultural sci-fi fusion",
+      "tags": [
+        "afrofuturism",
+        "cultural",
+        "sci-fi",
+        "vibrant",
+        "futuristic"
+      ],
+      "weight": 1.2,
+      "name_zh": "非洲未来主义"
+    },
+    "Magical Realism": {
+      "prompt": "Magical realism style, everyday reality with magical elements, subtle supernatural occurrences, Gabriel García Márquez inspired, ordinary meets extraordinary, dreamlike but grounded, Latin American literary aesthetic, mystical everyday atmosphere.",
+      "description": "Magical realism with subtle supernatural",
+      "tags": [
+        "magical realism",
+        "supernatural",
+        "dreamlike",
+        "literary",
+        "mystical"
+      ],
+      "weight": 1.2,
+      "name_zh": "魔幻现实主义"
+    }
+  },
+  "Camera Angle": {
+    "Eye Level": {
+      "name_zh": "平视",
+      "prompt": "Eye-level camera angle, camera positioned at the subject's eye height, natural neutral perspective, standard viewing angle.",
+      "description": "Neutral eye-level camera angle",
+      "tags": [
+        "eye level",
+        "neutral",
+        "standard",
+        "natural"
+      ],
+      "weight": 1.0
+    },
+    "High Angle": {
+      "name_zh": "俯拍",
+      "prompt": "High angle camera shot, camera positioned above the subject looking down, diminishing perspective, overview composition.",
+      "description": "High angle shot looking down at the subject",
+      "tags": [
+        "high angle",
+        "looking down",
+        "overview",
+        "diminishing"
+      ],
+      "weight": 1.0
+    },
+    "Low Angle": {
+      "name_zh": "仰拍",
+      "prompt": "Low angle camera shot, camera positioned below the subject looking up, imposing heroic perspective, towering composition.",
+      "description": "Low angle shot looking up at the subject",
+      "tags": [
+        "low angle",
+        "looking up",
+        "heroic",
+        "imposing"
+      ],
+      "weight": 1.0
+    },
+    "Top Down": {
+      "name_zh": "顶部俯拍",
+      "prompt": "Top-down camera shot, camera directly above the subject looking straight down, flat overhead composition.",
+      "description": "Top-down shot directly above the subject",
+      "tags": [
+        "top down",
+        "overhead",
+        "flat composition",
+        "bird's eye"
+      ],
+      "weight": 1.0
+    },
+    "Aerial View": {
+      "name_zh": "鸟瞰航拍",
+      "prompt": "Aerial view camera angle, camera high above the scene, sweeping bird's-eye perspective, wide landscape composition.",
+      "description": "Sweeping aerial bird's-eye perspective",
+      "tags": [
+        "aerial",
+        "bird's eye",
+        "sweeping",
+        "landscape"
+      ],
+      "weight": 1.0
+    },
+    "Worm's Eye View": {
+      "name_zh": "虫眼视角",
+      "prompt": "Worm's-eye view camera angle, camera near the ground looking steeply upward, dramatic extreme low perspective.",
+      "description": "Extreme low angle from near ground level",
+      "tags": [
+        "worm's eye",
+        "extreme low",
+        "ground",
+        "dramatic"
+      ],
+      "weight": 1.0
+    },
+    "Dutch Angle": {
+      "name_zh": "荷兰角",
+      "prompt": "Dutch angle camera shot, camera tilted on its axis, skewed horizon line, disorienting cinematic composition.",
+      "description": "Tilted Dutch angle composition",
+      "tags": [
+        "dutch angle",
+        "tilted",
+        "skewed horizon",
+        "cinematic"
+      ],
+      "weight": 1.0
+    },
+    "Over-the-Shoulder": {
+      "name_zh": "过肩镜头",
+      "prompt": "Over-the-shoulder camera angle, camera positioned behind one person's shoulder framing the other, intimate conversational composition.",
+      "description": "Over-the-shoulder conversational framing",
+      "tags": [
+        "over the shoulder",
+        "conversational",
+        "framing",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Shoulder Level": {
+      "name_zh": "肩平视角",
+      "prompt": "Shoulder-level camera angle, camera positioned at the subject's shoulder height, natural portrait perspective.",
+      "description": "Shoulder-height portrait perspective",
+      "tags": [
+        "shoulder level",
+        "portrait",
+        "natural",
+        "mid-height"
+      ],
+      "weight": 1.0
+    },
+    "Waist Level": {
+      "name_zh": "腰平视角",
+      "prompt": "Waist-level camera angle, camera positioned at the subject's waist height, grounded human-scale perspective.",
+      "description": "Waist-height human-scale perspective",
+      "tags": [
+        "waist level",
+        "human scale",
+        "grounded",
+        "natural"
+      ],
+      "weight": 1.0
+    },
+    "Hip Level": {
+      "name_zh": "臀平视角",
+      "prompt": "Hip-level camera angle, camera positioned at the subject's hip height, lower natural perspective.",
+      "description": "Hip-height lower natural perspective",
+      "tags": [
+        "hip level",
+        "lower",
+        "natural",
+        "grounded"
+      ],
+      "weight": 1.0
+    },
+    "Knee Level": {
+      "name_zh": "膝平视角",
+      "prompt": "Knee-level camera angle, camera positioned at the subject's knee height, low grounded perspective.",
+      "description": "Knee-height low perspective",
+      "tags": [
+        "knee level",
+        "low",
+        "grounded",
+        "perspective"
+      ],
+      "weight": 1.0
+    },
+    "Ground Level": {
+      "name_zh": "贴地视角",
+      "prompt": "Ground-level camera angle, camera placed directly on the ground looking forward, immersive low perspective.",
+      "description": "Immersive ground-level perspective",
+      "tags": [
+        "ground level",
+        "immersive",
+        "low",
+        "forward view"
+      ],
+      "weight": 1.0
+    },
+    "First-Person POV": {
+      "name_zh": "第一人称视角",
+      "prompt": "First-person point-of-view camera, camera representing the subject's own eyes, immersive personal perspective.",
+      "description": "Immersive first-person point of view",
+      "tags": [
+        "first person",
+        "POV",
+        "immersive",
+        "subjective"
+      ],
+      "weight": 1.0
+    },
+    "Third-Person View": {
+      "name_zh": "第三人称视角",
+      "prompt": "Third-person camera view, camera observing the subject from outside, detached narrative perspective.",
+      "description": "Detached third-person observational view",
+      "tags": [
+        "third person",
+        "observational",
+        "detached",
+        "narrative"
+      ],
+      "weight": 1.0
+    },
+    "Front View": {
+      "name_zh": "正面视角",
+      "prompt": "Front camera angle, subject directly facing the camera, symmetrical straightforward composition.",
+      "description": "Direct frontal composition",
+      "tags": [
+        "front view",
+        "facing camera",
+        "symmetrical",
+        "straight-on"
+      ],
+      "weight": 1.0
+    },
+    "Three-Quarter View": {
+      "name_zh": "四分之三侧视角",
+      "prompt": "Three-quarter camera angle, subject turned at roughly 45 degrees from the camera, dynamic balanced portrait composition.",
+      "description": "Three-quarter turned portrait composition",
+      "tags": [
+        "three-quarter",
+        "45 degrees",
+        "portrait",
+        "dynamic"
+      ],
+      "weight": 1.0
+    },
+    "Side View": {
+      "name_zh": "侧面视角",
+      "prompt": "Side camera angle, subject viewed from the side in profile, clean silhouette composition.",
+      "description": "Profile side view composition",
+      "tags": [
+        "side view",
+        "profile",
+        "silhouette",
+        "clean"
+      ],
+      "weight": 1.0
+    },
+    "Back View": {
+      "name_zh": "背面视角",
+      "prompt": "Back camera angle, subject viewed from behind, mysterious anonymous perspective.",
+      "description": "Mysterious back view composition",
+      "tags": [
+        "back view",
+        "from behind",
+        "mysterious",
+        "anonymous"
+      ],
+      "weight": 1.0
+    },
+    "Direct Gaze": {
+      "name_zh": "直视镜头",
+      "prompt": "Direct gaze camera angle, subject looking straight into the lens, strong eye contact with the viewer.",
+      "description": "Strong direct eye contact with the camera",
+      "tags": [
+        "direct gaze",
+        "eye contact",
+        "into the lens",
+        "engaging"
+      ],
+      "weight": 1.0
+    },
+    "Dramatic Low Angle": {
+      "name_zh": "戏剧化仰角",
+      "prompt": "Dramatic low angle camera shot, extreme upward perspective, powerful imposing composition, cinematic hero framing.",
+      "description": "Extreme dramatic upward hero framing",
+      "tags": [
+        "dramatic low angle",
+        "hero framing",
+        "imposing",
+        "cinematic"
+      ],
+      "weight": 1.0
+    },
+    "Cinematic Overhead": {
+      "name_zh": "电影化俯拍",
+      "prompt": "Cinematic overhead camera shot, elegant top-down composition, controlled elevated framing, film production perspective.",
+      "description": "Elegant cinematic top-down framing",
+      "tags": [
+        "cinematic",
+        "overhead",
+        "top-down",
+        "elevated framing"
+      ],
+      "weight": 1.0
+    }
+  },
+  "Camera Distance": {
+    "Extreme Close-Up": {
+      "name_zh": "大特写",
+      "prompt": "Extreme close-up framing, camera very close to the subject, filling the frame with a small detail such as the eyes or lips, intense intimate composition.",
+      "description": "Extreme close-up on a small facial detail",
+      "tags": [
+        "extreme close-up",
+        "detail",
+        "eyes",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Close-Up": {
+      "name_zh": "特写",
+      "prompt": "Close-up framing, subject's head and shoulders filling the frame, detailed facial expression, intimate portrait composition.",
+      "description": "Head-and-shoulders close-up framing",
+      "tags": [
+        "close-up",
+        "head and shoulders",
+        "facial expression",
+        "portrait"
+      ],
+      "weight": 1.0
+    },
+    "Bust Shot": {
+      "name_zh": "半身像",
+      "prompt": "Bust shot framing, subject cropped at the chest, head and upper torso in frame, classic portrait composition.",
+      "description": "Chest-cropped bust shot framing",
+      "tags": [
+        "bust shot",
+        "chest crop",
+        "portrait",
+        "classic"
+      ],
+      "weight": 1.0
+    },
+    "Medium Close-Up": {
+      "name_zh": "中特写",
+      "prompt": "Medium close-up framing, subject cropped from the chest upward, balanced between intimacy and context.",
+      "description": "Balanced medium close-up framing",
+      "tags": [
+        "medium close-up",
+        "chest up",
+        "balanced",
+        "intimate"
+      ],
+      "weight": 1.0
+    },
+    "Medium Shot": {
+      "name_zh": "中景",
+      "prompt": "Medium shot framing, subject cropped around the waist, balanced body language and environment composition.",
+      "description": "Waist-cropped medium shot framing",
+      "tags": [
+        "medium shot",
+        "waist crop",
+        "body language",
+        "balanced"
+      ],
+      "weight": 1.0
+    },
+    "Cowboy Shot": {
+      "name_zh": "牛仔镜头",
+      "prompt": "Cowboy shot framing, subject cropped around mid-thigh, western-style shot size, dynamic action composition.",
+      "description": "Mid-thigh cowboy shot framing",
+      "tags": [
+        "cowboy shot",
+        "mid-thigh",
+        "western",
+        "dynamic"
+      ],
+      "weight": 1.0
+    },
+    "Medium Full Shot": {
+      "name_zh": "中全景",
+      "prompt": "Medium full shot framing, subject cropped around the knees, most of the body visible, full-figure composition.",
+      "description": "Knee-cropped medium full shot framing",
+      "tags": [
+        "medium full shot",
+        "knee crop",
+        "full figure",
+        "body"
+      ],
+      "weight": 1.0
+    },
+    "Full Shot": {
+      "name_zh": "全景",
+      "prompt": "Full shot framing, entire subject visible from head to toe, full body in frame, complete figure composition.",
+      "description": "Head-to-toe full shot framing",
+      "tags": [
+        "full shot",
+        "full body",
+        "head to toe",
+        "figure"
+      ],
+      "weight": 1.0
+    },
+    "Long Shot": {
+      "name_zh": "远景",
+      "prompt": "Long shot framing, subject small within the surrounding environment, figure and setting balanced, scene composition.",
+      "description": "Subject small within the environment",
+      "tags": [
+        "long shot",
+        "subject small",
+        "environment",
+        "scene"
+      ],
+      "weight": 1.0
+    },
+    "Extreme Long Shot": {
+      "name_zh": "大远景",
+      "prompt": "Extreme long shot framing, subject tiny within a vast landscape, environment dominates the composition.",
+      "description": "Tiny subject in a vast landscape",
+      "tags": [
+        "extreme long shot",
+        "vast landscape",
+        "environment dominates"
+      ],
+      "weight": 1.0
+    },
+    "Establishing Shot": {
+      "name_zh": "建立镜头",
+      "prompt": "Establishing shot framing, wide view of the entire setting, context-establishing composition, subject placed within the broader scene.",
+      "description": "Wide context-establishing framing",
+      "tags": [
+        "establishing shot",
+        "wide",
+        "context",
+        "setting"
+      ],
+      "weight": 1.0
+    }
+  },
+  "Camera Lens": {
+    "14mm Fisheye": {
+      "prompt": "Extreme wide environmental shot with 14mm fisheye lens, entire scene captured with dramatic spherical distortion, full environment visible from edge to edge, subject small within vast context, creative barrel distortion, f/2.8 aperture, artistic warped perspective, immersive environmental storytelling.",
+      "description": "Fisheye lens - entire scene with extreme distortion",
+      "tags": [
+        "14mm",
+        "fisheye",
+        "extreme wide",
+        "distortion",
+        "environmental"
+      ],
+      "weight": 1.0,
+      "name_zh": "14mm鱼眼"
+    },
+    "16mm Ultra Wide": {
+      "prompt": "Expansive wide environmental shot with 16mm ultra wide lens, sweeping vista with subject in full context, dramatic perspective and depth, complete scene from foreground to horizon, slight barrel distortion, f/2.8 aperture, architectural and landscape cinematography, environmental storytelling composition.",
+      "description": "Ultra wide lens - expansive environmental framing",
+      "tags": [
+        "16mm",
+        "ultra wide",
+        "expansive",
+        "environmental",
+        "vista"
+      ],
+      "weight": 1.1,
+      "name_zh": "16mm超广角"
+    },
+    "18mm Wide": {
+      "prompt": "18mm wide angle lens, dramatic perspective with exaggerated depth, broad field of view, natural proportions with architectural quality, minimal barrel distortion, f/3.5 aperture, landscape and environmental character, expansive spatial coverage.",
+      "description": "Wide lens - subject in rich environmental context",
+      "tags": [
+        "18mm",
+        "wide",
+        "architectural",
+        "environmental",
+        "context"
+      ],
+      "weight": 1.1,
+      "name_zh": "18mm广角"
+    },
+    "24mm Wide Angle": {
+      "prompt": "24mm wide angle lens, moderate wide perspective with balanced coverage, slight barrel distortion, f/2.8 aperture, documentary and architectural photography character, natural spatial relationships with environmental depth.",
+      "description": "Wide angle - balanced environmental storytelling",
+      "tags": [
+        "24mm",
+        "wide angle",
+        "storytelling",
+        "documentary",
+        "balanced"
+      ],
+      "weight": 1.2,
+      "name_zh": "24mm广角"
+    },
+    "28mm Documentary": {
+      "prompt": "Environmental documentary shot with 28mm lens, subject in authentic context showing meaningful surroundings, natural wide perspective, minimal distortion, f/2.0 aperture, photojournalism and street photography style, candid contextual framing with environmental detail.",
+      "description": "Documentary lens - authentic contextual framing",
+      "tags": [
+        "28mm",
+        "documentary",
+        "photojournalism",
+        "street",
+        "authentic"
+      ],
+      "weight": 1.2,
+      "name_zh": "28mm纪实"
+    },
+    "35mm Street": {
+      "prompt": "35mm lens, natural viewing angle approximating human perspective, minimal distortion, f/1.8 aperture, street photography character, comfortable field of view, versatile medium-wide coverage with spatial depth.",
+      "description": "Street lens - natural wide perspective with context",
+      "tags": [
+        "35mm",
+        "street",
+        "natural",
+        "environmental",
+        "comfortable"
+      ],
+      "weight": 1.3,
+      "name_zh": "35mm街头"
+    },
+    "40mm Standard": {
+      "prompt": "40mm standard lens, slightly compressed natural perspective, f/2.0 aperture, versatile focal length with balanced field of view, moderate depth of field characteristics, neutral compression and spatial relationships.",
+      "description": "Standard lens - balanced medium shot composition",
+      "tags": [
+        "40mm",
+        "standard",
+        "medium shot",
+        "balanced",
+        "versatile"
+      ],
+      "weight": 1.2,
+      "name_zh": "40mm标准"
+    },
+    "50mm Classic": {
+      "prompt": "50mm classic standard lens, natural perspective matching human vision, moderate depth of field, f/1.8 aperture, neutral compression and distortion characteristics, versatile focal length with balanced optical properties.",
+      "description": "Classic 50mm - natural eye perspective medium shot",
+      "tags": [
+        "50mm",
+        "classic",
+        "natural",
+        "medium shot",
+        "standard"
+      ],
+      "weight": 1.3,
+      "name_zh": "50mm经典"
+    },
+    "55mm Normal": {
+      "prompt": "55mm normal lens, light perspective compression, f/1.8 aperture, moderate background separation with shallow depth of field, transitional focal length between standard and short telephoto ranges.",
+      "description": "Normal lens - medium close-up chest framing",
+      "tags": [
+        "55mm",
+        "normal",
+        "medium closeup",
+        "portrait-ready",
+        "transitional"
+      ],
+      "weight": 1.2,
+      "name_zh": "55mm标准镜"
+    },
+    "75mm Portrait": {
+      "prompt": "75mm short telephoto lens, light flattering compression, f/1.8 aperture, shallow depth of field with creamy background separation, natural perspective compression, tight field of view with moderate working distance.",
+      "description": "Portrait lens - close-up head and shoulders",
+      "tags": [
+        "75mm",
+        "portrait",
+        "close-up",
+        "flattering",
+        "upper body"
+      ],
+      "weight": 1.3,
+      "name_zh": "75mm人像"
+    },
+    "85mm Portrait Classic": {
+      "prompt": "85mm classic portrait lens, flattering facial compression with natural perspective, f/1.4 wide aperture, shallow depth of field with creamy circular bokeh, tight field of view, professional rendering with smooth background separation.",
+      "description": "Classic 85mm portrait - tight face framing",
+      "tags": [
+        "85mm",
+        "portrait",
+        "close-up",
+        "flattering",
+        "bokeh"
+      ],
+      "weight": 1.4,
+      "name_zh": "85mm经典人像"
+    },
+    "100mm Portrait": {
+      "prompt": "100mm short telephoto lens, pronounced compression with flattering perspective, f/2.0 aperture, strong background separation with shallow focus, smooth bokeh characteristics, tight field of view with minimal depth coverage.",
+      "description": "100mm portrait - tight facial close-up",
+      "tags": [
+        "100mm",
+        "portrait",
+        "tight",
+        "headshot",
+        "compression"
+      ],
+      "weight": 1.3,
+      "name_zh": "100mm人像"
+    },
+    "105mm Headshot": {
+      "prompt": "105mm short telephoto lens, strong flattering compression, f/2.0 aperture, very shallow depth of field with complete background defocus, narrow field of view, professional optical characteristics with smooth bokeh.",
+      "description": "Headshot lens - face-dominant tight framing",
+      "tags": [
+        "105mm",
+        "headshot",
+        "tight",
+        "facial",
+        "intimate"
+      ],
+      "weight": 1.3,
+      "name_zh": "105mm特写"
+    },
+    "135mm Fashion": {
+      "prompt": "135mm telephoto lens, very strong compression flattening perspective, f/2.0 aperture, extremely shallow depth of field, background compressed into abstract color wash, narrow field of view with pronounced telephoto character, smooth bokeh rendering.",
+      "description": "Fashion telephoto - extreme facial close-up",
+      "tags": [
+        "135mm",
+        "fashion",
+        "extreme closeup",
+        "compression",
+        "beauty"
+      ],
+      "weight": 1.3,
+      "name_zh": "135mm时尚"
+    },
+    "150mm Telephoto": {
+      "prompt": "150mm telephoto lens, extreme compression and perspective flattening, f/2.8 aperture, razor-thin depth of field, background completely abstracted, distant working distance with narrow field of view, compressed spatial relationships.",
+      "description": "Telephoto - very tight compressed framing",
+      "tags": [
+        "150mm",
+        "telephoto",
+        "tight",
+        "compression",
+        "isolated"
+      ],
+      "weight": 1.2,
+      "name_zh": "150mm长焦"
+    },
+    "200mm Long Telephoto": {
+      "prompt": "200mm long telephoto lens, maximum compression flattening all perspective, f/2.8 aperture, paper-thin depth of field, background reduced to pure bokeh abstractions, distant working distance with very narrow field of view, wildlife and sports photography compression character.",
+      "description": "Long telephoto - maximum compression close-up",
+      "tags": [
+        "200mm",
+        "long telephoto",
+        "extreme compression",
+        "isolated",
+        "distant"
+      ],
+      "weight": 1.2,
+      "name_zh": "200mm超长焦"
+    },
+    "300mm Super Telephoto": {
+      "prompt": "300mm super telephoto lens, extreme perspective compression collapsing depth, f/4.0 aperture, minimal depth of field, background utterly defocused into color fields, very narrow field of view from distant working distance, wildlife and sports photography aesthetic.",
+      "description": "Super telephoto - ultra-tight maximum isolation",
+      "tags": [
+        "300mm",
+        "super telephoto",
+        "ultra tight",
+        "wildlife",
+        "maximum compression"
+      ],
+      "weight": 1.1,
+      "name_zh": "300mm超级长焦"
+    },
+    "60mm Macro": {
+      "prompt": "60mm macro lens, close working distance with 1:2 magnification ratio, f/2.8 aperture, shallow depth of field revealing intricate texture, intimate detail rendering capabilities, moderate working distance for flexibility.",
+      "description": "Macro lens - close-up detail work",
+      "tags": [
+        "60mm",
+        "macro",
+        "close-up",
+        "detail",
+        "texture"
+      ],
+      "weight": 1.1,
+      "name_zh": "60mm微距"
+    },
+    "100mm Macro": {
+      "prompt": "100mm macro lens, 1:1 life-size magnification ratio, f/2.8 aperture, razor-thin depth of field, ultra-sharp focus rendering of microscopic details, comfortable working distance with natural lighting capability, professional macro photography optics.",
+      "description": "Macro 100mm - 1:1 magnification extreme detail",
+      "tags": [
+        "100mm",
+        "macro",
+        "magnification",
+        "detail",
+        "texture"
+      ],
+      "weight": 1.2,
+      "name_zh": "100mm微距"
+    },
+    "180mm Macro": {
+      "prompt": "180mm telephoto macro lens, 1:1 magnification with extended working distance, f/3.5 aperture, compressed perspective combined with macro magnification, distance-based isolation with smooth bokeh, professional nature macro photography optics.",
+      "description": "Telephoto macro - detail from distance",
+      "tags": [
+        "180mm",
+        "macro",
+        "telephoto",
+        "detail",
+        "distant"
+      ],
+      "weight": 1.1,
+      "name_zh": "180mm微距"
+    },
+    "45mm Tilt-Shift": {
+      "prompt": "Selective focus with 45mm tilt-shift lens, creative focus plane manipulation, miniature effect with blurred edges, architectural perspective correction, f/2.8 aperture, technical photography quality, artistic selective sharpness, unique depth of field control, architectural and creative composition.",
+      "description": "Tilt-shift - selective focus and perspective control",
+      "tags": [
+        "45mm",
+        "tilt-shift",
+        "selective focus",
+        "miniature",
+        "architectural"
+      ],
+      "weight": 1.0,
+      "name_zh": "45mm移轴"
+    },
+    "Lensbaby Composer": {
+      "prompt": "Dreamy selective focus with Lensbaby lens, sweet spot of sharpness surrounded by artistic blur, swirling bokeh and soft focus edges, f/2.0 aperture, creative focus control, whimsical ethereal rendering, artistic portrait and fine art photography, painterly quality with sharp center.",
+      "description": "Lensbaby - dreamy artistic selective focus",
+      "tags": [
+        "lensbaby",
+        "dreamy",
+        "selective focus",
+        "artistic",
+        "whimsical"
+      ],
+      "weight": 1.0,
+      "name_zh": "Lensbaby创意镜头"
+    },
+    "Petzval 85mm": {
+      "prompt": "Vintage portrait with 85mm Petzval lens, swirling bokeh character, dreamy vintage optical quality, sharp center with artistic blur swirls, f/2.2 aperture, warm nostalgic color cast, soft glow in highlights, classic portrait with unique bokeh personality, artistic fine-art portrait rendering.",
+      "description": "Petzval - vintage swirly bokeh portraits",
+      "tags": [
+        "85mm",
+        "petzval",
+        "vintage",
+        "swirly bokeh",
+        "artistic"
+      ],
+      "weight": 1.1,
+      "name_zh": "佩茨瓦尔 85mm"
+    },
+    "24-70mm Standard Zoom": {
+      "prompt": "24-70mm f/2.8 standard zoom lens, versatile focal range from environmental wide to medium telephoto, professional optics with consistent rendering throughout zoom range, f/2.8 constant aperture, workhorse lens optical quality, balanced perspective characteristics.",
+      "description": "Standard zoom - versatile wide to portrait range",
+      "tags": [
+        "24-70mm",
+        "zoom",
+        "versatile",
+        "standard",
+        "professional"
+      ],
+      "weight": 1.2,
+      "name_zh": "24-70mm标准变焦"
+    },
+    "70-200mm Telephoto Zoom": {
+      "prompt": "70-200mm f/2.8 telephoto zoom lens, professional telephoto focal range with versatile compression characteristics, f/2.8 constant aperture, consistent creamy bokeh throughout zoom range, sports and portrait photography optics, flexible telephoto character.",
+      "description": "Telephoto zoom - professional portrait to closeup range",
+      "tags": [
+        "70-200mm",
+        "telephoto zoom",
+        "compression",
+        "professional",
+        "portrait"
+      ],
+      "weight": 1.3,
+      "name_zh": "70-200mm长焦变焦"
+    },
+    "100-400mm Super Zoom": {
+      "prompt": "100-400mm super telephoto zoom lens, extreme compression and reach capability, f/4.5-5.6 variable aperture, wildlife and sports photography versatility, powerful magnification range, compressed perspective throughout focal range.",
+      "description": "Super zoom - extreme telephoto reach and compression",
+      "tags": [
+        "100-400mm",
+        "super zoom",
+        "telephoto",
+        "wildlife",
+        "sports"
+      ],
+      "weight": 1.1,
+      "name_zh": "100-400mm超级变焦"
+    },
+    "Zeiss Master Prime 25mm": {
+      "prompt": "Cinematic wide shot with Zeiss Master Prime 25mm cinema lens, environmental storytelling composition for film production, T1.3 aperture, clinical sharpness with subtle organic character, wide contextual framing, minimal breathing, professional cinema rendering, subject in rich environmental context, Hollywood production quality.",
+      "description": "Cinema wide prime - cinematic environmental framing",
+      "tags": [
+        "25mm",
+        "cinema",
+        "zeiss",
+        "master prime",
+        "film production"
+      ],
+      "weight": 1.2,
+      "name_zh": "蔡司Master Prime 25mm"
+    },
+    "Zeiss Master Prime 50mm": {
+      "prompt": "Zeiss Master Prime 50mm cinema lens, natural film perspective with subtle compression, T1.3 maximum aperture, clinical precision with organic falloff characteristics, minimal focus breathing, professional cinema production standard, Netflix and IMAX optical quality.",
+      "description": "Cinema standard prime - cinematic medium shot",
+      "tags": [
+        "50mm",
+        "cinema",
+        "zeiss",
+        "master prime",
+        "netflix"
+      ],
+      "weight": 1.3,
+      "name_zh": "蔡司Master Prime 50mm"
+    },
+    "Zeiss Master Prime 85mm": {
+      "prompt": "Zeiss Master Prime 85mm cinema lens, short telephoto focal length for film, T1.3 maximum aperture, clinical sharpness with smooth bokeh falloff, professional portrait compression characteristics, minimal breathing, Hollywood cinematography optical standard.",
+      "description": "Cinema portrait prime - cinematic close-up framing",
+      "tags": [
+        "85mm",
+        "cinema",
+        "zeiss",
+        "portrait",
+        "hollywood"
+      ],
+      "weight": 1.3,
+      "name_zh": "蔡司Master Prime 85mm"
+    },
+    "Cooke S4 35mm": {
+      "prompt": "Cinematic medium-wide shot with Cooke S4 35mm cinema lens, organic 'Cooke Look' with warm character, T2.0 aperture, gentle falloff and smooth bokeh, environmental portrait framing for film, classic cinema rendering, subject in meaningful context, soft organic quality, professional film production, warm cinematic color.",
+      "description": "Cooke cinema lens - organic medium-wide framing",
+      "tags": [
+        "35mm",
+        "cinema",
+        "cooke",
+        "organic",
+        "film"
+      ],
+      "weight": 1.3,
+      "name_zh": "库克S4 35mm"
+    },
+    "Cooke S4 65mm": {
+      "prompt": "Cooke S4 65mm cinema lens, intimate 'Cooke Look' optical character, T2.0 maximum aperture, warm organic rendering with smooth falloff, gentle compression characteristics with beautiful tone rendition, classic cinema optics, professional production optical quality.",
+      "description": "Cooke cinema portrait - warm intimate framing",
+      "tags": [
+        "65mm",
+        "cinema",
+        "cooke",
+        "portrait",
+        "intimate"
+      ],
+      "weight": 1.3,
+      "name_zh": "库克S4 65mm"
+    },
+    "Arri Signature Prime 40mm": {
+      "prompt": "Arri Signature Prime 40mm cinema lens, contemporary cinema optical design, T1.8 maximum aperture, large format coverage capability, smooth natural bokeh with modern optical formula, minimal aberrations, Netflix and IMAX production optical standard, modern digital cinema characteristics.",
+      "description": "Arri cinema prime - modern medium framing",
+      "tags": [
+        "40mm",
+        "cinema",
+        "arri",
+        "signature",
+        "modern"
+      ],
+      "weight": 1.2,
+      "name_zh": "阿莱Signature Prime 40mm"
+    },
+    "Anamorphic 35mm": {
+      "prompt": "Widescreen cinematic shot with 35mm anamorphic cinema lens, 2.39:1 scope aspect ratio, environmental composition with anamorphic character, T2.0 aperture, characteristic horizontal blue lens flares, oval bokeh, wide contextual framing for scope format, cinematic widescreen storytelling, Hollywood blockbuster aesthetic, subject in epic widescreen context.",
+      "description": "Anamorphic wide - widescreen environmental scope",
+      "tags": [
+        "35mm",
+        "anamorphic",
+        "widescreen",
+        "scope",
+        "flares"
+      ],
+      "weight": 1.3,
+      "name_zh": "35mm变形宽银幕"
+    },
+    "Anamorphic 50mm": {
+      "prompt": "50mm anamorphic cinema lens, 2.39:1 widescreen scope format coverage, T2.0 aperture, horizontal lens flares and oval bokeh patterns, natural perspective with anamorphic optical character, classic cinema widescreen scope optics, Hollywood aesthetic rendering.",
+      "description": "Anamorphic standard - widescreen medium shot",
+      "tags": [
+        "50mm",
+        "anamorphic",
+        "medium shot",
+        "scope",
+        "cinema"
+      ],
+      "weight": 1.3,
+      "name_zh": "50mm变形宽银幕"
+    },
+    "Anamorphic 75mm": {
+      "prompt": "75mm anamorphic cinema lens, 2.39:1 scope format coverage, T2.0 aperture, characteristic horizontal streaking flares, oval bokeh patterns, cinematic portrait compression with anamorphic optical character, short telephoto field of view in scope format, Hollywood optics.",
+      "description": "Anamorphic portrait - widescreen close-up scope",
+      "tags": [
+        "75mm",
+        "anamorphic",
+        "portrait",
+        "scope",
+        "closeup"
+      ],
+      "weight": 1.3,
+      "name_zh": "75mm变形宽银幕"
+    },
+    "Panavision Anamorphic": {
+      "prompt": "Epic widescreen shot with Panavision anamorphic cinema lens, 2.39:1 Hollywood scope format, legendary Panavision rendering, T2.3 aperture, iconic horizontal blue lens flares, smooth oval bokeh, classic Hollywood blockbuster aesthetic, cinematic scope composition, premium film production quality, epic widescreen framing with anamorphic magic.",
+      "description": "Panavision anamorphic - legendary Hollywood scope",
+      "tags": [
+        "panavision",
+        "anamorphic",
+        "hollywood",
+        "epic",
+        "legendary"
+      ],
+      "weight": 1.4,
+      "name_zh": "潘纳维申变形镜头"
+    },
+    "Atlas Orion Anamorphic": {
+      "prompt": "Vintage widescreen with Atlas Orion anamorphic lens, 2.39:1 scope with vintage character, T2.0 aperture, blue horizontal flares with vintage warmth, organic oval bokeh, classic anamorphic rendering with modern sharpness, retro-futuristic cinema aesthetic, vintage Hollywood scope character meets modern optical quality.",
+      "description": "Atlas Orion - vintage character anamorphic scope",
+      "tags": [
+        "atlas orion",
+        "anamorphic",
+        "vintage",
+        "scope",
+        "character"
+      ],
+      "weight": 1.2,
+      "name_zh": "Atlas Orion变形镜头"
+    },
+    "Angenieux 25-250mm": {
+      "prompt": "Classic cinema zoom with Angenieux 25-250mm lens, versatile cinematic framing from wide to telephoto, T3.5 aperture, legendary Hollywood zoom lens, consistent rendering throughout range, vintage cinema character with modern sharpness, professional film production, flexible composition with classic cinema quality.",
+      "description": "Cinema zoom - legendary versatile range",
+      "tags": [
+        "25-250mm",
+        "cinema zoom",
+        "angenieux",
+        "classic",
+        "versatile"
+      ],
+      "weight": 1.2,
+      "name_zh": "安琴25-250mm"
+    },
+    "Fujinon Premier 18-85mm": {
+      "prompt": "Fujinon Premier 18-85mm cinema zoom, T2.0 constant aperture, flexible range from wide environmental to portrait focal lengths, professional documentary cinema quality, consistent color and contrast throughout range, modern cinema zoom for Netflix and documentary production, natural rendering with cinema character.",
+      "description": "Cinema zoom - documentary production range",
+      "tags": [
+        "18-85mm",
+        "cinema zoom",
+        "fujinon",
+        "documentary",
+        "netflix"
+      ],
+      "weight": 1.2,
+      "name_zh": "富士珑Premier 18-85mm"
+    },
+    "Canon CN-E 30-300mm": {
+      "prompt": "Canon CN-E 30-300mm telephoto cinema zoom, professional cinematic compression throughout range, T2.95-3.7 aperture, powerful zoom reach across the telephoto range, consistent bokeh and rendering, professional cinema production, sports and wildlife cinematography quality, flexible telephoto cinema framing.",
+      "description": "Cinema telephoto zoom - professional cinema reach",
+      "tags": [
+        "30-300mm",
+        "cinema zoom",
+        "canon",
+        "telephoto",
+        "professional"
+      ],
+      "weight": 1.1,
+      "name_zh": "佳能CN-E 30-300mm"
+    },
+    "Vintage Cooke Panchro": {
+      "prompt": "Classic film look with vintage Cooke Panchro cinema lens, warm organic 'Cooke Look' with vintage character, T2.3 aperture, soft film-era glow in highlights, gentle falloff and warm skin tones, classic Hollywood golden age rendering, romantic vintage cinema quality, nostalgic film aesthetic with authentic vintage optics.",
+      "description": "Vintage Cooke - classic Hollywood film look",
+      "tags": [
+        "vintage",
+        "cooke",
+        "panchro",
+        "classic",
+        "hollywood"
+      ],
+      "weight": 1.2,
+      "name_zh": "复古库克Panchro"
+    },
+    "Vintage Helios 44-2": {
+      "prompt": "Swirly vintage portrait with Helios 44-2 58mm lens, characteristic swirling bokeh pattern, vintage Soviet optics, f/2.0 aperture, unique bokeh rendering with swirls and cats-eye effects, warm vintage color cast, soft glow in out-of-focus areas, artistic vintage portrait character, cult classic vintage lens aesthetic.",
+      "description": "Helios vintage - iconic swirly bokeh character",
+      "tags": [
+        "helios",
+        "vintage",
+        "swirly bokeh",
+        "soviet",
+        "artistic"
+      ],
+      "weight": 1.1,
+      "name_zh": "复古Helios 44-2"
+    },
+    "Vintage Canon K35": {
+      "prompt": "Warm vintage cinema with Canon K35 cinema lens, legendary 1970s-80s cinema optics, T1.5 aperture, warm golden vintage rendering, soft dreamy character with sharp center, reduced contrast for film look, nostalgic Hollywood cinema aesthetic, popular for period films and music videos, authentic vintage cinema character.",
+      "description": "Canon K35 - warm vintage cinema classic",
+      "tags": [
+        "canon k35",
+        "vintage",
+        "cinema",
+        "warm",
+        "1970s"
+      ],
+      "weight": 1.2,
+      "name_zh": "复古佳能K35"
+    }
+  }
+}
