@@ -92,23 +92,34 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     pure_ascii = [o for o in opts[2:] if o.isascii()]
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
-check("celebrity 439 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
-check("expression 44 项(含6组随机)", len(opt["expression_preset"][0]) == 46)
-check("outfit 73 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
-check("pose 79 项(含2组随机)", len(opt["pose_preset"][0]) == 81)
-check("couple 50 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
-check("environment 119 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
-check("lighting 69 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
-check("style 50 项(含2组随机)", len(opt["style_preset"][0]) == 52)
-check("angle 31 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
-check("distance 15 项(含4组随机)", len(opt["camera_distance_preset"][0]) == 17)
-check("camera 54 项(含11组随机)", len(opt["camera_lens_preset"][0]) == 56)
+check("celebrity 429 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
+check("expression 38 项(含6组随机)", len(opt["expression_preset"][0]) == 46)
+check("outfit 71 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
+check("pose 76 项(含2组随机)", len(opt["pose_preset"][0]) == 80)
+check("couple 47 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
+check("environment 111 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
+check("lighting 62 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
+check("style 48 项(含2组随机)", len(opt["style_preset"][0]) == 52)
+check("angle 26 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
+check("distance 11 项(含4组随机)", len(opt["camera_distance_preset"][0]) == 17)
+check("camera 43 项(含11组随机)", len(opt["camera_lens_preset"][0]) == 56)
 
 # category keys match JSON data keys
 import json as _json
 _data = _json.load(open(os.path.join(root, "data", "prompt_presets.json"), encoding="utf-8"))
 check("分类键与 JSON 一致", list(_data) == list(mod._CATEGORY_KEYS))
 check("分类键无 Apex 前缀", all(not k.startswith("Apex") for k in mod._CATEGORY_KEYS))
+
+# 裸体词正交：Pose/Couple Pose NSFW 动作不内嵌裸体（裸体由 Outfit 分类"全裸"预设控制）
+import re as _re_nude
+_nude_pat = _re_nude.compile(r"\bnude\b|\bnaked\b|bare skin|unclothed|fully exposed", _re_nude.I)
+_pose_nude = [n for n, v in _data["Pose"].items() if _nude_pat.search(v["prompt"]) or _nude_pat.search(v.get("description", ""))]
+check(f"Pose 无裸体词 ({_pose_nude})", len(_pose_nude) == 0)
+_couple_nude = [n for n, v in _data["Couple Pose"].items() if _nude_pat.search(v["prompt"])]
+check(f"Couple 无裸体词 ({_couple_nude})", len(_couple_nude) == 0)
+check("Outfit 全裸保留裸体词（职责归属）", "fully nude" in _data["Outfit"]["Fully Nude"]["prompt"])
+check("全裸站立已删除（与站立肖像重复）", "Fully Nude Standing" not in _data["Pose"]
+      and "全裸站立" not in opt["pose_preset"][0])
 
 node = mod.SFPromptPreset()
 
@@ -175,7 +186,7 @@ check("拼接顺序 outfit < pose", comb_op.index(_seg(outfit_op)) < comb_op.ind
 # 2b. NSFW pose resolution
 _, pack = node.execute("x", seed=1, pose_preset="床上自慰")
 pose_nsfw = pack['Pose']
-check("NSFW 姿势命中", "masturbat" in pose_nsfw and "nude" in pose_nsfw)
+check("NSFW 姿势命中", "masturbat" in pose_nsfw)
 _, pack = node.execute("x", seed=1, couple_preset="女女交叉体位")
 couple_nsfw = pack['Couple Pose']
 check("NSFW 女女命中", "scissor" in couple_nsfw and "lesbian" in couple_nsfw)
@@ -275,7 +286,7 @@ light_life = pack['Lighting']
 check("日系窗光反查", "japanese" in light_life.lower() and "window light" in light_life.lower())
 _, pack = node.execute("x", seed=1, pose_preset="仰卧举腿")
 pose_new = pack['Pose']
-check("新增姿势 NSFW 反查", "legs raised" in pose_new and "nude" in pose_new)
+check("新增姿势 NSFW 反查", "legs raised" in pose_new)
 _, pack = node.execute("x", seed=1, couple_preset="反向女上位")
 couple_new = pack['Couple Pose']
 check("新增双人 NSFW 反查", "reverse cowgirl" in couple_new)
@@ -334,15 +345,16 @@ seen_pose = set()
 for s in range(200):
     r = node.execute("", seed=s, pose_preset="随机")
     seen_pose.add(r[1]['Pose'])
-check(f"姿势随机多样性 ({len(seen_pose)}/71)", len(seen_pose) > 25)
+check(f"姿势随机多样性 ({len(seen_pose)}/76)", len(seen_pose) > 25)
 seen_couple = set()
 for s in range(200):
     r = node.execute("", seed=s, couple_preset="随机")
     seen_couple.add(r[1]['Couple Pose'])
-check(f"双人随机多样性 ({len(seen_couple)}/32)", len(seen_couple) > 15)
+check(f"双人随机多样性 ({len(seen_couple)}/47)", len(seen_couple) > 15)
 
 # 7. IS_CHANGED
 check("IS_CHANGED 返回 seed", mod.SFPromptPreset.IS_CHANGED(seed=123) == 123)
+check("VALIDATE_INPUTS 接管校验（预设被删旧工作流兼容）", mod.SFPromptPreset.VALIDATE_INPUTS(outfit_preset="全裸站立") is True)
 
 # 热加载：数据文件 mtime 变化后自动重载
 _path = mod._presets_path()
@@ -389,7 +401,7 @@ couple_dd = pack['Couple Pose']
 check("女女双头龙反查", "double-ended dildo" in couple_dd and "lesbian" in couple_dd)
 _, pack = node.execute("x", seed=1, pose_preset="跳蛋自慰")
 pose_vib = pack['Pose']
-check("跳蛋自慰反查", "vibrator" in pose_vib and "nude" in pose_vib)
+check("跳蛋自慰反查", "vibrator" in pose_vib)
 check("Environment 无分组", _g("Environment", "樱花大道", {"tags": []}) is None)
 check("路由 group 字段", _resp.data["Celebrity"]["Taylor Swift"]["group"] == "歌手"
       and _resp.data["Outfit"]["全裸"]["group"] == "NSFW"

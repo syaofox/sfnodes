@@ -154,6 +154,11 @@ class SFPromptPreset:
     def IS_CHANGED(cls, seed, **kwargs):
         return seed
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, **kwargs):
+        # 预设 combo 值可能超出静态选项列表（预设被删除/改名的旧工作流），由 _resolve_preset 安全降级为空串
+        return True
+
     def execute(self, input_text, seed=0, celebrity_preset=_DISABLED, expression_preset=_DISABLED,
                 outfit_preset=_DISABLED, pose_preset=_DISABLED, couple_preset=_DISABLED,
                 environment_preset=_DISABLED, lighting_preset=_DISABLED, style_preset=_DISABLED,

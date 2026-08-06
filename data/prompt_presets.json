@@ -6474,24 +6474,10 @@
       "weight": 1.0,
       "group": "SFW"
     },
-    "Fully Nude Standing": {
-      "name_zh": "全裸站立",
-      "prompt": "Fully nude, standing facing the viewer, hands resting at the sides, intimate bare exposure, confident nude pose.",
-      "description": "Nude standing pose facing the viewer",
-      "tags": [
-        "nude",
-        "standing",
-        "bare",
-        "exposed",
-        "adult"
-      ],
-      "weight": 1.0,
-      "group": "NSFW"
-    },
     "Nude Lying Legs Spread": {
       "name_zh": "裸卧张开腿",
-      "prompt": "Fully nude, lying on the back, legs spread apart, knees slightly bent, arms above the head, fully exposed, inviting intimate pose.",
-      "description": "Nude reclining pose with spread legs",
+      "prompt": "Lying on the back, legs spread apart, knees slightly bent, arms above the head, inviting intimate pose.",
+      "description": "Reclining pose with spread legs",
       "tags": [
         "nude",
         "lying",
@@ -6504,8 +6490,8 @@
     },
     "On All Fours": {
       "name_zh": "跪爬姿势",
-      "prompt": "Fully nude, on all fours, arched back, hips raised, looking back over the shoulder, submissive intimate pose.",
-      "description": "Nude arched all-fours pose looking back",
+      "prompt": "On all fours, arched back, hips raised, looking back over the shoulder, submissive intimate pose.",
+      "description": "Arched all-fours pose looking back",
       "tags": [
         "nude",
         "all fours",
@@ -6518,8 +6504,8 @@
     },
     "Side Arching Hips": {
       "name_zh": "侧卧翘臀",
-      "prompt": "Fully nude, lying on the side, arching the hips backward, one leg raised, seductive curvy pose, intimate pose.",
-      "description": "Nude side pose arching the hips",
+      "prompt": "Lying on the side, arching the hips backward, one leg raised, seductive curvy pose, intimate pose.",
+      "description": "Side pose arching the hips",
       "tags": [
         "nude",
         "side pose",
@@ -6532,8 +6518,8 @@
     },
     "Sitting Legs Spread": {
       "name_zh": "坐姿张开腿",
-      "prompt": "Fully nude, sitting with legs spread wide, leaning back on the hands, open intimate posture, direct gaze.",
-      "description": "Nude sitting pose with spread legs",
+      "prompt": "Sitting with legs spread wide, leaning back on the hands, open intimate posture, direct gaze.",
+      "description": "Sitting pose with spread legs",
       "tags": [
         "nude",
         "sitting",
@@ -6546,8 +6532,8 @@
     },
     "Bending Over Back View": {
       "name_zh": "弯腰背对",
-      "prompt": "Fully nude, bending over with the back to the camera, hips raised toward the viewer, looking back, intimate view.",
-      "description": "Nude bending pose viewed from behind",
+      "prompt": "Bending over with the back to the camera, hips raised toward the viewer, looking back, intimate view.",
+      "description": "Bending pose viewed from behind",
       "tags": [
         "nude",
         "bending over",
@@ -6560,8 +6546,8 @@
     },
     "Caressing Body": {
       "name_zh": "抚摸身体",
-      "prompt": "Fully nude, lying on the back, one hand caressing the chest and stomach, eyes closed in pleasure, intimate self-touch pose.",
-      "description": "Nude reclining pose with self-caress",
+      "prompt": "Lying on the back, one hand caressing the chest and stomach, eyes closed in pleasure, intimate self-touch pose.",
+      "description": "Reclining pose with self-caress",
       "tags": [
         "nude",
         "caressing",
@@ -6574,8 +6560,8 @@
     },
     "Masturbating on Bed": {
       "name_zh": "床上自慰",
-      "prompt": "Fully nude, lying on the back, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
-      "description": "Nude masturbation pose on bed",
+      "prompt": "Lying on the back, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
+      "description": "Masturbation pose on bed",
       "tags": [
         "nude",
         "masturbating",
@@ -6588,8 +6574,8 @@
     },
     "In Bathtub": {
       "name_zh": "浴缸姿态",
-      "prompt": "Fully nude, reclining in a bathtub, wet skin glistening, legs visible above the waterline, sensual relaxed bath pose, steamy atmosphere.",
-      "description": "Nude reclining pose in a bathtub",
+      "prompt": "Reclining in a bathtub, wet skin glistening, legs visible above the waterline, sensual relaxed bath pose, steamy atmosphere.",
+      "description": "Reclining pose in a bathtub",
       "tags": [
         "nude",
         "bathtub",
@@ -6602,8 +6588,8 @@
     },
     "Starfish on Bed": {
       "name_zh": "床上仰躺展开",
-      "prompt": "Fully nude, lying in a starfish pose, arms and legs spread wide, fully exposed, submissive presentation.",
-      "description": "Nude starfish pose with limbs spread",
+      "prompt": "Lying in a starfish pose, arms and legs spread wide, submissive presentation.",
+      "description": "Starfish pose with limbs spread",
       "tags": [
         "nude",
         "starfish pose",
@@ -6811,8 +6797,8 @@
     },
     "Sitting Masturbating": {
       "name_zh": "坐姿自慰",
-      "prompt": "Fully nude, sitting on a chair with legs spread, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
-      "description": "Nude sitting masturbation pose",
+      "prompt": "Sitting on a chair with legs spread, one hand between the legs, eyes closed, flushed expression, intimate masturbation scene.",
+      "description": "Sitting masturbation pose",
       "tags": [
         "nude",
         "sitting",
@@ -6825,8 +6811,8 @@
     },
     "Standing Masturbating": {
       "name_zh": "站立自慰",
-      "prompt": "Fully nude, standing upright, one hand between the legs, head tilted back, intimate standing masturbation scene.",
-      "description": "Nude standing masturbation pose",
+      "prompt": "Standing upright, one hand between the legs, head tilted back, intimate standing masturbation scene.",
+      "description": "Standing masturbation pose",
       "tags": [
         "nude",
         "standing",
@@ -6839,8 +6825,8 @@
     },
     "Nude in Front of Mirror": {
       "name_zh": "对镜全裸",
-      "prompt": "Fully nude, standing in front of a full-length mirror, hands tracing the body, admiring the reflection, intimate self-viewing scene.",
-      "description": "Nude pose admiring the mirror reflection",
+      "prompt": "Standing in front of a full-length mirror, hands tracing the body, admiring the reflection, intimate self-viewing scene.",
+      "description": "Pose admiring the mirror reflection",
       "tags": [
         "nude",
         "mirror",
@@ -6853,8 +6839,8 @@
     },
     "Lying Legs in Air": {
       "name_zh": "仰卧举腿",
-      "prompt": "Fully nude, lying on the back with legs raised straight in the air, knees slightly bent, arms above the head, fully exposed inviting pose.",
-      "description": "Nude lying pose with legs raised",
+      "prompt": "Lying on the back with legs raised straight in the air, knees slightly bent, arms above the head, inviting pose.",
+      "description": "Lying pose with legs raised",
       "tags": [
         "nude",
         "lying",
@@ -6867,8 +6853,8 @@
     },
     "Grinding on Pillow": {
       "name_zh": "枕头磨蹭",
-      "prompt": "Fully nude, lying face down, grinding the hips against a pillow, eyes closed in pleasure, intimate self-stimulation scene.",
-      "description": "Nude pillow grinding self-stimulation pose",
+      "prompt": "Lying face down, grinding the hips against a pillow, eyes closed in pleasure, intimate self-stimulation scene.",
+      "description": "Pillow grinding self-stimulation pose",
       "tags": [
         "nude",
         "pillow",
@@ -7154,8 +7140,8 @@
     },
     "Vibrator Play": {
       "name_zh": "跳蛋自慰",
-      "prompt": "Fully nude, lying on the back with legs spread, holding a small vibrator against the clitoris, eyes closed in pleasure, flushed expression, intimate vibrator play scene.",
-      "description": "Nude vibrator masturbation scene",
+      "prompt": "Lying on the back with legs spread, holding a small vibrator against the clitoris, eyes closed in pleasure, flushed expression, intimate vibrator play scene.",
+      "description": "Vibrator masturbation scene",
       "tags": [
         "nude",
         "vibrator",
@@ -7167,8 +7153,8 @@
     },
     "Dildo Play": {
       "name_zh": "假阳具自慰",
-      "prompt": "Fully nude, lying on the back, inserting a dildo between the legs, one hand holding it, the other touching the chest, intimate dildo play scene.",
-      "description": "Nude dildo masturbation scene",
+      "prompt": "Lying on the back, inserting a dildo between the legs, one hand holding it, the other touching the chest, intimate dildo play scene.",
+      "description": "Dildo masturbation scene",
       "tags": [
         "nude",
         "dildo",
@@ -7180,8 +7166,8 @@
     },
     "Orgasm Climax": {
       "name_zh": "高潮瞬间",
-      "prompt": "Fully nude, arching the back in climax, head tilted back, mouth open in pleasure, body tensed, intense orgasm moment, flushed skin.",
-      "description": "Intense nude orgasm climax moment",
+      "prompt": "Arching the back in climax, head tilted back, mouth open in pleasure, body tensed, intense orgasm moment, flushed skin.",
+      "description": "Intense orgasm climax moment",
       "tags": [
         "nude",
         "orgasm",
@@ -7194,7 +7180,7 @@
     },
     "Squirting": {
       "name_zh": "潮吹",
-      "prompt": "Fully nude, lying on the back with legs spread, squirting fluid during climax, body arched, eyes rolled back in pleasure, intense female ejaculation scene.",
+      "prompt": "Lying on the back with legs spread, squirting fluid during climax, body arched, eyes rolled back in pleasure, intense female ejaculation scene.",
       "description": "Intense squirting female ejaculation scene",
       "tags": [
         "nude",
@@ -7208,8 +7194,8 @@
     },
     "Spreading Display": {
       "name_zh": "掰开展示",
-      "prompt": "Fully nude, lying on the back, spreading the legs wide with both hands holding them open, fully exposed to the viewer, exhibitionist display pose.",
-      "description": "Nude exhibitionist spreading display",
+      "prompt": "Lying on the back, spreading the legs wide with both hands holding them open, to the viewer, exhibitionist display pose.",
+      "description": "Exhibitionist spreading display",
       "tags": [
         "nude",
         "spreading",
@@ -7222,8 +7208,8 @@
     },
     "Shower Masturbation": {
       "name_zh": "淋浴自慰",
-      "prompt": "Fully nude, standing in the shower with water running over the body, one hand between the legs, wet skin glistening, intimate shower masturbation scene.",
-      "description": "Nude shower masturbation scene",
+      "prompt": "Standing in the shower with water running over the body, one hand between the legs, wet skin glistening, intimate shower masturbation scene.",
+      "description": "Shower masturbation scene",
       "tags": [
         "nude",
         "shower",
@@ -7453,7 +7439,7 @@
     },
     "Lesbian Mutual Caress": {
       "name_zh": "女女相互爱抚",
-      "prompt": "Two nude adult women lying together, caressing each other's bodies, intimate lesbian foreplay scene.",
+      "prompt": "Two adult women lying together, caressing each other's bodies, intimate lesbian foreplay scene.",
       "description": "Lesbian mutual caressing scene",
       "tags": [
         "two people",
@@ -7467,7 +7453,7 @@
     },
     "Scissoring": {
       "name_zh": "女女交叉体位",
-      "prompt": "Two nude adult women making love in scissoring position, legs intertwined, pressed together, intimate lesbian lovemaking scene.",
+      "prompt": "Two adult women making love in scissoring position, legs intertwined, pressed together, intimate lesbian lovemaking scene.",
       "description": "Lesbian scissoring sex scene",
       "tags": [
         "two people",
@@ -7495,7 +7481,7 @@
     },
     "Lesbian 69": {
       "name_zh": "女女69式",
-      "prompt": "Two nude adult women in a 69 position, each performing oral sex on the other, intimately entwined, lesbian lovemaking scene.",
+      "prompt": "Two adult women in a 69 position, each performing oral sex on the other, intimately entwined, lesbian lovemaking scene.",
       "description": "Lesbian 69 position sex scene",
       "tags": [
         "two people",
@@ -7629,7 +7615,7 @@
     },
     "Lesbian Fingering": {
       "name_zh": "女女指交",
-      "prompt": "Two nude adult women engaged in fingering, one lying with legs spread while the other kneels between them, intimate lesbian scene.",
+      "prompt": "Two adult women engaged in fingering, one lying with legs spread while the other kneels between them, intimate lesbian scene.",
       "description": "Lesbian fingering scene",
       "tags": [
         "two people",
@@ -7643,7 +7629,7 @@
     },
     "Lesbian Shower Scene": {
       "name_zh": "女女淋浴",
-      "prompt": "Two nude adult women in a shower together, wet skin glistening, bodies pressed together, kissing under the water, intimate lesbian scene.",
+      "prompt": "Two adult women in a shower together, wet skin glistening, bodies pressed together, kissing under the water, intimate lesbian scene.",
       "description": "Lesbian shower scene",
       "tags": [
         "two people",
@@ -7657,7 +7643,7 @@
     },
     "Lesbian Tribadism": {
       "name_zh": "女女磨镜",
-      "prompt": "Two nude adult women grinding against each other, bodies pressed together, legs intertwined, intimate lesbian lovemaking scene.",
+      "prompt": "Two adult women grinding against each other, bodies pressed together, legs intertwined, intimate lesbian lovemaking scene.",
       "description": "Lesbian tribadism grinding scene",
       "tags": [
         "two people",
@@ -7811,7 +7797,7 @@
     },
     "Double Dildo": {
       "name_zh": "双头龙",
-      "prompt": "Two nude adult women using a double-ended dildo, one on each end, lying facing each other with the toy between them, intimate lesbian toy scene.",
+      "prompt": "Two adult women using a double-ended dildo, one on each end, lying facing each other with the toy between them, intimate lesbian toy scene.",
       "description": "Lesbian double dildo toy scene",
       "tags": [
         "two people",
@@ -7825,7 +7811,7 @@
     },
     "Strap-On Cowgirl": {
       "name_zh": "佩带式骑乘",
-      "prompt": "Two nude adult women, one wearing a strap-on harness riding the other on her back, lesbian strap-on cowgirl position.",
+      "prompt": "Two adult women, one wearing a strap-on harness riding the other on her back, lesbian strap-on cowgirl position.",
       "description": "Lesbian strap-on cowgirl position",
       "tags": [
         "two people",
@@ -7839,7 +7825,7 @@
     },
     "Strap-On Doggy": {
       "name_zh": "佩带式后入",
-      "prompt": "Two nude adult women, one wearing a strap-on penetrating the other from behind on all fours, lesbian strap-on doggy position.",
+      "prompt": "Two adult women, one wearing a strap-on penetrating the other from behind on all fours, lesbian strap-on doggy position.",
       "description": "Lesbian strap-on doggy position",
       "tags": [
         "two people",
@@ -7853,7 +7839,7 @@
     },
     "Lesbian Breast Play": {
       "name_zh": "女女舔乳",
-      "prompt": "Two nude adult women, one licking and sucking the other's breasts, hand caressing her body, intimate lesbian breast play scene.",
+      "prompt": "Two adult women, one licking and sucking the other's breasts, hand caressing her body, intimate lesbian breast play scene.",
       "description": "Lesbian breast licking scene",
       "tags": [
         "two people",
@@ -7867,7 +7853,7 @@
     },
     "Lesbian Face-to-Face Lap": {
       "name_zh": "女女面对面坐姿",
-      "prompt": "Two nude adult women sitting face to face on each other's laps, grinding against each other, intimate lesbian lap sex scene.",
+      "prompt": "Two adult women sitting face to face on each other's laps, grinding against each other, intimate lesbian lap sex scene.",
       "description": "Lesbian face-to-face lap grinding",
       "tags": [
         "two people",
