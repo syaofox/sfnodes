@@ -57,101 +57,102 @@ KREA2_INSTRUCT_SYSTEM = (
 # Krea2SystemPrompt 的预设：键为 combo 显示名，值为系统指令文本。'none' = 自定义。
 # 唯一数据源；前端 web/krea2_system_prompt.js 通过 GET /api/sfnodes/krea2_presets
 # 获取，切换预设时自动填充 text widget。
+# 特征控制/风格转换类预设统一为"段落式模板 + 追加句"行文（模板见各预设前缀），并保留
+# 各自的融合/约束语义（结合用户指令生成新图、保持参考一致性）；'default'（instruct
+# 编辑风格）与"Krea2 提示词扩展（官方规则）"语义特殊，保留原样。
 KREA2_PRESETS = {
     "none": "",
     "default": KREA2_INSTRUCT_SYSTEM,
     "不描述人物相貌与身材": (
-        "Describe the key features of the reference image, including each character's facial "
-        "expressions, gender, hairstyle and hair color, as well as the color, shape, "
-        "size, texture, objects and background. But DO NOT describe any character's facial "
-        "features, appearance, facial contours or body shape and height. Generate a new image following the "
-        "user's instruction, keeping the characters' expressions, gender, hairstyle "
-        "and hair color consistent with the reference where appropriate, but without "
-        "referencing their facial looks or physique."
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape or height. Keep the characters' "
+        "expressions, gender, hairstyle and hair color consistent with the reference where "
+        "appropriate."
     ),
     "不描述人物相貌与身材（保持姿势动作）": (
-        "Describe the key features of the reference image, including each character's facial "
-        "expressions, gender, hairstyle and hair color, poses and actions, as well as the color, "
-        "shape, size, texture, objects and background. But DO NOT describe any character's facial "
-        "features, appearance, facial contours or body shape and height. Generate a new image "
-        "following the user's instruction, keeping the characters' expressions, gender, hairstyle, "
-        "hair color, poses and actions consistent with the reference where appropriate, but "
-        "without referencing their facial looks or physique."
-    ),
-    "不描述相貌身材和发型发色": (
-        "Describe the key features of the reference image, including each character's facial "
-        "expressions and gender, as well as the color, shape, size, texture, objects and "
-        "background. But DO NOT describe any character's facial features, appearance, facial "
-        "contours, body shape and height, hairstyle or hair color. Generate a new image "
-        "following the user's instruction, keeping the characters' expressions and gender "
-        "consistent with the reference where appropriate, but without referencing their "
-        "facial looks, physique, hairstyle or hair color."
-    ),
-    "不描述相貌身材和发型发色（保持姿势动作）": (
-        "Describe the key features of the reference image, including each character's facial "
-        "expressions, gender, poses and actions, as well as the color, shape, size, texture, "
-        "objects and background. But DO NOT describe any character's facial features, appearance, "
-        "facial contours, body shape and height, hairstyle or hair color. Generate a new image "
-        "following the user's instruction, keeping the characters' expressions, gender, poses and "
-        "actions consistent with the reference where appropriate, but without referencing their "
-        "facial looks, physique, hairstyle or hair color."
-    ),
-    "黑白漫画转真人": (
-        "Describe the key features of the reference image, including the characters' facial "
-        "expressions, gender, hairstyle and hair color, poses, clothing, objects, composition "
-        "and background, but DO NOT describe any character's facial features, appearance, body "
-        "shape or ethnicity, and DO NOT describe or preserve the "
-        "black-and-white manga art style. The output MUST be a full-color realistic photograph "
-        "with natural skin texture, realistic lighting, soft natural shadows and vibrant "
-        "colors, rendered photographically with realistic detail; it must NOT be "
-        "black-and-white or manga style in any way. Keep the characters' expressions, gender, "
-        "hairstyle, hair color and the composition, poses and scene consistent with "
-        "the reference where appropriate."
-    ),
-    "真人转黑白漫画": (
-        "Describe the key features of the reference image, including the characters' facial "
-        "expressions, gender, hairstyle and hair color, poses, clothing, objects, composition "
-        "and background, but DO NOT describe any character's facial features, appearance, body "
-        "shape or ethnicity, and DO NOT describe or preserve realistic "
-        "photographic details such as skin texture, lighting and color. The output MUST be a "
-        "black-and-white manga illustration with clean line art, screentone shading and high "
-        "contrast, and must NOT look like a realistic photograph. Keep the characters' "
-        "expressions, gender, hairstyle, hair color and the composition, poses and "
-        "scene consistent with the reference where appropriate."
-    ),
-    "动画截图转真人": (
-        "Describe the key features of the reference image, including the characters' facial "
-        "expressions, gender, hairstyle and hair color, poses, clothing, objects, composition "
-        "and background, but DO NOT describe any character's facial features, appearance, body "
-        "shape or ethnicity, and DO NOT describe or preserve the anime art "
-        "style. The output MUST be a full-color realistic photograph with natural skin texture, "
-        "realistic lighting, shadows and vibrant colors. The output must NOT be anime, "
-        "illustration, or cartoon style in any way. Keep the characters' expressions, gender, "
-        "hairstyle, hair color and the composition, poses and scene consistent with "
-        "the reference where appropriate."
-    ),
-    "真人转动漫截图": (
-        "Describe the key features of the reference image, including the characters' facial "
-        "expressions, gender, hairstyle and hair color, poses, clothing, objects, composition "
-        "and background, but DO NOT describe any character's facial features, appearance, body "
-        "shape or ethnicity, and DO NOT describe or preserve realistic "
-        "photographic details such as skin texture, lighting and color. The output MUST be an "
-        "anime-style illustration with clean line art and vibrant colors, and must NOT look "
-        "like a realistic photograph. Keep the characters' expressions, gender, hairstyle, "
-        "hair color and the composition, poses and scene consistent with the "
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape or height. Keep the characters' "
+        "expressions, gender, hairstyle, hair color, poses and actions consistent with the "
         "reference where appropriate."
     ),
-    "任意图片转真人": (
-        "Describe the key features of the reference image, including the characters' facial "
-        "expressions, gender, hairstyle and hair color, poses, clothing, objects, composition "
-        "and background, but DO NOT describe any character's facial features, appearance, body "
-        "shape or ethnicity, and DO NOT describe or preserve any "
-        "illustration, anime, manga, cartoon, painting, sketch or other non-photographic art "
-        "style. The output MUST be a full-color realistic photograph with natural skin "
-        "texture, realistic lighting, shadows and vibrant colors, rendered photographically, "
-        "and must NOT retain any non-photographic art style. Keep the characters' expressions, "
-        "gender, hairstyle, hair color and the composition, poses and scene "
+    "不描述相貌身材和发型发色": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape, height, hairstyle or hair color. "
+        "Keep the characters' expressions and gender consistent with the reference where "
+        "appropriate."
+    ),
+    "不描述相貌身材和发型发色（保持姿势动作）": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape, height, hairstyle or hair color. "
+        "Keep the characters' expressions, gender, poses and actions consistent with the "
+        "reference where appropriate."
+    ),
+    "黑白漫画转真人": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Include the characters' facial expressions, gender, "
+        "hairstyle, hair color, poses, clothing, objects and composition where visible. Note "
+        "that you should not describe any character's facial features, appearance, body shape "
+        "or ethnicity. The output must be a full-color realistic photograph with natural skin "
+        "texture, realistic lighting, soft natural shadows and vibrant colors; it must NOT be "
+        "black-and-white or manga style in any way. Keep the characters' expressions, gender, "
+        "hairstyle, hair color, poses and the composition, scene consistent with the reference "
+        "where appropriate."
+    ),
+    "真人转黑白漫画": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Include the characters' facial expressions, gender, "
+        "hairstyle, hair color, poses, clothing, objects and composition where visible. Note "
+        "that you should not describe any character's facial features, appearance, body shape "
+        "or ethnicity. The output must be a black-and-white manga illustration with clean line "
+        "art, screentone shading and high contrast, and must NOT look like a realistic "
+        "photograph. Keep the characters' expressions, gender, hairstyle, hair color, poses "
+        "and the composition, scene consistent with the reference where appropriate."
+    ),
+    "动画截图转真人": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Include the characters' facial expressions, gender, "
+        "hairstyle, hair color, poses, clothing, objects and composition where visible. Note "
+        "that you should not describe any character's facial features, appearance, body shape "
+        "or ethnicity. The output must be a full-color realistic photograph with natural skin "
+        "texture, realistic lighting, shadows and vibrant colors, and must NOT be anime, "
+        "illustration, or cartoon style in any way. Keep the characters' expressions, gender, "
+        "hairstyle, hair color, poses and the composition, scene consistent with the reference "
+        "where appropriate."
+    ),
+    "真人转动漫截图": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Include the characters' facial expressions, gender, "
+        "hairstyle, hair color, poses, clothing, objects and composition where visible. Note "
+        "that you should not describe any character's facial features, appearance, body shape "
+        "or ethnicity. The output must be an anime-style illustration with clean line art and "
+        "vibrant colors, and must NOT look like a realistic photograph. Keep the characters' "
+        "expressions, gender, hairstyle, hair color, poses and the composition, scene "
         "consistent with the reference where appropriate."
+    ),
+    "任意图片转真人": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Include the characters' facial expressions, gender, "
+        "hairstyle, hair color, poses, clothing, objects and composition where visible. Note "
+        "that you should not describe any character's facial features, appearance, body shape "
+        "or ethnicity. The output must be a full-color realistic photograph with natural skin "
+        "texture, realistic lighting, shadows and vibrant colors, rendered photographically, "
+        "and must NOT retain any illustration, anime, manga, cartoon, painting, sketch or "
+        "other non-photographic art style. Keep the characters' expressions, gender, "
+        "hairstyle, hair color, poses and the composition, scene consistent with the "
+        "reference where appropriate."
     ),
     "Krea2 提示词扩展（官方规则）": (
         "You are an expert prompt engineer for text-to-image models. Expand the user's prompt "
