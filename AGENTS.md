@@ -251,6 +251,51 @@ Object.defineProperty(app, 'dragOverNode', {
 - **前端拿后端数据**：注册 `GET /api/sfnodes/...` 路由（server.PromptServer.instance.routes），前端 `api.fetchApi()` 拉取；路由在模块导入时注册，**改动后必须重启容器**，否则 404 且前端静默降级（表现为"功能不生效但无报错"）。
 - **模拟测试**：`new Function("app", "api", code)`（去 import 行）注入 mock app/api，Node 直接跑；断言 callback 链（互斥/说明同步）与 `widget.tooltip` 赋值，无需真实 DOM。
 
+### 9. 实际环境调试方式（console 诊断脚本，用户配合执行）
+
+> 背景：SFAnyPack 首槽自动改名 bug（2026-08）。静态分析 + bundle 反查多轮仍未定位，最终靠用户粘贴 console 诊断脚本锁定根因：数据层改名成功但 UI 不刷新 → 槽名渲染读的是 `localized_name` 而非 `name`（见 §10）。
+
+- **不要自行用浏览器访问 ComfyUI**：agent 浏览器访问 `localhost:8188` 会 404/不可用，且用户浏览器 tab 可能正在跑任务（打开即见用户真实工作流，勿动）。实际环境验证一律走"分段 console 诊断脚本 + 用户粘贴反馈"。
+- **标准流程（每段只做一件事）**：
+  1. **版本检查**：`fetch("/extensions/sfnodes/<file>.js")` 后检查是否含本次修复的特征字符串 —— 排除浏览器缓存/未同步（false = 加载旧 JS，先硬刷新）；
+  2. **节点状态检查**：`app.graph._nodes.find(n => n.comfyClass === "SFAnyPack")`，打印 inputs 数量/名字、handler 是否安装（`onConnectionsChange.toString().includes("<内部函数名>")`）。**注意 handler 可能被其他扩展包装，toString 不含特征串 ≠ 未安装**，需结合行为判断；
+  3. **事件日志包装**：把 `node.onConnectionsChange` 包一层打印参数（type/index/connected/origin_id/origin_slot），连接分支内再打印源节点/源输出名/目标槽名/sfManualName —— 一次拖线拿到"事件是否触发 + 参数是否正确 + 前置条件是否满足"三份证据；
+  4. **数据层检查**：操作后打印 `node.inputs.map(i => i.name + "|" + i.type + "|link=" + i.link)` —— 判断逻辑是否执行；
+  5. **UI 层检查**：`[...document.querySelectorAll("span")].map(s => s.textContent.trim())` 过滤目标文本 —— 判断渲染层是否更新。
+- **关键判断表**：D0 false → 缓存/部署问题（硬刷新）；槽数未 trim / handler 特征缺失 → 扩展未生效（nodeCreated 没跑）；事件日志为空 → 交互根本没走该事件路径（换 hook）；**数据层已改但 UI 层未变 → 渲染字段问题**（读错字段，如 §10 的 localized_name）。
+- **创建测试节点用 UI 添加**：新版前端 `graph.createNode` / `graph.constructor.createNode` 均不可用（LGraph 类静态 createNode 未暴露到实例），诊断脚本不要程序化创建节点。
+- **渲染模式判断**：DOM 查不到槽名文本 → 用户跑的是 **litegraph canvas 渲染模式**（槽名画在 canvas 上）；能查到 `text-node-component-slot-text` span → Vue DOM 模式。两种模式对槽名渲染字段的优先级一致（见 §10），但响应式机制不同：Vue 模式直接改属性不触发渲染、替换数组元素触发；canvas 模式靠 setDirty 重绘。
+- 可复用模板（本次实战精简版）：
+
+```js
+// 1) 版本检查
+const t = await (await fetch("/extensions/sfnodes/any_pack.js")).text();
+console.log("[D0] JS 含修复:", t.includes("修复特征串"));
+// 2) 节点状态（节点请用户用 UI 添加）
+const n = app.graph._nodes.find(n => n.comfyClass === "SFAnyPack");
+console.log("[D1] inputs:", n.inputs.map(i => i.name + "|" + i.type), "| handler:", n.onConnectionsChange?.toString().includes("内部函数名"));
+// 3) 事件日志包装（装好后让用户执行交互）
+const orig = n.onConnectionsChange;
+n.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
+  console.log("[D2] onConnectionsChange:", JSON.stringify({ type, index, connected, origin: link_info && link_info.origin_id + "." + link_info.origin_slot }));
+  return orig.apply(this, arguments);
+};
+// 交互后：
+// 4) 数据层
+console.log("[D3] inputs:", n.inputs.map(i => i.name + "|" + i.type + "|link=" + i.link));
+// 5) UI 层
+console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s => s.textContent.trim()).filter(t => /^(value\d*|out\d*)$/.test(t)));
+```
+
+### 10. 槽位显示名机制（localized_name 坑，做"动态改槽名"必知）
+
+> 背景：SFAnyPack 首槽自动改名 bug 根因（2026-08）。症状：数据层 `slot.name` 已改，UI 仍显示旧名，且**只有初始槽受影响、动态加的槽正常**。
+
+- **渲染读的字段优先级是 `label ?? localized_name ?? name`**：litegraph canvas 模式的 `SlotBase.renderingLabel`/`displayName`、Vue 模式的 `InputSlot`/`OutputSlot` 槽名文本、以及命中检测 `getNodeInputOnPos` 的宽度计算，全部优先 `label` → `localized_name` → `name`。
+- **初始槽自带 `localized_name`，动态槽没有**：`addInputSocket` 创建槽时传 `localized_name: z(i18nKey, name)`（默认=原名）；`LGraphNode.addInput`（动态加槽）不设 `localized_name` → 渲染回退读 `name`。**"只有第一个/初始槽改名不生效、后加的槽正常"是 localized_name 未同步的典型症状**。
+- **改槽名必须同步 `name` 和 `localized_name`** 两字段；若槽已有 `label`（优先级更高，`addInputSocket` 不设但第三方可能设）也需同步。Vue 模式下还需替换数组元素才触发渲染（见 §9 渲染模式差异）。
+- 关联坑：动态槽位节点的**输入槽名必须与后端 `INPUT_TYPES` 键一致**（prompt 序列化依赖），改名后由前端 `graphToPrompt` 补丁映射回 `value{index}`（见 §7 与 any_pack.js 的 `installPromptMapping`）。
+
 ## Code Discovery
 
 优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。该系统已索引整个项目，支持语义搜索和调用链追踪。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退到 grep/glob。
@@ -269,6 +314,7 @@ Object.defineProperty(app, 'dragOverNode', {
 10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
 11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现（见前端机制 §7）
 12. 后端改动后需重启 docker 容器，`web/` JS 改动需同步 docker 目录并硬刷新（见前端机制 §5 部署注意）
+13. 实际环境调试一律用分段 console 诊断脚本 + 用户配合执行反馈，**不要自行浏览器访问 ComfyUI**（会 404 且可能干扰用户运行中的工作流；流程与模板见前端机制 §9）
 
 ## Testing
 
