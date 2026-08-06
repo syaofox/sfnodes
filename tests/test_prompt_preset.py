@@ -93,14 +93,14 @@ for key in ("outfit_preset", "pose_preset", "couple_preset", "environment_preset
     check(f"{key} 无纯英文选项", len(pure_ascii) == 0)
     check(f"{key} 默认 禁用", opt[key][1]["default"] == "禁用")
 check("celebrity 429 项(含10组随机)", len(opt["celebrity_preset"][0]) == 441)
-check("expression 38 项(含6组随机)", len(opt["expression_preset"][0]) == 46)
+check("expression 39 项(含7组随机)", len(opt["expression_preset"][0]) == 48)
 check("outfit 71 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
 check("pose 76 项(含2组随机)", len(opt["pose_preset"][0]) == 80)
 check("couple 47 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
 check("environment 112 项(含8组随机)", len(opt["environment_preset"][0]) == 122)
 check("lighting 62 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
-check("style 49 项(含2组随机)", len(opt["style_preset"][0]) == 53)
-check("angle 26 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
+check("style 48 项(含2组随机)", len(opt["style_preset"][0]) == 52)
+check("angle 11 项(含2组随机)", len(opt["camera_angle_preset"][0]) == 15)
 check("distance 11 项(含4组随机)", len(opt["camera_distance_preset"][0]) == 17)
 check("camera 43 项(含11组随机)", len(opt["camera_lens_preset"][0]) == 56)
 
@@ -256,6 +256,24 @@ _dof_left = [f"{cat}/{n}" for cat, items in _data.items() if cat != "Camera Lens
              for n, v in items.items() if _doF_pat.search(v["prompt"])]
 check(f"非镜头分类无景深/散景词 ({_dof_left})", len(_dof_left) == 0)
 check("地铁时尚肖像已去镜头词", "bokeh" not in _data["Environment"]["Subway Fashion Portrait"]["prompt"].lower())
+check("地铁时尚肖像为纯环境（无服装/脸部/风格/灯光词）",
+      all(w not in _data["Environment"]["Subway Fashion Portrait"]["prompt"].lower()
+          for w in ("clothing", "faux fur", "skin", "editorial", "photorealistic", "lighting", "standing")))
+check("Direct Gaze 已移入 Expression 眼神交流组",
+      "Direct Gaze" in _data["Expression"] and _data["Expression"]["Direct Gaze"]["group"] == "眼神交流"
+      and "Direct Gaze" not in _data["Camera Angle"])
+check("极近距视角已删除（与 Camera Distance 重复）",
+      "Seen from Extremely Close Up" not in _data["Camera Angle"])
+check("Style 时尚影棚肖像已合并删除", "Fashion Studio Portrait" not in _data["Style"]
+      and "Fashion Studio Single Portrait" in _data["Style"])
+check("时尚影棚单幅人像已去灯光词", "HDR" not in _data["Style"]["Fashion Studio Single Portrait"]["prompt"]
+      and "illumination" not in _data["Style"]["Fashion Studio Single Portrait"]["prompt"])
+check("Environment 影棚背景已改名避免同名混淆",
+      "Fashion Studio Portrait" not in _data["Environment"]
+      and "Photo Studio Backdrop" in _data["Environment"]
+      and _data["Environment"]["Photo Studio Backdrop"]["name_zh"] == "摄影棚布景")
+check("Anime Painterly 无环境越界词",
+      "environment art" not in _data["Style"]["Anime Painterly"]["prompt"])
 check("窗帘柔光已去场景词", "bedroom" not in _data["Lighting"]["Curtain Filtered Light"]["prompt"].lower())
 check("组随机选项存在", "随机·写实" in opt["style_preset"][0] and "随机·NSFW" in opt["pose_preset"][0])
 check("组随机选项顺序", opt["style_preset"][0][2] == "随机·写实")
@@ -300,12 +318,12 @@ check("新增双人 NSFW 反查", "reverse cowgirl" in couple_new)
 _, pack = node.execute("x", seed=1, camera_angle_preset="荷兰角")
 angle_new = pack['Camera Angle']
 check("角度反查命中", "dutch" in angle_new.lower())
-_, pack = node.execute("x", seed=1, camera_angle_preset="极限低角特写")
+_, pack = node.execute("x", seed=1, camera_angle_preset="极限低角镜头")
 angle_new3 = pack['Camera Angle']
-check("Krea2 视角反查", "low-angle" in angle_new3.lower() and "close-up" in angle_new3.lower())
-_, pack = node.execute("x", seed=1, camera_angle_preset="过肩镜头")
+check("极限低角反查", "ultra low angle" in angle_new3.lower())
+_, pack = node.execute("x", seed=1, camera_angle_preset="背面视角")
 angle_new2 = pack['Camera Angle']
-check("过肩反查命中", "over-the-shoulder" in angle_new2.lower())
+check("背面视角反查命中", "from behind" in angle_new2.lower())
 _, pack = node.execute("x", seed=1, camera_distance_preset="大远景")
 dist_new = pack['Camera Distance']
 check("大远景反查命中", "extreme long shot" in dist_new.lower())
@@ -425,8 +443,8 @@ check("group 字段优先于推导", _g("Outfit", "全裸", {"tags": ["adult"], 
 check("路由 Style 分组", _resp.data["Style"]["写实摄影风"]["group"] == "写实"
       and _resp.data["Style"]["动漫手绘风"]["group"] == "非写实")
 _all_style = [v["group"] for v in _data["Style"].values()]
-check("Style 全部有分组", len(_all_style) == 49 and set(_all_style) == {"写实", "非写实"}
-      and _all_style.count("写实") == 23 and _all_style.count("非写实") == 26)
+check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"写实", "非写实"}
+      and _all_style.count("写实") == 22 and _all_style.count("非写实") == 26)
 check("时尚影棚单幅人像无拼贴词", "collage" not in _data["Style"]["Fashion Studio Single Portrait"]["prompt"].lower()
       and "single-frame" in _data["Style"]["Fashion Studio Single Portrait"]["prompt"])
 
@@ -448,16 +466,23 @@ check("Environment 分组抽查", _data["Environment"]["Modern Subway Train"]["g
 
 # Camera Angle / Camera Lens 数据驱动分组
 _angle_groups = [v["group"] for v in _data["Camera Angle"].values()]
-check("Camera Angle 全部有分组", len(_angle_groups) == 26 and set(_angle_groups) ==
-      {"机位高度", "俯仰角度", "水平朝向", "视角叙事", "创意特殊"})
+check("Camera Angle 全部有分组", len(_angle_groups) == 11 and set(_angle_groups) ==
+      {"机位角度", "人物朝向"})
 _lens_groups = [v["group"] for v in _data["Camera Lens"].values()]
 check("Camera Lens 全部有分组", len(_lens_groups) == 43 and set(_lens_groups) ==
       {"广角镜头", "标准镜头", "人像镜头", "长焦镜头", "微距镜头", "特殊镜头", "变焦镜头",
        "电影定焦", "变形宽银幕", "电影变焦", "复古镜头"})
 check("镜头分组抽查", _data["Camera Lens"]["14mm Fisheye"]["group"] == "广角镜头"
       and _data["Camera Lens"]["Anamorphic 50mm"]["group"] == "变形宽银幕"
-      and _data["Camera Angle"]["Dutch Angle"]["group"] == "创意特殊"
-      and _data["Camera Angle"]["Eye Level"]["group"] == "机位高度")
+      and _data["Camera Angle"]["Dutch Angle"]["group"] == "机位角度"
+      and _data["Camera Angle"]["Eye Level"]["group"] == "机位角度"
+      and _data["Camera Angle"]["Front View"]["group"] == "人物朝向")
+check("Camera Angle 精简为常见角度", set(_data["Camera Angle"]) ==
+      {"Eye Level", "High Angle", "Low Angle", "Top Down", "Dutch Angle", "First-Person POV",
+       "Ultra Low Angle Shot", "Front View", "Three-Quarter View", "Side View", "Back View"})
+check("Camera Angle 无双人/过肩词", not any("over-the-shoulder" in v["prompt"].lower() or "toward the other" in v["prompt"].lower()
+      for v in _data["Camera Angle"].values()))
+check("极限低角镜头保留", "ultra low angle" in _data["Camera Angle"]["Ultra Low Angle Shot"]["prompt"])
 
 # Lighting 数据驱动分组
 _light_groups = [v["group"] for v in _data["Lighting"].values()]

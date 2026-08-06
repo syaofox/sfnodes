@@ -5252,6 +5252,19 @@
       ],
       "weight": 1.0,
       "group": "害羞脸红"
+    },
+    "Direct Gaze": {
+      "name_zh": "直视镜头",
+      "prompt": "with a direct gaze, subject looking straight into the camera lens, strong eye contact.",
+      "description": "Strong direct eye contact with the camera",
+      "tags": [
+        "direct gaze",
+        "eye contact",
+        "into the lens",
+        "engaging"
+      ],
+      "weight": 1.0,
+      "group": "眼神交流"
     }
   },
   "Outfit": {
@@ -8294,31 +8307,17 @@
       "name_zh": "宁静乡村牧场",
       "group": "自然风光"
     },
-    "Fashion Studio Portrait": {
-      "prompt": "Studio setting, dark charcoal-gray background with soft studio depth, elegant portrait separation, moody dark backdrop contrast.",
-      "description": "Studio fashion portrait with dark backdrop",
-      "tags": [
-        "studio",
-        "fashion",
-        "portrait",
-        "elegant"
-      ],
-      "weight": 1.0,
-      "name_zh": "时尚影棚肖像",
-      "group": "室内空间"
-    },
     "Subway Fashion Portrait": {
-      "prompt": "Modern subway train interior, standing beside large window, stainless steel poles, overhead fluorescent lighting, clean white walls, large train windows showing passing city skyline, natural daylight streaming through windows, softly blurred passengers seated in background, realistic subway environment. Fashion editorial photography, Korean street fashion aesthetic, contemporary urban style, candid moment, cinematic atmosphere, soft color grading, HDR, global illumination, volumetric lighting. Detailed clothing textures (realistic leather, ribbed knit fabric, fluffy faux fur, intricate silver accessories), realistic facial features, realistic eyes, natural skin pores, subtle skin texture.",
-      "description": "Subway fashion portrait with Korean street style and camera specs",
+      "name_zh": "地铁时尚肖像",
+      "prompt": "Modern subway carriage with reflective windows, station platform signs visible through the glass, worn metro seating, urban commuter atmosphere, softly blurred rush hour commuters in the background, realistic subway environment.",
+      "description": "Urban subway carriage with commuter atmosphere",
       "tags": [
         "subway",
-        "fashion",
-        "portrait",
-        "Korean street style",
-        "camera"
+        "metro",
+        "urban",
+        "commuter"
       ],
       "weight": 1.3,
-      "name_zh": "地铁时尚肖像",
       "group": "城市街景"
     },
     "Industrial Warehouse": {
@@ -9408,6 +9407,19 @@
       ],
       "weight": 1.0,
       "group": "私密场所"
+    },
+    "Photo Studio Backdrop": {
+      "prompt": "Studio setting, dark charcoal-gray background with soft studio depth, elegant portrait separation, moody dark backdrop contrast.",
+      "description": "Studio backdrop with dark gray background for portraits",
+      "tags": [
+        "studio",
+        "backdrop",
+        "portrait",
+        "elegant"
+      ],
+      "weight": 1.0,
+      "name_zh": "摄影棚布景",
+      "group": "室内空间"
     }
   },
   "Lighting": {
@@ -10300,7 +10312,7 @@
       "group": "写实"
     },
     "Anime Painterly": {
-      "prompt": "Semi-realistic anime painting with subtle 3D depth, painterly anime realism, soft realistic shading, handcrafted digital painting look, Makoto Shinkai + Studio Ghibli inspired, semi-3D anime render, visual novel CG style, detailed environment art.",
+      "prompt": "Semi-realistic anime painting with subtle 3D depth, painterly anime realism, soft realistic shading, handcrafted digital painting look, Makoto Shinkai + Studio Ghibli inspired, semi-3D anime render, visual novel CG style, detailed painterly backgrounds.",
       "description": "Anime painterly style with Studio Ghibli influence",
       "tags": [
         "anime",
@@ -10421,23 +10433,9 @@
       "name_zh": "俏皮粉彩艺术",
       "group": "非写实"
     },
-    "Fashion Studio Portrait": {
-      "prompt": "Ultra-realistic cinematic elegant collage visual, premium five-panel collage layout, premium luxury editorial collage aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering.",
-      "description": "Premium fashion portrait with ultra-realistic cinematic rendering",
-      "tags": [
-        "fashion",
-        "portrait",
-        "cinematic",
-        "ultra-realistic",
-        "editorial"
-      ],
-      "weight": 1.3,
-      "name_zh": "时尚影棚肖像",
-      "group": "写实"
-    },
     "Fashion Studio Single Portrait": {
-      "prompt": "Ultra-realistic cinematic elegant fashion editorial portrait, single-frame composition, premium luxury editorial aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering.",
-      "description": "Premium single-frame fashion portrait with ultra-realistic cinematic rendering",
+      "prompt": "Elegant fashion editorial portrait, single-frame composition, premium editorial aesthetic, sophisticated color palette, moody dark backdrop, elegant visual separation, photorealistic rendering.",
+      "description": "Premium single-frame fashion portrait with cinematic rendering",
       "tags": [
         "fashion",
         "portrait",
@@ -10967,7 +10965,7 @@
         "natural"
       ],
       "weight": 1.0,
-      "group": "机位高度"
+      "group": "机位角度"
     },
     "High Angle": {
       "name_zh": "俯拍",
@@ -10980,7 +10978,7 @@
         "diminishing"
       ],
       "weight": 1.0,
-      "group": "俯仰角度"
+      "group": "机位角度"
     },
     "Low Angle": {
       "name_zh": "仰拍",
@@ -10993,7 +10991,7 @@
         "imposing"
       ],
       "weight": 1.0,
-      "group": "俯仰角度"
+      "group": "机位角度"
     },
     "Top Down": {
       "name_zh": "顶部俯拍",
@@ -11006,33 +11004,7 @@
         "bird's eye"
       ],
       "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "Aerial View": {
-      "name_zh": "鸟瞰航拍",
-      "prompt": "Aerial perspective, sweeping bird's-eye view from high above, expansive landscape composition.",
-      "description": "Sweeping aerial bird's-eye perspective",
-      "tags": [
-        "aerial",
-        "bird's eye",
-        "sweeping",
-        "landscape"
-      ],
-      "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "Worm's Eye View": {
-      "name_zh": "虫眼视角",
-      "prompt": "Worm's-eye perspective, extreme low angle from near ground level, dramatic upward view.",
-      "description": "Extreme low angle from near ground level",
-      "tags": [
-        "worm's eye",
-        "extreme low",
-        "ground",
-        "dramatic"
-      ],
-      "weight": 1.0,
-      "group": "俯仰角度"
+      "group": "机位角度"
     },
     "Dutch Angle": {
       "name_zh": "荷兰角",
@@ -11045,85 +11017,7 @@
         "cinematic"
       ],
       "weight": 1.0,
-      "group": "创意特殊"
-    },
-    "Over-the-Shoulder": {
-      "name_zh": "过肩镜头",
-      "prompt": "Over-the-shoulder perspective, framed from behind one figure's shoulder toward the other, intimate conversational composition.",
-      "description": "Over-the-shoulder conversational framing",
-      "tags": [
-        "over the shoulder",
-        "conversational",
-        "framing",
-        "intimate"
-      ],
-      "weight": 1.0,
-      "group": "视角叙事"
-    },
-    "Shoulder Level": {
-      "name_zh": "肩平视角",
-      "prompt": "Shoulder-level perspective, camera at shoulder height, natural portrait framing.",
-      "description": "Shoulder-height portrait perspective",
-      "tags": [
-        "shoulder level",
-        "portrait",
-        "natural",
-        "mid-height"
-      ],
-      "weight": 1.0,
-      "group": "机位高度"
-    },
-    "Waist Level": {
-      "name_zh": "腰平视角",
-      "prompt": "Waist-level perspective, camera at waist height, grounded human-scale framing.",
-      "description": "Waist-height human-scale perspective",
-      "tags": [
-        "waist level",
-        "human scale",
-        "grounded",
-        "natural"
-      ],
-      "weight": 1.0,
-      "group": "机位高度"
-    },
-    "Hip Level": {
-      "name_zh": "臀平视角",
-      "prompt": "Hip-level perspective, camera at hip height, low grounded framing.",
-      "description": "Hip-height lower natural perspective",
-      "tags": [
-        "hip level",
-        "lower",
-        "natural",
-        "grounded"
-      ],
-      "weight": 1.0,
-      "group": "机位高度"
-    },
-    "Knee Level": {
-      "name_zh": "膝平视角",
-      "prompt": "Knee-level perspective, camera at knee height, low grounded framing.",
-      "description": "Knee-height low perspective",
-      "tags": [
-        "knee level",
-        "low",
-        "grounded",
-        "perspective"
-      ],
-      "weight": 1.0,
-      "group": "机位高度"
-    },
-    "Ground Level": {
-      "name_zh": "贴地视角",
-      "prompt": "Ground-level perspective, camera placed at ground height, immersive low forward view.",
-      "description": "Immersive ground-level perspective",
-      "tags": [
-        "ground level",
-        "immersive",
-        "low",
-        "forward view"
-      ],
-      "weight": 1.0,
-      "group": "机位高度"
+      "group": "机位角度"
     },
     "First-Person POV": {
       "name_zh": "第一人称视角",
@@ -11136,20 +11030,7 @@
         "subjective"
       ],
       "weight": 1.0,
-      "group": "视角叙事"
-    },
-    "Third-Person View": {
-      "name_zh": "第三人称视角",
-      "prompt": "Third-person perspective, camera observing the subject from outside, detached narrative framing.",
-      "description": "Detached third-person observational view",
-      "tags": [
-        "third person",
-        "observational",
-        "detached",
-        "narrative"
-      ],
-      "weight": 1.0,
-      "group": "视角叙事"
+      "group": "机位角度"
     },
     "Front View": {
       "name_zh": "正面视角",
@@ -11162,7 +11043,7 @@
         "straight-on"
       ],
       "weight": 1.0,
-      "group": "水平朝向"
+      "group": "人物朝向"
     },
     "Three-Quarter View": {
       "name_zh": "四分之三侧视角",
@@ -11175,7 +11056,7 @@
         "dynamic"
       ],
       "weight": 1.0,
-      "group": "水平朝向"
+      "group": "人物朝向"
     },
     "Side View": {
       "name_zh": "侧面视角",
@@ -11188,7 +11069,7 @@
         "clean"
       ],
       "weight": 1.0,
-      "group": "水平朝向"
+      "group": "人物朝向"
     },
     "Back View": {
       "name_zh": "背面视角",
@@ -11201,98 +11082,20 @@
         "anonymous"
       ],
       "weight": 1.0,
-      "group": "水平朝向"
+      "group": "人物朝向"
     },
-    "Direct Gaze": {
-      "name_zh": "直视镜头",
-      "prompt": "Direct gaze, subject looking straight into the camera lens, strong eye contact.",
-      "description": "Strong direct eye contact with the camera",
+    "Ultra Low Angle Shot": {
+      "name_zh": "极限低角镜头",
+      "prompt": "ultra low angle shot, dramatic upward perspective, powerful dynamic composition.",
+      "description": "Extreme low camera position looking steeply upward",
       "tags": [
-        "direct gaze",
-        "eye contact",
-        "into the lens",
-        "engaging"
-      ],
-      "weight": 1.0,
-      "group": "视角叙事"
-    },
-    "Dramatic Low Angle": {
-      "name_zh": "戏剧化仰角",
-      "prompt": "Extreme dramatic low-angle perspective, powerful upward view, imposing cinematic hero framing.",
-      "description": "Extreme dramatic upward hero framing",
-      "tags": [
-        "dramatic low angle",
-        "hero framing",
-        "imposing",
-        "cinematic"
-      ],
-      "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "Cinematic Overhead": {
-      "name_zh": "电影化俯拍",
-      "prompt": "Cinematic overhead perspective, elegant top-down framing, controlled elevated composition.",
-      "description": "Elegant cinematic top-down framing",
-      "tags": [
-        "cinematic",
-        "overhead",
-        "top-down",
-        "elevated framing"
-      ],
-      "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "Extreme Low-Angle Close-Up": {
-      "name_zh": "极限低角特写",
-      "prompt": "Extreme low-angle close-up, camera close to the subject looking steeply upward, monumental intimate framing.",
-      "description": "Monumental extreme low-angle close-up framing",
-      "tags": [
-        "extreme low-angle",
-        "close-up",
-        "monumental",
+        "ultra low angle",
+        "low angle",
+        "dynamic",
         "upward"
       ],
       "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "High-Angle Wide Perspective": {
-      "name_zh": "高角宽幅视角",
-      "prompt": "High-angle wide perspective, camera elevated looking down across a broad scene, expansive overview composition.",
-      "description": "Elevated wide high-angle overview",
-      "tags": [
-        "high-angle",
-        "wide",
-        "overview",
-        "elevated"
-      ],
-      "weight": 1.0,
-      "group": "俯仰角度"
-    },
-    "Dynamic Tilted Framing": {
-      "name_zh": "动态倾斜取景",
-      "prompt": "Dynamic tilted framing, camera angled off horizontal for energetic motion, kinetic cinematic composition.",
-      "description": "Kinetic tilted dynamic framing",
-      "tags": [
-        "tilted",
-        "dynamic",
-        "kinetic",
-        "energetic"
-      ],
-      "weight": 1.0,
-      "group": "创意特殊"
-    },
-    "Seen from Extremely Close Up": {
-      "name_zh": "极近距视角",
-      "prompt": "As seen from extremely close up, the camera pressed near the subject, immersive intimate perspective.",
-      "description": "Immersive extremely close viewpoint",
-      "tags": [
-        "extremely close",
-        "immersive",
-        "intimate",
-        "near"
-      ],
-      "weight": 1.0,
-      "group": "创意特殊"
+      "group": "机位角度"
     }
   },
   "Camera Distance": {
@@ -11441,7 +11244,7 @@
   },
   "Camera Lens": {
     "14mm Fisheye": {
-      "prompt": "Extreme wide environmental shot with 14mm fisheye lens, entire scene captured with dramatic spherical distortion, full environment visible from edge to edge, subject small within vast context, creative barrel distortion, f/2.8 aperture, artistic warped perspective, immersive environmental storytelling.",
+      "prompt": "14mm fisheye lens, dramatic spherical distortion, entire scene warped from edge to edge, f/2.8 aperture",
       "description": "Fisheye lens - entire scene with extreme distortion",
       "tags": [
         "14mm",
@@ -11455,7 +11258,7 @@
       "group": "广角镜头"
     },
     "16mm Ultra Wide": {
-      "prompt": "Expansive wide environmental shot with 16mm ultra wide lens, sweeping vista with subject in full context, dramatic perspective and depth, complete scene from foreground to horizon, slight barrel distortion, f/2.8 aperture, architectural and landscape cinematography, environmental storytelling composition.",
+      "prompt": "16mm ultra wide lens, sweeping expansive vista, dramatic perspective, slight barrel distortion, f/2.8 aperture",
       "description": "Ultra wide lens - expansive environmental framing",
       "tags": [
         "16mm",
@@ -11469,7 +11272,7 @@
       "group": "广角镜头"
     },
     "18mm Wide": {
-      "prompt": "18mm wide angle lens, dramatic perspective with exaggerated depth, broad field of view, natural proportions with architectural quality, minimal barrel distortion, f/3.5 aperture, landscape and environmental character, expansive spatial coverage.",
+      "prompt": "18mm wide angle lens, broad field of view, exaggerated depth, minimal distortion, f/3.5 aperture",
       "description": "Wide lens - subject in rich environmental context",
       "tags": [
         "18mm",
@@ -11483,7 +11286,7 @@
       "group": "广角镜头"
     },
     "24mm Wide Angle": {
-      "prompt": "24mm wide angle lens, moderate wide perspective with balanced coverage, slight barrel distortion, f/2.8 aperture, documentary and architectural photography character, natural spatial relationships with environmental depth.",
+      "prompt": "24mm wide angle lens, moderate wide perspective, slight barrel distortion, f/2.8 aperture",
       "description": "Wide angle - balanced environmental storytelling",
       "tags": [
         "24mm",
@@ -11497,7 +11300,7 @@
       "group": "广角镜头"
     },
     "28mm Documentary": {
-      "prompt": "Environmental documentary shot with 28mm lens, subject in authentic context showing meaningful surroundings, natural wide perspective, minimal distortion, f/2.0 aperture, photojournalism and street photography style, candid contextual framing with environmental detail.",
+      "prompt": "28mm lens, natural documentary perspective, subject in authentic surroundings, f/2.0 aperture",
       "description": "Documentary lens - authentic contextual framing",
       "tags": [
         "28mm",
@@ -11511,7 +11314,7 @@
       "group": "广角镜头"
     },
     "35mm Street": {
-      "prompt": "35mm lens, natural viewing angle approximating human perspective, minimal distortion, f/1.8 aperture, street photography character, comfortable field of view, versatile medium-wide coverage with spatial depth.",
+      "prompt": "35mm lens, natural viewing angle, street photography character, f/1.8 aperture",
       "description": "Street lens - natural wide perspective with context",
       "tags": [
         "35mm",
@@ -11525,7 +11328,7 @@
       "group": "广角镜头"
     },
     "40mm Standard": {
-      "prompt": "40mm standard lens, slightly compressed natural perspective, f/2.0 aperture, versatile focal length with balanced field of view, moderate depth of field characteristics, neutral compression and spatial relationships.",
+      "prompt": "40mm standard lens, natural perspective, moderate depth of field, f/2.0 aperture",
       "description": "Standard lens - balanced medium shot composition",
       "tags": [
         "40mm",
@@ -11539,7 +11342,7 @@
       "group": "标准镜头"
     },
     "50mm Classic": {
-      "prompt": "50mm classic standard lens, natural perspective matching human vision, moderate depth of field, f/1.8 aperture, neutral compression and distortion characteristics, versatile focal length with balanced optical properties.",
+      "prompt": "50mm classic standard lens, natural perspective matching human vision, moderate depth of field, f/1.8 aperture",
       "description": "Classic 50mm - natural eye perspective medium shot",
       "tags": [
         "50mm",
@@ -11553,7 +11356,7 @@
       "group": "标准镜头"
     },
     "55mm Normal": {
-      "prompt": "55mm normal lens, light perspective compression, f/1.8 aperture, moderate background separation with shallow depth of field, transitional focal length between standard and short telephoto ranges.",
+      "prompt": "55mm normal lens, light perspective compression, shallow depth of field, f/1.8 aperture",
       "description": "Normal lens - medium close-up chest framing",
       "tags": [
         "55mm",
@@ -11567,7 +11370,7 @@
       "group": "标准镜头"
     },
     "75mm Portrait": {
-      "prompt": "75mm short telephoto lens, light flattering compression, f/1.8 aperture, shallow depth of field with creamy background separation, natural perspective compression, tight field of view with moderate working distance.",
+      "prompt": "75mm short telephoto lens, flattering compression, shallow depth of field, creamy background separation, f/1.8 aperture",
       "description": "Portrait lens - close-up head and shoulders",
       "tags": [
         "75mm",
@@ -11581,7 +11384,7 @@
       "group": "人像镜头"
     },
     "85mm Portrait Classic": {
-      "prompt": "85mm classic portrait lens, flattering facial compression with natural perspective, f/1.4 wide aperture, shallow depth of field with creamy circular bokeh, tight field of view, professional rendering with smooth background separation.",
+      "prompt": "85mm classic portrait lens, flattering facial compression, shallow depth of field, creamy circular bokeh, f/1.4 aperture",
       "description": "Classic 85mm portrait - tight face framing",
       "tags": [
         "85mm",
@@ -11595,7 +11398,7 @@
       "group": "人像镜头"
     },
     "100mm Portrait": {
-      "prompt": "100mm short telephoto lens, pronounced compression with flattering perspective, f/2.0 aperture, strong background separation with shallow focus, smooth bokeh characteristics, tight field of view with minimal depth coverage.",
+      "prompt": "100mm short telephoto lens, pronounced compression, shallow depth of field, smooth bokeh, f/2.0 aperture",
       "description": "100mm portrait - tight facial close-up",
       "tags": [
         "100mm",
@@ -11609,7 +11412,7 @@
       "group": "人像镜头"
     },
     "105mm Headshot": {
-      "prompt": "105mm short telephoto lens, strong flattering compression, f/2.0 aperture, very shallow depth of field with complete background defocus, narrow field of view, professional optical characteristics with smooth bokeh.",
+      "prompt": "105mm short telephoto lens, strong flattering compression, very shallow depth of field, f/2.0 aperture",
       "description": "Headshot lens - face-dominant tight framing",
       "tags": [
         "105mm",
@@ -11623,7 +11426,7 @@
       "group": "人像镜头"
     },
     "135mm Fashion": {
-      "prompt": "135mm telephoto lens, very strong compression flattening perspective, f/2.0 aperture, extremely shallow depth of field, background compressed into abstract color wash, narrow field of view with pronounced telephoto character, smooth bokeh rendering.",
+      "prompt": "135mm telephoto lens, very strong compression, extremely shallow depth of field, abstract background, f/2.0 aperture",
       "description": "Fashion telephoto - extreme facial close-up",
       "tags": [
         "135mm",
@@ -11637,7 +11440,7 @@
       "group": "人像镜头"
     },
     "150mm Telephoto": {
-      "prompt": "150mm telephoto lens, extreme compression and perspective flattening, f/2.8 aperture, razor-thin depth of field, background completely abstracted, distant working distance with narrow field of view, compressed spatial relationships.",
+      "prompt": "150mm telephoto lens, extreme compression, razor-thin depth of field, f/2.8 aperture",
       "description": "Telephoto - very tight compressed framing",
       "tags": [
         "150mm",
@@ -11651,7 +11454,7 @@
       "group": "长焦镜头"
     },
     "200mm Long Telephoto": {
-      "prompt": "200mm long telephoto lens, maximum compression flattening all perspective, f/2.8 aperture, paper-thin depth of field, background reduced to pure bokeh abstractions, distant working distance with very narrow field of view, wildlife and sports photography compression character.",
+      "prompt": "200mm long telephoto lens, maximum compression, paper-thin depth of field, f/2.8 aperture",
       "description": "Long telephoto - maximum compression close-up",
       "tags": [
         "200mm",
@@ -11665,7 +11468,7 @@
       "group": "长焦镜头"
     },
     "300mm Super Telephoto": {
-      "prompt": "300mm super telephoto lens, extreme perspective compression collapsing depth, f/4.0 aperture, minimal depth of field, background utterly defocused into color fields, very narrow field of view from distant working distance, wildlife and sports photography aesthetic.",
+      "prompt": "300mm super telephoto lens, extreme compression, minimal depth of field, f/4.0 aperture",
       "description": "Super telephoto - ultra-tight maximum isolation",
       "tags": [
         "300mm",
@@ -11679,7 +11482,7 @@
       "group": "长焦镜头"
     },
     "60mm Macro": {
-      "prompt": "60mm macro lens, close working distance with 1:2 magnification ratio, f/2.8 aperture, shallow depth of field revealing intricate texture, intimate detail rendering capabilities, moderate working distance for flexibility.",
+      "prompt": "60mm macro lens, 1:2 magnification ratio, shallow depth of field revealing fine texture, f/2.8 aperture",
       "description": "Macro lens - close-up detail work",
       "tags": [
         "60mm",
@@ -11693,7 +11496,7 @@
       "group": "微距镜头"
     },
     "100mm Macro": {
-      "prompt": "100mm macro lens, 1:1 life-size magnification ratio, f/2.8 aperture, razor-thin depth of field, ultra-sharp focus rendering of microscopic details, comfortable working distance with natural lighting capability, professional macro photography optics.",
+      "prompt": "100mm macro lens, 1:1 life-size magnification, razor-thin depth of field, f/2.8 aperture",
       "description": "Macro 100mm - 1:1 magnification extreme detail",
       "tags": [
         "100mm",
@@ -11707,7 +11510,7 @@
       "group": "微距镜头"
     },
     "180mm Macro": {
-      "prompt": "180mm telephoto macro lens, 1:1 magnification with extended working distance, f/3.5 aperture, compressed perspective combined with macro magnification, distance-based isolation with smooth bokeh, professional nature macro photography optics.",
+      "prompt": "180mm telephoto macro lens, 1:1 magnification, extended working distance, compressed perspective, f/3.5 aperture",
       "description": "Telephoto macro - detail from distance",
       "tags": [
         "180mm",
@@ -11721,7 +11524,7 @@
       "group": "微距镜头"
     },
     "45mm Tilt-Shift": {
-      "prompt": "Selective focus with 45mm tilt-shift lens, creative focus plane manipulation, miniature effect with blurred edges, architectural perspective correction, f/2.8 aperture, technical photography quality, artistic selective sharpness, unique depth of field control, architectural and creative composition.",
+      "prompt": "45mm tilt-shift lens, selective focus plane, miniature effect with blurred edges, f/2.8 aperture",
       "description": "Tilt-shift - selective focus and perspective control",
       "tags": [
         "45mm",
@@ -11735,7 +11538,7 @@
       "group": "特殊镜头"
     },
     "Lensbaby Composer": {
-      "prompt": "Dreamy selective focus with Lensbaby lens, sweet spot of sharpness surrounded by artistic blur, swirling bokeh and soft focus edges, f/2.0 aperture, creative focus control, whimsical ethereal rendering, artistic portrait and fine art photography, painterly quality with sharp center.",
+      "prompt": "Lensbaby lens, sweet spot of sharpness surrounded by artistic blur, swirling bokeh, f/2.0 aperture",
       "description": "Lensbaby - dreamy artistic selective focus",
       "tags": [
         "lensbaby",
@@ -11749,7 +11552,7 @@
       "group": "特殊镜头"
     },
     "Petzval 85mm": {
-      "prompt": "Vintage portrait with 85mm Petzval lens, swirling bokeh character, dreamy vintage optical quality, sharp center with artistic blur swirls, f/2.2 aperture, warm nostalgic color cast, soft glow in highlights, classic portrait with unique bokeh personality, artistic fine-art portrait rendering.",
+      "prompt": "85mm Petzval lens, vintage swirling bokeh, sharp center with artistic blur, f/2.2 aperture",
       "description": "Petzval - vintage swirly bokeh portraits",
       "tags": [
         "85mm",
@@ -11763,7 +11566,7 @@
       "group": "特殊镜头"
     },
     "24-70mm Standard Zoom": {
-      "prompt": "24-70mm f/2.8 standard zoom lens, versatile focal range from environmental wide to medium telephoto, professional optics with consistent rendering throughout zoom range, f/2.8 constant aperture, workhorse lens optical quality, balanced perspective characteristics.",
+      "prompt": "24-70mm f/2.8 standard zoom lens, versatile range from wide to short telephoto",
       "description": "Standard zoom - versatile wide to portrait range",
       "tags": [
         "24-70mm",
@@ -11777,7 +11580,7 @@
       "group": "变焦镜头"
     },
     "70-200mm Telephoto Zoom": {
-      "prompt": "70-200mm f/2.8 telephoto zoom lens, professional telephoto focal range with versatile compression characteristics, f/2.8 constant aperture, consistent creamy bokeh throughout zoom range, sports and portrait photography optics, flexible telephoto character.",
+      "prompt": "70-200mm f/2.8 telephoto zoom lens, versatile compression, smooth bokeh throughout the range",
       "description": "Telephoto zoom - professional portrait to closeup range",
       "tags": [
         "70-200mm",
@@ -11791,7 +11594,7 @@
       "group": "变焦镜头"
     },
     "100-400mm Super Zoom": {
-      "prompt": "100-400mm super telephoto zoom lens, extreme compression and reach capability, f/4.5-5.6 variable aperture, wildlife and sports photography versatility, powerful magnification range, compressed perspective throughout focal range.",
+      "prompt": "100-400mm super telephoto zoom lens, extreme reach, f/4.5-5.6 aperture, wildlife and sports photography character",
       "description": "Super zoom - extreme telephoto reach and compression",
       "tags": [
         "100-400mm",
@@ -11805,7 +11608,7 @@
       "group": "变焦镜头"
     },
     "Zeiss Master Prime 25mm": {
-      "prompt": "Cinematic wide shot with Zeiss Master Prime 25mm cinema lens, environmental storytelling composition for film production, T1.3 aperture, clinical sharpness with subtle organic character, wide contextual framing, minimal breathing, professional cinema rendering, subject in rich environmental context, Hollywood production quality.",
+      "prompt": "Zeiss Master Prime 25mm cinema lens, wide environmental framing, T1.3 aperture, clinical sharpness",
       "description": "Cinema wide prime - cinematic environmental framing",
       "tags": [
         "25mm",
@@ -11819,7 +11622,7 @@
       "group": "电影定焦"
     },
     "Zeiss Master Prime 50mm": {
-      "prompt": "Zeiss Master Prime 50mm cinema lens, natural film perspective with subtle compression, T1.3 maximum aperture, clinical precision with organic falloff characteristics, minimal focus breathing, professional cinema production standard, professional cinema optical quality.",
+      "prompt": "Zeiss Master Prime 50mm cinema lens, natural film perspective, T1.3 aperture, clinical sharpness",
       "description": "Cinema standard prime - cinematic medium shot",
       "tags": [
         "50mm",
@@ -11833,7 +11636,7 @@
       "group": "电影定焦"
     },
     "Zeiss Master Prime 85mm": {
-      "prompt": "Zeiss Master Prime 85mm cinema lens, short telephoto focal length for film, T1.3 maximum aperture, clinical sharpness with smooth bokeh falloff, professional portrait compression characteristics, minimal breathing, Hollywood cinematography optical standard.",
+      "prompt": "Zeiss Master Prime 85mm cinema lens, flattering portrait compression, T1.3 aperture, smooth bokeh",
       "description": "Cinema portrait prime - cinematic close-up framing",
       "tags": [
         "85mm",
@@ -11847,7 +11650,7 @@
       "group": "电影定焦"
     },
     "Cooke S4 35mm": {
-      "prompt": "Cinematic medium-wide shot with Cooke S4 35mm cinema lens, organic 'Cooke Look' with warm character, T2.0 aperture, gentle falloff and smooth bokeh, environmental portrait framing for film, classic cinema rendering, subject in meaningful context, soft organic quality, professional film production, warm cinematic color.",
+      "prompt": "Cooke S4 35mm cinema lens, warm organic Cooke Look, T2.0 aperture, gentle falloff",
       "description": "Cooke cinema lens - organic medium-wide framing",
       "tags": [
         "35mm",
@@ -11861,7 +11664,7 @@
       "group": "电影定焦"
     },
     "Cooke S4 65mm": {
-      "prompt": "Cooke S4 65mm cinema lens, intimate 'Cooke Look' optical character, T2.0 maximum aperture, warm organic rendering with smooth falloff, gentle compression characteristics with beautiful tone rendition, classic cinema optics, professional production optical quality.",
+      "prompt": "Cooke S4 65mm cinema lens, warm organic Cooke Look, T2.0 aperture, smooth falloff",
       "description": "Cooke cinema portrait - warm intimate framing",
       "tags": [
         "65mm",
@@ -11875,7 +11678,7 @@
       "group": "电影定焦"
     },
     "Arri Signature Prime 40mm": {
-      "prompt": "Arri Signature Prime 40mm cinema lens, contemporary cinema optical design, T1.8 maximum aperture, large format coverage capability, smooth natural bokeh with modern optical formula, minimal aberrations, professional cinema production standard, modern digital cinema characteristics.",
+      "prompt": "Arri Signature Prime 40mm cinema lens, modern cinema optics, T1.8 aperture, smooth natural bokeh",
       "description": "Arri cinema prime - modern medium framing",
       "tags": [
         "40mm",
@@ -11889,7 +11692,7 @@
       "group": "电影定焦"
     },
     "Anamorphic 35mm": {
-      "prompt": "Widescreen cinematic shot with 35mm anamorphic cinema lens, 2.39:1 scope aspect ratio, environmental composition with anamorphic character, T2.0 aperture, characteristic horizontal blue lens flares, oval bokeh, wide contextual framing for scope format, cinematic widescreen storytelling, Hollywood blockbuster aesthetic, subject in epic widescreen context.",
+      "prompt": "35mm anamorphic cinema lens, 2.39:1 widescreen scope, T2.0 aperture, horizontal blue lens flares, oval bokeh",
       "description": "Anamorphic wide - widescreen environmental scope",
       "tags": [
         "35mm",
@@ -11903,7 +11706,7 @@
       "group": "变形宽银幕"
     },
     "Anamorphic 50mm": {
-      "prompt": "50mm anamorphic cinema lens, 2.39:1 widescreen scope format coverage, T2.0 aperture, horizontal lens flares and oval bokeh patterns, natural perspective with anamorphic optical character, classic cinema widescreen scope optics, Hollywood aesthetic rendering.",
+      "prompt": "50mm anamorphic cinema lens, 2.39:1 scope format, T2.0 aperture, horizontal lens flares, oval bokeh",
       "description": "Anamorphic standard - widescreen medium shot",
       "tags": [
         "50mm",
@@ -11917,7 +11720,7 @@
       "group": "变形宽银幕"
     },
     "Anamorphic 75mm": {
-      "prompt": "75mm anamorphic cinema lens, 2.39:1 scope format coverage, T2.0 aperture, characteristic horizontal streaking flares, oval bokeh patterns, cinematic portrait compression with anamorphic optical character, short telephoto field of view in scope format, Hollywood optics.",
+      "prompt": "75mm anamorphic cinema lens, 2.39:1 scope format, T2.0 aperture, horizontal streaking flares, oval bokeh",
       "description": "Anamorphic portrait - widescreen close-up scope",
       "tags": [
         "75mm",
@@ -11931,7 +11734,7 @@
       "group": "变形宽银幕"
     },
     "Panavision Anamorphic": {
-      "prompt": "Epic widescreen shot with Panavision anamorphic cinema lens, 2.39:1 Hollywood scope format, legendary Panavision rendering, T2.3 aperture, iconic horizontal blue lens flares, smooth oval bokeh, classic Hollywood blockbuster aesthetic, cinematic scope composition, premium film production quality, epic widescreen framing with anamorphic magic.",
+      "prompt": "Panavision anamorphic cinema lens, 2.39:1 Hollywood scope, T2.3 aperture, iconic horizontal blue lens flares",
       "description": "Panavision anamorphic - legendary Hollywood scope",
       "tags": [
         "panavision",
@@ -11945,7 +11748,7 @@
       "group": "变形宽银幕"
     },
     "Atlas Orion Anamorphic": {
-      "prompt": "Vintage widescreen with Atlas Orion anamorphic lens, 2.39:1 scope with vintage character, T2.0 aperture, blue horizontal flares with vintage warmth, organic oval bokeh, classic anamorphic rendering with modern sharpness, retro-futuristic cinema aesthetic, vintage Hollywood scope character meets modern optical quality.",
+      "prompt": "Atlas Orion anamorphic lens, 2.39:1 scope with vintage character, T2.0 aperture, blue flares with vintage warmth",
       "description": "Atlas Orion - vintage character anamorphic scope",
       "tags": [
         "atlas orion",
@@ -11959,7 +11762,7 @@
       "group": "变形宽银幕"
     },
     "Angenieux 25-250mm": {
-      "prompt": "Classic cinema zoom with Angenieux 25-250mm lens, versatile cinematic framing from wide to telephoto, T3.5 aperture, legendary Hollywood zoom lens, consistent rendering throughout range, vintage cinema character with modern sharpness, professional film production, flexible composition with classic cinema quality.",
+      "prompt": "Angenieux 25-250mm cinema zoom, versatile wide to telephoto range, T3.5 aperture, vintage cinema character",
       "description": "Cinema zoom - legendary versatile range",
       "tags": [
         "25-250mm",
@@ -11973,7 +11776,7 @@
       "group": "电影变焦"
     },
     "Fujinon Premier 18-85mm": {
-      "prompt": "Fujinon Premier 18-85mm cinema zoom, T2.0 constant aperture, flexible range from wide environmental to portrait focal lengths, professional documentary cinema quality, consistent color and contrast throughout range, modern cinema zoom for documentary production, natural rendering with cinema character.",
+      "prompt": "Fujinon Premier 18-85mm cinema zoom, T2.0 constant aperture, documentary cinema quality",
       "description": "Cinema zoom - documentary production range",
       "tags": [
         "18-85mm",
@@ -11987,7 +11790,7 @@
       "group": "电影变焦"
     },
     "Canon CN-E 30-300mm": {
-      "prompt": "Canon CN-E 30-300mm telephoto cinema zoom, professional cinematic compression throughout range, T2.95-3.7 aperture, powerful zoom reach across the telephoto range, consistent bokeh and rendering, professional cinema production, sports and wildlife cinematography quality, flexible telephoto cinema framing.",
+      "prompt": "Canon CN-E 30-300mm telephoto cinema zoom, T2.95-3.7 aperture, powerful telephoto reach",
       "description": "Cinema telephoto zoom - professional cinema reach",
       "tags": [
         "30-300mm",
@@ -12001,7 +11804,7 @@
       "group": "电影变焦"
     },
     "Vintage Cooke Panchro": {
-      "prompt": "Classic film look with vintage Cooke Panchro cinema lens, warm organic 'Cooke Look' with vintage character, T2.3 aperture, soft film-era glow in highlights, gentle falloff and warm skin tones, classic Hollywood golden age rendering, romantic vintage cinema quality, nostalgic film aesthetic with authentic vintage optics.",
+      "prompt": "Vintage Cooke Panchro cinema lens, warm organic rendering, T2.3 aperture, soft film-era glow",
       "description": "Vintage Cooke - classic Hollywood film look",
       "tags": [
         "vintage",
@@ -12015,7 +11818,7 @@
       "group": "复古镜头"
     },
     "Vintage Helios 44-2": {
-      "prompt": "Swirly vintage portrait with Helios 44-2 58mm lens, characteristic swirling bokeh pattern, vintage Soviet optics, f/2.0 aperture, unique bokeh rendering with swirls and cats-eye effects, warm vintage color cast, soft glow in out-of-focus areas, artistic vintage portrait character, cult classic vintage lens aesthetic.",
+      "prompt": "Vintage Helios 44-2 58mm lens, swirling bokeh, f/2.0 aperture, cult Soviet optical character",
       "description": "Helios vintage - iconic swirly bokeh character",
       "tags": [
         "helios",
@@ -12029,7 +11832,7 @@
       "group": "复古镜头"
     },
     "Vintage Canon K35": {
-      "prompt": "Warm vintage cinema with Canon K35 cinema lens, legendary 1970s-80s cinema optics, T1.5 aperture, warm golden vintage rendering, soft dreamy character with sharp center, reduced contrast for film look, nostalgic Hollywood cinema aesthetic, popular for period films and music videos, authentic vintage cinema character.",
+      "prompt": "Vintage Canon K35 cinema lens, warm golden rendering, T1.5 aperture, soft dreamy character",
       "description": "Canon K35 - warm vintage cinema classic",
       "tags": [
         "canon k35",
