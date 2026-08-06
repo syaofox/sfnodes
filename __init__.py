@@ -108,6 +108,7 @@ from .nodes.utils.simple_math import (
     BatchCount,
 )
 from .nodes.text.dropdown import TextDropdown
+from .nodes.text.text_preset import SFTextPreset
 from .nodes.text.replace import SFTextReplace
 from .nodes.text.prompt_list import SFPromptList
 from .nodes.text.concatenate import SFTextConcatenate
@@ -246,6 +247,7 @@ NODE_CLASS_MAPPINGS = {
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
     "SFTextDropdown": TextDropdown,
+    "SFTextPreset": SFTextPreset,
     "SFTextReplace": SFTextReplace,
     "SFPromptList": SFPromptList,
     "SFTextConcatenate": SFTextConcatenate,
@@ -404,6 +406,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",
     "SFTextDropdown": "SF Text Dropdown",
+    "SFTextPreset": "SF Text Preset",
     "SFTextReplace": "SF Text Replace",
     "SFPromptList": "SF Prompt List",
     "SFTextConcatenate": "SF Text Concatenate",
