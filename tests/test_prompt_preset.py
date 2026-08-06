@@ -121,6 +121,13 @@ check("Outfit 全裸保留裸体词（职责归属）", "fully nude" in _data["O
 check("全裸站立已删除（与站立肖像重复）", "Fully Nude Standing" not in _data["Pose"]
       and "全裸站立" not in opt["pose_preset"][0])
 
+# 灯光词正交：Pose/Couple Pose 动作不内嵌灯光（光由 Lighting 分类控制）
+_light_pat = _re_nude.compile(r"\blighting\b|\bglow\b|illuminat|shimmer|natural light|soft light|warm light|window light", _re_nude.I)
+_pose_light = [n for n, v in _data["Pose"].items() if _light_pat.search(v["prompt"])]
+_couple_light = [n for n, v in _data["Couple Pose"].items() if _light_pat.search(v["prompt"])]
+check(f"Pose 无灯光词 ({_pose_light})", len(_pose_light) == 0)
+check(f"Couple 无灯光词 ({_couple_light})", len(_couple_light) == 0)
+
 node = mod.SFPromptPreset()
 
 # 2. specific zh selection -> english prompt (non-empty, no Chinese in output)

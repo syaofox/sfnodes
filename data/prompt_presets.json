@@ -6997,7 +6997,7 @@
     },
     "Lying on Grass": {
       "name_zh": "草地躺卧",
-      "prompt": "Lying on the grass, propped on one elbow, legs relaxed, peaceful outdoor rest pose, soft natural light.",
+      "prompt": "Lying on the grass, propped on one elbow, legs relaxed, peaceful outdoor rest pose.",
       "description": "Peaceful grass lying pose",
       "tags": [
         "lying",
@@ -7127,7 +7127,7 @@
     },
     "Eyes Closed Smile": {
       "name_zh": "闭眼微笑",
-      "prompt": "Standing with eyes closed and a gentle smile, face tilted slightly up, serene peaceful pose, soft natural light.",
+      "prompt": "Standing with eyes closed and a gentle smile, face tilted slightly up, serene peaceful pose.",
       "description": "Serene eyes-closed smiling pose",
       "tags": [
         "eyes closed",
