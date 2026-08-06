@@ -30,6 +30,16 @@
 //   SFAnyPack input is always "value{index}")
 // - Slot names are kept on disconnect
 //
+// Slot coloring (auto-adapt to the connected data type):
+// - SFAnyPack input slots / SFAnyUnpack output slots retype themselves to the
+//   connected data type(s), so the slot dot matches the wire color
+//   (e.g. IMAGE orange, MASK green; a "IMAGE,MASK" union renders as split
+//   colors). Slots revert to "*" (neutral) once disconnected.
+// - Types are recomputed on connect/disconnect and after workflow load/paste
+//   (onAfterGraphConfigured: configure restores links without firing
+//   onConnectionsChange). The backend keeps declaring "*", so the retyping is
+//   purely a frontend concern (slot rendering + connection validation).
+//
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
@@ -96,6 +106,64 @@ function propagateNames(node, depth = 0) {
 
     for (const target of changedTargets) {
         propagateNames(target, depth + 1);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Slot coloring: collect the types of all links attached to a slot (1 for
+// inputs, N for outputs) and expose them as a comma-separated union type.
+// "*/empty" types are dropped (nothing to color); link types are already
+// concrete because the graph computes them with commonType() at connect time.
+// ---------------------------------------------------------------------------
+function slotLinkTypes(node, slot) {
+    if (!node || !node.graph || !slot) return [];
+    const ids = slot.link != null
+        ? [slot.link]
+        : Array.isArray(slot.links)
+            ? slot.links
+            : [];
+    const types = [];
+    for (const id of ids) {
+        const link = node.graph.links[id];
+        const t = link && typeof link.type === "string" ? link.type : "";
+        for (const part of t.split(",")) {
+            const p = part.trim();
+            if (p && p !== "*" && !types.includes(p)) types.push(p);
+        }
+    }
+    return types;
+}
+
+function unionType(types) {
+    return types && types.length ? types.join(",") : "*";
+}
+
+// Replace the slot with a shallow copy carrying the new type. In the Vue
+// frontend node.inputs/node.outputs are reactive arrays: mutating slot.type
+// in place does not re-render the slot dot, but replacing the array element
+// does (same pattern as the official dynamic-type feature).
+function setSlotType(node, slots, index, type) {
+    const slot = slots[index];
+    if (!slot || slot.type === type) return;
+    slots[index] = Object.assign({}, slot, { type });
+    app.canvas?.setDirty?.(true, true);
+}
+
+// Recompute the type of every dynamic slot of a Pack/Unpack node from its
+// current links. Runs on connect/disconnect and after workflow load/paste.
+function syncSlotTypes(node) {
+    if (!node || !node.graph) return;
+    const isPack = node.comfyClass === "SFAnyPack";
+    const isUnpack = node.comfyClass === "SFAnyUnpack";
+    if (!isPack && !isUnpack) return;
+    if (isPack) {
+        (node.inputs || []).forEach((slot, i) => {
+            setSlotType(node, node.inputs, i, unionType(slotLinkTypes(node, slot)));
+        });
+    } else {
+        (node.outputs || []).forEach((slot, i) => {
+            setSlotType(node, node.outputs, i, unionType(slotLinkTypes(node, slot)));
+        });
     }
 }
 
@@ -261,6 +329,16 @@ app.registerExtension({
 
         setupRenameMenu(node, isInput);
 
+        // After workflow load/paste the links are restored without firing
+        // onConnectionsChange, so recompute all slot types from the links.
+        const originalOnAfterConfigured = node.onAfterGraphConfigured;
+        node.onAfterGraphConfigured = function () {
+            if (originalOnAfterConfigured) {
+                originalOnAfterConfigured.apply(this, arguments);
+            }
+            syncSlotTypes(this);
+        };
+
         const originalOnConnectionsChange = node.onConnectionsChange;
 
         node.onConnectionsChange = function (type, index, connected, link_info, slot_info) {
@@ -307,6 +385,10 @@ app.registerExtension({
                     }
                 }
             }
+
+            // Recolor dynamic slots from the current link state (connect or
+            // disconnect already updated slot.link / slot.links by now).
+            syncSlotTypes(this);
 
             if (originalOnConnectionsChange) {
                 originalOnConnectionsChange.apply(this, arguments);
