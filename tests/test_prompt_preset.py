@@ -97,7 +97,7 @@ check("expression 38 项(含6组随机)", len(opt["expression_preset"][0]) == 46
 check("outfit 71 项(含2组随机)", len(opt["outfit_preset"][0]) == 75)
 check("pose 76 项(含2组随机)", len(opt["pose_preset"][0]) == 80)
 check("couple 47 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
-check("environment 111 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
+check("environment 112 项(含8组随机)", len(opt["environment_preset"][0]) == 122)
 check("lighting 62 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
 check("style 49 项(含2组随机)", len(opt["style_preset"][0]) == 53)
 check("angle 26 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
@@ -432,8 +432,12 @@ check("时尚影棚单幅人像无拼贴词", "collage" not in _data["Style"]["F
 
 # Environment 数据驱动分组
 _env_groups = [v["group"] for v in _data["Environment"].values()]
-check("Environment 全部有分组", len(_env_groups) == 111 and set(_env_groups) ==
+check("Environment 全部有分组", len(_env_groups) == 112 and set(_env_groups) ==
       {"自然风光", "城市街景", "科幻未来", "历史复古", "恐怖暗黑", "室内空间", "日系生活", "私密场所"})
+_, pack = node.execute("x", seed=1, environment_preset="都市街头（夜晚）")
+check("都市街头（夜晚）反查命中 night", "nighttime" in pack["Environment"].lower())
+_, pack = node.execute("x", seed=1, environment_preset="都市街头（白天）")
+check("都市街头（白天）反查命中 daytime 无 night", "daytime" in pack["Environment"] and "night" not in pack["Environment"])
 check("私密场所分组", _data["Environment"]["Love Hotel Room"]["group"] == "私密场所"
       and _data["Environment"]["Poolside"]["group"] == "室内空间"
       and _data["Environment"]["Onsen"]["group"] == "日系生活")

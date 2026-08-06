@@ -7906,9 +7906,9 @@
       "name_zh": "夜晚稻田",
       "group": "自然风光"
     },
-    "Urban Street": {
+    "Urban Street Night": {
       "prompt": "Nighttime urban street scene with sleek sports cars positioned on wet asphalt, glowing neon signs, colorful city lights reflecting on street surface, tall buildings creating an urban canyon, moody cinematic atmosphere.",
-      "description": "Urban night street with neon and city lights",
+      "description": "Nighttime urban street with neon signs and wet asphalt reflections",
       "tags": [
         "urban",
         "street",
@@ -7916,7 +7916,21 @@
         "neon"
       ],
       "weight": 1.0,
-      "name_zh": "都市街头",
+      "name_zh": "都市街头（夜晚）",
+      "group": "城市街景"
+    },
+    "Urban Street Daytime": {
+      "prompt": "Bright daytime urban street scene with modern skyscrapers forming an urban canyon, busy traffic on sunlit asphalt, clear blue sky with crisp daylight, wide sidewalks and crosswalks, energetic metropolitan atmosphere.",
+      "description": "Daytime urban street with skyscrapers and busy traffic",
+      "tags": [
+        "urban",
+        "street",
+        "daytime",
+        "daylight",
+        "skyscrapers"
+      ],
+      "weight": 1.0,
+      "name_zh": "都市街头（白天）",
       "group": "城市街景"
     },
     "Studio Collage": {
