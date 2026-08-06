@@ -10421,6 +10421,21 @@
       "name_zh": "时尚影棚肖像",
       "group": "写实"
     },
+    "Fashion Studio Single Portrait": {
+      "prompt": "Ultra-realistic cinematic elegant fashion editorial portrait, single-frame composition, premium luxury editorial aesthetic, ultra-rich color grading with deep saturated tones, sophisticated color palette, warm cinematic highlights against moody dark backdrop, elegant visual separation, HDR lighting, global illumination, photorealistic rendering.",
+      "description": "Premium single-frame fashion portrait with ultra-realistic cinematic rendering",
+      "tags": [
+        "fashion",
+        "portrait",
+        "cinematic",
+        "ultra-realistic",
+        "editorial",
+        "single"
+      ],
+      "weight": 1.3,
+      "name_zh": "时尚影棚单幅人像",
+      "group": "写实"
+    },
     "Documentary Realism": {
       "prompt": "Documentary photojournalism style, authentic unposed moments, natural lighting preserved, reportage aesthetic, candid street photography, raw genuine emotion, unmanipulated realism, authentic human moments, photojournalistic integrity, real-world texture and grain.",
       "description": "Documentary photojournalism with authentic realism",

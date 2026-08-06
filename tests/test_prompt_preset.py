@@ -99,7 +99,7 @@ check("pose 76 项(含2组随机)", len(opt["pose_preset"][0]) == 80)
 check("couple 47 项(含3组随机)", len(opt["couple_preset"][0]) == 52)
 check("environment 111 项(含8组随机)", len(opt["environment_preset"][0]) == 121)
 check("lighting 62 项(含7组随机)", len(opt["lighting_preset"][0]) == 71)
-check("style 48 项(含2组随机)", len(opt["style_preset"][0]) == 52)
+check("style 49 项(含2组随机)", len(opt["style_preset"][0]) == 53)
 check("angle 26 项(含5组随机)", len(opt["camera_angle_preset"][0]) == 33)
 check("distance 11 项(含4组随机)", len(opt["camera_distance_preset"][0]) == 17)
 check("camera 43 项(含11组随机)", len(opt["camera_lens_preset"][0]) == 56)
@@ -425,8 +425,10 @@ check("group 字段优先于推导", _g("Outfit", "全裸", {"tags": ["adult"], 
 check("路由 Style 分组", _resp.data["Style"]["写实摄影风"]["group"] == "写实"
       and _resp.data["Style"]["动漫手绘风"]["group"] == "非写实")
 _all_style = [v["group"] for v in _data["Style"].values()]
-check("Style 全部有分组", len(_all_style) == 48 and set(_all_style) == {"写实", "非写实"}
-      and _all_style.count("写实") == 22 and _all_style.count("非写实") == 26)
+check("Style 全部有分组", len(_all_style) == 49 and set(_all_style) == {"写实", "非写实"}
+      and _all_style.count("写实") == 23 and _all_style.count("非写实") == 26)
+check("时尚影棚单幅人像无拼贴词", "collage" not in _data["Style"]["Fashion Studio Single Portrait"]["prompt"].lower()
+      and "single-frame" in _data["Style"]["Fashion Studio Single Portrait"]["prompt"])
 
 # Environment 数据驱动分组
 _env_groups = [v["group"] for v in _data["Environment"].values()]
