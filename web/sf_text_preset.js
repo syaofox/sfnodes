@@ -309,6 +309,12 @@ app.registerExtension({
         const presetWidget = findWidget(node, "preset");
         if (!presetsWidget || !presetWidget) return;
 
+        // 隐藏 JSON 数据载体（后端 display:hidden 在 Vue 新版前端不生效），
+        // 保留在 widgets 数组中 → 值仍随 workflow 序列化/恢复
+        presetsWidget.hidden = true;
+        presetsWidget.computeSize = () => [0, 0];
+        presetsWidget.draw = () => {};
+
         const originalCallback = presetWidget.callback;
         presetWidget.callback = function (...args) {
             refreshContentDisplay(node);

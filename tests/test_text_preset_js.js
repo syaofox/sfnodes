@@ -101,6 +101,10 @@ const n1 = mkNode('[{"name": "A", "text": "hello"}, {"name": "B", "text": "world
 const presetW1 = n1.widgets.find((w) => w.name === "preset");
 const jsonW1 = n1.widgets.find((w) => w.name === "presets_json");
 const displayW1 = n1.widgets.find((w) => w.name === "content_display");
+check("presets_json 已隐藏（hidden）", jsonW1.hidden === true);
+check("presets_json 零尺寸", typeof jsonW1.computeSize === "function" && jsonW1.computeSize()[0] === 0);
+check("presets_json 不绘制", typeof jsonW1.draw === "function");
+check("presets_json 仍在数组中（可序列化）", n1.widgets.includes(jsonW1));
 check("combo 选项重建为预设名", JSON.stringify(presetW1.options.values) === '["A","B"]');
 check("当前选中保留", presetW1.value === "A");
 check("预览 widget 已添加且不序列化", displayW1 !== undefined && displayW1.serialize === false);
