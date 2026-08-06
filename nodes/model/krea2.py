@@ -428,14 +428,16 @@ _register_krea2_routes()
 
 # 图像反推的默认指令（用户提示词会替换模板占位符）。
 INTERROGATOR_DEFAULT_PROMPT = (
-    "Describe this image in detail, including the subjects, facial expressions, gender, "
-    "hairstyle, hair color, ethnicity, clothing, objects, scene, art style, colors and "
-    "composition. Provide the description as a usable image generation prompt."
+    "Generate a detailed paragraph that combines the subject, actions, environment, "
+    "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+    "rather than speculation. Include each character's facial expressions, gender, "
+    "hairstyle, hair color, clothing, objects, art style and composition where visible."
 )
 
 # SFImageInterrogator 的反推指令预设：键为 combo 显示名，值为指令文本。唯一数据源；
 # 前端 web/krea2_interrogator.js 通过 GET /api/sfnodes/interrogator_presets 获取。
-# 相貌相关预设与 KREA2_PRESETS 语义对称：保留性别/表情/发型发色，仅排除相貌特征。
+# 行文统一为"段落式模板 + 追加句"（模板见"简单描述"）；相貌相关预设与 KREA2_PRESETS
+# 语义对称：保留性别/表情/发型发色，仅排除相貌特征。
 INTERROGATOR_PRESETS = {
     "default": INTERROGATOR_DEFAULT_PROMPT,
     "简单描述": (
@@ -443,26 +445,29 @@ INTERROGATOR_PRESETS = {
         "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
         "rather than speculation."
     ),
+    "不描述发色和瞳孔": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe hair color and eye color."
+    ),
     "不描述人物相貌": (
-        "Describe this image in detail, including each character's facial expressions, gender, "
-        "hairstyle and hair color, poses, actions, clothing, objects, scene, art style, colors, "
-        "lighting and composition. But DO NOT describe any character's facial features, "
-        "appearance, facial contours or looks. Provide the description as a usable image "
-        "generation prompt."
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours or looks."
     ),
     "不描述人物相貌与身材": (
-        "Describe this image in detail, including each character's facial expressions, gender, "
-        "hairstyle and hair color, poses, actions, clothing, objects, scene, art style, colors, "
-        "lighting and composition. But DO NOT describe any character's facial features, "
-        "appearance, facial contours, body shape or height. Provide the description as a usable "
-        "image generation prompt."
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape or height."
     ),
     "不描述相貌身材和发型发色": (
-        "Describe this image in detail, including each character's facial expressions and gender, "
-        "poses, actions, clothing, objects, scene, art style, colors, lighting and composition. "
-        "But DO NOT describe any character's facial features, appearance, facial contours, body "
-        "shape, height, hairstyle or hair color. Provide the description as a usable image "
-        "generation prompt."
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation. Note that you should not describe any character's facial "
+        "features, appearance, facial contours, body shape, height, hairstyle, hair color or "
+        "eye color."
     ),
 }
 
