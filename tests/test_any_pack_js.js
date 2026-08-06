@@ -2,6 +2,8 @@
 // 覆盖：
 // - 新增：按连接数据类型自动着色（pack 输入 / unpack 输出）、union 累积/去重、断开恢复 "*"、
 //   workflow 恢复（onAfterGraphConfigured）重算、源为 "*" 时不着色
+// - 新增：pack 初始 1 输入；unpack 输出槽自动展开到上游 pack 输入槽数（只增不减、
+//   连接时跟随、configure 恢复补齐、断开保底 = pack 槽数、pack 收缩后保底跟随）
 // - 回归：动态槽位自动增删、自动命名、手动改名保护、名称传播（pack → unpack）、prompt 键映射
 const fs = require("fs");
 const path = require("path");
@@ -109,8 +111,7 @@ const makeTarget = (id, inputs) => ({
 let linkSeq = 1;
 const makeLink = (type, origin, originSlot, target, targetSlot) => {
     const id = linkSeq++;
-    const link = { id, type, origin_id: origin.id, origin_slot: originSlot, target_id: target.id, target_slot: targetSlot };
-    return link;
+    return { id, type, origin_id: origin.id, origin_slot: originSlot, target_id: target.id, target_slot: targetSlot };
 };
 
 function connectInput(graph, target, inputIndex, source, sourceSlot) {
@@ -160,7 +161,7 @@ const graph = makeGraph();
 const pack = makeNode("SFAnyPack", graph, 5);
 ext.nodeCreated(pack);
 graph._nodes.push(pack);
-check("pack 创建后裁剪到 2 输入", pack.inputs.length === 2);
+check("pack 创建后裁剪到 1 输入", pack.inputs.length === 1);
 check("pack 初始槽位均为 *", pack.inputs.every((s) => s.type === "*"));
 
 // 其他节点不受影响
@@ -179,6 +180,7 @@ check("着色通过替换数组元素触发重渲染", pack.inputs[0] !== slot0B
 check("替换元素保留 link", pack.inputs[0].link === slot0Before.link);
 check("自动命名沿用源输出名（回归）", pack.inputs[0].name === "image");
 check("着色触发画布重绘", canvasDirty > dirtyBefore);
+check("连接后自动追加 value1", pack.inputs.length === 2 && pack.inputs[1].name === "value1");
 
 // 源为 "*" 时保持 *
 const anySrc = makeSource(2, [["any", "*"]]);
@@ -193,25 +195,28 @@ check("全连接后自动追加 value2（回归）", pack.inputs.length === 3 &&
 
 // 断开：回收尾部空槽 + 恢复 *
 disconnectInput(graph, pack, 1);
-check("断开后尾部空槽回收（回归）", pack.inputs.length === 2);
-check("断开后类型恢复 *", pack.inputs[1].type === "*");
+check("断开后尾部空槽回收（回归）", pack.inputs.length === 1);
+check("未断开槽位保持着色", pack.inputs[0].type === "IMAGE");
 disconnectInput(graph, pack, 0);
 check("全部断开后输入槽恢复 *", pack.inputs[0].type === "*");
 
-// ---------- 名称传播（回归）：pack → unpack ----------
+// ---------- 名称传播 + 自动展开：pack → unpack ----------
 const unpack = makeNode("SFAnyUnpack", graph, 4);
 ext.nodeCreated(unpack);
 graph._nodes.push(unpack);
 check("unpack 创建后裁剪到 1 输出", unpack.outputs.length === 1);
 check("unpack 初始输出槽为 *", unpack.outputs[0].type === "*");
 
-connectInput(graph, pack, 0, imgSrc, 0); // 重新连接 IMAGE（自动命名 image）
+connectInput(graph, pack, 0, imgSrc, 0); // 重新连接 IMAGE（pack 2 槽：value0/image + value1）
 const plink = makeLink("SF_PACK", pack, 0, unpack, 0);
 graph.links[plink.id] = plink;
 pack.outputs[0].links = [plink.id];
 unpack.inputs[0].link = plink.id;
 unpack.onConnectionsChange(1, 0, true, plink, unpack.inputs[0]);
+check("unpack 自动展开到 pack 输入槽数（2）", unpack.outputs.length === 2);
 check("unpack 输出名跟随 pack 输入名（传播）", unpack.outputs[0].name === "image");
+check("unpack 新输出按索引传播名称", unpack.outputs[1].name === "value1");
+check("unpack 展开的新槽为 *", unpack.outputs.every((s) => s.type === "*"));
 
 // ---------- 着色：unpack 输出（union） ----------
 const imgTarget = makeTarget(7, [["image", "IMAGE"]]);
@@ -221,26 +226,45 @@ graph._nodes.push(imgTarget, imgTarget2, maskTarget);
 
 const lImg = connectOutput(graph, unpack, 0, imgTarget, 0);
 check("连接 IMAGE 目标后输出槽着色", unpack.outputs[0].type === "IMAGE");
-check("unpack 自动追加 out1（回归）", unpack.outputs.length === 2 && unpack.outputs[1].name === "out1");
+check("已展开时不追加空槽", unpack.outputs.length === 2);
 const lMask = connectOutput(graph, unpack, 0, maskTarget, 0);
 check("第二个类型形成 union", unpack.outputs[0].type === "IMAGE,MASK");
 const lImg2 = connectOutput(graph, unpack, 0, imgTarget2, 0);
 check("union 去重", unpack.outputs[0].type === "IMAGE,MASK");
 check("未连接槽保持 *", unpack.outputs[1].type === "*");
 
+// ---------- pack 槽数增长 → unpack 跟随展开 ----------
+const maskSrc = makeSource(3, [["mask", "MASK"]]);
+graph._nodes.push(maskSrc);
+connectInput(graph, pack, 1, maskSrc, 0);
+check("pack 追加 value2", pack.inputs.length === 3);
+check("unpack 跟随展开到 3 输出", unpack.outputs.length === 3);
+check("unpack 新输出 2 名称 = value2", unpack.outputs[2].name === "value2");
+
+// ---------- 断开保底：floor = pack 槽数 ----------
 disconnectOutput(graph, unpack, 0, lMask.id);
 check("断开一个后 union 收缩", unpack.outputs[0].type === "IMAGE");
+check("pack 连接时尾部空槽不回收", unpack.outputs.length === 3);
 disconnectOutput(graph, unpack, 0, lImg2.id);
 disconnectOutput(graph, unpack, 0, lImg.id);
 check("全部断开后输出槽恢复 *", unpack.outputs[0].type === "*");
-check("断开后尾部空槽回收（回归）", unpack.outputs.length === 1);
+check("pack 连接时保持展开", unpack.outputs.length === 3);
 
-// ---------- 手动改名保护 + 仍着色 ----------
+// ---------- pack 收缩 → unpack 保底跟随 ----------
+disconnectInput(graph, pack, 1);
+check("pack 断开后回收尾部空槽", pack.inputs.length === 1);
+const lX = connectOutput(graph, unpack, 0, imgTarget2, 0);
+check("重连后输出槽着色", unpack.outputs[0].type === "IMAGE");
+disconnectOutput(graph, unpack, 0, lX.id);
+check("pack 收缩后尾部空槽可回收", unpack.outputs.length === 1);
+
+// ---------- 手动改名保护 + 仍着色 + 重新展开 ----------
 pack.inputs[0].name = "myimage";
 pack.inputs[0].sfManualName = true;
 connectInput(graph, pack, 0, imgSrc, 0);
 check("手动改名不被自动命名覆盖", pack.inputs[0].name === "myimage");
 check("手动改名槽位仍着色", pack.inputs[0].type === "IMAGE");
+check("pack 再连接后 unpack 重新展开", unpack.outputs.length === 2);
 
 // ---------- union 源类型展平 ----------
 const unionSrc = makeSource(13, [["img_mask", "IMAGE,MASK"]]);
@@ -255,6 +279,7 @@ check("union 源类型展平到槽位", pack3.inputs[0].type === "IMAGE,MASK");
 const pack2 = makeNode("SFAnyPack", graph, 6);
 ext.nodeCreated(pack2);
 graph._nodes.push(pack2);
+pack2.addInput("value1", "*"); // 模拟恢复的工作流中 pack 有 2 个输入槽
 pack2.inputs[0].link = 77;
 graph.links[77] = { id: 77, type: "LATENT", origin_id: 10, origin_slot: 0, target_id: 6, target_slot: 0 };
 pack2.inputs[1].link = 78;
@@ -269,6 +294,24 @@ unpack2.outputs[0].links = [79];
 graph.links[79] = { id: 79, type: "MODEL", origin_id: 16, origin_slot: 0, target_id: 12, target_slot: 0 };
 unpack2.onAfterGraphConfigured.call(unpack2);
 check("workflow 恢复后 unpack 按 links 着色", unpack2.outputs[0].type === "MODEL");
+
+// ---------- 老 workflow 恢复：unpack 输出补齐到 pack 槽数 ----------
+const pack4 = makeNode("SFAnyPack", graph, 20);
+ext.nodeCreated(pack4);
+graph._nodes.push(pack4);
+pack4.addInput("value1", "*"); // 模拟恢复的工作流中 pack 有 2 个输入槽
+pack4.inputs[0].link = 80;
+graph.links[80] = { id: 80, type: "IMAGE", origin_id: 30, origin_slot: 0, target_id: 20, target_slot: 0 };
+pack4.inputs[1].link = 81;
+graph.links[81] = { id: 81, type: "MASK", origin_id: 31, origin_slot: 0, target_id: 20, target_slot: 1 };
+const unpack3 = makeNode("SFAnyUnpack", graph, 21);
+ext.nodeCreated(unpack3);
+graph._nodes.push(unpack3);
+unpack3.inputs[0].link = 82;
+graph.links[82] = { id: 82, type: "SF_PACK", origin_id: 20, origin_slot: 0, target_id: 21, target_slot: 0 };
+pack4.outputs[0].links = [82];
+unpack3.onAfterGraphConfigured.call(unpack3);
+check("configure 后 unpack 补齐到 pack 槽数", unpack3.outputs.length === 2);
 
 // ---------- prompt 键映射（回归） ----------
 ext.setup();

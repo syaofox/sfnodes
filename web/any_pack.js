@@ -8,7 +8,7 @@
 // unpacker, and right-click slot renaming.
 //
 // SFAnyPack (packer):
-// - Initially shows 2 input slots (value0, value1)
+// - Initially shows 1 input slot (value0)
 // - Auto-adds input slots when existing ones are connected (max 20)
 // - Auto-removes trailing empty slots on disconnect
 // - When a wire is connected, the input slot is automatically named after
@@ -19,6 +19,9 @@
 // - Initially shows 1 output slot (out0)
 // - Auto-adds output slots when existing ones are connected (max 20)
 // - Auto-removes trailing empty slots on disconnect
+// - When connected to an SFAnyPack, its output slots expand to match the
+//   pack's input slot count (grow-only: never removed by the disconnect
+//   trim while the pack still has that many slots)
 // - Output slot names are propagated from the connected SFAnyPack input
 //   names (by slot index), keeping the unpacked wires identifiable
 // - Right-click an output slot to rename it manually
@@ -46,7 +49,7 @@ import { app } from "/scripts/app.js";
 import { isSlotConnected, uniqueName } from "./sf_dynamic_slots.js";
 
 const MAX_SLOTS = 20;
-const PACK_INITIAL_INPUTS = 2;
+const PACK_INITIAL_INPUTS = 1;
 const UNPACK_INITIAL_OUTPUTS = 1;
 const PACK_PREFIX = "value";
 const UNPACK_PREFIX = "out";
@@ -76,6 +79,9 @@ function propagateNames(node, depth = 0) {
         if (!target) continue;
 
         if (isPack && target.comfyClass === "SFAnyUnpack") {
+            // Expand the unpack outputs to the pack's input slot count
+            // (grow-only) before propagating names by slot index.
+            const expanded = expandOutputsTo(node, target);
             let changed = false;
             (target.outputs || []).forEach((out, i) => {
                 const src = node.inputs[i];
@@ -84,7 +90,7 @@ function propagateNames(node, depth = 0) {
                     changed = true;
                 }
             });
-            if (changed) {
+            if (expanded || changed) {
                 target.setSize?.(target.computeSize());
                 changedTargets.push(target);
             }
@@ -161,10 +167,45 @@ function syncSlotTypes(node) {
             setSlotType(node, node.inputs, i, unionType(slotLinkTypes(node, slot)));
         });
     } else {
+        // Expand outputs to the upstream pack's input slot count (covers
+        // workflow load/paste of graphs saved before auto-expansion).
+        const packNode = upstreamPackNode(node);
+        if (packNode) {
+            expandOutputsTo(packNode, node);
+        }
         (node.outputs || []).forEach((slot, i) => {
             setSlotType(node, node.outputs, i, unionType(slotLinkTypes(node, slot)));
         });
     }
+}
+
+// ---------------------------------------------------------------------------
+// Output auto-expansion: an SFAnyUnpack fed by an SFAnyPack shows as many
+// output slots as the pack has input slots. Grow-only (never removes slots,
+// which could break downstream wires); capped at MAX_SLOTS.
+// ---------------------------------------------------------------------------
+function expandOutputsTo(packNode, unpackNode) {
+    if (!packNode || !unpackNode || typeof unpackNode.addOutput !== "function") return false;
+    const needed = Math.min((packNode.inputs || []).length, MAX_SLOTS);
+    const cur = (unpackNode.outputs || []).length;
+    if (needed <= cur) return false;
+    for (let i = cur; i < needed; i++) {
+        unpackNode.addOutput(UNPACK_PREFIX + i, "*");
+    }
+    unpackNode.setSize?.(unpackNode.computeSize());
+    return true;
+}
+
+// The upstream SFAnyPack feeding this node via its "pack" input (null when
+// the input is empty or not fed by an SFAnyPack).
+function upstreamPackNode(node) {
+    if (!node || !node.graph || !node.inputs || !node.inputs[0]) return null;
+    const linkId = node.inputs[0].link;
+    if (linkId == null) return null;
+    const link = node.graph.links[linkId];
+    if (!link) return null;
+    const source = node.graph.getNodeById(link.origin_id);
+    return source && source.comfyClass === "SFAnyPack" ? source : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -369,16 +410,23 @@ app.registerExtension({
                     addSlot(prefix + dynamic.length);
                 }
 
-                // Auto-name the connected Pack input slot and propagate names downstream
-                if (isInput && autoNameInput(index, link_info)) {
+                // Auto-name the connected Pack input slot, then propagate
+                // names and expand downstream unpack outputs
+                if (isInput) {
+                    autoNameInput(index, link_info);
                     propagateNames(node);
                 }
             } else {
-                // On disconnect: remove trailing empty slots beyond initial count
-                // (slot names are kept for remaining slots)
+                // On disconnect: remove trailing empty slots beyond the
+                // minimum (slot names are kept for remaining slots). When the
+                // unpack is fed by a pack, the minimum is the pack's current
+                // input slot count so the auto-expansion is preserved.
+                const trimFloor = isPack
+                    ? initialCount
+                    : Math.max(initialCount, (upstreamPackNode(node)?.inputs || []).length);
                 const reversed = [...dynamic].reverse();
                 for (const slot of reversed) {
-                    if (!isSlotConnected(slot) && getDynamic().length > initialCount) {
+                    if (!isSlotConnected(slot) && getDynamic().length > trimFloor) {
                         removeSlot(slot);
                     } else {
                         break;
