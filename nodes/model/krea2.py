@@ -415,6 +415,10 @@ def _register_krea2_routes():
         async def _krea2_presets(request: web.Request) -> web.Response:
             return web.json_response(KREA2_PRESETS)
 
+        @routes.get("/api/sfnodes/interrogator_presets")
+        async def _interrogator_presets(request: web.Request) -> web.Response:
+            return web.json_response(INTERROGATOR_PRESETS)
+
     except Exception:
         pass
 
@@ -428,6 +432,39 @@ INTERROGATOR_DEFAULT_PROMPT = (
     "hairstyle, hair color, ethnicity, clothing, objects, scene, art style, colors and "
     "composition. Provide the description as a usable image generation prompt."
 )
+
+# SFImageInterrogator 的反推指令预设：键为 combo 显示名，值为指令文本。唯一数据源；
+# 前端 web/krea2_interrogator.js 通过 GET /api/sfnodes/interrogator_presets 获取。
+# 相貌相关预设与 KREA2_PRESETS 语义对称：保留性别/表情/发型发色，仅排除相貌特征。
+INTERROGATOR_PRESETS = {
+    "default": INTERROGATOR_DEFAULT_PROMPT,
+    "简单描述": (
+        "Generate a detailed paragraph that combines the subject, actions, environment, "
+        "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
+        "rather than speculation."
+    ),
+    "不描述人物相貌": (
+        "Describe this image in detail, including each character's facial expressions, gender, "
+        "hairstyle and hair color, poses, actions, clothing, objects, scene, art style, colors, "
+        "lighting and composition. But DO NOT describe any character's facial features, "
+        "appearance, facial contours or looks. Provide the description as a usable image "
+        "generation prompt."
+    ),
+    "不描述人物相貌与身材": (
+        "Describe this image in detail, including each character's facial expressions, gender, "
+        "hairstyle and hair color, poses, actions, clothing, objects, scene, art style, colors, "
+        "lighting and composition. But DO NOT describe any character's facial features, "
+        "appearance, facial contours, body shape or height. Provide the description as a usable "
+        "image generation prompt."
+    ),
+    "不描述相貌身材和发型发色": (
+        "Describe this image in detail, including each character's facial expressions and gender, "
+        "poses, actions, clothing, objects, scene, art style, colors, lighting and composition. "
+        "But DO NOT describe any character's facial features, appearance, facial contours, body "
+        "shape, height, hairstyle or hair color. Provide the description as a usable image "
+        "generation prompt."
+    ),
+}
 
 
 class SFImageInterrogator:
@@ -448,11 +485,16 @@ class SFImageInterrogator:
                 "image": ("IMAGE", {
                     "tooltip": "待反推的图片，由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述文本",
                 }),
+                "preset": (list(INTERROGATOR_PRESETS.keys()), {
+                    "default": "default",
+                    "tooltip": "反推指令预设（含不描述人物相貌等特征控制指令）。选择后自动填充"
+                               "下方文本，之后仍可手动编辑；留空文本时回退到所选预设",
+                }),
                 "prompt": ("STRING", {
                     "multiline": True,
                     "default": INTERROGATOR_DEFAULT_PROMPT,
                     "tooltip": "给 VLM 的指令文本，默认要求详细描述图片内容以便作为生成提示词使用，"
-                               "可按需修改",
+                               "可按需修改；留空时使用所选预设的指令",
                 }),
                 "max_length": ("INT", {
                     "default": 256, "min": 8, "max": 4096,
@@ -493,6 +535,17 @@ class SFImageInterrogator:
                     "tooltip": "图片送入视觉编码器前的最大尺寸（百万像素）。超过上限会缩小，"
                                "较小的保持原始大小，不会被放大",
                 }),
+                # 注意：user_prompt 必须保持在 optional 的最后一个 widget 位置——ComfyUI
+                # 前端按 widget 数组索引恢复旧工作流的值（widgets_values 位置敏感），新增
+                # widget 若插在中间会导致旧工作流值错位（如 vision_megapixels 的 1 落入
+                # 本字段）。新增 widget 一律追加到末尾。
+                "user_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "可选用户提示词（兼容 Impact Pack Interrogator 的 user_prompt）："
+                               "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
+                               "保留特定内容）。留空则只使用指令文本",
+                }),
             },
         }
 
@@ -501,7 +554,8 @@ class SFImageInterrogator:
     FUNCTION = "interrogate"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("图像反推：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本，"
-                   "可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用")
+                   "可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用。"
+                   "支持预设（含不描述人物相貌/身材等特征控制指令）")
 
     @staticmethod
     def _scale_image(image, megapixels):
@@ -514,9 +568,14 @@ class SFImageInterrogator:
         s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
         return [s.movedim(1, -1)[:, :, :, :3]]
 
-    def interrogate(self, clip, image, prompt, max_length, do_sample, temperature, top_k,
-                    top_p, repetition_penalty, seed, system_prompt=None, vision_megapixels=1.0):
+    def interrogate(self, clip, image, preset, prompt, max_length, do_sample, temperature, top_k,
+                    top_p, repetition_penalty, seed, user_prompt=None, system_prompt=None,
+                    vision_megapixels=1.0):
         images_vl = self._scale_image(image, vision_megapixels)
+        prompt = (prompt or "").strip() or INTERROGATOR_PRESETS.get(preset, INTERROGATOR_DEFAULT_PROMPT)
+        user_prompt = (user_prompt or "").strip()
+        if user_prompt:
+            prompt = prompt + "\n" + user_prompt
         system = (system_prompt or "").strip() or KREA2_SYSTEM_DEFAULT
         template = ("<|im_start|>system\n" + system + "<|im_end|>\n"
                     "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n")
