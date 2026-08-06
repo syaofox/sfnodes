@@ -8,6 +8,7 @@
 - [1. ComfyUI 后端机制（循环/图展开）](#1-comfyui-后端机制循环图展开经验总结)
 - [2. ComfyUI 前端机制（经验总结）](#2-comfyui-前端机制经验总结)
 - [3. 静态检查脚本经验（AST 对比踩坑）](#3-静态检查脚本经验ast-对比踩坑)
+- [4. 动态 combo 校验与工作流绑定状态（widget 数据载体）](#4-动态-combo-校验与工作流绑定状态widget-数据载体)
 
 ---
 
@@ -194,4 +195,29 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 2. **`ast.literal_eval` 遇到变量引用会抛 `ValueError: malformed node or string`**：默认值引用模块常量的表达式（如 `"default": KREA2_INSTRUCT_SYSTEM`）无法直接求值。需分两步：先单独提取被引用的常量（`ast.literal_eval`），再遍历映射，遇 `Name` 节点取其 `id` 后查表替换。
 
 真实案例：比对 `KREA2_PRESETS` 前后端一致性时，`ast.unparse` 残留的单引号让"文本一致"误判为 false；`ast.literal_eval` 直接解析含 `KREA2_INSTRUCT_SYSTEM` 引用的字典抛 ValueError。两处均为检查脚本问题，非代码问题——**先怀疑检查脚本，再怀疑被检查的代码**。
+
+---
+
+## 4. 动态 combo 校验与工作流绑定状态（widget 数据载体）
+
+> 背景：SFTextPreset 工作流绑定文本预设节点（2026-08），落地为 `nodes/text/text_preset.py` + `web/sf_text_preset.js`。需求：预设绑定当前工作流，其他工作流添加此节点是全新空预设。
+
+### 1. "状态绑定工作流"的标准模式：数据存 widget 值（数据载体）
+
+- **所有 widget 值（含 `display: hidden`）都会随 workflow JSON 序列化**（前端保存/加载/复制/导出嵌入自动跟随，`serialize = false` 可排除）。把预设等状态数据以 JSON 字符串存进隐藏 STRING widget → 预设天然"绑定"当前工作流：保存即持久化、复制/导入跟随、**新工作流添加节点用 INPUT_TYPES 默认值 = 全新状态**，无需后端存储/路由（`TextDropdown` 的 `options_json` 隐藏 widget 是同类先例，但它叠加了全局 API 轮询，做全局共享才需要）。
+- **combo 只保存 value，不保存 options 列表**：加载 workflow 时 combo 选项恢复为 INPUT_TYPES 静态列表 → 前端必须在数据就绪后重建 `widget.options.values` 并校验当前值（失效则回落第一个/空占位）。
+- **恢复时序坑**：`onNodeCreated` 早于 widget 值恢复（`configure`）→ nodeCreated 里读隐藏 widget 拿到的是默认值。重建选项需挂 `node.onAfterGraphConfigured`（widget 值恢复完成后回调，项目先例 `any_pack.js`）或 prototype 的 `onConfigure`（先例 `krea2_dynamic_images.js`）补一次同步。
+
+### 2. 动态 combo 的 "Value not in list" 校验坑（必踩）
+
+- 症状：`[ERROR] * SFTextPreset 1: - Value not in list: preset: 'a' not in ['']` → `prompt_outputs_failed_validation`，输出被忽略。
+- 机制：旧版 ComfyUI `execution.py` 的 `validate_inputs` 对 list 类型（combo）输入检查 **值 ∈ INPUT_TYPES 静态选项列表**；前端动态新增的选项（存于 workflow 数据）不在列表中 → 校验失败。新版（本机源码 `comfy_execution/validation.py` 已改为仅链接类型校验）不会报，**用户 docker 为旧版才会踩中**。
+- 解法：节点定义 `@classmethod VALIDATE_INPUTS(cls, **kwargs): return True` 完全接管校验（项目先例 `load_images_path.py` 的目录校验）。动态选项节点标配；execute 内需自行容错任意值（找不到 → 空输出）。
+- 注意：`VALIDATE_INPUTS` 生效于所有输入，只适合值本身无类型风险的情况（STRING 无碍）。
+
+### 3. 实现与测试注意
+
+- 按钮 widget 用 `node.addWidget("button", ...)`；预览/展示 widget 设 `serialize = false` 避免污染 workflow（按钮无 value 天然不保存）。
+- **前端模拟测试能抓实现 bug**：`tests/test_text_preset_js.js`（FakeNode + DOM mock + 事件序列，38 项断言）抓出 `openMgr` 漏写 `mgrEl = overlay` 导致 Escape 无法关闭弹窗的 bug——弹窗类功能务必覆盖"打开/增删改/Escape 关闭"全链路断言。
+- 测试断言别想当然：更新操作改的是被选中预设，新增预设的文本保持新增时写入值，断言文案需与操作序列一致（曾把 C 的文本误断为更新值导致误报）。
 

@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放、拼接、处理、对比
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
@@ -167,6 +167,11 @@ class SFMyNode:
 - execute 可返回 `{"result": ..., "expand": {...}}` 展开动态子图；result 中的 link 值 `[id, slot]` 会被特殊解析为链接目标值。
 - **ForLoopEnd 必须被下游消费才会被调度执行**（死端节点从不执行）——"循环不跑/只跑一轮"先查其输出有无下游。
 - 隐藏输入（如 `initial_value0`）首轮不在 prompt 中 → kwargs 缺键而非 None，需默认值兜底。
+
+**后端：动态 combo 校验（工作流绑定状态节点，`nodes/text/text_preset.py`）**
+- 预设等状态数据存隐藏 STRING widget 值（JSON）→ **随 workflow 自动保存/加载/复制**，新工作流添加节点为全新默认值（数据载体模式，无需后端存储）。
+- combo 选项由前端动态重建时，值会超出 INPUT_TYPES 静态列表 → 旧版 ComfyUI 执行前校验报 `Value not in list` → 必须 `VALIDATE_INPUTS` 返回 True 接管校验（动态选项节点标配）。
+- combo 的 options 不随 workflow 保存（只存 value）；加载时 nodeCreated 早于 widget 值恢复 → 重建选项需挂 `onAfterGraphConfigured`（或 onConfigure）补同步。
 
 **前端：动态槽位（`web/sf_dynamic_slots.js`、`web/any_pack.js`）**
 - 槽名渲染读 `label ?? localized_name ?? name`；初始槽自带 `localized_name`（动态槽没有）→ **改槽名必须同步 name + localized_name**，否则"只有第一个槽改名不生效"。
