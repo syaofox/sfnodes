@@ -12,3 +12,7 @@ safetensors
 tqdm
 psutil
 sageattention
+diffusers
+einops
+timm
+huggingface_hub

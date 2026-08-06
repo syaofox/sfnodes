@@ -63,6 +63,7 @@ from .nodes.image.processing import (
 )
 from .nodes.image.imitation_hue import ImitationHue
 from .nodes.image.lut import SFLoadLUT, SFApplyLUT, SFExtractLUT
+from .nodes.image.rfmsr_upscale import SFRFMSRUpscale
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
     AddCLIPSDXLParams,
@@ -215,6 +216,8 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadLUT": SFLoadLUT,
     "SFApplyLUT": SFApplyLUT,
     "SFExtractLUT": SFExtractLUT,
+    # RFMSR 超分节点
+    "SFRFMSRUpscale": SFRFMSRUpscale,
     # 显示节点
     "SFDisplayAny": DisplayAny,
     "SFRemoveLatentMask": RemoveLatentMask,
@@ -371,6 +374,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadLUT": "SF Load LUT",
     "SFApplyLUT": "SF Apply LUT",
     "SFExtractLUT": "SF Extract LUT",
+    # RFMSR 超分节点
+    "SFRFMSRUpscale": "SF RFMSR Upscale",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
     "SFRemoveLatentMask": "SF Remove Latent Mask",
