@@ -14,7 +14,9 @@ tiled 分块）→ VAE 解码 → 色彩校正。模型实例缓存在类级 _MO
 每次执行重复加载 2GB+ 权重。
 """
 
+import gc
 import os
+from collections import OrderedDict
 from pathlib import Path
 
 import torch
@@ -60,10 +62,26 @@ VAE_FILES = ("config.json", "diffusion_pytorch_model.safetensors")
 # DINOv2 vitb14 权重（torch.hub 本地加载时从 <hub_dir>/checkpoints/ 直接读取）
 DINOV2_CHECKPOINT = "ckpts/torch_cache/checkpoints/dinov2_vitb14_pretrain.pth"
 
-# 类级模型缓存：(model_name, device) → RFMSRInferencer
-_MODEL_CACHE = {}
+# 类级模型缓存：LRU，最多保留 _MAX_CACHED_MODELS 套（(model_name, device) → RFMSRInferencer）。
+# 超出容量时弹出最久未用的并 unload，保证任何时刻最多驻留一套 ~2.9GB，切换模型不累积。
+# 刻意不干预 ComfyUI 自身模型管理（不主动卸载/腾挪其模型），混跑冲突由用户自行安排。
+_MAX_CACHED_MODELS = 1
+_MODEL_CACHE = OrderedDict()
 
 _CATEGORY = "sfnodes/image"
+
+
+def unload_rfmsr_models():
+    """卸载全部已缓存的 RFMSR 模型并清空显存（供手动清理节点调用）。"""
+    while _MODEL_CACHE:
+        _, inferencer = _MODEL_CACHE.popitem(last=False)
+        try:
+            inferencer.unload()
+        except Exception:
+            pass
+    comfy.model_management.soft_empty_cache()
+    gc.collect()
+    logger.info("RFMSR 模型已全部卸载")
 
 
 def _hf_download(filename, local_dir, legacy_dir=None):
@@ -150,12 +168,21 @@ def _ensure_dinov2():
 
 
 def _get_inferencer(model_name):
-    """获取（或加载并缓存）模型推理器实例。"""
+    """获取（或加载并缓存）模型推理器实例。LRU 单槽：切换模型自动卸载旧模型。"""
     device = comfy.model_management.get_torch_device()
     key = (model_name, str(device))
     cached = _MODEL_CACHE.get(key)
     if cached is not None:
+        _MODEL_CACHE.move_to_end(key)
         return cached
+
+    # LRU：超容量先卸载最久未用的模型
+    while len(_MODEL_CACHE) >= _MAX_CACHED_MODELS:
+        _, old = _MODEL_CACHE.popitem(last=False)
+        try:
+            old.unload()
+        except Exception:
+            pass
 
     comfy.model_management.soft_empty_cache()
     logger.info(
@@ -235,6 +262,11 @@ class SFRFMSRUpscale:
                      "tooltip": "输出色彩校正：wavelet = 小波低频替换（推荐）；"
                                 "adain = 全局统计匹配；ycbcr = 色度替换；none = 不校正"},
                 ),
+                "force_offload": (
+                    "BOOLEAN",
+                    {"default": False,
+                     "tooltip": "推理完成后立即卸载模型，释放显存（下次执行会重新加载）"},
+                ),
             },
         }
 
@@ -248,7 +280,7 @@ class SFRFMSRUpscale:
     )
 
     def upscale(self, image, model, scale, steps, flow_sigma, seed,
-                chopping, tile_size, tile_stride, color_correction):
+                chopping, tile_size, tile_stride, color_correction, force_offload):
         inferencer = _get_inferencer(model)
         outputs = []
         for i in range(image.shape[0]):
@@ -259,4 +291,8 @@ class SFRFMSRUpscale:
                 tile_stride=tile_stride, color_correction=color_correction,
             )
             outputs.append(pil2tensor(result))
+        # 参考 llama-cpp Instruct 的 force_offload 做法：执行完成后立即卸载模型，
+        # 释放显存；下次执行时由 _get_inferencer 自动重新加载。
+        if force_offload:
+            unload_rfmsr_models()
         return (torch.cat(outputs, dim=0),)

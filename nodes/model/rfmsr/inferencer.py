@@ -6,6 +6,7 @@ Flow path: x_t = z_hr + t*(z_lr - z_hr) + t*sigma*epsilon
 Reverse integration: t=1 (LR+noise) → t=0 (HR)
 """
 
+import gc
 import math
 from contextlib import nullcontext
 
@@ -70,6 +71,14 @@ class RFMSRInferencer:
         print("  DINOv2: loaded")
 
         print("All models loaded.")
+
+    def unload(self):
+        """释放全部模型引用与显存（配合类级 LRU 缓存：切换模型/手动清理时调用）。"""
+        for attr in ("rfmsr", "ae", "venc"):
+            setattr(self, attr, None)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
 
     # ---- VAE encode/decode ----
 
