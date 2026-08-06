@@ -86,7 +86,15 @@ function propagateNames(node, depth = 0) {
             (target.outputs || []).forEach((out, i) => {
                 const src = node.inputs[i];
                 if (src && !out.sfManualName && out.name !== src.name) {
-                    out.name = src.name;
+                    // Replace the slot element instead of mutating it in place
+                    // (Vue frontend re-renders slots on element replacement)
+                    // and keep localized_name in sync: the renderers read
+                    // label ?? localized_name ?? name, and initial slots carry
+                    // a localized_name that would otherwise keep the old name.
+                    target.outputs[i] = Object.assign({}, out, {
+                        name: src.name,
+                        localized_name: src.name,
+                    });
                     changed = true;
                 }
             });
@@ -99,7 +107,11 @@ function propagateNames(node, depth = 0) {
             (target.inputs || []).forEach((inp, i) => {
                 const src = node.outputs[i];
                 if (src && !inp.sfManualName && inp.name !== src.name) {
-                    inp.name = uniqueName(target.inputs, i, src.name);
+                    const newName = uniqueName(target.inputs, i, src.name);
+                    target.inputs[i] = Object.assign({}, inp, {
+                        name: newName,
+                        localized_name: newName,
+                    });
                     changed = true;
                 }
             });
@@ -290,8 +302,17 @@ function setupRenameMenu(node, isInput) {
                 const trimmed = newName.trim();
                 if (trimmed === "" || trimmed === current) return;
                 const slots = isInput ? this.inputs : this.outputs;
-                slot.name = uniqueName(slots, slots.indexOf(slot), trimmed);
-                slot.sfManualName = true;
+                const idx = slots.indexOf(slot);
+                if (idx < 0) return;
+                // Replace the slot element so the frontend re-renders the
+                // label (mutating slot.name in place is not tracked) and keep
+                // localized_name in sync (renderers read label ?? localized_name ?? name).
+                const renamed = uniqueName(slots, idx, trimmed);
+                slots[idx] = Object.assign({}, slot, {
+                    name: renamed,
+                    localized_name: renamed,
+                    sfManualName: true,
+                });
                 this.setSize(this.computeSize());
                 propagateNames(this);
             }
@@ -339,7 +360,10 @@ app.registerExtension({
         };
 
         // Auto-name a Pack input slot after the source node's output slot
-        // name (skips manually renamed slots).
+        // name (skips manually renamed slots). Replaces the slot element so
+        // the Vue frontend re-renders the slot label even when the type does
+        // not change (e.g. "*" -> "*" connections), and keeps localized_name
+        // in sync (renderers read label ?? localized_name ?? name).
         const autoNameInput = (index, link_info) => {
             if (!link_info) return false;
             const source = node.graph && node.graph.getNodeById(link_info.origin_id);
@@ -348,7 +372,11 @@ app.registerExtension({
             if (!sourceName) return false;
             const target = node.inputs[index];
             if (!target || target.sfManualName || target.name === sourceName) return false;
-            target.name = uniqueName(node.inputs, index, sourceName);
+            const newName = uniqueName(node.inputs, index, sourceName);
+            node.inputs[index] = Object.assign({}, target, {
+                name: newName,
+                localized_name: newName,
+            });
             node.setSize(node.computeSize());
             return true;
         };

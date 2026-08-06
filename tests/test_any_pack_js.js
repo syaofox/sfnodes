@@ -57,6 +57,7 @@ const makeGraph = () => ({
 
 const makeSlot = (name, type, isOut) => ({
     name, type,
+    localized_name: name, // 模拟 addInputSocket：初始槽带显示名（渲染读 label ?? localized_name ?? name）
     link: null,
     links: isOut ? [] : null,
     sfManualName: false,
@@ -179,6 +180,7 @@ check("连接 IMAGE 后输入槽着色为 IMAGE", pack.inputs[0].type === "IMAGE
 check("着色通过替换数组元素触发重渲染", pack.inputs[0] !== slot0Before);
 check("替换元素保留 link", pack.inputs[0].link === slot0Before.link);
 check("自动命名沿用源输出名（回归）", pack.inputs[0].name === "image");
+check("localized_name 同步（渲染显示名）", pack.inputs[0].localized_name === "image");
 check("着色触发画布重绘", canvasDirty > dirtyBefore);
 check("连接后自动追加 value1", pack.inputs.length === 2 && pack.inputs[1].name === "value1");
 
@@ -189,7 +191,9 @@ const slot1Before = pack.inputs[1];
 const dirtyBefore2 = canvasDirty;
 connectInput(graph, pack, 1, anySrc, 0);
 check("源为 * 时槽位保持 *", pack.inputs[1].type === "*");
-check("无类型变化时不替换元素", pack.inputs[1] === slot1Before);
+check("Any→Any 连接仍自动改名（根因场景）", pack.inputs[1].name === "any");
+check("Any→Any 改名同步 localized_name", pack.inputs[1].localized_name === "any");
+check("改名触发元素替换以重渲染", pack.inputs[1] !== slot1Before);
 check("无类型变化不触发重绘", canvasDirty === dirtyBefore2);
 check("全连接后自动追加 value2（回归）", pack.inputs.length === 3 && pack.inputs[2].name === "value2" && pack.inputs[2].type === "*");
 
@@ -215,6 +219,7 @@ unpack.inputs[0].link = plink.id;
 unpack.onConnectionsChange(1, 0, true, plink, unpack.inputs[0]);
 check("unpack 自动展开到 pack 输入槽数（2）", unpack.outputs.length === 2);
 check("unpack 输出名跟随 pack 输入名（传播）", unpack.outputs[0].name === "image");
+check("unpack 传播同步 localized_name", unpack.outputs[0].localized_name === "image");
 check("unpack 新输出按索引传播名称", unpack.outputs[1].name === "value1");
 check("unpack 展开的新槽为 *", unpack.outputs.every((s) => s.type === "*"));
 
