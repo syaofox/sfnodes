@@ -1,7 +1,7 @@
 // SFPromptTags 纯工具库测试（Node 直接运行：node tests/test_prompt_tags_js.js）
-// 覆盖：scanTokens（边界：邮件/算式/链式/跨种/Unicode 码点）、expandAll（展开/未知
-//       保留/spans/解析器）、normalizeLibrary（清洗/去重/分类补齐/sides/catModes/
-//       移桶/旧库兼容）、reorder、导出/导入数据变换、isSameAsStored
+// 覆盖：scanTokens（边界：邮件/算式/链式/跨种/Unicode 码点/中文）、expandAll（展开/
+//       未知保留/spans/解析器）、normalizeLibrary（清洗/去重/分类补齐/sides/catModes/
+//       移桶/旧库兼容/中文）、reorder、导出/导入数据变换、isSameAsStored、拼音检索
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -9,6 +9,8 @@ const path = require("path");
 // sf_prompt_tags_lib.js 是无 app/DOM 依赖的 ES 模块，复制为 .mjs 后直接 import（项目惯例）
 const tmpMjs = path.join(os.tmpdir(), "sf_prompt_tags_lib_test.mjs");
 fs.copyFileSync(path.join(__dirname, "..", "web", "sf_prompt_tags_lib.js"), tmpMjs);
+const tmpPinyinMjs = path.join(os.tmpdir(), "sf_prompt_tags_pinyin_test.mjs");
+fs.copyFileSync(path.join(__dirname, "..", "web", "sf_prompt_tags_pinyin.js"), tmpPinyinMjs);
 
 const failures = [];
 function check(name, cond) {
@@ -26,6 +28,8 @@ function check(name, cond) {
         exportLibraryJSON, parseImport, importCategories, subsetImport, applyImportData,
         isSameAsStored, TEXT_BUCKET, LIST_BUCKET,
     } = L;
+    const P = await import(tmpPinyinMjs);
+    const { pinyinFull, pinyinInitials, pinyinMatch } = P;
 
     // ---- scanTokens ----
     let toks = scanTokens("hello @a world");
@@ -46,14 +50,24 @@ function check(name, cond) {
     check("单词后 @ 不误判", toks.length === 0);
     toks = scanTokens("@foo_bar-2");
     check("下划线/连字符名称", toks.length === 1 && toks[0].name === "foo_bar-2");
+    toks = scanTokens("@油画");
+    check("中文 @tag 识别", toks.length === 1 && toks[0].name === "油画");
+    toks = scanTokens("画@水彩");
+    check("中文前 @ 识别为 token", toks.length === 1 && toks[0].name === "水彩");
+    toks = scanTokens("中文@tag");
+    check("中文前英文 tag 识别", toks.length === 1 && toks[0].name === "tag");
+    toks = scanTokens("@油画@水彩");
+    check("中文同种链式", toks.length === 2 && toks[0].name === "油画" && toks[1].name === "水彩");
     toks = scanTokens("𠀀@tag");
-    check("补充平面字符后不误判", toks.length === 0);
+    check("CJK 扩展 B 前识别为 token", toks.length === 1);
     toks = scanTokens("𠀀 @tag");
-    check("空格隔开的补充平面字符后可识别", toks.length === 1);
-    toks = scanTokens("*Styles");
-    check("* wildcard", toks.length === 1 && toks[0].kind === "wild" && toks[0].name === "Styles");
-    toks = scanTokens("#animals");
-    check("# list", toks.length === 1 && toks[0].kind === "list" && toks[0].name === "animals");
+    check("空格隔开仍识别", toks.length === 1);
+    toks = scanTokens("*风格");
+    check("中文 *wildcard", toks.length === 1 && toks[0].kind === "wild" && toks[0].name === "风格");
+    toks = scanTokens("#动物");
+    check("中文 #list", toks.length === 1 && toks[0].kind === "list" && toks[0].name === "动物");
+    toks = scanTokens("ABC@油画");
+    check("拉丁字母前 @ 不误判", toks.length === 0);
     toks = scanTokens("no tokens");
     check("无符号不扫描", toks.length === 0);
     toks = scanTokens(null);
@@ -114,6 +128,14 @@ function check(name, cond) {
     check("null 库容错", lib.categories.length === 0 && lib.tags.length === 0);
     lib = normalizeLibrary({ categories: "notarray", tags: "nope" });
     check("非数组字段容错", lib.categories.length === 0 && lib.tags.length === 0);
+
+    // ---- normalizeLibrary：中文分类/标签 ----
+    lib = normalizeLibrary({ categories: ["风格"], tags: [{ name: "油画", cat: "风格", text: "x" }] });
+    check("中文分类保留", lib.categories.length === 1 && lib.categories[0] === "风格");
+    check("中文标签保留", lib.tags.length === 1 && lib.tags[0].name === "油画");
+    check("中文标签 cat 引用补齐", normalizeLibrary({ tags: [{ name: "油画", cat: "风格", text: "x" }] }).categories.includes("风格"));
+    lib = normalizeLibrary({ tags: [{ name: "油画", cat: "风格", kind: "list", text: "a\nb" }] });
+    check("中文 List 标签旧库启发式归 List 侧", lib.listCats.includes("风格") && lib.tags[0].kind === "list");
 
     // ---- normalizeLibrary：sides（Text/List 分类侧）----
     lib = normalizeLibrary({
@@ -212,9 +234,12 @@ function check(name, cond) {
     const dupFile = JSON.stringify({ tags: [{ name: "dup", text: "1" }, { name: "dup", text: "2" }, { name: "dup", text: "3" }] });
     parsed = parseImport(dupFile, lib);
     check("parseImport 文件内重名去重", parsed.data.tags.map((t) => t.name).join() === "dup,dup-2,dup-3");
-    const cjkFile = JSON.stringify({ tags: [{ name: "中文", text: "x" }, { name: "ok", text: "y" }] });
+    const cjkFile = JSON.stringify({ tags: [{ name: "中文标签", text: "x" }, { name: "ok", text: "y" }] });
     parsed = parseImport(cjkFile, lib);
-    check("parseImport 不可用名称计数", parsed.dropped === 1 && parsed.data.tags.length === 1);
+    check("parseImport 中文名可导入", parsed.dropped === 0 && parsed.data.tags.length === 2);
+    const badFile = JSON.stringify({ tags: [{ name: "!!!", text: "x" }, { name: "ok", text: "y" }] });
+    parsed = parseImport(badFile, lib);
+    check("parseImport 纯标点名称计数", parsed.dropped === 1 && parsed.data.tags.length === 1);
     check("importCategories 计数", importCategories(parsed).length === 1);
 
     // ---- 导入收窄 / 应用 ----
@@ -248,10 +273,26 @@ function check(name, cond) {
     check("uniqueTagName 非法名回退", uniqueTagName("!!", [{ name: "other" }]) === "tag");
     const tagRef = { name: "tag" };
     check("uniqueTagName 忽略自身", uniqueTagName("tag", [tagRef], tagRef) === "tag");
+    check("uniqueTagName 中文基础", uniqueTagName("油画", [{ name: "其他" }]) === "油画");
+    check("uniqueTagName 中文冲突加后缀", uniqueTagName("油画", [{ name: "油画" }]) === "油画-2");
 
     // ---- cleanTagName ----
     check("cleanTagName 清洗", cleanTagName("  a b! ") === "ab");
-    check("cleanTagName 非 ASCII 为空", cleanTagName("中文") === "");
+    check("cleanTagName 中文保留", cleanTagName("油画") === "油画");
+    check("cleanTagName 中文+空格标点清洗", cleanTagName(" 油画 风格! ") === "油画风格");
+    check("cleanTagName 纯标点为空", cleanTagName("!!!") === "");
+
+    // ---- 拼音检索 ----
+    check("pinyinFull 全拼", pinyinFull("油画") === "youhua" && pinyinFull("中文属性") === "zhongwenshuxing");
+    check("pinyinInitials 首字母", pinyinInitials("油画") === "yh" && pinyinInitials("中文属性") === "zwsx");
+    check("拼音匹配全拼", pinyinMatch("油画", "youhua") === true && pinyinMatch("油画", "youh") === true);
+    check("拼音匹配首字母", pinyinMatch("油画", "yh") === true);
+    check("拼音匹配原名", pinyinMatch("油画", "油") === true && pinyinMatch("油画", "YOU") === true);
+    check("拼音不匹配", pinyinMatch("油画", "shui") === false && pinyinMatch("油画", "youhuaa") === false && pinyinMatch("油画", "yhua") === false);
+    check("拼音全拼子串", pinyinMatch("油画", "hua") === true);
+    check("拼音空 query 恒真", pinyinMatch("油画", "") === true && pinyinMatch("油画", null) === true);
+    check("拼音 ASCII 标签", pinyinMatch("oilpainting", "oil") === true && pinyinMatch("oilpainting", "yh") === false);
+    check("拼音生僻字原名可搜", pinyinFull("龘") === "" && pinyinMatch("龘", "龘") === true);
 
     console.log("\nFAILURES:", failures.length);
     fs.unlinkSync(tmpMjs);

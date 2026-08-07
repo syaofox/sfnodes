@@ -75,7 +75,8 @@ globalThis.window.app = globalThis.app;
 // ── 加载模块：全部复制到 tmp，/scripts/app.js -> globalThis.app，相对 import 改 .mjs ──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptg_smoke_"));
 const names = [
-    "sf_prompt_tags_lib.js", "sf_prompt_tags_cursors.js",
+    "sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
+    "sf_prompt_tags_cursors.js",
     "sf_prompt_tags_store.js", "sf_prompt_tags_guard.js",
     "sf_prompt_tags_editor.js",
 ];

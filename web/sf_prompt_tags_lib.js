@@ -24,11 +24,16 @@
 //
 // ==========================================================================
 
-// name = 字母 / 数字 / _ / -（token 语法，与 Pixaroma 一致）
-const TOKEN_RE = /([@*#])([a-zA-Z0-9_\-]+)/g;
+// name = Unicode 字母 / 数字 / _ / -（中文等 CJK 字符可作 tag/分类名，与 Pixaroma
+// 语义一致、扩展了字符集）
+const TOKEN_RE = /([@*#])([\p{L}\p{N}_\-]+)/gu;
 const KIND_BY_SYM = { "@": "tag", "*": "wild", "#": "list" };
 
-export const NAME_RE = /[^a-zA-Z0-9_\-]/g;
+// 名称允许的字符：Unicode 字母 / 数字 / - / _（空格、标点等仍清除）
+export const NAME_RE = /[^\p{L}\p{N}_\-]/gu;
+// token 前一个字符属于这些类别时不算 token 边界（email 的 user@name、算式 2*2
+// 保护）；中文等其它文字之前的 @/*/# 视为 token（"画@水彩"、"中文@tag"）
+const TOKEN_BLOCK = /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{N}\p{M}_]/u;
 
 // 两个隐式桶：无分类标签的归属处，不是真实分类，永远不能成为分类名
 export const TEXT_BUCKET = "Text";
@@ -344,7 +349,7 @@ export function parseImport(jsonStr, cur) {
             return name === t.name ? t : { ...t, name };
         });
     }
-    // 名称必须可输入为 @token，清不出来的（CJK/音标等）会被丢弃——先计数并报告
+    // 名称必须可输入为 @token，清不出来的（纯标点/空格等）会被丢弃——先计数并报告
     let dropped = 0;
     if (raw && Array.isArray(raw.tags)) {
         for (const t of raw.tags) {
@@ -355,7 +360,7 @@ export function parseImport(jsonStr, cur) {
     if (!data.tags.length && !data.categories.length) {
         return {
             error: dropped
-                ? `None of the ${dropped} tag${dropped === 1 ? "" : "s"} in that file can be used. A tag name can only contain letters a to z, numbers, - and _.`
+                ? `None of the ${dropped} tag${dropped === 1 ? "" : "s"} in that file can be used. A tag name can only contain letters, numbers, Chinese characters, - and _.`
                 : "No tags found in that file.",
         };
     }
@@ -441,8 +446,9 @@ export function prevCodePoint(text, at) {
     return c;
 }
 
-// 从左到右扫描 @tag / *wild / #list token。判定规则：token 需在行首、非单词字符
-// 之后，或紧跟前一个同种 token（@a@b 链式有效）；邮件 user@name、算式 2*2 不误判。
+// 从左到右扫描 @tag / *wild / #list token。判定规则：token 需在行首、非阻断字符
+// 之后，或紧跟前一个同种 token（@a@b 链式有效）；邮件 user@name、算式 2*2 不误判
+// （前字符为拉丁/数字等 TOKEN_BLOCK）；中文之前的 @/*/# 识别为 token。
 // 跨种不链式（未知 *wildcard 不得把后面紧跟的 @tag 一并吞掉）。
 // 返回 [{kind, sym, name, start, end, raw}]
 export function scanTokens(text) {
@@ -457,7 +463,7 @@ export function scanTokens(text) {
         const kind = KIND_BY_SYM[m[1]];
         const prev = prevCodePoint(text, at);
         const chains = at === lastEnd && kind === lastKind;
-        const isTok = !prev || !/[\p{L}\p{N}\p{M}_]/u.test(prev) || chains;
+        const isTok = !prev || !TOKEN_BLOCK.test(prev) || chains;
         if (isTok) {
             out.push({ kind, sym: m[1], name: m[2], start: at, end: at + m[0].length, raw: m[0] });
             lastEnd = at + m[0].length;

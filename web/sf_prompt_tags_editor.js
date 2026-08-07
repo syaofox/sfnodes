@@ -34,6 +34,7 @@ import {
 import {
     listKey, catKey, cursorInfo, resetCursor, renameCursor, flushCursors,
 } from "./sf_prompt_tags_cursors.js";
+import { pinyinMatch } from "./sf_prompt_tags_pinyin.js";
 
 const BRAND = "#f66744";
 const PAL = ["#e0894b", "#5aa9e6", "#8e7bd6", "#5fbf8f", "#d76b98", "#c9a24b", "#6fb3b8"];
@@ -1258,7 +1259,7 @@ function buildGrid() {
     const q = _search.toLowerCase();
     const rows = _data.tags.filter((t) =>
         (_curCat === "All" || catOf(t) === _curCat) &&
-        (!q || t.name.toLowerCase().includes(q) || t.text.toLowerCase().includes(q)));
+        (!q || pinyinMatch(t.name, q) || t.text.toLowerCase().includes(q)));
     if (!rows.length) {
         const e = document.createElement("div");
         e.className = "sf-ptge-empty";
@@ -1323,7 +1324,7 @@ function exportScope(cat) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = cat == null ? "prompt-tags.json" : `prompt-tags-${String(cat).replace(/[^a-zA-Z0-9_\-]+/g, "-")}.json`;
+        a.download = cat == null ? "prompt-tags.json" : `prompt-tags-${String(cat).replace(/[^\p{L}\p{N}_\-]+/gu, "-")}.json`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -1425,7 +1426,7 @@ function showImportPick(parsed) {
         (parsed.dropped
             ? `<div class="mb" style="padding-top:0"><div class="conf">${parsed.dropped} more ` +
                 `tag${parsed.dropped === 1 ? "" : "s"} cannot be brought in: a tag name can only ` +
-                `contain letters a to z, numbers, - and _.</div></div>`
+                `contain letters, numbers, Chinese characters, - and _.</div></div>`
             : "") +
         `<div class="sf-ptge-pick"></div>` +
         `<div class="sf-ptge-mfoot">` +

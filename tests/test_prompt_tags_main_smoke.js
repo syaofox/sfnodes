@@ -78,7 +78,8 @@ globalThis.api = {
 
 // ── 加载全部 6 个模块（/scripts/app.js、/scripts/api.js -> globalThis；相对 import 改 .mjs）──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptg_main_"));
-for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_cursors.js",
+for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
+    "sf_prompt_tags_cursors.js",
     "sf_prompt_tags_store.js", "sf_prompt_tags_guard.js",
     "sf_prompt_tags_editor.js", "sf_prompt_tags.js"]) {
     const code = fs
@@ -91,6 +92,7 @@ for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_cursors.js",
 
 (async () => {
     const Main = await import(path.join(tmpDir, "sf_prompt_tags.mjs"));
+    const Store = await import(path.join(tmpDir, "sf_prompt_tags_store.mjs"));
     check("主模块加载（import 链完整）", true);
     check("扩展已注册", !!app._ext && app._ext.name === "sfnodes.PromptTags");
     check("graphToPrompt 已包装", app._sfPromptTagsPatched === true);
@@ -141,6 +143,18 @@ for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_cursors.js",
     check("*Styles 已掷一标签", state.text.includes("oil painting, thick strokes, ") || state.text.startsWith("a portrait, oil painting"));
     check("order/sep 注入", state.order === "mine" && state.sep === ", ");
     check("lastRun 已记录", node._sfPromptTagsLastRun && node._sfPromptTagsLastRun.src === node.properties.promptState.text);
+
+    // ── 中文标签端到端：中文库 + 中文 token 展开 ──
+    settingsStore["sfnodes.PromptTags.Library"] = JSON.stringify({
+        categories: ["风格"],
+        tags: [{ name: "油画", cat: "风格", text: "油画, 厚涂笔触" }],
+    });
+    Store.reloadLibrary();   // 直改 settingsStore 需显式刷新 store 缓存（真实场景改库走 store API）
+    node.properties.promptState.text = "画@油画";
+    promptObj = { output: { "1": { class_type: "SFPromptTags", inputs: {} } } };
+    const r2 = await app.graphToPrompt();
+    const s2 = JSON.parse(r2.output["1"].inputs.PromptState);
+    check("中文 @tag 端到端展开", s2.text === "画油画, 厚涂笔触");
 
     // ── queuePrompt：入队后 commitPicks（order 游标推进）──
     settingsStore["sfnodes.PromptTags.Cursors"] = JSON.stringify({});

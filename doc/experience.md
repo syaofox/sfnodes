@@ -10,6 +10,7 @@
 - [3. 静态检查脚本经验（AST 对比踩坑）](#3-静态检查脚本经验ast-对比踩坑)
 - [4. 动态 combo 校验与工作流绑定状态（widget 数据载体）](#4-动态-combo-校验与工作流绑定状态widget-数据载体)
 - [5. Qwen3 无审查微调版 + TextGenerate：thinking 参数与思考链（COT）](#5-qwen3-无审查微调版--textgeneratethinking-参数与思考链cot)
+- [6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）](#6-sfprompttagstag-展开注入--picks-游标--全屏编辑器--中文与拼音复刻-pixaroma-prompt)
 
 ---
 
@@ -256,3 +257,63 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 - 自定义优化指令含防拒条款（"宁可直接回显 draft 也不输出拒绝文本"，解决对齐模型拒绝断管线）与防思考条款（"Do NOT think step by step, generate directly in a single pass"，对自发 COT 兜底）。
 - 防拒/防思考条款对强对齐模型（Gemma 官方版）无效——安全拒绝发生在训练层，措辞无解，只能换无审查模型。
+
+---
+
+## 6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）
+
+> 背景：复刻 Pixaroma 的 `PixaromaPrompt` 节点（2026-08），落地为 `nodes/text/prompt_tags.py` + `web/sf_prompt_tags*.js` 六模块（lib/store/cursors/guard/editor/主扩展）。后端极简（115 行拼接），主体是前端：DOM widget 输入框、@tag 自动补全、标签库、全屏编辑器、Picks 模式。本节点是项目内**最完整的前端注入 + 全屏 UI + 多模块**案例，经验可直接迁移。
+
+### 1. @tag 展开与 PromptState 注入（Sliders/Seed 模式变体，做"队列时改写节点输入"必知）
+
+- **分工**：前端 `app.graphToPrompt` hook 在队列时展开 token 并写入 `entry.inputs.PromptState`（隐藏 STRING 输入的 JSON），后端只解析拼接——浏览器才能读标签库，纯 API 运行拿到 `"{}"` 即空（文档写明需接 text_in）。
+- **随机即缓存键**：`*wildcard`/`#list` 每次 run 重掷，展开结果串不同 → 节点缓存键不同 → 自动重跑，无需 nonce（Pixaroma 不变式 #3）。
+- **遍历 prompt 的注意**：`Object.keys(prompt)` 里键是节点 id（子图含 `"5:3"` 复合 id）；用递归建立的节点索引（前缀 `"id:"`）精确匹配，复合 id 只接受"恰好一个节点携带该尾部且非顶层"的兜底，否则注入会把 A 节点的提示词换成 B 的。
+- **防双包装**：模块被二次求值（带戳/不带戳的 import、热重载）会每次 run 掷两次 → 用 `app._sfPromptTagsPatched` 全局标志只包装一次。
+
+### 2. Picks 游标与队列提交语义（做"随机/顺序选择跨 run 记忆"必知）
+
+- **shuffle（默认，发牌不重复）/ random / in order（每 run 推进一次）**：位置存未注册设置 `sfnodes.PromptTags.Cursors`（键 `list:<name>`/`cat:<category>` 小写），**永不进 workflow、永不进库导出**。
+- **大坑：`app.graphToPrompt` 不是队列**——Export、分享、各保存按钮都会触发。若在掷时直接写游标，"按顺序"列表会被这些场合白白推进、甚至跳过选项。解法（Pixaroma 语义）：
+  - 掷出的选择先存内存 `_pending`（Map<key, {picks[], state, build}>），同 build 内重复 `#fruit` 按 occ 计数沿同一状态续发（in order 例外：`want=0`，同 build 全部同值）；
+  - `beginPickBuild(prompt)` 把 build id 用 **WeakMap 挂到 prompt 对象**（不能挂模块全局：窗口期内别的 graphToPrompt 会把计数移走）；
+  - `queuePrompt` patcher 成功后 `commitPicks(queued)`——**只消耗恰好被 POST 的那个 build** 的选择（从 args 里找带 `output` 的对象，不假设参数位置）。
+- **落地细节**：池尺寸变化（st.n !== n）→ 重新开始；坏牌堆（重复/越界）整副丢弃重洗；新牌堆不开旧堆最后一张（随机交换而非轮转——轮转会把被挡牌堆映射到同一允许牌堆、概率翻倍，实测）；`resetCursor`（↺）删键；`renameCursor`（改名）搬位置——**改名不是内容变化，"next 4 of 12" 不能变回 1**，且改名瞬间就搬（拖到 blur 会让一次 run 查新名开新序列）。
+
+### 3. 标签库存储与全屏编辑器（做"设置存储 + 整页 UI + 工作副本"必知）
+
+- **未注册设置**（`app.ui.settings` 读写，键 `sfnodes.PromptTags.Library`）：不声明 settings[] 也能持久化（comfy.settings.json 是纯 JSON 合并），机器私有、跨工作流共享、随插件更新存活。库数据 `{version, categories, listCats, tags, catModes}` 单 JSON 字符串。
+- **工作副本模式**（editor 正确性核心）：
+  - 打开时 `reloadLibrary()` **强制重读**（不能读内存缓存：另一标签页可能已改）；
+  - 编辑只动工作副本，`commitLibrary` 防抖 350ms 持久化 + 订阅者即时重高亮；
+  - 关闭时 `isSameAsStored` 判定（两侧先 normalize 再 JSON 比较，键序/默认值差异不算不同）**有变化才写回**——无条件写回会把本标签页快照盖到他标签页的编辑上；
+  - `flushLibrary` 只写"确实有待写的防抖"（无条件 flush 会静默取消 isSameAsStored 保护）。
+- **Ctrl+Z 守卫**：ComfyUI 的 ChangeTracker 在 window+capture 注册、后注册监听永远无法抢先；唯一官方信号是构造器静态槽 `maskeditor_is_opended`（返回 true 整条撤销链跳过）。实现要点：引用计数（两个编辑器可同时开）、自愈（overlay 异常拆除自动放下）、归还前验证槽还是自己的。
+- **Esc 分层（capture 阶段 window 监听，压过字段自身的冒泡处理）**：最上层 modal → 分类菜单 → 字段取消（**字段暴露 `_sfCancel` 句柄供 capture 直接调用——绝不能 fallback 到 `blur()`，blur 监听器会提交编辑**，Escape 变成"应用了要放弃的编辑"）→ 搜索框清空 → 编辑器关闭。
+- **图标**：插件无资产服务路由 → delete/help 两个 SVG 内联 data URI（mask-image 用法不变）。
+- **类名隔离**：全屏 overlay 类前缀 `sf-ptge-`（源插件是 `pix-prled`），防止与同装的其他插件 CSS 互踩。
+- **无撤销设计**：一切可能丢失的操作先 `confirmDanger`（标题/说明/列出将被删内容/可选"先导出备份"，导出不关对话框），然后直接应用——历史证明给编辑器加 undo 栈是最大 bug 源。
+
+### 4. 中文支持与拼音检索（做"中文 token/名称 + 拼音搜索"必知）
+
+- **token 语法放宽为 `[\p{L}\p{N}_-]`（必须带 u flag）**，中文可作 tag/分类名；`NAME_RE` 清洗同理。名称清洗丢弃的导入项（dropped）文案同步（"letters, numbers, Chinese characters, - and _"）。
+- **token 边界规则（关键决策）**：原版用 `\p{L}` 判边界（防 email），中文场景会误伤 `画@水彩`、`中文@tag`。改为**符号前是 `Latin/希腊/西里尔/数字/组合标记/_` 集合才不算 token**：`user@name`、`2*2` 保护保留，CJK 前照常识别。同一集合用于 AC 弹出条件与 `tagSep/tagTrail` 空格规则（中文前后不插空格，拉丁语境保持补空格防 `@a@b` 粘连）。链式规则（`@a@b`）不依赖字符类别，跨种不链式保留。
+- **拼音表**：运行时不能引 npm 依赖 → **一次性生成后内联**。流程：`npm pack pinyin-pro`（网络可用时）→ Node `TextDecoder('gb2312')` 遍历 GB2312 一级区 `0xB0A1-0xD7F9`（3760 个编码位）→ pinyin-pro 取无声调常用音 → 生成 `PINYIN_MAP`（~47KB 模块）。`pinyinMatch(name, q)` 三路子串：原名小写 / 全拼（`youhua`）/ 首字母（`yh`）。缺表生僻字该字拼音搜不到，原名匹配始终可用。
+- **多音字**：pinyin-pro 带上下文（`重庆` → chong qing），单字取常用音，个别不准可接受。
+
+### 5. 模拟测试方法论（mock DOM 冒烟，抓语法检查漏掉的运行时错误）
+
+- **纯函数层**（lib/cursors/pinyin）：copy 为 `.mjs` 直跑（无 app/DOM import）；有 app 依赖的文件把 `import { app } from "/scripts/app.js"` 替换为 `const app = globalThis.app` + mock `app.ui.settings`（内存对象模拟 comfy.settings.json），**相对 import 要一起 copy 到同 tmp 目录并改 `.mjs` 后缀**。
+- **冒烟层**（editor/主扩展，`test_prompt_tags_editor_smoke.js`/`test_prompt_tags_main_smoke.js`）：mock DOM 用**惰性元素**（任何 `querySelector` 返回新元素、事件绑定/appendChild 不炸），模块级 `document.addEventListener`、`getComputedStyle`、`ResizeObserver`（Node 无此全局，代码需 `typeof` 判存在）都要 mock。editor 冒烟：空库/有库/prefill 打开、关闭、复位、onInsert 全链路；主扩展冒烟：**graphToPrompt 端到端**（构造 `{output: {"1": {class_type, inputs: {}}}}` 断言 PromptState 注入值）+ queuePrompt→commitPicks 游标落盘。运行时错误（缺 mock、绑定错）在此层必现。
+- **测试环境坑**：直改 mock settings 后 store 内存缓存不会失效 → 需调 `reloadLibrary()`（真实场景改库都走 store API 自动同步，此坑纯属测试环境）。
+- **断言反例（都是写错断言而非代码错）**：shuffle 发完牌 `cursorInfo` 显示 `0 || n` 即整副数量；首字母 `yh` 是 `y` 的超集（`pinyinMatch(x,"y")` 恒真）；旧库启发式（全 list 分类 → List 侧）是特性不是 bug；`import "x" * 30` 在 Python 字符串里不是合法 JSON。
+
+### 6. 模块边界（复用/修改时的快速索引）
+
+- `sf_prompt_tags_lib.js`：纯函数（normalize/scanTokens/expandAll/reorder/导入导出变换/模式常量）——无 app/DOM，测试 copy 直跑。
+- `sf_prompt_tags_store.js`：库存储（settings 读写/防抖 commit/reload/isSameAsStored/applyImport 包装）。
+- `sf_prompt_tags_cursors.js`：游标（nextIndex/commitPicks/reset/rename，含队列提交语义）。
+- `sf_prompt_tags_guard.js`：Ctrl+Z 守卫（window.app 构造器槽）。
+- `sf_prompt_tags_editor.js`：全屏编辑器（工作副本、侧栏、卡片、导入导出、confirmDanger）。
+- `sf_prompt_tags_pinyin.js`：内联拼音表 + pinyinMatch（生成脚本一次性，勿手改数据）。
+- `sf_prompt_tags.js`：DOM widget 节点本体 + graphToPrompt/queuePrompt patcher + 右键菜单。

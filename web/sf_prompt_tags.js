@@ -52,6 +52,7 @@ import {
     openLibraryEditor,
     closeLibraryEditorFor,
 } from "./sf_prompt_tags_editor.js";
+import { pinyinMatch } from "./sf_prompt_tags_pinyin.js";
 
 const STATE_KEY = "promptState";
 const DEFAULT_STATE = { text: "", order: "mine", sep: ", ", showExpanded: true };
@@ -337,9 +338,10 @@ const SEP_OPTIONS = [
 ];
 
 // ── @ 自动补全（body 级单例弹窗）────────────────────────────────────────
-const TAG_TOKEN_RE = /@([a-zA-Z0-9_\-]*)$/;
-const WILD_TOKEN_RE = /\*([a-zA-Z0-9_\-]*)$/;
-const LIST_TOKEN_RE = /#([a-zA-Z0-9_\-]*)$/;
+// token 名支持 Unicode 字母/数字/-/_（含中文）
+const TAG_TOKEN_RE = /@([\p{L}\p{N}_\-]*)$/u;
+const WILD_TOKEN_RE = /\*([\p{L}\p{N}_\-]*)$/u;
+const LIST_TOKEN_RE = /#([\p{L}\p{N}_\-]*)$/u;
 let _acEl = null;
 let _ac = null; // { node, ta, start, items, sel }
 
@@ -368,11 +370,13 @@ function installACSelWatch() {
 function maybeAC(node, ta) {
     const pos = ta.selectionStart;
     const upto = ta.value.slice(0, pos);
+    // 边界与 lib scanTokens 一致：前字符为拉丁/数字等阻断类时不弹（email 等），
+    // 中文等其它文字之前照常弹（"画@" 输入中文标签）
     const mt = TAG_TOKEN_RE.exec(upto);
     if (mt) {
         const start = pos - mt[0].length;
         const prev = prevCodePointOf(ta.value, start);
-        if (prev && /[\p{L}\p{N}\p{M}_@]/u.test(prev)) { closeAC(); return; }
+        if (prev && /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{N}\p{M}_@]/u.test(prev)) { closeAC(); return; }
         openAC(node, ta, start, mt[1].toLowerCase(), "tag");
         return;
     }
@@ -380,7 +384,7 @@ function maybeAC(node, ta) {
     if (mw) {
         const start = pos - mw[0].length;
         const prev = prevCodePointOf(ta.value, start);
-        if (prev && /[\p{L}\p{N}\p{M}_*]/u.test(prev)) { closeAC(); return; }
+        if (prev && /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{N}\p{M}_*]/u.test(prev)) { closeAC(); return; }
         openAC(node, ta, start, mw[1].toLowerCase(), "wild");
         return;
     }
@@ -388,7 +392,7 @@ function maybeAC(node, ta) {
     if (ml) {
         const start = pos - ml[0].length;
         const prev = prevCodePointOf(ta.value, start);
-        if (prev && /[\p{L}\p{N}\p{M}_#]/u.test(prev)) { closeAC(); return; }
+        if (prev && /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{N}\p{M}_#]/u.test(prev)) { closeAC(); return; }
         openAC(node, ta, start, ml[1].toLowerCase(), "list");
         return;
     }
@@ -412,7 +416,7 @@ function openAC(node, ta, start, q, mode) {
 
     if (mode === "list") {
         const lists = getTags()
-            .filter((t) => isListTag(t) && t.name.toLowerCase().includes(q))
+            .filter((t) => isListTag(t) && pinyinMatch(t.name, q))
             .map((t) => ({ name: t.name, cat: catOf(t), lines: tagLines(t.text) }))
             .filter((t) => t.lines.length > 0);
         if (!lists.length) {
@@ -442,9 +446,10 @@ function openAC(node, ta, start, q, mode) {
             }
         }
     } else if (mode === "wild") {
-        // 仅列出能作为单个 *token 输入的分类（名称须为纯 [a-zA-Z0-9_-]）且有标签的分类
+        // 仅列出能作为单个 *token 输入的分类（名称须为纯 [\p{L}\p{N}_-]，
+        // 中文分类名可作为 *中文分类）且有标签的分类
         const cats = getCategories()
-            .filter((c) => c && c.toLowerCase().includes(q) && /^[a-zA-Z0-9_\-]+$/.test(c))
+            .filter((c) => c && pinyinMatch(c, q) && /^[\p{L}\p{N}_\-]+$/u.test(c))
             .map((c) => ({ name: c, count: (wildCat(c)?.pool.length) || 0 }))
             .filter((c) => c.count > 0);
         if (!cats.length) {
@@ -470,7 +475,7 @@ function openAC(node, ta, start, q, mode) {
         }
     } else {
         // @tags：仅文本标签（List 标签归 #），按分类分组
-        const tags = getTags().filter((t) => !isListTag(t) && t.name.toLowerCase().includes(q));
+        const tags = getTags().filter((t) => !isListTag(t) && pinyinMatch(t.name, q));
         const byCat = new Map();
         for (const t of tags) {
             const c = catOf(t);
@@ -520,13 +525,14 @@ function updateACSel() {
     const sel = _acEl.querySelector(".sf-ptg-ac-i.sel");
     if (sel) sel.scrollIntoView({ block: "nearest" });
 }
-// 前导空格：符号前是单词字符时插入空格，避免 @a@b 挤在一起
+// 前导空格：仅当前字符为拉丁/数字/下划线/组合标记（或刚插入的符号）时才加空格，
+// 避免 @a@b 挤在一起；中文前后不插空格（"画@水彩" 是中文习惯）
 function tagSep(before) {
-    return (before && /[\p{L}\p{N}\p{M}_@*#]$/u.test(before)) ? " " : "";
+    return (before && /[a-zA-Z0-9_\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{M}@*#]$/u.test(before)) ? " " : "";
 }
-// 尾随空格：让继续输入成为独立单词而非延长标签名
+// 尾随空格：让继续输入成为独立单词而非延长标签名（同样仅拉丁/数字语境）
 function tagTrail(after) {
-    return (!after || /^[\p{L}\p{N}\p{M}_@*#]/u.test(after)) ? " " : "";
+    return (!after || /^[a-zA-Z0-9_\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{M}@*#]/u.test(after)) ? " " : "";
 }
 function pickAC(item) {
     if (!_ac) return;

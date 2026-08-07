@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放、拼接、处理、对比
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
@@ -38,7 +38,7 @@ sfnodes/
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -132,7 +132,7 @@ class SFMyNode:
 
 ## Development Rules
 
-1. **不要启动 ComfyUI 或运行 `pip install`** — 本机仅作为代码编辑环境
+1. **不要启动 ComfyUI 或运行 `pip install`** — 本机仅作为代码编辑环境。一次性生成工具（如拼音表用的 pinyin-pro）可装在 `/tmp` 使用，产物内联进 web/ 模块，**不得进入 requirements.txt**
 2. 可以阅读 `../..` 源码以理解 API 和参考实现
 3. 新增节点必须同步更新根 `__init__.py` 的两个注册字典
 4. 新增依赖必须同步更新 `requirements.txt`
@@ -177,6 +177,17 @@ class SFMyNode:
 - 槽名渲染读 `label ?? localized_name ?? name`；初始槽自带 `localized_name`（动态槽没有）→ **改槽名必须同步 name + localized_name**，否则"只有第一个槽改名不生效"。
 - `configure` 直赋 links 不触发 `onConnectionsChange` → 恢复场景需挂 `onAfterGraphConfigured` 补逻辑。
 - 输入槽 `.link` / 输出槽 `.links` 判空结构不同（公共库 `isSlotConnected` 两者兼容）。
+
+**前端：@tag 展开注入与 Picks 游标（`web/sf_prompt_tags*.js`，SFPromptTags）**
+- 前端 `graphToPrompt` hook 在队列时展开 `@tag`/`*cat`/`#list` 并注入隐藏 PromptState（JSON），后端只做拼接；随机结果改变注入字符串 → 缓存键变化 → 自动重跑（无 nonce 即可）。
+- `*wildcard`/`#list` 的 shuffle/order 游标**只在 queue 被真正接受后推进**：`beginPickBuild` 把 build id 挂 prompt 对象，`queuePrompt` patcher 成功后 `commitPicks`——Export/分享/校验失败的 build 不消耗选择；同 build 内重复 `#fruit` 用 per-use 计数器发新牌。
+- 标签库存 ComfyUI **未注册设置**（机器私有、跨工作流共享、永不进 workflow）；全屏编辑器用工作副本，关闭时 `isSameAsStored` 判定才写回（防覆盖他标签页），`installGraphUndoGuard` 填 `maskeditor_is_opended` 官方槽屏蔽 Ctrl+Z。
+- **token 语法与中文**：token 名 `[\p{L}\p{N}_-]`（u flag，中文可作 tag/分类）；边界保护用 Latin/希腊/西里尔/数字/组合标记集合（email `user@name`、算式 `2*2` 不误判，`画@水彩` 识别）；拼音检索用内联 GB2312 一级字表（pinyin-pro 一次性生成，非运行时依赖），`pinyinMatch` 原名/全拼/首字母三路子串；中文 token 前后不插空格（`tagSep/tagTrail` 仅拉丁语境加空格）。
+
+**前端：全屏编辑器与冒烟测试**
+- 全屏编辑器（DOM widget 之外的整页 overlay）：类名前缀与既有插件隔离（`sf-ptge-`），图标内联 data URI（无资产服务路由），Esc 用 window capture 分层处理（modal → 菜单 → 字段取消 `_sfCancel` → 关闭），危险操作统一 `confirmDanger`（无撤销）。
+- 模块化：纯函数 lib（无 app/DOM，测试 copy .mjs 直跑）/ store / cursors / guard / editor / 主扩展，跨文件 import 契约即模块边界。
+- 冒烟测试（mock DOM）：惰性元素（任何 querySelector 返回新元素）、`/scripts/app.js` → `globalThis.app`、相对 import 改 `.mjs` 同 tmp 目录；可抓纯语法检查漏掉的运行时错误（如缺 `getComputedStyle` mock）。
 
 **前端：Vue 新版（comfyui_frontend_package 1.x）**
 - 先确认前端版本再选方案（容器内 `pip show comfyui-frontend-package`，Version 1.x = Vue）。

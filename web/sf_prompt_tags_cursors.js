@@ -22,7 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { MODES, DEFAULT_MODE, cleanMode } from "./sf_prompt_tags_lib.js";
+import { MODES, cleanMode } from "./sf_prompt_tags_lib.js";
 
 const CURSOR_SETTING = "sfnodes.PromptTags.Cursors";
 
