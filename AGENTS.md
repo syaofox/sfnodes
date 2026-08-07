@@ -14,7 +14,7 @@ sfnodes/
 ├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
 ├── nodes/               # 所有节点实现，按功能分子目录
 │   ├── face/            # 人脸：分析、对齐、扭曲、裁剪粘贴、区域、遮挡
-│   ├── image/           # 图片：加载、缩放、拼接、处理、对比
+│   ├── image/           # 图片：加载、缩放、拼接、处理、对比、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
 │   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）
@@ -38,7 +38,7 @@ sfnodes/
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -190,6 +190,15 @@ class SFMyNode:
 - 解析不到活节点时默认 **pass（不剪）** 而非破坏性的 pause；一次性提交模式（Continue/Regenerate 按钮）挂 `_sfPauseTextSubmitMode` 后 `app.queuePrompt(0,1)`，finally 清除；`executed` 事件接收 Python `ui` 键回填盒子（setModelText 换文本+基线）。
 - **Python 侧禁设 `IS_CHANGED = float("nan")`**：NaN 恒不等自身 → 节点每次 Run 都"变化" → 缓存键折叠所有祖先 → 闸门下游每次全量重跑。模式与文本在隐藏输入里本就在缓存键中，无需额外失效。
 - 状态存 `node.properties.pauseTextState`（gate/text/original）随工作流保存（保留编辑是设计）；无 widget 状态的 DOM-only restore 在加载路径安全。
+
+**前端：快照闸门与预览保存（`web/sf_pause_image*.js`，SFPauseImage）**
+- **图片无法随隐藏输入携带 → 快照机制**：pause 时后端把首帧存 `folder_paths.get_temp_directory()/sf_pause_<id>.png`，continue 时前端把上游剪出 prompt、后端读回同一文件（`UNIQUE_ID` 跨 run 稳定）。快照文件名前缀必须与源插件隔离（同 node_id 会撞文件互相覆盖）。重启后快照过期 → continue 抛清晰错误，需重新 Pause。
+- **PNG 拖回重建（Save Output）**：`PngInfo.add_text("prompt"/"workflow")` 对齐 ComfyUI SaveImage 字节格式；嵌入前必须 `_json_safe`（NaN/Inf → 字符串，否则拖回时 workflow JSON.parse 炸）；尊重 `--disable-metadata`（`comfy.cli_args.args.disable_metadata` 实时读、fails open）。
+- **`_safe_prefix` 段清洗（复查抓到的真 bug）**：leading `/` 与 `".."` 段检查必须在**任何清洗之前**——先删点/斜杠会让检查永远不命中（路径穿越失效）。段内 Windows 非法字符（`<>:"|?*` 与控制字符）替换 `_`、折叠、边沿剥离、保留设备名（CON/NUL…）加 `_` 后缀；非拉丁/空格原样通过。
+- Save 链路：snapshotDataURL → `POST /api/sfnodes/preview/{save,prepare}`（前端 `api.apiURL()` 构建）→ `showSaveFilePicker` 优先 + `<a download>` 回退；executed 捕获的执行期工作流只存运行时（`node._sfPauseImageExecMeta`，绝不进 node.properties）。
+
+**后端：自定义 API 路由（`sf_utils/lora_notes.py`、`nodes/image/preview_routes.py`）**
+- 注册先例：`from server import PromptServer` → `ins.routes` 装饰器注册，try/except 包裹（环境异常降级不注册），模块导入时副作用执行（`__init__.py` import）；前缀统一 `/api/sfnodes/...`。**改动路由后必须重启容器**，否则前端 404 静默降级。
 
 **前端：全屏编辑器与冒烟测试**
 - 全屏编辑器（DOM widget 之外的整页 overlay）：类名前缀与既有插件隔离（`sf-ptge-`），图标内联 data URI（无资产服务路由），Esc 用 window capture 分层处理（modal → 菜单 → 字段取消 `_sfCancel` → 关闭），危险操作统一 `confirmDanger`（无撤销）。
