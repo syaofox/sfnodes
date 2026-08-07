@@ -525,6 +525,18 @@ check("片段首字母小写化", _c2.split(", ")[1].startswith("close-up shot")
 check("input_text 首字母保持原样", _c2.startswith("test subject,"))
 check("数字开头片段不受影响", "85mm classic" in _c2)
 
+# 7c2. 环境段空间介词：in the（室内） / on the（表面类），pack 保持原文
+_, pack = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
+_env_c, _ = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
+check("环境段加 in the 前缀", "in the modern subway train interior" in _env_c)
+check("pack 环境保持原文无前缀", pack["Environment"].startswith("Modern subway train"))
+_roof_zh = _data["Environment"]["Rooftop Cityscape"]["name_zh"]
+_c3, _ = node.execute("x", seed=1, environment_preset=_roof_zh)
+check("表面类环境用 on the", "on the urban rooftop" in _c3)
+_c4, _ = node.execute("x", seed=1, environment_preset="禁用")
+check("禁用环境无前缀", "in the " not in _c4 and "on the " not in _c4)
+check("环境前缀后拼接顺序 pose < env", _env_c.index("looking back over the shoulder") < _env_c.index("in the modern subway train interior"))
+
 # 7d. pose/couple mutual exclusion (backend fallback, pose wins)
 _, pack = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
 p_m = pack['Pose']

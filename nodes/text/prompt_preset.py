@@ -12,6 +12,14 @@ _CATEGORY = "sfnodes/text"
 _DISABLED = "禁用"
 _RANDOM = "随机"
 
+# 环境片段拼接时自动加空间介词建立主体-环境关系（Krea2 grounded phrasing）：
+# "上面/表面类"环境（屋顶/甲板/海滩/街道/地面/桥等）用 on the，其余用 in the
+_ENV_ON_PREFIX = re.compile(
+    r"^(?:urban rooftop|rooftop|deck|balcony|porch|beach|shore|street|ground|floor|path|"
+    r"pier|platform|bridge|hillside|sidewalk|boardwalk|seaside|poolside|pavement)",
+    re.I,
+)
+
 _CATEGORY_KEYS = ("Celebrity", "Expression", "Outfit", "Pose", "Couple Pose", "Environment", "Lighting", "Style", "Camera Angle", "Camera Distance", "Camera Lens")
 
 _presets = {}
@@ -191,11 +199,22 @@ class SFPromptPreset:
         if c_text:
             # 名人片段保持专有名词大小写（Taylor Swift）
             preset_parts.append(c_text)
-        for p in (expression_text, outfit_text, pose_text, couple_text, env_text, light_text, style_text, angle_text, distance_text, camera_text):
-            p = p.strip().rstrip(".")
+
+        def _append_segment(text, prefix=""):
+            p = text.strip().rstrip(".")
             if p:
-                # 其余片段首字母小写化，与 Krea2 官方小写短语流风格一致（input_text 保持原样）
-                preset_parts.append(p[0].lower() + p[1:])
+                # 片段首字母小写化，与 Krea2 官方小写短语流风格一致（input_text 保持原样）
+                preset_parts.append(prefix + p[0].lower() + p[1:])
+
+        for t in (expression_text, outfit_text, pose_text, couple_text):
+            _append_segment(t)
+        if env_text.strip():
+            # 环境段加空间介词（in the / on the），使主体明确"身处"场景之中，避免人物贴图感
+            e = env_text.strip()
+            prefix = "on the " if _ENV_ON_PREFIX.match(e) else "in the "
+            _append_segment(e, prefix)
+        for t in (light_text, style_text, angle_text, distance_text, camera_text):
+            _append_segment(t)
         parts.extend(preset_parts)
         combined = self._clean_prompt(", ".join(parts))
 
