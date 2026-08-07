@@ -1,3 +1,5 @@
+import os
+
 import torch
 
 import comfy.utils
@@ -485,3 +487,38 @@ class SFBatchAnything:
         if any_2 is None:
             return (any_1,)
         return (any_1 + any_2,)
+
+
+class ComboSelector:
+    """通用下拉选择器：下拉选项在连接到目标节点的 combo 输入（Convert to input 后）时自动同步为目标选项列表。"""
+    DESCRIPTION = "通用下拉选择器：将输出连接到任意节点的 combo 输入（先在目标节点右键 combo → Convert to input），下拉选项即自动同步为该 combo 的选项列表；同时输出 value_stem（去掉路径与扩展名的值，非文件名时原样返回）。"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": (
+                    [""],
+                    {
+                        "default": "",
+                        "tooltip": "下拉选择的值；选项在连接到目标节点的 combo 输入（Convert to input 后）时自动同步为目标选项列表",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = (any_type, "STRING")
+    RETURN_NAMES = ("value", "value_stem")
+    OUTPUT_TOOLTIPS = ("选中的值（任意类型，可连接任何 combo 输入）", "去掉路径与扩展名的值（非文件名时原样返回）")
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, **kwargs):
+        # value 选项由前端根据连接目标动态重建，会超出 INPUT_TYPES 的静态初始列表（[""]），
+        # 跳过默认的 "Value not in list" 校验
+        return True
+
+    def execute(self, value):
+        stem = os.path.splitext(os.path.basename(str(value)))[0]
+        return (value, stem)

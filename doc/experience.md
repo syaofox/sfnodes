@@ -186,6 +186,17 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **改槽名必须同步 `name` 和 `localized_name`** 两字段；若槽已有 `label`（优先级更高，`addInputSocket` 不设但第三方可能设）也需同步。Vue 模式下还需替换数组元素才触发渲染（见 §9 渲染模式差异）。
 - 关联坑：动态槽位节点的**输入槽名必须与后端 `INPUT_TYPES` 键一致**（prompt 序列化依赖），改名后由前端 `graphToPrompt` 补丁映射回 `value{index}`（见 §7 与 any_pack.js 的 `installPromptMapping`）。
 
+### 11. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
+
+> 背景：SFComboSelector 通用下拉选择器（2026-08，前端 1.48.6）：输出连到目标节点 combo 输入（Convert to input 后）→ 下拉选项自动同步为目标选项列表。踩坑链：连线后选项不动 → 事件没触发? → 数据层取不到列表 → 目标节点解析失败。
+
+- **坑 1（根因）：Vue 新版 LLink 字段名变了**。旧版 `link.target_node`/`origin_node`，新版为 **`target_id`/`origin_id`**（`target_slot`/`origin_slot` 未变），且**节点 id 为字符串**。按旧字段取 → `undefined` → 目标解析失败 → 选项同步静默失效（无任何报错）。取目标必须 `link.target_node ?? link.target_id`，节点查找用 `String(n.id) === String(id)` 比较。
+- **坑 2：combo 输入槽 `slot.type` 在新版是字符串 `"COMBO"`**（不是旧版的选项数组/逗号串）→ 从槽类型取不到列表。**Convert to input 后原 combo widget 仍保留在 `node.widgets`（含动态重建的 `options.values`）**——这是动态选项（如 SFPromptPreset 的 441 项）唯一可靠来源，nodeDef 兜底只有静态列表。三级兜底：槽类型（数组/JSON/逗号串归一化）→ 同名残留 widget 的 `options.values` → nodeDef。
+- **坑 3：连接事件触发时 `outputs[0].links` 可能尚未更新** → `onConnectionsChange` 里 `setTimeout(syncOptions, 0)` 延迟执行；工作流加载恢复连接不触发该事件 → 挂 `onAfterGraphConfigured`/`onGraphConfigured` 补同步。
+- **坑 4：combo widget 是 DOMWidget（ComboWidget，带 `element`）** → 更新选项需整体替换 `widget.options` 对象 + 重赋 `values` 数组引用（Vue 渲染监听引用变化）并 `setDirtyCanvas`；断线/无连接恢复占位 `[""]`。
+- **通用输出类型**：目标不可预测时用 `RETURN_TYPES = (AnyType("*"), ...)`（项目 `sf_utils/common.py`）——后端 `validation.py` 与前端 `isValidConnection` 对 `*` 均直接放行，可连任意 combo 输入；动态选项节点标配 `VALIDATE_INPUTS → True`（见 §4.2）。ComfyUI 官方生态同类参考：`ControlNetPreprocessorSelector`（输出类型 = 具体 combo 列表，`isValidConnection` 对数组按元素逐项匹配，任一共有即可连）。
+- **诊断**：node 上暴露 `_sfComboSync`/`_sfComboGetLinks`/`_sfComboFindTarget` 调试接口，console 分段脚本直接调用定位（见 §9）。
+
 ---
 
 ## 3. 静态检查脚本经验（AST 对比踩坑）

@@ -140,6 +140,7 @@ from .nodes.logic import (
     SFBatchAnything,
     SFMathInt,
     SFCompare,
+    ComboSelector,
 )
 
 WEB_DIRECTORY = "web"
@@ -304,6 +305,7 @@ NODE_CLASS_MAPPINGS = {
     "SFBatchAnything": SFBatchAnything,
     "SFMathInt": SFMathInt,
     "SFCompare": SFCompare,
+    "SFComboSelector": ComboSelector,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -465,6 +467,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFBatchAnything": "SF Batch Any",
     "SFMathInt": "SF Math Int",
     "SFCompare": "SF Compare",
+    "SFComboSelector": "SF Combo Selector",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
