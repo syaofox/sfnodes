@@ -58,7 +58,7 @@ globalThis.document = {
     getElementById() { return null; },
     createTextNode: (t) => ({ textContent: t }),
     execCommand: () => true,
-    querySelector: () => null,
+    querySelector: (sel) => (sel === "#vue-app" ? vueAppEl : null),
     activeElement: makeEl(),
 };
 globalThis.window = {
@@ -106,6 +106,26 @@ const workflows = [
     { path: "workflows/a.json", isModified: false, isTemporary: false, activeState: { nodes: [] } },
     { path: "workflows/sub/b.json", isModified: false, isTemporary: false, activeState: { nodes: [] } },
 ];
+
+// ── mock pinia 书签 store（模拟真实语义：ComfyUI 启动时不读收藏文件，
+//    bookmarkedWorkflows 初始 null，直到 loadBookmarks() 才从磁盘读入）──
+const diskBookmarks = [{ path: "workflows/a.json" }];
+const bookmarkCalls = { load: 0, toggle: 0 };
+const bookmarkStoreMock = {
+    bookmarkedWorkflows: null,
+    async loadBookmarks() { bookmarkCalls.load++; this.bookmarkedWorkflows = [...diskBookmarks]; },
+    async toggleBookmarked(p) { bookmarkCalls.toggle++; this.bookmarkedWorkflows = [...(this.bookmarkedWorkflows || []), { path: p }]; },
+};
+const vueAppEl = {
+    __vue_app__: {
+        config: {
+            globalProperties: {
+                $pinia: { _s: { get: (id) => (id === "workflowBookmark" ? bookmarkStoreMock : null) } },
+            },
+        },
+    },
+};
+
 globalThis.app = {
     graph: { _nodes: [], links: {} },
     canvas: { setDirty() {}, ds: { scale: 1 } },
@@ -168,6 +188,11 @@ globalThis.api = {
     check("面板已打开", fetchCalls.some((c) => String(c.url).includes("/api/sfnodes/workflows/index")));
     check("meta 已获取", fetchCalls.some((c) => String(c.url).includes("/api/sfnodes/workflows/meta")));
     check("index 请求 no-store", fetchCalls.some((c) => String(c.url).includes("index") && c.opts?.cache === "no-store"));
+    // 收藏加载必须在读列表前完成（ComfyUI 启动不读收藏文件；原版同款守卫
+    // 在 loadData 的 Promise.all 里。修复前 loadBookmarks 永不被调用 → 重启后
+    // 收藏恒为空，直到用户再收藏一次才触发加载）
+    check("收藏已加载（loadData 触发 loadBookmarks）", bookmarkCalls.load >= 1);
+    check("收藏读自磁盘", JSON.stringify((bookmarkStoreMock.bookmarkedWorkflows || [])) === JSON.stringify(diskBookmarks));
 
     // ── CSS 密度插值验证：注入的样式应含展开的 calc(...*var(--sfwb-k))，
     //    且无字面 ${z(...)} 残留（运行时插值失败的证据）──

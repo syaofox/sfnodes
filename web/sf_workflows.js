@@ -321,7 +321,10 @@ async function loadData() {
     const ticket = ++loadSeq;
     S.loading = true;
     try {
-        const [idx, meta] = await Promise.all([fetchIndex(), fetchMeta()]);
+        // 收藏不在内存直到 ComfyUI 被要求读取它们（启动时不读收藏文件，
+        // 书签 store 要等有人调 loadBookmarks()）——先读列表会报"没有收藏"，
+        // 见 ensureFavouritesLoaded。与索引/元数据并行，读的是一次小文件。
+        const [idx, meta] = await Promise.all([fetchIndex(), fetchMeta(), ensureFavouritesLoaded()]);
         if (ticket !== loadSeq) return;
         S.entries = idx.entries || [];
         S.rawFolders = idx.folders || [];
