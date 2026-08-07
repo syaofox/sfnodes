@@ -56,7 +56,7 @@ class SFSeed:
 
     def execute(self, seed=0, prompt=None, extra_pnginfo=None, unique_id=None):
         if seed in (-1, -2, -3):
-            logger.warning(f'Got "{seed}" as passed seed.')
+            logger.info(f'Got "{seed}" as passed seed.')
             original_seed = seed
             seed = _new_random_seed()
             logger.info(f"Server-generated random seed {seed}.")
