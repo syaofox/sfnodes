@@ -15,11 +15,12 @@ sfnodes/
 ├── nodes/               # 所有节点实现，按功能分子目录
 │   ├── face/            # 人脸：分析、对齐、扭曲、裁剪粘贴、区域、遮挡
 │   ├── image/           # 图片：加载、缩放、拼接、处理、对比、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
-│   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
+│   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
 │   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
+│   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
 ├── sf_utils/            # 共享工具库
 │   ├── common.py        # AnyType 通用类型
@@ -37,8 +38,9 @@ sfnodes/
 │   ├── lora_notes.py     # LoRA 笔记/说明
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
+│   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_workflows*.js 工作流面板三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -197,7 +199,21 @@ class SFMyNode:
 - **`_safe_prefix` 段清洗（复查抓到的真 bug）**：leading `/` 与 `".."` 段检查必须在**任何清洗之前**——先删点/斜杠会让检查永远不命中（路径穿越失效）。段内 Windows 非法字符（`<>:"|?*` 与控制字符）替换 `_`、折叠、边沿剥离、保留设备名（CON/NUL…）加 `_` 后缀；非拉丁/空格原样通过。
 - Save 链路：snapshotDataURL → `POST /api/sfnodes/preview/{save,prepare}`（前端 `api.apiURL()` 构建）→ `showSaveFilePicker` 优先 + `<a download>` 回退；executed 捕获的执行期工作流只存运行时（`node._sfPauseImageExecMeta`，绝不进 node.properties）。
 
-**后端：自定义 API 路由（`sf_utils/lora_notes.py`、`nodes/image/preview_routes.py`）**
+**前端：SFPauseMask（`web/sf_pause_mask*.js`，SFPauseMask）**
+- 与 SFPauseImage **同构**（MASK 类型闸门）：快照/剪枝/一次性模式/executed 回填机制全部复用，仅 CLASS/输入键（`mask`）/frame 键（`sf_pause_mask_frame`）/state 键（`pauseMaskState`）不同。
+- **剪枝共用一份实现**：三闸门（text/image/mask）的 prune 全走 `sf_pause_text_lib.js::applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT, {inputKey})`——改 prune 语义只改一处。
+- 快照为**灰度 PNG（L 模式，0-255 量化）**：遮罩通常二值/低精度，8bit 足够，与 ComfyUI 存遮罩惯例一致；tensor 转换防御非标准 `[1,H,W]`（部分节点输出带单例通道维，压平后 L 模式才接受 2D）。
+- 快照前缀 `sf_pause_mask_` 与图片闸门的 `sf_pause_` 隔离命名空间；`executed` 回填遮罩 frame 到灰度预览。
+
+**前端：SF Workflows 工作流面板（`web/sf_workflows*.js`、`nodes/workflow_routes.py`、`sf_utils/workflow_index_helpers.py`）**
+- **无节点设计**：面板是"应用"不是节点——节点会被存进工作流文件，分享工作流会把多余节点带给每个打开的人。打开方式：工具栏按钮 + 热键 + canvas 右键菜单。
+- **热键撞车**：原版 Pixaroma Workflows 占用 `Alt+W`，并存时 ComfyUI 按键注册全局去重报 `Keybinding on Alt + w already exists` → 本项目用 `Alt+Shift+W`。
+- 后端分层：`workflow_index_helpers.py` 纯逻辑（无 ComfyUI 依赖可独立测试，mtime+size 增量解析、24MB 文件上限、封面映射 60 框/文本 2KB cap）；`workflow_routes.py` 五资源路径 7 handler（/index 一次返回全部、/meta GET 自愈+POST 按键合并、/folder、/reveal、/cover POST+GET），**meta 读写用 asyncio.Lock 防两面板读-改-写互擦**。
+- sidecar 三件套（user/default/ 下，bind mount 存活）：`sf_workflows_meta.json`（notes/covers/folderColors + folderOrder/folderExpanded）、`sf_workflows_cache.json`（索引缓存，条目形状变化递增 version 丢弃）、`sf_covers/`（手选封面以真实 jpg 文件保存，sidecar 只存文件名）。
+- **收藏走 pinia（Vue 新版）**：ComfyUI 启动时不读收藏文件，书签 store 直到有人调 `loadBookmarks()` 才加载 → toggle 收藏前必须先 `await loadBookmarks()`，否则覆盖空列表。
+- 设置键 `sfnodes.Workflows.{Rect,View,Sort,Density}`（comfy.settings.json 持久化）；**密度系统 `z(n)=calc(npx*var(--sfwb-k,1))`**：视觉尺寸全走 CSS 变量缩放（s/m/l 三档），窗口像素尺寸刻意不缩放保拖拽数学自洽；滚动容器 `overflow-y` 放**持久 main**（面板重建不重置滚动位置）；加载带票号 guard 防两次加载重叠。
+
+**后端：自定义 API 路由（`sf_utils/lora_notes.py`、`nodes/image/preview_routes.py`、`nodes/workflow_routes.py`）**
 - 注册先例：`from server import PromptServer` → `ins.routes` 装饰器注册，try/except 包裹（环境异常降级不注册），模块导入时副作用执行（`__init__.py` import）；前缀统一 `/api/sfnodes/...`。**改动路由后必须重启容器**，否则前端 404 静默降级。
 
 **前端：全屏编辑器与冒烟测试**

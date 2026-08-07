@@ -13,6 +13,8 @@
 - [6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）](#6-sfprompttagstag-展开注入--picks-游标--全屏编辑器--中文与拼音复刻-pixaroma-prompt)
 - [7. SFPauseText：prompt 剪枝闸门（复刻 Pixaroma Pause Text）](#7-sfpausetextprompt-剪枝闸门复刻-pixaroma-pause-text)
 - [8. SFPauseImage：快照闸门与预览保存（复刻 Pixaroma Pause Image）](#8-sfpauseimage快照闸门与预览保存复刻-pixaroma-pause-image)
+- [9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）](#9-sfpausemask遮罩快照闸门pixaroma-pause-mask-同构扩展)
+- [10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）](#10-sf-workflows工作流面板复刻-pixaroma-workflows)
 
 ---
 
@@ -424,3 +426,91 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_pause_image_ui.js`：DOM widget（预览/按钮行/尺寸行）+ `frameViewUrl`（/view + 缓存戳）。
 - `web/sf_pause_image.js`：主扩展（双钩子/Save 链路/Copy/Open/executed）。
 - prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（两闸门共用，勿复制）。
+
+---
+
+## 9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）
+
+> 背景：复刻 Pixaroma 的 Pause Mask 变体（2026-08），落地为 `nodes/mask/pause_mask.py` + `web/sf_pause_mask*.js` 三模块（lib/ui/主扩展）。与 SFPauseImage 完全同构（快照/剪枝/一次性模式/executed 回填机制全部复用），仅把输入类型换成 MASK 张量 `[B, H, W]`（ComfyUI 遮罩格式）。本节点是"类型化闸门复用"的最小改造成案例——架构决策：**只加一个类型参数，绝不复制三份**。
+
+### 1. 与 SFPauseImage 的差异（都是类型相关的）
+
+- **快照为单通道灰度 PNG（L 模式，0-255 量化）**：遮罩通常二值/低精度，8bit 足够；与 ComfyUI 自身把遮罩存灰度 PNG 的惯例一致。`_mask_to_pil` 先 `(arr * 255).clip(0, 255).astype(uint8)` 再 `Image.fromarray(arr, mode="L")`——**L 模式只接受 2D 数组**。
+- **tensor 转换防御非标准 `[1,H,W]`**：部分节点输出的 MASK 带单例通道维（`arr.ndim == 3 and arr.shape[0] == 1` → `arr[0]` 压平）——标准帧是 `[H,W]`，不防御会因 3D 数组直接炸。
+- **读回对齐**：`_pil_to_mask` 用 `torch.from_numpy(arr)[None, ...]` 补 batch 维回 `1xHxW`，与 ComfyUI 遮罩张量格式一致。
+- **快照前缀 `sf_pause_mask_`**：与图片闸门的 `sf_pause_` 隔离命名空间（同 node_id 不撞文件；语义也清晰）。
+- **frame 键/state 键**：executed 回填帧键 `sf_pause_mask_frame`；状态存 `node.properties.pauseMaskState`（{gate, frame}）。lib 与 sf_pause_image_lib.js 是 30 行平行实现，仅 STATE_PROP 键名不同。
+
+### 2. 剪枝共享（三闸门同一份实现）
+
+- **prune 全走 `sf_pause_text_lib.js::applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT, opts)`**：PauseMask 传 `{inputKey: "mask"}`（PauseText 省略、PauseImage 传 `"image"`）。`inputKey` 是唯一分叉点——删哪个输入键/注入什么。
+- 改 prune 语义只改 `sf_pause_text_lib.js` 一处，三节点同步生效（2026-08 复查时确认 PauseText 版与 PauseImage 版逐字一致，本次把差异收敛成参数）。
+- 其余同构机制全部复用：双钩子（graphToPrompt 只注入 {mode} / queuePrompt 剪枝）、gate 两态（pause/pass，无 keep）、一次性提交模式、executed 回填、Save 链路（`/api/sfnodes/preview/{save,prepare}`）、无 IS_CHANGED。
+
+### 3. 测试与方法论
+
+- `tests/test_pause_mask.py`（后端）+ `test_pause_mask_js.js`（state/prune 纯函数）+ `test_pause_mask_smoke.js`（主扩展冒烟）——镜像 PauseImage 三件套。
+- 冒烟断言同款结构：注入 → 剪枝 → executed 回填端到端；快照 round-trip 逐元素相等；非标准 `[1,H,W]` 帧转换防御断言。
+
+### 4. 模块边界（复用/修改时的快速索引）
+
+- `nodes/mask/pause_mask.py`：节点（快照 L 模式/读回 [1,H,W] 防御/无 IS_CHANGED）+ `_json_safe`。
+- `web/sf_pause_mask_lib.js`：state（{gate, frame}，平行实现仅键名不同）。
+- `web/sf_pause_mask_ui.js`：DOM widget（遮罩灰度预览/按钮行）+ frameViewUrl。
+- `web/sf_pause_mask.js`：主扩展（双钩子/Save/Copy/Open/executed）。
+- prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（**三闸门共用**，勿复制）。
+
+---
+
+## 10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）
+
+> 背景：复刻 Pixaroma Workflows 的浮动工作流管理面板（2026-08，三期落地），`web/sf_workflows*.js` 三模块（主扩展/纯函数/DOM）+ `nodes/workflow_routes.py`（后端路由）+ `sf_utils/workflow_index_helpers.py`（索引纯逻辑）。与前面所有节点不同：**这是项目第一个"无节点"功能**——前端应用，后端只提供 API，不注册任何节点类。
+
+### 1. 无节点设计（做"面板类功能"必知）
+
+- **刻意没有节点**：节点会被存进工作流文件，分享工作流会把一个多余节点带给每个打开的人。面板属于应用（像帮助对话框），打开方式是**工具栏按钮 + 热键 + canvas 右键菜单**，绝不走节点菜单。
+- 分层（跨文件 import 契约即模块边界）：主扩展 = 唯一触碰服务端与 ComfyUI store 的代码（涉及让人丢工作的调用集中可通读）；`sf_workflows_lib.js` 纯函数（cleanName/文件夹顺序/搜索评分，无 app/DOM 可 copy .mjs 直测）；`sf_workflows_ui.js` DOM（窗口/菜单/封面/网格/文件夹/CSS）。
+
+### 2. 热键撞车（做"注册全局快捷键"必知）
+
+- 原版 Pixaroma Workflows 占用 `Alt+W`。ComfyUI 前端对按键注册**全局去重**——同时装的插件注册同 combo 直接抛 `Keybinding on Alt + w already exists`（前端报错、面板打不开）。
+- 本项目改 `Alt+Shift+W`（ComfyUI 允许两插件同用单键，但同 combo 冲突是真实报错）。**复刻任何有热键的插件，先查原版 combo，避免同键**。
+
+### 3. 后端分层（索引与路由分离，做"文件列表类 API"必知）
+
+- `workflow_index_helpers.py` **纯逻辑无 ComfyUI 依赖**（可独立测试）：按 **mtime+size 增量解析**（只重解析变化的文件，二次打开零重读）、24MB 文件上限（超限跳过，防止大文件阻塞请求）、封面映射 60 框 cap（>60 个节点矩形后不可读，payload 只增无益）、搜索文本 2KB cap、条目形状变化递增 version 丢弃旧缓存。
+- `workflow_routes.py` 五资源路径 7 handler（前缀 `/api/sfnodes/workflows/`）：
+  - `/index` GET 一次返回浏览器绘制自身所需的全部（entries/folders/collections/issues）——浏览器从不自行 fetch 文件；
+  - `/meta` GET 自愈（迁移旧内嵌封面/遗忘已消失图片的封面）+ POST 按键合并（notes/covers/folderColors/folderOrder/folderExpanded）；
+  - `/folder` 创建/改名/删除（**工作流文件本身永不在此触碰**——走 ComfyUI 自己的 store）；
+  - `/reveal` OS 文件管理器打开文件夹；`/cover` POST 存真实 jpg + GET 取图。
+- **meta 读写必须 asyncio.Lock**：每次写入都是小文件读-改-写，无锁时一次文件夹重排与一次笔记自动保存同时落地会各自还原对方分区（"两个面板互擦"，合并本身跨请求解决不了）。
+- sidecar 三件套（user/default/ 下，bind mount 容器重建存活）：`sf_workflows_meta.json`、`sf_workflows_cache.json`（索引缓存）、`sf_covers/`（手选封面以**真实 jpg 文件**保存，sidecar 只存文件名）。
+
+### 4. 收藏走 pinia（做"Vue 新版书签交互"必知）
+
+- ComfyUI 启动时**不读收藏文件**——书签 store 直到有人调 `loadBookmarks()` 才加载。toggle 收藏前必须先 `await bm.loadBookmarks()`，否则覆盖空列表（收藏全部丢失）。
+- 收藏键用工作流相对路径（`toStorePath(rel)` 转换），与 ComfyUI 自己的收藏入口共用一套数据。
+- 旧版前端（litegraph）无书签 store → `typeof bm?.loadBookmarks !== "function"` 判存在，收藏入口隐藏。
+
+### 5. 状态与视觉（设置持久化/滚动/密度）
+
+- 设置键 `sfnodes.Workflows.{Rect,View,Sort,Density}` 存 comfy.settings.json（未注册设置，读写走 `app.ui.settings`）；ui 模块经 `window.sfnodesGetSetting/SetSetting` 桥调用主扩展注入的实现。
+- **滚动容器 `overflow-y: auto` 放持久 `main`**（不随面板重建）：面板重建不重置滚动位置（曾把滚动放面板内层容器，重建即滚回顶部）。
+- **密度系统 `z(n) = calc(npx * var(--sfwb-k, 1))`**：所有能被感知为"大或小"的视觉尺寸经 z() 乘以 CSS 变量 `--sfwb-k`（s/m/l 三档按钮即时生效）；**窗口像素尺寸刻意不缩放**（拖拽数学保持自洽），且不用 CSS zoom（会破坏 fixed 定位子层）。运行时注入 CSS + `--sfwb-k` 数值。
+- 加载带票号 guard：两次加载重叠（打开面板一次、任何动作经 guard 校验）防并发破坏。
+
+### 6. 测试与方法论
+
+- 三件套：`test_workflows.py`（后端 helpers 独立测试——无 ComfyUI 依赖直接跑）、`test_workflows_js.js`（lib 纯函数）、`test_workflows_smoke.js`（主扩展冒烟，mock DOM + app）。
+- 冒烟含 **CSS 注入断言**：运行时注入的样式表存在、`--sfwb-k` 已设、无 `${z(` 字面量残留（z() 全部展开为 calc）——抓"尺寸漏走密度系统"的回归。
+- 主扩展冒烟 mock：`app.ui.settings`、`api.fetchApi`、`app.graph`、菜单注册、pinia 书签 store（loadBookmarks/toggleBookmarked）。
+
+### 7. 模块边界（复用/修改时的快速索引）
+
+- `web/sf_workflows.js`：主扩展（api 层/收藏/热键/工具栏按钮/CMD_ID `sfnodes.OpenWorkflowBrowser`）。
+- `web/sf_workflows_lib.js`：纯函数（cleanName/nameProblem/orderedFolders/siblingsOf/searchEntries）。
+- `web/sf_workflows_ui.js`：DOM（窗口/网格/文件夹/详情/tidy/封面捕获/右键菜单/CSS `z()` 系统）。
+- `nodes/workflow_routes.py`：五资源路径 7 handler + meta asyncio.Lock + sidecar 读写。
+- `sf_utils/workflow_index_helpers.py`：索引/集合/问题检测纯逻辑（增量解析、cap 常量）。
+- 注册：`__init__.py` 导入副作用注册路由（`# noqa: F401`）；无 NODE_CLASS_MAPPINGS 条目。
