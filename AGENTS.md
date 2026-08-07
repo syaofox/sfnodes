@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放、拼接、处理、对比
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
@@ -38,7 +38,7 @@ sfnodes/
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -183,6 +183,13 @@ class SFMyNode:
 - `*wildcard`/`#list` 的 shuffle/order 游标**只在 queue 被真正接受后推进**：`beginPickBuild` 把 build id 挂 prompt 对象，`queuePrompt` patcher 成功后 `commitPicks`——Export/分享/校验失败的 build 不消耗选择；同 build 内重复 `#fruit` 用 per-use 计数器发新牌。
 - 标签库存 ComfyUI **未注册设置**（机器私有、跨工作流共享、永不进 workflow）；全屏编辑器用工作副本，关闭时 `isSameAsStored` 判定才写回（防覆盖他标签页），`installGraphUndoGuard` 填 `maskeditor_is_opended` 官方槽屏蔽 Ctrl+Z。
 - **token 语法与中文**：token 名 `[\p{L}\p{N}_-]`（u flag，中文可作 tag/分类）；边界保护用 Latin/希腊/西里尔/数字/组合标记集合（email `user@name`、算式 `2*2` 不误判，`画@水彩` 识别）；拼音检索用内联 GB2312 一级字表（pinyin-pro 一次性生成，非运行时依赖），`pinyinMatch` 原名/全拼/首字母三路子串；中文 token 前后不插空格（`tagSep/tagTrail` 仅拉丁语境加空格）。
+
+**前端：prompt 剪枝闸门（`web/sf_pause_text*.js`，SFPauseText）**
+- **双钩子拆分（与 SFPromptTags 同款）**：`graphToPrompt` 只注入 {mode, text} 到隐藏 PauseState——它也会被 Export/分享/保存按钮触发，在那里删节点会把导出静默截断；`api.queuePrompt`（`args[1].output`）提交时才 PRUNE，且**continue 必须先于 pause/pass 处理**（continue 会删掉自己的下游分支，可能连带删掉上游的另一个闸门）。
+- **prune 语义**：pause 删闸门下游（闸门是 OUTPUT_NODE = 分支终点）；continue 跳上游模型链——删 `text` 链接、**菱形重路由**（gate 之后直接读原文本源的链接改指闸门输出）、只删**会拉活被跳过上游的输出节点**（无关输出分支照跑）、非输出节点留作无害孤儿（不校验不运行）；pass 不剪。`isOutput` 从 `LiteGraph.registered_node_types[cls].nodeData.output_node` 读，注册表缺失回退删一切（安全）。
+- 解析不到活节点时默认 **pass（不剪）** 而非破坏性的 pause；一次性提交模式（Continue/Regenerate 按钮）挂 `_sfPauseTextSubmitMode` 后 `app.queuePrompt(0,1)`，finally 清除；`executed` 事件接收 Python `ui` 键回填盒子（setModelText 换文本+基线）。
+- **Python 侧禁设 `IS_CHANGED = float("nan")`**：NaN 恒不等自身 → 节点每次 Run 都"变化" → 缓存键折叠所有祖先 → 闸门下游每次全量重跑。模式与文本在隐藏输入里本就在缓存键中，无需额外失效。
+- 状态存 `node.properties.pauseTextState`（gate/text/original）随工作流保存（保留编辑是设计）；无 widget 状态的 DOM-only restore 在加载路径安全。
 
 **前端：全屏编辑器与冒烟测试**
 - 全屏编辑器（DOM widget 之外的整页 overlay）：类名前缀与既有插件隔离（`sf-ptge-`），图标内联 data URI（无资产服务路由），Esc 用 window capture 分层处理（modal → 菜单 → 字段取消 `_sfCancel` → 关闭），危险操作统一 `confirmDanger`（无撤销）。

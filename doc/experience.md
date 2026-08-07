@@ -11,6 +11,7 @@
 - [4. 动态 combo 校验与工作流绑定状态（widget 数据载体）](#4-动态-combo-校验与工作流绑定状态widget-数据载体)
 - [5. Qwen3 无审查微调版 + TextGenerate：thinking 参数与思考链（COT）](#5-qwen3-无审查微调版--textgeneratethinking-参数与思考链cot)
 - [6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）](#6-sfprompttagstag-展开注入--picks-游标--全屏编辑器--中文与拼音复刻-pixaroma-prompt)
+- [7. SFPauseText：prompt 剪枝闸门（复刻 Pixaroma Pause Text）](#7-sfpausetextprompt-剪枝闸门复刻-pixaroma-pause-text)
 
 ---
 
@@ -317,3 +318,52 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `sf_prompt_tags_editor.js`：全屏编辑器（工作副本、侧栏、卡片、导入导出、confirmDanger）。
 - `sf_prompt_tags_pinyin.js`：内联拼音表 + pinyinMatch（生成脚本一次性，勿手改数据）。
 - `sf_prompt_tags.js`：DOM widget 节点本体 + graphToPrompt/queuePrompt patcher + 右键菜单。
+
+---
+
+## 7. SFPauseText：prompt 剪枝闸门（复刻 Pixaroma Pause Text）
+
+> 背景：复刻 Pixaroma 的 `PixaromaPauseText`（2026-08），落地为 `nodes/text/pause_text.py` + `web/sf_pause_text*.js` 三模块（lib/ui/主扩展）。节点是内联文本闸门：停在节点处编辑 LLM 文本，Continue 只跑下游（模型被跳过）。本节点与 SFPromptTags 共享"前端改写 prompt"模式，但**引入了真正的 prompt 剪枝**（删除节点）与 Python→前端回填（executed 事件），是这两个机制的完整案例。
+
+### 1. 双钩子拆分：注入 vs 剪枝（做"队列时删除/改写节点"必知）
+
+- **`app.graphToPrompt` 不是队列**——Export（API）、工作流分享、多个保存按钮都会触发。在这里删除节点会把**导出的工作流静默截断**（用户拿到缺一半的导出文件）。所以：
+  - `graphToPrompt` 只做 INJECT（写隐藏 PauseState 的 {mode, text}），绝不删节点；
+  - **剪枝移到 `api.queuePrompt`**——所有浏览器 run 的唯一提交漏斗（普通 Run、局部"执行节点"、批量队列都经过），`args[1].output` 拿 prompt 对象，原样转发 ...args 保 partialExecutionTargets。
+- **多闸门排序**：continue 闸门剪自己的下游分支时可能连带删掉位于其上游的另一个闸门 → 按 `MODE_RANK = {continue: 0, pause: 1, pass: 2}` 排序，**continue 先处理**；处理前检查 `if (!out[g.id]) continue`（已被更早的闸门剪掉则跳过）。
+- **防双包装**：`api._sfPauseTextQueueWrapped`/`app._sfPauseTextPatched` 全局标志（模块二次求值/热重载时每个 run 会注入两次）。
+- **FAIL OPEN**：注入/剪枝的异常只 console.error，绝不能让 `await _origGraphToPrompt` 或 `_origQueuePrompt` 抛错——否则整个工作流的 Run 都会坏。核心调用永远不包 try。
+
+### 2. prune 语义（`applyGateMode`，纯函数可直接单测）
+
+- **pause**：从闸门出发前向 BFS（buildConsumers → collectDownstream）删除其下游全部节点——闸门是 `OUTPUT_NODE = True`，成为该分支终点，并行分支不受影响。剪枝依赖"节点是 OUTPUT_NODE"这一事实：死端节点本就不执行，pause 的语义就是让闸门成为唯一终点。
+- **continue**（最复杂，四个子步骤）：
+  1. 删 `entry.inputs.text`（上游模型链断供），PauseState 注入 {mode: continue, text: 编辑文本}；
+  2. **菱形重路由**：闸门之后还有节点直接读闸门原文本源（gateSrc 精确匹配 [origin, slot]）会把整个上游拉活——这些链接改写为 `[闸门id, 0]`（闸门现在发出同一份编辑后的文本），必须在重建 consumers 之前做；
+  3. 保留下游（keep = downstream + 闸门 + addAncestors）；upstream = gateSrc 节点 + 祖先（被跳过的模型链）；
+  4. **只删"会拉活被跳过上游"的输出节点**：pullsUpstream = 重路由后从 upstream 前向可达的一切；遍历全图，`keep` 之外且 `pullsUpstream` 之内且 `isOutput` 的才删。**无关输出分支（自有来源）必须保留照跑**——老 bug 是删掉 keep 之外的所有输出节点，静默杀死无关分支。非输出节点留作无害孤儿（永不校验/运行），下游 Save 节点因此保留完整生成元数据。
+- **isOutput 判定**：从 `window.LiteGraph.registered_node_types[classType]?.nodeData?.output_node` 读（live，不缓存）；**注册表缺失 → null → 回退"删一切"**（安全方向：上游仍被跳过）。
+- **解析不到活节点时默认 pass（不剪）**：找不到节点（子图 id 失配等）给破坏性的 pause 会截断工作流，给无害的 pass 只是不剪——fail-safe 方向选"少做"。
+- **未接线闸门 continue**（gateSrc null）：upstream 为空 → pullsUpstream 为空 → 不删任何输出节点，只删自己断开的 text 链接——完全正确（没接模型就没什么可跳过的）。
+- **无 IS_CHANGED（Python 侧大坑）**：曾用 `IS_CHANGED = float("nan")` 让闸门每次"变化" → 节点缓存键折叠**所有祖先**的 IS_CHANGED（caching.py::get_node_signature）→ 闸门下游每次 Run 全量重跑（固定种子下采样器照跑）。去掉它零损失：缓存节点仍会重发 ui payload（文本框照样刷新）；模式与文本在隐藏输入里本就在缓存键中。
+
+### 3. 前端状态与回填（executed 事件）
+
+- **状态存 `node.properties.pauseTextState`**（{gate: pause|pass|keep, text, original}）随工作流序列化——保留编辑是设计（重开工作流继续编辑）；text/original 只在真实动作（打字/Revert/Run 回填）时变化，纯加载路径不动 → 打开已保存工作流不误标 modified。
+- **keep 是持久化的 continue**：普通 Run 时 `gate === "keep"` 映射为 continue 模式（跳模型、复用当前文本、下游照跑）——一次性 submit mode 与持久 gate 在 `collectGates` 里统一解析，注入与剪枝共用同一份 gates 列表，两者永不产生分歧。
+- **一次性提交模式**：Continue/Regenerate 按钮 → 挂 `node._sfPauseTextSubmitMode = "continue"/"pause"` → `await app.queuePrompt(0, 1)` → **finally 清除**。剪枝钩子在 `app.queuePrompt` 的 await 内部运行，此时模式仍可读。同一时刻只允许一个闸门携带模式（其余清空）。
+- **executed 回填**：Python 返回 `{"ui": {"sf_pause_text": [text]}}` → 前端 `api.addEventListener("executed")` 读 `d.output.<ui键>` → `setModelText`（替换盒子 + 重置 original 基线）。Python 只在"有线 Pause/Pass 的新鲜模型捕获"时 emit——收到即替换；无线时前端保留手打内容（不 emit 的设计）。节点 id 可能是字符串，`parseInt` 兜底。
+- **Regenerate**：沿 `text` 输入上游递归（visited 集 + 深度 50），把所有名称含 "seed" 的数字 widget 滚成新随机值（跳过 `control_after_generate` combo——其值非数字）；没找到种子时 flash 提示"可能不会变化"。
+
+### 4. 移植简化与测试
+
+- **shared 依赖裁剪**（同 SFPromptTags 惯例）：`isVueNodes`（`window.LiteGraph?.vueNodesMode`）与 `applyAdaptiveCanvasOnly`（canvasOnly 实时 getter，Vue 下 false 否则不渲染）内联；省略 accent 设置、resize floor、canvas zoom；状态条由 canvas 绘制/Vue nudge 双路径简化为普通 DOM 行（两渲染器统一）。
+- **测试**（3 个文件）：后端 19 断言（三模式 × 有线/无线 + 容错）；prune/state 纯函数 30 断言（pause 删下游/continue 菱形重路由/无关分支保留/未接线不删/keep 映射）；主扩展冒烟 17 断言（注入→剪枝→executed 端到端，mock `registered_node_types` 里的 `output_node` 标记）。
+- **复查时抓到的断言反例（全是测试错、代码对）**：continue **只删下游链之外**拉活上游的输出节点（链上的 SaveImage 消费闸门输出 → 保留）；`addAncestors` 只并入**图中存在**的祖先；菱形重路由后 LLM 保留为无害孤儿（无输出节点读它则不删）；`editedTextOf` 优先读活 textarea——测试直改 properties.text 不会反映到注入值，需同步 `ta.value`；mock 注册表漏登记 class_type 会让 `isOutput` 返回 false → 该输出节点"没被删"。
+
+### 5. 模块边界（复用/修改时的快速索引）
+
+- `sf_pause_text_lib.js`：state（getState/setGate/setText/setModelText/revertText/isEdited）+ prune 纯函数（isLink/buildConsumers/collectDownstream/addAncestors/applyGateMode）——无 app/DOM，测试 copy 直跑。
+- `sf_pause_text_ui.js`：DOM widget（状态条/文本框/三态切换/Copy-Revert/计数/按钮）+ renderPause/syncText/statusText。
+- `sf_pause_text.js`：主扩展（setupNode/双钩子/executed/Regenerate/一次性提交模式/防双包装）。
+- 后端 `nodes/text/pause_text.py`：无状态（文本随隐藏输入携带），OUTPUT_NODE = True，无 IS_CHANGED。
