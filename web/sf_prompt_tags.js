@@ -580,7 +580,7 @@ function buildRoot(node) {
     bWired.dataset.order = "wired";
     seg.append(bMine, bWired);
     const sepDD = makeDropdown(readState(node).sep, SEP_OPTIONS, (v) => { writeState(node, { sep: v }); renderExpand(node); });
-    sepDD.el.title = "Separator between the two prompts";
+    sepDD.el.title = "两个提示词之间的分隔符";
     portrow.append(cl, seg, sepDD.el);
 
     const tawrap = document.createElement("div");
@@ -590,7 +590,7 @@ function buildRoot(node) {
     const ta = document.createElement("textarea");
     ta.className = "sf-ptg-ta";
     ta.placeholder = "your prompt - @ a tag, * a random tag, # a random line";
-    ta.title = "Type your prompt. @name inserts a tag, *category picks a random tag each run, #name picks a random line from a list. Ctrl+Enter runs the workflow.";
+    ta.title = "输入你的提示词。@name 插入标签，*category 每次 run 随机选一个标签，#name 从列表随机选一行。Ctrl+Enter 运行工作流。";
     ta.spellcheck = false;
     tawrap.append(backdrop, ta);
 
@@ -607,14 +607,14 @@ function buildRoot(node) {
         b.title = title;
         return b;
     };
-    const copyBtn = mkBtn("Copy all", "Copy the whole prompt to the clipboard");
-    const clearBtn = mkBtn("Clear", "Empty the box instantly");
-    const tagsBtn = mkBtn("Tags", "Open the tag library");
+    const copyBtn = mkBtn("Copy all", "复制整个提示词到剪贴板");
+    const clearBtn = mkBtn("Clear", "立即清空输入框");
+    const tagsBtn = mkBtn("Tags", "打开标签库");
     tagsBtn.innerHTML = "<span>☲</span>Tags";
     const expandSw = document.createElement("button");
     expandSw.type = "button";
     expandSw.className = "sf-ptg-sw";
-    expandSw.title = "Preview the prompt with every @tag expanded";
+    expandSw.title = "预览每个 @tag 展开后的提示词";
     expandSw.innerHTML = '<span class="sf-ptg-sw-dot"></span>Show expanded';
     bar.append(copyBtn, clearBtn, tagsBtn, expandSw);
 

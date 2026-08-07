@@ -120,24 +120,24 @@ export function buildPauseTextWidget(node, callbacks) {
     const segPause = document.createElement("div");
     segPause.className = "sf-ptx-seg";
     segPause.textContent = "Pause";
-    segPause.title = "Pause here on Run so you can edit before continuing";
+    segPause.title = "Run 时停在此处，编辑后再继续";
     const segPass = document.createElement("div");
     segPass.className = "sf-ptx-seg";
     segPass.textContent = "Pass";
-    segPass.title = "Pass straight through; run the whole workflow in one go";
+    segPass.title = "直接放行；整条工作流一次跑完";
     const segKeep = document.createElement("div");
     segKeep.className = "sf-ptx-seg";
     segKeep.textContent = "Keep";
-    segKeep.title = "Keep this text; every Run makes a new image with it (the model is skipped)";
+    segKeep.title = "保留这段文本；每次 Run 用它出图（模型被跳过）";
     toggle.append(segPause, segPass, segKeep);
     const copyBtn = document.createElement("span");
     copyBtn.className = "sf-ptx-hic";
     copyBtn.innerHTML = COPY_SVG;
-    copyBtn.title = "Copy this text";
+    copyBtn.title = "复制这段文本";
     const revertBtn = document.createElement("span");
     revertBtn.className = "sf-ptx-hic";
     revertBtn.innerHTML = REVERT_SVG;
-    revertBtn.title = "Put the model's original text back";
+    revertBtn.title = "恢复模型的原始文本";
     hdr.append(hlbl, toggle, copyBtn, revertBtn);
     const ta = document.createElement("textarea");
     ta.className = "sf-ptx-ta";
@@ -153,11 +153,11 @@ export function buildPauseTextWidget(node, callbacks) {
     const btnRegen = document.createElement("button");
     btnRegen.className = "sf-ptx-btn";
     btnRegen.textContent = "⟳ Regenerate";
-    btnRegen.title = "Get fresh text: roll the seed of whatever is generating it upstream";
+    btnRegen.title = "获取新文本：滚动上游生成节点的种子";
     const btnContinue = document.createElement("button");
     btnContinue.className = "sf-ptx-btn primary";
     btnContinue.textContent = "▶ Continue";
-    btnContinue.title = "Run only the rest of the workflow with your edited text";
+    btnContinue.title = "只用你的编辑文本运行工作流其余部分";
     bot.append(count, btnRegen, btnContinue);
 
     root.append(band, box, bot);
@@ -244,14 +244,14 @@ export function renderPause(node) {
     // 想取新文本切回 Pause
     els.btnRegen.disabled = !editable || keep || !!node._sfPauseTextBusy;
     els.btnRegen.title = keep
-        ? "Switch to Pause to get fresh text from the model"
-        : "Get fresh text: roll the seed of whatever is generating it upstream";
+        ? "切回 Pause 才能从模型获取新文本"
+        : "获取新文本：滚动上游生成节点的种子";
     els.btnContinue.disabled = !editable || !!node._sfPauseTextBusy;
     // Keep 下按钮只是出图（同顶部 Run），叫 Run；Pause 下提交你的编辑，保持 Continue
     els.btnContinue.textContent = keep ? "▶ Run" : "▶ Continue";
     els.btnContinue.title = keep
-        ? "Make a new image with this text (same as pressing Run)"
-        : "Run only the rest of the workflow with your edited text";
+        ? "用这段文本出图（同按 Run）"
+        : "只用你的编辑文本运行工作流其余部分";
 
     els.count.textContent = countLabel(s.text);
     els.band.textContent = statusText(node);

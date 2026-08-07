@@ -79,11 +79,11 @@ export function buildPauseWidget(node, callbacks) {
     const segPause = document.createElement("div");
     segPause.className = "sf-pi-seg";
     segPause.textContent = "Pause";
-    segPause.title = "Pause here on Run so you can preview before continuing";
+    segPause.title = "Run 时停在此处，预览后再继续";
     const segPass = document.createElement("div");
     segPass.className = "sf-pi-seg";
     segPass.textContent = "Pass";
-    segPass.title = "Pass straight through; run the whole workflow in one go";
+    segPass.title = "直接放行；整条工作流一次跑完";
     toggle.append(segPause, segPass);
     segPause.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onGate("pause"); });
     segPass.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onGate("pass"); });
@@ -97,11 +97,11 @@ export function buildPauseWidget(node, callbacks) {
     const btnContinue = document.createElement("button");
     btnContinue.className = "sf-pi-btn primary";
     btnContinue.textContent = "▶ Continue";
-    btnContinue.title = "Run only the rest of the workflow, from the snapshot";
+    btnContinue.title = "从快照运行工作流其余部分";
     const btnRegen = document.createElement("button");
     btnRegen.className = "sf-pi-btn";
     btnRegen.textContent = "⟳ Regenerate";
-    btnRegen.title = "Roll a new image at this point (respects your seed)";
+    btnRegen.title = "在此处掷一张新图（尊重你的种子）";
     // Regenerate 在左、Continue 在右（Continue 是主要"提交"动作）
     btns.append(btnRegen, btnContinue);
 
@@ -111,19 +111,19 @@ export function buildPauseWidget(node, callbacks) {
     const btnCopy = document.createElement("button");
     btnCopy.className = "sf-pi-btn";
     btnCopy.textContent = "Copy";
-    btnCopy.title = "Copy the previewed image to the clipboard";
+    btnCopy.title = "把预览的图片复制到剪贴板";
     const btnSaveDisk = document.createElement("button");
     btnSaveDisk.className = "sf-pi-btn";
     btnSaveDisk.textContent = "Save Disk";
-    btnSaveDisk.title = "Save the previewed image to a folder on your computer";
+    btnSaveDisk.title = "把预览的图片保存到电脑上的文件夹";
     const btnSaveOut = document.createElement("button");
     btnSaveOut.className = "sf-pi-btn";
     btnSaveOut.textContent = "Save Output";
-    btnSaveOut.title = "Save the previewed image to ComfyUI's output folder";
+    btnSaveOut.title = "把预览的图片保存到 ComfyUI 的 output 目录";
     const btnOpen = document.createElement("button");
     btnOpen.className = "sf-pi-btn";
     btnOpen.textContent = "Open";
-    btnOpen.title = "Open the previewed image in a new browser tab";
+    btnOpen.title = "在新标签页打开预览的图片";
     btns2.append(btnCopy, btnSaveDisk, btnSaveOut, btnOpen);
 
     // stopPropagation 防止点击到达 canvas（取消选中/拖拽）

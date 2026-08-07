@@ -401,11 +401,11 @@ function makeKindSwitch(onPick) {
     const bText = document.createElement("button");
     bText.type = "button";
     bText.textContent = "Text";
-    bText.title = "Text: one piece of text, and @name drops in all of it";
+    bText.title = "Text：一段文本，@name 整体插入";
     const bList = document.createElement("button");
     bList.type = "button";
     bList.textContent = "List";
-    bList.title = "List: one option per line, and #name picks one at random every run";
+    bList.title = "List：每行一个选项，#name 每次 run 随机取一行";
     sw.append(bText, bList);
     bText.addEventListener("click", (e) => { e.stopPropagation(); onPick(false); });
     bList.addEventListener("click", (e) => { e.stopPropagation(); onPick(true); });
@@ -420,9 +420,9 @@ function makeKindSwitch(onPick) {
 }
 
 const MODE_HINT = {
-    random: "any one, every time",
-    shuffle: "all of them before any repeat",
-    order: "1, 2, 3 and around again",
+    random: "每次任取一个",
+    shuffle: "全部出现一次后才重复",
+    order: "1、2、3 循环往复",
 };
 function openModeMenu(anchor, current, onPick) {
     hideCatMenu();
@@ -460,11 +460,11 @@ function makeModeRow({ getMode, setMode, key, len, what }) {
         // 强调色 = "非默认"：行为异常的列表在网格里一眼可见
         btn.classList.toggle("set", m !== DEFAULT_MODE);
         btn.innerHTML = `<span>${MODE_LABEL[m]}</span><span class="car">▾</span>`;
-        btn.title = `How this ${what} picks: ${MODE_LABEL[m]} - ${MODE_HINT[m]}`;
+        btn.title = `这个${what}如何选取：${MODE_LABEL[m]} - ${MODE_HINT[m]}`;
         row.classList.toggle("on", hasPosition(m));
         // Random 没有位置可显示，就说 Random 做什么——这正是让你想点这个控件的那行字
         pos.textContent = cursorInfo(key(), len(), m) || MODE_HINT[m];
-        rst.title = `Start this ${what} over`;
+        rst.title = `重新开始这个${what}`;
     };
     btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -560,7 +560,7 @@ function makeCard(tag) {
     const cc = catOf(tag);
     const pill = document.createElement("button");
     pill.className = "sf-ptge-pill";
-    pill.title = "Move to another category";
+    pill.title = "移动到另一个分类";
     pill.innerHTML = `<span class="cd" style="background:${colorOf(cc)}"></span><span>${esc(cc)}</span>`;
     pill.addEventListener("click", (e) => { e.stopPropagation(); openCatMenu(tag, pill); });
     top.append(nm, pill);
@@ -628,8 +628,8 @@ function makeCard(tag) {
         card.classList.toggle("islist", list);
         kindSw.paint(list, tagLines(tag.text).length);
         tx.placeholder = list ? "one option per line" : "what it expands to - the full prompt text";
-        ins.title = list ? "Insert #" + tag.name + " into your prompt (one of its options each run)" : "Insert @" + tag.name + " into your prompt";
-        del.title = `Delete this ${list ? "list" : "tag"}`;
+        ins.title = list ? "插入 #" + tag.name + " 到提示词（每次 run 取一个选项）" : "插入 @" + tag.name + " 到提示词";
+        del.title = `删除这个${list ? "列表" : "标签"}`;
         modeRow.el.style.display = list ? "flex" : "none";
         if (list) modeRow.paint();
     }
@@ -668,13 +668,13 @@ function renderSidebar(sideEl) {
         const r = document.createElement("div");
         r.className = "sf-ptge-cat" + (_curCat === key ? " on" : "") + (bucket ? " bucket" : "");
         if (bucket) {
-            r.title = `Not a category: it is where ${key === LIST_BUCKET ? "lists" : "tags"} with no category of their own are shown. ` +
-                `It disappears once it is empty.`;
+            r.title = `不是分类：这里是${key === LIST_BUCKET ? "列表" : "标签"}中无自有分类者的归属处。` +
+                `一旦清空它自动消失。`;
         }
-        if (menu === "cat") r.title = "Drag to move it up or down the list";
+        if (menu === "cat") r.title = "拖拽调整它在列表中的上下顺序";
         r.innerHTML = (color ? `<span class="cd" style="background:${color}"></span>` : `<span style="width:11px"></span>`) +
             `<span class="nm">${esc(label)}</span>` +
-            (menu ? `<span class="act more" title="${bucket ? "What this row is, and what you can do with it" : "Move, rename, export or delete this category"}">⋯</span>` : "") +
+            (menu ? `<span class="act more" title="${bucket ? "这一行是什么，以及你能对它做什么" : "移动、改名、导出或删除此分类"}">⋯</span>` : "") +
             `<span class="cnt">${count}</span>`;
         r.addEventListener("click", (e) => {
             if (e.target.classList.contains("more")) {
@@ -773,7 +773,7 @@ function renderSidebar(sideEl) {
         const btn = document.createElement("button");
         btn.className = "sf-ptge-btn";
         btn.innerHTML = `<span>＋</span> New category`;
-        btn.title = sd === "list" ? "A category that holds lists" : "A category that holds text tags";
+        btn.title = sd === "list" ? "容纳列表的分类" : "容纳文本标签的分类";
         btn.addEventListener("click", () => {
             const inp = document.createElement("input");
             inp.placeholder = sd === "list" ? "list category name" : "category name";
@@ -1196,7 +1196,7 @@ function buildCreateForm() {
     });
     const catBtn = document.createElement("button");
     catBtn.className = "sf-ptge-pill ccat";
-    catBtn.title = "Category for the new tag - click to change";
+    catBtn.title = "新标签的分类——点击更改";
     const paintCat = () => {
         const label = createCat || bucketOf(sideNow());
         catBtn.innerHTML = `<span class="cd" style="background:${colorOf(label)}"></span><span>${esc(label)}</span><span class="car">▾</span>`;
@@ -1209,7 +1209,7 @@ function buildCreateForm() {
     const btn = document.createElement("button");
     btn.className = "cbtn";
     btn.textContent = "Create tag";
-    btn.title = "Add this tag to the library (Ctrl+Enter)";
+    btn.title = "把此标签加入库（Ctrl+Enter）";
     const doCreate = () => {
         const name = sanitizeName(nm.value);
         // 输入 "!!!" 剥成空：默默拒绝读起来像坏按钮
@@ -1565,21 +1565,21 @@ function showLibraryHelp() {
     const modal = document.createElement("div");
     modal.className = "sf-ptge-modal";
     modal.innerHTML =
-        `<div class="sf-ptge-mcard sf-ptge-help-card"><div class="mh">How the tag library works</div>` +
+        `<div class="sf-ptge-mcard sf-ptge-help-card"><div class="mh">标签库如何工作</div>` +
         `<div class="mb">` +
-        `<p><b>What it is.</b> Your personal, reusable prompt snippets. Type a short <b>@name</b> in a Prompt node and it becomes the full text at run time, so the box stays short. Your library is saved on your machine, stays private to you, and survives updating the plugin - it is never stored inside a workflow.</p>` +
-        `<p><b>Create a tag.</b> Fill in the name and the full prompt text along the top, pick a category, and press <b>Create tag</b>. New tags appear at the front.</p>` +
-        `<p><b>Edit a tag.</b> Click a card's name or its text and change it - your edits save on their own.</p>` +
-        `<p><b>Text or List.</b> Every card has a switch at the bottom with both choices on it. <b>Text</b> is one piece of writing and <b>@name</b> drops in all of it. <b>List</b> holds one option per line (cat, dog, mouse) and <b>#name</b> drops in a random one, fresh every run. Flip the switch any time: it changes what the card is for, never what your saved prompts do. While the create box at the top is set to List, Enter starts the next option and Ctrl+Enter adds the tag.</p>` +
-        `<p><b>Categories.</b> Make them in the left sidebar. Click a card's coloured pill to move that tag to another category. The <b>⋯</b> on a category row (right-clicking the row does the same) lets you rename it, export just that category, or delete it. Typing <b>*category</b> in a prompt picks a random tag from it each run.</p>` +
-        `<p><b>Put the categories in your own order.</b> Drag a category row up or down to move it, or use <b>Move up</b> and <b>Move down</b> in its <b>⋯</b> menu. The order you set is the order you see everywhere: the sidebar, the export menu, the pill on a card, and the list that pops up when you type <b>@</b>, <b>#</b> or <b>*</b>. Text and List categories are two separate groups, so a row moves within its own group. You can also drag the divider between the sidebar and the cards to make the category list wider, and it stays that way next time you open it (double-click the divider to put it back).</p>` +
-        `<p><b>The italic Text and List rows are not categories.</b> They are where tags with no category of their own are shown, so there is nothing to rename or delete about the row itself. Their <b>⋯</b> can file them all into a category at once (and the row then disappears by itself), export them, or delete them.</p>` +
-        `<p><b>Deleting.</b> Anything that removes something asks you first and shows you exactly what will go, so you can check it is the one you meant. Deleting a category gives you two choices: keep its tags (they move to Text or List) or delete them along with it. The <b>⋯</b> next to Export and Import has <b>Delete everything</b> for starting over. Where a whole group is going, the question also offers to save you a backup file first. There is no undo, so the answer is final once you give it.</p>` +
-        `<p><b>Picks: Shuffle, Random or In order.</b> A List card, and the header of anything you can roll with <b>*name</b>, each have a <b>Picks</b> control for how they choose. <b>Shuffle</b> is the default: it deals a shuffled deck, so every option comes up once before any repeat. <b>Random</b> is any one every time, so the same one can come up twice in a row. <b>In order</b> goes 1, 2, 3 and around again. Shuffle and In order remember their place between runs (the card shows it) and the <b>↺</b> button starts that list over.</p>` +
-        `<p><b>Use a tag.</b> Type <b>@</b> (or <b>#</b> for lists, <b>*</b> for categories) in the prompt box for a searchable list, or press <b>Insert</b> on a card to drop it straight into your prompt.</p>` +
-        `<p><b>Share.</b> <b>Export</b> saves your tags to a file: everything, or just one category. <b>Import</b> shows you what is in a file so you can pick which categories to bring in, and if a name already exists you choose keep both, replace, or skip.</p>` +
+        `<p><b>它是什么。</b> 你的个人、可复用的提示词片段。在 Prompt 节点里输入简短的 <b>@名称</b>，运行时它会变成完整文本，所以输入框保持简短。你的库保存在本机、只属于你，且随插件更新存活——它永远不会被存进工作流。</p>` +
+        `<p><b>创建标签。</b> 在顶部填写名称与完整提示词文本，选一个分类，按 <b>Create tag</b>。新标签出现在最前面。</p>` +
+        `<p><b>编辑标签。</b> 点击卡片的名称或文本直接修改——编辑自动保存。</p>` +
+        `<p><b>Text 或 List。</b> 每张卡片底部都有包含两种选择的开关。<b>Text</b> 是一段文本，<b>@名称</b> 会整体插入。<b>List</b> 每行一个选项（猫、狗、鼠），<b>#名称</b> 每次 run 随机插入一个。随时可以翻转开关：它改变卡片的作用，绝不改变你已保存的提示词。顶部创建框设为 List 时，Enter 开始下一个选项、Ctrl+Enter 添加标签。</p>` +
+        `<p><b>分类。</b> 在左侧侧栏创建。点击卡片的彩色 pill 把该标签移到另一个分类。分类行上的 <b>⋯</b>（右键该行同样）可以改名、只导出该分类、或删除它。在提示词里输入 <b>*分类</b> 每次 run 从中随机选一个标签。</p>` +
+        `<p><b>给分类排你自己的顺序。</b> 上下拖拽分类行来移动它，或在其 <b>⋯</b> 菜单里用 <b>Move up</b> 与 <b>Move down</b>。你设置的顺序在处处一致：侧栏、导出菜单、卡片 pill、以及输入 <b>@</b>、<b>#</b> 或 <b>*</b> 时弹出的列表。Text 与 List 分类是两个独立分组，行只在自己组内移动。也可以拖拽侧栏与卡片之间的分隔条来加宽分类列表，下次打开保持不变（双击分隔条复位）。</p>` +
+        `<p><b>斜体的 Text 与 List 行不是分类。</b> 它们是展示无自有分类标签的地方，所以行本身没有可改的名、没有可删的。它们的 <b>⋯</b> 可以把这些标签一次性归档进某个分类（行随即自行消失）、导出它们、或删除它们。</p>` +
+        `<p><b>删除。</b> 任何移除操作都会先问，并精确展示将被删掉的内容，好让你确认是你要删的那个。删除分类有两个选择：保留其标签（它们移到 Text 或 List）或连同删除。<b>Export</b> 与 <b>Import</b> 旁边的 <b>⋯</b> 里有 <b>Delete everything</b> 用于重新开始。删除整组时，对话框还会先提供保存备份文件。没有撤销，所以一旦确认就是最终结果。</p>` +
+        `<p><b>Picks：Shuffle、Random 或 In order。</b> List 卡片与任何可用 <b>*名称</b> 掷取的内容的头部，都有一个 <b>Picks</b> 控件决定如何选取。<b>Shuffle</b> 是默认：像洗牌发牌，每个选项出现一次后才重复。<b>Random</b> 每次任取一个，所以同一个可能连续出现两次。<b>In order</b> 按 1、2、3 循环。Shuffle 与 In order 会记住它们在 run 之间的位置（卡片会显示），<b>↺</b> 按钮让该列表重新开始。</p>` +
+        `<p><b>使用标签。</b> 在提示词框里输入 <b>@</b>（列表用 <b>#</b>，分类用 <b>*</b>）会弹出可搜索列表，或按卡片上的 <b>Insert</b> 直接插入提示词。</p>` +
+        `<p><b>分享。</b> <b>Export</b> 把你的标签保存到文件：全部或单个分类。<b>Import</b> 展示文件内容，让你勾选要导入的分类；若名字已存在，可选择保留两个、替换、或跳过。</p>` +
         `</div>` +
-        `<div class="sf-ptge-help-foot"><button class="sf-ptge-btn pri hgot">Got it</button></div>` +
+        `<div class="sf-ptge-help-foot"><button class="sf-ptge-btn pri hgot">知道了</button></div>` +
         `</div>`;
     modal.addEventListener("mousedown", (e) => { if (e.target === modal) modal.remove(); });
     modal.querySelector(".hgot").addEventListener("click", () => modal.remove());
@@ -1608,14 +1608,14 @@ export function openLibraryEditor(node, opts) {
         `<div class="ttl"><span class="cr">☲</span> Tag library</div>` +
         `<div class="sf-ptge-srch"><span class="i">🔍</span><input placeholder="search tags and text"></div>` +
         `<span class="priv">private to you · survives plugin updates</span>` +
-        `<span class="help" title="How the tag library works"><span class="sf-ptge-svg" style="-webkit-mask-image:url(${ICON_HELP});mask-image:url(${ICON_HELP})"></span></span>` +
-        `<span class="x" title="Close">✕</span></div>` +
+        `<span class="help" title="标签库如何工作"><span class="sf-ptge-svg" style="-webkit-mask-image:url(${ICON_HELP});mask-image:url(${ICON_HELP})"></span></span>` +
+        `<span class="x" title="关闭">✕</span></div>` +
         `<div class="sf-ptge-main"><div class="sf-ptge-side"></div>` +
-        `<div class="sf-ptge-grip" title="Drag to resize the category list. Double-click to reset."></div>` +
+        `<div class="sf-ptge-grip" title="拖拽调整分类列表宽度。双击复位。"></div>` +
         `<div class="sf-ptge-content"></div></div>` +
-        `<div class="sf-ptge-foot"><button class="sf-ptge-btn imp-export" title="Save your tags to a file: everything, or just one category"><span>⭳</span> Export ▾</button>` +
-        `<button class="sf-ptge-btn imp-import" title="Bring tags in from a file - you choose which categories"><span>⭱</span> Import</button>` +
-        `<button class="sf-ptge-btn imp-more" title="More library actions">⋯</button>` +
+        `<div class="sf-ptge-foot"><button class="sf-ptge-btn imp-export" title="把你的标签保存到文件：全部或单个分类"><span>⭳</span> Export ▾</button>` +
+        `<button class="sf-ptge-btn imp-import" title="从文件导入标签——你可以选择要导入的分类"><span>⭱</span> Import</button>` +
+        `<button class="sf-ptge-btn imp-more" title="更多库操作">⋯</button>` +
         `<button class="sf-ptge-btn push imp-done">Done</button></div>`;
     document.body.appendChild(ov);
     _overlay = ov;
