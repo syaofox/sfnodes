@@ -89,6 +89,8 @@ from .nodes.model.power_lora_preset import PowerLoraPreset
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.sage_attention import SFPatchSageAttention
 from .nodes.image.compare import ImageCompare
+from .nodes.image.pause_image import SFPauseImage
+from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
 from .nodes.text.text import (
     TextTranslation,
 
@@ -248,6 +250,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoraSelector": LoraSelector,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
+    "SFPauseImage": SFPauseImage,
     # 文本节点
     "SFTextTranslation": TextTranslation,
     "SFTextCombine": TextCombine,
@@ -413,6 +416,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoraSelector": "SF LoRA Selector",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
+    "SFPauseImage": "SF Pause Image",
     # 文本节点
     "SFTextTranslation": "SF Text Translation",
     "SFTextCombine": "SF Text Combine",
