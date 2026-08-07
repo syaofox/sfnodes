@@ -1165,6 +1165,24 @@ function buildBar(bar) {
     }
     bar.append(seg);
 
+    // 文字与图的大小。与 Grid|List 同款分段：每个 A 以它选中的尺寸绘制
+    const sizes = el("div", "sf-wb-seg sf-wb-sizeseg");
+    for (const id of ["s", "m", "l"]) {
+        const b = el("button", S.density === id ? "on" : "", "A");
+        b.type = "button";
+        b.dataset.k = id;
+        b.title = "Size of everything in this panel: " + DENSITY[id].label;
+        b.addEventListener("click", () => {
+            S.density = id;
+            applyDensity(id);
+            window.sfnodesSetSetting(DENSITY_SETTING, id);
+            buildBar(bar);
+            render();
+        });
+        sizes.append(b);
+    }
+    bar.append(sizes);
+
     const sort = el("button", "sf-wb-tbtn", "Sort: " + SORT_LABELS[S.sort]);
     sort.type = "button";
     const why = sortDisabledReason();
@@ -1293,6 +1311,53 @@ function buildFooter(foot) {
     hint("double click", "open");
     hint("drag", "onto a folder to move");
     hint("Esc", "close");
+
+    // 右对齐，在面板上而非藏起来："你在哪个版本"是任何支持回答的第一问。
+    // 点击复制完整行
+    foot.append(el("div", "sf-wb-footsp"));
+
+    // 帮助：toast 内联快捷键说明（sfnodes 无原版的独立 help browser）
+    const help = el("button", "sf-wb-tbtn", "?");
+    help.type = "button";
+    help.title = "How this panel works: the buttons and the shortcuts";
+    help.addEventListener("click", () => {
+        S.win.toast("Type to search, arrows to move, Enter to open, F2 to rename, "
+            + "double-click to open, drag onto a folder to move, Esc to close. "
+            + "Right-click a card or folder for more.");
+    });
+    foot.append(help);
+
+    const ver = el("button", "sf-wb-tbtn sf-wb-ver", versionShort());
+    ver.type = "button";
+    const vLine = versionLine();
+    ver.title = vLine + "  ·  click to copy";
+    // 指针进入时重读：行里含渲染器名，可无刷新切换
+    ver.addEventListener("pointerenter", () => { ver.title = versionLine() + "  ·  click to copy"; });
+    ver.addEventListener("click", async () => {
+        const line = versionLine();
+        const ok = await copyText(line);
+        S.win.toast(ok ? "Copied: " + line : line);
+    });
+    foot.append(ver);
+}
+
+// 版本行工具（读 ComfyUI 前端版本，渲染器/平台可选拼入）
+function versionShort() {
+    return "SF Workflows";
+}
+function versionLine() {
+    const bits = ["SF Workflows"];
+    try {
+        const fe = window.__COMFYUI_FRONTEND_VERSION__;
+        if (fe) bits.push(`frontend ${fe}`);
+    } catch { /* 可选 */ }
+    try {
+        bits.push(window.LiteGraph?.vueNodesMode ? "Nodes 2.0" : "Classic nodes");
+    } catch { /* 可选 */ }
+    try {
+        if (navigator.platform) bits.push(navigator.platform);
+    } catch { /* 可选 */ }
+    return bits.join(" / ");
 }
 
 // ── 打开/关闭 ─────────────────────────────────────────────────────────────

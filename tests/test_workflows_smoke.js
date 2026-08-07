@@ -53,7 +53,7 @@ function makeEl() {
 globalThis.document = {
     createElement() { return makeEl(); },
     body: { appendChild() {}, append() {} },
-    head: { appendChild() {} },
+    head: { appendChild(el) { if (el?.id === "sf-wb-css") globalThis.__sfwbStyleEl = el; } },
     addEventListener() {}, removeEventListener() {},
     getElementById() { return null; },
     createTextNode: (t) => ({ textContent: t }),
@@ -168,6 +168,13 @@ globalThis.api = {
     check("面板已打开", fetchCalls.some((c) => String(c.url).includes("/api/sfnodes/workflows/index")));
     check("meta 已获取", fetchCalls.some((c) => String(c.url).includes("/api/sfnodes/workflows/meta")));
     check("index 请求 no-store", fetchCalls.some((c) => String(c.url).includes("index") && c.opts?.cache === "no-store"));
+
+    // ── CSS 密度插值验证：注入的样式应含展开的 calc(...*var(--sfwb-k))，
+    //    且无字面 ${z(...)} 残留（运行时插值失败的证据）──
+    const cssText = (globalThis.__sfwbStyleEl?.textContent) || "";
+    check("CSS 已注入", cssText.includes("--sfwb-k"));
+    check("z() 已展开为 calc", cssText.includes("calc(") && cssText.includes("* var(--sfwb-k"));
+    check("无字面插值残留", !cssText.includes("${z("));
 
     // 再开一次：toggle 关闭（幂等）
     await cmd.function();
