@@ -115,8 +115,10 @@ from .nodes.text.prompt_list import SFPromptList
 from .nodes.text.concatenate import SFTextConcatenate
 from .nodes.text.any_to_string import SFAnyToString
 from .nodes.text.prompt_batcher import SFLoadPromptsFromFolder, SFSaveTextToFiles
+from .nodes.text.regex_extract import SFTextRegexExtract
 from .nodes.text.random_edit_prompt import SFRandomEditPrompt
 from .nodes.text.prompt_preset import SFPromptPreset, SFUnpackPromptPreset
+from .nodes.text.prompt_tags import SFPromptTags
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
@@ -253,6 +255,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextDropdown": TextDropdown,
     "SFTextPreset": SFTextPreset,
     "SFTextReplace": SFTextReplace,
+    "SFTextRegexExtract": SFTextRegexExtract,
     "SFPromptList": SFPromptList,
     "SFTextConcatenate": SFTextConcatenate,
     "SFAnyToString": SFAnyToString,
@@ -261,6 +264,7 @@ NODE_CLASS_MAPPINGS = {
     "SFRandomEditPrompt": SFRandomEditPrompt,
     "SFPromptPreset": SFPromptPreset,
     "SFUnpackPromptPreset": SFUnpackPromptPreset,
+    "SFPromptTags": SFPromptTags,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFSimpleMathSlider": SimpleMathSlider,
@@ -415,6 +419,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextDropdown": "SF Text Dropdown",
     "SFTextPreset": "SF Text Preset",
     "SFTextReplace": "SF Text Replace",
+    "SFTextRegexExtract": "SF Text Regex Extract",
     "SFPromptList": "SF Prompt List",
     "SFTextConcatenate": "SF Text Concatenate",
     "SFAnyToString": "SF Any To String",
@@ -423,6 +428,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFRandomEditPrompt": "SF Random Edit Prompt",
     "SFPromptPreset": "SF Prompt Preset",
     "SFUnpackPromptPreset": "SF Unpack Prompt Preset",
+    "SFPromptTags": "SF Prompt Tags",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFSimpleMathSlider": "SF Simple Math Slider",
