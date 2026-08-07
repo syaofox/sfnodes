@@ -92,6 +92,7 @@ from .nodes.image.compare import ImageCompare
 from .nodes.image.pause_image import SFPauseImage
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
+from .nodes import workflow_routes  # noqa: F401  # 副作用注册 /api/sfnodes/workflows/* 路由
 from .nodes.text.text import (
     TextTranslation,
 

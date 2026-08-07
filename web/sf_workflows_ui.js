@@ -1,0 +1,1254 @@
+// ==========================================================================
+// sf_workflows_ui.js - SF Workflows DOM 层
+// ==========================================================================
+//
+// 浮动面板的纯 DOM 部分：窗口框架（拖拽/缩放/rect 记忆）、右键菜单、
+// 封面（节点图绘制/手选/输出捕获）、拖拽守卫、网格卡片、文件夹侧栏、CSS。
+// 无 app 依赖——需要时由主扩展注入（installOutputCoverCapture 的
+// getActiveRel/saveMeta）。类名前缀 sf-wb-（源插件 pixwb-，防 CSS 互踩）。
+//
+// ==========================================================================
+
+import { api } from "/scripts/api.js";
+import {
+    ancestorsOf, hasChildren, openSet, folderColor,
+} from "./sf_workflows_lib.js";
+
+/** 微型 DOM 助手。每个面板都恰好想要这个。 */
+export const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+};
+
+// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
+export function pixApiUrl(route) {
+    try {
+        if (typeof api?.apiURL === "function") return api.apiURL(route);
+    } catch { /* 降级 */ }
+    return route;
+}
+
+// ── "面板正在自我重绘吗？" ──────────────────────────────────────────────
+// 打开的改名框必须分清两件事：用户点走（提交输入）与重渲染把框从脚下拆走
+// （保留并在之后放回）。两者都以普通 blur 到达。`input.isConnected` 看似
+// 可行其实不行（Chrome 实测：移除聚焦元素时 blur 仍在元素已附加时触发，
+// isConnected 在处理器内为 true、返回后才翻 false）。
+// 由真正知道的渲染器回答。计数而非布尔：render() 重绘三列，嵌套调用不能
+// 为外层清标志。
+let renderDepth = 0;
+
+export function markRendering(fn) {
+    renderDepth++;
+    try { return fn(); } finally { renderDepth--; }
+}
+
+export const isRendering = () => renderDepth > 0;
+
+/**
+ * 复制文本到剪贴板，成功返回 true。
+ * navigator.clipboard 需要安全上下文，ComfyUI 常在 LAN 明文 http 上访问，
+ * 整个 API 缺席——所以旧 textarea 技巧是兜底而非事后想。只有一个副本。
+ */
+export async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch { /* 无安全上下文或权限被拒 */ }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;";
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    ta.remove();
+    return ok;
+}
+
+// ── 拖拽与 rect（shared/floating_window 内联）────────────────────────────
+
+/**
+ * 在 `handle` 上开始指针拖拽。两道防线：
+ *   1. setPointerCapture——该指针的每个事件都到本元素直到放手，哪怕在窗外
+ *   2. buttons 抬起守卫：无按键的 move 意味着漏掉了 release，立即结束
+ * `end` 幂等（守卫与真实释放都会调它）。
+ */
+export function startDrag(handle, e, onMove, onEnd) {
+    if (e.button !== 0) return false;
+    let done = false;
+    const end = () => {
+        if (done) return;
+        done = true;
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", end);
+        handle.removeEventListener("pointercancel", end);
+        handle.removeEventListener("lostpointercapture", end);
+        try { handle.releasePointerCapture(e.pointerId); } catch { /* 已释放 */ }
+        onEnd?.();
+    };
+    const move = (ev) => {
+        if (!(ev.buttons & 1)) { end(); return; }   // 释放丢了
+        onMove(ev);
+    };
+    try { handle.setPointerCapture(e.pointerId); } catch { /* 旧构建：守卫仍覆盖 */ }
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+    handle.addEventListener("lostpointercapture", end);
+    e.preventDefault();
+    return true;
+}
+
+// ComfyUI 的浮动操作条（Run/Manager 那行）。面板在 y=60 打开会压住它，
+// 藏起能再次关闭面板的按钮。每次打开重新测量（行可移动、高度不是我们的
+// 硬编码）。
+const TOOLBAR_GAP = 10;
+const TOOLBAR_MAX_TOP = 220;
+
+function toolbarFloor() {
+    try {
+        const bar = document.querySelector(".actionbar-container")
+            || document.querySelector(".sf-wb-btn, .sf-wb-cmd")?.closest(".comfyui-button-group");
+        if (!bar) return 0;
+        const b = bar.getBoundingClientRect();
+        if (!b.height || b.bottom > TOOLBAR_MAX_TOP) return 0;
+        return Math.round(b.bottom + TOOLBAR_GAP);
+    } catch {
+        return 0;   // 面板打开绝不因找不到工具栏而失败
+    }
+}
+
+/**
+ * 面板的尺寸/位置持久化。`settingKey` 每面板唯一。
+ */
+export function makeRect({
+    settingKey,
+    minW = 420, minH = 280,
+    prefW = 980, prefH = 756,
+    edge = 24, homeX = 60, homeY = 70,
+    sideDef = 204, sideMin = 130, sideMaxFrac = 0.55,
+    saveDelay = 350,
+    clearToolbar = true,
+} = {}) {
+    const sideMax = (winW) => Math.max(sideMin, Math.round(winW * sideMaxFrac));
+    const floorY = () => (clearToolbar ? toolbarFloor() : 0);
+
+    // 每次打开按视口计算而非烘焙——同一个人明天可能用笔记本开 ComfyUI
+    function defaultRect() {
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const top = Math.max(edge, floorY());
+        const w = Math.max(minW, Math.min(prefW, vw - edge * 2));
+        const h = Math.max(minH, Math.min(prefH, vh - top - edge));
+        return {
+            x: Math.max(edge, Math.min(homeX, vw - w - edge)),
+            y: Math.max(top, Math.min(Math.max(homeY, top), vh - h - edge)),
+            w, h, sw: sideDef,
+        };
+    }
+
+    function clampRect(r) {
+        const d = defaultRect();
+        const vw = window.innerWidth, vh = window.innerHeight;
+        // 工具栏地板也适用于已保存 rect：在此功能存在前压在顶栏上的面板
+        // 否则会永远重新打开在自己的开关上面
+        const top = Math.max(0, floorY());
+        const w = Math.round(Math.max(minW, Math.min(r?.w ?? d.w, vw - edge)));
+        const h = Math.round(Math.max(minH, Math.min(r?.h ?? d.h, vh - top - edge)));
+        // 按当前宽度重钳：大窗口上加宽的侧栏不能在小窗口缩小后吞掉内容
+        const sw = Math.round(Math.max(sideMin, Math.min(r?.sw ?? d.sw, sideMax(w))));
+        return {
+            ...(r && typeof r === "object" ? r : {}),
+            x: Math.round(Math.max(0, Math.min(r?.x ?? d.x, vw - w))),
+            y: Math.round(Math.max(top, Math.min(r?.y ?? d.y, Math.max(top, vh - h)))),
+            w, h, sw,
+        };
+    }
+
+    function readRect() {
+        const raw = window.sfnodesGetSetting?.(settingKey, null);
+        if (raw && typeof raw === "object") return clampRect(raw);
+        if (typeof raw === "string") {
+            try { return clampRect(JSON.parse(raw)); } catch { /* 落到默认 */ }
+        }
+        return defaultRect();
+    }
+
+    // 防抖：拖拽不会在每次 pointermove 都写设置
+    let saveTimer = null;
+    function saveRect(rect) {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            try { window.sfnodesSetSetting?.(settingKey, rect); } catch { /* 保存 rect 从不弄坏 UI */ }
+        }, saveDelay);
+    }
+
+    return { defaultRect, clampRect, readRect, saveRect, sideMax, floorY, minW, minH };
+}
+
+// ── CSS（阶段 1：窗口/侧栏/网格/菜单/toast/封面/拖拽高亮）──────────────────
+
+let _cssInjected = false;
+
+export function injectWorkflowCSS() {
+    if (_cssInjected) return;
+    _cssInjected = true;
+    const s = document.createElement("style");
+    s.id = "sf-wb-css";
+    s.textContent = `
+:root { --sfwb-k:1; --sfwb-acc:#f66744; }
+.sf-wb-win { position:fixed; z-index:9980; background:#1b1a19; border:1px solid #3d3936;
+  border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.6); flex-direction:column;
+  color:#ddd; font:12px 'Segoe UI',sans-serif; overflow:hidden; display:none;
+  min-width:560px; min-height:340px; }
+.sf-wb-win * { box-sizing:border-box; }
+.sf-wb-title { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:grab;
+  background:#201f1e; border-bottom:1px solid #33302e; user-select:none; flex:0 0 auto; }
+.sf-wb-title.sf-wb-dragging { cursor:grabbing; }
+.sf-wb-name { font-weight:600; font-size:13px; color:#fff; display:flex; align-items:center; gap:8px; }
+.sf-wb-logo { width:12px; height:12px; border-radius:3px; background:var(--sfwb-acc); display:inline-block; }
+.sf-wb-count { color:#9a938f; font-weight:400; font-size:11px; }
+.sf-wb-sp { flex:1; }
+.sf-wb-wbtn { background:none; border:0; color:#aaa; font-size:15px; cursor:pointer; padding:2px 8px; border-radius:4px; }
+.sf-wb-wbtn:hover { background:rgba(255,255,255,.1); color:#fff; }
+.sf-wb-bar { display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #33302e; flex:0 0 auto; flex-wrap:wrap; }
+.sf-wb-search { flex:1 1 180px; display:flex; align-items:center; gap:6px; background:#141312;
+  border:1px solid #3d3936; border-radius:6px; padding:5px 9px; min-width:140px; }
+.sf-wb-search input { flex:1; background:transparent; border:0; outline:none; color:#e6e6e6; font:12px 'Segoe UI',sans-serif; }
+.sf-wb-tbtn { background:rgba(255,255,255,.05); border:1px solid #4a4542; color:#cfcfcf; border-radius:5px;
+  padding:5px 11px; font:12px 'Segoe UI',sans-serif; cursor:pointer; white-space:nowrap; }
+.sf-wb-tbtn:hover:not(:disabled) { border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-tbtn:disabled { opacity:.45; cursor:default; }
+.sf-wb-tbtn.sf-wb-primary { background:var(--sfwb-acc); border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-tbtn.sf-wb-danger { border-color:#a8543f; color:#ff8d7d; background:rgba(168,84,63,.15); }
+.sf-wb-seg { display:flex; border:1px solid #4a4542; border-radius:5px; overflow:hidden; flex:0 0 auto; }
+.sf-wb-seg button { background:transparent; border:0; color:#a8a29e; padding:5px 10px; cursor:pointer; font:12px 'Segoe UI',sans-serif; }
+.sf-wb-seg button.on { background:var(--sfwb-acc); color:#fff; }
+.sf-wb-seg button + button { border-left:1px solid #4a4542; }
+.sf-wb-body { flex:1; display:flex; min-height:0; position:relative; }
+.sf-wb-side { width:190px; flex:none; background:#161514; border-right:1px solid #2e2b29; overflow-y:auto; padding:8px 6px; }
+.sf-wb-sidegrip { flex:none; width:6px; cursor:col-resize; margin:0 -3px; z-index:2; background:transparent; }
+.sf-wb-sidegrip:hover { background:var(--sfwb-acc); }
+.sf-wb-main { flex:1; min-width:0; display:flex; flex-direction:column; background:#1e1d1c; }
+.sf-wb-detail { flex:none; width:208px; background:#171615; border-left:1px solid #2e2b29; overflow-y:auto; }
+.sf-wb-detail.hidden { display:none; }
+.sf-wb-detgrip { flex:none; width:6px; cursor:col-resize; margin:0 -3px; z-index:2; background:transparent; }
+.sf-wb-detgrip.hidden { display:none; }
+.sf-wb-grip { position:absolute; right:0; bottom:0; width:18px; height:18px; cursor:nwse-resize; z-index:3; }
+.sf-wb-foot { display:flex; align-items:center; gap:8px; padding:6px 12px; border-top:1px solid #33302e;
+  background:#201f1e; font-size:10.5px; color:#8f8f8f; flex:0 0 auto; flex-wrap:wrap; }
+.sf-wb-foot b { color:#c9c9c9; font-weight:600; }
+.sf-wb-footsp { flex:1; }
+.sf-wb-grouphead { font:600 9.5px 'Segoe UI',sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:#6f6a66; padding:8px 8px 4px; }
+.sf-wb-fold { display:flex; align-items:center; gap:6px; width:100%; text-align:left; padding:5px 8px;
+  border-radius:5px; cursor:pointer; background:transparent; border:0; color:#c9c5c2; font:12px 'Segoe UI',sans-serif; }
+.sf-wb-fold:hover { background:rgba(255,255,255,.06); color:#fff; }
+.sf-wb-fold.on { background:color-mix(in srgb, var(--sfwb-acc) 20%, transparent); color:#fff; }
+.sf-wb-foldlbl { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf-wb-cnt { font-size:10.5px; color:#8a8581; }
+.sf-wb-fold.on .sf-wb-cnt { color:rgba(255,255,255,.75); }
+.sf-wb-chev { font-size:9px; color:#8a8581; cursor:pointer; width:12px; text-align:center; flex:none; }
+.sf-wb-chev-open { transform:rotate(90deg); }
+.sf-wb-chevpad { width:12px; flex:none; }
+.sf-wb-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+.sf-wb-favstar { color:#e0894b; flex:none; }
+.sf-wb-nest { flex:none; }
+.sf-wb-fold.sf-wb-dragging-me { opacity:.45; }
+.sf-wb-fold.sf-wb-insert-above { box-shadow: inset 0 2px 0 0 var(--sfwb-acc); }
+.sf-wb-fold.sf-wb-insert-below { box-shadow: inset 0 -2px 0 0 var(--sfwb-acc); }
+.sf-wb-fold.sf-wb-droptarget { background:color-mix(in srgb, var(--sfwb-acc) 16%, transparent); }
+.sf-wb-foldrename { flex:1; min-width:0; background:#141312; border:1px solid var(--sfwb-acc); border-radius:4px;
+  color:#e6e6e6; font:12px monospace; padding:3px 6px; outline:none; }
+.sf-wb-grid { flex:1; overflow-y:auto; padding:12px; display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; align-content:start; }
+.sf-wb-list { flex:1; overflow-y:auto; padding:8px 12px; }
+.sf-wb-card { background:#232120; border:1px solid #34312f; border-radius:8px; padding:8px; cursor:pointer;
+  display:flex; flex-direction:column; gap:6px; min-width:0; }
+.sf-wb-card:hover { border-color:#4c4744; }
+.sf-wb-card.sel { border-color:var(--sfwb-acc); box-shadow:0 0 0 1px var(--sfwb-acc); }
+.sf-wb-card.kbd { outline:2px solid var(--sfwb-acc); outline-offset:1px; }
+.sf-wb-cov { width:100%; aspect-ratio:16/9; border-radius:4px; background:#141414; object-fit:cover; display:block; }
+.sf-wb-cardname { font-size:11.5px; color:#e6e6e6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf-wb-cardmeta { font-size:10px; color:#8a8581; }
+.sf-wb-row { display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:6px; cursor:pointer; }
+.sf-wb-row:hover { background:rgba(255,255,255,.05); }
+.sf-wb-row.sel { background:color-mix(in srgb, var(--sfwb-acc) 18%, transparent); }
+.sf-wb-row.kbd { outline:2px solid var(--sfwb-acc); outline-offset:1px; }
+.sf-wb-rowcov { width:44px; height:28px; border-radius:3px; background:#141414; object-fit:cover; flex:none; }
+.sf-wb-rowname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf-wb-rowfold { color:#8a8581; font-size:10.5px; }
+.sf-wb-openmark { position:absolute; top:6px; right:6px; width:8px; height:8px; border-radius:50%;
+  background:#3ec371; }
+.sf-wb-card { position:relative; }
+.sf-wb-star { position:absolute; top:14px; right:14px; width:20px; height:20px; display:flex; align-items:center;
+  justify-content:center; border-radius:50%; background:rgba(0,0,0,.55); color:#888; cursor:pointer;
+  font-size:12px; z-index:2; }
+.sf-wb-star.on { color:#e0894b; }
+.sf-wb-rowstar { position:static; background:transparent; }
+.sf-wb-rename { flex:1; min-width:0; background:#141312; border:1px solid var(--sfwb-acc); border-radius:4px;
+  color:#e6e6e6; font:12px monospace; padding:3px 6px; outline:none; }
+.sf-wb-empty { padding:30px; text-align:center; color:#8a8581; }
+.sf-wb-toast { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); background:#2a2725;
+  border:1px solid #4c4744; border-radius:6px; padding:7px 14px; font-size:11.5px; color:#eee;
+  box-shadow:0 6px 18px rgba(0,0,0,.5); z-index:9; display:none; max-width:70%; }
+.sf-wb-menu { position:fixed; z-index:9999; background:#232120; border:1px solid #4c4744; border-radius:7px;
+  padding:4px; box-shadow:0 12px 30px rgba(0,0,0,.6); min-width:180px; }
+.sf-wb-menu button { display:block; width:100%; text-align:left; background:none; border:0; color:#cfcfcf;
+  padding:7px 12px; border-radius:5px; cursor:pointer; font:12px 'Segoe UI',sans-serif; }
+.sf-wb-menu button:hover:not(:disabled), .sf-wb-menu button:focus-visible { background:rgba(255,255,255,.08); color:#fff; }
+.sf-wb-menu button:disabled { opacity:.45; cursor:default; }
+.sf-wb-menu .sf-wb-menudanger { color:#ff8d7d; }
+.sf-wb-menu .sf-wb-menudanger:hover { background:rgba(226,85,74,.18); color:#ffb0a5; }
+.sf-wb-menusep { height:1px; background:#353230; margin:4px 2px; }
+.sf-wb-btn { width:36px; height:36px; border-radius:8px; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:#ccc; }
+.sf-wb-btn:hover { background:var(--sfwb-acc); border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-btn.sf-wb-btn-open { background:var(--sfwb-acc); border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-btn-icon { width:16px; height:16px; border-radius:3px; background:currentColor;
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z'/%3E%3C/svg%3E");
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain; }
+`;
+    document.head.appendChild(s);
+}
+
+// ── 窗口 ──────────────────────────────────────────────────────────────────
+
+const RECT_SETTING = "sfnodes.Workflows.Rect";
+const MIN_W = 560;
+const MIN_H = 340;
+const PREF_W = 1040;
+const PREF_H = 720;
+const EDGE = 24;
+const HOME_X = 80;
+const HOME_Y = 60;
+const SIDE_DEF = 190;
+const SIDE_MIN = 120;
+const SIDE_MAX_FRAC = 0.45;
+
+const RECT = makeRect({
+    settingKey: RECT_SETTING,
+    minW: MIN_W, minH: MIN_H, prefW: PREF_W, prefH: PREF_H,
+    edge: EDGE, homeX: HOME_X, homeY: HOME_Y,
+    sideDef: SIDE_DEF, sideMin: SIDE_MIN, sideMaxFrac: SIDE_MAX_FRAC,
+});
+const { clampRect, readRect, saveRect, sideMax, floorY } = RECT;
+
+export function createWorkflowWindow({ onRender, onClose }) {
+    injectWorkflowCSS();
+    installDropGuard();
+
+    const win = el("div", "sf-wb-win");
+    win.style.display = "none";
+
+    const title = el("div", "sf-wb-title");
+    const name = el("div", "sf-wb-name");
+    const count = el("span", "sf-wb-count", "");
+    name.append(el("span", "sf-wb-logo"), el("span", null, "Workflows"), count);
+    const closeBtn = el("button", "sf-wb-wbtn", "✕");
+    closeBtn.type = "button";
+    closeBtn.title = "Close (Esc)";
+    title.append(name, el("div", "sf-wb-sp"), closeBtn);
+
+    const bar = el("div", "sf-wb-bar");
+    const body = el("div", "sf-wb-body");
+    const side = el("div", "sf-wb-side");
+    const sideGrip = el("div", "sf-wb-sidegrip");
+    sideGrip.title = "Drag to resize the list. Double-click to reset.";
+    const main = el("div", "sf-wb-main");
+    const detail = el("div", "sf-wb-detail");
+    detail.classList.add("hidden");   // 阶段 1 无详情面板
+    const detGrip = el("div", "sf-wb-detgrip");
+    detGrip.classList.add("hidden");
+    body.append(side, sideGrip, main, detGrip, detail);
+
+    const foot = el("div", "sf-wb-foot");
+    const grip = el("div", "sf-wb-grip");
+    win.append(title, bar, body, foot, grip);
+    document.body.appendChild(win);
+
+    let rect = readRect();
+    const applyRect = () => {
+        win.style.left = rect.x + "px";
+        win.style.top = rect.y + "px";
+        win.style.width = rect.w + "px";
+        win.style.height = rect.h + "px";
+        rect.sw = Math.max(SIDE_MIN, Math.min(rect.sw ?? SIDE_DEF, sideMax(rect.w)));
+        side.style.width = rect.sw + "px";
+    };
+    applyRect();
+
+    const onDragEnd = () => {
+        title.classList.remove("sf-wb-dragging");
+        saveRect(rect);
+    };
+
+    title.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".sf-wb-wbtn")) return;
+        const ox = e.clientX - win.offsetLeft;
+        const oy = e.clientY - win.offsetTop;
+        if (!startDrag(title, e, (ev) => {
+            rect.x = Math.max(0, Math.min(ev.clientX - ox, window.innerWidth - Math.min(rect.w, 160)));
+            rect.y = Math.max(floorY(), Math.min(ev.clientY - oy, window.innerHeight - 40));
+            applyRect();
+        }, onDragEnd)) return;
+        title.classList.add("sf-wb-dragging");
+    });
+
+    grip.addEventListener("pointerdown", (e) => {
+        const left = win.offsetLeft, top = win.offsetTop;
+        const ox = e.clientX - (left + win.offsetWidth);
+        const oy = e.clientY - (top + win.offsetHeight);
+        startDrag(grip, e, (ev) => {
+            rect.w = Math.max(MIN_W, Math.min(ev.clientX - ox - left, window.innerWidth - left));
+            rect.h = Math.max(MIN_H, Math.min(ev.clientY - oy - top, window.innerHeight - top));
+            applyRect();
+            onRender?.({ resizeOnly: true });
+        }, onDragEnd);
+        e.stopPropagation();
+    });
+
+    sideGrip.addEventListener("pointerdown", (e) => {
+        const bodyLeft = body.getBoundingClientRect().left;
+        startDrag(sideGrip, e, (ev) => {
+            rect.sw = Math.round(Math.max(SIDE_MIN, Math.min(ev.clientX - bodyLeft, sideMax(rect.w))));
+            side.style.width = rect.sw + "px";
+        }, onDragEnd);
+        sideGrip.classList.add("sf-wb-dragging");
+        e.stopPropagation();
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach((t) =>
+        sideGrip.addEventListener(t, () => sideGrip.classList.remove("sf-wb-dragging")));
+    sideGrip.addEventListener("dblclick", () => {
+        rect.sw = SIDE_DEF;
+        applyRect();
+        saveRect(rect);
+    });
+
+    window.addEventListener("resize", () => {
+        if (win.style.display === "none") return;
+        rect = clampRect(rect);
+        applyRect();
+    });
+
+    // 面板内点击不得到达 canvas，浏览不会取消选择面板打开前选中的东西
+    win.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+    // ── 保持键盘活着 ──
+    // 规则：除非在编辑什么，否则搜索框持有焦点。打字保持过滤、箭头持续
+    // 工作，无论最后点在哪里。
+    win.addEventListener("mousedown", (e) => {
+        if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+        setTimeout(() => {
+            const a = document.activeElement;
+            if (a && win.contains(a) && a.matches("input, textarea, [contenteditable]")) return;
+            // 右键菜单在 document.body、本窗外，聚焦在其中是刻意的
+            if (a && a.closest(".sf-wb-menu")) return;
+            bar.querySelector("input")?.focus({ preventScroll: true });
+        }, 0);
+    });
+
+    // ── toast ──
+    let toastEl = null, toastTimer = null;
+    function toast(message) {
+        // 空消息隐藏它。显示空框从不是调用者的意思
+        if (!message) {
+            if (toastEl) toastEl.style.display = "none";
+            clearTimeout(toastTimer);
+            return;
+        }
+        if (!toastEl) {
+            toastEl = el("div", "sf-wb-toast");
+            body.appendChild(toastEl);
+        }
+        toastEl.textContent = message;
+        toastEl.style.display = "block";
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { if (toastEl) toastEl.style.display = "none"; }, 2600);
+    }
+
+    const api = {
+        el: win, bar, side, main, detail, foot, title, count,
+        isOpen: () => win.style.display !== "none",
+        toast,
+        setCount: (text) => { count.textContent = text; },
+        isDetailVisible: () => false,   // 阶段 1 无详情面板
+        focusSearch: () => bar.querySelector("input")?.focus({ preventScroll: true }),
+        open() {
+            rect = clampRect(rect);
+            applyRect();
+            win.style.display = "flex";
+            onRender?.();
+            setTimeout(() => bar.querySelector("input")?.focus(), 20);
+        },
+        close() {
+            // 隐藏面板会 blur 其中的焦点，若那是打开的改名框，blur 会提交
+            // 半输入的名字。关闭不是"点走"，所以用渲染标志说"这不是用户的
+            // 回答"。
+            markRendering(() => { win.style.display = "none"; });
+            const q = bar.querySelector("input");
+            // 清空盒子 ≠ 清空搜索：过滤器在面板自己的状态里，关在搜索中的
+            // 面板再开，看似未过滤却仍藏着列表的大部分
+            if (q && q.value) { q.value = ""; q.dispatchEvent(new Event("input", { bubbles: true })); }
+            if (toastEl) toastEl.style.display = "none";
+            onClose?.();
+        },
+        toggle() { api.isOpen() ? api.close() : api.open(); },
+        destroy() { win.remove(); },
+    };
+
+    // Esc 关闭，但仅当焦点在内，否则吞掉整个应用的 Escape
+    win.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            const q = bar.querySelector("input");
+            // Esc 先清搜索：一个键同时丢查询与窗口是错误量的撤销
+            if (q && q.value && document.activeElement === q) {
+                q.value = "";
+                q.dispatchEvent(new Event("input", { bubbles: true }));
+                e.stopPropagation();
+                return;
+            }
+            e.stopPropagation();
+            api.close();
+        }
+    });
+
+    closeBtn.addEventListener("click", () => api.close());
+    return api;
+}
+
+// ── 右键菜单 ──────────────────────────────────────────────────────────────
+
+let menuEl = null;
+let cleanup = null;
+let returnFocus = null;
+let focusHome = null;
+
+export function setMenuFocusHome(fn) { focusHome = fn; }
+
+export function closeContextMenu() {
+    if (menuEl) { menuEl.remove(); menuEl = null; }
+    if (cleanup) { cleanup(); cleanup = null; }
+    // 把焦点还给面板。回调而非打开时聚焦的元素：到那时已太迟读——mousedown
+    // 在 contextmenu 前运行并 blur 原焦点
+    const back = returnFocus;
+    returnFocus = null;
+    try { back?.(); } catch { /* 面板已消失 */ }
+}
+
+/**
+ * @param items [{label, fn, disabled, danger}] - null 项画分隔线
+ */
+export function openContextMenu(x, y, items, onClose) {
+    closeContextMenu();
+    menuEl = el("div", "sf-wb-menu");
+    for (const it of items) {
+        if (!it) { menuEl.append(el("div", "sf-wb-menusep")); continue; }
+        const b = el("button", it.danger ? "sf-wb-menudanger" : null, it.label);
+        b.type = "button";
+        if (it.disabled) b.disabled = true;
+        else b.addEventListener("click", () => { closeContextMenu(); it.fn(); });
+        menuEl.append(b);
+    }
+    document.body.append(menuEl);
+
+    // 保持在屏内
+    const r = menuEl.getBoundingClientRect();
+    menuEl.style.left = Math.round(Math.max(6, Math.min(x, window.innerWidth - r.width - 8))) + "px";
+    menuEl.style.top = Math.round(Math.max(6, Math.min(y, window.innerHeight - r.height - 8))) + "px";
+
+    // 捕获阶段：菜单动作重渲染面板、拆掉被点元素，冒泡阶段的"是否在菜单内"
+    // 测试已读 false
+    const away = (e) => { if (menuEl && !menuEl.contains(e.target)) closeContextMenu(); };
+
+    // ── 键盘 ──
+    const options = () => [...menuEl.querySelectorAll("button:not(:disabled)")];
+    const step = (delta) => {
+        const list = options();
+        if (!list.length) return;
+        const at = list.indexOf(document.activeElement);
+        const next = at < 0 ? (delta > 0 ? 0 : list.length - 1)
+                            : (at + delta + list.length) % list.length;
+        list[next].focus();
+    };
+    const keys = (e) => {
+        if (!menuEl) return;
+        switch (e.key) {
+            case "Escape":   e.stopPropagation(); closeContextMenu(); break;
+            case "ArrowDown": e.preventDefault(); e.stopPropagation(); step(1); break;
+            case "ArrowUp":   e.preventDefault(); e.stopPropagation(); step(-1); break;
+            case "Home":      e.preventDefault(); e.stopPropagation(); options()[0]?.focus(); break;
+            case "End":       e.preventDefault(); e.stopPropagation(); options().pop()?.focus(); break;
+            // Tab 会把焦点移出仍打开的菜单
+            case "Tab":       e.preventDefault(); e.stopPropagation(); step(e.shiftKey ? -1 : 1); break;
+            default: break;
+        }
+    };
+
+    // 延迟，否则打开菜单的那次 pointerdown 又把它关了
+    const armed = setTimeout(() => {
+        document.addEventListener("pointerdown", away, true);
+        document.addEventListener("keydown", keys, true);
+    }, 0);
+    cleanup = () => {
+        clearTimeout(armed);
+        document.removeEventListener("pointerdown", away, true);
+        document.removeEventListener("keydown", keys, true);
+    };
+
+    returnFocus = onClose || focusHome;
+    options()[0]?.focus();
+}
+
+// ── 拖拽守卫 ──────────────────────────────────────────────────────────────
+// 带 text/plain 的拖拽使页面上每个文本框都是该字符串的原生 drop 目标。
+// 守卫只取消我们的拖拽落空的情况；普通文本拖拽不带我们的类型，不受影响。
+
+/** 一个文件夹被拖来重排。 */
+export const FOLDER_MIME = "application/x-sfnodes-workflows-folder";
+/** 一个或多个工作流卡片被拖入文件夹。 */
+export const CARD_MIME = "application/x-sfnodes-workflows-card";
+
+export const DROP_TARGET_ATTR = "wfdrop";
+const VALID_TARGET = "[data-wfdrop]";
+
+function hasType(e, mime) {
+    if (!e.dataTransfer) return false;
+    try { return [...e.dataTransfer.types].includes(mime); } catch { return false; }
+}
+
+export const isFolderDrag = (e) => hasType(e, FOLDER_MIME);
+export const isOurDrag = (e) => hasType(e, FOLDER_MIME) || hasType(e, CARD_MIME);
+
+function isStrayDrop(e) {
+    if (!isOurDrag(e)) return false;
+    const t = e.target;
+    if (t && typeof t.closest === "function" && t.closest(VALID_TARGET)) return false;
+    return true;
+}
+
+let installed = false;
+
+/** 取消我们的拖拽落在任何非真实文件夹行处。捕获阶段、幂等。 */
+export function installDropGuard() {
+    if (installed) return;
+    installed = true;
+
+    document.addEventListener("dragover", (e) => {
+        if (!isStrayDrop(e)) return;
+        try { e.dataTransfer.dropEffect = "none"; } catch { /* 某些状态只读 */ }
+    }, true);
+
+    document.addEventListener("drop", (e) => {
+        if (!isStrayDrop(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+    }, true);
+}
+
+// ── 封面 ──────────────────────────────────────────────────────────────────
+
+const ACHROMATIC = 0.06;
+const LIFT_L = 0.62;
+const GREY_L = 0.42;
+const LIFT_S = 0.45;
+const NO_COLOUR = "#57534f";
+const _liftCache = new Map();
+
+function lift(hex) {
+    // 颜色来自网上下载的工作流文件，数字/对象曾在此 .slice 上抛错
+    if (!hex || typeof hex !== "string") return NO_COLOUR;
+    const hit = _liftCache.get(hex);
+    if (hit) return hit;
+
+    let h = hex.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if (h.length !== 6) return NO_COLOUR;
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let hue = 0, sat = 0;
+    const l0 = (mx + mn) / 2;
+    if (d) {
+        sat = l0 > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        hue = mx === r ? ((g - b) / d + (g < b ? 6 : 0))
+            : mx === g ? ((b - r) / d + 2)
+            : ((r - g) / d + 4);
+        hue /= 6;
+    }
+    // 灰进灰出。只有真有色相的颜色才被提饱和
+    const grey = sat < ACHROMATIC;
+    const s = grey ? 0 : Math.max(sat, LIFT_S);
+    const l = grey ? GREY_L : LIFT_L;
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const ch = (t) => {
+        t = (t + 1) % 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 0.5) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+    };
+    const to = (v) => Math.round(v * 255).toString(16).padStart(2, "0");
+    const out = "#" + to(ch(hue + 1 / 3)) + to(ch(hue)) + to(ch(hue - 1 / 3));
+    _liftCache.set(hex, out);
+    return out;
+}
+
+/** 绘制图映射。按元素真实盒的设备像素缩放，否则高 DPI 屏上发虚。 */
+export function drawMap(canvas, map) {
+    const w = canvas.clientWidth || 120;
+    const h = canvas.clientHeight || 64;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.fillStyle = "#141414";
+    ctx.fillRect(0, 0, w, h);
+
+    if (!Array.isArray(map) || !map.length) {
+        // 不可读或空工作流仍得到诚实可见的东西而非网格里的空洞
+        ctx.strokeStyle = "#2e2e2e";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(w * 0.3, h * 0.5); ctx.lineTo(w * 0.7, h * 0.5);
+        ctx.stroke();
+        return;
+    }
+
+    // 条目来自不可信文件。null 或短的曾以 e[0] 在 requestAnimationFrame 内
+    // 抛错，无人捕获，卡片留下空白封面与一条 console 错误
+    const boxes = map.filter((e) => Array.isArray(e) && e.length >= 4
+        && Number.isFinite(+e[0]) && Number.isFinite(+e[1])
+        && Number.isFinite(+e[2]) && Number.isFinite(+e[3]));
+    if (!boxes.length) return;
+
+    const pad = 6;
+    const iw = Math.max(1, w - pad * 2);
+    const ih = Math.max(1, h - pad * 2);
+
+    // 先画连线、盒子压在上面。按阅读顺序近似为盒心之间的线：真实链接表
+    // 不随映射携带，120x64 下图的印象就是全部可读的
+    ctx.strokeStyle = "rgba(120,150,180,.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < boxes.length; i++) {
+        const a = boxes[i - 1], b = boxes[i];
+        ctx.moveTo(pad + (a[0] + a[2] / 2) * iw, pad + (a[1] + a[3] / 2) * ih);
+        ctx.lineTo(pad + (b[0] + b[2] / 2) * iw, pad + (b[1] + b[3] / 2) * ih);
+    }
+    ctx.stroke();
+
+    for (const e of boxes) {
+        const x = pad + e[0] * iw;
+        const y = pad + e[1] * ih;
+        const bw = Math.max(2, e[2] * iw);
+        const bh = Math.max(2, e[3] * ih);
+        const col = e[4];
+        ctx.fillStyle = lift(col);
+        ctx.globalAlpha = col ? 0.95 : 0.5;
+        const r = Math.min(2, bw / 2, bh / 2);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, bw, bh, r);
+        else ctx.rect(x, y, bw, bh);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+const PICTURE_EXTS = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif"];
+
+/** 这个文件名能放进 <img> 吗？只看扩展名。 */
+export function isPictureName(filename) {
+    const name = String(filename || "").split("?")[0];
+    const dot = name.lastIndexOf(".");
+    if (dot < 0) return false;
+    return PICTURE_EXTS.includes(name.slice(dot + 1).toLowerCase());
+}
+
+/** 一张卡片的图片该来自哪里，若有。 */
+export function coverFor(entry, meta) {
+    const hand = meta?.covers?.[entry.rel];
+    if (hand && hand.kind === "file" && hand.file) {
+        // URL 里的版本号让图片可硬缓存、替换瞬间更新（文件名永不改变）
+        return { kind: "image", url: pixApiUrl(`/api/sfnodes/workflows/cover/${encodeURIComponent(hand.file)}?v=${hand.v || 1}`) };
+    }
+    if (hand && hand.kind === "file" && hand.url) return { kind: "image", url: hand.url };
+    if (hand && hand.kind === "output" && hand.filename && isPictureName(hand.filename)) {
+        const p = new URLSearchParams({
+            filename: hand.filename,
+            subfolder: hand.subfolder || "",
+            type: hand.type || "output",
+        });
+        return { kind: "image", url: pixApiUrl(`/view?${p.toString()}`) };
+    }
+    return { kind: "map" };
+}
+
+/** 这个工作流有没有用户手选的图片？ */
+export function hasHandCover(entry, meta) {
+    const hand = meta?.covers?.[entry.rel];
+    return !!(hand && hand.kind === "file" && (hand.file || hand.url));
+}
+
+/** 卡片封面元素：有真图用图，否则画图映射。 */
+export function coverEl(entry, state, cls) {
+    const c = coverFor(entry, state.meta);
+    if (c.kind === "image") {
+        const img = el("img", cls);
+        img.loading = "lazy";
+        img.src = c.url;
+        img.alt = "";
+        // 已删除输出记录的封面不得在网格里留破图图标：回退到绘制图
+        img.addEventListener("error", () => {
+            const cv = el("canvas", cls);
+            img.replaceWith(cv);
+            requestAnimationFrame(() => drawMap(cv, entry.map));
+        }, { once: true });
+        return img;
+    }
+    const cv = el("canvas", cls);
+    requestAnimationFrame(() => drawMap(cv, entry.map));
+    return cv;
+}
+
+// ── 记住工作流产出（输出封面捕获）────────────────────────────────────────
+// run 结束我们已知哪个工作流开着，事件带着它写的图片。记录这一对就够封面
+// 随用户工作出现，无需回填、无需扫描输出目录。
+let _capInstalled = false;
+
+export function installOutputCoverCapture({ getActiveRel, saveMeta }) {
+    if (_capInstalled) return;
+    _capInstalled = true;
+
+    api.addEventListener("executed", (ev) => {
+        try {
+            const images = ev?.detail?.output?.images;
+            if (!Array.isArray(images) || !images.length) return;
+            const rel = getActiveRel();
+            if (!rel) return;   // 未保存工作流没有可钉住的文件
+            const img = images.find((i) => i && i.filename && (i.type || "output") !== "temp"
+                                             && isPictureName(i.filename));
+            if (!img) return;
+            const pending = {};
+            pending[rel] = { kind: "output", filename: img.filename, subfolder: img.subfolder || "", type: img.type || "output" };
+            // 防抖：批量 run 每个输出节点触发一次，各自写一次是浪费
+            clearTimeout(_capTimer);
+            _capTimer = setTimeout(() => flushOutputCovers(pending, saveMeta), 1200);
+        } catch {
+            // 封面缩略图绝不抛进 ComfyUI 的事件循环
+        }
+    });
+}
+
+let _capTimer = null;
+
+async function flushOutputCovers(batch, saveMeta) {
+    try { await saveMeta({ covers: batch }); } catch { /* 错过一张封面不值得一条消息 */ }
+}
+
+// ── 网格卡片 ──────────────────────────────────────────────────────────────
+
+const fmtWhen = (secs) => {
+    if (!secs) return "";
+    const d = (Date.now() - secs * 1000) / 1000;
+    if (d < 90) return "just now";
+    if (d < 3600) return Math.round(d / 60) + " min ago";
+    if (d < 86400) return Math.round(d / 3600) + "h ago";
+    if (d < 86400 * 7) return Math.round(d / 86400) + " days ago";
+    return new Date(secs * 1000).toLocaleDateString();
+};
+
+export function renderGrid(main, state, H) {
+    // 清空会同步触发打开的改名框的 blur——标志必须恰好盖住这条语句
+    markRendering(() => { main.textContent = ""; });
+    const list = state.visible;
+
+    if (!list.length) {
+        main.append(el("div", "sf-wb-empty", state.query
+            ? `Nothing matches "${state.query}".`
+            : "Nothing in here yet."));
+        dropRename(true);
+        return;
+    }
+
+    const wrap = el("div", state.view === "list" ? "sf-wb-list" : "sf-wb-grid");
+    const openNow = new Set(state.openPaths);
+
+    for (const entry of list) {
+        const card = el("div", state.view === "list" ? "sf-wb-row" : "sf-wb-card");
+        card.dataset.rel = entry.rel;
+        if (state.selected.has(entry.rel)) card.classList.add("sel");
+        if (state.kbdRel === entry.rel) card.classList.add("kbd");
+        card.title = entry.error ? `${entry.name}\n${entry.error}` : entry.name;
+
+        if (state.view === "list") {
+            card.append(coverEl(entry, state, "sf-wb-rowcov"));
+            card.append(el("span", "sf-wb-rowname", entry.name));
+            const right = el("span", "sf-wb-rowfold",
+                `${entry.folder || ""}  ${fmtWhen(entry.modified)}`.trim());
+            card.append(right);
+        } else {
+            card.append(coverEl(entry, state, "sf-wb-cov"));
+            card.append(el("div", "sf-wb-cardname", entry.name));
+            card.append(el("div", "sf-wb-cardmeta",
+                entry.error ? "unreadable" : `${fmtWhen(entry.modified)} · ${entry.node_count} nodes`));
+        }
+
+        if (openNow.has(entry.rel)) {
+            const mark = el("div", "sf-wb-openmark");
+            mark.title = "Open right now";
+            card.append(mark);
+        }
+
+        const fav = state.favourites.has(entry.rel);
+        const star = el("div", "sf-wb-star" + (state.view === "list" ? " sf-wb-rowstar" : "") + (fav ? " on" : ""),
+                        fav ? "★" : "☆");
+        star.title = fav ? "Remove from favourites" : "Add to favourites";
+        star.addEventListener("click", (e) => { e.stopPropagation(); H.onStar(entry); });
+        // 星星上的两次快点击会到达卡片的 dblclick 打开工作流
+        star.addEventListener("dblclick", (e) => e.stopPropagation());
+        card.append(star);
+
+        card.addEventListener("click", (e) => H.onSelect(entry, e));
+        card.addEventListener("dblclick", () => H.onOpen(entry));
+        card.addEventListener("contextmenu", (e) => { e.preventDefault(); H.onContext(entry, e); });
+
+        // ── 拖入文件夹 ──
+        card.draggable = true;
+        card.addEventListener("dragstart", (e) => {
+            // 绝不劫持对星星或改名框的点击
+            const t = e.target;
+            const tag = (t.tagName || "").toLowerCase();
+            if (tag === "input" || tag === "textarea" || t.classList?.contains("sf-wb-star")) {
+                e.preventDefault();
+                return;
+            }
+            H.onDragStart(entry, e);
+        });
+
+        wrap.append(card);
+    }
+    main.append(wrap);
+    // 最后、所有卡片入 DOM 后：重渲染前打开的改名框回到原位，输入仍在
+    restoreRename(main);
+}
+
+// 正在进行的改名，能挺过网格在脚下重建。任何东西都可能触发重渲染——后台
+// run 完成刷新封面、详情面板切星标——每次都在未告知的情况下扔掉半输入名
+let activeRename = null;
+let onRenameLost = null;
+
+export function setRenameLostNotifier(fn) { onRenameLost = fn; }
+
+/** 忘记进行中的改名，不提交。面板关闭与行消失时调用。 */
+export function dropRename(tell) {
+    if (!activeRename) return;
+    const { currentName } = activeRename;
+    activeRename = null;
+    if (tell) { try { onRenameLost?.(currentName); } catch { /* 无面板 */ } }
+}
+
+/** 重渲染后放回改名框。每次网格渲染末尾调用；无进行中改名时不做。 */
+export function restoreRename(main) {
+    if (!activeRename) return;
+    const { rel, value, currentName, commit } = activeRename;
+    if (!rowFor(main, rel)) { dropRename(true); return; }
+    beginRename(main, rel, currentName, commit, value);
+}
+
+function rowFor(main, rel) {
+    const sel = `[data-rel="${CSS.escape(rel)}"]`;
+    return main.querySelector(sel) || null;
+}
+
+/** 把卡片名字换成输入框。Enter 提交、Escape 取消。 */
+export function beginRename(main, rel, currentName, commit, startValue) {
+    const card = rowFor(main, rel);
+    if (!card) return;
+    if (card.querySelector("input")) return;
+    const nameEl = card.querySelector(".sf-wb-cardname") || card.querySelector(".sf-wb-rowname");
+    if (!nameEl) return;
+
+    const input = el("input", "sf-wb-rename");
+    const resuming = startValue !== undefined;
+    input.value = resuming ? startValue : currentName;
+    const restore = () => { input.replaceWith(nameEl); };
+    nameEl.replaceWith(input);
+    input.focus();
+    if (resuming) input.setSelectionRange(input.value.length, input.value.length);
+    else input.select();
+
+    activeRename = { rel, currentName, commit, value: input.value };
+
+    let done = false;
+    const finish = (save) => {
+        if (done) return;
+        done = true;
+        activeRename = null;
+        const value = input.value.trim();
+        restore();
+        if (save && value && value !== currentName) commit(value);
+    };
+    input.addEventListener("input", () => {
+        if (activeRename) activeRename.value = input.value;
+    });
+    input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(true);
+        else if (e.key === "Escape") finish(false);
+    });
+    input.addEventListener("blur", () => {
+        // 重渲染拆掉了框而非用户点走。没有此测试，无关刷新会提交已输入的
+        // 内容，把文件改成一个半完成的名字
+        if (isRendering()) return;
+        finish(true);
+    });
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("dblclick", (e) => e.stopPropagation());
+}
+
+// ── 文件夹侧栏 ────────────────────────────────────────────────────────────
+
+// 同一文件夹行两次点击这么近 = 改名。模块级：行在第一次点击后不存活。
+const DBL_MS = 400;
+let lastFoldClick = { path: null, at: 0 };
+
+export function renderFolders(side, state, { onPick, onDropOn, onRenameFolder, onFolderMenu, onReorderFolder, onToggleFolder }) {
+    // 清空会同步触发打开的文件夹改名框的 blur——标志必须盖住它
+    markRendering(() => { side.textContent = ""; });
+    const { entries, folders, collections, meta, favourites, sel, tidyRels } = state;
+    const open = openSet(meta?.folderExpanded, sel);
+
+    const is = (kind, value) => sel.kind === kind && (value === undefined || sel.value === value);
+
+    /** 建行、挂点击，真实文件夹再挂 drop 目标。 */
+    function addRow({ label, count, on, dot, indent = 0, title, muted, star, twisty }, pick, folderPath) {
+        const b = el("button", "sf-wb-fold" + (on ? " on" : ""));
+        b.type = "button";
+        if (title) b.title = title;
+        if (muted) b.style.color = "#6e6764";
+        if (indent) {
+            const sp = el("span", "sf-wb-nest");
+            sp.style.width = indent * 11 + "px";
+            b.append(sp);
+        }
+        if (twisty) {
+            const c = el("span", "sf-wb-chev" + (twisty.open ? " sf-wb-chev-open" : ""), "▶");
+            c.title = twisty.open ? "Hide what is inside" : "Show what is inside";
+            c.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                lastFoldClick = { path: null, at: 0 };
+                twisty.onToggle();
+            });
+            b.append(c);
+        } else if (twisty === null) {
+            b.append(el("span", "sf-wb-chevpad"));
+        }
+        if (dot) {
+            const d = el("span", "sf-wb-dot");
+            d.style.background = dot;
+            b.append(d);
+        }
+        if (star) b.append(el("span", "sf-wb-favstar", "★"));
+        b.append(el("span", "sf-wb-foldlbl", label));
+        if (count != null) b.append(el("span", "sf-wb-cnt", String(count)));
+        b.addEventListener("click", () => {
+            // 双击改名在这里计数点击实现（dblclick 监听器在这类行上永不
+            // 触发：第一次点击选择文件夹重渲染整列并拆掉本元素，第二次
+            // 点击落在替代品上，浏览器不发 dblclick）
+            if (folderPath && onRenameFolder) {
+                const now = performance.now();
+                if (lastFoldClick.path === folderPath && now - lastFoldClick.at < DBL_MS) {
+                    lastFoldClick = { path: null, at: 0 };
+                    onRenameFolder(folderPath, b);
+                    return;
+                }
+                lastFoldClick = { path: folderPath, at: now };
+            } else {
+                lastFoldClick = { path: null, at: 0 };
+            }
+            onPick(pick);
+        });
+
+        if (folderPath !== undefined) {
+            const clearMarks = () => b.classList.remove(
+                "sf-wb-droptarget", "sf-wb-insert-above", "sf-wb-insert-below");
+
+            // 标记此行是 Pixaroma 拖拽可合法落地的位置（守卫取消其它一切）
+            b.dataset[DROP_TARGET_ATTR] = "1";
+
+            b.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                clearMarks();
+                if (isFolderDrag(e)) {
+                    if (folderPath === "") return;   // (loose files) 不是真实文件夹
+                    const r = b.getBoundingClientRect();
+                    const above = (e.clientY - r.top) < r.height / 2;
+                    b.classList.add(above ? "sf-wb-insert-above" : "sf-wb-insert-below");
+                } else {
+                    b.classList.add("sf-wb-droptarget");
+                }
+            });
+            b.addEventListener("dragleave", (e) => {
+                if (e.relatedTarget && b.contains(e.relatedTarget)) return;
+                clearMarks();
+            });
+            b.addEventListener("drop", (e) => {
+                e.preventDefault();
+                const wasFolder = isFolderDrag(e);
+                const r = b.getBoundingClientRect();
+                const above = (e.clientY - r.top) < r.height / 2;
+                clearMarks();
+                if (wasFolder) {
+                    const moved = e.dataTransfer.getData(FOLDER_MIME);
+                    if (moved && moved !== folderPath && folderPath !== "") {
+                        onReorderFolder?.(moved, folderPath, above);
+                    }
+                } else {
+                    onDropOn?.(folderPath);
+                }
+            });
+
+            // 文件夹本身可拖，能手工重排而不只靠右键菜单
+            b.draggable = true;
+            b.addEventListener("dragstart", (e) => {
+                if (e.target.tagName === "INPUT") { e.preventDefault(); return; }  // 改名中
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData(FOLDER_MIME, folderPath);
+                e.dataTransfer.setData("text/plain", folderPath);
+                b.classList.add("sf-wb-dragging-me");
+            });
+            b.addEventListener("dragend", () => b.classList.remove("sf-wb-dragging-me"));
+        }
+
+        side.append(b);
+        return b;
+    }
+
+    // ── 快捷方式 ──
+    addRow({ label: "All workflows", count: entries.length, on: is("all") }, { kind: "all" });
+    addRow({ label: "Favourites", star: true, count: favourites.size, on: is("fav") }, { kind: "fav" });
+    addRow({ label: "Recent", count: Math.min(20, entries.length), on: is("recent") }, { kind: "recent" });
+
+    const issueCount = tidyRels?.size || 0;
+    if (issueCount) {
+        addRow({
+            label: "Needs tidying", count: issueCount, on: is("tidy"),
+            title: "Leftover names, duplicates, and workflows needing things you do not have",
+        }, { kind: "tidy" });
+    }
+
+    // ── 真实文件夹 ──
+    side.append(el("div", "sf-wb-grouphead", "Folders"));
+
+    // 子文件夹里的工作流也计入父级，否则只装子文件夹的目录读起来是空的
+    const perFolder = new Map();
+    for (const e of entries) {
+        if (!e.folder) continue;
+        const parts = e.folder.split("/");
+        for (let i = 1; i <= parts.length; i++) {
+            const key = parts.slice(0, i).join("/");
+            perFolder.set(key, (perFolder.get(key) || 0) + 1);
+        }
+    }
+
+    addRow({
+        label: "(loose files)", count: entries.filter((e) => !e.folder).length,
+        on: is("folder", ""), dot: "#5a5450", twisty: null,
+        title: "Workflows sitting outside any folder",
+    }, { kind: "folder", value: "" }, "");
+
+    for (const f of folders) {
+        // 关闭文件夹内的文件夹不绘制
+        if (!ancestorsOf(f).every((a) => open.has(a))) continue;
+
+        const kids = hasChildren(f, folders);
+        const isOpen = open.has(f);
+        const row = addRow({
+            label: f.split("/").pop(),
+            count: perFolder.get(f) || 0,
+            on: is("folder", f),
+            dot: folderColor(f, meta),
+            indent: f.split("/").length - 1,
+            twisty: kids ? { open: isOpen, onToggle: () => onToggleFolder?.(f, !isOpen) } : null,
+            title: f + "\nDouble click to rename, right click for more",
+        }, { kind: "folder", value: f }, f);
+
+        row.addEventListener("dblclick", (e) => e.preventDefault());
+        row.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFolderMenu?.(f, e);
+        });
+    }
+
+    addRow({ label: "+ New folder", muted: true }, { kind: "newfolder" });
+
+    // ── 集合 ──
+    const kinds = (collections || []).filter((c) => c.group === "kind");
+    const models = (collections || []).filter((c) => c.group === "model");
+
+    if (kinds.length) {
+        side.append(el("div", "sf-wb-grouphead", "What it makes"));
+        for (const c of kinds) {
+            addRow({ label: c.label, count: c.count, on: is("collection", c.id) },
+                   { kind: "collection", value: c.id });
+        }
+    }
+    if (models.length) {
+        side.append(el("div", "sf-wb-grouphead", "Model"));
+        for (const c of models) {
+            addRow({ label: c.label, count: c.count, on: is("collection", c.id) },
+                   { kind: "collection", value: c.id });
+        }
+    }
+}
+
+/** 把文件夹行换成文本框。Enter 提交新名字（非路径）。 */
+export function beginFolderRename(row, path, commit) {
+    if (!row || row.querySelector("input")) return;
+    const current = path.split("/").pop();
+    const kept = [...row.childNodes];
+    const input = el("input", "sf-wb-foldrename");
+    input.value = current;
+    row.textContent = "";
+    row.append(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = (save) => {
+        if (done) return;
+        done = true;
+        const value = input.value.trim();
+        row.textContent = "";
+        kept.forEach((n) => row.append(n));
+        if (save && value && value !== current) commit(value);
+    };
+    input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(true);
+        else if (e.key === "Escape") finish(false);
+    });
+    input.addEventListener("blur", () => {
+        if (isRendering()) return;
+        finish(true);
+    });
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("dblclick", (e) => e.stopPropagation());
+}
