@@ -23,14 +23,28 @@
 | `seed` | 随机种子（0 ~ 2^64-1） |
 | 10 个 combo | 各分类选择：`禁用` / `随机` / `随机·组名` / 具体预设 |
 
-输出 2 个：
+输出 3 个：
 
 | 输出 | 类型 | 说明 |
 |---|---|---|
-| `combined_prompt` | STRING | 全部分类拼接（预设片段首字母小写化，与 Krea2 官方短语流一致） |
+| `combined_prompt` | STRING | 全部分类拼接（预设片段首字母小写化，与 Krea2 官方短语流一致；环境段自动加 `in the`/`on the` 空间介词） |
 | `prompt_pack` | SF_PROMPT_PACK | 11 个分类文本打包（dict：Celebrity/Expression/Outfit/Pose/Couple Pose/Environment/Lighting/Style/Camera Angle/Camera Distance/Camera Lens），配合 **SFUnpackPromptPreset** 解包 |
+| `optimize_request` | STRING | 自定义 Krea2 提示词组织形式指令 + 拼接原文，喂给官方 **TextGenerate** 节点（LLM）进一步优化 |
 
-> **破坏性变更提示**：旧版本输出 12 条 STRING，现改为 2 条（combined + pack），需在 `SFPromptPreset` 后接 `SFUnpackPromptPreset` 节点还原 11 条分类文本。打包值为运行时对象，**不可**接入 Primitive/保存类节点。
+> **破坏性变更提示**：旧版本输出 12 条 STRING，现改为 3 条（combined + pack + optimize_request），需在 `SFPromptPreset` 后接 `SFUnpackPromptPreset` 节点还原 11 条分类文本。打包值为运行时对象，**不可**接入 Primitive/保存类节点。
+
+### LLM 优化链路（可选）
+
+```
+SFPromptPreset ──combined_prompt───┬─→ TextEncodeKrea2.prompt
+SFPromptPreset ──optimize_request─┴→ TextGenerate.prompt → generated_text → TextEncodeKrea2.prompt
+```
+
+- `optimize_request` 内含 10 条 Krea2 组织形式规则（短语流顺序/主体-环境 grounded/简洁去重/禁质量标签/忠实原文/保持衣着水平/单段纯净输出/轻量润色/防拒条款/few-shot 示例）+ 开头创作声明（虚构艺术任务，中立事实化描述）与末尾 `Optimized prompt:` 续写锚定，LLM 从锚定处直接生成优化后的单段提示词，杜绝解释/前言/后缀等多余输出；若模型欲拒绝（NSFW 内容对齐审查），按防拒条款直接回显 draft 原文而非输出拒绝文本
+- `TextGenerate` 的 `clip` 输入需自行加载 LLM 模型；`combined_prompt` 与 `optimize_request` 均可单独喂入，两者并用时 LLM 参考原文结构
+- 优化请求未采用 Krea 官方强制穿衣规则（第 10 条），保留 draft 的衣着水平，NSFW 预设内容不会被"纠正"
+- **NSFW 提示词注意**：强对齐模型（如 Gemma 官方版）即使有防拒条款也可能仍拒绝；建议换用无审查本地 LLM（如 Gemma/Mistral 的 uncensored 微调版、ablation 版 Qwen），配合防拒条款可获得干净输出
+- **Qwen3 系列思考链（COT）**：`thinking` 参数选择取决于模型微调来源——对遵守空 think 块约定的 instruct 版模型，`thinking=off`（默认注入空 think 块）即可抑制；对总是自发推理的无审查微调版（如 qwen3-vl-heretic），`thinking=off` 时空 think 块抑制失效、推理以无标签 COT 混入输出，**实测打开 `thinking=True` 反而正常**（推理走原生 think 通道，输出收敛为干净答案）。`use_default_template` 保持默认开启（关闭会使模板与抑制逻辑整体失效）；CLIPLoader 加载 qwen3-vl 模型时类型选 `qwen3vl_4b/8b`；指令已含"禁止逐步思考/直接单次生成"条款（规则 10）作为兜底
 
 `SFUnpackPromptPreset` 输出 11 个 STRING（celebrity_text/expression_text/outfit_text/pose_text/couple_text/environment_text/lighting_text/style_text/camera_angle_text/camera_distance_text/camera_lens_text），顺序与旧版一致。
 

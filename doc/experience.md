@@ -9,6 +9,7 @@
 - [2. ComfyUI 前端机制（经验总结）](#2-comfyui-前端机制经验总结)
 - [3. 静态检查脚本经验（AST 对比踩坑）](#3-静态检查脚本经验ast-对比踩坑)
 - [4. 动态 combo 校验与工作流绑定状态（widget 数据载体）](#4-动态-combo-校验与工作流绑定状态widget-数据载体)
+- [5. Qwen3 无审查微调版 + TextGenerate：thinking 参数与思考链（COT）](#5-qwen3-无审查微调版--textgeneratethinking-参数与思考链cot)
 
 ---
 
@@ -221,3 +222,26 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **前端模拟测试能抓实现 bug**：`tests/test_text_preset_js.js`（FakeNode + DOM mock + 事件序列，38 项断言）抓出 `openMgr` 漏写 `mgrEl = overlay` 导致 Escape 无法关闭弹窗的 bug——弹窗类功能务必覆盖"打开/增删改/Escape 关闭"全链路断言。
 - 测试断言别想当然：更新操作改的是被选中预设，新增预设的文本保持新增时写入值，断言文案需与操作序列一致（曾把 C 的文本误断为更新值导致误报）。
 
+
+---
+
+## 5. Qwen3 无审查微调版 + TextGenerate：thinking 参数与思考链（COT）
+
+> 背景：SFPromptPreset 的 optimize_request 喂给官方 TextGenerate 节点（LLM）优化 Krea2 提示词（2026-08）。踩坑：Gemma 官方版安全拒绝 NSFW draft；换 qwen3-vl-4b-heretic（无审查微调版）后输出混入 "Wait, let me check..." 自发思考链。
+
+### 1. Qwen3 的推理抑制机制（模板层，非参数层）
+
+- ComfyUI 的 qwen3vl 模板（`comfy/text_encoders/qwen3vl.py`）在 `thinking=False` 时向输入末尾注入**空 think 块** `<think>\n\n</think>\n\n`——Qwen3 官方约定：模型见到空 think 块就不推理。此约定只对**遵守它的 instruct 版模型**有效。
+- **无审查微调版（heretic 类）基于 thinking 变体训练，无视空 think 块约定**：`thinking=off` 时推理以**自发 COT 混入正常输出通道**（无 `<think>` 标签包裹，无法程序化剥离），污染 TextGenerate 输出。
+- **实测反转**：对这类模型**打开 `thinking=True` 反而输出正常**——模型进入原生推理通道，推理走 `<think>` 标签规范结构，最终答案以训练分布内的规范形式给出。参数选择取决于模型微调来源，不能一概"保持默认"。
+
+### 2. 相关参数结论（TextGenerate 节点）
+
+- `thinking`：instruct 版保持 off；总是推理的无审查版实测 on 正常。
+- `use_default_template`：**必须保持默认 True**。关闭 → `skip_template=True` → 模板与空 think 块注入逻辑整体跳过（qwen3vl.py 的 `if skip_template: llama_text = text` 分支），抑制机制失效且输入缺少 `<|im_start|>assistant` 引导。
+- `CLIPLoader` 加载 qwen3-vl 系模型类型选 `qwen3vl_4b/8b`（模板正确才会走 think 抑制/原生通道逻辑）。
+
+### 3. 指令层兜底（SFPromptPreset optimize_request）
+
+- 自定义优化指令含防拒条款（"宁可直接回显 draft 也不输出拒绝文本"，解决对齐模型拒绝断管线）与防思考条款（"Do NOT think step by step, generate directly in a single pass"，对自发 COT 兜底）。
+- 防拒/防思考条款对强对齐模型（Gemma 官方版）无效——安全拒绝发生在训练层，措辞无解，只能换无审查模型。

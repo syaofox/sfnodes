@@ -131,7 +131,7 @@ check(f"Couple 无灯光词 ({_couple_light})", len(_couple_light) == 0)
 node = mod.SFPromptPreset()
 
 # 2. specific zh selection -> english prompt (non-empty, no Chinese in output)
-combined, pack = node.execute(
+combined, pack, _ = node.execute(
     "test subject", seed=42,
     celebrity_preset="周杰伦",
     expression_preset="禁用",
@@ -161,7 +161,7 @@ check("服装中文反查命中", "qipao" in outfit)
 check("名人中文反查命中", "jay chou" in celebrity.lower() and "taiwanese" in celebrity.lower())
 check("名人片段保持专名大小写", "Jay Chou" in combined)
 
-_, pack = node.execute(
+_, pack, _ = node.execute(
     "test subject", seed=42, pose_preset="回眸", environment_preset="现代地铁车厢")
 pose_only = pack["Pose"]
 env_only = pack["Environment"]
@@ -181,39 +181,39 @@ _segs = [s.strip().rstrip(".") if s is celebrity else _seg(s) for s in (celebrit
 check("combined 含全部部分", all(s in combined for s in _segs))
 check("拼接顺序 celebrity < outfit < couple", combined.index(_segs[0]) < combined.index(_segs[1]) < combined.index(_segs[2]))
 check("拼接顺序 angle < dist < lens", combined.index(_segs[6]) < combined.index(_segs[7]) < combined.index(_segs[8]))
-comb_only, pack = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
+comb_only, pack, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
 env_only_text = pack['Environment']
 check("拼接顺序 pose < env", comb_only.index(_seg(pose_only)) < comb_only.index(_seg(env_only_text)))
-_, pack = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
-comb_op, pack = node.execute("test subject", seed=42, outfit_preset="旗袍", pose_preset="回眸")
+_, pack, _ = node.execute("test subject", seed=42, pose_preset="回眸", couple_preset="禁用", environment_preset="现代地铁车厢")
+comb_op, pack, _ = node.execute("test subject", seed=42, outfit_preset="旗袍", pose_preset="回眸")
 outfit_op = pack['Outfit']
 pose_op = pack['Pose']
 check("拼接顺序 outfit < pose", comb_op.index(_seg(outfit_op)) < comb_op.index(_seg(pose_op)))
 
 # 2b. NSFW pose resolution
-_, pack = node.execute("x", seed=1, pose_preset="床上自慰")
+_, pack, _ = node.execute("x", seed=1, pose_preset="床上自慰")
 pose_nsfw = pack['Pose']
 check("NSFW 姿势命中", "masturbat" in pose_nsfw)
-_, pack = node.execute("x", seed=1, couple_preset="女女交叉体位")
+_, pack, _ = node.execute("x", seed=1, couple_preset="女女交叉体位")
 couple_nsfw = pack['Couple Pose']
 check("NSFW 女女命中", "scissor" in couple_nsfw and "lesbian" in couple_nsfw)
 
 # 3. english values are ignored
-_, pack = node.execute("x", seed=1, environment_preset="Ocean Sunrise")
+_, pack, _ = node.execute("x", seed=1, environment_preset="Ocean Sunrise")
 env2 = pack['Environment']
 check("英文预设名忽略", env2 == "")
-_, pack = node.execute("x", seed=1, environment_preset="Disabled")
+_, pack, _ = node.execute("x", seed=1, environment_preset="Disabled")
 env3 = pack['Environment']
 check("英文 Disabled 忽略", env3 == "")
-_, pack = node.execute("x", seed=1, environment_preset="Random")
+_, pack, _ = node.execute("x", seed=1, environment_preset="Random")
 env4 = pack['Environment']
 check("英文 Random 忽略", env4 == "")
-_, pack = node.execute("x", seed=1, environment_preset="None")
+_, pack, _ = node.execute("x", seed=1, environment_preset="None")
 env5 = pack['Environment']
 check("英文 None 忽略", env5 == "")
 
 # 3b. pose english name ignored
-_, pack = node.execute("x", seed=1, pose_preset="Running")
+_, pack, _ = node.execute("x", seed=1, pose_preset="Running")
 pose_en = pack['Pose']
 check("姿势英文名忽略", pose_en == "")
 
@@ -300,34 +300,34 @@ rc = node.execute("", seed=100, celebrity_preset="禁用", expression_preset="�
 check("双人随机偏移 seed+5", rc[1]['Couple Pose'] == c_off)
 
 # 3c. enriched presets resolve correctly
-_, pack = node.execute("x", seed=1, environment_preset="薰衣草田日落")
+_, pack, _ = node.execute("x", seed=1, environment_preset="薰衣草田日落")
 env_new = pack['Environment']
 check("新增环境反查", "lavender" in env_new)
-_, pack = node.execute("x", seed=1, environment_preset="樱花大道")
+_, pack, _ = node.execute("x", seed=1, environment_preset="樱花大道")
 env_life = pack['Environment']
 check("樱花大道反查", "cherry blossom" in env_life.lower())
-_, pack = node.execute("x", seed=1, lighting_preset="日系柔和窗光")
+_, pack, _ = node.execute("x", seed=1, lighting_preset="日系柔和窗光")
 light_life = pack['Lighting']
 check("日系窗光反查", "japanese" in light_life.lower() and "window light" in light_life.lower())
-_, pack = node.execute("x", seed=1, pose_preset="仰卧举腿")
+_, pack, _ = node.execute("x", seed=1, pose_preset="仰卧举腿")
 pose_new = pack['Pose']
 check("新增姿势 NSFW 反查", "legs raised" in pose_new)
-_, pack = node.execute("x", seed=1, couple_preset="反向女上位")
+_, pack, _ = node.execute("x", seed=1, couple_preset="反向女上位")
 couple_new = pack['Couple Pose']
 check("新增双人 NSFW 反查", "reverse cowgirl" in couple_new)
-_, pack = node.execute("x", seed=1, camera_angle_preset="荷兰角")
+_, pack, _ = node.execute("x", seed=1, camera_angle_preset="荷兰角")
 angle_new = pack['Camera Angle']
 check("角度反查命中", "dutch" in angle_new.lower())
-_, pack = node.execute("x", seed=1, camera_angle_preset="极限低角镜头")
+_, pack, _ = node.execute("x", seed=1, camera_angle_preset="极限低角镜头")
 angle_new3 = pack['Camera Angle']
 check("极限低角反查", "ultra low angle" in angle_new3.lower())
-_, pack = node.execute("x", seed=1, camera_angle_preset="背面视角")
+_, pack, _ = node.execute("x", seed=1, camera_angle_preset="背面视角")
 angle_new2 = pack['Camera Angle']
 check("背面视角反查命中", "from behind" in angle_new2.lower())
-_, pack = node.execute("x", seed=1, camera_distance_preset="大远景")
+_, pack, _ = node.execute("x", seed=1, camera_distance_preset="大远景")
 dist_new = pack['Camera Distance']
 check("大远景反查命中", "extreme long shot" in dist_new.lower())
-_, pack = node.execute("x", seed=1, camera_distance_preset="牛仔镜头")
+_, pack, _ = node.execute("x", seed=1, camera_distance_preset="牛仔镜头")
 dist_new2 = pack['Camera Distance']
 check("牛仔镜头反查命中", "cowboy" in dist_new2.lower())
 
@@ -418,13 +418,13 @@ check("Couple 分组覆盖", len(_couple_groups) == 47 and set(_couple_groups) =
       and _couple_groups.count("男女") == 18 and _couple_groups.count("女女") == 13)
 check("Couple 男女随机不越界", node.execute("", seed=9, couple_preset="随机·男女")[1]["Couple Pose"] in
       {v["prompt"] for v in _data["Couple Pose"].values() if v["group"] == "男女"})
-_, pack = node.execute("x", seed=1, couple_preset="肛交")
+_, pack, _ = node.execute("x", seed=1, couple_preset="肛交")
 couple_anal = pack['Couple Pose']
 check("男女肛交反查", "anal" in couple_anal and "man" in couple_anal)
-_, pack = node.execute("x", seed=1, couple_preset="双头龙")
+_, pack, _ = node.execute("x", seed=1, couple_preset="双头龙")
 couple_dd = pack['Couple Pose']
 check("女女双头龙反查", "double-ended dildo" in couple_dd and "lesbian" in couple_dd)
-_, pack = node.execute("x", seed=1, pose_preset="跳蛋自慰")
+_, pack, _ = node.execute("x", seed=1, pose_preset="跳蛋自慰")
 pose_vib = pack['Pose']
 check("跳蛋自慰反查", "vibrator" in pose_vib)
 check("Environment 无分组", _g("Environment", "樱花大道", {"tags": []}) is None)
@@ -452,9 +452,9 @@ check("时尚影棚单幅人像无拼贴词", "collage" not in _data["Style"]["F
 _env_groups = [v["group"] for v in _data["Environment"].values()]
 check("Environment 全部有分组", len(_env_groups) == 112 and set(_env_groups) ==
       {"自然风光", "城市街景", "科幻未来", "历史复古", "恐怖暗黑", "室内空间", "日系生活", "私密场所"})
-_, pack = node.execute("x", seed=1, environment_preset="都市街头（夜晚）")
+_, pack, _ = node.execute("x", seed=1, environment_preset="都市街头（夜晚）")
 check("都市街头（夜晚）反查命中 night", "nighttime" in pack["Environment"].lower())
-_, pack = node.execute("x", seed=1, environment_preset="都市街头（白天）")
+_, pack, _ = node.execute("x", seed=1, environment_preset="都市街头（白天）")
 check("都市街头（白天）反查命中 daytime 无 night", "daytime" in pack["Environment"] and "night" not in pack["Environment"])
 check("私密场所分组", _data["Environment"]["Love Hotel Room"]["group"] == "私密场所"
       and _data["Environment"]["Poolside"]["group"] == "室内空间"
@@ -516,7 +516,7 @@ _bad3 = [n for n, v in _data["Camera Distance"].items() if "close-up" not in v["
 check("Camera Distance 景别完整", len(_bad3) == 0)
 
 # 7c. combined prompt has no "., " stitching artifacts
-_, pack = node.execute("", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
+_, pack, _ = node.execute("", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
 _c1, *_ = node.execute("test subject.", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
 check("拼接无 . , 粘连", "., " not in _c1)
 _c2, *_ = node.execute("test subject", seed=1, camera_distance_preset="特写", camera_lens_preset="85mm经典人像")
@@ -526,42 +526,62 @@ check("input_text 首字母保持原样", _c2.startswith("test subject,"))
 check("数字开头片段不受影响", "85mm classic" in _c2)
 
 # 7c2. 环境段空间介词：in the（室内） / on the（表面类），pack 保持原文
-_, pack = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
-_env_c, _ = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
+_, pack, _ = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
+_env_c, _, _ = node.execute("x", seed=1, pose_preset="回眸", environment_preset="现代地铁车厢")
 check("环境段加 in the 前缀", "in the modern subway train interior" in _env_c)
 check("pack 环境保持原文无前缀", pack["Environment"].startswith("Modern subway train"))
 _roof_zh = _data["Environment"]["Rooftop Cityscape"]["name_zh"]
-_c3, _ = node.execute("x", seed=1, environment_preset=_roof_zh)
+_c3, _, _ = node.execute("x", seed=1, environment_preset=_roof_zh)
 check("表面类环境用 on the", "on the urban rooftop" in _c3)
-_c4, _ = node.execute("x", seed=1, environment_preset="禁用")
+_c4, _, _ = node.execute("x", seed=1, environment_preset="禁用")
 check("禁用环境无前缀", "in the " not in _c4 and "on the " not in _c4)
 check("环境前缀后拼接顺序 pose < env", _env_c.index("looking back over the shoulder") < _env_c.index("in the modern subway train interior"))
 
+# 7c3. optimize_request 输出：自定义 Krea2 组织形式指令 + 拼接原文
+_c5, _pack5, _opt = node.execute("test subject", seed=42, environment_preset="现代地铁车厢")
+check("返回 3 个输出", len(node.execute("test subject", seed=42, environment_preset="现代地铁车厢")) == 3)
+check("optimize_request 含指令规则", "Krea 2 prompt organization rules" in _opt
+      and "phrase flow" in _opt and "ground" in _opt.lower())
+check("optimize_request 含拼接原文", "test subject" in _opt and "modern subway train" in _opt)
+check("optimize_request 原文在指令之后", _opt.index("test subject") > _opt.index("Draft prompt to optimize:"))
+check("optimize_request 无官方穿衣规则", "assume clothing covers intimate anatomy" not in _opt
+      and "Respect the human form" not in _opt)
+check("优化指令模板可格式化", mod._KREA2_OPTIMIZE_INSTRUCT.format("x").endswith("Optimized prompt:"))
+check("优化指令含输出锚定", "Optimized prompt:" in _opt
+      and _opt.index("Optimized prompt:") > _opt.index("modern subway train"))
+check("优化指令含输出纯净约束", "Your entire response" in _opt and "nothing else" in _opt
+      and "no code fences" in _opt and "no trailing notes" in _opt)
+check("优化指令含 few-shot 示例", "Example — Draft" in _opt and "Optimized:" in _opt)
+check("优化指令含创作声明", "fictional creative task" in _opt and "neutral, factual description" in _opt)
+check("优化指令含防拒条款", "Do NOT refuse" in _opt and "output the draft prompt verbatim" in _opt)
+check("优化指令含防思考条款", "Do NOT think step by step" in _opt and "single pass" in _opt
+      and "let me check" in _opt)
+
 # 7d. pose/couple mutual exclusion (backend fallback, pose wins)
-_, pack = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
+_, pack, _ = node.execute("x", seed=1, pose_preset="回眸", couple_preset="公主抱")
 p_m = pack['Pose']
 c_m = pack['Couple Pose']
 check("互斥兜底 pose 生效", "looking back over the shoulder" in p_m)
 check("互斥兜底 couple 忽略", c_m == "")
-_, pack = node.execute("x", seed=1, pose_preset="禁用", couple_preset="公主抱")
+_, pack, _ = node.execute("x", seed=1, pose_preset="禁用", couple_preset="公主抱")
 p_m2 = pack['Pose']
 c_m2 = pack['Couple Pose']
 check("仅 couple 时生效", c_m2 != "" and "bridal carry" in c_m2 and p_m2 == "")
-_, pack = node.execute("x", seed=1, pose_preset="随机", couple_preset="公主抱")
+_, pack, _ = node.execute("x", seed=1, pose_preset="随机", couple_preset="公主抱")
 p_m3 = pack['Pose']
 check("互斥 pose=随机 生效", p_m3 != "")
 
 # 服装 NSFW 反查
-_, pack = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
+_, pack, _ = node.execute("x", seed=1, outfit_preset="全透明连衣裙")
 outfit_nsfw = pack['Outfit']
 check("服装 NSFW 命中", "transparent" in outfit_nsfw and "adult" in outfit_nsfw.lower() or "see-through" in outfit_nsfw)
-_, pack = node.execute("x", seed=1, outfit_preset="全裸")
+_, pack, _ = node.execute("x", seed=1, outfit_preset="全裸")
 outfit_nude = pack['Outfit']
 check("全裸选项命中", "fully nude" in outfit_nude and "no clothing" in outfit_nude)
-_, pack = node.execute("x", seed=1, outfit_preset="死库水（深蓝）")
+_, pack, _ = node.execute("x", seed=1, outfit_preset="死库水（深蓝）")
 outfit_swim = pack['Outfit']
 check("死库水命中", "sukumizu" in outfit_swim and "navy" in outfit_swim)
-_, pack = node.execute("x", seed=1, outfit_preset="黑色比基尼")
+_, pack, _ = node.execute("x", seed=1, outfit_preset="黑色比基尼")
 outfit_bikini = pack['Outfit']
 check("纯色比基尼命中", "black bikini" in outfit_bikini and "solid" in outfit_bikini)
 
