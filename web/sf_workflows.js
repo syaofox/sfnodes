@@ -24,9 +24,10 @@ import {
     cleanName, nameProblem, orderedFolders, siblingsOf, searchEntries,
 } from "./sf_workflows_lib.js";
 import {
-    createWorkflowWindow, renderGrid, renderFolders, openContextMenu, closeContextMenu,
+    createWorkflowWindow, renderGrid, renderFolders, renderDetail, renderTidy,
+    openContextMenu, closeContextMenu,
     setMenuFocusHome, setRenameLostNotifier, dropRename, beginRename, beginFolderRename,
-    installOutputCoverCapture, hasHandCover, markRendering, pixApiUrl, el,
+    installOutputCoverCapture, hasHandCover, markRendering, copyText, pixApiUrl, el,
     CARD_MIME, injectWorkflowCSS,
 } from "./sf_workflows_ui.js";
 
@@ -441,7 +442,10 @@ function render() {
             onReorderFolder: reorderFolderByDrop,
             onToggleFolder: setFolderExpanded,
         });
-        renderGrid(S.win.main, S, HANDLERS);
+        // tidy 屏走专用审查界面，其余走网格
+        if (S.sel.kind === "tidy") renderTidy(S.win.main, S, HANDLERS);
+        else renderGrid(S.win.main, S, HANDLERS);
+        if (S.win.isDetailVisible()) renderDetail(S.win.detail, S, HANDLERS);
     });
 
     refreshSortButton();
@@ -699,6 +703,29 @@ const HANDLERS = {
 
     onReveal(entry) {
         guard(() => reveal(entry.rel), "Opened the folder - look in your taskbar");
+    },
+
+    onNote(rel, text) {
+        // 先更新内存副本再走往返。任何快照 S.meta 的东西——文件夹改名搬一
+        // 整子树、单文件 carryMeta——必须看到用户最后输入的样子；只成功时
+        // 更新会在窗口里让改名搬走旧文本
+        S.meta.notes = S.meta.notes || {};
+        if (text) S.meta.notes[rel] = text; else delete S.meta.notes[rel];
+        const e = S.byRel.get(rel);
+        if (e) e._note = text || "";
+        saveMeta({ notes: { [rel]: text || null } })
+            .then((res) => {
+                // 检查 RESULT 而非"没抛"：路由在 sidecar 写失败时以 {ok:false}
+                // 答 200，用户眼看打出来的笔记可能悄悄没到磁盘
+                if (!res || res.ok === false) throw new Error("not saved");
+            })
+            .catch(() => S.win.toast("Could not save that note."));
+    },
+
+    onCopyText(text, okMessage) {
+        copyText(text).then((ok) => {
+            S.win.toast(ok ? okMessage : "Could not reach the clipboard.");
+        });
     },
 
     onSetCover(entry) {
@@ -1200,6 +1227,19 @@ function gridColumns() {
 function onPanelKeys(e) {
     // 改名框与搜索框 stopPropagation，输入不受影响。搜索框刻意放箭头通过
     let list = S.visible;
+    if (S.sel.kind === "tidy") {
+        // tidy 屏把同一批工作流分组显示，视觉顺序不是 S.visible 的顺序，
+        // 一个工作流可出现两次。按渲染行读顺序，首次出现即一站
+        const seenRel = new Set();
+        list = [];
+        for (const row of S.win.main.querySelectorAll(".sf-wb-tdrow[data-rel]")) {
+            const rel = row.dataset.rel;
+            if (seenRel.has(rel)) continue;
+            seenRel.add(rel);
+            const entry = S.byRel.get(rel);
+            if (entry) list.push(entry);
+        }
+    }
     if (!list.length) return;
     const idx = S.kbdRel ? list.findIndex((x) => x.rel === S.kbdRel) : -1;
 
@@ -1214,7 +1254,7 @@ function onPanelKeys(e) {
             if (!atEdge || el0.selectionStart !== el0.selectionEnd) return;
         }
         e.preventDefault();
-        const cols = (S.view === "list") ? 1 : gridColumns();
+        const cols = (S.view === "list" || S.sel.kind === "tidy") ? 1 : gridColumns();
         const raw = ARROWS[e.key];
         const step = raw === "up" ? -cols : raw === "down" ? cols : raw;
         let next = idx < 0 ? (step > 0 ? 0 : list.length - 1) : idx + step;
@@ -1261,7 +1301,14 @@ function ensureWindow() {
     if (S.win) return S.win;
     S.win = createWorkflowWindow({
         onRender: (opts) => {
-            if (opts?.resizeOnly) return;
+            if (opts?.resizeOnly) return;      // 缩放不重取文件夹
+            if (opts?.repaintOnly) {            // 拖角时每次面板可见性变化
+                // 文件夹改名中跳过：此渲染来自 pointermove 而非用户完成的
+                // 动作，重建列会拆走带输入名的改名框
+                if (S.win.el.querySelector("input.sf-wb-foldrename")) return;
+                render();
+                return;
+            }
             buildBar(S.win.bar);
             buildFooter(S.win.foot);
             loadData().then(render);

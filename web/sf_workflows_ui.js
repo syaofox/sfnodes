@@ -230,7 +230,7 @@ export function injectWorkflowCSS() {
 .sf-wb-side { width:190px; flex:none; background:#161514; border-right:1px solid #2e2b29; overflow-y:auto; padding:8px 6px; }
 .sf-wb-sidegrip { flex:none; width:6px; cursor:col-resize; margin:0 -3px; z-index:2; background:transparent; }
 .sf-wb-sidegrip:hover { background:var(--sfwb-acc); }
-.sf-wb-main { flex:1; min-width:0; display:flex; flex-direction:column; background:#1e1d1c; }
+.sf-wb-main { flex:1; min-width:0; overflow-y:auto; padding:10px; background:#1e1d1c; }
 .sf-wb-detail { flex:none; width:208px; background:#171615; border-left:1px solid #2e2b29; overflow-y:auto; }
 .sf-wb-detail.hidden { display:none; }
 .sf-wb-detgrip { flex:none; width:6px; cursor:col-resize; margin:0 -3px; z-index:2; background:transparent; }
@@ -261,9 +261,9 @@ export function injectWorkflowCSS() {
 .sf-wb-fold.sf-wb-droptarget { background:color-mix(in srgb, var(--sfwb-acc) 16%, transparent); }
 .sf-wb-foldrename { flex:1; min-width:0; background:#141312; border:1px solid var(--sfwb-acc); border-radius:4px;
   color:#e6e6e6; font:12px monospace; padding:3px 6px; outline:none; }
-.sf-wb-grid { flex:1; overflow-y:auto; padding:12px; display:grid;
+.sf-wb-grid { display:grid;
   grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; align-content:start; }
-.sf-wb-list { flex:1; overflow-y:auto; padding:8px 12px; }
+.sf-wb-list { display:flex; flex-direction:column; }
 .sf-wb-card { background:#232120; border:1px solid #34312f; border-radius:8px; padding:8px; cursor:pointer;
   display:flex; flex-direction:column; gap:6px; min-width:0; }
 .sf-wb-card:hover { border-color:#4c4744; }
@@ -312,6 +312,55 @@ export function injectWorkflowCSS() {
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z'/%3E%3C/svg%3E");
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;
   -webkit-mask-size:contain; mask-size:contain; }
+/* ── 详情面板 ── */
+.sf-wb-detname { font-weight:600; font-size:12.5px; color:#fff; padding:8px 10px 2px; word-break:break-word; }
+.sf-wb-detpath { font-size:10.5px; color:#8a8581; padding:0 10px 6px; word-break:break-all; }
+.sf-wb-detcov { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:4px; background:#141414; display:block; }
+.sf-wb-kv { display:flex; justify-content:space-between; gap:8px; padding:2px 10px; font-size:11.5px; color:#aaa; }
+.sf-wb-kv b { color:#ddd; font-weight:600; text-align:right; }
+.sf-wb-kv.sf-wb-warn { color:#ff8d7d; }
+.sf-wb-kv.sf-wb-warn b { color:#ff8d7d; }
+.sf-wb-modlist { display:flex; flex-direction:column; gap:3px; padding:0 10px 8px; }
+.sf-wb-mod { font:10.5px/1.4 monospace; color:#c9c5c2; word-break:break-all; }
+.sf-wb-moddir { color:#8a8581; }
+.sf-wb-modsep { color:#6a6561; }
+.sf-wb-modname { color:#e6e6e6; }
+.sf-wb-modext { color:var(--sfwb-acc); }
+.sf-wb-note { width:100%; min-height:70px; resize:vertical; box-sizing:border-box; padding:6px 8px;
+  background:#141312; border:1px solid #3d3936; border-radius:5px; color:#e6e6e6;
+  font:11.5px/1.5 monospace; outline:none; }
+.sf-wb-note:focus { border-color:var(--sfwb-acc); }
+.sf-wb-headrow { display:flex; align-items:center; gap:6px; padding:8px 10px 4px; }
+.sf-wb-headrow .sf-wb-grouphead { padding:0; }
+.sf-wb-copybtn { background:none; border:0; color:var(--sfwb-acc); font:11px 'Segoe UI',sans-serif; cursor:pointer; padding:1px 4px; }
+.sf-wb-copybtn:hover { text-decoration:underline; }
+.sf-wb-copybtn.done { color:#3ec371; }
+.sf-wb-acts { display:flex; flex-wrap:wrap; gap:5px; padding:8px 10px; }
+.sf-wb-btnstar { color:#8a8581; }
+.sf-wb-btnstar.on { color:#e0894b; }
+/* ── tidy 屏 ── */
+.sf-wb-tidy { padding:10px 14px; }
+.sf-wb-tdintro { font-size:11px; color:#8a8581; padding:0 2px 10px; }
+.sf-wb-tdsec { margin-bottom:14px; }
+.sf-wb-tdhead { display:flex; align-items:baseline; gap:8px; padding:6px 2px; border-bottom:1px solid #33302e; }
+.sf-wb-tdtitle { font-weight:600; font-size:12.5px; color:#fff; }
+.sf-wb-tdcount { font-size:10.5px; color:#8a8581; }
+.sf-wb-tdblurb { font-size:10.5px; color:#8a8581; padding:4px 2px 8px; }
+.sf-wb-tdrow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:6px; cursor:pointer; }
+.sf-wb-tdrow:hover { background:rgba(255,255,255,.05); }
+.sf-wb-tdrow.sel { background:color-mix(in srgb, var(--sfwb-acc) 18%, transparent); }
+.sf-wb-tdrow.kbd { outline:2px solid var(--sfwb-acc); outline-offset:1px; }
+.sf-wb-tdrow.sf-wb-tddimmed { opacity:.5; }
+.sf-wb-tdmid { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.sf-wb-tdsub { font-size:10px; color:#8a8581; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf-wb-tdfold { font-size:10px; color:#8a8581; flex:none; }
+.sf-wb-tdacts { display:flex; gap:5px; flex:none; }
+.sf-wb-tdbtn { background:rgba(255,255,255,.05); border:1px solid #4a4542; color:#cfcfcf; border-radius:4px;
+  padding:4px 9px; font:11px 'Segoe UI',sans-serif; cursor:pointer; white-space:nowrap; }
+.sf-wb-tdbtn:hover { border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-tdbtn.primary { background:var(--sfwb-acc); border-color:var(--sfwb-acc); color:#fff; }
+.sf-wb-tdbtn.danger { border-color:#a8543f; color:#ff8d7d; background:rgba(168,84,63,.15); }
+.sf-wb-tdgroup { border:1px solid #33302e; border-radius:6px; padding:4px; margin-bottom:6px; }
 `;
     document.head.appendChild(s);
 }
@@ -329,6 +378,10 @@ const HOME_Y = 60;
 const SIDE_DEF = 190;
 const SIDE_MIN = 120;
 const SIDE_MAX_FRAC = 0.45;
+const DET_DEF = 208;
+const DET_MIN = 150;
+const DET_MAX_FRAC = 0.5;
+const detMax = (winW) => Math.max(DET_MIN, Math.round(winW * DET_MAX_FRAC));
 
 const RECT = makeRect({
     settingKey: RECT_SETTING,
@@ -361,9 +414,8 @@ export function createWorkflowWindow({ onRender, onClose }) {
     sideGrip.title = "Drag to resize the list. Double-click to reset.";
     const main = el("div", "sf-wb-main");
     const detail = el("div", "sf-wb-detail");
-    detail.classList.add("hidden");   // 阶段 1 无详情面板
     const detGrip = el("div", "sf-wb-detgrip");
-    detGrip.classList.add("hidden");
+    detGrip.title = "Drag to resize. Double-click to reset.";
     body.append(side, sideGrip, main, detGrip, detail);
 
     const foot = el("div", "sf-wb-foot");
@@ -372,6 +424,7 @@ export function createWorkflowWindow({ onRender, onClose }) {
     document.body.appendChild(win);
 
     let rect = readRect();
+    let wasNarrow = null;
     const applyRect = () => {
         win.style.left = rect.x + "px";
         win.style.top = rect.y + "px";
@@ -379,6 +432,17 @@ export function createWorkflowWindow({ onRender, onClose }) {
         win.style.height = rect.h + "px";
         rect.sw = Math.max(SIDE_MIN, Math.min(rect.sw ?? SIDE_DEF, sideMax(rect.w)));
         side.style.width = rect.sw + "px";
+        rect.dw = Math.max(DET_MIN, Math.min(rect.dw ?? DET_DEF, detMax(rect.w)));
+        detail.style.width = rect.dw + "px";
+        // 详情面板是窄窗口上最先消失的：三列在 560px 里留给网格的太少。
+        // 其 grip 跟着走，否则会有一个看不见东西的把手
+        const narrow = rect.w < 760;
+        detail.classList.toggle("hidden", narrow);
+        detGrip.classList.toggle("hidden", narrow);
+        // 加宽越过阈值会揭示详情面板，但缩放路径刻意跳过重渲染——面板
+        // 出现却空着直到别的事触发重绘。在可见性实际变化的帧上请求 REPAINT
+        if (wasNarrow !== null && wasNarrow !== narrow && !narrow) onRender?.({ repaintOnly: true });
+        wasNarrow = narrow;
     };
     applyRect();
 
@@ -425,6 +489,24 @@ export function createWorkflowWindow({ onRender, onClose }) {
         sideGrip.addEventListener(t, () => sideGrip.classList.remove("sf-wb-dragging")));
     sideGrip.addEventListener("dblclick", () => {
         rect.sw = SIDE_DEF;
+        applyRect();
+        saveRect(rect);
+    });
+
+    // 详情面板也可拖（模型文件名很长，固定 208px 列把它们都折成三行）
+    detGrip.addEventListener("pointerdown", (e) => {
+        const bodyRight = body.getBoundingClientRect().right;
+        startDrag(detGrip, e, (ev) => {
+            rect.dw = Math.round(Math.max(DET_MIN, Math.min(bodyRight - ev.clientX, detMax(rect.w))));
+            detail.style.width = rect.dw + "px";
+        }, onDragEnd);
+        detGrip.classList.add("sf-wb-dragging");
+        e.stopPropagation();
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach((t) =>
+        detGrip.addEventListener(t, () => detGrip.classList.remove("sf-wb-dragging")));
+    detGrip.addEventListener("dblclick", () => {
+        rect.dw = DET_DEF;
         applyRect();
         saveRect(rect);
     });
@@ -476,7 +558,7 @@ export function createWorkflowWindow({ onRender, onClose }) {
         isOpen: () => win.style.display !== "none",
         toast,
         setCount: (text) => { count.textContent = text; },
-        isDetailVisible: () => false,   // 阶段 1 无详情面板
+        isDetailVisible: () => !detail.classList.contains("hidden"),
         focusSearch: () => bar.querySelector("input")?.focus({ preventScroll: true }),
         open() {
             rect = clampRect(rect);
@@ -971,7 +1053,9 @@ export function restoreRename(main) {
 
 function rowFor(main, rel) {
     const sel = `[data-rel="${CSS.escape(rel)}"]`;
-    return main.querySelector(sel) || null;
+    // tidy 屏一行可出现多次（每问题一节），只有标记 data-rename 的行提供
+    // Rename——否则编辑框会落在先渲染的那节
+    return main.querySelector(sel + "[data-rename]") || main.querySelector(sel) || null;
 }
 
 /** 把卡片名字换成输入框。Enter 提交、Escape 取消。 */
@@ -1018,6 +1102,350 @@ export function beginRename(main, rel, currentName, commit, startValue) {
     });
     input.addEventListener("click", (e) => e.stopPropagation());
     input.addEventListener("dblclick", (e) => e.stopPropagation());
+}
+
+// ── 详情面板 ──────────────────────────────────────────────────────────────
+// 打开前需要知道的工作流信息。缺失节点行是这里最值得的位置：加载后才发现
+// 它跑不了、丢失画布上的东西，正是这个面板要消除的烦恼。
+
+export function renderDetail(pane, state, H) {
+    pane.textContent = "";
+    const rels = [...state.selected];
+
+    if (!rels.length) {
+        pane.append(el("div", "sf-wb-empty", "Pick a workflow to see what is in it."));
+        return;
+    }
+
+    if (rels.length > 1) {
+        pane.append(el("div", "sf-wb-detname", `${rels.length} workflows selected`));
+        pane.append(el("div", "sf-wb-detpath", "Drag them onto a folder to move them together."));
+        const acts = el("div", "sf-wb-acts");
+        const del = el("button", "sf-wb-tbtn sf-wb-danger", "Delete all");
+        del.type = "button";
+        del.addEventListener("click", () => H.onDeleteMany(rels));
+        acts.append(del);
+        pane.append(acts);
+        return;
+    }
+
+    const entry = state.byRel.get(rels[0]);
+    if (!entry) {
+        // 选中但已不在索引——Explorer 里删了，或另一标签页改名
+        pane.append(el("div", "sf-wb-empty",
+            "That workflow is not there any more. It may have been renamed or deleted."));
+        return;
+    }
+
+    const c = coverFor(entry, state.meta);
+    if (c.kind === "image") {
+        const img = el("img", "sf-wb-detcov");
+        img.src = c.url;
+        img.alt = "";
+        // 与网格同款的保险：封面文件已被删时不留破图图标
+        img.addEventListener("error", () => {
+            const cv = el("canvas", "sf-wb-detcov");
+            img.replaceWith(cv);
+            requestAnimationFrame(() => drawMap(cv, entry.map));
+        }, { once: true });
+        pane.append(img);
+    } else {
+        const cv = el("canvas", "sf-wb-detcov");
+        pane.append(cv);
+        requestAnimationFrame(() => drawMap(cv, entry.map));
+    }
+
+    pane.append(el("div", "sf-wb-detname", entry.name));
+    pane.append(el("div", "sf-wb-detpath", entry.folder ? "in " + entry.folder : "not in a folder"));
+
+    const kv = (label, value, warn) => {
+        const r = el("div", "sf-wb-kv" + (warn ? " sf-wb-warn" : ""));
+        r.append(el("span", null, label), el("b", null, value));
+        pane.append(r);
+    };
+
+    if (entry.error) {
+        kv("Problem", entry.error, true);
+    } else {
+        kv("Changed", entry.modified ? new Date(entry.modified * 1000).toLocaleString() : "-");
+        kv("Nodes", String(entry.node_count));
+        if (entry._missing?.length) {
+            kv("Missing nodes", String(entry._missing.length), true);
+            const list = el("div", "sf-wb-modlist");
+            for (const m of entry._missing.slice(0, 6)) list.append(el("div", "sf-wb-mod", m));
+            if (entry._missing.length > 6) {
+                list.append(el("div", "sf-wb-mod", `and ${entry._missing.length - 6} more`));
+            }
+            pane.append(list);
+        }
+    }
+
+    // ── 用户自己的笔记 ──
+    pane.append(el("div", "sf-wb-grouphead", "Your note"));
+    const note = el("textarea", "sf-wb-note");
+    note.placeholder = "What is this one for? Searchable.";
+    note.value = state.meta?.notes?.[entry.rel] || "";
+    note.addEventListener("keydown", (e) => e.stopPropagation());   // Escape 不能关窗口
+    let t = null;
+    let sent = note.value;
+    const flush = () => {
+        clearTimeout(t);
+        t = null;
+        if (note.value !== sent) { sent = note.value; H.onNote(entry.rel, note.value); }
+    };
+    note.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(flush, 500);
+    });
+    // 点击别处立即 flush，不只等定时器。防抖为合并按键，但它留了半秒窗口
+    // 其中最新文本只存在于这个框——窗口内改名会带走旧文本
+    note.addEventListener("blur", flush);
+    pane.append(note);
+
+    // ── 动作 ──
+    const acts = el("div", "sf-wb-acts");
+    const btn = (label, fn, cls, title) => {
+        const b = el("button", "sf-wb-tbtn" + (cls ? " " + cls : ""), label);
+        b.type = "button";
+        if (title) b.title = title;
+        b.addEventListener("click", fn);
+        acts.append(b);
+        return b;
+    };
+    btn("Open", () => H.onOpen(entry), "sf-wb-primary");
+    // 完整大小的收藏控件，卡片上的小星星不是唯一途径——列表视图无星星
+    const fav = state.favourites.has(entry.rel);
+    const favBtn = btn("Favourite", () => H.onStar(entry), null,
+        fav ? "Remove from favourites" : "Add to favourites");
+    const glyph = el("span", "sf-wb-btnstar" + (fav ? " on" : ""), fav ? "★" : "☆");
+    favBtn.prepend(glyph);
+    btn("Rename", () => H.onRename(entry));
+    btn("Duplicate", () => H.onDuplicate(entry));
+    const hasCover = hasHandCover(entry, state.meta);
+    btn(hasCover ? "Replace cover" : "Set cover", () => H.onSetCover(entry), null,
+        "Choose a picture for this card");
+    if (hasCover) {
+        btn("Remove cover", () => H.onClearCover(entry), null,
+            "Go back to the drawn map, or this workflow's own last output");
+    }
+    btn("Reveal", () => H.onReveal(entry), null, "Open the folder it is in");
+    btn("Delete", () => H.onDelete(entry), "sf-wb-danger", "There is no undo yet, so this asks first");
+    pane.append(acts);
+
+    // ── 它需要什么，最后 ──
+    // 刻意在笔记与按钮下方：视频工作流可能需十几个文件，列表在上会把按钮
+    // 推出面板底部
+    const mods = [...(entry.models || []), ...(entry.loras || [])];
+    if (mods.length) {
+        const head = el("div", "sf-wb-headrow");
+        head.append(el("div", "sf-wb-grouphead", `Needs these files (${mods.length})`));
+        const copy = el("button", "sf-wb-copybtn", "Copy");
+        copy.type = "button";
+        copy.title = "Copy every filename, one per line";
+        copy.addEventListener("click", () => copyList(mods, entry.name, copy));
+        head.append(copy);
+        pane.append(head);
+
+        const list = el("div", "sf-wb-modlist");
+        for (const m of mods) list.append(modChip(m));
+        pane.append(list);
+    }
+}
+
+/** 把文件名复制出来，可粘进下载列表或问人用的消息。 */
+async function copyList(mods, workflowName, btn) {
+    const text = `${workflowName}\n` + mods.map((m) => m).join("\n");
+    const original = btn.textContent;
+    const ok = await copyText(text);
+    btn.textContent = ok ? "Copied" : "Could not copy";
+    btn.classList.add("done");
+    setTimeout(() => { btn.textContent = original; btn.classList.remove("done"); }, 1200);
+}
+
+/** 一眼可读的文件名：目录变暗、名字原样、扩展名用强调色。 */
+function modChip(name) {
+    const d = el("div", "sf-wb-mod");
+    const cut = Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"));
+    const dir = cut >= 0 ? name.slice(0, cut) : "";
+    const sep = cut >= 0 ? name[cut] : "";
+    const file = cut >= 0 ? name.slice(cut + 1) : name;
+    const dot = file.lastIndexOf(".");
+    const base = dot > 0 ? file.slice(0, dot) : file;
+    const ext = dot > 0 ? file.slice(dot) : "";
+    if (dir) d.append(el("span", "sf-wb-moddir", dir));
+    if (sep) d.append(el("span", "sf-wb-modsep", sep));
+    d.append(el("span", "sf-wb-modname", base));
+    if (ext) d.append(el("span", "sf-wb-modext", ext));
+    d.title = name;
+    return d;
+}
+
+// ── tidy 屏 ──────────────────────────────────────────────────────────────
+// "Needs tidying" 曾只是普通过滤器：把受影响的工作流当普通卡片给你看，留
+// 你猜每个有三个问题中的哪个。三种问题穿着同一张卡片不是审查屏。
+// 这是审查屏：每个问题一节，每行携带对该问题真正适用的修复——遗留名改名、
+// 一组副本 keep-one、缺失节点复制列表。这里没有任何东西自行行动：无撤销
+// （见 confirmDanger 惯例），每个破坏性按钮都走与面板其余部分相同的确认。
+
+function tidyActions(specs) {
+    const wrap = el("div", "sf-wb-tdacts");
+    for (const s of specs) {
+        if (!s) continue;
+        const b = el("button", "sf-wb-tdbtn" + (s.danger ? " danger" : "") + (s.primary ? " primary" : ""),
+                     s.label);
+        b.type = "button";
+        if (s.title) b.title = s.title;
+        b.addEventListener("click", (e) => { e.stopPropagation(); s.fn(); });
+        wrap.append(b);
+    }
+    return wrap;
+}
+
+/** 一个工作流一行：图、名、所在，然后是它的修复。`renamable` 把行标记为
+ *  beginRename 应编辑的那个（仅遗留名节），一行可同时出现在多个节。 */
+function tidyRow(entry, state, H, extras, trailing, renamable) {
+    const r = el("div", "sf-wb-tdrow");
+    r.dataset.rel = entry.rel;
+    if (renamable) r.dataset.rename = "1";
+    if (state.selected.has(entry.rel)) r.classList.add("sel");
+    if (state.kbdRel === entry.rel) r.classList.add("kbd");
+    r.title = entry.rel;
+    r.append(coverEl(entry, state, "sf-wb-rowcov"));
+
+    const mid = el("div", "sf-wb-tdmid");
+    mid.append(el("span", "sf-wb-rowname", entry.name));
+    if (trailing) mid.append(el("span", "sf-wb-tdsub", trailing));
+    r.append(mid);
+
+    if (entry.folder) r.append(el("span", "sf-wb-tdfold", entry.folder));
+    r.append(tidyActions(extras));
+    r.addEventListener("click", (e) => H.onSelect(entry, e));
+    r.addEventListener("dblclick", () => H.onOpen(entry));
+    return r;
+}
+
+function tidySection(title, blurb, count) {
+    const s = el("div", "sf-wb-tdsec");
+    const head = el("div", "sf-wb-tdhead");
+    head.append(el("span", "sf-wb-tdtitle", title));
+    head.append(el("span", "sf-wb-tdcount", String(count)));
+    s.append(head);
+    if (blurb) s.append(el("div", "sf-wb-tdblurb", blurb));
+    return s;
+}
+
+export function renderTidy(main, state, H) {
+    // 见 renderGrid：清空会同步触发打开的改名框的 blur
+    markRendering(() => { main.textContent = ""; });
+    const { issues, byRel, query } = state;
+
+    // 同一查询框仍会收窄屏幕。搜索收窄按 S.visible（真正的加权搜索），
+    // 头部 "N of M" 从它的结果计数——只有一个匹配定义，本屏借用它
+    const q = (query || "").trim();
+    const vis = new Set((state.visible || []).map((e) => e.rel));
+    const keep = (rel) => !q || vis.has(rel);
+    const get = (rel) => byRel.get(rel);
+
+    const wrap = el("div", "sf-wb-tidy");
+    wrap.append(el("div", "sf-wb-tdintro",
+        "Nothing on this screen is changed for you. Each row is a suggestion with "
+        + "its fix beside it, and anything that deletes still asks first."));
+
+    let shown = 0;
+
+    // ── 1. 遗留名 ──
+    const unsaved = (issues.unsaved_names || []).map((u) => get(u.rel))
+        .filter((e) => e && keep(e.rel));
+    if (unsaved.length) {
+        shown += unsaved.length;
+        const s = tidySection("Still called \u201cUnsaved Workflow\u201d",
+            "Saved before they were given a name. Rename edits the name right here: "
+            + "type over it and press Enter.", unsaved.length);
+        for (const e of unsaved) {
+            s.append(tidyRow(e, state, H, [
+                { label: "Rename", primary: true, fn: () => H.onRename(e),
+                  title: "Give it a name you will recognise" },
+                { label: "Open", fn: () => H.onOpen(e) },
+                { label: "Delete", danger: true, fn: () => H.onDelete(e) },
+            ], null, true));
+        }
+        wrap.append(s);
+    }
+
+    // ── 2. 重复 ──
+    // 一组只在还有两个成员时值得显示：搜索把二成员组滤到一，keep-one 对着
+    // 空删、读起来像坏按钮
+    const dupGroups = (issues.duplicates || [])
+        .map((g) => g.map((d) => get(d.rel)).filter(Boolean))
+        .filter((g) => g.length > 1 && g.some((e) => keep(e.rel)));
+    if (dupGroups.length) {
+        const files = dupGroups.reduce((n, g) => n + g.length, 0);
+        shown += files;
+        const s = tidySection("The same workflow saved more than once",
+            "Same nodes and same models under different names. \u201cKeep this one\u201d "
+            + "deletes the others in its set, and tells you which before it does.",
+            `${dupGroups.length} set${dupGroups.length === 1 ? "" : "s"}`);
+        for (const g of dupGroups) {
+            const box = el("div", "sf-wb-tdgroup");
+            for (const e of g) {
+                const others = g.filter((x) => x.rel !== e.rel);
+                const r = tidyRow(e, state, H, [
+                    { label: "Keep this one", primary: true,
+                      title: `Delete the other ${others.length} in this set:\n`
+                             + others.map((x) => x.name).join("\n"),
+                      // 名字进确认，不只数量——"删除 2 个工作流？"对用户从未
+                      // 逐一手选的文件不够同意
+                      fn: () => H.onDeleteMany(others.map((x) => x.rel), {
+                          title: `Delete the other ${others.length} in this set?`,
+                          message: `Keeping "${e.name}". These go:\n`
+                                   + others.map((x) => x.rel).join("\n"),
+                      }) },
+                    { label: "Open", fn: () => H.onOpen(e) },
+                    { label: "Delete", danger: true, fn: () => H.onDelete(e) },
+                ], null);
+                // 任成员匹配搜索时整组显示——半组无法评判。不匹配的行变暗说明
+                if (q && !keep(e.rel)) {
+                    r.classList.add("sf-wb-tddimmed");
+                    r.title += "\nShown for context - it does not match your search, its set does.";
+                }
+                box.append(r);
+            }
+            s.append(box);
+        }
+        wrap.append(s);
+    }
+
+    // ── 3. 缺失节点 ──
+    const missing = (issues.missing_nodes || [])
+        .filter((m) => get(m.rel) && keep(m.rel));
+    if (missing.length) {
+        shown += missing.length;
+        const s = tidySection("Needs nodes you do not have",
+            "These will open with red boxes where the missing nodes should be. Copy "
+            + "the list and search for it in ComfyUI Manager to find what installs them.",
+            missing.length);
+        for (const m of missing) {
+            const e = get(m.rel);
+            const names = m.missing || [];
+            s.append(tidyRow(e, state, H, [
+                { label: "Copy list", primary: true, title: names.join(", "),
+                  fn: () => H.onCopyText(names.join("\n"), `Copied ${names.length} node names`) },
+                { label: "Open", fn: () => H.onOpen(e) },
+                { label: "Delete", danger: true, fn: () => H.onDelete(e) },
+            ], names.join(", ")));
+        }
+        wrap.append(s);
+    }
+
+    if (!shown) {
+        wrap.append(el("div", "sf-wb-empty", q
+            ? `Nothing in here matches "${query}".`
+            : "Nothing needs tidying. Your workflows folder is in good shape."));
+    }
+
+    main.append(wrap);
+    // 与网格相同：重渲染前打开的改名框放回去
+    restoreRename(main);
 }
 
 // ── 文件夹侧栏 ────────────────────────────────────────────────────────────
