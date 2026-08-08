@@ -19,6 +19,7 @@ from .nodes.image.browser import SFLoadImageBrowser
 from .nodes.image.load_images_path import SFLoadImagesPath
 from .nodes.image.load_image_resize import SFLoadImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
+from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.scale import (
     GetImageSize,
@@ -187,6 +188,8 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImageResize": SFLoadImageResize,
     "SFImageCrop": SFImageCrop,
     "SFImageUncrop": SFImageUncrop,
+    "SFImageOutpaint": SFImageOutpaint,
+    "SFImageOutpaintStitch": SFImageOutpaintStitch,
     "SFImageBatchIndex": SFImageBatchIndex,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -357,6 +360,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImageResize": "SF Load Image Resize",
     "SFImageCrop": "SF Image Crop",
     "SFImageUncrop": "SF Image Uncrop",
+    "SFImageOutpaint": "SF Image Outpaint",
+    "SFImageOutpaintStitch": "SF Image Outpaint Stitch",
     "SFImageBatchIndex": "SF Image Batch Index",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
