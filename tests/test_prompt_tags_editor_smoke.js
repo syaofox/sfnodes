@@ -13,12 +13,14 @@ function check(name, cond) {
 }
 
 // ── mock DOM（惰性元素：任何 querySelector 都返回新元素，事件绑定不炸即可）──
+// selector 缓存：同一元素同一 selector 返回同一子元素，供测试捕获事件回调
+const childCache = new WeakMap();
 function makeEl() {
     const style = {
         setProperty() {},
         getPropertyValue() { return ""; },
     };
-    return {
+    const el = {
         style, dataset: {}, children: [],
         className: "", textContent: "", innerHTML: "", value: "", placeholder: "",
         type: "", title: "", rows: 1, spellcheck: false, disabled: false, checked: false,
@@ -35,13 +37,23 @@ function makeEl() {
         remove() { this.removed = true; },
         contains() { return false; },
         closest() { return null; },
-        querySelector() { return makeEl(); },
+        querySelector(sel) {
+            let m = childCache.get(this);
+            if (!m) { m = new Map(); childCache.set(this, m); }
+            if (!m.has(sel)) m.set(sel, makeEl());
+            return m.get(sel);
+        },
         querySelectorAll() { return []; },
-        addEventListener() {}, removeEventListener() {},
-        focus() {}, blur() {}, select() {}, click() {},
+        addEventListener(type, fn) {
+            (this._ls = this._ls || {})[type] = fn;
+        },
+        removeEventListener() {},
+        focus() {}, blur() {}, select() {},
+        click() { if (this._ls && this._ls.click) this._ls.click(); },
         getBoundingClientRect() { return { left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 }; },
         scrollIntoView() {}, setPointerCapture() {}, releasePointerCapture() {}, setSelectionRange() {},
     };
+    return el;
 }
 const createdEls = [];
 globalThis.document = {
@@ -71,6 +83,13 @@ globalThis.app = {
     constructor: function FakeApp() {},
 };
 globalThis.window.app = globalThis.app;
+
+// ── mock fetch：内置默认库文件（store 首启 / 恢复默认库用）──
+const defaultLib = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "web", "prompt_tags_default.json"), "utf8"));
+globalThis.fetch = async (url) => {
+    if (String(url).includes("prompt_tags_default.json")) return { ok: true, json: async () => defaultLib };
+    return { ok: false, status: 404, json: async () => ({}) };
+};
 
 // ── 加载模块：全部复制到 tmp，/scripts/app.js -> globalThis.app，相对 import 改 .mjs ──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptg_smoke_"));
@@ -141,6 +160,25 @@ for (const n of names) {
     E.openLibraryEditor(node, opts);
     E.closeLibraryEditor();
     check("状态复位后可再开", true);
+
+    // ── 恢复默认库（⋯ 菜单 → Restore default library）──
+    // settingsStore 当前是 3 标签库；fetch mock 提供 949 默认库
+    E.openLibraryEditor(node, opts);
+    await E.restoreDefaultLibrary();           // fetch 默认 → confirmDanger 弹框
+    const modal = createdEls.filter((e) => (e.className || "").includes("sf-ptge-modal")).pop();
+    check("恢复确认框已弹出", !!modal);
+    modal.querySelector(".dg-go").click();     // 确认 → onConfirm（替换工作副本 + 持久化）
+    check("确认后弹框关闭", modal.removed === true);
+    await new Promise((r) => setTimeout(r, 420));   // commitLibrary 防抖 350ms 落盘
+    const restored = JSON.parse(settingsStore["sfnodes.PromptTags.Library"] || "null");
+    check("库已替换为默认（949/50）", !!restored && restored.tags.length === 949 && restored.categories.length === 50);
+    // 再次恢复：库已是默认 → 不弹确认框（toast info）
+    const before = createdEls.filter((e) => (e.className || "").includes("sf-ptge-modal")).length;
+    await E.restoreDefaultLibrary();
+    const after = createdEls.filter((e) => (e.className || "").includes("sf-ptge-modal")).length;
+    check("已是默认时不重复弹确认框", after === before);
+    E.closeLibraryEditor();
+    check("恢复后关闭正常", true);
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });

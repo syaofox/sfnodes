@@ -23,13 +23,14 @@ import { app } from "/scripts/app.js";
 import { installGraphUndoGuard } from "./sf_prompt_tags_guard.js";
 import {
     getLibrary, reloadLibrary, isSameAsStored, commitLibrary, flushLibrary, applyImport,
+    fetchDefaultLibrary,
 } from "./sf_prompt_tags_store.js";
 import {
     isListTag, tagLines, catOf, sideOfCat, tagMode, catMode,
     reorderCategoryStep, reorderCategoryTo, canMoveCategory,
     exportLibraryJSON, parseImport, importCategories, subsetImport,
     TEXT_BUCKET, LIST_BUCKET, NAME_RE, MODES, MODE_LABEL, DEFAULT_MODE, hasPosition,
-    uniqueTagName,
+    uniqueTagName, normalizeLibrary,
 } from "./sf_prompt_tags_lib.js";
 import {
     listKey, catKey, cursorInfo, resetCursor, renameCursor, flushCursors,
@@ -1127,6 +1128,14 @@ function openLibraryMenu(anchor) {
     menu.className = "sf-ptge-menu";
     menu.style.minWidth = "230px";
     const n = _data.tags.length;
+    const ri = document.createElement("div");
+    ri.className = "mi mrow";
+    ri.innerHTML = `<span class="nm">Restore default library…</span>`;
+    ri.addEventListener("click", () => { hideCatMenu(); restoreDefaultLibrary(); });
+    menu.appendChild(ri);
+    const sep = document.createElement("div");
+    sep.className = "msep";
+    menu.appendChild(sep);
     const mi = document.createElement("div");
     mi.className = "mi mrow danger";
     mi.innerHTML = `<span class="nm">Delete everything…</span><span class="cnt">${n} tag${n === 1 ? "" : "s"}</span>`;
@@ -1136,6 +1145,45 @@ function openLibraryMenu(anchor) {
     // 底部按钮：下方没空间时向上开
     placeMenu(menu, anchor);
     _catMenu = menu;
+}
+
+// 恢复插件内置默认库（覆盖当前工作副本与存储）。与 Delete everything 同款
+// 确认模式：先问、可先导出备份、无撤销；被替换的标签游标位置作废。
+export function restoreDefaultLibrary() {
+    // 编辑器未打开时静默返回（export 供冒烟直调，外部调用需自守）
+    if (!_data) return Promise.resolve();
+    const n = _data.tags.length;
+    const c = _data.categories.length;
+    return fetchDefaultLibrary().then((def) => {
+        if (!def) { toast("error", "Could not load the built-in default library."); return; }
+        // 与工作副本比较：两侧 normalize 后键序统一再比（clone 的键序与
+        // normalize 产物不同，直接 stringify 会误判）。不用 isSameAsStored
+        // （它比 store 缓存）——防抖 350ms 窗口内工作副本领先存储。
+        if (JSON.stringify(normalizeLibrary(def)) === JSON.stringify(normalizeLibrary(_data))) {
+            toast("info", "Your library is already the default."); return;
+        }
+        confirmDanger({
+            title: "Restore the default library?",
+            lead: `This replaces your <b>${n} tag${n === 1 ? "" : "s"}</b> and <b>${c} categor${c === 1 ? "y" : "ies"}</b> ` +
+                `with the built-in default library (<b>${def.tags.length} tags</b> in ${def.categories.length} categories). ` +
+                `Any @tag, #list or *category typed into a Prompt node that only exists in your library stops working.`,
+            confirmLabel: "Restore defaults",
+            offerExport: true,
+            exportCat: null,
+            onConfirm: () => {
+                for (const t of _data.tags) { try { resetCursor(listKey(t.name)); } catch { /* ignore */ } }
+                for (const cc of _data.categories) { try { resetCursor(catKey(cc)); } catch { /* ignore */ } }
+                for (const b of [TEXT_BUCKET, LIST_BUCKET]) { try { resetCursor(catKey(b)); } catch { /* ignore */ } }
+                _data = clone(def);
+                _curCat = "All";
+                _search = "";
+                const s = _overlay && _overlay.querySelector(".sf-ptge-srch input");
+                if (s) s.value = "";
+                applyChange(() => {});
+                toast("success", `Restored the default library (${def.tags.length} tags).`);
+            },
+        });
+    });
 }
 
 // 顶部创建表单：名称 + 文本一处填完按 Create。新标签落在当前选中分类，或

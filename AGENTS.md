@@ -184,6 +184,7 @@ class SFMyNode:
 - 前端 `graphToPrompt` hook 在队列时展开 `@tag`/`*cat`/`#list` 并注入隐藏 PromptState（JSON），后端只做拼接；随机结果改变注入字符串 → 缓存键变化 → 自动重跑（无 nonce 即可）。
 - `*wildcard`/`#list` 的 shuffle/order 游标**只在 queue 被真正接受后推进**：`beginPickBuild` 把 build id 挂 prompt 对象，`queuePrompt` patcher 成功后 `commitPicks`——Export/分享/校验失败的 build 不消耗选择；同 build 内重复 `#fruit` 用 per-use 计数器发新牌。
 - 标签库存 ComfyUI **未注册设置**（机器私有、跨工作流共享、永不进 workflow）；全屏编辑器用工作副本，关闭时 `isSameAsStored` 判定才写回（防覆盖他标签页），`installGraphUndoGuard` 填 `maskeditor_is_opended` 官方槽屏蔽 Ctrl+Z。
+- **内置默认库**（`web/prompt_tags_default.json`，prompt_presets 转换产物随插件分发）：设置缺失时（新环境/被清）首启异步 fetch 并落盘（`fetchDefaultLibrary` promise 缓存，失败会话内不重试；仅当仍为空库才应用，防覆盖用户已建标签）；编辑器页脚 ⋯ 菜单有 **Restore default library**（confirmDanger + 先导出备份 + 游标复位，已默认时不弹框）。
 - **token 语法与中文**：token 名 `[\p{L}\p{N}_-]`（u flag，中文可作 tag/分类）；边界保护用 Latin/希腊/西里尔/数字/组合标记集合（email `user@name`、算式 `2*2` 不误判，`画@水彩` 识别）；拼音检索用内联 GB2312 一级字表（pinyin-pro 一次性生成，非运行时依赖），`pinyinMatch` 原名/全拼/首字母三路子串；中文 token 前后不插空格（`tagSep/tagTrail` 仅拉丁语境加空格）。
 
 **前端：prompt 剪枝闸门（`web/sf_pause_text*.js`，SFPauseText）**

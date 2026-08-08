@@ -76,6 +76,17 @@ globalThis.api = {
     queuePrompt: async () => { queuedCalls++; return Promise.resolve(); },
 };
 
+// ── mock fetch：内置默认库文件（store 首启加载用它）──
+const defaultLib = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "web", "prompt_tags_default.json"), "utf8"));
+let fetchDelay = 0;   // 非零时延迟 resolve（模拟慢网络，测"已建库不被覆盖"）
+globalThis.fetch = async (url) => {
+    if (String(url).includes("prompt_tags_default.json")) {
+        if (fetchDelay) await new Promise((r) => setTimeout(r, fetchDelay));
+        return { ok: true, json: async () => defaultLib };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+};
+
 // ── 加载全部 6 个模块（/scripts/app.js、/scripts/api.js -> globalThis；相对 import 改 .mjs）──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptg_main_"));
 for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
@@ -173,6 +184,26 @@ for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
     // ── onRemoved 清理不抛错 ──
     proto.onRemoved.call(node);
     check("onRemoved 清理不抛错", node._sfPromptTagsRoot === null);
+
+    // ── 内置默认库：无设置时首启异步加载并落盘（新安装环境）──
+    delete settingsStore["sfnodes.PromptTags.Library"];
+    Store.reloadLibrary();   // 清缓存，模拟全新环境
+    check("无设置时首读为空库", Store.getLibrary().tags.length === 0);
+    await new Promise((r) => setTimeout(r, 30));   // 等异步 fetch + setLibrary
+    const autoLoaded = JSON.parse(settingsStore["sfnodes.PromptTags.Library"] || "null");
+    check("默认库已自动落盘（949 tags/50 分类）", !!autoLoaded && autoLoaded.tags.length === 949 && autoLoaded.categories.length === 50);
+    check("内存库已是默认", Store.getLibrary().tags.length === 949);
+    check("默认库含名人男/女", Store.getLibrary().categories.includes("名人男") && Store.getLibrary().categories.includes("名人女"));
+
+    // ── 关键守卫：fetch 完成前用户已动手建标签 → 不覆盖 ──
+    delete settingsStore["sfnodes.PromptTags.Library"];
+    fetchDelay = 60;                       // 慢网络：默认库 fetch 挂起
+    Store.reloadLibrary();                 // 空库 + 触发（挂起中的）fetch
+    Store.getLibrary();
+    Store.commitLibrary({ categories: [], listCats: [], tags: [{ name: "mine", cat: "", text: "my own tag" }] });
+    await new Promise((r) => setTimeout(r, 150));   // fetch 已 resolve，回调执行
+    check("fetch 完成前已建库不被覆盖", Store.getLibrary().tags.length === 1 && Store.getLibrary().tags[0].name === "mine");
+    fetchDelay = 0;
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -24,14 +24,36 @@ import { normalizeLibrary, applyImportData, sideOfCat, isListTag } from "./sf_pr
 import { resetCursor, listKey } from "./sf_prompt_tags_cursors.js";
 
 const LIBRARY_SETTING = "sfnodes.PromptTags.Library";
+// 插件内置默认库（data/prompt_presets.json 转换产物，随插件分发）。web/
+// 目录由 ComfyUI 以 /extensions/sfnodes/ 静态服务，可直接 fetch。
+const DEFAULT_LIBRARY_URL = "/extensions/sfnodes/prompt_tags_default.json";
 
 let _data = null;
 let _persistTimer = null;
+let _defaultPromise = null;
 const _subs = new Set();
 
 function settingsApi() {
     const s = app.ui?.settings;
     return s && typeof s.getSettingValue === "function" ? s : null;
+}
+
+// 内置默认库：fetch + 规范化。结果缓存（成功后编辑器"恢复默认库"复用同一
+// 份，不重复请求）；失败 resolve null（调用方保持空库，本次会话不重试）。
+export function fetchDefaultLibrary() {
+    if (!_defaultPromise) {
+        _defaultPromise = (async () => {
+            try {
+                const r = await fetch(DEFAULT_LIBRARY_URL);
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return normalizeLibrary(await r.json());
+            } catch (err) {
+                console.warn("[sfnodes.PromptTags] 内置默认库加载失败，使用空库:", err);
+                return null;
+            }
+        })();
+    }
+    return _defaultPromise;
 }
 
 function persist(data) {
@@ -57,6 +79,14 @@ export function getLibrary() {
         _data = normalizeLibrary(typeof raw === "string" ? JSON.parse(raw) : raw);
     } catch {
         _data = normalizeLibrary({});
+    }
+    // 新环境/设置被清：库里没有内容时异步载入插件内置默认库并落盘
+    // （setLibrary 自动 persist + fanout，编辑器/节点打开时自动刷新）。
+    // 仅在仍为空库时应用——fetch 完成前用户已动手建标签则不覆盖。
+    if (!raw) {
+        fetchDefaultLibrary().then((def) => {
+            if (def && _data && !_data.tags.length && !_data.categories.length) setLibrary(def);
+        });
     }
     return _data;
 }
