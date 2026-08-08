@@ -14,7 +14,7 @@ sfnodes/
 ├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
 ├── nodes/               # 所有节点实现，按功能分子目录
 │   ├── face/            # 人脸：分析、对齐、扭曲、裁剪粘贴、区域、遮挡
-│   ├── image/           # 图片：加载、缩放、拼接、处理、对比、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
+│   ├── image/           # 图片：加载、缩放、拼接、处理、对比、外绘填充+贴回（outpaint.py）、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
 │   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）
@@ -40,7 +40,7 @@ sfnodes/
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_workflows*.js 工作流面板三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_workflows*.js 工作流面板三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）

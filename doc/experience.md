@@ -16,6 +16,7 @@
 - [9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）](#9-sfpausemask遮罩快照闸门pixaroma-pause-mask-同构扩展)
 - [10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）](#10-sf-workflows工作流面板复刻-pixaroma-workflows)
 - [11. SFImageCrop/SFImageUncrop：可视化裁剪与贴回（复刻 Pixaroma Crop/Uncrop）](#11-sfimagecropsfimageuncrop可视化裁剪与贴回复刻-pixaroma-cropuncrop)
+- [12. SFImageOutpaint/Stitch：外绘填充与原始图贴回（复刻 Pixaroma Outpaint）](#12-sfimageoutpaintstitch外绘填充与原始图贴回复刻-pixaroma-outpaint)
 
 ---
 
@@ -565,3 +566,44 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_crop_framework.js`：精简编辑器框架（theme CSS/组件/canvas settings/布局/焦点陷阱/下载）。
 - `web/sf_crop_core.js`（编辑器核心+API）、`sf_crop_panel.js`（节点面板）、`sf_crop_interaction.js`（鼠标键盘）、`sf_crop_render.js`（绘制/保存）、`sf_crop_preview.js`（节点预览）、`sf_crop_undo_guard.js`（Ctrl+Z 守卫）、`sf_crop_alignments.js`（对齐常量）。
 - 数据契约：`SFCropJson`（Python hidden + 前端同名 STRING widget，crop_json 文本）；`SF_CROP_INFO` 线类型（原图+rect+可选 mask）；`sf_crop_source` ui 键（temp 预览）；`sfnodes_crop` subfolder。
+
+## 12. SFImageOutpaint/Stitch：外绘填充与原始图贴回（复刻 Pixaroma Outpaint）
+
+> 背景：复刻 PixaromaOutpaint/PixaromaOutpaintStitch（2026-08），落地为 `nodes/image/outpaint.py`（两节点同文件，crop.py 先例）+ `web/sf_outpaint*.js` 两模块（core 纯数学 + 主扩展精简版）。后端完整复刻（含全部防御与设计注释），前端按精简策略移植。以下为可迁移结论，细节见代码注释。
+
+### 1. 复刻先查已有基建，别重复移植引擎
+
+- `sf_utils/resize_engine.py` 已是 Pixaroma `_resize_helpers.py` 的移植（SFLoadImageResize 时做的），outpaint 节点需要的一切（`_apply_pad`/`_apply_max_mp`/`_round_half_up`）都在——**零新增引擎代码**，节点只做组合（pad → max_mp 两段式，snap 只触发一次的安排照搬）。
+- 复用前提是契约一致：源节点构造 `pad_state`/`mp_state` 字典时用的键名（`pad_top`/`max_mp`/`allow_upscale`/`resample`）与 resize_engine 完全同源，直接可用。
+
+### 2. Python 端三件防御（移植时不可精简）
+
+- **`_parse_state` 的 OverflowError**：`json.loads` 按文档扩展接受字面量 `Infinity`，`int(inf)` 抛 **OverflowError 而非 ValueError**——只捕 ValueError 的话，手改 API 文件带 `Infinity` 会让整个节点倒下。
+- **`_fit_pad` 防 OOM**：`_apply_pad` 以未夹紧尺寸分配 `Image.new`、clamp 只缩结果——极端比例（1:1000）或四边 8192 会在 clamp 前分配数 GB。先按比例收缩 pad 到 16384 上限内再构建画布。
+- **`_round_half_up` 而非内建 `round()`**：银行家舍入（`round(1498.5)=1498`）会让 999 高源在 3:2 下与 JS 预览差 1 像素。所有 factor*dim 数学与 JS `Math.floor(x+0.5)` 对齐。
+- **anchor 语义是反约定的**（易被"纠正"）："right" = 新空间在右边（绿色去哪边），与 resize_engine `_anchor_offsets`（图片贴哪边）刻意相反——因为 sides 模式已是每边绿色，两种模式同一个词必须同义。注释里显式警告勿改。
+
+### 3. 自定义线型 + temp 预览存档（sf_crop 同款链路的复用）
+
+- `SF_OUTPAINT_INFO` 纯字符串常量，两节点同文件定义天然解耦（crop.py 的 `SF_CROP_INFO` 同款；Pixaroma 用跨文件复制字符串避免 import 链，同文件时不需要）。
+- info dict 携带**原始张量**（Python 侧私有，从不进 ui）+ 四边 pad + orig/canvas 尺寸；stitch 据此 resize 回画布、贴回、生成"生成区"遮罩（`1 - alpha`）。
+- 预览第二层：`folder_paths.get_temp_directory()` + uuid PNG + ui payload `sf_outpaint_base` + 前端 `executed` 监听解码（sf_crop 的 `_save_source_temp` 同款）。文件名前缀 `sf_` 隔离命名空间，uuid 兼作缓存失效。stash 失败 print 降级，绝不让预览弄死真实运行。
+
+### 4. 前端精简移植：跨文件复用共享组件时的机械性坑
+
+- 精简策略：去 Pixaroma 品牌功能（accent 主题色、齿轮设置面板、比例/MP 列表管理——用固定默认列表），保留核心交互（预览、模式/比例/anchor/MP 芯片、L/T/R/B 输入、绿色边拖拽（ratio 首拖自动切 sides 带数值）、折叠、右键菜单折叠/重置、graphToPrompt 注入、executed 收帧）。
+- **复用 `sf_load_image_resize.js` 的 `makeNumericInput` 而非重写**（同款 opts 契约 `{value,min,max,step,format,onCommit}`，返回 `{wrap,input}`）——但 CSS 覆盖选择器必须用**本项目类名** `sf-li-numinput`/`sf-li-spin`，机械复制 Pixaroma 的 `pix-li-*` 会让样式静默失效（数值输入渲染成未剥离样式的样子）。跨文件复用前先 grep 目标模块的实际类名/导出名。
+- 纯数学抽到 `sf_outpaint_core.js`（无 app/DOM，.mjs 直测），UI 文件只做渲染与事件——与 Python 的镜像关系写在文件头，两侧公式改动后必须重跑交叉测试。
+
+### 5. 测试方法论（FakeTensor 数值路径扩展）
+
+- 本机无 torch：`test_outpaint.py` 用 numpy 代理 FakeTensor（test_inpaint_helpers.py 先例）驱动**全流程数值断言**——outpaint execute（ratio/sides/limit/snap 尺寸、填充色、info dict、ui 存档落盘）+ stitch（贴回像素级、mask 语义、批次配对、resize 恢复、`_color_match` 均匀色调平移）。为 stitch 扩展了 `narrow`/`index_select`/`permute`/`clamp(min=,max=)` 与 `__getattr__` 里 `dim→axis`、`keepdim→keepdims` 重映射（torch API 到 numpy 的关键适配）；`F.interpolate` 用 PIL BILINEAR mock。
+- 两个坑：**numpy 2.x 的 `np.clip` 只传 `a_max=` 会报缺 `a_min`**（mock torch.clamp 必须给双边界默认 ±inf）；**PIL 通道 128/255 量化**让 `0.5 → 0.50196`，经 PIL 路径的断言容差要到 1e-2，纯张量路径才是精确的。
+- JS 侧 `test_outpaint_js.js`：core 复制 .mjs 直跑，与 Python 测试**同用例同期望值**（含 round-half-up 边界、limit 缩放、snap-once），两侧独立跑通即视为镜像一致。
+
+### 6. 模块边界（复用/修改时的快速索引）
+
+- `nodes/image/outpaint.py`：`SFImageOutpaint`（pad→max_mp→ui 存档，复用 resize_engine）+ `SFImageOutpaintStitch`（resize 恢复→`_color_match` 连续色域匹配→`_feather_sides` 边选择性羽化→贴回+遮罩）+ 模块级纯函数（`_parse_state`/`_parse_ratio`/`_pads_for_ratio`/`_fit_pad`/`_tensor_to_pils`）。
+- `web/sf_outpaint_core.js`：纯数学（parseRatio/padsForRatio/finalSize/readState 等，镜像 Python）。
+- `web/sf_outpaint.js`：主扩展（预览/芯片/拖拽/折叠/graphToPrompt 注入 SFOutpaintState/executed 收 `sf_outpaint_base`）。
+- 数据契约：`SFOutpaintState`（hidden STRING，graphToPrompt 从 node.properties.outpaintState 注入）；`SF_OUTPAINT_INFO` 线类型（original 张量 + 四边 pad + orig/canvas 尺寸）；`sf_outpaint_base` ui 键（temp 预览）；temp 前缀 `sf_outpaint_base_`。Stitch 无 JS（feather/color_match 原生 INT widget 直通后端）。
