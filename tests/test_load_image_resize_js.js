@@ -70,7 +70,7 @@ globalThis.app = {
     graph: { _nodes: [], links: {}, setDirtyCanvas() {} },
     canvas: { canvas: { dispatchEvent() {} }, ds: { scale: 1 } },
     extensionManager: { toast: { add() {} }, workflow: { activeWorkflow: { changeTracker: { captureCanvasState() {} } } } },
-    ui: { settings: { getSettingValue() { return null; }, addSetting() {} } },
+    ui: { settings: { getSettingValue() { return null; }, addSetting(cfg) { (this._added ||= []).push(cfg); } } },
     registerExtension(ext) { this._ext = ext; },
     graphToPrompt: async () => promptObj,
     loadGraphData: async (data) => { globalThis._loaded = data; },
@@ -182,6 +182,14 @@ function stageJs(names) {
     uiNode.widgets.push(domWidget);
     flushRaf();
     check("主 DOM widget 元素未被误隐藏", domWidget.element.style.display !== "none");
+
+    // 设置注册：ThumbSize + 文件夹侧栏宽度两项
+    const addedIds = (app.ui.settings._added || []).map((c) => c.id);
+    check("ThumbSize 设置已注册", addedIds.includes("sfnodes.LoadImage.ThumbSize"));
+    check("侧栏宽度设置已注册", addedIds.includes("sfnodes.LoadImage.BrowserFolderWidth"));
+    const fwCfg = (app.ui.settings._added || []).find((c) => c.id === "sfnodes.LoadImage.BrowserFolderWidth");
+    check("侧栏宽度默认 104 / slider", fwCfg && fwCfg.defaultValue === 104 && fwCfg.type === "slider" &&
+        fwCfg.attrs && fwCfg.attrs.min === 60 && fwCfg.attrs.max === 240);
 
     // graphToPrompt 注入：模拟节点 + prompt
     const node = {

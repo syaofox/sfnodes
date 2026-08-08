@@ -603,6 +603,11 @@ export function injectCSS() {
     .sf-li-pop-sizetoggle span.on { background:#f66744; color:#fff; }
     .sf-li-pop-sizetoggle span:not(.on):hover { color:#ddd; }
     .sf-li-bsplit { display:flex; max-height:320px; }
+    /* 文件夹侧栏与图片面板之间的宽度调节条（拖拽改变侧栏宽度） */
+    .sf-li-bsplit-resize { flex:none; width:6px; cursor:col-resize; position:relative; z-index:1; touch-action:none; }
+    .sf-li-bsplit-resize::after { content:""; position:absolute; left:2px; top:0; bottom:0; width:2px; border-radius:1px; background:#333; transition:background .08s; }
+    .sf-li-bsplit-resize:hover::after, .sf-li-bsplit-resize.active::after { background:#f66744; }
+    body.sf-li-resizing, body.sf-li-resizing * { user-select:none !important; cursor:col-resize !important; }
     .sf-li-bfolders { width:104px; flex:none; border-right:1px solid #333; background:#141414; overflow:auto; }
     .sf-li-bfolder { padding:8px 9px; font-size:10.5px; color:#aaa; cursor:pointer; display:flex;
       justify-content:space-between; gap:4px; align-items:center; }
@@ -781,6 +786,22 @@ function setThumbSize(v) {
   } catch (_e) { /* ignore */ }
 }
 
+// 浏览器文件夹侧栏宽度（拖拽条调节，持久化）。默认 104（对齐原版固定值）。
+function getFolderWidth() {
+  try {
+    const v = Number(app.ui.settings.getSettingValue("sfnodes.LoadImage.BrowserFolderWidth"));
+    return Number.isFinite(v) && v >= 60 && v <= 240 ? v : 104;
+  } catch (_e) { return 104; }
+}
+function setFolderWidth(v) {
+  try {
+    const s = app.ui.settings;
+    const val = Math.max(60, Math.min(240, Math.round(v)));
+    if (typeof s.setSettingValueAsync === "function") s.setSettingValueAsync("sfnodes.LoadImage.BrowserFolderWidth", val);
+    else s.setSettingValue("sfnodes.LoadImage.BrowserFolderWidth", val);
+  } catch (_e) { /* 仅会话内生效 */ }
+}
+
 // 注册缩略图大小设置项（原版通过 pixaroma 自己的设置面板注册；本项目用
 // ComfyUI 原生 app.ui.settings.addSetting，惯例见 web/multi_lora_tree.js）。
 // 幂等：扩展 setup 阶段调用一次即可。
@@ -798,6 +819,13 @@ export function registerThumbSizeSetting() {
         { value: "Small", text: "Small", selected: getThumbSize() === "Small" },
         { value: "Large", text: "Large", selected: getThumbSize() === "Large" },
       ],
+    });
+    app.ui.settings.addSetting({
+      id: "sfnodes.LoadImage.BrowserFolderWidth",
+      name: "SF Load Image Resize: image dropdown folder sidebar width (px)",
+      defaultValue: 104,
+      type: "slider",
+      attrs: { min: 60, max: 240, step: 1 },
     });
   } catch (_e) { /* 设置系统不可用则退化为会话内记忆 */ }
 }
@@ -887,15 +915,47 @@ export function openImageDropdown(node, anchorEl, onPick) {
   searchRow.append(mag, input, sizeToggle);
   popup.appendChild(searchRow);
 
-  // ── body: sidebar (optional) + scrollable pane ──
+  // ── body: sidebar (optional) + resizable divider + scrollable pane ──
   const body = document.createElement("div");
   body.className = "sf-li-bsplit";
   const sidebar = document.createElement("div");
   sidebar.className = "sf-li-bfolders";
   const pane = document.createElement("div");
   pane.className = "sf-li-bpane";
-  if (hasSubfolders) body.append(sidebar, pane);
-  else body.append(pane);
+  if (hasSubfolders) {
+    // 拖拽条：水平拖动调节侧栏宽度（60~240px），松开后持久化到设置。
+    const divider = document.createElement("div");
+    divider.className = "sf-li-bsplit-resize";
+    divider.title = "拖动调节左侧栏宽度";
+    const FOLDER_MIN = 60, FOLDER_MAX = 240;
+    sidebar.style.width = `${Math.max(FOLDER_MIN, Math.min(FOLDER_MAX, getFolderWidth()))}px`;
+    divider.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startW = sidebar.getBoundingClientRect().width;
+      divider.classList.add("active");
+      document.body.classList.add("sf-li-resizing");
+      const onMove = (ev) => {
+        const w = Math.max(FOLDER_MIN, Math.min(FOLDER_MAX, startW + ev.clientX - startX));
+        sidebar.style.width = `${w}px`;
+      };
+      const onUp = () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        document.removeEventListener("pointercancel", onUp);
+        document.body.classList.remove("sf-li-resizing");
+        divider.classList.remove("active");
+        setFolderWidth(sidebar.getBoundingClientRect().width);
+      };
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+      document.addEventListener("pointercancel", onUp);
+    });
+    body.append(sidebar, divider, pane);
+  } else {
+    body.append(pane);
+  }
   popup.appendChild(body);
 
   // ── footer ──
