@@ -62,8 +62,13 @@ const app = {
 };
 const fakeWidgetsApi = {
     STRING: (node, name, opts, appApi) => {
+        const handlers = {};
         const w = { name, value: "", serialize: true, type: "string" };
-        w.inputEl = { readOnly: false };
+        w.inputEl = {
+            readOnly: false,
+            addEventListener: (t, fn) => { (handlers[t] ??= []).push(fn); },
+            trigger: (t, ...args) => { (handlers[t] ?? []).forEach((fn) => fn(...args)); },
+        };
         node.widgets.push(w);
         return { widget: w };
     },
@@ -108,8 +113,8 @@ check("presets_json 仍在数组中（可序列化）", n1.widgets.includes(json
 check("combo 选项重建为预设名", JSON.stringify(presetW1.options.values) === '["A","B"]');
 check("当前选中保留", presetW1.value === "A");
 check("预览 widget 已添加且不序列化", displayW1 !== undefined && displayW1.serialize === false);
-check("预览 widget 只读", displayW1.inputEl.readOnly === true);
 check("预览显示选中文本", displayW1.value === "hello");
+check("有选中预设时可编辑", displayW1.inputEl.readOnly === false);
 check("⚙ 预设按钮已添加", n1.mgrBtn !== undefined);
 check("combo callback 已包装", typeof presetW1.callback === "function");
 check("onAfterGraphConfigured 已包装", typeof n1.onAfterGraphConfigured === "function");
@@ -118,8 +123,22 @@ presetW1.value = "B";
 presetW1.callback("B");
 check("切换 combo 同步预览", displayW1.value === "world");
 
+// 编辑框直接修改：输入即写回 presets_json
+displayW1.value = "edited world";
+displayW1.inputEl.trigger("input");
+check("编辑即时写回 presets_json", JSON.parse(jsonW1.value).find((p) => p.name === "B").text === "edited world");
+check("编辑后显示保持", displayW1.value === "edited world");
+presetW1.value = "A";
+presetW1.callback("A");
+check("切换 combo 不丢编辑", displayW1.value === "hello"
+    && JSON.parse(jsonW1.value).find((p) => p.name === "B").text === "edited world");
+presetW1.value = "B";
+presetW1.callback("B");
+check("切回显示编辑后文本", displayW1.value === "edited world");
+
 const n2 = mkNode("[]", "");
 check("空预设下拉保持空占位", JSON.stringify(n2.widgets.find((w) => w.name === "preset").options.values) === '[""]');
+check("空预设时编辑框只读", n2.widgets.find((w) => w.name === "content_display").inputEl.readOnly === true);
 
 const n3 = mkNode('[{"name": "A", "text": "x"}]', "Nonexistent");
 check("选中值失效回落第一个", n3.widgets.find((w) => w.name === "preset").value === "A");

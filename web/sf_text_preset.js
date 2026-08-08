@@ -88,11 +88,33 @@ function refreshContentDisplay(node) {
     display.value = preset ? preset.text : "";
 }
 
+function saveEditedText(node, text) {
+    const jsonWidget = findWidget(node, "presets_json");
+    const presetWidget = findWidget(node, "preset");
+    if (!jsonWidget || !presetWidget) return;
+    const presets = parsePresets(jsonWidget.value);
+    const idx = presets.findIndex((p) => p.name === presetWidget.value);
+    if (idx < 0) return;
+    if (presets[idx].text === text) return;
+    presets[idx].text = text;
+    jsonWidget.value = JSON.stringify(presets);
+    node.setDirtyCanvas?.(true, true);
+}
+
+function updateDisplayEditable(node) {
+    const display = findWidget(node, "content_display");
+    if (!display?.inputEl) return;
+    const presets = parsePresets(findWidget(node, "presets_json")?.value);
+    const name = findWidget(node, "preset")?.value ?? "";
+    display.inputEl.readOnly = !presets.some((p) => p.name === name);
+}
+
 function syncFromJson(node) {
     if (!node) return;
     const presets = parsePresets(findWidget(node, "presets_json")?.value);
     setPresetWidgetValues(node, presets);
     refreshContentDisplay(node);
+    updateDisplayEditable(node);
     node.setDirtyCanvas?.(true, true);
 }
 
@@ -318,6 +340,7 @@ app.registerExtension({
         const originalCallback = presetWidget.callback;
         presetWidget.callback = function (...args) {
             refreshContentDisplay(node);
+            updateDisplayEditable(node);
             if (typeof originalCallback === "function") {
                 return originalCallback.apply(this, args);
             }
@@ -331,8 +354,15 @@ app.registerExtension({
                 app
             ).widget;
             display.serialize = false;
-            display.inputEl.readOnly = true;
+            // 编辑框直接修改选中预设的文本内容，输入即写回 presets_json（与弹窗「更新」一致）；
+            // 空预设（无选中）时由 updateDisplayEditable 置为只读
+            display.inputEl.readOnly = false;
+            display.inputEl.addEventListener("input", () => {
+                saveEditedText(node, display.value);
+                refreshContentDisplay(node);
+            });
         }
+        updateDisplayEditable(node);
 
         if (!node.widgets.some((w) => w.type === "button")) {
             node.addWidget("button", "⚙ 预设", null, () => openMgr(node));
