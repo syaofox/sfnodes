@@ -18,6 +18,7 @@ from .nodes.image.files import (
 from .nodes.image.browser import SFLoadImageBrowser
 from .nodes.image.load_images_path import SFLoadImagesPath
 from .nodes.image.load_image_resize import SFLoadImageResize
+from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.batch_index import SFImageBatchIndex
@@ -186,6 +187,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImageBrowser": SFLoadImageBrowser,
     "SFLoadImagesPath": SFLoadImagesPath,
     "SFLoadImageResize": SFLoadImageResize,
+    "SFImageResize": SFImageResize,
     "SFImageCrop": SFImageCrop,
     "SFImageUncrop": SFImageUncrop,
     "SFImageOutpaint": SFImageOutpaint,
@@ -358,6 +360,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImageBrowser": "SF Load Image Browser",
     "SFLoadImagesPath": "SF Load Images Path",
     "SFLoadImageResize": "SF Load Image Resize",
+    "SFImageResize": "SF Image Resize",
     "SFImageCrop": "SF Image Crop",
     "SFImageUncrop": "SF Image Uncrop",
     "SFImageOutpaint": "SF Image Outpaint",

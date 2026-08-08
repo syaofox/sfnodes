@@ -17,6 +17,7 @@
 - [10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）](#10-sf-workflows工作流面板复刻-pixaroma-workflows)
 - [11. SFImageCrop/SFImageUncrop：可视化裁剪与贴回（复刻 Pixaroma Crop/Uncrop）](#11-sfimagecropsfimageuncrop可视化裁剪与贴回复刻-pixaroma-cropuncrop)
 - [12. SFImageOutpaint/Stitch：外绘填充与原始图贴回（复刻 Pixaroma Outpaint）](#12-sfimageoutpaintstitch外绘填充与原始图贴回复刻-pixaroma-outpaint)
+- [13. SFImageResize：wired 尺寸缩放（复刻 Pixaroma Image Resize）](#13-sfimageresizewired-尺寸缩放复刻-pixaroma-image-resize)
 
 ---
 
@@ -607,3 +608,48 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_outpaint_core.js`：纯数学（parseRatio/padsForRatio/finalSize/readState 等，镜像 Python）。
 - `web/sf_outpaint.js`：主扩展（预览/芯片/拖拽/折叠/graphToPrompt 注入 SFOutpaintState/executed 收 `sf_outpaint_base`）。
 - 数据契约：`SFOutpaintState`（hidden STRING，graphToPrompt 从 node.properties.outpaintState 注入）；`SF_OUTPAINT_INFO` 线类型（original 张量 + 四边 pad + orig/canvas 尺寸）；`sf_outpaint_base` ui 键（temp 预览）；temp 前缀 `sf_outpaint_base_`。Stitch 无 JS（feather/color_match 原生 INT widget 直通后端）。
+
+## 13. SFImageResize：wired 尺寸缩放（复刻 Pixaroma Image Resize）
+
+> 背景：复刻 PixaromaImageResize（2026-08），落地为 `nodes/image/resize_image.py` + `web/sf_image_resize*.js` 三模块（lib 纯函数 + ui DOM + 主扩展）。**区别于此前复刻：引擎与面板全部复用既有生态**（resize_engine.py + buildModePanel + renderGlobalControls），新增代码集中在 wired 输入交互与 readout 卡片。以下为可迁移结论，细节见代码注释。
+
+### 1. 复刻前先盘点既有移植生态（本任务收益最大的一条）
+
+- `sf_utils/resize_engine.py`（8 模式引擎）+ `web/sf_load_image_resize.js`（buildModePanel 面板全家桶 + previewResize）+ `web/sf_load_image_ui.js`（模式芯片/全局控件行/面板后处理）三件套都在——新节点只补"wired 尺寸 + 中间态交互"，引擎与面板零新增。
+- 复用要付出最小契约成本：`renderGlobalControls` 内部 `readStateLocal` 硬编码 prop 名 → 加 `statePropName` 参数（默认值保持旧行为，改动 1 处 6 调用）；`buildModePanel` 本就有 `stateKey` 参数，直接传新 prop；`applyInlineLabel`/`applyWHLayout`/`applyCoverControls` 无 prop 耦合直接复用。
+- Pixaroma 原版跨文件复制两套 UI（pix-ir 与 pix-li），本项目复用同一个 sf-li 类族——**面板类名共享时无需再注入 CSS**，新 CSS 只有 chrome（chips / wire panel / readout canvas）。
+
+### 2. wired 三输入优先级（核心设计，JS/Python 镜像）
+
+- `longest_side` > `width`/`height`；单轴 = 按该维等比缩放（scale_factor 路径，尊重 allow_upscale）；双轴 = 精确盒（fit_inside 保持，其他强制 cover）；0/负 wired 值 = "无目标" → off 直通（避免极小输出，JS 预览一致）。
+- 互斥：连接 longest_side 自动断开 width/height（反之亦然），width/height 可共存。**count 只统计 width/height**（longest_side 独立标志）：1 线禁用全部模式芯片，2 线只留 Fit/Crop。
+- **显示模式不写 `state.mode`**：双线时渲染强制 Crop to fill，但 state.mode 不动 → 断开后用户原模式恢复，也不弄脏工作流（连接/断开操作零序列化副作用）。
+- JS `effectiveWiredState` 逐分支镜像 Python `_apply_wired_size`，两侧测试**同用例同期望值**（含 0 值、val 不可读、fit_inside 保持）。
+
+### 3. 交互细节（照搬原版，含反直觉点）
+
+- `readWiredInt` 只信任"恰好一个数值 widget"的上游（多数值/字符串 → null → readout 显示"由接线输入决定"或回退上次运行 dims，**绝不显示错误数字**）；上游分辨率类节点特判属 Pixaroma 插件耦合，本项目不做（FluxResolution 无 widget 可读 → 走兜底）。
+- wired 字段锁定 = readOnly + opacity 0.55 + makeNumericInput 的 readOnly 守卫（步进箭头天然失效）；锁值与单线/最长边汇总单元格的值由绘制轮询刷新（DOM 无上游值变化事件，onDrawForeground / Vue setInterval 是唯一信号）。
+- 接线互斥断开三重守卫：onConfigure 窗口 + `app.loadGraphData` 包装的 300ms 尾窗 + 自递归标志。**连接恢复发生在 onConfigure 之后**，无 loadGraphData 尾窗守卫，打开工作流会误断已保存的线（与 SFImageResize 先例同款，Load Image Resize 的 wired 版本可复用）。
+- 读卡器回退链：live 上游预览（upstream.imgs[0].naturalWidth）→ wired 镜像计算 → 上次运行 dims（executed 回填 node.properties.sfIrDims）→ 消息（"连接图片"/"运行一次"/"由接线输入决定"）。live 不可读而缓存存在时显示缓存——与 Pixaroma 原版一致（原版注释自认这是缺陷，见其 index.js 大段说明）。
+
+### 4. 后端防御（可精简但不能丢）
+
+- `_tensor_to_pils` 通道防御：1ch 复制 RGB、≥4ch 裁 3ch 且 alpha 走 MASK 输出（VAEEncode 不做通道切片，4ch 进采样器必炸）；alpha → MASK 必须反转（**1 = 透明**，LoadImage 惯例）。
+- 显式 mask 优先于图片自带 alpha（显式接线是用户选择，第二猜测更糟）。
+- `_apply_wired_size` 放 `resize_engine.py`（纯函数不依赖 torch/numpy）→ 节点层只管 tensor/PIL 转换；返回新 dict 不修改入参（sf_utils 纯函数风格，注意与 Pixaroma 原版原地修改的差异）。
+
+### 5. 测试方法论
+
+- Python：FakeTensor 驱动 execute 全流程（wired 尺寸、RGBA→mask 反转、pad 边框语义、显式 mask 覆盖）+ `_apply_wired_size` 纯函数分支全覆盖（含"原 state 不被修改"断言）。
+- **PIL NEAREST 缩小是 box 平均**（非点采样）：单像素点缩小会被稀释（64² 角点 → 8x5 全 0），放大/同尺寸才像素保真——mask 对齐断言用"同尺寸直通 + 放大角点"两场景，缩小场景只断言尺寸对齐。
+- JS：lib 复制 .mjs 直跑（stageJs 链自动带上 sf_load_image_resize.js）；FakeNode 提供 inputs/graph.links/getNodeById/widgets 模拟 wired 读取；主扩展 smoke 断言原型钩子安装 + graphToPrompt 注入 + executed 回填。**wireInfo 断言注意 count 只含 width/height**（不含 longest_side）。
+
+### 6. 模块边界（复用/修改时的快速索引）
+
+- `nodes/image/resize_image.py`：`SFImageResize` + `_tensor_to_pils`/`_alpha_to_mask_pils`/`_mask_to_pils`（张量→PIL 与 alpha 提取，依赖 torch/numpy）。
+- `sf_utils/resize_engine.py`：`_apply_wired_size`（纯函数，无 ComfyUI 依赖，SFImageResize 与未来 wired 节点共享）。
+- `web/sf_image_resize_lib.js`：纯函数（readState/writeState 泛化、wireInfo/readWiredInt/effectiveWiredState/getReadoutInfo、gcd/ratioLabel/aspectRectDims/roundRectPath，镜像 Python）。
+- `web/sf_image_resize_ui.js`：DOM（injectCSS/buildChips/wired 面板/applyWiredLocks/refreshReadout/paintReadout/renderUI），复用 `sf_load_image_resize.js` + `sf_load_image_ui.js`（后者 renderGlobalControls 已参数化 statePropName）。
+- `web/sf_image_resize.js`：扩展注册（onNodeCreated/onConfigure/onConnectionsChange 互斥+守卫/onRemoved/onResize/onDrawForeground + Vue cards canvas）+ graphToPrompt 注入 + executed 收 `sf_image_resize`。
+- 数据契约：`SFImageResizeState`（hidden STRING，graphToPrompt 从 node.properties.sfImageResizeState 注入，随 workflow 保存）；`sf_image_resize` ui 键（in/out dims 回填）；**未移植 temp PNG 预览**——原版 JS 的 executed 处理器从不读 filename（只读 dims），省掉垃圾文件。

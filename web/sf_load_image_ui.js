@@ -1240,7 +1240,7 @@ function openResamplePopup(anchorEl, currentValue, onPick) {
   }, 0);
 }
 
-export function renderGlobalControls(node, state, writeState, onChange) {
+export function renderGlobalControls(node, state, writeState, onChange, statePropName = "sfLoadImageResizeState") {
   const wrap = document.createElement("div");
   wrap.className = "sf-li-global";
 
@@ -1299,13 +1299,13 @@ export function renderGlobalControls(node, state, writeState, onChange) {
   // ── events ──
   const RESAMPLE_IDS = RESAMPLE_OPTIONS.map((o) => o.id);
   const setResample = (id) => {
-    const s = readStateLocal(node);
+    const s = readStateLocal(node, statePropName);
     writeState(node, { ...s, resample: id });
     rsValue.textContent = "重采样：" + resampleLabel(id);
     onChange?.();
   };
   const cycleResample = (delta) => {
-    const cur = (readStateLocal(node).resample) || "auto";
+    const cur = (readStateLocal(node, statePropName).resample) || "auto";
     let i = RESAMPLE_IDS.indexOf(cur); if (i < 0) i = 0;
     i = (i + delta + RESAMPLE_IDS.length) % RESAMPLE_IDS.length;
     setResample(RESAMPLE_IDS[i]);
@@ -1316,19 +1316,19 @@ export function renderGlobalControls(node, state, writeState, onChange) {
     e.stopPropagation();
     const v = parseInt(b.dataset.v, 10);
     for (const x of foot.querySelectorAll(".sf-li-schip")) x.classList.toggle("active", x === b);
-    writeState(node, { ...readStateLocal(node), snap: v });
+    writeState(node, { ...readStateLocal(node, statePropName), snap: v });
     onChange?.();
   });
   dd.addEventListener("click", (e) => {
     e.stopPropagation();
-    openResamplePopup(dd, (readStateLocal(node).resample) || "auto", setResample);
+    openResamplePopup(dd, (readStateLocal(node, statePropName).resample) || "auto", setResample);
   });
   prev.addEventListener("click", (e) => { e.stopPropagation(); cycleResample(-1); });
   next.addEventListener("click", (e) => { e.stopPropagation(); cycleResample(1); });
   upBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    const on = !(readStateLocal(node).allow_upscale !== false);
-    writeState(node, { ...readStateLocal(node), allow_upscale: on });
+    const on = !(readStateLocal(node, statePropName).allow_upscale !== false);
+    writeState(node, { ...readStateLocal(node, statePropName), allow_upscale: on });
     upBtn.classList.toggle("is-on", on);
     upBtn.textContent = on ? "允许放大：开" : "允许放大：关";
     onChange?.();
@@ -1338,8 +1338,10 @@ export function renderGlobalControls(node, state, writeState, onChange) {
 }
 
 // Local state read for event handlers (avoids depending on index.js import).
-function readStateLocal(node) {
-  try { return JSON.parse(node.properties?.sfLoadImageResizeState || "{}"); }
+// `statePropName` lets other nodes (SF Image Resize) reuse this control row
+// with their own hidden-state prop; defaults to the Load Image prop.
+function readStateLocal(node, statePropName = "sfLoadImageResizeState") {
+  try { return JSON.parse(node.properties?.[statePropName] || "{}"); }
   catch { return {}; }
 }
 

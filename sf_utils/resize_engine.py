@@ -1,9 +1,9 @@
 """Shared image-resize engine (ported from comfyui-pixaroma _resize_helpers.py).
 
-Single source of truth for the resize math used by SF Load Image Resize.
-Operates on PIL images + a plain state dict so it is framework-agnostic
-(no ComfyUI dependency). JS mirror lives in web/sf_load_image_resize.js
-(previewResize) — keep the two in lockstep.
+Single source of truth for the resize math used by SF Load Image Resize and
+SF Image Resize. Operates on PIL images + a plain state dict so it is
+framework-agnostic (no ComfyUI dependency). JS mirror lives in
+web/sf_load_image_resize.js (previewResize) — keep the two in lockstep.
 """
 
 import json
@@ -47,6 +47,46 @@ def parse_resize_state(state_json: str, defaults: dict) -> dict:
         return merged
     except Exception:
         return dict(defaults)
+
+
+def _apply_wired_size(state: dict, width, height, longest_side, orig_w: int, orig_h: int) -> dict:
+    """Wired inputs drive the target size. PRECEDENCE: a wired longest_side
+    wins over width/height — it scales so the LONGER side hits the target
+    (aspect kept, orientation-agnostic). Otherwise: ONE axis wired = aspect-
+    preserving scale to that dimension (the other axis is computed); BOTH wired
+    = exact W x H box via the active mode (Fit inside keeps its fit, anything
+    else is forced to Crop to fill). A wired 0 / negative target means "no
+    target" -> pass through unchanged. Mirrored in JS effectiveWiredState —
+    keep the two in lockstep.
+
+    Returns a NEW state dict; the input is never mutated."""
+    if longest_side is not None:
+        ls = int(longest_side)
+        if ls > 0:
+            # Respect the Upscaling toggle (state["allow_upscale"]) exactly
+            # like the typed Longest side mode, so wired == typed.
+            return {**state, "mode": "longest_side", "longest_side": ls}
+        return {**state, "mode": "off"}
+
+    has_w = width is not None
+    has_h = height is not None
+    if not has_w and not has_h:
+        return state
+
+    if has_w != has_h:
+        # Exactly one wired -> aspect-preserving scale to that dimension via
+        # the scale_factor path (respects allow_upscale).
+        wired_val = int(width) if has_w else int(height)
+        if wired_val <= 0:
+            return {**state, "mode": "off"}
+        orig_dim = orig_w if has_w else orig_h
+        return {**state, "mode": "scale_factor",
+                "scale_factor": (wired_val / orig_dim) if orig_dim else 1.0}
+
+    # Both wired -> exact box.
+    if state.get("mode", "off") == "fit_inside":
+        return {**state, "fit_w": int(width), "fit_h": int(height)}
+    return {**state, "mode": "cover", "cover_w": int(width), "cover_h": int(height)}
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
