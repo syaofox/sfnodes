@@ -131,7 +131,8 @@ from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImage
 from .nodes.utils.flux_resolution import FluxResolution
 from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
 
-from .nodes.inpaint.cropstitch import InpaintCrop, InpaintStitch, InpaintExtendOutpaint
+from .nodes.inpaint.cropstitch import InpaintExtendOutpaint
+from .nodes.inpaint.inpaint_editor import SFInpaintCrop, SFInpaintStitch
 
 from .nodes.utils.image_orientation import ImageOrientation
 from .nodes.utils.workflow_name import SFWorkflowName
@@ -157,8 +158,8 @@ WEB_DIRECTORY = "web"
 
 NODE_CLASS_MAPPINGS = {
     # 局部修复节点
-    "SFInpaintCrop": InpaintCrop,
-    "SFInpaintStitch": InpaintStitch,
+    "SFInpaintCrop": SFInpaintCrop,
+    "SFInpaintStitch": SFInpaintStitch,
     "SFInpaintExtendOutpaint": InpaintExtendOutpaint,
     "SFCutout": SFCutout,
     "SFPaste": SFPaste,

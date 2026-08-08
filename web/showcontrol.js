@@ -4,51 +4,6 @@ import { app } from "/scripts/app.js";
 
 // 节点类型与对应widget配置
 const NODE_WIDGETS_CONFIG = {
-    "SFInpaintCrop": {
-        // 简单widget列表（初始默认隐藏）
-        simpleWidgets: [
-            "preresize_target_pixels_Presets",
-            "preresize_target_pixels_custom_value",
-            "output_target_pixels_Presets",
-            "output_target_pixels_custom_value",
-            "extend_up_factor",
-            "extend_down_factor",
-            "extend_left_factor",
-            "extend_right_factor"
-        ],
-        // 特殊条件处理
-        conditionalWidgets: [
-            {
-                condition: (node) => findWidgetByName(node, "preresize_target_pixels").value === true,
-                widgets: [
-                    {name: "preresize_target_pixels_Presets", show: true},
-                    {
-                        name: "preresize_target_pixels_custom_value", 
-                        show: (node) => findWidgetByName(node, "preresize_target_pixels_Presets").value === "custom"
-                    }
-                ]
-            },
-            {
-                condition: (node) => findWidgetByName(node, "output_resize_to_target_pixels").value === true,
-                widgets: [
-                    {name: "output_target_pixels_Presets", show: true},
-                    {
-                        name: "output_target_pixels_custom_value", 
-                        show: (node) => findWidgetByName(node, "output_target_pixels_Presets").value === "custom"
-                    }
-                ]
-            },
-            {
-                condition: (node) => findWidgetByName(node, "extend_for_outpainting").value === true,
-                widgets: [
-                    {name: "extend_up_factor", show: true},
-                    {name: "extend_down_factor", show: true},
-                    {name: "extend_left_factor", show: true},
-                    {name: "extend_right_factor", show: true}
-                ]
-            }
-        ]
-    },
     "SFFaceMorph": {
         simpleWidgets: ["landmark_type", "align_type", "onnx_device"]
     },
