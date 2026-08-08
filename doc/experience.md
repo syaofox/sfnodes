@@ -15,6 +15,7 @@
 - [8. SFPauseImage：快照闸门与预览保存（复刻 Pixaroma Pause Image）](#8-sfpauseimage快照闸门与预览保存复刻-pixaroma-pause-image)
 - [9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）](#9-sfpausemask遮罩快照闸门pixaroma-pause-mask-同构扩展)
 - [10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）](#10-sf-workflows工作流面板复刻-pixaroma-workflows)
+- [11. SFImageCrop/SFImageUncrop：可视化裁剪与贴回（复刻 Pixaroma Crop/Uncrop）](#11-sfimagecropsfimageuncrop可视化裁剪与贴回复刻-pixaroma-cropuncrop)
 
 ---
 
@@ -514,3 +515,53 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `nodes/workflow_routes.py`：五资源路径 7 handler + meta asyncio.Lock + sidecar 读写。
 - `sf_utils/workflow_index_helpers.py`：索引/集合/问题检测纯逻辑（增量解析、cap 常量）。
 - 注册：`__init__.py` 导入副作用注册路由（`# noqa: F401`）；无 NODE_CLASS_MAPPINGS 条目。
+
+---
+
+## 11. SFImageCrop/SFImageUncrop：可视化裁剪与贴回（复刻 Pixaroma Crop/Uncrop）
+
+> 背景：复刻 PixaromaCrop/PixaromaUncrop（2026-08），`nodes/image/crop.py`（两节点 + 2 条路由）+ `web/sf_crop*.js` 九模块（编辑器 framework/核心/面板/交互/渲染 + 预览/撤销守卫/对齐）。本轮排查了本项目迄今最深的"值传递"坑链，前后四轮修复才打通。以下按"可迁移结论"记录，细节见代码注释。
+
+### 1. 前端 widget 值要传给后端 → 必须在 Python INPUT_TYPES 声明（本项目最大坑）
+
+- **症状链**：裁剪数据保存正常（编辑器可编辑、SFCropJson widget 值正确），但后端每次收到空数据（`kwargs` 只有 `image`/`mask`）→ 节点透传原图。注入到 `graphToPrompt`、`api.queuePrompt` 的值全部"神秘消失"。
+- **根因**：ComfyUI 前端提交 prompt 前有 validatePrompt——**删除不在节点 schema 中的输入**。schema 来自 Python `INPUT_TYPES`；`SFCropJson`（前端 addWidget 创建）与 `CropWidget`（DOM widget）都未在 Python 侧声明 → 前端直接剥离 → 后端 `kwargs` 里根本没有该键。
+- **正确做法**（sf_pause 的 PauseState 同款）：Python `INPUT_TYPES` 的 `"hidden"` 里声明 `"SFCropJson": ("STRING", {"default": "{}"})` → 输入进入 schema → 前端不剥离；前端创建**同名隐藏 STRING widget**，值经标准 widget 通道收集（graphToPrompt 读 `widget.value`，最基础机制，任何插件/渲染器不可破坏）。
+- **判据**：任何"前端把运行时状态交给后端"的输入，先问"Python 侧声明了吗？"——没声明就是会被剥离。排查"值丢了"先用后端打印 `sorted(kwargs.keys())` 一锤定音（比猜前端快得多）。
+- **注**：`graphToPrompt`/`api.queuePrompt` 注入只是双保险（覆盖加载/保存时序差），不是可靠通道——注入目标也必须是 schema 内的输入名。
+
+### 2. Vue DOMWidget 的 value setter 会回调 setValue → 写 widget.value 会无限递归
+
+- **症状**：保存裁剪时 `Maximum call stack size exceeded`。根因：`_sfCropJsonSync` 里 `widget.value = {...}` → Vue DOMWidget setter（`domWidget.ts`：`set value(v) { this.options.setValue?.(v) }`）→ 我们传入的 setValue → 又调 `_sfCropJsonSync` → 循环。
+- **规则**：对 addDOMWidget 创建的 widget，**不要写 `.value` 去"同步状态"**——写它等于触发 setValue 回调链。DOM widget 的值读取应走 `getValue` 闭包（graphToPrompt 收集 `widget.value` → getter → getValue）。状态同步走独立通道（隐藏 STRING widget 是普通 widget，无 setter 链，随便写）。
+
+### 3. 拼接/裁剪移植时的两类机械性 bug（复刻大模块必查）
+
+- **漏模块级常量**：从 `canvas.mjs` 提取 `createCanvasSettings` 时漏了文件顶部的 `CANVAS_RATIOS` → 编辑器打开即 `ReferenceError`（界面"没反应"，console 有报错）。提取函数片段后必须 **grep 函数体内引用的大写常量，确认其定义也被提取**。
+- **漏依赖函数**：替换 core.mjs 的 import 块时漏了 `pixApiUrl`（原版从 shared import）→ `CropAPI.saveComposite` 运行时 `ReferenceError`，**被编辑器 catch 吞掉** → composite_path 永远为空、无任何报错。catch 吞错的路径要格外留意——"保存成功但没保存"是最难发现的失败。
+
+### 4. 磁盘状态链路（编辑器保存 → 后端读取）
+
+- 路由：`/api/sfnodes/crop/save`（composite）+ `/upload_src`（dataURL → PNG 存 `input/sfnodes_crop/`）。**改动路由必须重启容器**，否则前端 fetch 404 被 catch 静默降级。
+- 路径守卫 `_safe_join`：词法拒绝绝对路径/UNC/`..`（**任何 resolve 之前**——UNC 仅 realpath 就会触发 SMB 认证泄露），再 realpath + startswith 包含检查。
+- `_sanitize_id`：project_id 只留 `[A-Za-z0-9_-]`，防路径穿越。
+- 后端解析 `_crop_meta_from_widget` 兼容 4 种形状（`{crop_json}` dict / 直接 meta dict / JSON 字符串 / 字符串套层）——前端不同版本/渲染器发来的形状不定，防御性解析 + 坏数据回退透传。
+
+### 5. 编辑器/预览相关的渲染器差异（用户环境实测）
+
+- 用户环境 `LiteGraph.vueNodesMode = false`（legacy 渲染器）——DOM widget 值收集在 legacy 下**是工作的**（serializeValue→getValue），此前"DOM widget 值不可靠"的假设不成立；真正断点始终是 schema 剥离。排查时先确认渲染器模式，别在错误的环节上打转。
+- **加载工作流后预览 404**：`node.properties` 缓存上次执行的 temp source URL，重启容器 temp 清空 → fetch 404 → 预览空白（"接了输入图却没加载"）。修复：image 输入**已接线时优先解析上游**（LoadImage widget / 上游 imgs），缓存只在未接线或上游解析失败时使用。
+
+### 6. 测试方法论
+
+- 后端：`test_crop.py` mock torch/aiohttp/folder_paths + sfnodes 包上下文，覆盖结构断言、`_safe_join`/`_sanitize_id`/`_decode_image`/`_rect_from_meta`/`_crop_meta_from_widget` 形状兼容。
+- 前端：`test_crop_js.js` 冒烟——**mock 里模拟 Vue DOMWidget 的 value getter/setter 链**（getter→getValue、setter→setValue），断言 `_sfCropJsonSync` 写 DOM widget 不递归（回归第 2 节 bug）；mock `addWidget` 返回**对象语义**（`{name, type, value, options}`），数组模拟会踩"`.value` 属性与索引元素分离"的假象。
+- 诊断先例：后端 `kwargs_keys=` 打印 + 前端分段 console（版本 → 节点状态 → graphToPrompt 数据层）——四轮排查中唯一一次一锤定音的就是后端 `kwargs_keys=['image','mask']`。
+
+### 7. 模块边界（复用/修改时的快速索引）
+
+- `nodes/image/crop.py`：SFImageCrop（可视化裁剪）+ SFImageUncrop（贴回/feather）+ `_crop_meta_from_widget`/`_safe_join`/`_sanitize_id` + 2 条路由（`/api/sfnodes/crop/*`）。
+- `web/sf_crop.js`：主扩展（nodeCreated/面板/编辑器接线/拖放粘贴/queuePrompt+graphToPrompt 注入 SFCropJson）。
+- `web/sf_crop_framework.js`：精简编辑器框架（theme CSS/组件/canvas settings/布局/焦点陷阱/下载）。
+- `web/sf_crop_core.js`（编辑器核心+API）、`sf_crop_panel.js`（节点面板）、`sf_crop_interaction.js`（鼠标键盘）、`sf_crop_render.js`（绘制/保存）、`sf_crop_preview.js`（节点预览）、`sf_crop_undo_guard.js`（Ctrl+Z 守卫）、`sf_crop_alignments.js`（对齐常量）。
+- 数据契约：`SFCropJson`（Python hidden + 前端同名 STRING widget，crop_json 文本）；`SF_CROP_INFO` 线类型（原图+rect+可选 mask）；`sf_crop_source` ui 键（temp 预览）；`sfnodes_crop` subfolder。

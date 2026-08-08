@@ -175,6 +175,11 @@ class SFMyNode:
 - combo 选项由前端动态重建时，值会超出 INPUT_TYPES 静态列表 → 旧版 ComfyUI 执行前校验报 `Value not in list` → 必须 `VALIDATE_INPUTS` 返回 True 接管校验（动态选项节点标配）。
 - combo 的 options 不随 workflow 保存（只存 value）；加载时 nodeCreated 早于 widget 值恢复 → 重建选项需挂 `onAfterGraphConfigured`（或 onConfigure）补同步。
 
+**前后端：widget 值传后端必须先声明输入（`nodes/image/crop.py`、`sf_crop*.js`）**
+- **前端提交 prompt 前 validatePrompt 会删除不在节点 schema 中的输入**——前端 addWidget/DOM widget 创建的任何"运行时状态"输入，若未在 Python `INPUT_TYPES`（hidden/required/optional）声明，后端 `kwargs` 里**根本没有该键**（表现为"值保存正常但执行时全丢"）。排查先打后端 `sorted(kwargs.keys())`。
+- 正确通道：Python `hidden` 声明 `"SFCropJson": ("STRING", {"default": "{}"})` + 前端**同名隐藏 STRING widget** → 值走标准 widget 收集（graphToPrompt 读 widget.value，最基础机制不可破坏）。graphToPrompt/queuePrompt 注入只能作双保险，注入目标也必须是 schema 内输入名。
+- **不要写 addDOMWidget 创建的 widget 的 `.value`**：Vue 的 DOMWidget value setter 会回调 `setValue` → 若 setValue 回调链里又写 `.value` → 无限递归（`Maximum call stack size exceeded`）。DOM widget 读取走 getValue 闭包，状态同步走独立通道（隐藏 STRING widget 无 setter 链）。
+
 **前端：动态槽位（`web/sf_dynamic_slots.js`、`web/any_pack.js`）**
 - 槽名渲染读 `label ?? localized_name ?? name`；初始槽自带 `localized_name`（动态槽没有）→ **改槽名必须同步 name + localized_name**，否则"只有第一个槽改名不生效"。
 - `configure` 直赋 links 不触发 `onConnectionsChange` → 恢复场景需挂 `onAfterGraphConfigured` 补逻辑。
