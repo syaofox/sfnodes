@@ -13,6 +13,7 @@ import { api } from "/scripts/api.js";
 import {
     ancestorsOf, hasChildren, openSet, folderColor,
 } from "./sf_workflows_lib.js";
+import { sfApiUrl } from "./sf_common.js";
 
 /** 微型 DOM 助手。每个面板都恰好想要这个。 */
 export const el = (tag, cls, text) => {
@@ -23,7 +24,7 @@ export const el = (tag, cls, text) => {
 };
 
 // ── "面板正在自我重绘吗？" ──────────────────────────────────────────────
-export { sfApiUrl } from "./sf_common.js";
+export { sfApiUrl };
 // 打开的改名框必须分清两件事：用户点走（提交输入）与重渲染把框从脚下拆走
 // （保留并在之后放回）。两者都以普通 blur 到达。`input.isConnected` 看似
 // 可行其实不行（Chrome 实测：移除聚焦元素时 blur 仍在元素已附加时触发，

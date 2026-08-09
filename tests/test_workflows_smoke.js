@@ -94,7 +94,12 @@ globalThis.fetch = async (url, opts) => {
         ], folders: ["sub"], collections: [], issues: { unsaved_names: [], duplicates: [], missing_nodes: [] } }) };
     }
     if (String(url).includes("/api/sfnodes/workflows/meta")) {
-        return { ok: true, json: async () => ({ ok: true, meta: { notes: {}, covers: {}, folderColors: {} } }) };
+        // 含一张手选封面：renderGrid 的 coverFor 必须能解析它（曾经只 re-export
+        // sfApiUrl 不建本地绑定，封面路径在真实环境抛 ReferenceError，右侧网格
+        // 整体空白——只有 meta 带封面时才会走到该代码路径）
+        return { ok: true, json: async () => ({ ok: true, meta: { notes: {}, covers: {
+            "a.json": { kind: "output", filename: "i_0001_.png", subfolder: "", type: "output" },
+        }, folderColors: {} } }) };
     }
     if (String(url).includes("/api/userdata/")) {
         return { ok: true, text: async () => "{}" };

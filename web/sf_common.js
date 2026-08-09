@@ -177,10 +177,14 @@ export function getUpstreamImageURL(node, cachedUrl) {
 // 同一 paste 事件自动创建的 LoadImage（"pasted/" 文件名）。
 // 参数化：comfyClass 匹配活动节点；onPasteImage(node, dataURL) 执行上传；
 // allowPaste(node) 返回 false 时跳过（如 inpaint 编辑器打开时）。
-let _pasteHandlerInstalled = false;
+// 单例键是 comfyClass:hook 而非全局一次：SFImageCrop 与 SFInpaintCrop 等
+// 多个类各自要一个监听器（去重为单一布尔曾让后注册的类粘贴静默失效——
+// 同节点类多实例的重复安装仍幂等）。
+const _pasteHandlerKeys = new Set();
 export function installPasteHandler({ comfyClass, hook, onPasteImage, allowPaste }) {
-  if (_pasteHandlerInstalled) return;
-  _pasteHandlerInstalled = true;
+  const key = `${comfyClass}:${hook || ""}`;
+  if (_pasteHandlerKeys.has(key)) return;
+  _pasteHandlerKeys.add(key);
   window.addEventListener("paste", async (e) => {
     // Don't steal paste from form fields (panel inputs, editor inputs, etc.)
     const t = e.target;
