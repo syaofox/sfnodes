@@ -203,7 +203,9 @@ function refreshDropdown(node) {
   const ddName = root.querySelector('[data-role="dropdown"] .name');
   const counter = root.querySelector('[data-role="counter"]');
   const value = w?.value || "";
-  if (ddName) ddName.textContent = value ? value : "— 未选择图片 —";
+  // 显示剥离 [output] 注解（"sub/out.png [output]" 只显示路径）
+  const display = value ? splitTypeAnnotation(value).name : "";
+  if (ddName) ddName.textContent = display ? display : "— 未选择图片 —";
   // Counter "3 / 247" tells the user where they are when arrow-stepping.
   // Hidden when no images are uploaded yet.
   if (counter) {
@@ -222,6 +224,99 @@ function refreshDropdown(node) {
   const disabled = values.length < 2;
   if (prev) prev.classList.toggle("disabled", disabled);
   if (next) next.classList.toggle("disabled", disabled);
+}
+
+// ── 目录切换（input/ ↔ output/，同 SFPromptReader 惯例）────────────────────
+
+// 当前读取目录：state.folder === "output" → output/，否则 input/。
+// （字段名避开 graphToPrompt 注入的其它状态；后端 _parse_state 白名单过滤，
+// folder 不会进入 prompt。）
+export function currentSource(node) {
+  return readState(node).folder === "output" ? "output" : "input";
+}
+
+function updateSourceButton(node, type) {
+  const root = node._sfLiRoot;
+  if (!root) return;
+  const btn = root.querySelector('[data-role="source"]');
+  if (!btn) return;
+  const isOut = type === "output";
+  btn.textContent = isOut ? "OUT" : "IN";
+  btn.title = isOut
+    ? "当前读取 output/ · 点击切换到 input/"
+    : "当前读取 input/ · 点击切换到 output/";
+  btn.classList.toggle("sf-li-srcbtn-active", isOut);
+}
+
+// 拉取目录文件列表：复用 Load Image Browser 的 /api/sfnodes/images/list
+// （image-only，SF Load Image Resize 只处理图片），响应为 [{path, ...}]，
+// 映射成相对路径列表。失败返回 null。
+async function fetchImageList(type) {
+  let url;
+  try {
+    url = typeof api?.apiURL === "function"
+      ? api.apiURL(`/api/sfnodes/images/list?type=${encodeURIComponent(type)}`)
+      : null;
+  } catch { url = null; }
+  if (!url) url = `/api/sfnodes/images/list?type=${encodeURIComponent(type)}`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    if (!Array.isArray(json)) return null;
+    const paths = json.map((x) => (x && typeof x.path === "string" ? x.path : "")).filter(Boolean);
+    return paths;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 列表 → combo options 值：output 项拼 [output] 注解（get_annotated_filepath
+// 原生解析，后端 LoadImage 从 output/ 读取）。
+function buildSourceValues(list, type) {
+  return (list || []).map((f) => (type === "output" ? f + " [output]" : f));
+}
+
+// 切换目录：拉列表 → 替换 options → 持久化 folder → 选中 selectFile（若在新
+// 列表中）否则第一项；列表为空则清空值。setSelectedImage 走完整 pick 链路
+// （缓存/预览刷新/通知 graph changed）。
+export async function switchSource(node, target, selectFile = null) {
+  const w = node._sfLiImageWidget;
+  if (!w) return;
+  const list = await fetchImageList(target);
+  if (list == null) {
+    alert("无法加载文件列表");
+    return;
+  }
+  const values = buildSourceValues(list, target);
+  if (!w.options) w.options = {};
+  w.options.values = values;
+  writeState(node, { ...readState(node), folder: target });
+  updateSourceButton(node, target);
+  let picked = null;
+  if (selectFile && values.includes(selectFile)) {
+    picked = selectFile;
+  } else if (values.length) {
+    picked = values[0];
+  }
+  if (picked) {
+    node._sfLiFitPending = true;
+    setSelectedImage(node, picked);
+  } else {
+    w.value = "";
+    node._sfLiSelectedFilename = "";
+    node._sfLiOrigName = "";
+    node.graph?.setDirtyCanvas?.(true, true);
+    refreshDropdown(node);
+  }
+}
+
+// 上传/粘贴/拖拽落盘的文件在 input/：若当前是 output 模式，切回 input 并
+// 选中新文件。返回 true 表示已切回（调用方不再重复刷新）。
+export async function ensureSourceIsInput(node, saved) {
+  if (currentSource(node) !== "output") return false;
+  await switchSource(node, "input", saved);
+  return true;
 }
 
 // Step the selected image by `offset` (+1 or -1), wrapping at the ends.
@@ -624,7 +719,10 @@ window.addEventListener("keydown", async (e) => {
   try {
     _activeLoadImageNode._sfLiFitPending = true;
     const saved = await pasteFromClipboard(_activeLoadImageNode);
-    if (saved) refreshDropdown(_activeLoadImageNode);
+    // 粘贴落盘在 input/：output 模式下自动切回 input 并选中新文件
+    if (saved && !(await ensureSourceIsInput(_activeLoadImageNode, saved))) {
+      refreshDropdown(_activeLoadImageNode);
+    }
   } catch (err) {
     console.error("[SFLoadImageResize] paste failed", err);
     alert("Paste failed: " + err.message);
@@ -651,6 +749,7 @@ const HIDDEN_INPUT_NAME = "SFLoadImageResizeState";
 
 export const DEFAULT_STATE = {
   version: 1,
+  folder: "input",
   mode: "off",
   max_mp: 1.0,
   longest_side: 1024,
@@ -997,11 +1096,17 @@ function setupLoadImageNode(node) {
         // the original even after a Mask Editor / clipspace swap (issue #51).
         if (!/clipspace/i.test(imageWidget.value)) node._sfLiOrigName = imageWidget.value;
       }
-      // Native drag-drop onto the bottom preview is a user pick → re-fit. Gated
-      // so it never fires during a workflow load (Vue Compat #18).
-      if (!isGraphLoading()) node._sfLiFitPending = true;
-      refreshAfterImageReady();
-      refreshDropdown(node);
+      const v = imageWidget.value;
+      if (v && currentSource(node) === "output" && !v.includes("[output]")) {
+        // 原生 drop 落盘的是 input 文件（无注解值）：切回 input 并选中它
+        switchSource(node, "input", v);
+      } else {
+        // Native drag-drop onto the bottom preview is a user pick → re-fit. Gated
+        // so it never fires during a workflow load (Vue Compat #18).
+        if (!isGraphLoading()) node._sfLiFitPending = true;
+        refreshAfterImageReady();
+        refreshDropdown(node);
+      }
       return ret;
     };
     // Seed the cache from whatever value the widget has at setup time
@@ -1060,7 +1165,11 @@ function setupLoadImageNode(node) {
     e.stopPropagation();
     try {
       const saved = await pickAndUploadFile(node);
-      if (saved) { node._sfLiFitPending = true; refreshDropdown(node); }
+      // 上传落盘在 input/：output 模式下自动切回 input 并选中新文件
+      if (saved && !(await ensureSourceIsInput(node, saved))) {
+        node._sfLiFitPending = true;
+        refreshDropdown(node);
+      }
     } catch (err) {
       console.error("[SFLoadImageResize] upload failed", err);
       alert("Upload failed: " + err.message);
@@ -1088,12 +1197,22 @@ function setupLoadImageNode(node) {
     if (!file || !file.type.startsWith("image/")) return;
     try {
       node._sfLiFitPending = true;
-      await uploadImageToInput(node, file);
-      refreshDropdown(node);
+      const saved = await uploadImageToInput(node, file);
+      // 上传落盘在 input/：output 模式下自动切回 input 并选中新文件
+      if (!(await ensureSourceIsInput(node, saved))) {
+        refreshDropdown(node);
+      }
     } catch (err) {
       console.error("[SFLoadImageResize] drop upload failed", err);
       alert("Upload failed: " + err.message);
     }
+  });
+
+  // Source toggle: switch the file list between input/ and output/.
+  root.querySelector('[data-role="source"]')?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const target = currentSource(node) === "output" ? "input" : "output";
+    switchSource(node, target);
   });
 
   // Custom dropdown click → popup.
@@ -1126,7 +1245,16 @@ function setupLoadImageNode(node) {
   node._sfLiOnFilenameChanged = () => refreshDropdown(node);
 
   // Initial dropdown sync (defer so the native combo's `value` is restored).
-  queueMicrotask(() => refreshDropdown(node));
+  queueMicrotask(() => {
+    refreshDropdown(node);
+    updateSourceButton(node, currentSource(node));
+    // 恢复 output 目录：值带 [output] 注解或保存的 folder=output → 拉列表
+    const w = node._sfLiImageWidget;
+    const wval = w?.value || "";
+    if ((currentSource(node) === "output" || /\[output\]\s*$/i.test(wval)) && w) {
+      switchSource(node, "output", wval || null);
+    }
+  });
 
   // Chip click → update state + re-render.
   root.addEventListener("click", (e) => {
@@ -1264,6 +1392,7 @@ app.registerExtension({
       // Wait a microtask so widget values are settled.
       queueMicrotask(() => {
         refreshDropdown(this);
+        updateSourceButton(this, currentSource(this));
         // Refresh the defensive cache from the restored widget.value.
         // Saved workflows should also benefit from the cache - it prevents
         // any later Vue tab-switch / configure replay from drifting the
@@ -1272,6 +1401,11 @@ app.registerExtension({
         if (w?.value) {
           this._sfLiSelectedFilename = w.value;
           if (!/clipspace/i.test(w.value)) this._sfLiOrigName = w.value;
+        }
+        // 恢复 output 目录：值带 [output] 注解或保存的 folder=output → 拉列表
+        const wval = w?.value || "";
+        if ((currentSource(this) === "output" || /\[output\]\s*$/i.test(wval)) && w) {
+          switchSource(this, "output", wval || null);
         }
       });
       // Refresh info bar after a short delay so the image (set async by

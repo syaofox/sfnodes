@@ -211,6 +211,62 @@ function stageJs(names) {
     const stateStr = node.properties.sfLoadImageResizeState;
     check("DEFAULT_STATE pad_color 对齐 Python", JSON.parse(stateStr).mode === "max_mp");
 
+    // ── 4. 目录切换（IN/OUT 按钮逻辑：switchSource / ensureSourceIsInput）──
+    globalThis.Image = class { set src(v) { this._src = v; } };  // updateNativePreview 用
+    let listCalls = [];
+    globalThis.fetch = async (url) => {
+        const u = String(url);
+        if (u.includes("/api/sfnodes/images/list")) {
+            const type = new URL(u, "http://localhost").searchParams.get("type");
+            listCalls.push(type);
+            return { ok: true, json: async () => (type === "output"
+                ? [{ path: "out1.png" }, { path: "sub/out2.png" }]
+                : [{ path: "cat.png" }, { path: "new.png" }]) };
+        }
+        throw new Error("unexpected fetch: " + u);
+    };
+    const liMod = await import(path.join(tmpDir, "sf_load_image.mjs"));
+    const liNode = {
+        _sfLiImageWidget: { value: "", options: { values: [] } },
+        _sfLiRoot: makeEl(),
+        _sfLiSelectedFilename: "", _sfLiOrigName: "", _sfLiFitPending: false,
+        _sfLiOnFilenameChanged: () => {},
+        graph: { setDirtyCanvas() {} },
+        properties: {},
+    };
+    check("默认目录 input", liMod.currentSource(liNode) === "input");
+
+    await liMod.switchSource(liNode, "output");
+    check("切到 output: 拉取列表", listCalls.at(-1) === "output");
+    const ov = liNode._sfLiImageWidget.options.values;
+    check("切到 output: options 带 [output] 注解", ov.length === 2
+        && ov[0] === "out1.png [output]" && ov[1] === "sub/out2.png [output]");
+    check("切到 output: 选中第一项", liNode._sfLiImageWidget.value === "out1.png [output]");
+    check("切到 output: 缓存同步", liNode._sfLiSelectedFilename === "out1.png [output]");
+    check("切到 output: folder 持久化", JSON.parse(liNode.properties.sfLoadImageResizeState).folder === "output");
+    check("当前目录 output", liMod.currentSource(liNode) === "output");
+
+    // output 模式下上传 → 自动切回 input 并选中新文件
+    const switched = await liMod.ensureSourceIsInput(liNode, "new.png");
+    check("output 模式上传: 已切回", switched === true);
+    check("output 模式上传: folder=input", JSON.parse(liNode.properties.sfLoadImageResizeState).folder === "input");
+    check("output 模式上传: 选中新文件", liNode._sfLiImageWidget.value === "new.png");
+    check("output 模式上传: 列表为 input", liNode._sfLiImageWidget.options.values.includes("cat.png"));
+
+    // input 模式下上传：不切回（返回 false）
+    const switched2 = await liMod.ensureSourceIsInput(liNode, "cat.png");
+    check("input 模式上传: 不切回", switched2 === false);
+
+    // 空目录：清空选中
+    globalThis.fetch = async (url) => {
+        if (String(url).includes("/api/sfnodes/images/list")) {
+            return { ok: true, json: async () => [] };
+        }
+        throw new Error("unexpected fetch: " + url);
+    };
+    await liMod.switchSource(liNode, "output");
+    check("空目录: 清空值", liNode._sfLiImageWidget.value === "" && liNode._sfLiSelectedFilename === "");
+
     console.log();
     if (failures.length) {
         console.log(failures.length + " FAILURES:", failures);

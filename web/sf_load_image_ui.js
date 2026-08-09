@@ -5,7 +5,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { updateNativePreview, setSelectedImage, splitFilenameSubfolder } from "./sf_load_image_api.js";
+import { updateNativePreview, setSelectedImage, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
 
 // 图标内联 data URI（本项目无资产服务路由，惯例见 sf_workflows_ui.js）
 const ICON_UPLOAD = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M58.115,1.482H5.885C3.239,1.482,1.094,3.627,1.094,6.273v51.453c0,2.646,2.145,4.791,4.791,4.791h52.23c2.646,0,4.791-2.145,4.791-4.791V6.273c0-2.646-2.145-4.791-4.791-4.791ZM49.641,28.696h-11.702v24.054c0,1.147-.93,2.077-2.077,2.077h-7.726c-1.147,0-2.077-.93-2.077-2.077v-24.054h-11.702c-2.409,0-3.487-3.024-1.62-4.547l17.641-14.398c.472-.384,1.046-.577,1.62-.577s1.149.193,1.62.577l17.641,14.398c1.867,1.523.789,4.547-1.62,4.547Z"/></svg>');
@@ -102,6 +102,26 @@ export function injectCSS() {
       align-items: stretch;
     }
     .sf-li-filerow .sf-li-dropdown { flex: 1; min-width: 0; }
+    /* IN/OUT 目录切换按钮（同 SFPromptReader 惯例）。 */
+    .sf-li-srcbtn {
+      background: #1d1d1d;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #aaa;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      flex-shrink: 0;
+      transition: background 0.08s, border-color 0.08s, color 0.08s;
+    }
+    .sf-li-srcbtn:hover { border-color: #f66744; color: #f66744; }
+    .sf-li-srcbtn-active { background: #f66744; border-color: #f66744; color: #fff; }
+    .sf-li-srcbtn-active:hover { color: #fff; }
     /* File nav arrows match the resample picker exactly (orange, 30px, solid). */
     .sf-li-nav {
       background: #1d1d1d;
@@ -665,13 +685,21 @@ export function buildRoot() {
   hint.innerHTML = `或拖放文件到此处 · <kbd>Ctrl+V</kbd> 粘贴`;
   root.appendChild(hint);
 
-  // File row: [◀ prev] [ filename dropdown ] [▶ next]. Arrow buttons cycle
-  // through input/ images so users can flip through them visually, matching
-  // native ComfyUI LoadImage. Both the prev/next arrows and PageUp/PageDown
-  // (wired in index.js) route through setSelectedImage so the bottom preview
-  // updates immediately.
+  // File row: [IN/OUT] [◀ prev] [ filename dropdown ] [▶ next]. Arrow buttons
+  // cycle through input/ images so users can flip through them visually,
+  // matching native ComfyUI LoadImage. Both the prev/next arrows and
+  // PageUp/PageDown (wired in index.js) route through setSelectedImage so the
+  // bottom preview updates immediately. The IN/OUT toggle switches the file
+  // list between input/ and output/ (mirrors Load Image Browser).
   const fileRow = document.createElement("div");
   fileRow.className = "sf-li-filerow";
+
+  const srcBtn = document.createElement("button");
+  srcBtn.type = "button";
+  srcBtn.className = "sf-li-srcbtn";
+  srcBtn.dataset.role = "source";
+  srcBtn.title = "当前读取 input/ · 点击切换到 output/";
+  srcBtn.textContent = "IN";
 
   const prev = document.createElement("button");
   prev.type = "button";
@@ -692,7 +720,7 @@ export function buildRoot() {
   next.title = "下一张图片 (PageDown)";
   next.textContent = "▶";
 
-  fileRow.append(prev, dd, next);
+  fileRow.append(srcBtn, prev, dd, next);
   root.appendChild(fileRow);
 
   // The input/output size readout is no longer a DOM bar here — it is painted
@@ -746,7 +774,9 @@ export function hideNativeImageCombo(node) {
 function groupValuesByFolder(values) {
   const map = new Map();
   for (const v of values) {
-    const { subfolder, filename } = splitFilenameSubfolder(v);
+    // Peel the [output] annotation before splitting so it never lands in the
+    // subfolder / filename (mirrors SFPromptReader).
+    const { subfolder, filename } = splitFilenameSubfolder(splitTypeAnnotation(v).name);
     if (!map.has(subfolder)) map.set(subfolder, []);
     map.get(subfolder).push({ full: v, name: filename });
   }
@@ -760,12 +790,14 @@ function groupValuesByFolder(values) {
   return folders.map((folder) => ({ folder, files: map.get(folder) }));
 }
 
-// Build a same-origin /view URL for a combo value like "3d/cat.png".
-// Relative path → works on whatever host/port ComfyUI runs on. No cache-buster
-// so the browser caches thumbnails across re-opens.
+// Build a same-origin /view URL for a combo value like "3d/cat.png" or
+// "sub/out.png [output]". Relative path → works on whatever host/port ComfyUI
+// runs on. No cache-buster so the browser caches thumbnails across re-opens.
+// The [output] annotation selects the /view `type` (input/output/temp).
 function thumbURL(full) {
-  const { subfolder, filename } = splitFilenameSubfolder(full);
-  return pixApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=input&subfolder=${encodeURIComponent(subfolder)}`);
+  const { name, type } = splitTypeAnnotation(full);
+  const { subfolder, filename } = splitFilenameSubfolder(name);
+  return pixApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}`);
 }
 
 // Read/write the persisted thumbnail size ("Small" | "Large"). Falls back to
