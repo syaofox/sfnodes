@@ -238,6 +238,7 @@ class SFMyNode:
 - 弹出列表（document.body，position:fixed 不继承画布 transform）：根 font-size 按 canvas scale 缩放（内尺寸全 em 联动）、锚点宽是最小值（内容可增长，先算 maxW 再钳 minW）、left 在宽度已知后钳、下方不足向上翻转；外部点击/Esc/滚轮三关闭（wheel 只豁免列表本身，因为坐标写一次、画布移动即搁浅）。
 - **isGraphLoading**：包装 `app.loadGraphData` + 300ms 尾窗（连接恢复在 onConfigure 之后）——切换类型断线（dropIncompatibleLinks）与加载路径剪线防护；`slotAccepts` 兼容 `"FLOAT,INT,BOOLEAN"` 多类型槽（相等测试会剪掉用户刚画的线）。
 - 写路径 vs 读路径对非对象行处理不同：`writeState` map 归一（null 行变空行），`readState` filter 丢弃——移植时别混。
+- **分类（version 2，随 SFTextDropdown 移除加入，详见 experience.md §15.9）**：`categories`/`category`/行 `category` 随工作流保存，旧 v1 数据自动归 default；index/游标基于 `visibleOptions` 过滤列表——切分类必须 `writeState({category, index:0})` 清游标；lean 注入不变（分类是组织状态不进缓存键）；面板 `commit()` 必须重渲染分类区（Import 会漏）；节点面 cat 按钮文本包 span 才有 ellipsis（flex 容器直接文本只硬截断）+ `flex:0 1 auto` 可收缩防行宽溢出，行尾 padding 16px 给输出点让位（点 X：Classic `size[0]-10` 贴边，Vue 越界最小内移 2px）。
 
 **前端：SF Workflows 工作流面板（`web/sf_workflows*.js`、`nodes/workflow_routes.py`、`sf_utils/workflow_index_helpers.py`）**
 - **无节点设计**：面板是"应用"不是节点——节点会被存进工作流文件，分享工作流会把多余节点带给每个打开的人。打开方式：工具栏按钮 + 热键 + canvas 右键菜单。

@@ -673,6 +673,7 @@ export function openDropdownPanel(node, onChange) {
         writeState(node, patch);
         renderTypes();
         renderModes();
+        renderCatBtn();   // Import/Clear 会改 categories/category，分类区必须跟随
         renderList();
         fire();
     }

@@ -760,6 +760,18 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_dropdown.js`：主扩展（beforeRegisterNodeDef 全钩子 + serialize 剥 pos + getExtraMenuOptions + graphToPrompt 注入含子图复合 id 递归索引 + api.queuePrompt commitPick，防重标志 `app._sfDropdownQueuePatched`）。
 - 数据契约：hidden `DropdownState`（lean 注入 / full 兜底）；`node.properties.dropdownState`（随工作流保存）；游标 `_sfDropdownPending`/`_sfDropdownCursor`（节点内存，不序列化）。
 
+### 9. 分类支持（version 2，随 SFTextDropdown 移除加入）
+
+> 背景：SFTextDropdown（分类 + 别名 + 全局 API 轮询配置）被移除前，把分类能力并入 SFValueDropdown，一次迁移 85 条 6 分类数据。状态模型升 version 2，旧工作流无缝归一化。
+
+- **数据模型**：`{version:2, categories:[...], category:"default", options:[{name,value,category?}]}`。行 category 缺省 "default"；`categories` 权威有序（去空去重、default 恒在首位），**行里出现列表外的分类（手改文件）补进去而非丢数据**；`category` 不在列表 → 回退 categories[0]。旧 v1 状态 readState 自动归一（全归 default，行为不变）。
+- **index 语义收紧**：index 与游标永远是"当前分类过滤后"（`visibleOptions`）列表内的索引——**切分类必须 `writeState({category, index:0})` + 清 pending/cursor**（旧索引属于另一分类的行）。Python `parse_state` 镜像过滤（full 兜底按 category 过滤后取 index）。
+- **lean 注入不变**：`{version,type,value}` 仍是缓存键——切分类/改分类名/重排分类不重跑图（选中值变了才重跑）。分类是"组织/显示"状态，不是结果。
+- **行归属 = 添加时的面板当前分类**，行级不改分类；新建/重命名/删除只在设置面板（节点面按钮只管切换）；删除分类选项并入 default，default 不可删（TextDropdown 同规则）。
+- **Import 兼容三类**：新格式（categories + 行 category）/ 旧格式 / 任意 `{options}`——categories 缺省从行 category 收集，default 保证存在；Export 带全部分类。**面板 `commit()` 必须重渲染分类区（renderCatBtn）**——Import/Clear 只走 commit，漏了分类按钮显示旧分类。
+- **节点面分类按钮（两个 UI 坑）**：① 按钮是 flex 容器时 `text-overflow: ellipsis` 对直接文本**不生效**（匿名 flex item 只硬截断）→ 文本必须包 span；② 行内固定宽度（flex:none 项合计）超过窄节点宽会把行尾类型词/输出点挤出节点右缘（Vue 默认节点宽约 200px，行固定宽曾 222px 越界）→ cat 按钮 `flex:0 1 auto; min-width:24px; max-width:84px` 可收缩 + 行尾 `padding-right:16px` 给输出点让位。**输出点 X 的三次修正轨迹**：size[0]（右半越界）→ size[0]-12（Classic 压上类型词，行有 margin+padding 内缩）→ size[0]-10 贴边；Vue 点列越界时 translateX 最小内移 2px——点列紧贴类型词，留 10px 大边距 = 直接重叠。
+- prompt_reader 的 `_pix_dropdown_extract` 只读 lean 形状（注入值），不受分类影响；其 full 兜底分支不感知分类（手写 API 文件极端场景，记录为已知限制）。
+
 ## 16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）
 
 > 背景：复刻 PixaromaPromptReader（2026-08）。核心能力：读图片/视频元数据里的正向提示词（ComfyUI workflow JSON 或 A1111 parameters），graph walker 从 sampler 反推文本链。踩坑集中在**视频元数据的真实二进制格式**（文档与实测不符）与**目录切换状态字段撞名**。
