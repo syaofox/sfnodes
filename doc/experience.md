@@ -22,6 +22,7 @@
 - [15. SFValueDropdown：值下拉与输出点对齐（复刻 Pixaroma Dropdown）](#15-sfvaluedropdown值下拉与输出点对齐复刻-pixaroma-dropdown)
 - [16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）](#16-sfpromptreaderpng视频元数据提示词恢复复刻-pixaroma-prompt-reader)
 - [17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑](#17-复刻节点去重sf_commonjs--disk_statepy-公共模块收敛与踩坑)
+- [18. SFLoadImagesPath 目录切换：三源 + 渐进式浏览 + popup 下拉](#18-sfloadimagespath-目录切换三源--渐进式浏览--popup-下拉)
 
 ---
 
@@ -833,3 +834,38 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 - `createCanvasToolbar` 有独立 **Clear**（清空画布）与 **Reset to Default**（重置为默认）按钮；本项目隐藏 Clear（`showClear: false`），但 onReset 误把 `this.img = null`（把 Reset 当 Clear 用）→ 点击 Reset 清空已加载图片。
 - 修复：onReset 委托 `_resetCrop()`（保留源图、重置为全图裁切、free 对齐、输出尺寸跟随图片）。复刻时注意按钮语义与源实现一一对应，隐藏了 Clear 不等于 Clear 的行为并进 Reset。
+
+---
+
+## 18. SFLoadImagesPath 目录切换：三源 + 渐进式浏览 + popup 下拉
+
+> 背景：SFLoadImagesPath（批量加载图片）原为单 combo（folder 列表含 input/output/images 前缀 + 一级子目录）。2026-08 改造为 Pixaroma 风格：源切换三档（input/output/images）+ 渐进式目录浏览（面包屑 + 按需加载）+ 直接输入路径模式 + SFLoadImageResize 风格 popup 下拉。
+
+### 1. 设计决策
+
+- **folder combo 值 = 唯一事实来源**：隐藏原生 combo（值随 workflow 保存 + graphToPrompt 自动收集），前端 DOM UI 读写其 value；组合校验由 `VALIDATE_INPUTS` 接管（动态值）。
+- **显式模式状态**：`node.properties.sfLoadImagesPathMode`（"dir"/"path"）。**不能用值推导**——路径模式下值可能仍是目录格式（如 "input/faces"），切到路径模式后值不变会被误判回目录模式。properties 随 workflow 保存、不注入 prompt（无缓存影响）。
+- **选中 = 当前位置**：folder 值恒等于面包屑路径（`source/path/...`）；下拉/步进/面包屑回退都是改值，无"停在父层选中"概念。
+- **同级切换不改变层级深度**：◀▶ 定位父层 → fetch 父层子目录 → 替换面包屑末段；根层（无父层）按钮禁用。与"下拉选择 = 进入子层"（追加段）语义分离（`switchSibling` vs `enterSubdir`）。
+
+### 2. 渐进式按需加载
+
+- 后端 `GET /api/sfnodes/images_path/subdirs?folder=`：**复用 `_resolve_folder` 解析**（前缀/绝对路径/包含性安全校验一套逻辑），只列当前层一级子目录（隐藏目录过滤在 `_list_one_level_subdirs` 统一）。
+- 前端同值缓存（`_lastFetched`）：重复渲染/恢复不重复请求；刷新按钮/打开 popup 时 `force=true`。竞态用 reqId 单调（快速切换丢弃旧响应）。
+- 渲染只读**不加 isGraphLoading 门控**：门控会在 300ms 尾窗内跳过恢复渲染，尾窗后无触发 → DOM 停在初始状态与保存值不同步（渲染不写序列化状态，门控多余且有害）。
+
+### 3. popup 下拉骨架（SFLoadImageResize 风格，选目录版）
+
+- 触发按钮 `[◀] [ 📁 当前目录名 2目录 ▼ ] [▶]`：name 显示当前目录（末段/源根）、counter 显示子目录数——**仿 SFLoadImageResize 的 name+counter 结构，两个渲染函数写不同元素**（曾把 name 同时写"目录名"与"X 个子目录"导致互相覆盖）。
+- popup：锚点 getBoundingClientRect 下方 fixed 定位、宽度 max(锚点宽, 240)、头部显示完整路径、列表项点击即进入并关闭；空目录显示"（无子目录）"。
+- 关闭机制（同 SFLoadImageResize）：外部 mousedown/pointerdown/wheel（capture）+ Escape；`_openPopup` 引用 + `removeEventListener` 全摘（`_sfClose` 式清理，防泄漏）。
+- **不用 innerHTML 建子元素**：mock DOM（tests）不解析 innerHTML 字符串，显式 `createElement`/`append` 真实 DOM 与 mock 一致（曾因 `trigger.innerHTML = '<span class="name">…'` 在 mock 下拿不到子元素）。
+
+### 4. 空目录语义
+
+- 空目录/目录不存在不再抛 `FileNotFoundError`：返回 `torch.ones((1,64,64,3))` 占位图 + 全 0 mask + `frame_count=0` + 空文件名列表。占位图保证下游（反推等）拿到可处理张量；count=0 + 空列表明确"没有内容"。`VALIDATE_INPUTS` 保留面板提示（配置期提示，运行宽容）。
+
+### 5. 测试要点
+
+- smoke 测试的 **async 步进需 await**：`() => stepSubdir(prev)` 箭头函数返回 promise，`await _handlers.click()` 才能拿到完成后的值。
+- mock 增强：`document.addEventListener` 记录（Esc 关闭断言）、`body.appendChild` 记录（拿 popup 元素）、`innerHTML` setter 清空 children（模拟真实 DOM 重建）。
