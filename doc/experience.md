@@ -902,6 +902,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `promptState` 只注入执行字段（name/on/sm/sc/triggers + sep + cacheMode）：cosmetic（accent/thumbs/step/defStrength/linkStrength/id/custom）剥掉避免改缓存签名；**cacheMode 例外**——Python 需要它决定 run 间内存策略（切换会重跑一次，可接受）。
 - `parse_state` 容错契约：sc 缺省 = sm；强度钳 [-100,100]；nan/inf → 0；空名/非 dict 行丢弃；cacheMode 未知钳 last。前端 normalize 强制 `linkStrength` 时 sc=sm（写/读双端都强制，切回单强度永不留陈旧 clip 值）。
 - 存储形状升级兼容：`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一（`_norm_store_entry`）；词空但描述在 → 条目保留（原语义"空词删条目"需改）。
+- **cacheMode 内存管理（last/all/none）**：`last_this_run`（本次 run 最近加载）与 `self._last_path`（跨 run 保留条目）**必须分离**——本 run 第一行应用时就逐出保留条目会让 last 对任何 2+ 行栈表现得像 none（暖文件在被复用前一刻被丢掉）；last 模式保留条件 = 本次加载过（否则跨 run 条目仅在仍属栈时存活，清空栈真的释放）。
 
 ### 5. 竞态：迟到旧响应覆盖用户刚保存的值
 
@@ -915,4 +916,4 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - View on Civitai 链接按账户 host 偏好生成域（red → civitai.red，成人模型在 com 网页可能受限）；`/lora_info` 附 `civitai_host`。
 - `_is_path_under` 用 realpath 双端严格检查 + 跨盘（junction）lexical 回退（原版 `_path_guard` 语义）；纯 abspath 会让同盘 symlink 逃逸误判通过。
 - `hideJsonWidget` 四件套（hidden + computeSize=[0,-4] + canvasOnly + element display:none）：Vue 下隐藏 STRING widget 会渲染成显示原始 JSON 的 textarea。
-- 测试：纯逻辑模块（lora_reader）无 ComfyUI 依赖直跑（tests/test_lora_reader.py 130+ 断言含 symlink 逃逸拒绝）；web import/export 交叉验证 tests/check_web_imports.py。
+- 测试：纯逻辑模块（lora_reader）无 ComfyUI 依赖直跑（tests/test_lora_reader.py 百余断言，含 symlink 逃逸拒绝）；web import/export 交叉验证 tests/check_web_imports.py。
