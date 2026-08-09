@@ -160,13 +160,29 @@ app.registerExtension({
                     // 是 (newValue, oldValue)——必须用传入的 value，此刻读
                     // getSettingValue 会拿到旧值（"设了 red 显示 teal"）。
                     applySfAccentVar(value);
-                    repaintAll();
+                    // repaintAll 必须推迟到 store 更新后（applySettingLocally
+                    // 在 onChange 返回后才写 e.value）：同步执行时 accentOf
+                    // 读到的还是旧值，SFLoraStack 颜色不立即生效。
+                    setTimeout(repaintAll, 0);
                 },
             });
             // 初始应用必须在 addSetting 之后：设置项未注册时 getSettingValue
             // 拿不到用户保存的值（返回默认 #f66744）——先 apply 会把 --sf-acc
             // 钉死在橙色，且注册后不再刷新（"Crop 品牌文字还是橙色"）。
             applySfAccentVar();
+            // 设置值从服务器加载是异步的（comfy.settings.json 拉取可能晚于
+            // 扩展 init）——轮询重试直到加载完成，否则 --sf-acc 会被钉死在
+            // 默认色、CSS 变量类节点（Load Image Resize 等）不跟随（"硬刷新
+            // 后其他节点恢复橙色"）。幂等且廉价；用户改设置由 onChange 处理。
+            let tries = 12;
+            const retryApply = () => {
+                if (tries-- <= 0) return;
+                setTimeout(() => {
+                    applySfAccentVar();
+                    retryApply();
+                }, 500);
+            };
+            retryApply();
         } catch (_e) { /* 设置系统不可用则退化为仅节点级 accent */ }
     },
 
