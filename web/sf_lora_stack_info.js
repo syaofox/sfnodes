@@ -5,6 +5,7 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
+import { renderMarkdown } from "./sf_markdown.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
@@ -20,7 +21,7 @@ function injectCSS() {
     const s = document.createElement("style");
     s.id = "sf-ls-info-css";
     s.textContent = `
-    .sf-ls-info-p { position:fixed; z-index:10025; width:340px; max-width:94vw; background:#2b2b2b;
+    .sf-ls-info-p { position:fixed; z-index:10025; width:420px; max-width:94vw; background:#2b2b2b;
       border:1px solid ${BRAND}; border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd; }
     .sf-ls-info-top { display:flex; gap:11px; padding:12px; border-bottom:1px solid #1c1c1c; cursor:grab; }
@@ -57,8 +58,8 @@ function injectCSS() {
     .sf-ls-desc h4 .qa { margin-left:8px; font:9.5px 'Segoe UI'; text-transform:none; letter-spacing:0;
       color:#9a9a9a; cursor:pointer; }
     .sf-ls-desc h4 .qa:hover { color:${BRAND}; }
-    .sf-ls-desc-body { font-size:11px; color:#d0d0d0; line-height:1.6; white-space:pre-wrap;
-      word-break:break-word; max-height:110px; overflow-y:auto; padding-right:2px; }
+    .sf-ls-desc-body { font-size:11px; color:#d0d0d0; line-height:1.6; white-space:normal;
+      word-break:break-word; max-height:180px; overflow-y:auto; padding-right:2px; }
     .sf-ls-desc-none { color:#777; font-size:11px; }
     .sf-ls-desc textarea { width:100%; box-sizing:border-box; background:#161616;
       border:1px solid rgba(255,255,255,0.14); border-radius:6px; color:#fff;
@@ -71,6 +72,19 @@ function injectCSS() {
     .sf-ls-desc-actions button:hover { border-color:${BRAND}; color:#fff; }
     .sf-ls-desc-actions .rm { color:#c9736a; }
     .sf-ls-desc-actions .rm:hover { border-color:#e0604a; color:#fff; }
+    /* 编辑态：上传示例图 + 图库网格（点击插入 markdown 引用） */
+    .sf-ls-desc-upload { display:flex; align-items:center; gap:7px; margin-top:7px; flex-wrap:wrap; }
+    .sf-ls-desc-upload button { background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.18); color:#ccc; border-radius:6px; padding:4px 10px;
+      font:11px 'Segoe UI'; cursor:pointer; }
+    .sf-ls-desc-upload button:hover { border-color:${BRAND}; color:#fff; }
+    .sf-ls-desc-upload .hint { font-size:10px; color:#7a7a7a; line-height:1.4; }
+    .sf-ls-desc-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px;
+      max-height:132px; overflow-y:auto; padding-right:2px; }
+    .sf-ls-desc-grid img { width:56px; height:56px; object-fit:cover; border-radius:6px;
+      border:1px solid #3a3a3e; cursor:pointer; display:block; }
+    .sf-ls-desc-grid img:hover { border-color:var(--acc,${BRAND}); }
+    .sf-ls-desc-grid .none { font-size:10px; color:#777; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:${BRAND}; display:flex; align-items:center; gap:7px; }
     .sf-ls-info-sec h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -150,6 +164,37 @@ function injectCSS() {
     .sf-ls-confirm-f .b.gh:hover { border-color:var(--acc,${BRAND}); color:#fff; }
   `;
     document.head.appendChild(s);
+}
+
+// ── Description 内嵌示例图（与 sf_lora_info.js 编辑器同款机制）─────────────
+// 图片上传到 `models/loras/<lora 目录>/sample/`（后端 /api/sfnodes/lora_samples/
+// upload 复用），描述里以相对路径 `sample/<文件名>` 引用；查看态用
+// resolveSampleUrl 把它解析回图片 URL（目录改名/移动后按当前 lora 路径解析，
+// 无需修复 markdown 文本）。插入格式与 sf_lora_info.js 一致。
+
+function buildSampleMarkdown(path) {
+    const base = String(path || "").split("/").pop() || "image";
+    const alt = base.replace(/\.[^.]+$/, "");
+    const rel = `sample/${encodeURIComponent(base)}`;
+    return `![${alt}](${rel})`;
+}
+
+function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+    textarea.setRangeText(text, start, end, "end");
+    textarea.focus();
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+}
+
+// 描述里 `sample/xxx.png` 相对路径 -> 图片 URL（基于当前 lora 的目录）。
+function resolveSampleUrl(rel, loraName) {
+    let r = rel;
+    try { r = decodeURIComponent(rel); } catch { /* 保留原样 */ }
+    const idx = loraName.lastIndexOf("/");
+    const dir = idx === -1 ? "" : loraName.slice(0, idx + 1);
+    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
 }
 
 // 面板风确认框：返回 Promise<boolean>。遮罩点击 / Esc = 取消。与信息面板
@@ -417,6 +462,56 @@ export async function openInfoPanel(node, id, refresh) {
 
     function clearDesc() {
         saveDesc("");   // 空描述 = 清除覆盖，回到 Civitai/文件原文
+    }
+
+    // ── 示例图：上传到 sample/ 目录 + 图库网格点击插入 markdown ──────────
+    async function uploadSample(file, onInsert) {
+        if (!file || !name) return;
+        if (!/^image\//.test(file.type || "")) {
+            showMsg("That is not a picture. Use a jpg, png or webp.");
+            return;
+        }
+        const fd = new FormData();
+        fd.append("image", file);
+        fd.append("filename", name);
+        try {
+            const resp = await app.api.fetchApi("/api/sfnodes/lora_samples/upload", {
+                method: "POST",
+                body: fd,
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+            if (onInsert) onInsert(data.path);
+        } catch (e) {
+            showMsg("Upload failed: " + (e.message || e));
+        }
+    }
+
+    async function refreshSampleGrid(grid, onInsert) {
+        if (!name || !grid.isConnected) return;
+        try {
+            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            grid.innerHTML = "";
+            const imgs = Array.isArray(data.images) ? data.images : [];
+            if (!imgs.length) {
+                grid.appendChild(el("span", "none",
+                    "No sample images yet - upload one to insert it into the description."));
+                return;
+            }
+            for (const p of imgs) {
+                const img = document.createElement("img");
+                img.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                img.title = p.split("/").pop();
+                img.loading = "lazy";
+                img.addEventListener("click", () => onInsert(p));
+                grid.appendChild(img);
+            }
+        } catch (e) {
+            grid.innerHTML = "";
+            grid.appendChild(el("span", "none", "Could not load sample images."));
+        }
     }
 
     // 面板打开时把这个 LoRA 的已存词带到行上。也反向迁移：行已在存储出现
@@ -929,13 +1024,52 @@ export async function openInfoPanel(node, id, refresh) {
             const ta = document.createElement("textarea");
             ta.value = _descDraft;
             ta.rows = 6;
-            ta.placeholder = "write your own description…";
+            ta.placeholder = "write your own description…\nMarkdown supported - upload a sample image and it is inserted as ![alt](sample/xxx.png)";
             ta.addEventListener("keydown", (ev) => {
                 ev.stopPropagation();
                 if (ev.key === "Escape") { ev.preventDefault(); _descEditing = false; _descDraft = ""; renderBody(); }
             });
             ta.addEventListener("input", () => { _descDraft = ta.value; });
             dsec.appendChild(ta);
+
+            // 上传示例图（存 <lora>/sample/）+ 图库网格（点击插入 markdown）
+            const insertInto = (path) => {
+                const cur = panel.querySelector(".sf-ls-desc textarea");
+                if (cur) {
+                    insertAtCursor(cur, buildSampleMarkdown(path));
+                    _descDraft = cur.value;   // 同步草稿（插入后 input 事件也会触发）
+                }
+            };
+            const upRow = el("div", "sf-ls-desc-upload");
+            const upBtn = el("button", null, "📤 Upload sample image");
+            upBtn.title = "Upload a picture next to this LoRA (sample/ folder) and insert it at the cursor";
+            upBtn.addEventListener("click", () => {
+                if (!name) { showMsg("Pick a LoRA first."); return; }
+                const inp = document.createElement("input");
+                inp.type = "file";
+                inp.accept = "image/*";
+                inp.style.display = "none";
+                document.body.appendChild(inp);
+                inp.addEventListener("change", () => {
+                    const f = inp.files && inp.files[0];
+                    inp.remove();
+                    if (f) uploadSample(f, insertInto).then(() => refreshSampleGrid(grid, insertInto));
+                });
+                // 取消对话框不发 change——窗口重获焦点时清掉孤儿 input。
+                window.addEventListener("focus", () => setTimeout(() => inp.remove(), 800), { once: true });
+                inp.click();
+            });
+            upRow.append(upBtn, el("span", "hint",
+                "Stored in this LoRA's sample/ folder; referenced as sample/xxx.png (follows the LoRA)."));
+            dsec.appendChild(upRow);
+
+            const grid = el("div", "sf-ls-desc-grid");
+            dsec.appendChild(grid);
+            // 进入编辑态自动加载 sample 图库。必须推迟到 dsec 挂上 panel 之后
+            // （refreshSampleGrid 开头有 grid.isConnected 守卫，同步调用时 dsec
+            // 尚未被 renderBody 尾部 appendChild，会静默跳过——图库永不加载）。
+            queueMicrotask(() => refreshSampleGrid(grid, insertInto));
+
             if (info.custom_description) {
                 const act = el("div", "sf-ls-desc-actions");
                 const rm = el("button", "rm", "✕ Remove my description");
@@ -947,7 +1081,11 @@ export async function openInfoPanel(node, id, refresh) {
         } else {
             const shown = shownDesc();
             if (shown) {
-                const db = el("div", "sf-ls-desc-body", shown);
+                // 查看态渲染 Markdown（sf_markdown.js：先转义后白名单结构化，
+                // 无原始 HTML 通过）；sample/ 相对路径解析为图片 URL。
+                // 编辑态仍编辑源码（textarea），保存原文。
+                const db = el("div", "sf-ls-desc-body");
+                db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name) });
                 db.title = shown;
                 dsec.appendChild(db);
             } else {
