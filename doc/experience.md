@@ -755,3 +755,48 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_dropdown_settings.js`：浮动面板（`openDropdownPanel`/`closeDropdownPanelFor`）+ 内联 isGraphLoading/dropIncompatibleLinks。
 - `web/sf_dropdown.js`：主扩展（beforeRegisterNodeDef 全钩子 + serialize 剥 pos + getExtraMenuOptions + graphToPrompt 注入含子图复合 id 递归索引 + api.queuePrompt commitPick，防重标志 `app._sfDropdownQueuePatched`）。
 - 数据契约：hidden `DropdownState`（lean 注入 / full 兜底）；`node.properties.dropdownState`（随工作流保存）；游标 `_sfDropdownPending`/`_sfDropdownCursor`（节点内存，不序列化）。
+
+## 16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）
+
+> 背景：复刻 PixaromaPromptReader（2026-08）。核心能力：读图片/视频元数据里的正向提示词（ComfyUI workflow JSON 或 A1111 parameters），graph walker 从 sampler 反推文本链。踩坑集中在**视频元数据的真实二进制格式**（文档与实测不符）与**目录切换状态字段撞名**。
+
+### 1. 三种元数据容器，全纯标准库解析
+
+- **PNG**：PIL `img.info` 读 tEXt/iTXt chunks——`prompt`（ComfyUI workflow JSON）/ `workflow` / `parameters`（A1111）。
+- **MP4/MOV/M4V**：ISO BMFF box 链 `moov→(udta→)meta→keys+ilst`。**ffmpeg 系布局（VideoHelperSuite 用 `-movflags use_metadata_tags` 写入）与 iTunes 不同：ilst 每个 item 的 4 字节是 1-based INDEX 指向 keys 列表，不是 4cc**（实测 ffmpeg 9.0：item 头 `\x00\x00\x00\x01` 对应 keys[0]=prompt）。判定：`1 <= idx <= len(keys)` 视为 index 风格，否则按 4cc（iTunes ©too 等）兼容。**注意 ffmpeg 默认不写非 4cc metadata 键**——不带 `use_metadata_tags` 时只有 `©too`，prompt 直接丢失。
+- **WebM/MKV**：EBML `Segment→Tags→Tag→SimpleTag`（TagName 0x45A3 + TagString 0x4487）。**键名按 Matroska 规范大写**（PROMPT/WORKFLOW）→ 读取归一小写。EBML ID 变长（首字节前导 1 位的位置决定 1-4 字节，0x80→1 / 0x40→2 / 0x20→3 / 0x10→4）；size vint 全 1 位 = unknown size（Segment 常见，按"延伸到容器尾"处理）。
+- **流式扫描**：MP4 逐 box 读 8 字节头、非 moov 用 seek 跳过（size==0 时 size = fsize - 当前指针 + 8）；EBML 只进入 Tags 容器链、其余（Cluster/Tracks 等）seek 跳过——多 GB 视频廉价。**调试教训：EBML walker 的进入集合漏了 Segment（0x18538067），walker 从不进 Segment 导致 webm 永远解析为空**——用 ffmpeg 生成真实文件（`-f ffmetadata -i meta.txt -map 0:v -map_metadata 1`）再 dump 二进制验证。
+
+### 2. graph walker 反推 sampler 正向文本链
+
+- 启发式：`_TEXT_KEYS`（text/text_g/text_l/string/...）+ `_TEXT_KEY_RE`（`text_X`/`string_X`/`prompt_X`）+ `_COND_LINK_KEYS`（conditioning/positive/from/...）；sampler 用 `/sampler/i` 正则匹配类名；DFS 从 `inputs.positive` 往回走，visited 集合 + 深度 24 防环。
+- 特判分支（mux/switch/隐藏状态节点，启发式覆盖不到）：**Pixaroma 生态 8 类全保留**（SwitchState 选行 / PromptStackState 拼接 / PromptMulti activePrompt / Pack / Dropdown lean+full 双形状 / FromList 索引 / PromptState+text_in 拼接 / SwitchSource 按 origin_slot 选行 / rgthree any_NN 数字序）——读别人用 Pixaroma 生成的图仍可恢复；**sf 自家节点共享同构分支**（SFPromptTags≡PixaromaPrompt、SFValueDropdown≡PixaromaDropdown），其余直读（SFTextPreset presets_json / SFAnythingIndexSwitch index / SFPauseText continue 盒子文本 / SFPromptList 拆行 / SFPromptPreset 基础文本）。
+- **自追链**：PromptReader 节点输出是运行时值，embedded workflow 只存 `inputs.image` → 解析源文件元数据递归（最多 5 层）；源图缺失时给专属提示（"source image is no longer in the input folder"）而非通用文案。**无 sampler 或读不到文本返回 None，让调用方走 A1111 fallback**。
+
+### 3. 目录切换（IN/OUT）：状态字段撞名坑
+
+- output 文件值拼 `" [output]"` 注解全链贯通：`folder_paths.get_annotated_filepath` 原生解析（无需后端改动）、extract 路由 allowed_roots 已含 output、`/view` 缩略图按注解选 `type`、下拉分组/显示剥离注解。
+- **坑（真 bug）：目录状态最初存 `promptReaderState.source`，与 `applyResult` 写入的"提取来源"（comfyui/a1111）撞名被覆盖** → `currentSource` 读到 "comfyui" 误判为 input → 切换后上传不切回。**状态字段名必须避开同一 state 对象里其它写入者的键**，改用 `folder`。
+- **output 模式下上传/拖拽/粘贴自动切回 input**（上传的文件落在 input/）：`ensureSourceIsInput` 返回 true 时调用方不再重复刷新；原生 drop（无注解值）走 widget callback 防御分支。
+- 列表路由按媒体类型分流：SFPromptReader 自己 `/api/sfnodes/prompt_reader/list`（image+video），SFLoadImageResize 复用 Load Image Browser 的 `/api/sfnodes/images/list`（image-only）——别把 video 塞进图片节点。
+- 加载恢复：值带 `[output]` 注解或 `state.folder==="output"` → 拉 output 列表（initReadout 统一 setupNode/onConfigure 两入口；SFLoadImageResize 在 onConfigure microtask + setup queueMicrotask 各挂一次）。
+
+### 4. 上传路径 MIME 过滤必须与 accept 同步放宽
+
+- `accept="image/*,video/*"` 但 drop handler 仍 `file.type.startsWith("image/")` → mp4 拖入**静默无反应**（上传按钮正常，造成"按钮能传、拖动不行"的割裂体验）。
+- 过滤与 accept 一致 + **type 为空放行**（浏览器对 .mkv 等未知扩展不给 MIME，交给后端上传决定）。
+
+### 5. 其余要点
+
+- `IS_CHANGED` 用 (mtime, size) 而非全文件哈希（50MB PNG 每 run 哈希浪费；mtime+size 覆盖所有现实编辑）；`VALIDATE_INPUTS` 恒 True（缺文件/无元数据走输出文本不阻塞图）。
+- `node.imgs` 抑制（image_upload 会拉预览，本节点只要文本）：`defineProperty` 前**探测 configurable**（不可配置时 console.warn 一次而非静默吞错）。
+- extract 请求 reqId 单调递增防乱序（快速连点文件下拉时旧响应不覆盖新读出版）；wired filename 跟随用 350ms poll（Vue 无 onDraw）；`isGraphLoading`（loadGraphData + 300ms 尾窗）防加载路径误触发手动接管。
+- **前端 upload 不复用 sf_load_image_api.js 的 uploadImageToInput**：其 `setSelectedImage` 依赖 SFLoadImage 专属预览链（updateNativePreview 写 node.imgs），与本节点 imgs 抑制冲突——自写最小 upload（fetch /upload/image + 更新 options + w.value）。
+
+### 6. 模块边界（复用/修改时的快速索引）
+
+- `sf_utils/prompt_reader.py`：纯函数（`read_png_text_chunks`/`read_video_text_chunks`（MP4+EBML 解析）/`resolve_input_image_name`（裸名/注解/子目录，50000 扫描上限）/`extract_positive_from_comfy_prompt`/`extract_positive_from_a1111`/`read_prompt_from_image` + walker 全套），无 ComfyUI 依赖（folder_paths try/except 降级），PIL 仅用于 PNG chunk。
+- `nodes/text/prompt_reader.py`：`SFPromptReader` 薄封装（INPUT_TYPES image combo + optional filename 接线 / `_effective_name` / `read` / `IS_CHANGED` / `VALIDATE_INPUTS`），`_CATEGORY = "sfnodes/text"`。
+- `nodes/text/prompt_reader_routes.py`：两路由（`extract` 实时读出 + `list` 目录列表）+ `_is_path_under` realpath 穿越防护（input/output/temp）；`_list_media_recursive` 模块级纯函数。
+- `web/sf_prompt_reader.js`：单文件主扩展（buildRoot 含 IN/OUT toggle / upload / 下拉分组 / readout + Copy / 拖拽 / wired 跟随 / PageUp-PageDown / 状态 `node.properties.promptReaderState`：filename+found+text+message+source+folder / reqId 竞态防护 / node.imgs 抑制）。
+- 数据契约：hidden 无（pick 值直接走 image combo）；`/api/sfnodes/prompt_reader/extract?filename=`（恒 200，`{found,text|message}`）；`/list?type=input|output`（纯相对路径数组，注解由前端拼）。

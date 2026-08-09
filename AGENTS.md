@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放（含工作流内缩放 resize_image.py：wired 尺寸）、拼接、处理、对比、外绘填充+贴回（outpaint.py）、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
@@ -41,8 +41,9 @@ sfnodes/
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
 │   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
+│   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_dropdown*.js 值下拉四模块、sf_workflows*.js 工作流面板三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_dropdown*.js 值下拉四模块、sf_workflows*.js 工作流面板三模块、sf_prompt_reader.js 提示词恢复单模块、sf_load_image.js/ui.js/api.js SFLoadImageResize 三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -249,10 +250,17 @@ class SFMyNode:
 - 模块化：纯函数 lib（无 app/DOM，测试 copy .mjs 直跑）/ store / cursors / guard / editor / 主扩展，跨文件 import 契约即模块边界。
 - 冒烟测试（mock DOM）：惰性元素（任何 querySelector 返回新元素）、`/scripts/app.js` → `globalThis.app`、相对 import 改 `.mjs` 同 tmp 目录；可抓纯语法检查漏掉的运行时错误（如缺 `getComputedStyle` mock）。
 
-**前端：Vue 新版（comfyui_frontend_package 1.x）**
+ **前端：Vue 新版（comfyui_frontend_package 1.x）**
 - 先确认前端版本再选方案（容器内 `pip show comfyui-frontend-package`，Version 1.x = Vue）。
 - 槽位数组为 shallowReactive：直接改元素属性不触发渲染，**替换数组元素**才触发。
 - 动态 tooltip：写 `widget.tooltip`（nodeDef 兜底存在，清不掉）；canvas 事件/坐标方案在 Vue 下失效。
+
+**前后端：提示词恢复（`sf_utils/prompt_reader.py`、`nodes/text/prompt_reader.py` + `prompt_reader_routes.py`、`web/sf_prompt_reader.js`，SFPromptReader）**
+- **三种元数据容器，全纯标准库解析**：PNG tEXt/iTXt（PIL）；MP4/MOV/M4V 的 moov→udta→meta keys+ilst——**ffmpeg 系（VHS `-movflags use_metadata_tags`）ilst item 的 4 字节是 1-based INDEX 而非 iTunes 4cc**，按 `1<=idx<=len(keys)` 判定；WebM/MKV 的 EBML Tags/SimpleTag——**键名按 Matroska 规范大写**，读取归一小写。流式扫描只读入 moov/只进 Tags 容器、seek 跳过 mdat/Cluster（多 GB 视频廉价）。
+- **graph walker 反推 sampler 正向文本链**（visited + 深度 24）：`_TEXT_KEYS`/`text_X` 正则/`_COND_LINK_KEYS` 启发式 + 特判分支——Pixaroma 生态 8 类（Switch/Stack/Multi/Pack/Dropdown/FromList/Prompt/SwitchSource/rgthree Any Switch，读他人 Pixaroma 图仍可恢复）与 sf 自家（SFPromptTags/SFValueDropdown 与 Pixaroma 同构共享分支；SFTextPreset/SFAnythingIndexSwitch/SFPauseText continue/SFPromptList/SFPromptPreset）。PromptReader 自追链最多 5 层（embedded workflow 只存 inputs.image）。
+- **目录切换 IN/OUT（SFPromptReader + SFLoadImageResize 同款）**：output 项拼 `" [output]"` 注解全链贯通（`get_annotated_filepath` 原生解析、`/view` 缩略图按注解选 type、分组/显示剥离）；**output 模式下上传/拖拽/粘贴自动切回 input**（文件落 input/）。目录状态字段必须避开 `applyResult` 写入的提取来源 `source`——**撞名会被覆盖**，用 `folder`。
+- **上传路径 MIME 过滤必须与 accept 同步放宽**：`accept="image/*,video/*"` 但 drop handler 仍 `startsWith("image/")` → mp4 拖入静默无反应；type 为空（.mkv 未知扩展）放行交后端。
+- IS_CHANGED 用 (mtime, size) 而非全文件哈希；VALIDATE_INPUTS 恒 True（缺文件/无元数据走输出文本不阻塞图）；`node.imgs` 抑制（defineProperty 前置探测 configurable）；extract 请求 reqId 单调防乱序。
 
 **实际环境调试**
 - 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。
