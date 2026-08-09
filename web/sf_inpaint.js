@@ -76,7 +76,7 @@ function installCanvasZoomPassthrough(root) {
 }
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -166,19 +166,22 @@ function dedupeInpaintProjectId(node) {
     // 同时清掉拷贝过来的缓存源引用，否则节点缩略图一直显示父节点的图
     // （restoreNodePreview 无法抹掉已画好的图）。然后重画：接入上游就画
     // 上游，否则空白占位。
-    node._pixInpaintSourceURL = null;
-    if (node.properties) delete node.properties.pixInpaintSource;
-    if (getUpstreamImageURL(node)) node._pixInpaintRefresh?.();
-    else node._pixInpaintClearPreview?.();
+    node._sfInpaintSourceURL = null;
+    if (node.properties) {
+      delete node.properties.sfInpaintSource;
+      delete node.properties.pixInpaintSource;
+    }
+    if (getUpstreamImageURL(node)) node._sfInpaintRefresh?.();
+    else node._sfInpaintClearPreview?.();
   } catch (e) { console.warn("[InpaintCrop] dedupe project id failed:", e); }
 }
 
 function buildSourceURL(part, bust) {
   if (!part || !part.filename) return null;
-  // 缓存破坏参数属于交给 pixApiUrl 的 ROUTE 部分，绝不追加到其 RESULT：
+  // 缓存破坏参数属于交给 sfApiUrl 的 ROUTE 部分，绝不追加到其 RESULT：
   // 托管 ComfyUI 会给完成的 url 追加认证 token，之后拼接会把参数写在 token
   // 另一侧。本地两条路径产出相同字符串。
-  return pixApiUrl(`/view?filename=${encodeURIComponent(part.filename)}` +
+  return sfApiUrl(`/view?filename=${encodeURIComponent(part.filename)}` +
     `&subfolder=${encodeURIComponent(part.subfolder || "")}` +
     `&type=${encodeURIComponent(part.type || "temp")}` +
     (bust ? `&t=${Date.now()}` : ""));
@@ -228,7 +231,7 @@ function getUpstreamImageURL(node) {
   }
   // 回退：上次 Python 执行保存的源 PNG（生成型上游，或实时预览出现前），
   // 以及粘贴 / 拖放 / 恢复的情形。
-  if (node._pixInpaintSourceURL) return node._pixInpaintSourceURL;
+  if (node._sfInpaintSourceURL) return node._sfInpaintSourceURL;
   return null;
 }
 
@@ -243,7 +246,7 @@ function installPasteHandler() {
     const node = findActiveNode();
     if (!node) return;
     // 编辑器开着 -> 让编辑器自己的 paste 处理器把图加载进 canvas
-    if (node._pixInpaintEditor?.el?.overlay?.isConnected) return;
+    if (node._sfInpaintEditor?.el?.overlay?.isConnected) return;
     const items = e.clipboardData?.items || [];
     const it = Array.from(items).find((x) => x.type?.startsWith("image/"));
     if (!it) return;
@@ -254,7 +257,7 @@ function installPasteHandler() {
     const blob = it.getAsFile();
     if (!blob) return;
     const reader = new FileReader();
-    reader.onload = (ev) => node._pixInpaintPaste(ev.target.result);
+    reader.onload = (ev) => node._sfInpaintPaste(ev.target.result);
     reader.readAsDataURL(blob);
     setTimeout(() => {
       for (const n of app.graph?._nodes || []) {
@@ -270,7 +273,7 @@ function installPasteHandler() {
 function findActiveNode() {
   const c = app.canvas;
   if (!c) return null;
-  const ok = (n) => n && n.comfyClass === "SFInpaintCrop" && typeof n._pixInpaintPaste === "function";
+  const ok = (n) => n && n.comfyClass === "SFInpaintCrop" && typeof n._sfInpaintPaste === "function";
   const sel = c.selected_nodes;
   if (sel) {
     let iter = Array.isArray(sel) ? sel : (typeof sel.values === "function" ? Array.from(sel.values()) : Object.values(sel));
@@ -297,12 +300,18 @@ app.registerExtension({
     nodeType.prototype.onConfigure = function (data) {
       const ret = origCfg?.apply(this, arguments);
       this.imgs = null;
-      if (!this._pixInpaintSourceURL && this.properties?.pixInpaintSource) {
-        this._pixInpaintSourceURL = buildSourceURL(this.properties.pixInpaintSource, true);
+      // 恢复缓存源 URL（Vue Compat #11）。sfInpaintSource 是当前键；旧键
+      // pixInpaintSource 仍读兜底（rename 前保存的工作流）。
+      if (!this._sfInpaintSourceURL) {
+        if (this.properties?.sfInpaintSource) {
+          this._sfInpaintSourceURL = buildSourceURL(this.properties.sfInpaintSource, true);
+        } else if (this.properties?.pixInpaintSource) {
+          this._sfInpaintSourceURL = buildSourceURL(this.properties.pixInpaintSource, true);
+        }
       }
-      if (this._pixInpaintRefresh) {
-        queueMicrotask(() => this._pixInpaintRefresh());
-        setTimeout(() => this._pixInpaintRefresh?.(), 250);
+      if (this._sfInpaintRefresh) {
+        queueMicrotask(() => this._sfInpaintRefresh());
+        setTimeout(() => this._sfInpaintRefresh?.(), 250);
       }
       // 恢复隐藏状态 widget（SFInpaintJson）→ 闭包。工作流加载时 nodeCreated
       // 早于 widget 值恢复，因此延迟到 configure 之后读取（microtask +
@@ -340,7 +349,7 @@ app.registerExtension({
       "接入 IMAGE 并运行一次，\n或点击 'Open mask editor' 加载并涂抹",
     );
     // 让 dedupe（模块作用域）在复制后清掉此节点的缩略图
-    node._pixInpaintClearPreview = () => clearNodePreview(parts, node);
+    node._sfInpaintClearPreview = () => clearNodePreview(parts, node);
 
     let stateJson = "{}";
     let widget;
@@ -370,13 +379,13 @@ app.registerExtension({
 
     // ── Open mask editor 按钮 ──
     node.addWidget("button", "Open mask editor", null, () => {
-      if (node._pixInpaintEditor?.el?.overlay?.isConnected) return;
+      if (node._sfInpaintEditor?.el?.overlay?.isConnected) return;
       refreshSourcePreview();   // 同步节点缩略图到当前上游图
       const editor = new InpaintCropEditor();
-      node._pixInpaintEditor = editor;
+      node._sfInpaintEditor = editor;
       // 笔刷大小 / 不透明度跨打开在此节点持久化
       const captureBrush = () => {
-        node._pixInpaintBrush = { brushSize: editor.brushSize, maskOpacity: editor.maskOpacity };
+        node._sfInpaintBrush = { brushSize: editor.brushSize, maskOpacity: editor.maskOpacity };
       };
 
       // 预览色调（仅显示）——从设置读初值，变更时持久化
@@ -400,10 +409,10 @@ app.registerExtension({
         const idx = (node.inputs || []).findIndex((i) => i.name === "image");
         if (idx >= 0 && node.inputs[idx].link != null) { try { node.disconnectInput(idx); } catch {} }
       };
-      editor.onClose = () => { captureBrush(); node._pixInpaintEditor = null; node.setDirtyCanvas(true, true); };
+      editor.onClose = () => { captureBrush(); node._sfInpaintEditor = null; node.setDirtyCanvas(true, true); };
 
       editor.open(stateJson, getUpstreamImageURL(node),
-        readParams(node), node._pixInpaintBrush);
+        readParams(node), node._sfInpaintBrush);
     });
 
     // ── 迷你预览 DOM widget（同时携带隐藏状态）──
@@ -425,9 +434,9 @@ app.registerExtension({
 
     // ── 直接往节点上粘贴 / 拖放源图 ──
     installPasteHandler();
-    node._pixInpaintPaste = async (dataURL) => {
+    node._sfInpaintPaste = async (dataURL) => {
       try {
-        const r = await api.fetchApi(pixApiUrl("/api/sfnodes/inpaint/upload_src"), {
+        const r = await api.fetchApi(sfApiUrl("/api/sfnodes/inpaint/upload_src"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ project_id: "inpaint_paste_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9), image: dataURL }),
         });
@@ -440,9 +449,10 @@ app.registerExtension({
         node._sfInpaintJsonSync(JSON.stringify(meta));
         if (srcPath) {
           const part = { filename: srcPath.split(/[\\/]/).pop(), subfolder: "sfnodes_inpaint", type: "input" };
-          node._pixInpaintSourceURL = buildSourceURL(part, true);
+          node._sfInpaintSourceURL = buildSourceURL(part, true);
           if (!node.properties) node.properties = {};
-          node.properties.pixInpaintSource = part;
+          node.properties.sfInpaintSource = part;
+          delete node.properties.pixInpaintSource;
         }
         showNodePreview(parts, dataURL, null, node);
         if (app.graph) app.graph.setDirtyCanvas(true, true);
@@ -458,13 +468,13 @@ app.registerExtension({
         const idx = (node.inputs || []).findIndex((i) => i.name === "image");
         if (idx >= 0 && node.inputs[idx].link != null) { try { node.disconnectInput(idx); } catch {} }
         const reader = new FileReader();
-        reader.onload = (ev) => node._pixInpaintPaste(ev.target.result);
+        reader.onload = (ev) => node._sfInpaintPaste(ev.target.result);
         reader.readAsDataURL(file);
       });
     }
 
     // ── 执行期源 URL 缓存 + 刷新钩子 ──
-    node._pixInpaintRefresh = () => {
+    node._sfInpaintRefresh = () => {
       if (getUpstreamImageURL(node)) refreshSourcePreview();
       // 传真实状态（不是 "{}"）让 restoreNodePreview 能按 src_path 重建
       // ——如编辑器 Load Image 加载的源，此时连线已断。
@@ -479,9 +489,10 @@ app.registerExtension({
       if (!frames?.length) return;
       const f = frames[0];
       const part = { filename: f.filename, subfolder: f.subfolder || "", type: f.type || "temp" };
-      node._pixInpaintSourceURL = buildSourceURL(part, true);
+      node._sfInpaintSourceURL = buildSourceURL(part, true);
       if (!node.properties) node.properties = {};
-      node.properties.pixInpaintSource = part;
+      node.properties.sfInpaintSource = part;
+      delete node.properties.pixInpaintSource;
       refreshSourcePreview();
     };
     api.addEventListener("executed", onExec);
@@ -492,8 +503,11 @@ app.registerExtension({
     node.onConnectionsChange = function (type, slotIndex, connected) {
       const r = origConnChange?.apply(this, arguments);
       if (type === LiteGraph.INPUT && node.inputs?.[slotIndex]?.name === "image" && !isGraphLoading()) {
-        node._pixInpaintSourceURL = null;
-        if (node.properties) delete node.properties.pixInpaintSource;
+        node._sfInpaintSourceURL = null;
+        if (node.properties) {
+          delete node.properties.sfInpaintSource;
+          delete node.properties.pixInpaintSource;
+        }
         if (connected) refreshSourcePreview();
         else restoreNodePreview(parts, "{}", node);
       }
@@ -502,7 +516,7 @@ app.registerExtension({
 
     const origRemoved = node.onRemoved;
     node.onRemoved = () => {
-      try { if (node._pixInpaintEditor?.el?.overlay?.isConnected) node._pixInpaintEditor._close(); } catch (e) {}
+      try { if (node._sfInpaintEditor?.el?.overlay?.isConnected) node._sfInpaintEditor._close(); } catch (e) {}
       try { parts?.resizeObserver?.disconnect(); } catch (e) {}
       origRemoved?.call(node);
       try { api.removeEventListener("executed", onExec); } catch {}

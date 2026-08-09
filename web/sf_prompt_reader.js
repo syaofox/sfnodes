@@ -21,7 +21,7 @@ let _activePromptReaderNode = null;
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
 // （项目惯例，同 sf_load_image_api.js）
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -97,7 +97,7 @@ function updateSourceButton(node, type) {
 
 // 拉取目录文件列表（纯相对路径，正斜杠）；失败返回 null。
 async function fetchMediaList(type) {
-  const url = pixApiUrl(`/api/sfnodes/prompt_reader/list?type=${encodeURIComponent(type)}`);
+  const url = sfApiUrl(`/api/sfnodes/prompt_reader/list?type=${encodeURIComponent(type)}`);
   try {
     const resp = await fetch(url);
     if (!resp.ok) return null;
@@ -547,7 +547,7 @@ function pickAndUpload(node) {
 
 async function extractPrompt(filename) {
   if (!filename) return { found: false, message: "No image selected." };
-  const url = pixApiUrl(`/api/sfnodes/prompt_reader/extract?filename=${encodeURIComponent(filename)}`);
+  const url = sfApiUrl(`/api/sfnodes/prompt_reader/extract?filename=${encodeURIComponent(filename)}`);
   try {
     const resp = await fetch(url);
     if (!resp.ok) return { found: false, message: `Server error (${resp.status})` };

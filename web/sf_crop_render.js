@@ -3,7 +3,7 @@
 // ============================================================
 import { CropEditor, BRAND, RATIOS, SNAPS, CropAPI } from "./sf_crop_core.js";
 import { api } from "/scripts/api.js";
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try { if (typeof api?.apiURL === "function") return api.apiURL(route); } catch {}
   return route;
 }
@@ -45,7 +45,7 @@ proto._loadImageFromURL = function (url, onDone) {
 proto._uploadSourceImage = async function (dataURL) {
   try {
     const { api } = await import("/scripts/api.js");
-    const res = await api.fetchApi(pixApiUrl("/api/sfnodes/crop/upload_src"), {
+    const res = await api.fetchApi(sfApiUrl("/api/sfnodes/crop/upload_src"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: this.projectId, image: dataURL }),

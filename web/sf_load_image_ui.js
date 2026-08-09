@@ -13,7 +13,7 @@ const ICON_SWAP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http:/
 const ICON_MAGNET = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M47.374,44.366v16.382h-17.717c-8.086-.123-15.546-3.579-20.886-9.379C-2.891,38.703-.815,18.774,13.166,8.738c4.612-3.311,10.005-5.282,15.879-5.494h18.329v16.358h-17.768c-3.033.264-5.706,1.331-7.901,3.368-3.232,2.999-4.652,7.339-3.698,11.679,1.183,5.378,5.755,9.212,11.26,9.717h18.107ZM60.934,60.745c1.159-.073,1.924-.914,1.861-2.07v-12.166c.087-1.093-.71-2.148-1.86-2.15h-9.945v16.386h9.944ZM61.252,19.605c.997-.198,1.615-1.05,1.545-2.064V5.265c.026-1.005-.7-2.027-1.785-2.03h-10.021v16.37h10.262Z"/></svg>');
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -797,7 +797,7 @@ function groupValuesByFolder(values) {
 function thumbURL(full) {
   const { name, type } = splitTypeAnnotation(full);
   const { subfolder, filename } = splitFilenameSubfolder(name);
-  return pixApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}`);
+  return sfApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}`);
 }
 
 // Read/write the persisted thumbnail size ("Small" | "Large"). Falls back to
@@ -877,7 +877,7 @@ export function openImageDropdown(node, anchorEl, onPick) {
   // the prior popup's document-level capture listeners are detached too.
   const _existingPopup = document.querySelector(".sf-li-popup");
   if (_existingPopup) {
-    if (typeof _existingPopup._pixClose === "function") _existingPopup._pixClose();
+    if (typeof _existingPopup._sfClose === "function") _existingPopup._sfClose();
     else _existingPopup.remove();
   }
 
@@ -904,7 +904,7 @@ export function openImageDropdown(node, anchorEl, onPick) {
   const onDocDown = (e) => { if (!popup.contains(e.target)) closePopup(); };
   const onWheel = (e) => { if (!popup.contains(e.target)) closePopup(); };
   const onKey = (e) => { if (e.key === "Escape") closePopup(); };
-  popup._pixClose = closePopup; // so a later open can detach our listeners
+  popup._sfClose = closePopup; // so a later open can detach our listeners
 
   if (values.length === 0) {
     const empty = document.createElement("div");

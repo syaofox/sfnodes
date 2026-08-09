@@ -25,7 +25,7 @@ export const NODE_MIN_W = 300;  // 4 按钮工具行容纳所需
 export const NODE_MIN_H = HEADER_H + PREVIEW_MIN_H + DIMS_H;
 
 // 绝对安全的 URL：api.apiURL 处理托管部署的基址前缀，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
     try {
         if (typeof api?.apiURL === "function") return api.apiURL(route);
     } catch { /* 降级 */ }
@@ -198,7 +198,7 @@ export function frameViewUrl(frame) {
         type: frame.type || "temp",
         t: String(Date.now()),
     });
-    return pixApiUrl(`/view?${params.toString()}`);
+    return sfApiUrl(`/view?${params.toString()}`);
 }
 
 // 在预览中加载 + 显示快照 frame。frame = {filename, subfolder, type}。

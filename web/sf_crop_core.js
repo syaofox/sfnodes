@@ -17,7 +17,7 @@ import { installGraphUndoGuard } from "./sf_crop_undo_guard.js";
 import { api } from "/scripts/api.js";
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -49,7 +49,7 @@ export const SNAPS = [
 
 export const CropAPI = {
   async saveComposite(projectId, dataURL) {
-    const res = await api.fetchApi(pixApiUrl("/api/sfnodes/crop/save"), {
+    const res = await api.fetchApi(sfApiUrl("/api/sfnodes/crop/save"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId, image_merged: dataURL }),
@@ -113,7 +113,7 @@ export class CropEditor {
       sourceURL = upstreamUrl;
     } else if (this._srcPath) {
       const fn = this._srcPath.split(/[\\/]/).pop();
-      sourceURL = pixApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_crop&t=${Date.now()}`);
+      sourceURL = sfApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_crop&t=${Date.now()}`);
     }
 
     if (sourceURL) {

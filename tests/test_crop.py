@@ -100,6 +100,8 @@ os.makedirs(_crop_dir, exist_ok=True)
 open(os.path.join(_crop_dir, "crop_src_x.png"), "w").close()
 
 check("_safe_join 合法相对路径", mod._safe_join("crop_src_x.png") is not None)
+check("_safe_join 子目录前缀兼容", mod._safe_join("sfnodes_crop/crop_src_x.png") is not None)
+check("_safe_join 子目录前缀反斜杠", mod._safe_join("sfnodes_crop\\crop_src_x.png") is not None)
 check("_safe_join 不存在的文件", mod._safe_join("nope.png") is None)
 check("_safe_join 绝对路径拒绝", mod._safe_join("/etc/passwd") is None)
 check("_safe_join .. 穿越拒绝", mod._safe_join("../../x.png") is None)

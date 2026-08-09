@@ -164,9 +164,9 @@ for (const n of files) {
         node: 1,
         output: { sf_inpaint_source: [{ filename: "sf_inpaint_src_abc.png", subfolder: "", type: "temp" }] },
     } });
-    check("executed 缓存源 URL", !!node._pixInpaintSourceURL &&
-        node._pixInpaintSourceURL.includes("sf_inpaint_src_abc.png"));
-    check("properties 持久化源", node.properties?.pixInpaintSource?.filename === "sf_inpaint_src_abc.png");
+    check("executed 缓存源 URL", !!node._sfInpaintSourceURL &&
+        node._sfInpaintSourceURL.includes("sf_inpaint_src_abc.png"));
+    check("properties 持久化源", node.properties?.sfInpaintSource?.filename === "sf_inpaint_src_abc.png");
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });

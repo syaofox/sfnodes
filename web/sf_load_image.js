@@ -1422,7 +1422,7 @@ app.registerExtension({
       // are detached — otherwise deleting the node (or reload / Ctrl+Z, which
       // fires onRemoved per node) leaves a floating popup + leaked listeners
       // (mirrors Prompt Reader Pixaroma Pattern #4).
-      document.querySelector(".sf-li-popup")?._pixClose?.();
+      document.querySelector(".sf-li-popup")?._sfClose?.();
       if (this._sfLiImgPoll) clearInterval(this._sfLiImgPoll);
       this._sfLiImgPoll = null;
       try { this._sfLiPreviewRO?.disconnect(); } catch {}

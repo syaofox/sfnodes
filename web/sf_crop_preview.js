@@ -5,7 +5,7 @@
 
 import { createDummyWidget } from "./sf_crop_framework.js";
 import { api } from "/scripts/api.js";
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try { if (typeof api?.apiURL === "function") return api.apiURL(route); } catch {}
   return route;
 }
@@ -130,7 +130,7 @@ export function restoreNodePreview(parts, json, node) {
     const rel = meta.composite_path || meta.src_path;
     if (!rel) return;
     const fn = rel.split(/[\\/]/).pop();
-    const url = pixApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_crop&t=${Date.now()}`);
+    const url = sfApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_crop&t=${Date.now()}`);
     const dimText = `${meta.doc_w || "?"}\u00d7${meta.doc_h || "?"}`;
     showNodePreview(parts, url, dimText, node);
   } catch {

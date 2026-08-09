@@ -332,7 +332,7 @@ proto._doRedo = function () {
 proto._bindKeys = function () {
   this._keyHandler = (e) => {
     const ae = document.activeElement;
-    if ((ae?.tagName === "INPUT" || ae?.tagName === "TEXTAREA" || ae?.tagName === "SELECT") && !ae?.dataset?.pixaromaTrap) return;
+    if ((ae?.tagName === "INPUT" || ae?.tagName === "TEXTAREA" || ae?.tagName === "SELECT") && !ae?.dataset?.sfPaintTrap) return;
     const key = e.key.toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
     if (key === "escape") { e.preventDefault(); e.stopImmediatePropagation(); this._close(); return; }

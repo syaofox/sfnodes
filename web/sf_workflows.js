@@ -27,7 +27,7 @@ import {
     createWorkflowWindow, renderGrid, renderFolders, renderDetail, renderTidy,
     openContextMenu, closeContextMenu,
     setMenuFocusHome, setRenameLostNotifier, dropRename, beginRename, beginFolderRename,
-    installOutputCoverCapture, hasHandCover, markRendering, copyText, pixApiUrl, el,
+    installOutputCoverCapture, hasHandCover, markRendering, copyText, sfApiUrl, el,
     CARD_MIME, injectWorkflowCSS,
 } from "./sf_workflows_ui.js";
 
@@ -57,13 +57,13 @@ const store = () => app.extensionManager?.workflow;
 
 async function getJSON(url) {
     // no-store：列表必须匹配磁盘，启发式缓存会静默显示已改名/删除的工作流
-    const r = await fetch(pixApiUrl(url), { cache: "no-store" });
+    const r = await fetch(sfApiUrl(url), { cache: "no-store" });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     return r.json();
 }
 
 async function postJSON(url, body) {
-    const r = await fetch(pixApiUrl(url), {
+    const r = await fetch(sfApiUrl(url), {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ async function openWorkflow(rel) {
 /** 这个路径是否已有工作流？改名/移动/另存为之前问。 */
 async function exists(rel) {
     try {
-        const r = await fetch(pixApiUrl(`/api/userdata/${encodeURIComponent(toStorePath(rel))}`),
+        const r = await fetch(sfApiUrl(`/api/userdata/${encodeURIComponent(toStorePath(rel))}`),
                               { method: "HEAD", cache: "no-store" });
         return r.ok;
     } catch {
@@ -218,10 +218,10 @@ async function saveCurrentAs(newRel, { overwrite = false } = {}) {
 /** 复制一份到旁边。用 ComfyUI 自己的 userdata 端点，副本字节一致。 */
 async function duplicate(rel, newRel) {
     const enc = (p) => encodeURIComponent(toStorePath(p));
-    const r = await fetch(pixApiUrl(`/api/userdata/${enc(rel)}`), { cache: "no-store" });
+    const r = await fetch(sfApiUrl(`/api/userdata/${enc(rel)}`), { cache: "no-store" });
     if (!r.ok) throw new Error("Could not read that workflow.");
     const body = await r.text();
-    const w = await fetch(pixApiUrl(`/api/userdata/${enc(newRel)}?overwrite=false`), {
+    const w = await fetch(sfApiUrl(`/api/userdata/${enc(newRel)}?overwrite=false`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,

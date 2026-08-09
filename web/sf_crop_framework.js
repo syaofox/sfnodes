@@ -1446,7 +1446,7 @@ export function createEditorLayout(config) {
         <button class="pxf-btn-sm" style="flex-shrink:0;">✕</button>
       </div>
       <div class="pxf-help-content">${helpContent}</div>
-      <div class="pxf-help-footer">SF Image Crop — 复刻自 Pixaroma Image Crop</div>
+      <div class="pxf-help-footer">SF Nodes</div>
     `;
     helpPanel
       .querySelector(".pxf-help-header button")

@@ -5,7 +5,7 @@ import { api } from "/scripts/api.js";
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
 // （项目惯例，同 sf_pause_image_ui.js）
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -142,7 +142,7 @@ export function updateNativePreview(node, filename) {
     if (node._sfLiPreviewReqId !== myReq) return;
     console.warn("[SFLoadImageResize] preview fetch failed for", filename);
   };
-  img.src = pixApiUrl(`/view?filename=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}&t=${Date.now()}`);
+  img.src = sfApiUrl(`/view?filename=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}&t=${Date.now()}`);
 }
 
 // Single source of truth for picking an image (dropdown click, arrow nav,

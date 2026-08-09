@@ -70,6 +70,13 @@ def _safe_join(rel: str) -> str:
             return None
     except (ValueError, TypeError):
         return None
+    # 兼容子目录前缀：上传/保存路由返回的 path 是 "sfnodes_crop/<file>"
+    # （ComfyUI 惯例 subfolder/filename），剥掉前缀后 join 到子目录本身，
+    # 否则会解析成 input/sfnodes_crop/sfnodes_crop/... 双重拼接（文件不存在）。
+    for _prefix in (_CROP_SUBDIR + "/", _CROP_SUBDIR + "\\", "./"):
+        if q.startswith(_prefix):
+            q = q[len(_prefix):]
+            break
     root = os.path.realpath(_crop_dir())
     try:
         full = os.path.realpath(os.path.join(root, q))

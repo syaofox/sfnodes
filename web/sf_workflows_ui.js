@@ -23,7 +23,7 @@ export const el = (tag, cls, text) => {
 };
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-export function pixApiUrl(route) {
+export function sfApiUrl(route) {
     try {
         if (typeof api?.apiURL === "function") return api.apiURL(route);
     } catch { /* 降级 */ }
@@ -875,7 +875,7 @@ export function coverFor(entry, meta) {
     const hand = meta?.covers?.[entry.rel];
     if (hand && hand.kind === "file" && hand.file) {
         // URL 里的版本号让图片可硬缓存、替换瞬间更新（文件名永不改变）
-        return { kind: "image", url: pixApiUrl(`/api/sfnodes/workflows/cover/${encodeURIComponent(hand.file)}?v=${hand.v || 1}`) };
+        return { kind: "image", url: sfApiUrl(`/api/sfnodes/workflows/cover/${encodeURIComponent(hand.file)}?v=${hand.v || 1}`) };
     }
     if (hand && hand.kind === "file" && hand.url) return { kind: "image", url: hand.url };
     if (hand && hand.kind === "output" && hand.filename && isPictureName(hand.filename)) {
@@ -884,7 +884,7 @@ export function coverFor(entry, meta) {
             subfolder: hand.subfolder || "",
             type: hand.type || "output",
         });
-        return { kind: "image", url: pixApiUrl(`/view?${p.toString()}`) };
+        return { kind: "image", url: sfApiUrl(`/view?${p.toString()}`) };
     }
     return { kind: "map" };
 }

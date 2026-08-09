@@ -17,7 +17,7 @@ import { api } from "/scripts/api.js";
 export { BRAND };
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -45,14 +45,14 @@ export const INPAINT_PREVIEW_COLORS = {
 
 export const InpaintAPI = {
   async uploadSrc(projectId, dataURL) {
-    const res = await api.fetchApi(pixApiUrl("/api/sfnodes/inpaint/upload_src"), {
+    const res = await api.fetchApi(sfApiUrl("/api/sfnodes/inpaint/upload_src"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId, image: dataURL }),
     });
     return await res.json();
   },
   async saveMask(projectId, dataURL) {
-    const res = await api.fetchApi(pixApiUrl("/api/sfnodes/inpaint/save_mask"), {
+    const res = await api.fetchApi(sfApiUrl("/api/sfnodes/inpaint/save_mask"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId, mask: dataURL }),
     });
@@ -133,7 +133,7 @@ export class InpaintCropEditor {
     if (upstreamUrl) sourceURL = upstreamUrl;
     else if (this._srcPath) {
       const fn = this._srcPath.split(/[\\/]/).pop();
-      sourceURL = pixApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_inpaint&t=${Date.now()}`);
+      sourceURL = sfApiUrl(`/view?filename=${encodeURIComponent(fn)}&type=input&subfolder=sfnodes_inpaint&t=${Date.now()}`);
     }
 
     if (sourceURL) {
@@ -141,7 +141,7 @@ export class InpaintCropEditor {
         // 图像尺寸确定后恢复保存的画过遮罩（尽力而为）
         if (this._maskPath) {
           const mfn = this._maskPath.split(/[\\/]/).pop();
-          const murl = pixApiUrl(`/view?filename=${encodeURIComponent(mfn)}&type=input&subfolder=sfnodes_inpaint&t=${Date.now()}`);
+          const murl = sfApiUrl(`/view?filename=${encodeURIComponent(mfn)}&type=input&subfolder=sfnodes_inpaint&t=${Date.now()}`);
           this._loadMaskFromURL(murl);
         }
       });

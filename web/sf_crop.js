@@ -85,7 +85,7 @@ function installCanvasZoomPassthrough(root) {
 }
 
 // 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function pixApiUrl(route) {
+function sfApiUrl(route) {
   try {
     if (typeof api?.apiURL === "function") return api.apiURL(route);
   } catch {
@@ -123,7 +123,7 @@ function getUpstreamImageURL(node) {
   if (srcNode.comfyClass === "LoadImage" || srcNode.type === "LoadImage") {
     const imgWidget = (srcNode.widgets || []).find((w) => w.name === "image");
     if (imgWidget && imgWidget.value) {
-      return pixApiUrl(`/view?filename=${encodeURIComponent(imgWidget.value)}&type=input&t=${Date.now()}`);
+      return sfApiUrl(`/view?filename=${encodeURIComponent(imgWidget.value)}&type=input&t=${Date.now()}`);
     }
   }
 
@@ -179,11 +179,11 @@ function getUpstreamSnapshot(node) {
 // store only the structural parts so workflow JSON stays clean.
 function buildSourceURL(part, withCacheBust) {
   if (!part || !part.filename) return null;
-  // The cache-buster is part of the ROUTE handed to pixApiUrl, never appended to
+  // The cache-buster is part of the ROUTE handed to sfApiUrl, never appended to
   // its RESULT: a hosted ComfyUI adds its auth token to the finished url, so
   // concatenating afterwards writes our param on the far side of that token
   // (see js/shared/api_url.mjs). Locally the two produce the identical string.
-  return pixApiUrl(`/view?filename=${encodeURIComponent(part.filename)}` +
+  return sfApiUrl(`/view?filename=${encodeURIComponent(part.filename)}` +
               `&subfolder=${encodeURIComponent(part.subfolder || "")}` +
               `&type=${encodeURIComponent(part.type || "temp")}` +
               (withCacheBust ? `&t=${Date.now()}` : ""));
@@ -227,6 +227,7 @@ function dedupeCropProjectId(node) {
     // wired, otherwise the empty placeholder.
     node._sfCropSourceURL = null;
     if (node.properties) {
+      delete node.properties.sfCropSource;
       delete node.properties.pixaromaCropSource;
       delete node.properties.pixaromaCropSourceURL;
     }
@@ -239,7 +240,7 @@ function dedupeCropProjectId(node) {
 // Mirrors the way native LoadImage accepts a clipboard paste: when the user
 // presses Ctrl+V with an image in the clipboard AND a SFImageCrop node is
 // selected AND no upstream wire is connected, the image is uploaded to
-// input/pixaroma/ and used as the source. Skipped silently when an upstream
+// input/sfnodes_crop/ and used as the source. Skipped silently when an upstream
 // is wired (the workflow uses that tensor, pasting would be confusing).
 let _pasteHandlerInstalled = false;
 function installPasteHandler() {
@@ -372,12 +373,15 @@ app.registerExtension({
       this.imgs = null; // prevent native preview flash on restore
 
       // Restore cached source URL from saved properties (Vue Compat #11).
-      // Two formats supported: the new `pixaromaCropSource` (parts only —
-      // we rebuild the URL with a fresh cache-buster) and the legacy
-      // `pixaromaCropSourceURL` field (full URL string). node.properties is
-      // populated by LiteGraph deserialize before this fires.
+      // `sfCropSource` (parts only — we rebuild the URL with a fresh
+      // cache-buster) is the current key; the legacy `pixaromaCropSource` /
+      // `pixaromaCropSourceURL` fields are still read for back-compat with
+      // workflows saved before the rename. node.properties is populated by
+      // LiteGraph deserialize before this fires.
       if (!this._sfCropSourceURL) {
-        if (this.properties?.pixaromaCropSource) {
+        if (this.properties?.sfCropSource) {
+          this._sfCropSourceURL = buildSourceURL(this.properties.sfCropSource, true);
+        } else if (this.properties?.pixaromaCropSource) {
           this._sfCropSourceURL = buildSourceURL(this.properties.pixaromaCropSource, true);
         } else if (this.properties?.pixaromaCropSourceURL) {
           this._sfCropSourceURL = this.properties.pixaromaCropSourceURL;
@@ -435,7 +439,7 @@ app.registerExtension({
     // ── Shared preview system ──
     const parts = createNodePreview(
       "Image Crop",
-      "Pixaroma",
+      "SF Nodes",
       "接入 IMAGE 输入并运行一次工作流，\n或点击 Open Crop 加载图片",
     );
     // let dedupe (module scope) blank this node's thumbnail after a duplicate
@@ -651,9 +655,9 @@ app.registerExtension({
 
     // ── Clipboard paste support ──
     // Triggered by the window-level paste listener (installPasteHandler) when
-    // this node is selected. Uploads the pasted image to input/pixaroma/ via
-    // the existing crop API routes, then updates cropJson + the cached source
-    // URL so the mini-preview rebuilds immediately.
+    // this node is selected. Uploads the pasted image to input/sfnodes_crop/
+    // via the existing crop API routes, then updates cropJson + the cached
+    // source URL so the mini-preview rebuilds immediately.
     installPasteHandler();
     node._sfCropPaste = async (dataURL) => {
       try {
@@ -671,7 +675,7 @@ app.registerExtension({
         // Python node loads the source on every run and applies the panel's
         // current crop_w/h/x/y. This lets the user tweak crop dims after
         // pasting without re-opening the editor.
-        const r1 = await api.fetchApi(pixApiUrl("/pixaroma/api/crop/upload_src"), {
+        const r1 = await api.fetchApi(sfApiUrl("/api/sfnodes/crop/upload_src"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ project_id: projectId, image: dataURL }),
@@ -702,12 +706,13 @@ app.registerExtension({
         if (srcPath) {
           const part = {
             filename: srcPath.split(/[\\/]/).pop(),
-            subfolder: "pixaroma",
+            subfolder: "sfnodes_crop",
             type: "input",
           };
           node._sfCropSourceURL = buildSourceURL(part, true);
           if (!node.properties) node.properties = {};
-          node.properties.pixaromaCropSource = part;
+          node.properties.sfCropSource = part;
+          delete node.properties.pixaromaCropSource;
           delete node.properties.pixaromaCropSourceURL;
         }
         node._sfCropLastImageDims = { w: dims.w, h: dims.h };
@@ -787,6 +792,7 @@ app.registerExtension({
       // Wire changed → cached URL is stale.
       node._sfCropSourceURL = null;
       if (node.properties) {
+        delete node.properties.sfCropSource;
         delete node.properties.pixaromaCropSource;
         delete node.properties.pixaromaCropSourceURL;
       }
@@ -829,8 +835,9 @@ app.registerExtension({
       const part = { filename: f.filename, subfolder: f.subfolder || "", type: f.type || "temp" };
       node._sfCropSourceURL = buildSourceURL(part, true);
       if (!node.properties) node.properties = {};
-      node.properties.pixaromaCropSource = part;
-      // Drop the legacy full-URL field if present (back-compat cleanup).
+      node.properties.sfCropSource = part;
+      // Drop the legacy key names if present (back-compat cleanup).
+      delete node.properties.pixaromaCropSource;
       delete node.properties.pixaromaCropSourceURL;
       rebuildPreviewFromUpstream();
     };
