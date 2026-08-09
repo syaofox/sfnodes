@@ -386,6 +386,77 @@ write_png(outer_missing, prompt_json={**sampler("1", ["2", 0]),
 res = helpers.read_prompt_from_image(outer_missing)
 check("自追链: 源图缺失给出专属提示", res.get("found") is False and "source image" in res.get("message", ""))
 
+# ── 视频元数据（真实 ffmpeg 生成；不可用时跳过）──
+import shutil
+import subprocess
+
+_ffmpeg = shutil.which("ffmpeg")
+
+
+def _make_video(video_path, meta_entries, extra_args):
+    """用 ffmpeg 生成带元数据的测试视频。失败返回 False。"""
+    meta_file = os.path.join(tmp, os.path.basename(video_path) + ".meta.txt")
+    with open(meta_file, "w") as f:
+        for k, v in meta_entries:
+            f.write(f"{k}={v}\n")
+    cmd = [_ffmpeg, "-y", "-loglevel", "error",
+           "-f", "lavfi", "-i", "color=c=red:s=64x64:d=0.3",
+           "-f", "ffmetadata", "-i", meta_file,
+           "-map", "0:v", "-map_metadata", "1", *extra_args, video_path]
+    return subprocess.run(cmd, capture_output=True).returncode == 0
+
+
+if _ffmpeg:
+    mp4_path = os.path.join(input_dir, "gen1.mp4")
+    mp4_ok = _make_video(mp4_path, [
+        ("prompt", '{"3":{"class_type":"KSampler","inputs":{"positive":["4",0]}},"4":{"class_type":"CLIPTextEncode","inputs":{"text":"hello from mp4"}}}'),
+        ("workflow", '{"nodes":[]}'),
+    ], ["-movflags", "use_metadata_tags", "-c:v", "libx264", "-pix_fmt", "yuv420p"])
+    if mp4_ok:
+        chunks = helpers.read_video_text_chunks(mp4_path)
+        check("mp4: 元数据键存在", "prompt" in chunks and "workflow" in chunks)
+        check("mp4: 值是字符串", isinstance(chunks.get("prompt"), str) and "CLIPTextEncode" in chunks["prompt"])
+        res = helpers.read_prompt_from_image(mp4_path)
+        check("mp4: 完整链恢复 prompt", res == {"found": True, "text": "hello from mp4", "source": "comfyui"})
+    else:
+        print("SKIP: ffmpeg mp4 生成失败")
+
+    webm_path = os.path.join(input_dir, "gen1.webm")
+    webm_ok = _make_video(webm_path, [
+        ("prompt", '{"3":{"class_type":"KSampler","inputs":{"positive":["4",0]}},"4":{"class_type":"CLIPTextEncode","inputs":{"text":"hello from webm"}}}'),
+    ], ["-c:v", "libvpx-vp9", "-b:v", "100k"])
+    if webm_ok:
+        chunks = helpers.read_video_text_chunks(webm_path)
+        check("webm: 大写键归一小写", "prompt" in chunks)
+        res = helpers.read_prompt_from_image(webm_path)
+        check("webm: 完整链恢复 prompt", res == {"found": True, "text": "hello from webm", "source": "comfyui"})
+    else:
+        print("SKIP: ffmpeg webm 生成失败")
+
+    plain_mp4 = os.path.join(input_dir, "plain.mp4")
+    if _make_video(plain_mp4, [], ["-c:v", "libx264", "-pix_fmt", "yuv420p"]):
+        res = helpers.read_prompt_from_image(plain_mp4)
+        check("mp4: 无元数据", res.get("found") is False and "metadata" in res.get("message", ""))
+    else:
+        print("SKIP: ffmpeg 无元数据 mp4 生成失败")
+
+    mkv_path = os.path.join(input_dir, "gen1.mkv")
+    if _make_video(mkv_path, [
+        ("prompt", '{"3":{"class_type":"KSampler","inputs":{}}}'),
+    ], ["-c:v", "libx264", "-pix_fmt", "yuv420p"]):
+        chunks = helpers.read_video_text_chunks(mkv_path)
+        check("mkv: EBML 解析同样生效", "prompt" in chunks)
+    else:
+        print("SKIP: ffmpeg mkv 生成失败")
+
+    # 裸名视频 resolve：无同名 PNG 时落到 .mp4（优先级表末位）
+    if _make_video(os.path.join(input_dir, "video_only.mp4"), [], ["-c:v", "libx264", "-pix_fmt", "yuv420p"]):
+        check("resolve: 裸名视频", helpers.resolve_input_image_name("video_only") == "video_only.mp4")
+    else:
+        print("SKIP: ffmpeg video_only 生成失败")
+else:
+    print("SKIP: ffmpeg 不可用，视频测试跳过")
+
 # ── resolve_input_image_name ──
 os.makedirs(os.path.join(input_dir, "sub"), exist_ok=True)
 write_png(os.path.join(input_dir, "BunnyExplorer.png"), prompt_json={})

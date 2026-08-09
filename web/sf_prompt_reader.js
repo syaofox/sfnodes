@@ -280,12 +280,12 @@ function buildRoot() {
   btnUpload.type = "button";
   btnUpload.className = "sf-pr-upload-btn";
   btnUpload.dataset.role = "upload";
-  btnUpload.textContent = "Upload Image";
+  btnUpload.textContent = "Upload Image / Video";
   root.appendChild(btnUpload);
 
   const hint = document.createElement("div");
   hint.className = "sf-pr-hint";
-  hint.textContent = "or drag a PNG here";
+  hint.textContent = "or drag a PNG / MP4 here";
   hint.dataset.role = "hint";
   root.appendChild(hint);
 
@@ -405,7 +405,7 @@ function pickAndUpload(node) {
   return new Promise((resolve, reject) => {
     const inp = document.createElement("input");
     inp.type = "file";
-    inp.accept = "image/*";
+    inp.accept = "image/*,video/*";
     inp.style.display = "none";
     inp.addEventListener("change", async () => {
       const file = inp.files?.[0];
@@ -660,7 +660,7 @@ function setWiredUI(node, wired, followed) {
       : "\u{1F517} Connected · the prompt loads when you run";
   } else {
     hint.classList.remove("sf-pr-wired-hint");
-    hint.textContent = "or drag a PNG here";
+    hint.textContent = "or drag a PNG / MP4 here";
   }
 }
 
@@ -991,10 +991,14 @@ function setupNode(node) {
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer?.files?.[0];
-    if (!file || !file.type.startsWith("image/")) return;
+    if (!file) return;
+    // 与 accept="image/*,video/*" 一致：图片与视频都收。type 为空（浏览器对
+    // 未知扩展名如 .mkv 不给 MIME）时放行，交给后端上传决定。
+    const t = file.type || "";
+    if (t && !t.startsWith("image/") && !t.startsWith("video/")) return;
     try {
       await uploadImage(node, file);
-      if (!takeOverFromWire(node)) onImageChanged(node);  // dropping an image wins over a wire
+      if (!takeOverFromWire(node)) onImageChanged(node);  // dropping a file wins over a wire
     } catch (err) {
       console.error("[SFPromptReader] drop upload failed", err);
       applyResult(node, { found: false, message: `Upload failed: ${err.message}` });

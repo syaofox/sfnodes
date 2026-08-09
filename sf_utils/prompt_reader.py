@@ -4,6 +4,13 @@ Read PNG tEXt/iTXt chunks via PIL, then walk the embedded ComfyUI workflow
 JSON to trace the POSITIVE prompt text that drove the image. Falls back to
 A1111 / Forge `parameters` style metadata when no ComfyUI workflow is present.
 
+MP4 / WebM / MKV 视频同样支持：纯标准库解析（无第三方依赖）——
+- MP4：moov→udta→meta 的 keys/ilst box 链（ffmpeg `-movflags use_metadata_tags`
+  布局：ilst item 以 1-based index 指向 keys；iTunes 4cc 布局同样兼容），
+  覆盖 VideoHelperSuite 等用 ffmpeg 写元数据的视频保存节点
+- WebM / MKV：EBML 容器 Tags→Tag→SimpleTag（TagName/TagString 键值对，
+  键名按 Matroska 规范大写，读取时大小写不敏感）
+
 复刻自 comfyui-pixaroma 的 _prompt_reader_helpers.py：保留对 Pixaroma 生态
 节点（Switch / PromptStack / Multi / Pack / Dropdown / FromList / Prompt /
 SwitchSource / rgthree Any Switch）的兼容支持——读别人用 Pixaroma 插件生成的
@@ -18,6 +25,7 @@ Used by both the Python node (run-time output) and the server route
 import json
 import os
 import re
+import struct
 from typing import Optional
 
 from PIL import Image
@@ -33,9 +41,16 @@ except ImportError:
 
 # Extension preference when matching a bare/extension-less name back to a real
 # file. PNG first because that is where ComfyUI / A1111 / Forge embed the
-# prompt; the others are included so a match is still found for images that
-# simply have no prompt (the readout then explains that).
-_IMAGE_EXT_PRIORITY = (".png", ".webp", ".jpeg", ".jpg", ".bmp", ".gif", ".tiff", ".tif")
+# prompt; videos follow so a bare video stem still resolves; the rest are
+# included so a match is still found for images that simply have no prompt
+# (the readout then explains that).
+_MEDIA_EXT_PRIORITY = (
+    ".png", ".webp", ".jpeg", ".jpg", ".bmp", ".gif", ".tiff", ".tif",
+    ".mp4", ".m4v", ".mov", ".webm", ".mkv",
+)
+
+# 视频文件扩展名（read_prompt_from_image 按扩展名分流到 EBML / MP4 解析器）
+_VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mov", ".webm", ".mkv")
 
 # Upper bound on files scanned by the stem search so a pathological / huge input
 # folder (or a client spamming the extract route with non-resolving names) can't
@@ -106,13 +121,13 @@ def resolve_input_image_name(name):
             if fstem.lower() != stem_lower:
                 continue
             ext = fext.lower()
-            if ext not in _IMAGE_EXT_PRIORITY:
+            if ext not in _MEDIA_EXT_PRIORITY:
                 continue
             rel = fname if rel_sub == "" else rel_sub + "/" + fname
             # Rank (lower is better): a subfolder-hint match wins, then PNG-first
             # extension order, then the shallowest path, then name for stability.
             sub_match = 0 if (sub_hint and rel_sub == sub_hint) else 1
-            ext_rank = _IMAGE_EXT_PRIORITY.index(ext)
+            ext_rank = _MEDIA_EXT_PRIORITY.index(ext)
             depth = rel.count("/")
             rank = (sub_match, ext_rank, depth, rel.lower())
             if best_rank is None or rank < best_rank:
@@ -267,6 +282,288 @@ def read_png_text_chunks(file_path: str) -> dict:
         if isinstance(v, (str, bytes)):
             out[str(k)] = v.decode("utf-8", "replace") if isinstance(v, bytes) else v
     return out
+
+
+# ── 视频元数据（纯标准库，无第三方依赖）─────────────────────────────────────
+
+def _iter_mp4_boxes(data: bytes, start: int, end: int):
+    """Yield (box_type: bytes, content_start, content_end) for every child box
+    in the ISO BMFF container slice [start, end).
+
+    Handles 64-bit sizes (size==1) and box-to-end (size==0). Malformed boxes
+    (size < header) terminate iteration.
+    """
+    off = start
+    while off + 8 <= end:
+        size = int.from_bytes(data[off:off + 4], "big")
+        typ = data[off + 4:off + 8]
+        if size == 1:
+            if off + 16 > end:
+                break
+            size = int.from_bytes(data[off + 8:off + 16], "big")
+            hdr = 16
+        elif size == 0:
+            size = end - off
+            hdr = 8
+        elif size < 8:
+            break
+        else:
+            hdr = 8
+        yield typ, off + hdr, min(off + size, end)
+        off += size
+
+
+def _parse_mp4_meta(data: bytes, start: int, end: int) -> dict:
+    """Parse a moov/udta/meta (or moov/meta) full box into {key: value}.
+
+    Two ilst layouts are handled:
+      - ffmpeg (`-movflags use_metadata_tags`): each ilst item's 4 bytes are a
+        1-based INDEX into the keys list; the item body is a `data` box.
+        This is what VideoHelperSuite etc. write.
+      - iTunes-style: the item's 4 bytes are the key itself (e.g. ©nam) with a
+        `data` box body.
+    """
+    keys: list = []
+    items: dict = {}   # index(0-based) -> bytes, or 4cc str -> bytes
+    for typ, b, e in _iter_mp4_boxes(data, start, end):
+        if typ == b"keys":
+            # full box: 4 bytes version/flags + uint32 count + entries
+            if b + 8 > e:
+                continue
+            count = int.from_bytes(data[b + 4:b + 8], "big")
+            o = b + 8
+            for _ in range(count):
+                if o + 8 > e:
+                    break
+                ksz = int.from_bytes(data[o:o + 4], "big")
+                kt = data[o + 4:o + 8]
+                if ksz < 8 or kt != b"mdta" or o + ksz > e:
+                    break
+                keys.append(data[o + 8:o + ksz].decode("utf-8", "replace"))
+                o += ksz
+        elif typ == b"ilst":
+            for it, ib, ie in _iter_mp4_boxes(data, b, e):
+                payload = None
+                for styp, sb, se in _iter_mp4_boxes(data, ib, ie):
+                    if styp == b"data":
+                        # data box: version/flags(4) + reserved(4) + payload
+                        payload = data[sb + 8:se]
+                        break
+                if payload is None:
+                    continue
+                idx = int.from_bytes(it, "big")
+                if 1 <= idx <= max(1, len(keys)):
+                    # ffmpeg index style (1-based)
+                    items[idx - 1] = payload
+                else:
+                    items[it.decode("latin1", "replace")] = payload
+
+    out = {}
+    for i, k in enumerate(keys):
+        if k and i in items:
+            out[k] = items[i].decode("utf-8", "replace")
+    for k, v in items.items():
+        if isinstance(k, str) and k not in out:
+            out[k] = v.decode("utf-8", "replace")
+    return out
+
+
+def _read_mp4_metadata(file_path: str) -> dict:
+    """Stream-scan an MP4/MOV/M4V for moov→(udta→)meta metadata.
+
+    Large boxes (mdat, etc.) are skipped via seek, only the moov box is read
+    into memory, so multi-GB videos stay cheap.
+    """
+    try:
+        f = open(file_path, "rb")
+    except OSError:
+        return {}
+    try:
+        moov = None
+        while True:
+            hdr = f.read(8)
+            if len(hdr) < 8:
+                break
+            size, typ = struct.unpack(">I4s", hdr)
+            if size == 1:
+                ext = f.read(8)
+                if len(ext) < 8:
+                    break
+                size = struct.unpack(">Q", ext)[0]
+                hdr_len = 16
+            elif size == 0:
+                # box runs to end of file: total size = fsize - box_offset.
+                # After reading the 8-byte header the file pointer sits at
+                # box_offset + 8, so capture it before seeking to the end.
+                cur_pos = f.tell()
+                f.seek(0, 2)
+                fsize = f.tell()
+                size = fsize - cur_pos + 8
+                hdr_len = 8
+            else:
+                hdr_len = 8
+            if size < hdr_len:
+                break
+            if typ == b"moov":
+                moov = f.read(size - hdr_len)
+                break
+            f.seek(size - hdr_len, 1)
+        if not moov:
+            return {}
+        # meta 可能在 moov 直下（部分工具），或 moov→udta→meta（ffmpeg）
+        for typ, b, e in _iter_mp4_boxes(moov, 0, len(moov)):
+            if typ == b"meta":
+                return _parse_mp4_meta(moov, b + 4, e)
+            if typ == b"udta":
+                for t2, b2, e2 in _iter_mp4_boxes(moov, b, e):
+                    if t2 == b"meta":
+                        return _parse_mp4_meta(moov, b2 + 4, e2)
+        return {}
+    finally:
+        f.close()
+
+
+# EBML (WebM / MKV) element ids used by the metadata walker.
+_EBML_SEGMENT = 0x18538067    # top-level container
+_EBML_TAGS = 0x1254C367      # Segment -> Tags
+_EBML_TAG = 0x7373           # Tags -> Tag
+_EBML_SIMPLE_TAG = 0x67C8    # Tag -> SimpleTag
+_EBML_TAG_NAME = 0x45A3      # SimpleTag -> TagName (utf-8)
+_EBML_TAG_STRING = 0x4487    # SimpleTag -> TagString (utf-8)
+# Element ids whose content we descend into; everything else (Cluster,
+# Tracks, ...) is skipped by seek.
+_EBML_WALK_IN = (_EBML_SEGMENT, _EBML_TAGS, _EBML_TAG, _EBML_SIMPLE_TAG)
+
+
+def _ebml_id_len(first: int) -> int:
+    """EBML element id length from the first byte: the position of the first
+    1 bit (0x80 -> 1, 0x40 -> 2, 0x20 -> 3, 0x10 -> 4). 0 = invalid."""
+    if first & 0x80:
+        return 1
+    if first & 0x40:
+        return 2
+    if first & 0x20:
+        return 3
+    if first & 0x10:
+        return 4
+    return 0
+
+
+def _ebml_vint(buf: bytes) -> tuple:
+    """Decode an EBML variable-length integer from `buf`.
+
+    Returns (value, length_in_bytes), or (None, 0) when the first byte marks
+    an unknown size (all payload bits 1) or the buffer is too short.
+    """
+    if not buf:
+        return None, 0
+    first = buf[0]
+    length = 1
+    mask = 0x80
+    while not (first & mask):
+        mask >>= 1
+        length += 1
+        if length > 8 or length > len(buf):
+            return None, 0
+    value = first & (mask - 1)
+    for i in range(1, length):
+        value = (value << 8) | buf[i]
+    if value == (1 << (7 * length)) - 1:
+        return None, length  # unknown size
+    return value, length
+
+
+def _scan_ebml(f, start: int, end: int, in_simple_tag: bool = False) -> list:
+    """Iterate EBML elements in [start, end), descending only into the Tags
+    container chain (Tags/Tag/SimpleTag), and collect (name, value) pairs
+    from SimpleTag children.
+
+    Every other element (Cluster, Tracks, ...) is skipped by seek, so the
+    scan is cheap even for large videos. Unknown-size elements extend to the
+    end of the current container (standard for Segment).
+    """
+    out = []
+    pending_name = None
+    cur = start
+    while cur + 2 <= end:
+        f.seek(cur)
+        b0 = f.read(1)
+        if len(b0) < 1:
+            break
+        idlen = _ebml_id_len(b0[0])
+        if idlen == 0 or cur + idlen > end:
+            break
+        f.seek(cur)
+        idb = f.read(idlen)
+        if len(idb) < idlen:
+            break
+        eid = int.from_bytes(idb, "big")
+        vbuf = f.read(8)
+        if not vbuf:
+            break
+        size, vlen = _ebml_vint(vbuf)
+        cstart = cur + idlen + vlen
+        if size is None:
+            cend = end  # unknown size: element runs to container end
+        else:
+            cend = cstart + size
+        if cend > end:
+            break
+        if in_simple_tag and eid == _EBML_TAG_NAME:
+            f.seek(cstart)
+            pending_name = f.read(size).decode("utf-8", "replace")
+        elif in_simple_tag and eid == _EBML_TAG_STRING:
+            f.seek(cstart)
+            value = f.read(size).decode("utf-8", "replace")
+            if pending_name is not None:
+                out.append((pending_name, value))
+                pending_name = None
+        elif eid in _EBML_WALK_IN:
+            out.extend(_scan_ebml(f, cstart, cend, eid == _EBML_SIMPLE_TAG))
+        cur = cend
+    return out
+
+
+def _read_ebml_metadata(file_path: str) -> dict:
+    """Extract {key: value} tags from a WebM / MKV (Matroska) file.
+
+    Matroska tag names are uppercased by muxers (ffmpeg writes PROMPT /
+    WORKFLOW), so keys are normalised to lowercase here; callers read
+    "prompt" / "workflow" / "parameters" case-sensitively.
+    """
+    try:
+        f = open(file_path, "rb")
+    except OSError:
+        return {}
+    try:
+        f.seek(0, 2)
+        fsize = f.tell()
+        pairs = _scan_ebml(f, 0, fsize, False)
+    finally:
+        f.close()
+    out = {}
+    for name, value in pairs:
+        if not name:
+            continue
+        key = name.lower()
+        if key not in out:
+            out[key] = value
+    return out
+
+
+def read_video_text_chunks(file_path: str) -> dict:
+    """Return metadata from a video file as {key: value} strings (keys
+    lowercased), or {} when unreadable / no metadata.
+
+    MP4 / MOV / M4V go through the ISO BMFF parser, WebM / MKV through the
+    EBML parser. The extraction is pure stdlib - no ffmpeg / PyAV needed.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in (".mp4", ".m4v", ".mov"):
+        return _read_mp4_metadata(file_path)
+    if ext in (".webm", ".mkv"):
+        return _read_ebml_metadata(file_path)
+    return {}
 
 
 def _chase_prompt_reader(node: dict, chase_depth: int) -> Optional[str]:
@@ -1055,12 +1352,19 @@ def read_prompt_from_image(file_path: str) -> dict:
 
       { "found": True,  "text": "<prompt>", "source": "comfyui" | "a1111" }
       { "found": False, "message": "..." }
+
+    PNG goes through the tEXt/iTXt chunk reader; MP4 / WebM / MKV through the
+    video metadata parser (pure stdlib).
     """
-    chunks = read_png_text_chunks(file_path)
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in _VIDEO_EXTENSIONS:
+        chunks = read_video_text_chunks(file_path)
+    else:
+        chunks = read_png_text_chunks(file_path)
     if not chunks:
         return {
             "found": False,
-            "message": "No prompt metadata found in this image.",
+            "message": "No prompt metadata found in this file.",
         }
 
     if "prompt" in chunks:

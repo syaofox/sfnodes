@@ -21,7 +21,7 @@ function check(name, cond) {
 // ── mock DOM（惰性元素）──
 function makeEl() {
     return {
-        style: {}, dataset: {}, children: [],
+        style: {}, dataset: {}, children: [], _handlers: {},
         className: "", textContent: "", innerHTML: "", value: "", placeholder: "",
         type: "", title: "", readOnly: false, disabled: false, isConnected: true,
         offsetWidth: 100, offsetHeight: 20,
@@ -39,7 +39,8 @@ function makeEl() {
         contains() { return false; },
         querySelector() { return makeEl(); },
         querySelectorAll() { return []; },
-        addEventListener() {}, removeEventListener() {},
+        addEventListener(name, fn) { this._handlers[name] = fn; },
+        removeEventListener() {},
         select() {}, click() {},
         getBoundingClientRect() { return { left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 }; },
         scrollIntoView() {},
@@ -102,9 +103,20 @@ function makeNode() {
             this.widgets.push(w);
             return w;
         },
-        disconnectInput() {},
+        // 模拟真实 LiteGraph：断开触发 onConnectionsChange 级联（unwire →
+        // refreshWiredState → onImageChanged），drop/手动接管依赖这条链刷新。
+        disconnectInput(i) {
+            const inp = this.inputs[i];
+            if (inp && inp.link != null) {
+                inp.link = null;
+                _fakeType.prototype.onConnectionsChange.call(this, 1, i, false, null, { name: inp.name });
+            }
+        },
     };
 }
+
+// makeNode 定义在顶层，FakeType 在 async IIFE 内创建：经模块级变量桥接
+let _fakeType = null;
 
 // ── 加载模块（替换 /scripts/* import，相对 import 改 .mjs 同 tmp）──
 (async () => {
@@ -122,6 +134,7 @@ function makeNode() {
 
     // beforeRegisterNodeDef 包装
     const FakeType = function () {};
+    _fakeType = FakeType;
     app._ext.beforeRegisterNodeDef(FakeType, { name: "SFPromptReader" });
     check("onConfigure 已包装", typeof FakeType.prototype.onConfigure === "function" && FakeType.prototype.onConfigure !== Object.getPrototypeOf(FakeType).onConfigure);
     check("onConnectionsChange 已包装", typeof FakeType.prototype.onConnectionsChange === "function");
@@ -163,6 +176,28 @@ function makeNode() {
         check("其他槽变化不炸", true);
     } catch (e) {
         check("其他槽变化不炸", false);
+    }
+
+    // 拖拽 drop：video/mp4 放行并上传+提取；非媒体类型拒绝；空 type 放行
+    const root = node._sfPrRoot;
+    const dropHandler = root?._handlers?.drop;
+    check("drop handler 已挂", typeof dropHandler === "function");
+    const uploadsBefore = extractCalls.length;
+    const ev = (type) => ({ preventDefault() {}, stopPropagation() {}, dataTransfer: { files: [{ type, name: "clip.mp4" }] } });
+    if (typeof dropHandler === "function") {
+        await dropHandler(ev("video/mp4"));
+        await new Promise((r) => setTimeout(r, 20));
+        check("drop mp4: 提取已触发", extractCalls.length === uploadsBefore + 1);
+        check("drop mp4: 新文件进了 combo options", node._sfPrImageWidget.options.values.includes("uploaded.png"));
+
+        const before = extractCalls.length;
+        await dropHandler(ev("text/plain"));
+        await new Promise((r) => setTimeout(r, 20));
+        check("drop 非媒体类型被拒", extractCalls.length === before);
+
+        await dropHandler(ev(""));
+        await new Promise((r) => setTimeout(r, 20));
+        check("drop 空 type 放行", extractCalls.length === before + 1);
     }
 
     // onRemoved 清理
