@@ -869,3 +869,50 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 - smoke 测试的 **async 步进需 await**：`() => stepSubdir(prev)` 箭头函数返回 promise，`await _handlers.click()` 才能拿到完成后的值。
 - mock 增强：`document.addEventListener` 记录（Esc 关闭断言）、`body.appendChild` 记录（拿 popup 元素）、`innerHTML` setter 清空 children（模拟真实 DOM 重建）。
+
+## 19. SFLoraStack：多行 LoRA 栈复刻（触发词/描述/封面/Civitai 查询/孤儿数据迁移）
+
+> 背景：复刻 PixaromaLoraLoader 为 SFLoraStack。核心 = 多行 LoRA 栈（行级 on/off + sm/sc 强度 + 触发词勾选输出 triggers 字符串）；信息面板 = 离线元数据/触发词读取 + 可选 Civitai 查询（文本+封面本地保存）；用户数据（自定义词/描述/预览图）按 LoRA 路径名键控，文件移动/改名后的孤儿迁移是主要难点。双端模式与 SFPauseText 同构：状态存 `node.properties.loraStackState` → graphToPrompt 注入隐藏 LoraLoaderState 输入。
+
+### 1. Civitai API 字段位置必须实测（description/thumbnail）
+
+- **`model-versions/by-hash` 响应的 `model` 对象只有 name/nsfw/poi/type**——说明文字在 **version 顶层 `description`**（HTML 字符串）。曾按 `model.description` 提取永远为空，实测 API 后修正（顶层优先 + `model.description` 兼容兜底旧侧车）。
+- description 清洗：`<br>/</p>/</div>/</li>` 换行标签转 `\n` → 其余标签剥掉 → 实体解码（`&amp;`/`&#x...;`/`&nbsp;`）→ 空白折叠 → 2000 字符截断。纯函数 `_clean_description`。
+- **thumbnail 取 `images[]` 第一张非成人图**（`nsfwLevel` 位掩码 `>=4` 即成人；`allow_adult` 设置才用全显式画廊）。`nsfwLevel: 16` 的成人模型默认无封面——这是预期，不是查询失败。
+- 双主机（com/red）：404 只在最后一个主机定论（成人模型主站用 404 隐藏）；401/403 绝不在循环内返回（备胎主机存在就是为了按域名屏蔽）；200 非 JSON = 屏蔽页/登录页而非"没有"。
+
+### 2. 封面：查询时自动保存 + 确认覆盖 + 移动后静默恢复
+
+- 查询成功 → 服务端把缩略图**下载到本地**（`user/sfnodes/lora_previews/<sha1(键)>.jpg`，与手动自定义预览同目录同名规则；https-only + 4MB cap + magic bytes 校验；失败不致命，文本照常返回）。`_download_thumb` 流式 iter_chunked 同 civitai body 模式。
+- **已有用户自定义预览 → 查询不覆盖**（返回 thumb_skipped），found 后面板风确认框询问 → 确认后走独立端点 `POST /lora/civitai_thumb_save`（读侧车 `sidecar_thumbnail` 拿同一张图重下载覆盖，**无需重新查询**）。
+- **面板风确认框必须豁免宿主面板的 document 捕获监听**：确认框挂 `document.body`、不在面板 DOM 内——信息面板的 `onDown`（document capture）会把点击判为"面板外"关掉整个面板（用户报"点 Replace 把信息框一起关了"）。onDown/onKey/onPaste 三监听都要 `closest('.sf-ls-confirm-mask')` 豁免。
+- **文件移动后封面自动恢复**：预览图按路径 hash 命名，移动后 hash 失配本地找不到；`/lora_info` 检测"本地无预览 && 侧车有缩略图" → `restorable_thumb` → 前端打开面板时静默 `saveCivitaiThumb` 重下载到新 hash 名（一次会话一次，失败静默下次再试）。
+
+### 3. 用户数据键失配与两级孤儿匹配（核心难点）
+
+- 自定义词/描述存 `user/sfnodes/lora_triggers.json`（键 = 归一化 LoRA 相对路径），预览图按同一键 sha1 命名。**侧车（`<base>.civitai.info`）随文件走天然跟上**；user 目录数据移动/改名后失配。
+- 匹配两级：
+  - **内容指纹优先**：`file_fingerprint` = `(size, sha256(头64KB), sha256(中64KB), sha256(尾64KB))`，~192KB 读取；改名/移动不改内容 → 指纹不变，可作"同一文件"的强证据（顺带修正基名匹配在"同名文件被替换"场景的误配）。存储条目可选 `fp` 字段，**写入端点（词/描述）保存时由路由层计算**（存储层无文件路径）；`_norm_fp` 形状清洗、旧数据无 fp 兼容。
+  - **基名兜底**：`base_key` = 去目录去扩展名，仅覆盖文件夹改名；同名多目录歧义放弃。
+- **只提示不自动执行**：`/lora_info` 附 `orphan_*` 字段 → 前端迁移条（Migrate/Dismiss，Dismiss 仅本会话）→ `POST /lora/migrate` 接收前端回传 `old_key`（**防御自迁移/不存在键**：`old_key == key` 或不在 store 拒绝）→ 词/描述键转移 + 删旧键、预览图同目录 rename（目标已存在不覆盖）→ 迁移后新键补记指纹（此后改名也能找回）。
+- 指纹匹配成本：仅 `has_custom=False` 且基名未命中时计算一次（~192KB/面板打开）。
+
+### 4. 状态契约与双端镜像
+
+- `promptState` 只注入执行字段（name/on/sm/sc/triggers + sep + cacheMode）：cosmetic（accent/thumbs/step/defStrength/linkStrength/id/custom）剥掉避免改缓存签名；**cacheMode 例外**——Python 需要它决定 run 间内存策略（切换会重跑一次，可接受）。
+- `parse_state` 容错契约：sc 缺省 = sm；强度钳 [-100,100]；nan/inf → 0；空名/非 dict 行丢弃；cacheMode 未知钳 last。前端 normalize 强制 `linkStrength` 时 sc=sm（写/读双端都强制，切回单强度永不留陈旧 clip 值）。
+- 存储形状升级兼容：`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一（`_norm_store_entry`）；词空但描述在 → 条目保留（原语义"空词删条目"需改）。
+
+### 5. 竞态：迟到旧响应覆盖用户刚保存的值
+
+- **信息面板 `_infoSeq++` 作废在途响应**：面板打开时 loadInfo 在飞，用户保存描述成功后迟到响应落地会把 `info.custom_description` 覆盖回旧值（"保存了仍显示来自 Civitai"——实际是用户忘了点 Save 的误报，但竞态真实存在，防御性修复）。`attemptInfo` 票号机制天然丢弃 superseded。
+- **设置面板 `_accDirty` 挡 GET 迟到应答**：面板打开时 GET 账户在飞，用户先点了 host（red）保存成功，迟到 GET 旧快照（com）落地覆盖面板显示（"设了 red 它显示 com"）。保存成功置 dirty，迟到 GET 不再覆盖。
+- 孤儿迁移提示条按面板会话 dismiss（文件没动则每次打开都值得再看）。
+
+### 6. 其余要点
+
+- 查询路由打 hosts/key 日志（`civitai lookup for <name>: hosts=<顺序> key=yes/no`）——"设了 red 走 com"类问题一眼定位。
+- View on Civitai 链接按账户 host 偏好生成域（red → civitai.red，成人模型在 com 网页可能受限）；`/lora_info` 附 `civitai_host`。
+- `_is_path_under` 用 realpath 双端严格检查 + 跨盘（junction）lexical 回退（原版 `_path_guard` 语义）；纯 abspath 会让同盘 symlink 逃逸误判通过。
+- `hideJsonWidget` 四件套（hidden + computeSize=[0,-4] + canvasOnly + element display:none）：Vue 下隐藏 STRING widget 会渲染成显示原始 JSON 的 textarea。
+- 测试：纯逻辑模块（lora_reader）无 ComfyUI 依赖直跑（tests/test_lora_reader.py 130+ 断言含 symlink 逃逸拒绝）；web import/export 交叉验证 tests/check_web_imports.py。
