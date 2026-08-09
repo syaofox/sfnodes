@@ -43,7 +43,7 @@ async function readPngWorkflowData(url) {
 }
 
 // 将图片作为工作流载入：新建工作流标签页（不替换当前画布）
-async function loadImageAsWorkflow(path, onError) {
+export async function loadImageAsWorkflow(path, onError) {
     const url = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
     const embedded = await readPngWorkflowData(url);
     if (!embedded) {

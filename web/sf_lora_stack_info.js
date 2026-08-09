@@ -6,6 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
+import { loadImageAsWorkflow } from "./sf_lora_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
@@ -101,9 +102,17 @@ function injectCSS() {
     .sf-ls-desc-upload .hint { font-size:10px; color:#7a7a7a; line-height:1.4; }
     .sf-ls-desc-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px;
       max-height:132px; overflow-y:auto; padding-right:2px; }
+    .sf-ls-desc-grid .cell { position:relative; width:56px; height:56px; }
     .sf-ls-desc-grid img { width:56px; height:56px; object-fit:cover; border-radius:6px;
       border:1px solid #3a3a3e; cursor:pointer; display:block; }
     .sf-ls-desc-grid img:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
+    /* 悬停显示的角标按钮：右上角删除 ✕、右下角载入工作流 📂 */
+    .sf-ls-desc-grid .cell .x, .sf-ls-desc-grid .cell .load { position:absolute; width:16px;
+      height:16px; padding:0; border:none; color:#fff; font-size:10px; line-height:1;
+      display:none; align-items:center; justify-content:center; cursor:pointer; }
+    .sf-ls-desc-grid .cell:hover .x, .sf-ls-desc-grid .cell:hover .load { display:flex; }
+    .sf-ls-desc-grid .cell .x { top:0; right:0; background:rgba(224,96,74,0.92); border-radius:0 5px 0 5px; }
+    .sf-ls-desc-grid .cell .load { bottom:0; right:0; background:rgba(79,124,255,0.92); border-radius:5px 0 5px 0; }
     .sf-ls-desc-grid .none { font-size:10px; color:#777; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
@@ -565,12 +574,46 @@ export async function openInfoPanel(node, id, refresh) {
                 return;
             }
             for (const p of imgs) {
+                const cell = el("div", "cell");
                 const img = document.createElement("img");
                 img.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
                 img.title = p.split("/").pop();
                 img.loading = "lazy";
                 img.addEventListener("click", () => onInsert(p));
-                grid.appendChild(img);
+                // 删除：悬停显示右上角 ✕，确认后删磁盘文件并刷新网格。
+                const del = el("button", "x", "✕");
+                del.title = "Delete this sample image from disk";
+                del.addEventListener("click", async (ev) => {
+                    ev.stopPropagation();
+                    const fileName = p.split("/").pop();
+                    const ok = await confirmDialog({
+                        title: "Delete sample image?",
+                        message: `Delete "${fileName}" from this LoRA's sample/ folder? This cannot be undone.`,
+                        okLabel: "Delete",
+                        cancelLabel: "Cancel",
+                        accent,
+                    });
+                    if (!ok || !panel.isConnected) return;
+                    try {
+                        const r = await app.api.fetchApi(
+                            `/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`,
+                            { method: "DELETE" });
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        refreshSampleGrid(grid, onInsert);
+                    } catch (err) {
+                        showMsg("Could not delete that picture: " + (err.message || err));
+                    }
+                });
+                // 载入为工作流：悬停显示右下角 📂，解析 PNG 内嵌 workflow 数据，
+                // 新建标签页载入（不替换当前画布）。
+                const load = el("button", "load", "📂");
+                load.title = "Load this picture as a workflow (needs embedded workflow data)";
+                load.addEventListener("click", async (ev) => {
+                    ev.stopPropagation();
+                    await loadImageAsWorkflow(p, (msg) => showMsg(msg));
+                });
+                cell.append(img, del, load);
+                grid.appendChild(cell);
             }
         } catch (e) {
             grid.innerHTML = "";
