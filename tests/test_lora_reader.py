@@ -167,17 +167,21 @@ check("build_lora_info rank/alpha", info["rank"] == "32" and info["alpha"] == "1
 check("build_lora_info triggers 合并 = 文件", info["triggers"] == ["alpha", "beta"])
 check("build_lora_info file_triggers", info["file_triggers"] == ["alpha", "beta"])
 check("build_lora_info source=file", info["source"] == "file")
+check("build_lora_info 无 description", info["description"] == "")
 
-# 侧车优先
+# 侧车优先（含 description——API 实测 description 在 version 顶层）
 sidecar_path = os.path.join(LORAS_DIR, "test.civitai.info")
 with open(sidecar_path, "w", encoding="utf-8") as f:
-    json.dump({"trainedWords": ["side1"], "model": {"name": "Test Model"},
+    json.dump({"trainedWords": ["side1"],
+               "description": "<b>Hello</b> &amp; welcome<br>line 2",
+               "model": {"name": "Test Model"},
                "modelId": "123", "id": "456"}, f)
 info2 = utils.build_lora_info(sf_path)
 check("build_lora_info 侧车触发词胜出", info2["triggers"] == ["side1"] and info2["sidecar_triggers"] == ["side1"])
 check("build_lora_info 侧车 title", info2["title"] == "Test Model")
 check("build_lora_info 侧车 ids", info2["model_id"] == 123 and info2["version_id"] == 456)
 check("build_lora_info source=sidecar", info2["source"] == "sidecar")
+check("build_lora_info 侧车 description 清洗", info2["description"] == "Hello & welcome\nline 2")
 os.remove(sidecar_path)
 
 # ── parse_state ──
@@ -246,6 +250,37 @@ check("set_custom_triggers 空清条目", utils.set_custom_triggers(store_path, 
 check("set_custom_triggers 不存在 LoRA 名可写（路由守卫在别处）",
       utils.set_custom_triggers(store_path, "other.safetensors", ["x"]) == ["x"])
 
+# ── 自定义描述（同存储，形状升级兼容）──
+cd = utils.get_custom_description
+check("get_custom_description 空", cd(store_path, "other.safetensors") == "")
+check("set_custom_description 写", utils.set_custom_description(store_path, "other.safetensors", "my desc") == "my desc")
+check("get_custom_description 读", cd(store_path, "other.safetensors") == "my desc")
+check("custom 描述不清词", utils.get_custom_triggers(store_path, "other.safetensors") == ["x"])
+# 旧形状文件兼容：{key: [words]} 仍读为词
+legacy_path = os.path.join(tempfile.mkdtemp(prefix="sf_lora_store2_"), "triggers.json")
+with open(legacy_path, "w", encoding="utf-8") as f:
+    json.dump({"legacy/a.safetensors": ["old1"], "junk": "notalist"}, f)
+check("旧形状 {key:[words]} 读", utils.get_custom_triggers(legacy_path, "legacy/a.safetensors") == ["old1"])
+check("旧形状垃圾值忽略", utils.get_custom_triggers(legacy_path, "junk") == [])
+# 词空但描述在 -> 条目保留；描述空 + 词在 -> 条目保留；都空 -> 删
+utils.set_custom_triggers(store_path, "other.safetensors", [])
+check("清词保留描述", cd(store_path, "other.safetensors") == "my desc")
+utils.set_custom_description(store_path, "other.safetensors", "")
+check("描述与词都空删条目", cd(store_path, "other.safetensors") == ""
+      and utils.get_custom_triggers(store_path, "other.safetensors") == [])
+check("set_custom_description 截断限长", len(utils.set_custom_description(store_path, "t.safetensors", "x" * 9999)) <= 2000)
+check("set_custom_description 非 str -> 清", utils.set_custom_description(store_path, "t.safetensors", None) == ""
+      and cd(store_path, "t.safetensors") == "")
+
+# ── _clean_description ──
+cl = utils._clean_description
+check("clean_desc 剥标签", cl("<b>Hello</b> world") == "Hello world")
+check("clean_desc 实体解码", cl("a &amp; b &lt;c&gt;") == "a & b <c>")
+check("clean_desc br 转行", cl("line1<br>line2<br/>line3") == "line1\nline2\nline3")
+check("clean_desc 空白折叠", cl("a   b\tc") == "a b c")
+check("clean_desc 非 str -> ''", cl(None) == "" and cl(123) == "" and cl("") == "")
+check("clean_desc 截断", len(cl("x" * 5000)) == 2000)
+
 # ── 自定义预览名（安全形状）──
 cpn = utils.custom_preview_name
 check("custom_preview_name 形状", utils.is_custom_preview_name(cpn("a/b.safetensors")) is True)
@@ -266,11 +301,16 @@ check("write_custom_preview 拒非 bytes", utils.write_custom_preview(folder_pv,
 
 # ── parse_civitai_modelversion ──
 pmv = utils.parse_civitai_modelversion
-civ = pmv({"trainedWords": ["t1"], "baseModel": "SDXL", "model": {"name": "M", "type": "LORA"},
+civ = pmv({"trainedWords": ["t1"], "baseModel": "SDXL",
+           "description": "Great <i>style</i> &amp; more",
+           "model": {"name": "M", "type": "LORA"},
            "modelId": "1", "id": "2",
            "images": [{"url": "https://x/o/original=true/1.jpg", "nsfw": "X", "nsfwLevel": 16},
                       {"url": "https://x/o/original=true/2.jpg", "nsfw": None}]})
 check("parse_civitai 触发词", civ["triggers"] == ["t1"])
+check("parse_civitai description 清洗", civ["description"] == "Great style & more")
+check("parse_civitai 顶层空则 model 兜底", pmv({"model": {"description": "fallback"}})["description"] == "fallback")
+check("parse_civitai 无描述", "description" not in pmv({"trainedWords": ["x"]}))
 check("parse_civitai 跳过显式图取下一张", civ["thumbnail"] == "https://x/o/width=256/2.jpg")
 check("parse_civitai ids", civ["model_id"] == 1 and civ["version_id"] == 2)
 civ2 = pmv({"images": [{"url": "https://x/a/original=true/1.jpg", "nsfw": "X"}]})
@@ -283,6 +323,18 @@ check("parse_civitai 垃圾", pmv("x") == {} and pmv(None) == {})
 side_base = os.path.splitext(sf_path)[0] + ".civitai.info"
 check("save_sidecar_cache", utils.save_sidecar_cache(sf_path, {"a": 1}) is True
       and os.path.isfile(side_base))
+# sidecar_thumbnail：从侧车原始响应提取缩略图
+with open(side_base, "w", encoding="utf-8") as f:
+    json.dump({"model": {"name": "M"},
+               "images": [{"url": "https://x/o/original=true/1.jpg", "nsfw": "X", "nsfwLevel": 16},
+                          {"url": "https://x/o/original=true/2.jpg", "nsfw": None}]}, f)
+check("sidecar_thumbnail 非成人图", utils.sidecar_thumbnail(sf_path) == "https://x/o/width=256/2.jpg")
+with open(side_base, "w", encoding="utf-8") as f:
+    json.dump({"images": [{"url": "https://x/o/original=true/1.jpg", "nsfw": "X", "nsfwLevel": 16}]}, f)
+check("sidecar_thumbnail 全显式无图", utils.sidecar_thumbnail(sf_path) is None)
+check("sidecar_thumbnail allow_adult 全显式", utils.sidecar_thumbnail(sf_path, allow_adult=True) == "https://x/o/width=256/1.jpg")
+check("sidecar_thumbnail 无侧车 -> None", utils.sidecar_thumbnail(os.path.join(LORAS_DIR, "none.safetensors")) is None)
+os.remove(side_base)
 check("delete_sidecar_cache", utils.delete_sidecar_cache(sf_path) is True
       and not os.path.isfile(sf_path + ".civitai.info"))
 check("delete_sidecar_cache 已无", utils.delete_sidecar_cache(sf_path) is True)

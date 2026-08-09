@@ -455,6 +455,10 @@ export function openLoraPanel(node, refresh) {
         const paint = () => { if (!editing) paintKeyRow(); paintRest(); };
 
         // 按服务器实际存储的应答重绘，绝不按我们以为它收下的。
+        // `_accDirty`：用户已做过一次保存。打开面板时发出的 GET 应答可能
+        // 慢于用户的第一次点击（GET 在 POST 之前就已生成），迟到落地会把
+        // 面板从用户刚设的值跳回旧值——"设了 red 它显示 com"就是这么来的。
+        let _accDirty = false;
         async function save(patch, okNote, opts) {
             const res = await setCivitaiAccount(patch);
             if (!res || !res.ok) {
@@ -465,6 +469,7 @@ export function openLoraPanel(node, refresh) {
                 paintRest();
                 return;
             }
+            _accDirty = true;
             acc = res;
             if (opts?.closeEditor) editing = false;
             say(okNote, true);
@@ -479,6 +484,9 @@ export function openLoraPanel(node, refresh) {
             if (!res || !res.ok) { say("Could not read the Civitai settings."); return; }
             // 应答落地前面板可能已被关闭重开；写进分离的 DOM 无害但无意义。
             if (!keyRow.isConnected) return;
+            // 用户已保存过：这次 GET 是保存前的旧快照，跳过（见 save 的
+            // _accDirty 注释）。
+            if (_accDirty) return;
             acc = res;
             paint();
         });

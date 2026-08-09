@@ -120,8 +120,9 @@ export function thumbUrl(name, bust) {
         (bust ? "&t=" + bust : ""));
 }
 
-// `overwrite` = 该 LoRA 已有用户自定义预览时仍用 Civitai 图片覆盖
-// （前端已确认）。缺省不传 = 后端跳过保存、返回 thumb_skipped。
+// `overwrite` 仅手写请求用（前端 UI 已改走独立确认保存端点）：=1 时已有
+// 用户自定义预览仍用 Civitai 图片覆盖。缺省不传 = 后端跳过保存、返回
+// thumb_skipped，前端随后用面板风确认框询问。
 export async function civitaiLookup(name, overwrite) {
     try {
         const q = overwrite ? "&overwrite=1" : "";
@@ -195,6 +196,23 @@ export async function deleteCivitai(name) {
     }
 }
 
+// 保存这个 LoRA 文件的用户自定义描述（覆盖 Civitai/文件的说明）。与自定义
+// 词同存储（ComfyUI user 目录）。空字符串清除它，回到 Civitai/文件原文。
+export async function saveCustomDescription(name, description) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/custom_description"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description }),
+        });
+        const j = await r.json();
+        if (j?.ok) invalidateInfo(name);
+        return j;
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
 // ── 用户自己的预览图 ───────────────────────────────────────────────────────
 // 存 ComfyUI user 目录，按 LoRA 名键控，胜过 .safetensors 旁的图和实时
 // Civitai 缩略图。两个调用都 invalidate 缓存 info（携带 custom_preview /
@@ -222,6 +240,23 @@ export async function saveLoraPreview(name, dataUrl) {
 export async function deleteLoraPreview(name) {
     try {
         const r = await fetch(sfApiUrl("/api/sfnodes/lora/preview_delete"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+        });
+        const j = await r.json();
+        if (j?.ok) invalidateInfo(name);
+        return j;
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
+/** 用户确认后，把侧车里的 Civitai 缩略图下载并覆盖保存为本地预览
+ *  （查询时因已有自定义预览被跳过保存的补做）。 */
+export async function saveCivitaiThumb(name) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai_thumb_save"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name }),

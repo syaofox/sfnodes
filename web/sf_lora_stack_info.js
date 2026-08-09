@@ -6,7 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
-    saveLoraPreview, deleteLoraPreview } from "./sf_lora_stack_api.js";
+    saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 
 let _panel = null;
@@ -48,6 +48,29 @@ function injectCSS() {
     .sf-ls-info-x { margin-left:auto; color:#8a8a8a; cursor:pointer; align-self:flex-start; }
     .sf-ls-info-x:hover { color:#fff; }
     .sf-ls-info-sec { padding:11px 12px; }
+    .sf-ls-desc { padding:11px 12px 12px; border-top:1px solid #1c1c1c; }
+    .sf-ls-desc h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
+      color:${BRAND}; display:flex; align-items:center; gap:7px; }
+    .sf-ls-desc h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
+      color:#8a8a8a; border:1px solid #444; border-radius:99px; padding:1px 7px; }
+    .sf-ls-desc h4 .src.net { color:#8fc0ff; border-color:#3a5a80; }
+    .sf-ls-desc h4 .qa { margin-left:8px; font:9.5px 'Segoe UI'; text-transform:none; letter-spacing:0;
+      color:#9a9a9a; cursor:pointer; }
+    .sf-ls-desc h4 .qa:hover { color:${BRAND}; }
+    .sf-ls-desc-body { font-size:11px; color:#d0d0d0; line-height:1.6; white-space:pre-wrap;
+      word-break:break-word; max-height:110px; overflow-y:auto; padding-right:2px; }
+    .sf-ls-desc-none { color:#777; font-size:11px; }
+    .sf-ls-desc textarea { width:100%; box-sizing:border-box; background:#161616;
+      border:1px solid rgba(255,255,255,0.14); border-radius:6px; color:#fff;
+      font:11px 'Segoe UI'; padding:6px 8px; outline:none; resize:vertical; min-height:64px; }
+    .sf-ls-desc textarea:focus { border-color:${BRAND}; }
+    .sf-ls-desc-actions { display:flex; gap:5px; margin-top:6px; }
+    .sf-ls-desc-actions button { background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.14); color:#ccc; border-radius:6px; padding:5px 11px;
+      font:11px 'Segoe UI'; cursor:pointer; }
+    .sf-ls-desc-actions button:hover { border-color:${BRAND}; color:#fff; }
+    .sf-ls-desc-actions .rm { color:#c9736a; }
+    .sf-ls-desc-actions .rm:hover { border-color:#e0604a; color:#fff; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:${BRAND}; display:flex; align-items:center; gap:7px; }
     .sf-ls-info-sec h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -101,8 +124,60 @@ function injectCSS() {
     .sf-ls-info-foot .b.dis { opacity:.4; pointer-events:none; }
     .sf-ls-info-foot .b.del { flex:0 0 auto; min-width:38px; border:1px solid rgba(255,255,255,0.14); color:#c9736a; }
     .sf-ls-info-foot .b.del:hover { border-color:#e0604a; color:#fff; background:rgba(224,96,74,0.12); }
+
+    /* 面板风确认框（替代原生 confirm，避免 UI 割裂） */
+    .sf-ls-confirm-mask { position:fixed; inset:0; z-index:10040; background:rgba(0,0,0,0.55);
+      display:flex; align-items:center; justify-content:center; }
+    .sf-ls-confirm { width:300px; max-width:90vw; background:#2b2b2b; border:1px solid var(--acc,${BRAND});
+      border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6); color:#ddd;
+      font:12px 'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+    .sf-ls-confirm-t { padding:12px 14px; border-bottom:1px solid #1c1c1c; color:#fff;
+      font-size:13px; font-weight:600; }
+    .sf-ls-confirm-b { padding:12px 14px; font-size:12px; line-height:1.6; color:#d0d0d0; }
+    .sf-ls-confirm-f { display:flex; gap:8px; padding:10px 14px; border-top:1px solid #1c1c1c;
+      background:#242424; justify-content:flex-end; }
+    .sf-ls-confirm-f .b { padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer;
+      user-select:none; }
+    .sf-ls-confirm-f .b.pri { background:var(--acc,${BRAND}); color:#fff; font-weight:600; }
+    .sf-ls-confirm-f .b.pri:hover { filter:brightness(1.1); }
+    .sf-ls-confirm-f .b.gh { border:1px solid rgba(255,255,255,0.18); color:#ccc; }
+    .sf-ls-confirm-f .b.gh:hover { border-color:var(--acc,${BRAND}); color:#fff; }
   `;
     document.head.appendChild(s);
+}
+
+// 面板风确认框：返回 Promise<boolean>。遮罩点击 / Esc = 取消。与信息面板
+// 同主题（accent 边框 + 主按钮），替代割裂的原生 confirm。
+function confirmDialog(opts) {
+    return new Promise((resolve) => {
+        const { title, message, okLabel = "Replace", cancelLabel = "Keep mine", accent = BRAND } = opts || {};
+        const mask = el("div", "sf-ls-confirm-mask");
+        const box = el("div", "sf-ls-confirm");
+        box.style.setProperty("--acc", accent);
+        const t = el("div", "sf-ls-confirm-t", title);
+        const b = el("div", "sf-ls-confirm-b", message);
+        const f = el("div", "sf-ls-confirm-f");
+        const cancel = el("div", "b gh", cancelLabel);
+        const ok = el("div", "b pri", okLabel);
+        const onKey = (e) => {
+            if (e.key === "Escape") { e.stopPropagation(); done(false); }
+        };
+        const done = (v) => {
+            document.removeEventListener("keydown", onKey, true);
+            mask.remove();
+            resolve(v);
+        };
+        cancel.addEventListener("click", () => done(false));
+        ok.addEventListener("click", () => done(true));
+        f.append(cancel, ok);
+        box.append(t, b, f);
+        mask.appendChild(box);
+        // 遮罩点击 = 取消；点击框内不算。
+        mask.addEventListener("pointerdown", (e) => { if (e.target === mask) done(false); });
+        document.addEventListener("keydown", onKey, true);
+        document.body.appendChild(mask);
+        ok.focus();
+    });
 }
 
 export function closeInfoPanel() {
@@ -177,7 +252,7 @@ export async function openInfoPanel(node, id, refresh) {
     startFollowing(panel, node);
 
     // 本面板会话的视图数据
-    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0 };
+    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", custom_description: "" };
     let civ = null; // { state:"searching"|"found"|"nofind"|"offline", info?, message? }
     // 展示哪组候选词："file" | "civitai"。null = 自动（有已存侧车/刚取回则
     // Civitai，否则文件自己的词）。用户选中的词与视图无关地持久在 row.triggers。
@@ -296,6 +371,40 @@ export async function openInfoPanel(node, id, refresh) {
         persistCustom(custom);
         refresh?.(false);
         renderBody();
+    }
+
+    // ── Description：Civitai/文件说明 + 用户自定义覆盖 ─────────────────────
+    // 自定义描述与自定义触发词同存储（user 目录单一文件，按 LoRA 名键控）。
+    // 展示优先级：custom > 当次查询（Civitai live）> 侧车/文件说明。
+    // 编辑态草稿独立于 renderBody 生命周期——勾词等重渲染不丢已打文字。
+    let _descEditing = false;
+    let _descDraft = "";
+
+    const shownDesc = () => info.custom_description
+        || (civ?.state === "found" && civ.info?.description)
+        || info.description || "";
+    const descSrc = () => {
+        if (info.custom_description) return "custom";
+        if ((civ?.state === "found" && civ.info?.description) || info.source === "sidecar") return "civitai";
+        return info.description ? "file" : "";
+    };
+
+    function saveDesc(desc) {
+        clearMsg();
+        if (!name) { showMsg("Pick a LoRA first."); return; }   // 无名行没有可设对象
+        saveCustomDescription(name, desc).then((res) => {
+            if (!panel.isConnected) return;
+            if (!res?.ok) { showMsg(res?.message || "Could not save that description."); return; }
+            _msg = null;
+            _descEditing = false;
+            _descDraft = "";
+            info.custom_description = res.description || "";   // 本地即画，不等 loadInfo
+            renderBody();
+        });
+    }
+
+    function clearDesc() {
+        saveDesc("");   // 空描述 = 清除覆盖，回到 Civitai/文件原文
     }
 
     // 面板打开时把这个 LoRA 的已存词带到行上。也反向迁移：行已在存储出现
@@ -644,7 +753,11 @@ export async function openInfoPanel(node, id, refresh) {
         if (mid != null) {
             const link = el("span", "sf-ls-civlink", "View on Civitai ↗");
             link.addEventListener("click", () => {
-                const u = "https://civitai.com/models/" + mid + (vid ? "?modelVersionId=" + vid : "");
+                // 按账户主机偏好选网页域：red 用户看 civitai.red（成人模型在
+                // com 网页可能受限）。idSrc 取自实时查询/离线 info，host 恒读
+                // 面板 info（api_lora_info 附加）。
+                const host = info.civitai_host === "red" ? "civitai.red" : "civitai.com";
+                const u = "https://" + host + "/models/" + mid + (vid ? "?modelVersionId=" + vid : "");
                 window.open(u, "_blank", "noopener");
             });
             h.appendChild(link);
@@ -733,6 +846,67 @@ export async function openInfoPanel(node, id, refresh) {
 
         panel.appendChild(sec);
 
+        // ── Description（Civitai 说明 + 自定义覆盖）───────────────────────
+        const dsec = el("div", "sf-ls-desc");
+        const dhead = el("h4");
+        dhead.appendChild(el("span", null, "Description"));
+        const dsrc = descSrc();
+        if (dsrc) {
+            dhead.appendChild(el("span", "src" + (dsrc === "civitai" ? " net" : ""),
+                dsrc === "custom" ? "custom" : dsrc === "civitai" ? "from Civitai" : "from file"));
+        }
+        if (_descEditing) {
+            const save = el("span", "qa", "Save");
+            save.title = "Save my description";
+            save.addEventListener("click", () => saveDesc(_descDraft));
+            const cancel = el("span", "qa", "Cancel");
+            cancel.title = "Discard changes";
+            cancel.addEventListener("click", () => { _descEditing = false; _descDraft = ""; renderBody(); });
+            dhead.append(save, cancel);
+        } else {
+            const edit = el("span", "qa", "✏️");
+            edit.title = "Write your own description (overrides Civitai / file)";
+            edit.addEventListener("click", () => {
+                _descDraft = shownDesc();
+                _descEditing = true;
+                renderBody();
+                setTimeout(() => panel.querySelector(".sf-ls-desc textarea")?.focus(), 0);
+            });
+            dhead.appendChild(edit);
+        }
+        dsec.appendChild(dhead);
+        if (_descEditing) {
+            const ta = document.createElement("textarea");
+            ta.value = _descDraft;
+            ta.rows = 6;
+            ta.placeholder = "write your own description…";
+            ta.addEventListener("keydown", (ev) => {
+                ev.stopPropagation();
+                if (ev.key === "Escape") { ev.preventDefault(); _descEditing = false; _descDraft = ""; renderBody(); }
+            });
+            ta.addEventListener("input", () => { _descDraft = ta.value; });
+            dsec.appendChild(ta);
+            if (info.custom_description) {
+                const act = el("div", "sf-ls-desc-actions");
+                const rm = el("button", "rm", "✕ Remove my description");
+                rm.title = "Back to the Civitai / file text";
+                rm.addEventListener("click", () => clearDesc());
+                act.appendChild(rm);
+                dsec.appendChild(act);
+            }
+        } else {
+            const shown = shownDesc();
+            if (shown) {
+                const db = el("div", "sf-ls-desc-body", shown);
+                db.title = shown;
+                dsec.appendChild(db);
+            } else {
+                dsec.appendChild(el("div", "sf-ls-desc-none",
+                    "No description in this file - write your own, or try the Civitai lookup."));
+            }
+        }
+        panel.appendChild(dsec);
+
         // ── footer ──────────────────────────────────────────────────────────
         const foot = el("div", "sf-ls-info-foot");
         const done = el("div", "b pri", "Done");
@@ -777,22 +951,16 @@ export async function openInfoPanel(node, id, refresh) {
 
     async function runCivitai() {
         clearMsg();
-        // 封面保存策略：已有用户自定义预览时先问是否覆盖（取消 = 保留你的
-        // 图，文本信息照常更新）。查询本身永不因回答中止。
-        let overwrite = false;
-        if (info.custom_preview && name) {
-            overwrite = confirm("This LoRA already has a preview picture you set.\n"
-                + "Replace it with the Civitai picture? (Cancel keeps yours; the info still updates.)");
-        }
         civ = { state: "searching" };
         renderBody();
-        const res = await civitaiLookup(name, overwrite);
+        const res = await civitaiLookup(name);
         if (!panel.isConnected) return;
         if (res.ok && res.found) {
             civ = { state: "found", info: res.info || {} };
             viewSource = "civitai";               // 找到 -> 视图切到它的词
-            // 封面保存结果附在状态条上：跳过/失败都要让用户知道，成功则
-            // 静默（本地图经 loadInfo 刷新后自动显示）。
+            // 封面保存结果附在状态条上：成功静默（本地图经 loadInfo 刷新后
+            // 自动显示）；被跳过（已有自定义预览）稍后用面板风确认框询问；
+            // 失败则提示。
             if (res.thumb_v) _thumbBust = res.thumb_v;
             else if (res.thumb_skipped) civ.note = "Your own preview picture was kept.";
             else if (res.thumb_error) civ.note = "Couldn't save the preview: " + res.thumb_error;
@@ -806,6 +974,31 @@ export async function openInfoPanel(node, id, refresh) {
             civ = { state: "offline", message: res.message };
         }
         renderBody();   // renderBody 重新钳制：状态条让面板变高
+
+        // 已有用户自定义预览时查询不覆盖保存（thumb_skipped）——用面板风
+        // 确认框询问是否替换。确认后走独立保存端点（读侧车同一张图下载，
+        // 无需重新查询）；取消保留本地图，信息照常更新。
+        if (!panel.isConnected || !(res?.ok && res.found && res.thumb_skipped)) return;
+        const replace = await confirmDialog({
+            title: "Replace your preview picture?",
+            message: "This LoRA already has a preview picture you set.\n"
+                + "Replace it with the one found on Civitai?",
+            okLabel: "Replace",
+            cancelLabel: "Keep mine",
+            accent,
+        });
+        if (!panel.isConnected) return;
+        if (!replace) { civ.note = "Your own preview picture was kept."; renderBody(); return; }
+        const sv = await saveCivitaiThumb(name);
+        if (!panel.isConnected) return;
+        if (!sv?.ok) {
+            civ.note = "Couldn't save the preview: " + ((sv && sv.message) || "unknown error");
+        } else {
+            _thumbBust = sv.v || Date.now();
+            civ.note = "Preview replaced with the Civitai picture.";
+            loadInfo({ force: true }).then((ok) => { if (ok) renderBody(); });
+        }
+        renderBody();
     }
 
     async function runDeleteCivitai() {
@@ -836,13 +1029,25 @@ export async function openInfoPanel(node, id, refresh) {
     renderBody();
     place(panel, node);
 
-    const onDown = (e) => { if (!panel.contains(e.target) && !e.target.closest?.(".sf-ls-dd")) closeInfoPanel(); };
-    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); closeInfoPanel(); } };
+    // 三个 document 监听都豁免确认框（.sf-ls-confirm-mask）：它挂在 body 上、
+    // 不在面板内，不豁免的话点击 Replace 会被 onDown 判为"面板外点击"把
+    // 信息面板一起关掉（用户报告的 bug）；Esc 同理；粘贴同理（确认框开着
+    // 时 Ctrl+V 不应悄悄设图）。
+    const onDown = (e) => {
+        if (e.target.closest?.(".sf-ls-confirm-mask")) return;
+        if (!panel.contains(e.target) && !e.target.closest?.(".sf-ls-dd")) closeInfoPanel();
+    };
+    const onKey = (e) => {
+        if (e.target.closest?.(".sf-ls-confirm-mask")) return;
+        if (e.key === "Escape") { e.stopPropagation(); closeInfoPanel(); }
+    };
     // Ctrl+V 从剪贴板设置 LoRA 的图。CAPTURE 且 stopPropagation：ComfyUI 把
     // 图片粘到 CANVAS 上成为节点——面板开着时那绝不是本意，两者同时发生
     // 比任一更糟。只在真取到图时介入：普通文本粘贴原样放行。
     const onPaste = (e) => {
         if (!panel.isConnected || !name) return;
+        // 确认框开着时不动图（用户在问答话框，不是在图框上）。
+        if (e.target.closest?.(".sf-ls-confirm-mask")) return;
         // 图关着时没有框，粘贴会设一张看不见也删不掉的图。放行粘贴。
         if (!thumbsOn()) return;
         // 绝不抢指向文本框的粘贴——"add your own trigger word" 字段就在

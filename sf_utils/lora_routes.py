@@ -241,6 +241,18 @@ def _register_routes():
                 info["custom_triggers"] = R.get_custom_triggers(_custom_triggers_file(), name)
             except Exception:
                 info["custom_triggers"] = []
+            # 用户自己的描述同理：custom_description 存在则面板优先展示它，
+            # 否则展示文件/Civitai 的 description。
+            try:
+                info["custom_description"] = R.get_custom_description(_custom_triggers_file(), name)
+            except Exception:
+                info["custom_description"] = ""
+            # 面板头部 "View on Civitai" 链接按账户主机偏好生成（偏好 red 的
+            # 用户打开 civitai.red 页，成人模型在 com 网页可能访问受限）。
+            try:
+                info["civitai_host"] = _civitai_account().get("host", "com")
+            except Exception:
+                info["civitai_host"] = "com"
             # ...以及他们自己的预览图。custom_preview 驱动面板的 "remove"
             # 开关；preview_v 是 mtime，让浏览器越过缩略图路由的一小时缓存
             # （别的节点/别的会话换过图而本面板没看见的情况）。
@@ -306,6 +318,8 @@ def _register_routes():
             timeout = aiohttp.ClientTimeout(total=30, connect=10)
             acc = _civitai_account()
             hosts = R.civitai_hosts(acc.get("host"))
+            logger.info("[SFLoraStack] civitai lookup for {}: hosts={} key={}".format(
+                name, ",".join(hosts), "yes" if acc.get("key") else "no"))
             headers = {
                 "User-Agent": "ComfyUI-sfnodes",
                 "Accept": "application/json",
@@ -495,6 +509,74 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "words": stored})
+
+        @routes.post("/api/sfnodes/lora/custom_description")
+        async def api_lora_custom_description(request):
+            """保存一个 LoRA 的用户自定义描述（覆盖 Civitai/文件的说明）。
+            POST {name, description}。
+
+            名字是存储键，绝非文件路径（同 custom_triggers 规则）——仍先对
+            loras 目录解析它，存储只积累真实存在的 LoRA。空字符串清除自定义
+            描述（回到 Civitai/文件原文）。恒 200。"""
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            name = data.get("name", "") or request.query.get("name", "")
+            description = data.get("description", "")
+            path = _resolve_lora_path(name)
+            roots = _lora_dirs()
+            if not path or not roots or not _is_path_under(path, *roots):
+                return web.json_response({"ok": False, "message": "LoRA not found."})
+            import asyncio
+            loop = asyncio.get_event_loop()
+            try:
+                stored = await loop.run_in_executor(
+                    None, R.set_custom_description, _custom_triggers_file(), name, description
+                )
+            except Exception as exc:
+                return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
+            return web.json_response({"ok": True, "description": stored})
+
+        @routes.post("/api/sfnodes/lora/civitai_thumb_save")
+        async def api_lora_civitai_thumb_save(request):
+            """用户确认后，把侧车里的 Civitai 缩略图下载并覆盖保存为本地预览。
+            POST {name}。
+
+            查询时若已有用户自定义预览会跳过保存（thumb_skipped）；前端确认
+            替换后调这里——读侧车拿同一张图（无需重新查询），覆盖写本地预览。
+            恒 200。"""
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            name = data.get("name", "") or request.query.get("name", "")
+            path = _resolve_lora_path(name)
+            roots = _lora_dirs()
+            if not path or not roots or not _is_path_under(path, *roots):
+                return web.json_response({"ok": False, "message": "LoRA not found."})
+            import asyncio
+            loop = asyncio.get_event_loop()
+            thumbnail = R.sidecar_thumbnail(path, allow_adult=bool(_civitai_account().get("adult_thumbs")))
+            if not thumbnail:
+                return web.json_response({"ok": False,
+                                          "message": "No Civitai picture saved for this LoRA - run the lookup first."})
+            if not _thumb_url_safe(thumbnail):
+                return web.json_response({"ok": False,
+                                          "message": "The picture URL is not a secure https link."})
+            raw = await _download_thumb(thumbnail)
+            if raw is None:
+                return web.json_response({"ok": False,
+                                          "message": "Could not download the picture from Civitai."})
+            folder = _previews_dir()
+            written = await loop.run_in_executor(None, R.write_custom_preview, folder, name, raw)
+            if not written:
+                return web.json_response({"ok": False, "message": "Could not save the picture locally."})
+            return web.json_response({"ok": True, "v": R.custom_preview_version(folder, name)})
 
         @routes.post("/api/sfnodes/lora/preview")
         async def api_lora_preview_set(request):

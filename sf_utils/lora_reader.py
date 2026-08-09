@@ -27,6 +27,8 @@ import threading
 _MAX_HEADER_BYTES = 200 * 1024 * 1024
 # 频率推导出的候选触发词数量上限。
 _MAX_TRIGGERS = 20
+# 描述是说明文字，不是小说（Civitai 模型描述清洗后截断 + 自定义描述限长）。
+_MAX_DESCRIPTION_LEN = 2000
 
 _PREVIEW_EXTS = (
     ".preview.png", ".preview.jpeg", ".preview.jpg", ".preview.webp",
@@ -160,8 +162,8 @@ def base_model_family(meta):
 
 def read_sidecar_info(lora_path):
     """读 LoRA 旁的 Civitai 助手侧车（<base>.civitai.info，再试 <base>.json）。
-    返回 {name?, base_model?, triggers?, model_id?, version_id?} 或 {}。
-    无网络。永不抛错。"""
+    返回 {name?, base_model?, triggers?, description?, model_id?, version_id?}
+    或 {}。无网络。永不抛错。"""
     base = os.path.splitext(lora_path)[0]
     for ext in (".civitai.info", ".json"):
         sp = base + ext
@@ -183,6 +185,12 @@ def read_sidecar_info(lora_path):
         model = obj.get("model")
         if isinstance(model, dict) and model.get("name"):
             info["name"] = str(model["name"])
+        # description 在 version 顶层（API 实测）；兼容旧侧车的 model.description。
+        desc = obj.get("description")
+        if not desc and isinstance(model, dict):
+            desc = model.get("description")
+        if desc:
+            info["description"] = _clean_description(desc)
         if obj.get("baseModel"):
             info["base_model"] = str(obj["baseModel"])
         # modelId / version id 让前端可链接到 Civitai 模型页。
@@ -217,12 +225,13 @@ def _title_from_meta(meta, lora_path):
 
 def build_lora_info(lora_path):
     """一个 LoRA 的统一离线 info：title/base_model/rank/alpha/num_images/date/
-    triggers/source/has_preview（+ 可选 model_id/version_id）。
+    triggers/description/source/has_preview（+ 可选 model_id/version_id）。
     侧车数据（来自先前 Civitai 抓取）优先于文件推导数据。永不抛错。
 
     触发词分三组返回：`triggers` 是合并默认（侧车胜出），`file_triggers` 恒为
     文件自己的词，`sidecar_triggers` 存已保存的 Civitai 词（信息面板据此做
-    File / Civitai 源切换）。"""
+    File / Civitai 源切换）。description 同理：侧车（Civitai）胜出，文件
+    modelspec.description 兜底；用户自定义覆盖在路由层追加 custom_description。"""
     meta = read_safetensors_metadata(lora_path)
     file_triggers = derive_trigger_words(meta)
     info = {
@@ -232,6 +241,7 @@ def build_lora_info(lora_path):
         "alpha": meta.get("ss_network_alpha", "") or "",
         "num_images": meta.get("ss_num_train_images", "") or "",
         "date": meta.get("modelspec.date", "") or "",
+        "description": _clean_description(meta.get("modelspec.description")),
         "triggers": file_triggers,
         "file_triggers": file_triggers,
         "sidecar_triggers": [],
@@ -247,6 +257,8 @@ def build_lora_info(lora_path):
         info["title"] = side["name"]
     if side.get("base_model") and not info["base_model"]:
         info["base_model"] = side["base_model"]
+    if side.get("description"):
+        info["description"] = side["description"]  # Civitai 说明胜出（更全）
     if side.get("model_id") is not None:
         info["model_id"] = side["model_id"]
     if side.get("version_id") is not None:
@@ -369,9 +381,41 @@ def _thumb_url(url):
     return _ORIGINAL_SEG_RE.sub("/width=256/", url, count=1)
 
 
+_HTML_ENT_RE = re.compile(r"&(#x?[0-9a-fA-F]+|[a-zA-Z]+);")
+
+
+def _clean_description(raw, limit=_MAX_DESCRIPTION_LEN):
+    """Civitai 模型描述是 HTML——<br> 等换行标签转行、其余标签剥掉、解码
+    实体、折叠空白、截断。坏输入返回 "". 永不抛错。"""
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    s = re.sub(r"<(br|/p|/div|/li)\s*/?>", "\n", raw, flags=re.IGNORECASE)
+    s = re.sub(r"<[^>]*>", "", s)
+
+    def _unesc(m):
+        e = m.group(1)
+        if e.startswith("#x"):
+            try:
+                return chr(int(e[2:], 16))
+            except ValueError:
+                return ""
+        if e.startswith("#"):
+            try:
+                return chr(int(e[1:]))
+            except ValueError:
+                return ""
+        return {"amp": "&", "lt": "<", "gt": ">", "quot": '"',
+                "apos": "'", "nbsp": " "}.get(e, "")
+
+    s = _HTML_ENT_RE.sub(_unesc, s)
+    lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in s.split("\n")]
+    return "\n".join(lines).strip()[:limit]
+
+
 def parse_civitai_modelversion(obj, allow_adult=False):
     """从 Civitai model-version 响应提取所需字段：
-    {name?, type?, base_model?, triggers?, thumbnail?, model_id?, version_id?}。
+    {name?, type?, base_model?, triggers?, description?, thumbnail?,
+    model_id?, version_id?}。
     缩略图优先取第一张非显式图，回退第一张非成人图。永不抛错。
 
     `allow_adult` 允许用显式画廊图做缩略图，仅当用户在设置里主动开启：
@@ -384,7 +428,15 @@ def parse_civitai_modelversion(obj, allow_adult=False):
         out["triggers"] = [str(w).strip() for w in tw if str(w).strip()]
     if obj.get("baseModel"):
         out["base_model"] = str(obj["baseModel"])
+    # description 在 version 顶层（实测 model-versions API：model 对象只有
+    # name/nsfw/poi/type，说明文字在顶层 description）。兼容旧侧车里偶见的
+    # model.description 形状。
     model = obj.get("model")
+    desc = obj.get("description")
+    if not desc and isinstance(model, dict):
+        desc = model.get("description")
+    if desc:
+        out["description"] = _clean_description(desc)
     if isinstance(model, dict):
         if model.get("name"):
             out["name"] = str(model["name"])
@@ -555,9 +607,28 @@ def sanitize_custom_words(words):
     return out
 
 
-def read_custom_triggers(path):
-    """整个存储为 {key: [words]}。永不抛错——缺失/损坏文件必须读作
-    "无自定义词"，绝不能弄坏面板。"""
+def sanitize_custom_description(desc):
+    """自定义描述：str 校验 + 限长 + strip。垃圾返回 "". 永不抛错。"""
+    if not isinstance(desc, str):
+        return ""
+    return desc.strip()[:_MAX_DESCRIPTION_LEN]
+
+
+def _norm_store_entry(v):
+    """旧 {key: [words]} 与新 {key: {"words": [...], "description": str}} 兼容
+    归一。非 dict/list 垃圾 -> 空条目。"""
+    if isinstance(v, dict):
+        return {
+            "words": sanitize_custom_words(v.get("words")),
+            "description": sanitize_custom_description(v.get("description")),
+        }
+    return {"words": sanitize_custom_words(v), "description": ""}
+
+
+def read_custom_store(path):
+    """整个存储为 {key: {"words": [...], "description": str}}。旧形状
+    （{key: [words]}）自动升级读取。永不抛错——缺失/损坏文件必须读作空，
+    绝不能弄坏面板。"""
     try:
         with open(path, "r", encoding="utf-8") as f:
             obj = json.load(f)
@@ -566,33 +637,34 @@ def read_custom_triggers(path):
     if not isinstance(obj, dict):
         return {}
     out = {}
-    for name, words in obj.items():
+    for name, v in obj.items():
         key = custom_trigger_key(name)
         if not key:
             continue
-        clean = sanitize_custom_words(words)
-        if clean:
-            out[key] = clean
+        entry = _norm_store_entry(v)
+        if entry["words"] or entry["description"]:
+            out[key] = entry
         if len(out) >= _MAX_CUSTOM_LORAS:
             break
     return out
 
 
-def write_custom_triggers(path, store):
-    """写整个存储。成功返回 True，永不抛错。
+def write_custom_store(path, store):
+    """写整个存储（新形状 {key: {"words", "description"}}）。成功返回 True，
+    永不抛错。
 
-    临时文件 + os.replace：这单个文件装着每个 LoRA 的词，半路崩溃/磁盘满
-    会毁掉全部而非刚编辑的那个。临时名带 pid 和线程 id——路由把它交给
-    run_in_executor，两次保存落在共享同一 pid 的两个池线程上。"""
+    临时文件 + os.replace：这单个文件装着每个 LoRA 的词与描述，半路崩溃/
+    磁盘满会毁掉全部而非刚编辑的那个。临时名带 pid 和线程 id——路由把它
+    交给 run_in_executor，两次保存落在共享同一 pid 的两个池线程上。"""
     data = {}
     if isinstance(store, dict):
-        for name, words in store.items():
+        for name, entry in store.items():
             key = custom_trigger_key(name)
             if not key:
                 continue
-            clean = sanitize_custom_words(words)
-            if clean:
-                data[key] = clean
+            e = _norm_store_entry(entry)
+            if e["words"] or e["description"]:
+                data[key] = e
             if len(data) >= _MAX_CUSTOM_LORAS:
                 break
     tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
@@ -609,27 +681,78 @@ def write_custom_triggers(path, store):
         return False
 
 
+def read_custom_triggers(path):
+    """整个存储为 {key: [words]}（从 store 抽 words 的视图）。旧签名兼容。
+    永不抛错。"""
+    return {k: v["words"] for k, v in read_custom_store(path).items()}
+
+
+def write_custom_triggers(path, store):
+    """旧签名：写 {key: [words]}。合并保留已有 description。成功返回 True，
+    永不抛错。"""
+    old = read_custom_store(path)
+    merged = {}
+    if isinstance(store, dict):
+        for name, words in store.items():
+            key = custom_trigger_key(name)
+            if not key:
+                continue
+            merged[key] = {
+                "words": sanitize_custom_words(words),
+                "description": old.get(key, {}).get("description", ""),
+            }
+    return write_custom_store(path, merged)
+
+
 def get_custom_triggers(path, name):
     """一个 LoRA 的已存词（可能为空）。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
         return []
-    return read_custom_triggers(path).get(key, [])
+    return read_custom_store(path).get(key, {}).get("words", [])
 
 
 def set_custom_triggers(path, name, words):
-    """替换一个 LoRA 的词。空列表彻底移除条目（存储不积累死键）。
+    """替换一个 LoRA 的词。空列表且无描述时移除条目（存储不积累死键）。
     返回实际存储的列表。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
         return []
-    store = read_custom_triggers(path)
+    store = read_custom_store(path)
     clean = sanitize_custom_words(words)
-    if clean:
-        store[key] = clean
+    entry = store.get(key)
+    desc = (entry or {}).get("description", "")
+    if clean or desc:
+        store[key] = {"words": clean, "description": desc}
     else:
         store.pop(key, None)
-    write_custom_triggers(path, store)
+    write_custom_store(path, store)
+    return clean
+
+
+def get_custom_description(path, name):
+    """一个 LoRA 的已存自定义描述（可能为空）。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return ""
+    return read_custom_store(path).get(key, {}).get("description", "")
+
+
+def set_custom_description(path, name, desc):
+    """替换一个 LoRA 的自定义描述。空描述且无词时移除条目。
+    返回实际存储的描述。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return ""
+    store = read_custom_store(path)
+    clean = sanitize_custom_description(desc)
+    entry = store.get(key)
+    words = (entry or {}).get("words", [])
+    if clean or words:
+        store[key] = {"words": words, "description": clean}
+    else:
+        store.pop(key, None)
+    write_custom_store(path, store)
     return clean
 
 
@@ -755,6 +878,29 @@ def save_sidecar_cache(lora_path, civitai_obj):
         return True
     except Exception:
         return False
+
+
+def sidecar_thumbnail(lora_path, allow_adult=False):
+    """从侧车（原始 Civitai 响应）提取缩略图 URL，无侧车/无可用图返回 None。
+
+    供"用户确认后保存封面"端点使用：查询时已跳过保存（用户有自定义预览），
+    确认后从这里拿到同一张图重新下载。永不抛错。"""
+    base = os.path.splitext(lora_path)[0]
+    for ext in (".civitai.info", ".json"):
+        sp = base + ext
+        if not os.path.isfile(sp):
+            continue
+        try:
+            with open(sp, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        parsed = parse_civitai_modelversion(obj, allow_adult=allow_adult)
+        if parsed.get("thumbnail"):
+            return parsed["thumbnail"]
+    return None
 
 
 def delete_sidecar_cache(lora_path):
