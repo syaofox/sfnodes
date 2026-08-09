@@ -10,6 +10,7 @@
 import { app } from "/scripts/app.js";
 import {
     applyAdaptiveCanvasOnly,
+    applySfAccentVar,
     installCanvasZoomPassthrough,
     isGraphLoading,
     isVueNodes,
@@ -19,7 +20,7 @@ import {
     HIDDEN_INPUT, DEFAULT_STATE,
     readState, loadDefaults, promptState,
 } from "./sf_lora_stack_core.js";
-import { injectCSS, renderNode, contentHeight } from "./sf_lora_stack_render.js";
+import { injectCSS, renderNode, contentHeight, repaintAll } from "./sf_lora_stack_render.js";
 import { attachInteractions } from "./sf_lora_stack_interaction.js";
 import { openLoraPanel, closeLoraPanelFor } from "./sf_lora_stack_settings.js";
 import { closeInfoPanelFor } from "./sf_lora_stack_info.js";
@@ -126,6 +127,46 @@ function setupNode(node) {
 
 app.registerExtension({
     name: "sfnodes.LoraStack",
+
+    // 全局强调色设置（sfnodes.Accent）：所有具备 accent 能力的 sf 节点统一
+    // 读取（优先级链见 core.js accentOf；CSS 主题色走 document 根 --sf-acc
+    // 变量）。ComfyUI Settings 页修改后：更新 CSS 变量（全 sf 节点响应式
+    // 生效）+ 重渲染图中全部 SFLoraStack 节点（含子图）。
+    init() {
+        try {
+            app.ui.settings.addSetting({
+                id: "sfnodes.Accent",
+                name: "SF nodes: default highlight colour (nodes without their own colour)",
+                defaultValue: "#f66744",
+                type: "combo",
+                options: () => {
+                    const cur = app.ui.settings.getSettingValue("sfnodes.Accent");
+                    const opts = [
+                        { value: "#f66744", text: "Default (brand orange)", selected: cur === "#f66744" },
+                        { value: "#4f7cff", text: "Blue", selected: cur === "#4f7cff" },
+                        { value: "#3ec371", text: "Green", selected: cur === "#3ec371" },
+                        { value: "#e9a53d", text: "Amber", selected: cur === "#e9a53d" },
+                        { value: "#e2504a", text: "Red", selected: cur === "#e2504a" },
+                        { value: "#a06ee0", text: "Purple", selected: cur === "#a06ee0" },
+                        { value: "#3aa0b0", text: "Teal", selected: cur === "#3aa0b0" },
+                        { value: "#e8e8e8", text: "Light grey", selected: cur === "#e8e8e8" },
+                    ];
+                    return opts;
+                },
+                onChange: (value) => {
+                    // 注意：ComfyUI 在 store 更新前调用 onChange，且回调参数
+                    // 是 (newValue, oldValue)——必须用传入的 value，此刻读
+                    // getSettingValue 会拿到旧值（"设了 red 显示 teal"）。
+                    applySfAccentVar(value);
+                    repaintAll();
+                },
+            });
+            // 初始应用必须在 addSetting 之后：设置项未注册时 getSettingValue
+            // 拿不到用户保存的值（返回默认 #f66744）——先 apply 会把 --sf-acc
+            // 钉死在橙色，且注册后不再刷新（"Crop 品牌文字还是橙色"）。
+            applySfAccentVar();
+        } catch (_e) { /* 设置系统不可用则退化为仅节点级 accent */ }
+    },
 
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== CLASS) return;

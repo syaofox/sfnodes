@@ -1,9 +1,9 @@
 // ============================================================
 // Pixaroma Image Crop Editor — Render (canvas rendering, aspect ratio, save)
 // ============================================================
-import { CropEditor, BRAND, RATIOS, SNAPS, CropAPI } from "./sf_crop_core.js";
+import { CropEditor, RATIOS, SNAPS, CropAPI } from "./sf_crop_core.js";
 import { api } from "/scripts/api.js";
-import { sfApiUrl } from "./sf_common.js";
+import { sfApiUrl, sfAccent } from "./sf_common.js";
 const proto = CropEditor.prototype;
 
 // --- Load Image ---
@@ -142,7 +142,7 @@ proto._drawHandles = function (ctx, cx, cy, cw, ch) {
   const sz = 10;
   const positions = this._getHandleDrawPositions(cx, cy, cw, ch, sz);
   for (const h of positions) {
-    ctx.fillStyle = BRAND;
+    ctx.fillStyle = sfAccent();   // 全局强调色（sfnodes.Accent 设置）
     ctx.fillRect(h.dx, h.dy, sz, sz);
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1.5;

@@ -256,5 +256,14 @@ export function promptState(state) {
 
 export function accentOf(node) {
     const st = readState(node);
-    return st.accent || BRAND;
+    if (st.accent) return st.accent;
+    // 优先级链：node.accent > "Set as default" 的节点默认 > 全局系统设置
+    // （sfnodes.Accent，未单独设色的节点统一跟随）> 品牌橙。
+    const d = loadDefaults();
+    if (d && d.accent) return d.accent;
+    try {
+        const g = globalThis.app?.ui?.settings?.getSettingValue?.("sfnodes.Accent");
+        if (typeof g === "string" && g.trim()) return g;
+    } catch { /* 忽略 */ }
+    return BRAND;
 }

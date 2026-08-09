@@ -26,7 +26,6 @@ const HIDDEN_INPUT = "SFOutpaintState"; // 必须与 outpaint.py 的隐藏输入
 
 // 品牌主色（原版 var(--pix-op-acc) 会随设置面板变化，本项目无 accent 系统，
 // 固定值，惯例见 sf_load_image_resize.js）
-const BRAND = "#f66744";
 
 const DEFAULT_W = 305;
 const MIN_W = 305;
@@ -221,12 +220,12 @@ function injectCSS() {
       background:#1d1d1d; border:1px solid #444; color:#aaa;
       cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       transition:background .08s, border-color .08s, color .08s; }
-    .sf-op-chip:hover { border-color:${BRAND}; color:#ddd; }
-    .sf-op-chip.on { background:${BRAND}; border-color:${BRAND}; color:#fff; }
+    .sf-op-chip:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+    .sf-op-chip.on { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
     /* 没有可点的：无指针、无悬停承诺。 */
     .sf-op-chip.dim { opacity:.4; cursor:default; }
     .sf-op-chip.dim:hover { border-color:#444; color:#aaa; }
-    .sf-op-chip.dim.on:hover { border-color:${BRAND}; color:#fff; }
+    .sf-op-chip.dim.on:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 
     /* 折叠箭头：固定宽，模式芯片拿到每个剩余像素。 */
     .sf-op-sq { flex:0 0 auto; width:30px; padding:6px 0; font-size:14px; line-height:1; }
@@ -240,7 +239,7 @@ function injectCSS() {
       display:flex; align-items:center; gap:3px;
       background:#1d1d1d; border:1px solid #444; border-radius:5px;
       padding:0 4px 0 6px; }
-    .sf-op-pad:focus-within { border-color:${BRAND}; }
+    .sf-op-pad:focus-within { border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-op-pad-l { flex:0 0 auto; font-size:9px; font-weight:700; color:#8a8a8a;
       letter-spacing:.5px; pointer-events:none; }
     /* 剥掉共享 wrapper 自己的盒子，只让 .sf-op-pad 画一个。 */
@@ -250,7 +249,7 @@ function injectCSS() {
     .sf-op-pad .sf-li-spin { display:none !important; }
     /* .sf-op-inner 上是 user-select:none 且会继承，会阻止用户拖选正要替换的数字。 */
     .sf-op-pad .sf-li-numinput input { padding:0 !important;
-      text-align:right !important; color:${BRAND};
+      text-align:right !important; color:${"var(--sf-acc, #f66744)"};
       user-select:text; }
 
     /* 重置：一键把四边归零。与箭头同款方块，放在它清空的数字旁边。 */
@@ -259,8 +258,8 @@ function injectCSS() {
       background:#1d1d1d; border:1px solid #444; border-radius:5px;
       color:#aaa; cursor:pointer; padding:0; font:inherit;
       transition:border-color .08s, color .08s; }
-    .sf-op-reset:hover:not(:disabled) { border-color:${BRAND}; color:${BRAND}; }
-    .sf-op-reset:focus-visible { border-color:${BRAND}; color:${BRAND}; outline:none; }
+    .sf-op-reset:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:${"var(--sf-acc, #f66744)"}; }
+    .sf-op-reset:focus-visible { border-color:${"var(--sf-acc, #f66744)"}; color:${"var(--sf-acc, #f66744)"}; outline:none; }
     /* 没有可重置的：真正惰性，而非只是变淡。 */
     .sf-op-reset:disabled { opacity:.4; cursor:default; }
     .sf-op-reset-ic { width:12px; height:12px; background-color:currentColor;
@@ -271,7 +270,7 @@ function injectCSS() {
     .sf-op-swatch { flex:0 0 auto; width:26px; border-radius:5px;
       border:1px solid #444; cursor:default; }
     .sf-op-swatch-btn { cursor:pointer; }
-    .sf-op-swatch-btn:hover { border-color:${BRAND}; }
+    .sf-op-swatch-btn:hover { border-color:${"var(--sf-acc, #f66744)"}; }
 
     /* 唯一 grower：flex:1 1 0 把行没用掉的每个像素都给它。min-height 必须 0，
        下限在 measureFloor 里。真 CSS min 看着诱人但会反噬：flex 项不能缩到

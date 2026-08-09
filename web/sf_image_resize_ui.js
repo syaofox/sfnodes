@@ -15,6 +15,7 @@ import {
   applyInlineLabel, applyWHLayout, applyCoverControls,
   renderGlobalControls, injectCSS as injectLoadImageChromeCSS,
 } from "./sf_load_image_ui.js";
+import { sfAccent } from "./sf_common.js";
 import {
   readState, writeState, wireInfo, effectiveWiredState, getReadoutInfo,
   ratioLabel, aspectRectDims, roundRectPath,
@@ -44,7 +45,6 @@ export const DEFAULT_STATE = {
 
 // Modes that consume an explicit W x H target. Wired width/height feed these.
 const WH_MODES = new Set(["fit_inside", "cover"]);
-const SF_IR_ACCENT = "#f66744";
 
 let _cssInjected = false;
 export function injectCSS() {
@@ -58,14 +58,14 @@ export function injectCSS() {
     .sf-ir-chip{background:#1d1d1d;border:1px solid #444;
       border-radius:4px;padding:6px 3px;font-size:9.5px;color:#ccc;
       text-align:center;cursor:pointer;user-select:none;transition:background .08s,border-color .08s;}
-    .sf-ir-chip:hover{border-color:${SF_IR_ACCENT};color:#ddd;}
-    .sf-ir-chip.active{background:${SF_IR_ACCENT};color:#fff;border-color:${SF_IR_ACCENT};}
+    .sf-ir-chip:hover{border-color:${"var(--sf-acc, #f66744)"};color:#ddd;}
+    .sf-ir-chip.active{background:${"var(--sf-acc, #f66744)"};color:#fff;border-color:${"var(--sf-acc, #f66744)"};}
     /* Disabled while width/height are wired (mode doesn't apply). */
     .sf-ir-chip.disabled{opacity:.32;pointer-events:none;}
     /* Single-wire summary panel: read-only W / H rows. */
     .sf-ir-wirepanel{display:flex;flex-direction:column;gap:6px;}
     .sf-ir-wirerow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1d1d1d;border:1px solid #444;border-radius:4px;}
-    .sf-ir-wirelbl{color:${SF_IR_ACCENT};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:14px;flex:none;}
+    .sf-ir-wirelbl{color:${"var(--sf-acc, #f66744)"};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:14px;flex:none;}
     /* Wide variant for full-word labels (e.g. "LONGEST SIDE"). */
     .sf-ir-wirelbl.is-wide{width:auto;white-space:nowrap;}
     .sf-ir-wireval{color:#e0e0e0;font-size:13px;font-weight:600;flex:1;}
@@ -281,7 +281,7 @@ function isImageWired(node) {
 // SHARED by the legacy slot-dead-space paint (W = node.size[0], midY = 54) and
 // the Nodes 2.0 cards canvas (W = canvas width, midY = canvas center).
 export function paintReadout(ctx, info, W, midY) {
-  const acc = SF_IR_ACCENT;
+  const acc = sfAccent();
   const cx = W / 2;
   const fam = "ui-sans-serif, system-ui, sans-serif";
   const capFont = `8px ${fam}`;

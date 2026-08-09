@@ -11,7 +11,6 @@ import { api } from "/scripts/api.js";
 import { applyAdaptiveCanvasOnly, sfApiUrl } from "./sf_common.js";
 
 const SOURCES = ["input", "output", "images"];
-const ACCENT = "#f66744";
 const WIDGET_TYPE = "sf_lip_ui";
 
 // ── folder 值解析 ─────────────────────────────────────────────────────────
@@ -52,15 +51,15 @@ function injectCSS() {
       background:#2a2a2a; color:#aaa; font-size:11px; cursor:pointer; text-align:center;
       user-select:none; font-family:inherit; }
     .sf-lip-btn:hover { color:#ddd; }
-    .sf-lip-btn.on { background:${ACCENT}; color:#fff; border-color:${ACCENT}; }
+    .sf-lip-btn.on { background:${"var(--sf-acc, #f66744)"}; color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-btn:disabled { opacity:.4; cursor:default; }
     .sf-lip-mode { flex:none; padding:3px 0; font-size:10px; color:#888; cursor:pointer;
       border:1px solid #3a3a3a; border-radius:4px; background:#242424; }
-    .sf-lip-mode.on { color:#fff; border-color:${ACCENT}; }
+    .sf-lip-mode.on { color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-trigger { flex:1; min-width:0; display:flex; align-items:center; gap:4px;
       padding:5px 8px; background:#1d1d1d; color:#ccc; border:1px solid #666; border-radius:4px;
       font-size:11px; font-family:inherit; cursor:pointer; overflow:hidden; }
-    .sf-lip-trigger:hover { border-color:${ACCENT}; }
+    .sf-lip-trigger:hover { border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-trigger .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
       white-space:nowrap; text-align:left; }
     .sf-lip-trigger .arrow { color:#888; font-size:9px; flex:none; }
@@ -76,7 +75,7 @@ function injectCSS() {
     .sf-lip-pop-empty { padding:10px; color:#888; text-align:center; }
     .sf-lip-input { flex:1; min-width:0; background:#1d1d1d; color:#ccc; border:1px solid #666;
       border-radius:4px; outline:0; padding:5px 6px; font-size:11px; font-family:inherit; }
-    .sf-lip-input:focus { border-color:${ACCENT}; }
+    .sf-lip-input:focus { border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-crumbs { flex:1; min-width:0; display:flex; align-items:center; gap:2px;
       overflow:hidden; white-space:nowrap; font-size:11px; color:#aaa; }
     .sf-lip-crumb { padding:2px 5px; border-radius:3px; cursor:pointer; color:#ccc; }

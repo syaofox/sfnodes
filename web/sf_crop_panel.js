@@ -9,7 +9,6 @@
 // like "1024+256" or "1024*2" — evaluated safely on commit.
 // ============================================================
 
-import { BRAND } from "./sf_crop_framework.js";
 import { RATIOS } from "./sf_crop_core.js";
 import { ALIGNMENTS, computeAlignedXY, defaultAlignForMeta } from "./sf_crop_alignments.js";
 

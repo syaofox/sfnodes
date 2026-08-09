@@ -13,10 +13,9 @@ import {
 } from "./sf_load_image_ui.js";
 import { pickAndUploadFile, pasteFromClipboard, uploadImageToInput, setSelectedImage, updateNativePreview, previewMatches, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
 import { buildModePanel, previewResize } from "./sf_load_image_resize.js";
-import { sfApiUrl, isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
+import { sfApiUrl, isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough, sfAccent } from "./sf_common.js";
 
 // 品牌主色（原版 var(--pix-acc)，本项目固定）
-const SF_LI_ACCENT = "#f66744";
 
 // 隐藏内部序列化 widget（Vue 节点体也会渲染 STRING widget，需 canvasOnly +
 // 隐藏 + 隐藏 DOM 元素，两个渲染器都生效）
@@ -298,7 +297,7 @@ function getCardInfo(node) {
 // skipped). All coordinates are in the ctx's own CSS-pixel space.
 function paintCardsInto(ctx, node, leftPad, midY, pairW) {
   const info = getCardInfo(node);
-  const acc = SF_LI_ACCENT;   // 固定品牌色（原版跟随节点 accent 主题）
+  const acc = sfAccent();   // 全局强调色（sfnodes.Accent 设置）；未设置回品牌橙
   const fam = "ui-sans-serif, system-ui, sans-serif";
   ctx.save();
   ctx.textBaseline = "middle";

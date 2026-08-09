@@ -167,6 +167,19 @@ function fakeNode(properties = {}) {
     // accentOf
     check("accentOf 默认品牌色", accentOf(fakeNode()) === BRAND);
     check("accentOf 节点覆盖", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === "#123456");
+    // 优先级链：node > 节点默认（Set as default）> 全局设置（sfnodes.Accent）> BRAND
+    delete saved["sfnodes.LoraStack.Defaults"];
+    globalThis.app.ui.settings.getSettingValue = (k) => {
+        if (k === "sfnodes.Accent") return "#abcdef";
+        return saved[k];
+    };
+    check("accentOf 全局设置", accentOf(fakeNode()) === "#abcdef");
+    check("accentOf 节点级胜全局", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === "#123456");
+    saved["sfnodes.LoraStack.Defaults"] = JSON.stringify({ accent: "#ff0000" });
+    check("accentOf 节点默认胜全局", accentOf(fakeNode()) === "#ff0000");
+    delete saved["sfnodes.LoraStack.Defaults"];
+    globalThis.app.ui.settings.getSettingValue = (k) => saved[k];   // 恢复无全局设置
+    check("accentOf 无全局设置回品牌色", accentOf(fakeNode()) === BRAND);
 
     console.log();
     if (failures.length) {

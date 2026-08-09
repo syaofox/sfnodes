@@ -7,6 +7,7 @@ import {
     readState, writeState, accentOf, saveDefaults, roundStrength, BRAND,
 } from "./sf_lora_stack_core.js";
 import { getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
+import { repaintAll } from "./sf_lora_stack_render.js";
 
 let _panel = null;
 let _panelNode = null;
@@ -30,7 +31,7 @@ function injectCSS() {
       border:1px solid #4a4a4a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
       color:#d8d8d8; font:12px 'Segoe UI',system-ui,sans-serif; overflow:hidden; }
     .sf-lsp-t { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#232323;
-      border-bottom:1px solid #333; cursor:grab; user-select:none; color:var(--acc,${BRAND}); }
+      border-bottom:1px solid #333; cursor:grab; user-select:none; color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-lsp-t .x { margin-left:auto; color:#8a8a8a; cursor:pointer; padding:0 4px; }
     .sf-lsp-t .x:hover { color:#fff; }
     .sf-lsp-b { padding:12px; display:flex; flex-direction:column; gap:11px; max-height:64vh; overflow-y:auto; }
@@ -39,15 +40,15 @@ function injectCSS() {
     .sf-lsp-row .hint { display:block; font-size:10px; color:#7a7a7a; margin-top:1px; }
     .sf-lsp-num { width:66px; box-sizing:border-box; background:#161616; border:1px solid #4a4a4a;
       border-radius:6px; color:#fff; text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
-    .sf-lsp-num:focus { border-color:var(--acc,${BRAND}); }
+    .sf-lsp-num:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-lsp-txt { width:70px; box-sizing:border-box; background:#161616; border:1px solid #4a4a4a;
       border-radius:6px; color:#fff; text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
-    .sf-lsp-txt:focus { border-color:var(--acc,${BRAND}); }
+    .sf-lsp-txt:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-lsp-sw { flex:0 0 auto; width:34px; height:18px; border-radius:99px; background:#3a3a3a;
       position:relative; cursor:pointer; border:1px solid #000; }
     .sf-lsp-sw::after { content:""; position:absolute; top:1px; left:1px; width:14px; height:14px;
       border-radius:50%; background:#8a8a8a; transition:left .14s, background .14s; }
-    .sf-lsp-sw.on { background:var(--acc,${BRAND}); } .sf-lsp-sw.on::after { left:17px; background:#fff; }
+    .sf-lsp-sw.on { background:var(--acc, var(--sf-acc, #f66744)); } .sf-lsp-sw.on::after { left:17px; background:#fff; }
     .sf-lsp-swatch { width:30px; height:22px; border-radius:5px; border:1px solid #555; cursor:pointer; flex:0 0 auto; }
     .sf-lsp-swatch:hover { border-color:#fff; }
     .sf-lsp-seg { flex:0 0 auto; display:flex; background:rgba(0,0,0,0.25); border:1px solid #444;
@@ -55,26 +56,26 @@ function injectCSS() {
     .sf-lsp-segb { padding:5px 9px; font:11px 'Segoe UI',sans-serif; color:#aaa; cursor:pointer;
       user-select:none; }
     .sf-lsp-segb:hover { color:#ddd; background:rgba(255,255,255,0.08); }
-    .sf-lsp-segb.on { background:var(--acc,${BRAND}); color:#fff; }
+    .sf-lsp-segb.on { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
     .sf-lsp-f { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #333; background:#1f1f1f; }
     .sf-lsp-btn { border:1px solid #444; background:rgba(255,255,255,0.04); color:#d8d8d8; border-radius:5px;
       padding:6px 12px; font:12px 'Segoe UI',sans-serif; cursor:pointer; }
-    .sf-lsp-btn:hover { border-color:var(--acc,${BRAND}); color:#fff; }
+    .sf-lsp-btn:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
     .sf-lsp-push { margin-left:auto; }
     /* Civitai 块。其上方都是每节点；这些只在本机存一次，用一条规则和一个
        标题说明这一点。 */
     .sf-lsp-head { margin-top:2px; padding-top:11px; border-top:1px solid #333;
-      color:var(--acc,${BRAND}); font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+      color:var(--acc, var(--sf-acc, #f66744)); font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
     .sf-lsp-head .sub { display:block; margin-top:3px; text-transform:none; letter-spacing:0;
       color:#7a7a7a; font-size:10px; line-height:1.4; }
     .sf-lsp-key { flex:1; min-width:0; box-sizing:border-box; background:#161616;
       border:1px solid #4a4a4a; border-radius:6px; color:#fff; font:12px monospace;
       padding:6px 8px; outline:none; }
-    .sf-lsp-key:focus { border-color:var(--acc,${BRAND}); }
+    .sf-lsp-key:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-lsp-mini { flex:0 0 auto; border:1px solid #444; background:rgba(255,255,255,0.04);
       color:#d8d8d8; border-radius:5px; padding:5px 9px; font:11px 'Segoe UI',sans-serif;
       cursor:pointer; user-select:none; }
-    .sf-lsp-mini:hover { border-color:var(--acc,${BRAND}); color:#fff; }
+    .sf-lsp-mini:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
     .sf-lsp-state { flex:1; font-size:11px; color:#7a7a7a; }
     .sf-lsp-state.set { color:#3ec371; }
     .sf-lsp-msg { font-size:10px; line-height:1.4; color:#c98a6a; }
@@ -523,9 +524,22 @@ export function openLoraPanel(node, refresh) {
         mkDefault.textContent = ok ? "Saved as default" : "Could not save";
         setTimeout(() => { mkDefault.textContent = "Set as default"; }, 1200);
     });
+    // 写入全局强调色设置（ComfyUI Settings 页的 sfnodes.Accent）：未单独设色
+    // 的节点统一跟随。写当前生效色（node 级 > 节点默认 > 全局 > 品牌橙）。
+    const mkAll = el("button", "sf-lsp-btn", "Every SF node");
+    mkAll.title = "Use this colour for every SF node without its own colour (SF nodes setting)";
+    mkAll.addEventListener("click", async () => {
+        try {
+            const col = accentOf(node);
+            await app.ui.settings.setSettingValueAsync("sfnodes.Accent", col);
+            repaintAll();
+            mkAll.textContent = "Saved";
+            setTimeout(() => { mkAll.textContent = "Every SF node"; }, 1200);
+        } catch { /* 设置系统不可用 */ }
+    });
     const done = el("button", "sf-lsp-btn sf-lsp-push", "Done");
     done.addEventListener("click", closeLoraPanel);
-    foot.append(mkDefault, done);
+    foot.append(mkDefault, mkAll, done);
 
     panel.append(title, body, foot);
     document.body.appendChild(panel);

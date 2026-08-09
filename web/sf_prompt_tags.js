@@ -159,7 +159,7 @@ function injectCSS() {
     _cssInjected = true;
     const style = document.createElement("style");
     style.textContent = `
-.sf-ptg-root { --acc:#f66744; position:relative; display:flex; flex-direction:column; gap:6px; padding:6px;
+.sf-ptg-root { --acc:var(--sf-acc, #f66744); position:relative; display:flex; flex-direction:column; gap:6px; padding:6px;
   width:100%; height:100%; box-sizing:border-box; color:#e0e0e0; font:12px 'Segoe UI',sans-serif; }
 .sf-ptg-portrow { position:absolute; top:-26px; left:0; right:0; margin:0; z-index:3; pointer-events:none;
   display:none; align-items:center; justify-content:center; gap:8px; user-select:none; overflow:hidden; }

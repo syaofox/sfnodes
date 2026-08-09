@@ -158,11 +158,11 @@ export class InpaintCropEditor {
       onRedo: () => this._doRedo(),
       helpTitle: "SF Inpaint Crop — 使用说明",
       helpContent: `
-        <b style="color:#f66744;">这是做什么的</b><br>
+        <b style="color:var(--sf-acc, #f66744);">这是做什么的</b><br>
         在想让模型重画的区域上涂抹。节点会找到涂抹的外接框、加上边距，裁出一块干净
         的图去修复。橙色框就是实际发给模型的区域。<br><br>
 
-        <b style="color:#f66744;">涂抹</b><br>
+        <b style="color:var(--sf-acc, #f66744);">涂抹</b><br>
         <b>画笔 / 橡皮：</b>选工具或按 <kbd>B</kbd> / <kbd>E</kbd>（按住 <kbd>X</kbd> 临时翻转）<br>
         <b>笔刷大小：</b><kbd>[</kbd> / <kbd>]</kbd> 或 Size 滑块<br>
         <b>缩放 / 平移：</b>滚轮朝光标缩放；按住 <kbd>Space</kbd> 拖动（或中键拖动）平移；滚到最小即适配<br>
@@ -170,20 +170,20 @@ export class InpaintCropEditor {
         <b>反选 / 清空：</b>侧栏按钮（反选 = 已涂与未涂互换）<br>
         <b>换一张图：</b>Load Image 按钮，或直接把图片<b>粘贴</b> / <b>拖</b>进来<br><br>
 
-        <b style="color:#f66744;">裁剪尺寸</b>（侧栏 + 节点）<br>
+        <b style="color:var(--sf-acc, #f66744);">裁剪尺寸</b>（侧栏 + 节点）<br>
         <b>Keep shape：</b>区域长边缩放到 Target，不拉伸（质量最佳）<br>
         <b>Force square：</b>恒为 Target&times;Target 方块<br>
         <b>Free：</b>自然尺寸，仅对齐到 Multiple<br>
         <b>Context margin：</b>涂抹周围包含多少上下文<br><br>
 
-        <b style="color:#f66744;">接缝 — 贴回时的混合</b><br>
+        <b style="color:var(--sf-acc, #f66744);">接缝 — 贴回时的混合</b><br>
         <b>Softness：</b>贴回边缘淡化多远（实时橙色色调预览）<br>
         <b>Mask grow：</b>裁剪前把涂抹区域向外扩一点<br>
         <b>Blend mode — Mask：</b>只替换涂抹过的区域，裁剪图其余部分保留原图（常规修复）<br>
         <b>Blend mode — Whole crop：</b>整个框都被模型版本替换——模型也改了周围光照/环境，
         或对整块做 img2img 式处理时使用<br><br>
 
-        <b style="color:#f66744;">快捷键</b><br>
+        <b style="color:var(--sf-acc, #f66744);">快捷键</b><br>
         <b>撤销 / 重做：</b><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd> &middot;
         <b>保存：</b><kbd>Ctrl+S</kbd> &middot; <b>关闭：</b><kbd>Escape</kbd>`,
     });

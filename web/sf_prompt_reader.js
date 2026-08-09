@@ -162,7 +162,7 @@ function injectCSS() {
     }
     .sf-pr-upload-btn {
       width: 100%;
-      background: #f66744;
+      background: var(--sf-acc, #f66744);
       border: none;
       border-radius: 4px;
       padding: 9px 8px;
@@ -201,8 +201,8 @@ function injectCSS() {
       flex-shrink: 0;
       transition: background 0.08s, border-color 0.08s, color 0.08s;
     }
-    .sf-pr-srcbtn:hover { border-color: #f66744; color: #f66744; }
-    .sf-pr-srcbtn-active { background: #f66744; border-color: #f66744; color: #fff; }
+    .sf-pr-srcbtn:hover { border-color: var(--sf-acc, #f66744); color: var(--sf-acc, #f66744); }
+    .sf-pr-srcbtn-active { background: var(--sf-acc, #f66744); border-color: var(--sf-acc, #f66744); color: #fff; }
     .sf-pr-srcbtn-active:hover { color: #fff; }
     .sf-pr-nav {
       background: #1d1d1d;
@@ -220,8 +220,8 @@ function injectCSS() {
       transition: background 0.08s, border-color 0.08s, color 0.08s;
       flex-shrink: 0;
     }
-    .sf-pr-nav:hover:not(.disabled) { border-color: #f66744; color: #f66744; }
-    .sf-pr-nav:active:not(.disabled) { background: #f66744; color: #fff; }
+    .sf-pr-nav:hover:not(.disabled) { border-color: var(--sf-acc, #f66744); color: var(--sf-acc, #f66744); }
+    .sf-pr-nav:active:not(.disabled) { background: var(--sf-acc, #f66744); color: #fff; }
     .sf-pr-nav.disabled { opacity: 0.3; cursor: default; }
     .sf-pr-dropdown .counter {
       color: #777;
@@ -253,7 +253,7 @@ function injectCSS() {
        orange, naming the connected image. */
     .sf-pr-wired .sf-pr-upload-btn,
     .sf-pr-wired .sf-pr-filerow { opacity: 0.45; }
-    .sf-pr-hint.sf-pr-wired-hint { color: #f66744; font-weight: 600; }
+    .sf-pr-hint.sf-pr-wired-hint { color: var(--sf-acc, #f66744); font-weight: 600; }
     .sf-pr-dropdown {
       background: #1d1d1d;
       border: 1px solid #444;
@@ -271,7 +271,7 @@ function injectCSS() {
     .sf-pr-dropdown .name {
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .sf-pr-dropdown .arrow { color: #f66744; font-size: 10px; margin-left: 6px; }
+    .sf-pr-dropdown .arrow { color: var(--sf-acc, #f66744); font-size: 10px; margin-left: 6px; }
     .sf-pr-status {
       display: flex;
       align-items: center;
@@ -286,12 +286,12 @@ function injectCSS() {
       background: #555;
       flex-shrink: 0;
     }
-    .sf-pr-status.found .sf-pr-status-dot { background: #f66744; }
+    .sf-pr-status.found .sf-pr-status-dot { background: var(--sf-acc, #f66744); }
     .sf-pr-status.empty .sf-pr-status-dot { background: #555; }
     .sf-pr-status-label { flex: 1; }
     .sf-pr-copy {
-      background: #f66744;
-      border: 1px solid #f66744;
+      background: var(--sf-acc, #f66744);
+      border: 1px solid var(--sf-acc, #f66744);
       color: #fff;
       font-weight: 600;
       border-radius: 3px;
@@ -305,7 +305,7 @@ function injectCSS() {
     .sf-pr-copy:disabled {
       opacity: 0.35; cursor: default;
     }
-    .sf-pr-copy:disabled:hover { background: #f66744; border-color: #f66744; }
+    .sf-pr-copy:disabled:hover { background: var(--sf-acc, #f66744); border-color: var(--sf-acc, #f66744); }
     .sf-pr-readout {
       width: 100%;
       box-sizing: border-box;
@@ -349,7 +349,7 @@ function injectCSS() {
       border-bottom: 1px solid #2a2a2a;
     }
     .sf-pr-popup-item:hover { background: #2a2a2a; }
-    .sf-pr-popup-item.active { color: #f66744; font-weight: 600; }
+    .sf-pr-popup-item.active { color: var(--sf-acc, #f66744); font-weight: 600; }
     .sf-pr-popup-empty { padding: 8px; color: #666; }
   `;
   document.head.appendChild(style);

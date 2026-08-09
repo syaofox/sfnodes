@@ -15,7 +15,6 @@
 
 import { getState, isEdited } from "./sf_pause_text_lib.js";
 
-const ACCENT = "#f66744";
 
 // 非填充行的固定垂直预算 -> getMinHeight 是常量（不随内容抖动）
 const PAD = 6;
@@ -40,7 +39,7 @@ function injectCSS() {
   padding:0 8px; box-sizing:border-box; height:16px; line-height:16px; }
 .sf-ptx-box { flex:1 1 0; min-height:0; display:flex; flex-direction:column;
   background:#1d1d1d; border:1px solid #333; border-radius:5px; overflow:hidden; }
-.sf-ptx-box.pt-focus { border-color:${ACCENT}; }
+.sf-ptx-box.pt-focus { border-color:${"var(--sf-acc, #f66744)"}; }
 .sf-ptx-box.pt-off { opacity:0.55; }
 .sf-ptx-hdr { flex:0 0 auto; display:flex; align-items:center; gap:6px;
   padding:3px 6px 3px 9px; border-bottom:1px solid #2c2c2c; background:rgba(255,255,255,0.02); }
@@ -49,12 +48,12 @@ function injectCSS() {
 .sf-ptx-toggle { display:flex; background:rgba(0,0,0,0.25); border-radius:5px; padding:1px; gap:2px; flex:0 0 auto; }
 .sf-ptx-seg { text-align:center; padding:2px 9px; border-radius:4px; cursor:pointer;
   color:rgba(255,255,255,0.6); user-select:none; border:1px solid transparent; font-size:10px; }
-.sf-ptx-seg.active { background:${ACCENT}; color:#fff; border-color:${ACCENT}; }
-.sf-ptx-seg:not(.active):hover { border-color:${ACCENT}; color:#ddd; }
+.sf-ptx-seg.active { background:${"var(--sf-acc, #f66744)"}; color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
+.sf-ptx-seg:not(.active):hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
 .sf-ptx-hic { width:19px; height:18px; border-radius:4px; display:flex; align-items:center;
   justify-content:center; cursor:pointer; background:rgba(255,255,255,0.06);
   border:1px solid rgba(255,255,255,0.14); color:rgba(255,255,255,0.72); flex:0 0 auto; }
-.sf-ptx-hic:hover:not(.off) { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+.sf-ptx-hic:hover:not(.off) { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .sf-ptx-hic.ok, .sf-ptx-hic.ok:hover { background:#3ec371; border-color:#3ec371; color:#fff; }
 .sf-ptx-hic.off { opacity:0.35; cursor:default; }
 .sf-ptx-ta { flex:1 1 0; min-height:0; width:100%; box-sizing:border-box;
@@ -69,8 +68,8 @@ function injectCSS() {
   border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.05);
   color:rgba(255,255,255,0.85); font:12px sans-serif; cursor:pointer;
   box-sizing:border-box; white-space:nowrap; user-select:none; flex:0 0 auto; }
-.sf-ptx-btn:hover:not(:disabled) { border-color:${ACCENT}; color:#fff; }
-.sf-ptx-btn.primary:not(:disabled) { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+.sf-ptx-btn:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
+.sf-ptx-btn.primary:not(:disabled) { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .sf-ptx-btn.primary:hover:not(:disabled) { background:#ff8a5e; border-color:#ff8a5e; }
 .sf-ptx-btn:disabled { opacity:0.45; cursor:default; }
 `;
@@ -234,7 +233,7 @@ export function renderPause(node) {
         : "Passing through - the model's text is sent as-is";
 
     els.hlbl.innerHTML = edited
-        ? `text · <span style="color:${ACCENT}">edited</span>`
+        ? `text · <span style="color:${"var(--sf-acc, #f66744)"}">edited</span>`
         : "text";
 
     const hasText = !!s.text;

@@ -47,7 +47,7 @@ sfnodes/
 │   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/decode_image，crop 与 inpaint 共用）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_common.js 复刻节点公共小工具、sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_dropdown*.js 值下拉四模块、sf_workflows*.js 工作流面板三模块、sf_prompt_reader.js 提示词恢复单模块、sf_load_image*.js 加载图片四模块（SFLoadImageResize）、load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）、sf_lora_stack*.js 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展））
+├── web/                 # 前端 JS Widget（含 sf_common.js 复刻节点公共小工具与全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）、sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_dropdown*.js 值下拉四模块、sf_workflows*.js 工作流面板三模块、sf_prompt_reader.js 提示词恢复单模块、sf_load_image*.js 加载图片四模块（SFLoadImageResize）、load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）、sf_lora_stack*.js 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展））
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -272,6 +272,7 @@ class SFMyNode:
 - **Civitai API 字段位置必须实测**：model-versions 响应里 `model` 对象只有 name/nsfw/poi/type——**说明文字在 version 顶层 `description`**（HTML，需剥标签/实体解码/空白折叠）；thumbnail 取 `images[]` 第一张非成人图。
 - **用户数据以路径名为键 → 文件移动/改名失配**（自定义词/描述存 `user/sfnodes/lora_triggers.json`，预览图按键 hash 命名；侧车 `.civitai.info` 随文件走不受影响）。两级孤儿匹配：**内容指纹优先**（size + 采样哈希，改名不改内容 → 指纹不变）、**基名兜底**（仅覆盖文件夹改名；同名多目录歧义放弃）。匹配后前端提示条 + 用户确认迁移（不自动执行防误配）；迁移端点接收前端回传的 `old_key`（防御自迁移/不存在键）。封面可静默恢复：本地无预览且侧车有缩略图 → 自动重下载到新 hash 名。
 - **面板风确认框必须豁免宿主面板的 document 捕获监听**（onKey/onPaste）：确认框挂在 body、不在面板 DOM 内，不豁免则其事件会穿透到面板监听（Esc 连关面板等）。信息面板本身**只经 ✕ 关闭**——画布点击不关闭（用户边看信息边操作工作流）；Esc 是主动关闭意图保留。
+- **全局强调色统一走 `--sf-acc` CSS 变量**（`sf_common.js` getSfAccent/applySfAccentVar/sfAccent，注册在 SFLoraStack 扩展 init）：CSS 部分 `var(--sf-acc, #f66744)` 响应式自动生效；canvas 每帧 `sfAccent()`（inline 变量读取轻量）；节点级 accent 用局部 `--sf-acc`/`--acc` 覆盖。优先级链：node.accent > 节点默认 > 全局设置 > 品牌橙。**两个时序坑**：① ComfyUI 设置 onChange 在 store 更新前触发、参数是 (newValue, oldValue)——回调里读 getSettingValue 拿到旧值（"设了 red 显示 teal"），必须用传入参数；② 初始 applySfAccentVar 必须在 addSetting 之后（设置项未注册时读不到用户保存值，会把 --sf-acc 钉死在默认色）。
 - **保存成功后 `_infoSeq++` 作废在途旧响应**：面板打开时 loadInfo 在飞，用户保存描述后迟到响应落地会覆盖回旧值（"保存了仍显示来自 Civitai"）；设置面板同理用 `_accDirty` 挡 GET 迟到应答覆盖刚保存的 host。
 - 存储形状升级必须兼容旧数据（`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一）；`promptState` 只注入执行字段（cosmetic 剥掉避免改缓存签名），`cacheMode` 例外（Python 需要它决定内存策略）。完整踩坑见 `doc/experience.md` §19。
 

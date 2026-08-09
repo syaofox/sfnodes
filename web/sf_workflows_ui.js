@@ -200,7 +200,7 @@ export function injectWorkflowCSS() {
     const s = document.createElement("style");
     s.id = "sf-wb-css";
     s.textContent = `
-:root { --sfwb-k:1; --sfwb-acc:#f66744; }
+:root { --sfwb-k:1; --sfwb-acc:var(--sf-acc, #f66744); }
 .sf-wb-win { position:fixed; z-index:9980; background:#1b1a19; border:1px solid #3d3936;
   border-radius:${z(10)}; box-shadow:0 20px 60px rgba(0,0,0,.6); flex-direction:column;
   color:#ddd; font:12px 'Segoe UI',sans-serif; overflow:hidden; display:none;

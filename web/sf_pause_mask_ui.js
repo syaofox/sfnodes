@@ -11,7 +11,6 @@
 import { getState } from "./sf_pause_mask_lib.js";
 import { sfApiUrl } from "./sf_common.js";
 
-const ACCENT = "#f66744";
 
 const HEADER_H = 130;       // 切换 + 状态 + 两行按钮
 const PREVIEW_MIN_H = 150;  // 预览区最小高度
@@ -30,16 +29,16 @@ function injectCSS() {
 .sf-pm-toggle { display:flex; background:rgba(0,0,0,0.25); border-radius:6px; padding:2px; gap:2px; flex:0 0 auto; }
 .sf-pm-seg { flex:1 1 0; text-align:center; padding:4px 0; border-radius:5px; cursor:pointer;
   color:rgba(255,255,255,0.6); user-select:none; border:1px solid transparent; }
-.sf-pm-seg.active { background:${ACCENT}; color:#fff; border-color:${ACCENT}; }
-.sf-pm-seg:not(.active):hover { border-color:${ACCENT}; color:#ddd; }
+.sf-pm-seg.active { background:${"var(--sf-acc, #f66744)"}; color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
+.sf-pm-seg:not(.active):hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
 .sf-pm-status { flex:0 0 auto; font-size:11px; color:rgba(255,255,255,0.7); min-height:14px; text-align:center; }
 .sf-pm-btns { display:flex; gap:6px; flex:0 0 auto; }
 .sf-pm-btn { flex:1 1 0; min-width:0; height:26px; line-height:24px; border-radius:4px;
   border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.05);
   color:rgba(255,255,255,0.85); font:12px sans-serif; cursor:pointer; padding:0 6px;
   box-sizing:border-box; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; user-select:none; }
-.sf-pm-btn:hover:not(:disabled) { border-color:${ACCENT}; color:#fff; }
-.sf-pm-btn.primary:not(:disabled) { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+.sf-pm-btn:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
+.sf-pm-btn.primary:not(:disabled) { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .sf-pm-btn.primary:hover:not(:disabled) { background:#ff8a5e; border-color:#ff8a5e; }
 .sf-pm-btn:disabled { opacity:0.45; cursor:default; }
 .sf-pm-preview { flex:1 1 0; min-height:0; position:relative; background:#1d1d1d;

@@ -3,9 +3,24 @@
 // interaction 模块在 widget 元素上挂一个委托处理器，按本模块盖的 data-act
 // 属性分发。主扩展拥有尺寸计算并调用 renderNode()。
 // ==========================================================================
+import { app } from "/scripts/app.js";
 import { isVueNodes } from "./sf_common.js";
 import { BRAND, readState, accentOf, countOn, MAX_LORAS } from "./sf_lora_stack_core.js";
 import { hasLora } from "./sf_lora_stack_api.js";
+
+// 重渲染图中全部 LoRA Stack 节点（含子图嵌套）。全局设置（sfnodes.Accent）
+// 变化后调用，让新色立即生效。重绘纯 DOM，不触碰序列化状态。
+export function repaintAll() {
+    const walk = (g) => {
+        for (const n of (g?._nodes || [])) {
+            if ((n.comfyClass === "SFLoraStack" || n.type === "SFLoraStack") && n._sfLsRoot) renderNode(n);
+            const sub = n.subgraph || n.graph || n._graph;
+            if (sub && sub !== g) walk(sub);
+        }
+    };
+    walk(app.graph);
+    app.graph?.setDirtyCanvas?.(true, true);
+}
 
 // 高度常量——与 CSS 锁步，让节点贴合内容无底隙无滚动条（主扩展
 // getMinHeight 读 contentHeight）。
@@ -95,7 +110,7 @@ export function injectCSS() {
     .sf-ls-band.floated > * { pointer-events:auto; }
 
     .sf-ls-add { box-sizing:border-box; width:100%; height:${ADD_H}px; border:0; border-radius:6px;
-      background:var(--acc,${BRAND}); color:#fff; font:600 12px 'Segoe UI',sans-serif; cursor:pointer;
+      background:var(--acc, var(--sf-acc, #f66744)); color:#fff; font:600 12px 'Segoe UI',sans-serif; cursor:pointer;
       display:flex; align-items:center; justify-content:center; gap:6px; }
     .sf-ls-add:hover { filter:brightness(1.08); }
     .sf-ls-add:disabled { opacity:.4; cursor:default; filter:none; }
@@ -104,7 +119,7 @@ export function injectCSS() {
     .sf-ls-all { flex:1; min-width:0; display:flex; align-items:center; gap:8px;
       background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); border-radius:5px;
       padding:0 9px; color:#a8a8a8; cursor:pointer; user-select:none; }
-    .sf-ls-all:hover { border-color:var(--acc,${BRAND}); color:#ddd; }
+    .sf-ls-all:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#ddd; }
     .sf-ls-all .cnt { font-size:11px; white-space:nowrap; }
     .sf-ls-gear { flex:0 0 auto; width:32px; display:flex; align-items:center; justify-content:center;
       background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); border-radius:5px;
@@ -112,8 +127,8 @@ export function injectCSS() {
     .sf-ls-gear::before { content:""; display:block; width:14px; height:14px; background:#bbb;
       -webkit-mask:url("${GEAR_SVG}") center/contain no-repeat;
       mask:url("${GEAR_SVG}") center/contain no-repeat; }
-    .sf-ls-gear:hover { border-color:var(--acc,${BRAND}); }
-    .sf-ls-gear:hover::before { background:var(--acc,${BRAND}); }
+    .sf-ls-gear:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-gear:hover::before { background:var(--acc, var(--sf-acc, #f66744)); }
 
     .sf-ls-rows { display:flex; flex-direction:column; gap:${ROW_GAP}px; }
     .sf-ls-row { box-sizing:border-box; height:${ROW_H}px; display:flex; align-items:center; gap:6px;
@@ -121,20 +136,20 @@ export function injectCSS() {
       padding:0 6px; position:relative; }
     .sf-ls-row.off { opacity:.42; }
     .sf-ls-row.dragging { opacity:.45; }
-    .sf-ls-row.drag-before { box-shadow: inset 0 3px 0 var(--acc,${BRAND}); }
-    .sf-ls-row.drag-after { box-shadow: inset 0 -3px 0 var(--acc,${BRAND}); }
+    .sf-ls-row.drag-before { box-shadow: inset 0 3px 0 var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-row.drag-after { box-shadow: inset 0 -3px 0 var(--acc, var(--sf-acc, #f66744)); }
 
     /* 拖拽排序手柄（行最左，⋮ 三点） */
     .sf-ls-grip { flex:0 0 auto; width:14px; height:100%; display:flex; align-items:center;
       justify-content:center; cursor:grab; color:#5a5a5a; user-select:none; touch-action:none; }
     .sf-ls-grip::before { content:""; width:3px; height:3px; border-radius:50%; background:currentColor;
       box-shadow:0 -5px 0 currentColor, 0 5px 0 currentColor; }
-    .sf-ls-grip:hover { color:var(--acc,${BRAND}); }
+    .sf-ls-grip:hover { color:var(--acc, var(--sf-acc, #f66744)); }
 
     .sf-ls-name { flex:1; min-width:0; height:24px; display:flex; align-items:center; gap:5px;
       background:#161616; border:1px solid #3a3a3a; border-radius:5px; padding:0 8px;
       font:11px monospace; color:#ddd; cursor:pointer; overflow:hidden; }
-    .sf-ls-name:hover { border-color:var(--acc,${BRAND}); }
+    .sf-ls-name:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-name .nm { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .sf-ls-name.empty .nm { color:#777; }
     .sf-ls-name.missing .nm { color:#e05555; }
@@ -143,7 +158,7 @@ export function injectCSS() {
 
     .sf-ls-w { flex:0 0 auto; display:flex; align-items:center; height:24px; width:56px;
       background:#161616; border:1px solid #3a3a3a; border-radius:5px; overflow:hidden; }
-    .sf-ls-w:focus-within { border-color:var(--acc,${BRAND}); }
+    .sf-ls-w:focus-within { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-wval { flex:1; min-width:0; width:100%; background:transparent; border:0; outline:none;
       color:#fff; text-align:center; font:11px monospace; padding:0; }
     .sf-ls-wval::-webkit-outer-spin-button,.sf-ls-wval::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
@@ -151,19 +166,19 @@ export function injectCSS() {
       border-left:1px solid #3a3a3a; }
     .sf-ls-wbtn { flex:1; border:0; background:transparent; color:#9a9a9a; cursor:pointer;
       font-size:7px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
-    .sf-ls-wbtn:hover { color:var(--acc,${BRAND}); background:rgba(255,255,255,0.06); }
+    .sf-ls-wbtn:hover { color:var(--acc, var(--sf-acc, #f66744)); background:rgba(255,255,255,0.06); }
 
     .sf-ls-info { flex:0 0 auto; width:22px; height:22px; border-radius:5px;
       border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:#a8a8a8;
       cursor:pointer; display:flex; align-items:center; justify-content:center;
       font:italic 12px Georgia,serif; }
-    .sf-ls-info:hover { border-color:var(--acc,${BRAND}); color:#fff; }
+    .sf-ls-info:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
 
     .sf-ls-sw { flex:0 0 auto; width:30px; height:16px; border-radius:99px; background:#3a3a3a;
       position:relative; cursor:pointer; border:1px solid #000; }
     .sf-ls-sw::after { content:""; position:absolute; top:1px; left:1px; width:12px; height:12px;
       border-radius:50%; background:#8a8a8a; transition:left .14s, background .14s; }
-    .sf-ls-sw.on { background:var(--acc,${BRAND}); }
+    .sf-ls-sw.on { background:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-sw.on::after { left:15px; background:#fff; }
 
     .sf-ls-empty { box-sizing:border-box; height:${EMPTY_H}px;

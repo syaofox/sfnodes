@@ -912,6 +912,10 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 6. 其余要点
 
+- **全局强调色统一（2026-08）**：ComfyUI 系统设置 `sfnodes.Accent`（combo 8 预设，注册在 SFLoraStack 扩展 init）→ `applySfAccentVar` 写 document 根 inline CSS 变量 `--sf-acc` → 全 sf 节点主题色统一 `var(--sf-acc, #f66744)`（CSS 响应式自动生效，无需逐节点重绘）→ canvas 绘制每帧 `sfAccent()` 读 inline 变量（轻量）。节点级 accent 用局部 `--sf-acc`/`--acc` 覆盖（SFLoraStack 面板/下拉/菜单）。优先级链：node.accent > 节点默认（Set as default）> 全局设置 > 品牌橙。
+  - **时序坑 1（onChange 参数）**：ComfyUI settingStore 的 `applySettingLocally` 先调 `onChange(t.value[n], a, o)`（参数 = newValue, oldValue）**再**更新 store（`e.value[n] = s`）——onChange 回调里读 `getSettingValue` 拿到的是**旧值**（"设了 red 显示 teal"）。必须用回调传入的 newValue。
+  - **时序坑 2（注册顺序）**：初始 `applySfAccentVar()` 必须在 `addSetting` **之后**——设置项未注册时 `getSettingValue` 拿不到用户保存值（返回 defaultValue），会把 `--sf-acc` 钉死在品牌橙且注册后不再刷新（"Crop 品牌文字还是橙色"）。
+  - **复刻节点硬编码橙色的统一改造**：原版 accent 体系被丢弃的节点（Load Image Resize/crop 品牌文字等）全是硬编码 `#f66744`——CSS 插值改 `var(--sf-acc, #f66744)`、canvas 常量改 `sfAccent()`；sed 批量替换后必须清理孤儿常量并检查 SVG data URI/JS 逻辑误入。crop/inpaint 编辑器的 canvas 工具色（涂抹笔/裁剪框）保留品牌橙（工具色非主题标识，避免回归）。
 - 查询路由打 hosts/key 日志（`civitai lookup for <name>: hosts=<顺序> key=yes/no`）——"设了 red 走 com"类问题一眼定位。
 - View on Civitai 链接按账户 host 偏好生成域（red → civitai.red，成人模型在 com 网页可能受限）；`/lora_info` 附 `civitai_host`。
 - `_is_path_under` 用 realpath 双端严格检查 + 跨盘（junction）lexical 回退（原版 `_path_guard` 语义）；纯 abspath 会让同盘 symlink 逃逸误判通过。

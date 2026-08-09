@@ -49,7 +49,7 @@ export function injectFrameworkStyles() {
 
 /* ── CSS Custom Properties ──────────────────────────── */
 .sf-px-overlay {
-  --sf-px-accent: #f66744;
+  --sf-px-accent: var(--sf-acc, #f66744);
   --sf-px-accent-hover: #e05535;
   --sf-px-bg-darkest: #131415;
   --sf-px-bg-dark: #171718;
@@ -65,7 +65,7 @@ export function injectFrameworkStyles() {
   --sf-px-text-dimmer: #666;
   --sf-px-text-label: #999;
   --sf-px-select-bg: #2a1800;
-  --sf-px-select-border: #f66744;
+  --sf-px-select-border: var(--sf-acc, #f66744);
   --sf-px-multi-bg: #0a1a2a;
   --sf-px-multi-border: #0ea5e9;
   --sf-px-danger: #d46060;
@@ -180,7 +180,7 @@ export function injectFrameworkStyles() {
    overlapped AudioReact's bottom-left transport buttons. :empty hides it
    until an editor actually writes text via setStatusText(). */
 .sf-px-tool-info:empty { display: none; }
-.sf-px-tool-info.warn { color: #f66744; }
+.sf-px-tool-info.warn { color: var(--sf-acc, #f66744); }
 .sf-px-tool-info.error { color: #f08080; }
 
 /* ── Panel / Section ────────────────────────────────── */
@@ -1702,7 +1702,7 @@ export function createDummyWidget(titleText, subtitleText, instructionText) {
   subtitle.style.cssText = `
       font-size: 18px;
       font-weight: 700;
-      color: #f66744;
+      color: var(--sf-acc, #f66744);
       margin: 0;
       line-height: 1.2;
     `;

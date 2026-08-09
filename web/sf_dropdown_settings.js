@@ -66,7 +66,6 @@ function dropIncompatibleLinks(node) {
 }
 
 // 与节点面相同的固定强调色。
-const ACCENT = "#f66744";
 
 let _panel = null;
 let _panelNode = null;
@@ -106,27 +105,27 @@ function injectCSS() {
       border:1px solid #4a4a4a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
       color:#d8d8d8; font:12px 'Segoe UI',-apple-system,sans-serif; overflow:hidden; }
     .sf-ddp-t { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#232323;
-      border-bottom:1px solid #333; cursor:grab; user-select:none; color:${ACCENT}; }
+      border-bottom:1px solid #333; cursor:grab; user-select:none; color:${"var(--sf-acc, #f66744)"}; }
     .sf-ddp-t .x { margin-left:auto; color:#8a8a8a; cursor:pointer; padding:0 4px; }
     .sf-ddp-t .x:hover { color:#fff; }
     .sf-ddp-b { padding:12px; display:flex; flex-direction:column; gap:12px; max-height:64vh; overflow-y:auto; }
 
-    .sf-ddp-lab { font-size:11px; color:${ACCENT}; letter-spacing:.04em; }
+    .sf-ddp-lab { font-size:11px; color:${"var(--sf-acc, #f66744)"}; letter-spacing:.04em; }
     .sf-ddp-sub { font-size:11px; color:#777; line-height:1.5; }
 
     .sf-ddp-seg { display:flex; gap:5px; flex-wrap:wrap; }
     .sf-ddp-seg button { flex:1 1 auto; min-width:78px; text-align:center; padding:6px 8px; border-radius:5px;
       background:#1d1d1d; border:1px solid #444; color:#aaa;
       font:11px 'Segoe UI',sans-serif; cursor:pointer; }
-    .sf-ddp-seg button:hover { border-color:${ACCENT}; color:#ddd; }
-    .sf-ddp-seg button.on { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+    .sf-ddp-seg button:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+    .sf-ddp-seg button.on { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 
     .sf-ddp-modes { display:flex; gap:5px; }
     .sf-ddp-modes button { width:34px; text-align:center; padding:6px 0; border-radius:5px;
       background:#1d1d1d; border:1px solid #444; color:#aaa;
       font:12px 'Segoe UI',sans-serif; cursor:pointer; }
-    .sf-ddp-modes button:hover { border-color:${ACCENT}; color:#ddd; }
-    .sf-ddp-modes button.on { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+    .sf-ddp-modes button:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+    .sf-ddp-modes button.on { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 
     .sf-ddp-head { display:flex; align-items:center; justify-content:space-between; }
     .sf-ddp-count { font-size:11px; color:#666; }
@@ -142,19 +141,19 @@ function injectCSS() {
        面板 BUILD 列表；节点从它 PICK。 */
     .sf-ddp-row { display:flex; align-items:flex-start; gap:6px; padding:4px;
       border-radius:5px; background:rgba(255,255,255,0.02); }
-    .sf-ddp-row.drop-above { box-shadow:inset 0 2px 0 ${ACCENT}; }
-    .sf-ddp-row.drop-below { box-shadow:inset 0 -2px 0 ${ACCENT}; }
-    .sf-ddp-row .grip { color:${ACCENT}; cursor:grab; flex:none; font-size:12px;
+    .sf-ddp-row.drop-above { box-shadow:inset 0 2px 0 ${"var(--sf-acc, #f66744)"}; }
+    .sf-ddp-row.drop-below { box-shadow:inset 0 -2px 0 ${"var(--sf-acc, #f66744)"}; }
+    .sf-ddp-row .grip { color:${"var(--sf-acc, #f66744)"}; cursor:grab; flex:none; font-size:12px;
       line-height:1; padding:6px 2px 0; opacity:.8; }
     .sf-ddp-row .grip:hover { opacity:1; }
     .sf-ddp-nm { width:118px; flex:none; box-sizing:border-box; background:#1d1d1d;
       border:1px solid #444; border-radius:4px; color:#ddd; font:11px 'Segoe UI',sans-serif;
       padding:5px 7px; outline:none; }
-    .sf-ddp-nm:focus { border-color:${ACCENT}; }
+    .sf-ddp-nm:focus { border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-ddp-vl { flex:1 1 auto; min-width:0; box-sizing:border-box; background:#1d1d1d;
       border:1px solid #444; border-radius:4px; color:#ddd; font:11px 'Segoe UI',sans-serif;
       padding:5px 7px; outline:none; resize:none; overflow:hidden; line-height:1.45; }
-    .sf-ddp-vl:focus { border-color:${ACCENT}; }
+    .sf-ddp-vl:focus { border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-ddp-vl.bad { border-color:#a8552f; }
     .sf-ddp-warn { flex:none; width:13px; text-align:center; padding-top:5px;
       color:#e0703a; font-size:11px; cursor:default; }
@@ -168,23 +167,23 @@ function injectCSS() {
     .sf-ddp-ins { width:21px; }
     .sf-ddp-ins::before { content:"+"; display:flex; align-items:center; justify-content:center;
       width:19px; height:19px; border-radius:4px;
-      background:color-mix(in srgb, ${ACCENT} 22%, transparent);
-      color:${ACCENT}; font:15px/1 'Segoe UI',sans-serif; }
-    .sf-ddp-ins:hover::before { background:${ACCENT}; color:#fff; }
+      background:color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 22%, transparent);
+      color:${"var(--sf-acc, #f66744)"}; font:15px/1 'Segoe UI',sans-serif; }
+    .sf-ddp-ins:hover::before { background:${"var(--sf-acc, #f66744)"}; color:#fff; }
     .sf-ddp-del { width:17px; color:#777; font:13px/1 'Segoe UI',sans-serif; }
     .sf-ddp-del:hover { color:#e0604a; }
 
     .sf-ddp-empty { padding:14px 10px; text-align:center; }
     .sf-ddp-empty p { margin:0 0 10px; color:#777; font-size:11px; font-style:italic; }
-    .sf-ddp-emptybtn { background:${ACCENT}; color:#fff; border:0; border-radius:5px;
+    .sf-ddp-emptybtn { background:${"var(--sf-acc, #f66744)"}; color:#fff; border:0; border-radius:5px;
       padding:7px 16px; font:12px 'Segoe UI',sans-serif; cursor:pointer; }
     .sf-ddp-emptybtn:hover { filter:brightness(1.1); }
 
     .sf-ddp-f { display:flex; gap:8px; flex-wrap:wrap; padding:10px 12px; border-top:1px solid #333; background:#1f1f1f; }
     .sf-ddp-btn { border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.65);
       border-radius:5px; padding:6px 12px; font:12px 'Segoe UI',sans-serif; cursor:pointer; }
-    .sf-ddp-btn:hover { border-color:${ACCENT}; background:${ACCENT}; color:#fff; }
-    .sf-ddp-btn.primary { background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+    .sf-ddp-btn:hover { border-color:${"var(--sf-acc, #f66744)"}; background:${"var(--sf-acc, #f66744)"}; color:#fff; }
+    .sf-ddp-btn.primary { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
     .sf-ddp-btn.primary:hover { filter:brightness(1.1); }
     .sf-ddp-push { margin-left:auto; }
 
@@ -195,7 +194,7 @@ function injectCSS() {
     .sf-ddp-askbox { background:#232323; border:1px solid #4a4a4a; border-radius:8px;
       padding:14px 16px; width:min(320px,86%); display:flex; flex-direction:column; gap:10px;
       box-shadow:0 10px 30px rgba(0,0,0,0.5); }
-    .sf-ddp-asktitle { color:${ACCENT}; font-size:12px; }
+    .sf-ddp-asktitle { color:${"var(--sf-acc, #f66744)"}; font-size:12px; }
     .sf-ddp-askmsg { color:#bbb; font-size:11.5px; line-height:1.5; }
     .sf-ddp-askrow { display:flex; gap:8px; justify-content:flex-end; }
   `;

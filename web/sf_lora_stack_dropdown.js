@@ -15,18 +15,18 @@ function injectCSS() {
     s.id = "sf-ls-dd-css";
     s.textContent = `
     .sf-ls-dd { position:fixed; z-index:10020; width:300px; max-width:92vw; background:#242424;
-      border:1px solid ${BRAND}; border-radius:9px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
+      border:1px solid ${"var(--sf-acc, #f66744)"}; border-radius:9px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
       display:flex; flex-direction:column; max-height:60vh; }
     .sf-ls-dd-srch { margin:8px; display:flex; align-items:center; gap:7px; background:#161616;
-      border:1px solid ${BRAND}; border-radius:6px; padding:6px 9px; }
+      border:1px solid ${"var(--sf-acc, #f66744)"}; border-radius:6px; padding:6px 9px; }
     .sf-ls-dd-srch input { flex:1; min-width:0; background:transparent; border:0; outline:none;
       color:#fff; font:12px monospace; }
     .sf-ls-dd-srch .ic { color:#888; flex:none; }
     .sf-ls-dd-crumb { display:flex; flex-wrap:wrap; align-items:center; gap:2px; padding:3px 12px 6px;
       font:10.5px 'Segoe UI',sans-serif; color:#8a8a8a; border-bottom:1px solid #1c1c1c; }
     .sf-ls-dd-crumb .c { cursor:pointer; color:#a8a8a8; }
-    .sf-ls-dd-crumb .c:hover { color:${BRAND}; }
+    .sf-ls-dd-crumb .c:hover { color:${"var(--sf-acc, #f66744)"}; }
     .sf-ls-dd-crumb .c.here { color:#e0e0e0; cursor:default; }
     .sf-ls-dd-crumb .s { color:#555; }
     .sf-ls-dd-list { overflow-y:auto; overflow-x:hidden; padding:2px 0 6px; }
@@ -37,7 +37,7 @@ function injectCSS() {
     .sf-ls-dd-opt { padding:6px 12px; font:11.5px monospace; color:#bbb; cursor:pointer;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .sf-ls-dd-opt:hover { background:#2f2f2f; color:#fff; }
-    .sf-ls-dd-opt.cur { color:${BRAND}; }
+    .sf-ls-dd-opt.cur { color:${"var(--sf-acc, #f66744)"}; }
     .sf-ls-dd-opt .sub { color:#666; }
     .sf-ls-dd-folder { display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer;
       font:11.5px 'Segoe UI',sans-serif; color:#d0d0d0; }
@@ -46,7 +46,7 @@ function injectCSS() {
     .sf-ls-dd-folder .nm { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .sf-ls-dd-folder .ct { color:#777; font:10px monospace; } .sf-ls-dd-folder .ch { color:#777; }
     .sf-ls-dd-back { padding:6px 12px; cursor:pointer; color:#9a9a9a; font:11px 'Segoe UI'; }
-    .sf-ls-dd-back:hover { color:${BRAND}; }
+    .sf-ls-dd-back:hover { color:${"var(--sf-acc, #f66744)"}; }
     .sf-ls-dd-empty { padding:14px 12px; color:#777; text-align:center; }
   `;
     document.head.appendChild(s);
@@ -76,6 +76,8 @@ export async function openLoraDropdown(anchorEl, opts) {
     const pop = document.createElement("div");
     pop.className = "sf-ls-dd";
     pop.style.borderColor = accent;
+    // 弹窗内部的 var(--sf-acc, …) 用节点 accent 局部覆盖（全局设置为默认）。
+    pop.style.setProperty("--sf-acc", accent);
 
     const srch = document.createElement("div");
     srch.className = "sf-ls-dd-srch";

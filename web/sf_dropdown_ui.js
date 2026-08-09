@@ -35,7 +35,6 @@ import { SOCKET_LABELS, previewText, readable } from "./sf_dropdown_lib.js";
 export { isVueNodes, applyAdaptiveCanvasOnly };
 
 // 固定强调色（复刻范围外：无 accent 颜色设置，参照 sf_pause_text_ui.js）。
-const ACCENT = "#f66744";
 
 // Classic 在行上方插入的内容：node.widgets_start_y（index.js 里设为 2）加
 // BaseDOMWidgetImpl.DEFAULT_MARGIN（10）。在真正要紧处（alignOutputLegacy）
@@ -175,7 +174,7 @@ export function injectCSS() {
   }
   .sf-dd-arrow{
     flex:none; width:13px; text-align:center; cursor:pointer;
-    color:${ACCENT}; font-size:10px; line-height:1; background:none; border:none; padding:0;
+    color:${"var(--sf-acc, #f66744)"}; font-size:10px; line-height:1; background:none; border:none; padding:0;
   }
   .sf-dd-arrow:hover{ filter:brightness(1.35); }
   .sf-dd-arrow.dim{ opacity:.28; cursor:default; }
@@ -187,14 +186,14 @@ export function injectCSS() {
     background:#1d1d1d; border:1px solid #444; border-radius:4px;
     padding:0 6px; cursor:pointer;
   }
-  .sf-dd-field:hover{ border-color:${ACCENT}; }
-  .sf-dd-field.open{ border-color:${ACCENT}; }
+  .sf-dd-field:hover{ border-color:${"var(--sf-acc, #f66744)"}; }
+  .sf-dd-field.open{ border-color:${"var(--sf-acc, #f66744)"}; }
   .sf-dd-name{
     flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; color:#ddd; font-size:12px;
   }
   .sf-dd-name.empty{ color:#777; font-style:italic; }
-  .sf-dd-caret{ flex:none; color:${ACCENT}; font-size:8px; }
+  .sf-dd-caret{ flex:none; color:${"var(--sf-acc, #f66744)"}; font-size:8px; }
 
   /* 内联 data URI 齿轮，与节点选中工具栏的 ⚙ 一致，而非各平台渲染不同的 emoji。 */
   .sf-dd-gear{
@@ -206,7 +205,7 @@ export function injectCSS() {
     background:#aaa; -webkit-mask:url("${GEAR_SVG}") center/contain no-repeat;
     mask:url("${GEAR_SVG}") center/contain no-repeat;
   }
-  .sf-dd-gear:hover::before{ background:${ACCENT}; }
+  .sf-dd-gear:hover::before{ background:${"var(--sf-acc, #f66744)"}; }
 
   /* 常显且可点：循环 F -> I -> R。Fixed 是安静的默认，不喊橙色徽章；两种会
      偷偷换值的模式被填充，因为下次 Run 发出不同东西的节点必须明说。 */
@@ -216,12 +215,12 @@ export function injectCSS() {
     border-radius:3px; border:1px solid #4a4a4a; background:none; color:#999;
     font:11px 'Segoe UI',sans-serif; cursor:pointer; line-height:1;
   }
-  .sf-dd-mode:hover{ border-color:${ACCENT}; color:#ddd; }
-  .sf-dd-mode.on{ background:${ACCENT}; border-color:${ACCENT}; color:#fff; }
+  .sf-dd-mode:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+  .sf-dd-mode.on{ background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
   .sf-dd-mode.on:hover{ filter:brightness(1.12); color:#fff; }
 
   .sf-dd-type{
-    flex:none; color:${ACCENT}; font-size:11px; letter-spacing:.02em;
+    flex:none; color:${"var(--sf-acc, #f66744)"}; font-size:11px; letter-spacing:.02em;
     max-width:50px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
 
@@ -239,7 +238,7 @@ export function injectCSS() {
     padding:.5em .75em; border-radius:4px; cursor:pointer;
   }
   .sf-dd-opt:hover{ background:#2a2a2a; }
-  .sf-dd-opt.sel{ background:${ACCENT}; }
+  .sf-dd-opt.sel{ background:${"var(--sf-acc, #f66744)"}; }
   .sf-dd-oname{
     flex:none; max-width:100%; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; color:#ddd; font-size:1em;

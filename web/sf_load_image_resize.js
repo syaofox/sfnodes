@@ -5,7 +5,6 @@
 // Node-testable via tests/.
 
 // 品牌主色（原版 var(--pix-acc)，本项目无 accent 系统，固定值）
-const SF_LI_ACCENT = "#f66744";
 
 // 图标内联 data URI（本项目无资产服务路由，惯例见 sf_workflows_ui.js）
 const ICON_SWAP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M13.622,36.23L.925,20.673c-.339-.416-.509-.922-.509-1.429s.17-1.013.509-1.429L13.622,2.259c1.344-1.646,4.01-.696,4.01,1.429v10.319h41.824c1.027,0,1.86.833,1.86,1.86v6.756c0,1.027-.833,1.86-1.86,1.86H17.632v10.319c0,2.125-2.666,3.075-4.01,1.429ZM63.491,43.327l-12.697-15.557c-1.344-1.646-4.01-.696-4.01,1.429v10.319H4.96c-1.027,0-1.86.833-1.86,1.86v6.756c0,1.027.833,1.86,1.86,1.86h41.824v10.319c0,2.125,2.667,3.075,4.01,1.429l12.697-15.557c.339-.416.509-.922.509-1.429s-.17-1.013-.509-1.429Z"/></svg>');
@@ -54,13 +53,13 @@ export function injectResizePanelCSS() {
       text-align: center;
       margin-bottom: 6px;
     }
-    .sf-li-panel input[type="range"] { flex: 1; accent-color: ${SF_LI_ACCENT}; }
+    .sf-li-panel input[type="range"] { flex: 1; accent-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-panel input[type="text"], .sf-li-panel input[type="number"] {
       background: #2a2a2a;
       border: 1px solid #444;
       border-radius: 3px;
       padding: 4px 6px;
-      color: ${SF_LI_ACCENT};
+      color: ${"var(--sf-acc, #f66744)"};
       font-size: 12px;
       font-weight: 600;
       text-align: center;
@@ -69,7 +68,7 @@ export function injectResizePanelCSS() {
     }
     .sf-li-panel input[type="text"]:focus, .sf-li-panel input[type="number"]:focus {
       outline: none;
-      border-color: ${SF_LI_ACCENT};
+      border-color: ${"var(--sf-acc, #f66744)"};
     }
     .sf-li-panel-readout {
       font-size: 9px;
@@ -91,7 +90,7 @@ export function injectResizePanelCSS() {
       font-family: inherit;
     }
     .sf-li-quickpick:hover { border-color: #666; color: #ddd; }
-    .sf-li-quickpick.active { background: ${SF_LI_ACCENT}; color: #fff; border-color: ${SF_LI_ACCENT}; }
+    .sf-li-quickpick.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-ratio-chips {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -114,7 +113,7 @@ export function injectResizePanelCSS() {
       gap: 5px;
     }
     .sf-li-ratio-chip:hover { border-color: #666; color: #ddd; }
-    .sf-li-ratio-chip.active { background: ${SF_LI_ACCENT}; color: #fff; border-color: ${SF_LI_ACCENT}; }
+    .sf-li-ratio-chip.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-cropped {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -133,7 +132,7 @@ export function injectResizePanelCSS() {
       cursor: pointer;
       user-select: none;
     }
-    .sf-li-cropped > div.active { background: ${SF_LI_ACCENT}; color: #fff; }
+    .sf-li-cropped > div.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; }
     .sf-li-pad-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #888; }
     .sf-li-pad-swatch {
       width: 22px; height: 22px;
@@ -172,7 +171,7 @@ export function injectResizePanelCSS() {
               mask: url("${ICON_SWAP}") center/14px 14px no-repeat;
       pointer-events: none;
     }
-    .sf-li-custom-ratio-swap:hover { color: ${SF_LI_ACCENT}; border-color: ${SF_LI_ACCENT}; }
+    .sf-li-custom-ratio-swap:hover { color: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-panel-row.sf-li-centered { justify-content: center; }
     .sf-li-input-wide { width: 70% !important; max-width: 200px; }
     .sf-li-numinput {
@@ -184,14 +183,14 @@ export function injectResizePanelCSS() {
       overflow: hidden;
       box-sizing: border-box;
     }
-    .sf-li-numinput:focus-within { border-color: ${SF_LI_ACCENT}; }
+    .sf-li-numinput:focus-within { border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-numinput input {
       flex: 1;
       background: transparent;
       border: none;
       outline: none;
       padding: 2px 6px;
-      color: ${SF_LI_ACCENT};
+      color: ${"var(--sf-acc, #f66744)"};
       font-size: 11px;
       font-weight: 600;
       text-align: center;
@@ -216,7 +215,7 @@ export function injectResizePanelCSS() {
       line-height: 1;
       position: relative;
     }
-    .sf-li-spin > button:hover { background: #333; color: ${SF_LI_ACCENT}; }
+    .sf-li-spin > button:hover { background: #333; color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-spin-up { border-bottom: 1px solid #444; }
     .sf-li-spin-up::before,
     .sf-li-spin-down::before {
@@ -268,7 +267,7 @@ export function injectResizePanelCSS() {
               mask: url("${ICON_SWAP}") center/12px 12px no-repeat;
       pointer-events: none;
     }
-    .sf-li-swap:hover { color: ${SF_LI_ACCENT}; border-color: ${SF_LI_ACCENT}; }
+    .sf-li-swap:hover { color: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-wh-preview {
       display: flex;
       flex-direction: column;
@@ -278,7 +277,7 @@ export function injectResizePanelCSS() {
     }
     .sf-li-wh-rect {
       background: rgba(246,103,68,0.18);
-      border: 1px solid ${SF_LI_ACCENT};
+      border: 1px solid ${"var(--sf-acc, #f66744)"};
       border-radius: 2px;
       transition: width 0.12s ease, height 0.12s ease;
     }
@@ -292,7 +291,7 @@ export function injectResizePanelCSS() {
     }
     .sf-li-wh-out {
       background: rgba(246,103,68,0.35);
-      border: 1px solid ${SF_LI_ACCENT};
+      border: 1px solid ${"var(--sf-acc, #f66744)"};
       border-radius: 1px;
       transition: width 0.12s ease, height 0.12s ease;
     }
@@ -334,12 +333,12 @@ export function injectResizePanelCSS() {
     .sf-li-pad-input-wrap { width: 100%; max-width: 82px; }
     .sf-li-pad-inlabel {
       display: flex; align-items: center;
-      color: ${SF_LI_ACCENT}; font-size: 9px; font-weight: 600;
+      color: ${"var(--sf-acc, #f66744)"}; font-size: 9px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px;
       padding: 0 2px 0 7px; flex: none;
     }
     .sf-li-pad-labeled input { text-align: right !important; padding-right: 6px !important; }
-    .sf-li-pad-outdims { font-size: 11px; font-weight: 600; color: ${SF_LI_ACCENT}; }
+    .sf-li-pad-outdims { font-size: 11px; font-weight: 600; color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-pad-outhint { font-size: 8px; color: #777; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.3; }
     .sf-li-pad-resetcell { grid-column: 1; grid-row: 3; display: flex; align-items: center; justify-content: center; }
     .sf-li-pad-reset {
@@ -348,7 +347,7 @@ export function injectResizePanelCSS() {
       color: #aaa; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
       padding: 6px 9px; cursor: pointer; white-space: nowrap;
     }
-    .sf-li-pad-reset:hover { border-color: ${SF_LI_ACCENT}; color: ${SF_LI_ACCENT}; }
+    .sf-li-pad-reset:hover { border-color: ${"var(--sf-acc, #f66744)"}; color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-pad-reset-ic {
       width: 11px; height: 11px; flex: none; background-color: currentColor;
       -webkit-mask: url("${ICON_RESET}") center/11px 11px no-repeat;
@@ -360,7 +359,7 @@ export function injectResizePanelCSS() {
       background: #1d1d1d; border: 1px solid #444; border-radius: 4px;
       padding: 5px 9px; cursor: pointer;
     }
-    .sf-li-pad-colorcell:hover { border-color: ${SF_LI_ACCENT}; }
+    .sf-li-pad-colorcell:hover { border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-pad-colorcell .sf-li-pad-swatch { width: 16px; height: 16px; }
     .sf-li-pad-colorlbl { font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
   `;

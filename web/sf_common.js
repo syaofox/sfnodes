@@ -20,6 +20,46 @@ export function sfApiUrl(route) {
   return route;
 }
 
+// ── 全局强调色（sfnodes.Accent 设置）──────────────────────────────────
+// 供所有具备 accent 能力的 sf 节点统一读取（SFLoraStack 等）。优先级链在
+// 各节点自行决定（如 node.accent > 节点默认 > 此处全局 > 品牌色）。
+// 惰性读 ComfyUI 设置，异常/未配置返回 null（调用方回退）。空字符串视为
+// 未配置（combo 的 "Default" 选项存空值）。
+export function getSfAccent() {
+  try {
+    const v = globalThis.app?.ui?.settings?.getSettingValue?.("sfnodes.Accent");
+    if (typeof v === "string" && v.trim()) return v;
+  } catch {
+    /* 降级 */
+  }
+  return null;
+}
+
+// 把全局强调色写到 <html> 的 inline CSS 变量 --sf-acc。所有 sf 节点主题色
+// 统一走 var(--sf-acc, #f66744)：CSS 部分响应式自动生效，JS/canvas 部分经
+// sfAccent() 读取。`value` 优先（设置 onChange 回调传入的新值——该回调在
+// store 更新前触发，此时读设置会拿到旧值）；缺省回退读设置。
+export function applySfAccentVar(value) {
+  try {
+    const v = value || getSfAccent();
+    document.documentElement.style.setProperty("--sf-acc", v || "#f66744");
+  } catch {
+    /* 降级 */
+  }
+}
+
+// 运行时读当前全局强调色（inline 变量，轻量、每帧调用无压力；未应用时
+// 回退设置直读，再回退品牌橙）。canvas 绘制/动态 DOM 注入用这个。
+export function sfAccent() {
+  try {
+    const v = document.documentElement.style.getPropertyValue("--sf-acc");
+    if (v && v.trim()) return v.trim();
+  } catch {
+    /* 降级 */
+  }
+  return getSfAccent() || "#f66744";
+}
+
 // ── 渲染器检测（Vue 2.0 vs Classic）──────────────────────────────────
 export function isVueNodes() {
   return !!window.LiteGraph?.vueNodesMode;

@@ -20,6 +20,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { getSfAccent } from "./sf_common.js";
 import { installGraphUndoGuard } from "./sf_prompt_tags_guard.js";
 import {
     getLibrary, reloadLibrary, isSameAsStored, commitLibrary, flushLibrary, applyImport,
@@ -1640,7 +1641,7 @@ export function openLibraryEditor(node, opts) {
     injectCSS();
     _node = node;
     _opts = opts || {};
-    _accent = _opts.accent || BRAND;
+    _accent = _opts.accent || getSfAccent() || BRAND;   // 节点级 > 全局设置 > 品牌橙
     _createDraft = newDraft((_opts.prefill || "").trim());
     // 从存储重读，绝不使用内存缓存：另一个标签页/窗口可能在本页加载后改过库，
     // 而关闭路径会把这份工作副本整体写回

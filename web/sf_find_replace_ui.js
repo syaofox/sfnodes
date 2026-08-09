@@ -22,7 +22,6 @@ import {
 } from "./sf_find_replace_lib.js";
 
 const CSS_ID = "sf-find-replace-css";
-const ACCENT = "#f66744";
 
 const CSS = `
 .sf-fr-root {
@@ -56,8 +55,8 @@ const CSS = `
   white-space: nowrap;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.sf-fr-tog:hover { border-color: ${ACCENT}; color: #ddd; }
-.sf-fr-tog.on { background: ${ACCENT}; border-color: ${ACCENT}; color: #fff; }
+.sf-fr-tog:hover { border-color: ${"var(--sf-acc, #f66744)"}; color: #ddd; }
+.sf-fr-tog.on { background: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; color: #fff; }
 .sf-fr-tog.on:hover { filter: brightness(1.08); color: #fff; }
 .sf-fr-tog.is-muted {
   opacity: 0.4;
@@ -82,8 +81,8 @@ const CSS = `
 }
 .sf-fr-row.is-disabled { opacity: 0.45; }
 .sf-fr-row.is-dragging { opacity: 0.4; }
-.sf-fr-row.is-drop-target-above { box-shadow: 0 -2px 0 0 ${ACCENT}; }
-.sf-fr-row.is-drop-target-below { box-shadow: 0 2px 0 0 ${ACCENT}; }
+.sf-fr-row.is-drop-target-above { box-shadow: 0 -2px 0 0 ${"var(--sf-acc, #f66744)"}; }
+.sf-fr-row.is-drop-target-below { box-shadow: 0 2px 0 0 ${"var(--sf-acc, #f66744)"}; }
 
 .sf-fr-handle {
   cursor: grab;
@@ -118,7 +117,7 @@ const CSS = `
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .sf-fr-toggle:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff; }
-.sf-fr-toggle.on { background: ${ACCENT}; border-color: ${ACCENT}; color: #fff; }
+.sf-fr-toggle.on { background: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; color: #fff; }
 .sf-fr-toggle.on:hover { filter: brightness(1.08); color: #fff; }
 
 /* find -> replace 字段 */
@@ -144,11 +143,11 @@ const CSS = `
   overflow-y: auto;
   line-height: 1.35;
 }
-.sf-fr-field:focus { border-color: ${ACCENT}; }
+.sf-fr-field:focus { border-color: ${"var(--sf-acc, #f66744)"}; }
 .sf-fr-field::placeholder { color: rgba(255,255,255,0.32); font-style: italic; }
 .sf-fr-field.is-delete::placeholder { color: rgba(255,150,160,0.55); }
 
-.sf-fr-arrow { color: ${ACCENT}; font-weight: 700; line-height: 30px; flex: none; }
+.sf-fr-arrow { color: ${"var(--sf-acc, #f66744)"}; font-weight: 700; line-height: 30px; flex: none; }
 
 .sf-fr-delete {
   width: 18px;
@@ -164,7 +163,7 @@ const CSS = `
   flex: none;
   padding: 0;
 }
-.sf-fr-delete:hover { color: ${ACCENT}; background: color-mix(in srgb, ${ACCENT} 12%, transparent); }
+.sf-fr-delete:hover { color: ${"var(--sf-acc, #f66744)"}; background: color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 12%, transparent); }
 .sf-fr-delete:disabled { color: #444; cursor: not-allowed; background: transparent; }
 
 /* ---- 操作行 ---- */
@@ -183,9 +182,9 @@ const CSS = `
   padding: 5px 12px;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
-.sf-fr-add { color: ${ACCENT}; border-color: color-mix(in srgb, ${ACCENT} 50%, transparent); }
-.sf-fr-add:hover { background: ${ACCENT}; border-color: ${ACCENT}; color: #fff; }
-.sf-fr-reset:hover { background: ${ACCENT}; border-color: ${ACCENT}; color: #fff; }
+.sf-fr-add { color: ${"var(--sf-acc, #f66744)"}; border-color: color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 50%, transparent); }
+.sf-fr-add:hover { background: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; color: #fff; }
+.sf-fr-reset:hover { background: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; color: #fff; }
 .sf-fr-reset:disabled {
   color: rgba(255,255,255,0.3);
   cursor: default;
@@ -257,7 +256,7 @@ const CSS = `
   color: #ddd; cursor: pointer; font-size: 12px; padding: 6px 14px; font-family: inherit;
 }
 .sf-fr-confirm-btn:hover { background: #333; border-color: #555; }
-.sf-fr-confirm-btn.primary { background: ${ACCENT}; border-color: ${ACCENT}; color: #fff; }
+.sf-fr-confirm-btn.primary { background: ${"var(--sf-acc, #f66744)"}; border-color: ${"var(--sf-acc, #f66744)"}; color: #fff; }
 .sf-fr-confirm-btn.primary:hover { background: #ff7a58; border-color: #ff7a58; }
 `;
 
