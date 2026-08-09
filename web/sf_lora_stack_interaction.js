@@ -119,6 +119,8 @@ function stepWeight(node, id, dir, which, refresh) {
 }
 
 export function attachInteractions(node, widgetEl, refresh) {
+    attachDragSort(node, widgetEl, refresh);
+
     widgetEl.addEventListener("click", (ev) => {
         const t = ev.target;
         if (t?.dataset?.act === "wval" || t?.dataset?.act === "wcval") return; // 让权重框聚焦
@@ -205,6 +207,84 @@ function openNamePicker(node, id, anchorEl, refresh) {
         current: e?.name || "",
         accent: accentOf(node),
         onPick: (name) => { patchLora(node, id, { name }); refresh(false); },
+    });
+}
+
+// ── 拖拽排序（行左侧 ⋮ 手柄）───────────────────────────────────────────────
+// 拖拽中只移动 DOM 行（即时视觉），绝不写 node.properties（避免每帧脏
+// 标记）；pointerup 一次性提交 reorderLora + refresh(true)。document 级
+// 监听：指针可移出行区域仍跟随。行元素若在拖拽中被 renderNode 重建
+// （异步重绘），isConnected 检查放弃提交。
+
+let _drag = null;   // { node, row, rows, from }
+
+function dragIndex(row) {
+    return row.parentElement ? [...row.parentElement.children].indexOf(row) : -1;
+}
+
+function clearDragMarks(rows) {
+    for (const c of rows.children) {
+        c.classList.remove("drag-before", "drag-after");
+    }
+}
+
+function attachDragSort(node, widgetEl, refresh) {
+    widgetEl.addEventListener("pointerdown", (ev) => {
+        const grip = ev.target.closest?.(".sf-ls-grip");
+        if (!grip) return;
+        if (_drag) return;                     // 已在拖拽中
+        const row = grip.closest(".sf-ls-row");
+        if (!row) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const rows = row.parentElement;
+        _drag = { node, row, rows, from: dragIndex(row) };
+        row.classList.add("dragging");
+
+        const onMove = (e) => {
+            const d = _drag;
+            if (!d || !d.row.isConnected) return;
+            const y = e.clientY;
+            // 找插入锚点：目标行 rect 中点与指针比较，跨过中点即插到该行前。
+            let anchor = null;
+            for (const c of d.rows.children) {
+                if (c === d.row) continue;
+                const r = c.getBoundingClientRect();
+                if (y < r.top + r.height / 2) { anchor = c; break; }
+            }
+            if (anchor && anchor !== d.row.nextSibling) d.rows.insertBefore(d.row, anchor);
+            else if (!anchor && d.row.nextSibling) d.rows.appendChild(d.row);
+            // 目标行高亮（插入位置视觉反馈）
+            clearDragMarks(d.rows);
+            if (anchor) {
+                const prev = anchor.previousSibling;
+                if (prev === d.row) anchor.classList.add("drag-before");
+                else if (prev) prev.classList.add("drag-after");
+            } else {
+                const last = d.rows.lastElementChild;
+                if (last && last !== d.row) last.classList.add("drag-after");
+            }
+        };
+
+        const onUp = () => {
+            const d = _drag;
+            _drag = null;
+            document.removeEventListener("pointermove", onMove, true);
+            document.removeEventListener("pointerup", onUp, true);
+            document.removeEventListener("pointercancel", onUp, true);
+            if (!d) return;
+            d.row.classList.remove("dragging");
+            clearDragMarks(d.rows);
+            if (!d.row.isConnected) return;    // 拖拽中被重建——放弃
+            const to = dragIndex(d.row);
+            if (to === d.from || to < 0) return;
+            reorderLora(d.node, d.from, to);
+            refresh(true);
+        };
+
+        document.addEventListener("pointermove", onMove, true);
+        document.addEventListener("pointerup", onUp, true);
+        document.addEventListener("pointercancel", onUp, true);
     });
 }
 

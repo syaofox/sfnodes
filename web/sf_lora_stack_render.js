@@ -118,8 +118,18 @@ export function injectCSS() {
     .sf-ls-rows { display:flex; flex-direction:column; gap:${ROW_GAP}px; }
     .sf-ls-row { box-sizing:border-box; height:${ROW_H}px; display:flex; align-items:center; gap:6px;
       background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px;
-      padding:0 6px; }
+      padding:0 6px; position:relative; }
     .sf-ls-row.off { opacity:.42; }
+    .sf-ls-row.dragging { opacity:.45; }
+    .sf-ls-row.drag-before { box-shadow: inset 0 3px 0 var(--acc,${BRAND}); }
+    .sf-ls-row.drag-after { box-shadow: inset 0 -3px 0 var(--acc,${BRAND}); }
+
+    /* 拖拽排序手柄（行最左，⋮ 三点） */
+    .sf-ls-grip { flex:0 0 auto; width:14px; height:100%; display:flex; align-items:center;
+      justify-content:center; cursor:grab; color:#5a5a5a; user-select:none; touch-action:none; }
+    .sf-ls-grip::before { content:""; width:3px; height:3px; border-radius:50%; background:currentColor;
+      box-shadow:0 -5px 0 currentColor, 0 5px 0 currentColor; }
+    .sf-ls-grip:hover { color:var(--acc,${BRAND}); }
 
     .sf-ls-name { flex:1; min-width:0; height:24px; display:flex; align-items:center; gap:5px;
       background:#161616; border:1px solid #3a3a3a; border-radius:5px; padding:0 8px;
@@ -250,6 +260,12 @@ export function renderNode(node) {
         row.className = "sf-ls-row" + (e.on ? "" : " off");
         row.dataset.id = e.id;
 
+        // 拖拽排序手柄（最左）。事件走 interaction 的 pointerdown 委托——
+        // 行随 renderNode 重建，元素级监听会丢。
+        const grip = document.createElement("div");
+        grip.className = "sf-ls-grip";
+        grip.title = "Drag to reorder";
+
         const name = document.createElement("div");
         // hasLora 在列表未取时返回 null，慢 fetch 不会闪假 "missing" 标记；
         // setup/刷新重绘会在列表落地后再渲染一次。文件已消失（改名/删除）
@@ -280,7 +296,7 @@ export function renderNode(node) {
         sw.dataset.act = "toggle";
         sw.title = e.on ? "On - click to turn off" : "Off - click to turn on";
 
-        row.append(name, wm);
+        row.append(grip, name, wm);
         if (!st.linkStrength) row.appendChild(weightBox(e.sc, "c")); // 分离 model/clip
         row.append(info, sw);
         rows.appendChild(row);
