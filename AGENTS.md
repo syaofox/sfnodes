@@ -134,7 +134,7 @@ class SFMyNode:
 - 使用 `_CATEGORY` 模块级常量定义分类前缀
 - 工具函数放在 `sf_utils/` 下对应模块（无状态纯函数）
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
-- JS Widget 放在 `web/` 目录，文件名与节点功能对应；动态槽位类功能复用 `web/sf_dynamic_slots.js` 公共库（`installDynamicSlots(node, config)` 配置化，案例见 `web/` 各节点文件与 `tests/` 模拟测试）
+- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
 
 ## Development Rules
@@ -152,6 +152,7 @@ class SFMyNode:
 11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现
 12. 部署：用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致）。后端改动需重启容器；`web/` JS 改动需同步该目录，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效
 13. **实际环境调试禁止自行浏览器访问 ComfyUI**（会 404 且可能干扰用户运行中的工作流）：一律用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈；节点请用户用 UI 添加（新版前端无 `graph.createNode`）
+14. **新增节点/功能前先查复用**（见 Code Style）：前端 `web/sf_common.js` 等公共模块、后端 `sf_utils/` 纯逻辑模块。**禁止再次内联副本**——复制后语义分叉是 bug 温床（crop 的 `_safe_join` 双重拼接曾导致粘贴上传输出白图）。去重/重构注意：① 独立语句的包装块（如 `if (app && app.loadGraphData...)`）不在函数体内，按函数名删除会漏，需手动清理；② 文件已有某模块 import 时，脚本补 import 可能跳过导致缺符号（运行时 ReferenceError 被 try/catch 吞掉极难排查）；③ `node --check` 默认 CJS 解析查不出 ESM 结构错误，用 `node --input-type=module --check < file` 验证
 
 ## Code Discovery
 
@@ -269,3 +270,8 @@ class SFMyNode:
 
 **静态检查脚本（AST）**
 - `ast.unparse` 输出单引号、`ast.literal_eval` 遇变量引用抛错——检查脚本出错时先怀疑脚本，再怀疑被检查代码。
+
+**复刻节点去重（sf_common.js / disk_state.py，2026-08）**
+- 公共小工具单一实现收敛于 `web/sf_common.js`（9 函数，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。
+- 磁盘源（粘贴/编辑器 Load Image）执行**必须输出源帧 ui_payload**（sf_crop_source/sf_inpaint_source），否则前端 executed 事件收不到、节点预览停留旧图；前端 jsonSync 检测 src_path 变化立即同步缓存（inpaint 无轮询需主动刷新）。
+- 编辑器工具栏 **Reset ≠ Clear**：Reset 委托 `_resetCrop()` 保留源图，勿清 img。

@@ -21,6 +21,7 @@
 - [14. SFTextFindReplace：查找替换双端镜像（复刻 Pixaroma Find & Replace）](#14-sftextfindreplace查找替换双端镜像复刻-pixaroma-find--replace)
 - [15. SFValueDropdown：值下拉与输出点对齐（复刻 Pixaroma Dropdown）](#15-sfvaluedropdown值下拉与输出点对齐复刻-pixaroma-dropdown)
 - [16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）](#16-sfpromptreaderpng视频元数据提示词恢复复刻-pixaroma-prompt-reader)
+- [17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑](#17-复刻节点去重sf_commonjs--disk_statepy-公共模块收敛与踩坑)
 
 ---
 
@@ -802,3 +803,33 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `nodes/text/prompt_reader_routes.py`：两路由（`extract` 实时读出 + `list` 目录列表）+ `_is_path_under` realpath 穿越防护（input/output/temp）；`_list_media_recursive` 模块级纯函数。
 - `web/sf_prompt_reader.js`：单文件主扩展（buildRoot 含 IN/OUT toggle / upload / 下拉分组 / readout + Copy / 拖拽 / wired 跟随 / PageUp-PageDown / 状态 `node.properties.promptReaderState`：filename+found+text+message+source+folder / reqId 竞态防护 / node.imgs 抑制）。
 - 数据契约：hidden 无（pick 值直接走 image combo）；`/api/sfnodes/prompt_reader/extract?filename=`（恒 200，`{found,text|message}`）；`/list?type=input|output`（纯相对路径数组，注解由前端拼）。
+
+---
+
+## 17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑
+
+> 背景：多个复刻 Pixaroma 的节点（crop/inpaint/load_image/outpaint/dropdown/pause 三件套/find_replace/prompt_reader）各自内联了一份 pixaroma js/shared/ 的小工具（isGraphLoading / isVueNodes / applyAdaptiveCanvasOnly / installCanvasZoomPassthrough / sfApiUrl / buildSourceURL / getUpstreamImageURL / installPasteHandler），后端 crop.py 与 inpaint_editor.py 也各持一份 `_safe_join`/`_sanitize_id`/`_decode_image`（2026-08 收敛）。教训：**复制后语义分叉是 bug 温床**——crop 的 `_safe_join` join 到子目录本身、inpaint 的 join 到 input 根，crop 版在路由返回 `sfnodes_crop/` 前缀路径时双重拼接（`input/sfnodes_crop/sfnodes_crop/...`）导致粘贴上传执行输出白图。
+
+### 1. 收敛产物（新节点先查这里）
+
+- **`web/sf_common.js`**（纯工具模块，使用者 import）：`sfApiUrl`（api.apiURL 包装）/ `isVueNodes` / `applyAdaptiveCanvasOnly` / `isGraphLoading`（**全局单例守卫**：模块顶层自动包装 `app.loadGraphData` + 300ms 尾窗，幂等，勿再各自包装）/ `installCanvasZoomPassthrough`（**统一为增强版**：滚动容器穿透检测，无滚动容器时行为等价简单版）/ `parseAnnotatedImageValue` / `buildSourceURL`（cache-buster 进 ROUTE 不进 RESULT——托管部署 token 顺序）/ `getUpstreamImageURL(node, cachedUrl)`（cachedUrl 参数化：crop 传 `node._sfCropSourceURL`，inpaint 传 `node._sfInpaintSourceURL`）/ `installPasteHandler({comfyClass, hook, onPasteImage, allowPaste})`（findActiveNode 4 源查找统一，hook 检查保留原版防御语义，allowPaste 承接 inpaint 的"编辑器开着"守卫）。
+- **`sf_utils/disk_state.py`**：`safe_join(root_dir, rel, strip_prefix)`（解析根参数化：crop 传子目录 + 剥 `sfnodes_crop/` 前缀；inpaint 传 input 根不剥）/ `sanitize_id` / `decode_image`。节点文件留薄包装保持调用点不变。
+- **CSS 类名前缀**：编辑器框架原 `pxf-`（Pixaroma Framework 缩写）→ `sf-px-`（321 处 + `_pxfSliderFillInit`/`_pxfUpdateFill` 全局变量）。**与源插件共存时全局 CSS/变量名冲突是真实风险**（后加载覆盖先加载，两边样式都乱）。
+
+### 2. 去重/重构踩坑（自动化批量改动的三大陷阱）
+
+1. **独立语句的包装块按函数名删除会漏**：`isGraphLoading` 是函数，但其配套的 `let _sfXxxGraphLoading = false; if (app && app.loadGraphData && !app._sfXxxGraphLoadWrapped) {...}` 是**顶层独立语句**——按函数名删除只删了函数，包装块残留形成双包装（行为无害但冗余，且死变量误导）。清理时要连注释块一起扫。
+2. **文件已有某模块 import 时，脚本补 import 可能跳过**：去重脚本检测"已 import sf_common"就跳过补符号 → 新引用的函数（如 `isGraphLoading`）未导入 → 运行时 ReferenceError。**若该引用在 try/catch 包裹的路径内（如 onConnectionsChange 的 `try { refreshWiredState(this) } catch {}`），错误被静默吞掉**，表现为"某交互功能失效"而非报错——极难排查。改完必须逐个文件核对 import 符号清单。
+3. **`node --check` 默认按 CJS 解析**：`import {` 多行块中间被插进 `export {...}` 这种 ESM 结构错误，CJS parse 不报（`import` 在 CJS 是普通标识符），测试却能在 stageJs 加载时炸或更隐蔽地错乱。**统一用 `node --input-type=module --check < file` 验证 web/ 全部 JS**。
+4. edit 删除大块函数时 oldString/newString 边界易丢行（如 `app.registerExtension({` 被吞）——CJS 模式下顶层 `name: "..."` 是合法 label、`async beforeRegisterNodeDef(...)` 却非法，CJS check 有时能兜住；但 ESM check 才是权威。
+
+### 3. 磁盘源预览缓存：后端必须向 executed 事件输出源帧
+
+- SFImageCrop/SFInpaintCrop 的磁盘源路径（粘贴/拖放/编辑器 Load Image，无上游接线）执行时，后端原本**只在上游 tensor 存在时**输出 `sf_crop_source`/`sf_inpaint_source` ui_payload → 磁盘路径执行后前端 executed 事件收不到帧 → `_sfCropSourceURL` 不更新 → **节点预览停留在旧图（运行结果正确但预览错）**。
+- 修复：磁盘路径执行也输出源帧（`{filename, subfolder: "sfnodes_crop"/"sfnodes_inpaint", type: "input"}`），前端 onExec 既有逻辑自动刷新缓存。
+- 前端双保险：jsonSync 检测 `src_path` 变化立即同步缓存（**inpaint 无 crop 的 500ms pollInterval 轮询兜底，jsonSync 内要主动 refreshSourcePreview，加载路径用 isGraphLoading() 门控**）。编辑器 Load Image 只更新内存 `_pendingSrcDataURL`，保存时才上传 + 写 src_path。
+
+### 4. 编辑器工具栏语义：Reset ≠ Clear
+
+- `createCanvasToolbar` 有独立 **Clear**（清空画布）与 **Reset to Default**（重置为默认）按钮；本项目隐藏 Clear（`showClear: false`），但 onReset 误把 `this.img = null`（把 Reset 当 Clear 用）→ 点击 Reset 清空已加载图片。
+- 修复：onReset 委托 `_resetCrop()`（保留源图、重置为全图裁切、free 对齐、输出尺寸跟随图片）。复刻时注意按钮语义与源实现一一对应，隐藏了 Clear 不等于 Clear 的行为并进 Reset。
