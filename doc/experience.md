@@ -229,7 +229,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 1. "状态绑定工作流"的标准模式：数据存 widget 值（数据载体）
 
-- **所有 widget 值（含 `display: hidden`）都会随 workflow JSON 序列化**（前端保存/加载/复制/导出嵌入自动跟随，`serialize = false` 可排除）。把预设等状态数据以 JSON 字符串存进隐藏 STRING widget → 预设天然"绑定"当前工作流：保存即持久化、复制/导入跟随、**新工作流添加节点用 INPUT_TYPES 默认值 = 全新状态**，无需后端存储/路由（`TextDropdown` 的 `options_json` 隐藏 widget 是同类先例，但它叠加了全局 API 轮询，做全局共享才需要）。
+- **所有 widget 值（含 `display: hidden`）都会随 workflow JSON 序列化**（前端保存/加载/复制/导出嵌入自动跟随，`serialize = false` 可排除）。把预设等状态数据以 JSON 字符串存进隐藏 STRING widget → 预设天然"绑定"当前工作流：保存即持久化、复制/导入跟随、**新工作流添加节点用 INPUT_TYPES 默认值 = 全新状态**，无需后端存储/路由（早期 `TextDropdown` 的 `options_json` 隐藏 widget 是同类先例，但它叠加了全局 API 轮询，做全局共享才需要；该节点已由 SFValueDropdown 取代）。
 - **combo 只保存 value，不保存 options 列表**：加载 workflow 时 combo 选项恢复为 INPUT_TYPES 静态列表 → 前端必须在数据就绪后重建 `widget.options.values` 并校验当前值（失效则回落第一个/空占位）。
 - **恢复时序坑**：`onNodeCreated` 早于 widget 值恢复（`configure`）→ nodeCreated 里读隐藏 widget 拿到的是默认值。重建选项需挂 `node.onAfterGraphConfigured`（widget 值恢复完成后回调，项目先例 `any_pack.js`）或 prototype 的 `onConfigure`（先例 `krea2_dynamic_images.js`）补一次同步。
 

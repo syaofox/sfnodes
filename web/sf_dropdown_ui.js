@@ -30,6 +30,7 @@ import {
     ROW_H, MIN_W, BODY_PAD, readState, writeState, shownIndex,
     MODE_LETTERS, MODE_LABELS, MODES,
 } from "./sf_dropdown_lib.js";
+import { visibleOptions } from "./sf_dropdown_lib.js";
 import { SOCKET_LABELS, previewText, readable } from "./sf_dropdown_lib.js";
 // 供 sf_dropdown_settings.js 使用（历史 export 契约）
 export { isVueNodes, applyAdaptiveCanvasOnly };
@@ -168,9 +169,11 @@ export function injectCSS() {
     height:${ROW_H}px; min-height:${ROW_H}px; box-sizing:border-box;
     display:flex; align-items:center; gap:5px;
     font:12px 'Segoe UI',sans-serif; user-select:none;
-    /* 输出点在节点右缘上，已经在行外侧（Classic 按 widget.margin 内缩 DOM
-       widget）。这里再留 16px 会在类型词与点之间留出可见空洞。 */
-    padding-right:2px;
+    /* 行尾留 16px：输出点（直径 20px）画在行右缘外侧区域，类型词右缘必须
+       让出这个宽度，否则类型词与点重叠（Classic 的 widget margin 内缩行、
+       Vue 的输出列都占用节点右缘，2px 曾实测重叠；16px 时两渲染器间隙约
+       4-8px，再小会贴点）。 */
+    padding-right:16px;
   }
   .sf-dd-arrow{
     flex:none; width:13px; text-align:center; cursor:pointer;
@@ -179,6 +182,23 @@ export function injectCSS() {
   .sf-dd-arrow:hover{ filter:brightness(1.35); }
   .sf-dd-arrow.dim{ opacity:.28; cursor:default; }
   .sf-dd-arrow.dim:hover{ filter:none; }
+
+  /* 分类切换按钮。flex 可收缩：宽节点显示完整分类名，窄节点自动压到图标
+     宽度（省略号），绝不让行内固定宽度溢出节点右缘把类型词/输出点挤出
+     边界（Vue 默认节点宽约 200px，行固定宽曾达 222px 越界）。 */
+  .sf-dd-cat{
+    flex:0 1 auto; min-width:24px; max-width:84px; overflow:hidden;
+    white-space:nowrap; height:${ROW_H - 4}px; box-sizing:border-box;
+    display:flex; align-items:center; gap:3px;
+    background:#1d1d1d; border:1px solid #444; border-radius:4px;
+    padding:0 6px; cursor:pointer; color:#aaa;
+    font:11px 'Segoe UI',sans-serif; line-height:1;
+  }
+  .sf-dd-cat:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+  .sf-dd-cat.open{ border-color:${"var(--sf-acc, #f66744)"}; }
+  /* 省略号必须挂在文本 span 上：text-overflow 对 flex 容器的直接文本不生效。 */
+  .sf-dd-catlabel{ flex:1 1 auto; min-width:0; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
 
   .sf-dd-field{
     flex:1 1 auto; min-width:0; height:${ROW_H - 4}px; box-sizing:border-box;
@@ -294,6 +314,15 @@ export function buildRow(node, onOpenSettings) {
     const row = document.createElement("div");
     row.className = ROW_CLASS;
 
+    const cat = document.createElement("button");
+    cat.className = "sf-dd-cat";
+    cat.title = "Switch category";
+    // 文本包 span：button 是 flex 容器，text-overflow 对它的直接文本不生效
+    // （匿名 flex item 不会省略号，只会硬截断）。
+    const catLabel = document.createElement("span");
+    catLabel.className = "sf-dd-catlabel";
+    cat.appendChild(catLabel);
+
     const prev = document.createElement("button");
     prev.className = "sf-dd-arrow sf-dd-prev";
     prev.textContent = "◀";
@@ -324,16 +353,17 @@ export function buildRow(node, onOpenSettings) {
     const type = document.createElement("span");
     type.className = "sf-dd-type";
 
-    // 顺序：步进箭头、列表、运行模式徽章、设置、类型词（挨着它的点）。
-    row.append(prev, field, next, mode, gear, type);
+    // 顺序：分类、步进箭头、列表、运行模式徽章、设置、类型词（挨着它的点）。
+    row.append(cat, prev, field, next, mode, gear, type);
 
     node._sfDropdownRow = row;
-    node._sfDropdownParts = { prev, field, name, next, gear, mode, type };
+    node._sfDropdownParts = { cat, catLabel, prev, field, name, next, gear, mode, type };
 
     // 一个委托监听器。每个分支都停止传播，使点击不会到达画布引发节点拖拽。
     row.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
         const t = e.target;
+        if (t.closest(".sf-dd-cat")) { e.stopPropagation(); toggleCategoryPopup(node); return; }
         if (t.closest(".sf-dd-prev")) { e.stopPropagation(); step(node, -1); return; }
         if (t.closest(".sf-dd-next")) { e.stopPropagation(); step(node, +1); return; }
         // 齿轮自己关掉弹出列表。只有 FIELD 豁免于外部点击处理器，其他都不。
@@ -377,11 +407,17 @@ export function renderRow(node) {
     const parts = node._sfDropdownParts;
     if (!parts) return;
     const st = readState(node);
+    const vis = visibleOptions(st);
     // 已排队或上次运行的牌，而非盲信存的那个：Random / In-order 下节点否则会
     // 一直显示一条它不会发送的条目。
-    const opt = st.options[shownIndex(node)];
+    const opt = vis[shownIndex(node)];
 
-    if (!st.options.length) {
+    const catName = st.category || "default";
+    parts.cat.style.display = st.categories.length <= 1 ? "none" : "";
+    parts.catLabel.textContent = "▣ " + catName;
+    parts.cat.title = `Category: ${catName}\nClick to switch`;
+
+    if (!vis.length) {
         parts.name.textContent = "No options yet, press the gear";
         parts.name.classList.add("empty");
         parts.field.title = "Open the settings and add your first entry";
@@ -398,7 +434,7 @@ export function renderRow(node) {
     parts.type.textContent = SOCKET_LABELS[st.type] || st.type;
     parts.type.title = `This node sends ${SOCKET_LABELS[st.type]}. Change it in the settings.`;
 
-    const many = st.options.length > 1;
+    const many = vis.length > 1;
     parts.prev.classList.toggle("dim", !many);
     parts.next.classList.toggle("dim", !many);
 }
@@ -406,8 +442,9 @@ export function renderRow(node) {
 /** 步进选择。回绕，所以短列表也能快速循环。 */
 export function step(node, delta) {
     const st = readState(node);
-    if (st.options.length < 2) return;
-    const n = st.options.length;
+    const vis = visibleOptions(st);
+    if (vis.length < 2) return;
+    const n = vis.length;
     // 从节点正显示的位置步进。Random / In-order 下那是已排队/上次运行的牌，
     // 不是存的那个，所以箭头从用户目光所在处移动。
     writeState(node, { index: ((shownIndex(node) + delta) % n + n) % n });
@@ -442,6 +479,7 @@ export function cycleMode(node) {
 
 let _pop = null;
 let _popNode = null;
+let _catMode = false;   // 当前 popup 是分类列表还是选项列表（豁免目标不同）
 
 export function closePopup() {
     if (_pop) {
@@ -451,25 +489,31 @@ export function closePopup() {
         document.removeEventListener("keydown", _onKey, true);
     }
     _popNode?._sfDropdownParts?.field?.classList?.remove("open");
+    _popNode?._sfDropdownParts?.cat?.classList?.remove("open");
     _pop = null;
     _popNode = null;
+    _catMode = false;
 }
 
 export function closePopupFor(node) {
     if (_popNode === node) closePopup();
 }
 
-// 点击任何不在列表本身或拥有它的 field 上的地方。
+// 点击任何不在列表本身或拥有它的 field/cat 上的地方。
 //
-// 只有 FIELD 豁免，不是整行。这个处理器在 CAPTURE 阶段运行，先于行自己的
-// pointerdown：豁免 field 正是让对它第二次点击可以关掉列表，而不是这个处理器
-// 关掉它、行处理器瞬间重开（看起来像点击没反应）。豁免整行则过头了——类型
-// 标签、控件间隙、为输出点预留的内边距都在外面，行处理器对它们没有分支，
-// 点那里会把列表卡在开着。
+// 只有当前 popup 的触发控件豁免：选项模式豁免 field，分类模式豁免 cat。
+// 豁免让它对第二次点击可以关掉列表，而不是这个处理器关掉它、行处理器瞬间
+// 重开（看起来像点击没反应）。另一个控件不豁免：选项开着时点 cat 应先关掉
+// 选项、再经行处理器打开分类——豁免整行则过头了（类型标签、控件间隙都在
+// 外面，行处理器对它们没有分支，点那里会把列表卡在开着）。
 function _outsidePointer(e) {
     if (!_pop) return;
     if (_pop.contains(e.target)) return;
-    if (_popNode?._sfDropdownParts?.field?.contains(e.target)) return;
+    if (_catMode) {
+        if (_popNode?._sfDropdownParts?.cat?.contains(e.target)) return;
+    } else {
+        if (_popNode?._sfDropdownParts?.field?.contains(e.target)) return;
+    }
     closePopup();
 }
 
@@ -490,7 +534,7 @@ function _onKey(e) {
 }
 
 function togglePopup(node) {
-    if (_popNode === node) { closePopup(); return; }
+    if (_popNode === node && !_catMode) { closePopup(); return; }
     openPopup(node);
 }
 
@@ -499,18 +543,19 @@ export function openPopup(node) {
     const parts = node._sfDropdownParts;
     if (!parts) return;
     const st = readState(node);
+    const vis = visibleOptions(st);
 
     const pop = document.createElement("div");
     pop.className = "sf-dd-pop";
 
-    if (!st.options.length) {
+    if (!vis.length) {
         const empty = document.createElement("div");
         empty.className = "sf-dd-pop-empty";
         empty.textContent = "Nothing in the list yet.";
         pop.appendChild(empty);
     } else {
         const shown = shownIndex(node);
-        st.options.forEach((o, i) => {
+        vis.forEach((o, i) => {
             const item = document.createElement("div");
             // shownIndex 而非 st.index：In-order / Random 下节点面显示已排队或
             // 上次运行的条目，列表高亮另一个会让节点看起来无视模式。
@@ -556,8 +601,67 @@ export function openPopup(node) {
     parts.field.classList.add("open");
     _pop = pop;
     _popNode = node;
+    _catMode = false;
 
     // 延迟注册，否则打开它的那次点击立即关掉它。
+    setTimeout(() => {
+        document.addEventListener("pointerdown", _outsidePointer, true);
+        document.addEventListener("wheel", _outsideWheel, true);
+        document.addEventListener("keydown", _onKey, true);
+    }, 0);
+}
+
+// ── 分类弹出列表 ─────────────────────────────────────────────────────────
+// 与选项 popup 同一机制（_pop/_popNode/关闭器），借 _catMode 区分豁免目标。
+function toggleCategoryPopup(node) {
+    if (_popNode === node && _catMode) { closePopup(); return; }
+    openCategoryPopup(node);
+}
+
+function openCategoryPopup(node) {
+    closePopup();
+    const parts = node._sfDropdownParts;
+    if (!parts) return;
+    const st = readState(node);
+
+    const pop = document.createElement("div");
+    pop.className = "sf-dd-pop";
+
+    st.categories.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = "sf-dd-opt" + (c === st.category ? " sel" : "");
+        const nm = document.createElement("span");
+        nm.className = "sf-dd-oname";
+        nm.textContent = c;
+        item.append(nm);
+        item.title = c;
+        item.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            if (c !== st.category) {
+                // 切换分类：index 从头开始（旧索引属于另一分类的行）。
+                writeState(node, { category: c, index: 0 });
+                node._sfDropdownPending = null;
+                node._sfDropdownCursor = null;
+            }
+            renderRow(node);
+            closePopup();
+            node.setDirtyCanvas?.(true, true);
+        });
+        pop.appendChild(item);
+    });
+
+    document.body.appendChild(pop);
+    placeZoomedPopup(pop, parts.cat, {
+        baseMaxHeightPx: 240,
+        baseMaxWidthPx: 360,
+        minWidthPx: 140,
+    });
+
+    parts.cat.classList.add("open");
+    _pop = pop;
+    _popNode = node;
+    _catMode = true;
+
     setTimeout(() => {
         document.addEventListener("pointerdown", _outsidePointer, true);
         document.addEventListener("wheel", _outsideWheel, true);
@@ -583,7 +687,11 @@ export function alignOutputLegacy(node) {
     const y = w.y;
     if (!Number.isFinite(y)) return;
     const margin = Number.isFinite(w.margin) ? w.margin : 10;
-    const nx = node.size[0];
+    // 点中心放 node.size[0] 会让点半径（10px）的右半画出节点右缘；放
+    // size[0]-12 又会让点左缘压上行尾的类型词（行有 margin+padding 内缩）。
+    // size[0]-10：点右缘恰好贴节点右缘，不越界、不与类型词重叠（类型词
+    // 右缘在行 padding 处，距点左缘约 10px）。
+    const nx = node.size[0] - 10;
     const ny = y + margin + ROW_H * 0.5;
     const pos = out.pos;
     // diff 门控：output.pos 会被序列化，重写相同值在某些构建上仍算一次变更。
@@ -611,7 +719,14 @@ export function alignOutput(node) {
         const rowEl = el.querySelector(`.${ROW_CLASS}`);
         const outs = el.querySelectorAll(".lg-slot--output");
         if (!rowEl || !outs.length) return;
-        if (isAligned(rowEl, outs[0])) return;
+
+        // X 越界检测基于当前实际位置：translateY 不动 X，所以与是否已对齐无关。
+        // 修正生效后点右缘在界内（xPad <= 0.5），早退条件自然满足——无需状态。
+        const dotEl = outs[0].querySelector('[data-testid="slot-connection-dot"]') || outs[0];
+        const nodeRect = el.getBoundingClientRect();
+        const dotRect = dotEl.getBoundingClientRect();
+        const xPad = dotRect.right - nodeRect.right;   // >0 = 点右缘越出节点
+        if (isAligned(rowEl, outs[0]) && xPad <= 0.5) return;
 
         const col = outs[0].parentElement;
         const block = col?.parentElement;
@@ -642,7 +757,13 @@ export function alignOutput(node) {
         // 第三步：把点放上行。
         const delta =
             (rowEl.getBoundingClientRect().top - outs[0].getBoundingClientRect().top) * toLayout;
-        col.style.transform = `translateY(${delta}px)`;
+        let tf = `translateY(${delta}px)`;
+        // 第四步：点右缘越出节点时最小内移（点右缘进界内 2px 即可）。不可
+        // 再留大边距：点列紧贴类型词（行尾 padding 20px 已让位），过度左移
+        // 会把点压到类型词上。translateY 不影响 X，xPad（复位前的越界量）
+        // 在复位后依然成立。
+        if (xPad > 0.5) tf += ` translateX(${(-xPad - 2) * toLayout}px)`;
+        col.style.transform = tf;
     } catch {
         /* nudge 失败——点留在角落，节点照常工作 */
     }

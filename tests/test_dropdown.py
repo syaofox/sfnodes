@@ -143,6 +143,30 @@ check("parse_state 坏名字 -> 空串", st["options"][1]["name"] == "")
 check("parse_state 缺失 value -> None", st["options"][2]["value"] is None)
 check("parse_state index 越界不裁剪", utils.parse_state('{"index": 99, "options": []}')["index"] == 99)
 
+# ── 分类（version 2）──
+check("parse_state 无分类 -> default", utils.parse_state('{"index": 0, "options": [{"name": "a", "value": "1"}]}')["options"][0]["category"] == "default")
+ps_cat = utils.parse_state(json.dumps({
+    "type": "text", "index": 1, "category": "b",
+    "options": [
+        {"name": "a", "value": "1", "category": "a"},
+        {"name": "b", "value": "2", "category": "b"},
+        {"name": "c", "value": "3", "category": "b"},
+        {"name": "d", "value": "4"},
+    ],
+}))
+check("parse_state 分类过滤", len(ps_cat["options"]) == 2 and ps_cat["options"][0]["name"] == "b" and ps_cat["options"][1]["name"] == "c")
+check("parse_state 行无 category 归 default", len(utils.parse_state('{"index": 0, "category": "default", "options": [{"name": "x", "value": "1", "category": "x"}, {"name": "d", "value": "4"}]}')["options"]) == 1)
+check("parse_state 畸形 category 归 default", len(utils.parse_state('{"index": 0, "category": 5, "options": [{"name": "a", "value": "1", "category": 5}]}')["options"]) == 1)
+check("parse_state category 空串归 default", len(utils.parse_state('{"index": 0, "category": "  ", "options": [{"name": "a", "value": "1", "category": "  "}]}')["options"]) == 1)
+ps_idx = utils.parse_state(json.dumps({
+    "type": "text", "index": 3, "category": "x",
+    "options": [
+        {"name": "a", "value": "1", "category": "x"},
+        {"name": "b", "value": "2", "category": "x"},
+    ],
+}))
+check("parse_state 分类内 index 不裁剪", ps_idx["index"] == 3 and len(ps_idx["options"]) == 2)
+
 # ── selected_value（lean/full 双形状）──
 sv = utils.selected_value
 check("lean text", sv('{"type": "text", "value": "warm"}') == "warm")
@@ -158,6 +182,17 @@ check("full 形状", sv(json.dumps({
 check("full 空列表 fallback", sv('{"type": "int", "index": 0, "options": []}') == 0)
 check("full 越界 fallback", sv('{"type": "text", "index": 5, "options": [{"name": "a", "value": "x"}]}') == "")
 check("full 类型归一回退 text", sv('{"type": "bogus", "index": 0, "options": [{"name": "a", "value": "x"}]}') == "x")
+check("full 分类兜底", sv(json.dumps({
+    "type": "text", "category": "b", "index": 0,
+    "options": [
+        {"name": "a", "value": "one", "category": "a"},
+        {"name": "b", "value": "two", "category": "b"},
+    ],
+})) == "two")
+check("full 分类兜底空分类 fallback", sv(json.dumps({
+    "type": "int", "category": "missing", "index": 0,
+    "options": [{"name": "a", "value": "1", "category": "a"}],
+})) == 0)
 check("selected_value 非 dict -> fallback", sv("junk") == "")
 check("selected_value dict 直接接受", sv({"type": "bool", "value": "n"}) is False)
 check("selected_value 深嵌套 JSON 不炸", isinstance(sv('{"type": "text", "value": ' + "[" * 2000 + "]" * 2000 + "}"), str))

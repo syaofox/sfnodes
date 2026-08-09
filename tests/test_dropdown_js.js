@@ -27,7 +27,7 @@ function check(name, cond) {
         TYPES, STATE_PROP, HIDDEN_INPUT,
         normalizeType, readable, coerceValue, previewText,
         defaultState, readState, writeState,
-        pendingIndex, commitPick, shownIndex, injectedState,
+        pendingIndex, commitPick, shownIndex, injectedState, visibleOptions,
         syncOutput, slotAccepts, SOCKET_TYPES,
     } = L;
 
@@ -100,7 +100,7 @@ function check(name, cond) {
         const n = mk([{ name: "a", value: "1" }, { name: "b", value: "2" }], "fixed", 1);
         check("fixed pendingIndex = 选中", pendingIndex(n) === 1);
         check("fixed 不产生 pending", n._sfDropdownPending == null);
-        check("fixed injectedState", JSON.stringify(injectedState(n)) === JSON.stringify({ version: 1, type: "text", value: "2" }));
+        check("fixed injectedState", JSON.stringify(injectedState(n)) === JSON.stringify({ version: 2, type: "text", value: "2" }));
         commitPick(n);
         check("fixed commit 不动游标", n._sfDropdownCursor == null);
     }
@@ -155,6 +155,75 @@ function check(name, cond) {
         const n = mk([], "increment");
         check("空列表 pendingIndex 0", pendingIndex(n) === 0);
         check("空列表 injectedState value null", injectedState(n).value === null);
+    }
+
+    // ---- 分类（version 2）----
+    {
+        const n = { properties: {} };
+        writeState(n, {
+            categories: ["a", "b"], category: "b",
+            options: [
+                { name: "a", value: "1", category: "a" },
+                { name: "b", value: "2", category: "b" },
+                { name: "c", value: "3", category: "b" },
+                { name: "d", value: "4" },
+            ],
+        });
+        let st = readState(n);
+        check("readState 分类保留", st.categories.length === 3 && st.categories[0] === "default" && st.categories[1] === "a" && st.categories[2] === "b");
+        check("readState 当前分类", st.category === "b");
+        check("readState 行归默认分类", st.options[3].category === "default");
+        check("visibleOptions 过滤", visibleOptions(st).length === 2);
+        check("readState index 钳制到过滤列表", st.index === 0);
+        writeState(n, { category: "a", index: 99 });
+        check("切分类 index 钳制", readState(n).index === 0);
+        writeState(n, { category: "missing" });
+        check("未知分类回退列表首位", readState(n).category === "default");
+        writeState(n, { categories: [] });
+        check("空分类列表保 default 首位", JSON.stringify(readState(n).categories) === JSON.stringify(["default", "a", "b"]));
+        writeState(n, { categories: ["x", "x", " ", "x"], category: "y" });
+        const ny = readState(n);
+        // 空串项归一为 "default" 并按原位置保序，行分类 a/b 补进尾部。
+        check("分类去空去重保序", JSON.stringify(ny.categories) === JSON.stringify(["x", "default", "a", "b"]));
+        check("行 category 补进列表", ny.categories.includes("a"));
+        check("未知分类回退列表首位", ny.category === "x" && ny.options[3].category === "default");
+    }
+    {
+        // 旧数据（无分类字段）向后兼容：全归 default，行为与 version 1 相同。
+        const n = mk([{ name: "a", value: "1" }, { name: "b", value: "2" }], "increment", 1);
+        let st = readState(n);
+        check("旧数据 categories=[default]", JSON.stringify(st.categories) === JSON.stringify(["default"]));
+        check("旧数据 category=default", st.category === "default");
+        check("旧数据全部可见", visibleOptions(st).length === 2);
+        check("旧数据 pendingIndex 不变", pendingIndex(n) === 1);
+        check("旧数据 injectedState", JSON.stringify(injectedState(n)) === JSON.stringify({ version: 2, type: "text", value: "2" }));
+    }
+    {
+        // 分类内游标：increment 只在当前分类内推进。
+        const n = { properties: {} };
+        writeState(n, {
+            categories: ["x", "default"], category: "x",
+            options: [
+                { name: "a", value: "1", category: "x" },
+                { name: "b", value: "2", category: "x" },
+                { name: "c", value: "3", category: "x" },
+                { name: "z", value: "9" },
+            ],
+            mode: "increment", index: 0,
+        });
+        check("分类内 pendingIndex 首轮", pendingIndex(n) === 0);
+        commitPick(n);
+        check("分类内推进", pendingIndex(n) === 1);
+        commitPick(n);
+        check("分类内推进 2", pendingIndex(n) === 2);
+        commitPick(n);
+        check("分类内 wrap（不进入其他分类）", pendingIndex(n) === 0);
+        check("分类内 injectedState", JSON.stringify(injectedState(n)) === JSON.stringify({ version: 2, type: "text", value: "1" }));
+    }
+    {
+        // 默认状态含 default 分类。
+        const d = defaultState();
+        check("defaultState 含分类", JSON.stringify(d.categories) === JSON.stringify(["default"]) && d.category === "default" && d.version === 2);
     }
 
     // ---- syncOutput ----

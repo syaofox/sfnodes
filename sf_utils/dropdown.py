@@ -151,6 +151,18 @@ def _number_to_text(value):
     return str(value)
 
 
+# The single category name used when none is written. Mirrors the JS.
+_DEFAULT_CATEGORY = "default"
+
+
+def _normalize_category(value):
+    """Anything -> a category name. Empty/non-string -> "default"."""
+    if not isinstance(value, str):
+        return _DEFAULT_CATEGORY
+    s = value.strip(_JS_WHITESPACE)
+    return s or _DEFAULT_CATEGORY
+
+
 def readable(raw, kind):
     """Would `raw` read cleanly as `kind`? Mirrored by the JS for the warning marks.
 
@@ -231,9 +243,12 @@ def coerce_value(raw, kind):
 def parse_state(raw):
     """The hidden DropdownState string -> a normalized dict. Never raises.
 
-    Returns {"type": <one of TYPES>, "index": int, "options": [{"name","value"}]}.
-    Every field is coerced into shape, because this string can arrive from a
-    hand-edited API file as literally anything.
+    Returns {"type": <one of TYPES>, "index": int, "options": [{"name","value","category"}]}.
+    "index" is an index into the options of the CURRENT category (state["category"],
+    default "default"); rows whose "category" is missing fall to "default", so a
+    version-1 state (no category fields at all) filters to everything and behaves
+    exactly as before. Every field is coerced into shape, because this string can
+    arrive from a hand-edited API file as literally anything.
     """
     state = None
     if isinstance(raw, dict):
@@ -249,6 +264,7 @@ def parse_state(raw):
         state = {}
 
     kind = normalize_type(state.get("type"))
+    category = _normalize_category(state.get("category"))
 
     raw_options = state.get("options")
     if not isinstance(raw_options, list):
@@ -264,7 +280,11 @@ def parse_state(raw):
         options.append({
             "name": name if isinstance(name, str) else "",
             "value": entry.get("value"),
+            "category": _normalize_category(entry.get("category")),
         })
+
+    # Only the current category's rows are in play. Mirrors the JS visibleOptions().
+    options = [o for o in options if o["category"] == category]
 
     index = state.get("index")
     if isinstance(index, bool) or not isinstance(index, (int, float)):

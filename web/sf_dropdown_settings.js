@@ -21,6 +21,7 @@ import {
     readState, writeState, syncOutput, slotAccepts,
     MODES, MODE_LETTERS, MODE_LABELS,
 } from "./sf_dropdown_lib.js";
+import { visibleOptions } from "./sf_dropdown_lib.js";
 import { TYPES, TYPE_LABELS, readable, previewText } from "./sf_dropdown_lib.js";
 
 // ── 内联 shared：isGraphLoading ──────────────────────────────────────────
@@ -112,6 +113,23 @@ function injectCSS() {
 
     .sf-ddp-lab { font-size:11px; color:${"var(--sf-acc, #f66744)"}; letter-spacing:.04em; }
     .sf-ddp-sub { font-size:11px; color:#777; line-height:1.5; }
+
+    .sf-ddp-catrow { display:flex; align-items:center; gap:5px; }
+    .sf-ddp-catbtn { flex:0 1 auto; min-width:0; max-width:220px; overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap; text-align:left; padding:6px 8px; border-radius:5px;
+      background:#1d1d1d; border:1px solid #444; color:#ccc;
+      font:11px 'Segoe UI',sans-serif; cursor:pointer; }
+    .sf-ddp-catbtn:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+    .sf-ddp-catbtn.on { border-color:${"var(--sf-acc, #f66744)"}; }
+    .sf-ddp-catbtn:disabled { opacity:.4; cursor:default; }
+    .sf-ddp-catbtn:disabled:hover { border-color:#444; color:#ccc; }
+    .sf-ddp-btn:disabled { opacity:.4; cursor:default; }
+    .sf-ddp-catpop { position:absolute; z-index:6; min-width:160px; max-height:220px; overflow-y:auto;
+      background:#232323; border:1px solid #4a4a4a; border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,.5); padding:4px; }
+    .sf-ddp-catopt { padding:6px 10px; border-radius:4px; cursor:pointer; color:#bbb; font-size:11.5px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sf-ddp-catopt:hover { background:#2e2e2e; color:#fff; }
+    .sf-ddp-catopt.on { background:${"var(--sf-acc, #f66744)"}; color:#fff; }
 
     .sf-ddp-seg { display:flex; gap:5px; flex-wrap:wrap; }
     .sf-ddp-seg button { flex:1 1 auto; min-width:78px; text-align:center; padding:6px 8px; border-radius:5px;
@@ -380,6 +398,138 @@ export function openDropdownPanel(node, onChange) {
 
     const fire = () => { _onChange?.(node); };
 
+    // ── 分类 ────────────────────────────────────────────────────────────
+    // 分类是节点状态的一部分（categories/category/行 category）。行归属 =
+    // 添加时的当前分类，行级不改分类；新建/重命名/删除只在这里做（节点面的
+    // 分类按钮只管切换）。
+    const catSec = el("div");
+    catSec.append(el("div", "sf-ddp-lab", "CATEGORY"));
+    const catRow = el("div", "sf-ddp-catrow");
+    const catBtn = el("button", "sf-ddp-catbtn");
+    catBtn.title = "Switch category";
+    catBtn.addEventListener("click", () => toggleCatPop());
+    const bNewCat = el("button", "sf-ddp-btn", "+ New");
+    bNewCat.title = "Create a new category and switch to it";
+    bNewCat.addEventListener("click", newCategory);
+    const bRenCat = el("button", "sf-ddp-btn", "Rename");
+    bRenCat.title = "Rename the current category";
+    bRenCat.addEventListener("click", renameCategory);
+    const bDelCat = el("button", "sf-ddp-btn", "Delete");
+    bDelCat.title = "Delete the current category; its entries move to default";
+    bDelCat.addEventListener("click", deleteCategory);
+    catRow.append(catBtn, bNewCat, bRenCat, bDelCat);
+    catSec.appendChild(catRow);
+
+    // 分类弹层：absolute 定位在面板内（面板是 fixed 容器）。
+    let catPop = null;
+    function closeCatPop() {
+        if (catPop) { catPop.remove(); catPop = null; }
+        catBtn.classList.remove("on");
+    }
+    function renderCatPop() {
+        if (!catPop) return;
+        catPop.textContent = "";
+        const st = readState(node);
+        for (const c of st.categories) {
+            const opt = el("div", "sf-ddp-catopt" + (c === st.category ? " on" : ""), c);
+            opt.addEventListener("click", () => selectCategory(c));
+            catPop.appendChild(opt);
+        }
+    }
+    function toggleCatPop() {
+        if (catPop) { closeCatPop(); return; }
+        catPop = el("div", "sf-ddp-catpop");
+        renderCatPop();
+        panel.appendChild(catPop);
+        catPop.style.top = (catBtn.offsetTop + catBtn.offsetHeight + 4) + "px";
+        catPop.style.left = "0px";
+        catBtn.classList.add("on");
+    }
+    // 面板内点击弹层外（含新/改名/删除按钮）即关闭。弹层在面板内，面板的
+    // document 级 outsideClose 豁免整个面板，管不到这里。
+    panel.addEventListener("pointerdown", (e) => {
+        if (!catPop) return;
+        if (catPop.contains(e.target) || e.target.closest(".sf-ddp-catbtn")) return;
+        closeCatPop();
+    });
+
+    function renderCatBtn() {
+        const st = readState(node);
+        catBtn.textContent = "▣ " + (st.category || "default") + " ▾";
+        catBtn.title = `Category: ${st.category}\nClick to switch`;
+        const single = st.categories.length <= 1;
+        catBtn.classList.toggle("dim", single);
+        bDelCat.classList.toggle("dim", single);
+        catBtn.disabled = single;
+        bDelCat.disabled = single;
+        renderCatPop();
+    }
+
+    function selectCategory(c) {
+        const st = readState(node);
+        if (st.category === c) { closeCatPop(); return; }
+        // 与节点面同规则：index 从头开始，游标丢弃。
+        writeState(node, { category: c, index: 0 });
+        node._sfDropdownPending = null;
+        node._sfDropdownCursor = null;
+        renderCatBtn();
+        renderList();
+        fire();
+        closeCatPop();
+    }
+
+    function newCategory() {
+        const name = prompt("New category name:");
+        if (!name || !name.trim()) return;
+        const c = name.trim();
+        const st = readState(node);
+        if (st.categories.includes(c)) { toast("That category already exists.", "warn"); return; }
+        writeState(node, { categories: [...st.categories, c], category: c, index: 0 });
+        node._sfDropdownPending = null;
+        node._sfDropdownCursor = null;
+        renderCatBtn();
+        renderList();
+        fire();
+    }
+
+    function renameCategory() {
+        const st = readState(node);
+        const old = st.category;
+        const name = prompt(`Rename category "${old}" to:`, old);
+        if (!name || !name.trim()) return;
+        const c = name.trim();
+        if (c === old) return;
+        if (st.categories.includes(c)) { toast("That category already exists.", "warn"); return; }
+        const categories = st.categories.map((x) => (x === old ? c : x));
+        // 行归属跟随改名。
+        const options = st.options.map((o) => ({
+            ...o,
+            category: o.category === old ? c : o.category,
+        }));
+        writeState(node, { categories, category: c, options });
+        renderCatBtn();
+        renderList();
+        fire();
+    }
+
+    function deleteCategory() {
+        const st = readState(node);
+        if (st.categories.length <= 1) return;
+        const old = st.category;
+        if (!confirm(`Delete category "${old}"? Its entries move to "default".`)) return;
+        const categories = st.categories.filter((x) => x !== old);
+        const options = st.options.map((o) => ({
+            ...o,
+            category: o.category === old ? "default" : o.category,
+        }));
+        writeState(node, { categories, category: "default", index: 0 });
+        node._sfDropdownPending = null;
+        node._sfDropdownCursor = null;
+        renderCatBtn();
+        renderList();
+        fire();
+    }
+
     // 画在 THIS 面板上的是非问题。两个陷阱让它留在面板内而非 document.body
     // 对话框：(a) 面板在任何外部 pointerdown 上关闭，body 级 backdrop 就是
     // 外部，回答提问会同时关掉设置；(b) 面板的 Esc 关闭器是 document 级
@@ -450,7 +600,7 @@ export function openDropdownPanel(node, onChange) {
     const list = el("div", "sf-ddp-list");
     listSec.appendChild(list);
 
-    body.append(typeSec, runSec, listSec);
+    body.append(catSec, typeSec, runSec, listSec);
 
     // ── 渲染 ────────────────────────────────────────────────────────────
     let dragFrom = -1;
@@ -472,7 +622,7 @@ export function openDropdownPanel(node, onChange) {
             });
             modeRow.appendChild(b);
         }
-        const n = readState(node).options.length;
+        const n = visibleOptions(readState(node)).length;
         modeHint.textContent = st.mode === "fixed"
             ? "Always sends the entry you picked."
             : (n < 2
@@ -492,9 +642,10 @@ export function openDropdownPanel(node, onChange) {
             seg.appendChild(b);
         }
         const st2 = readState(node);
-        const bad = st2.options.filter((o) => !readable(o.value, st2.type)).length;
+        const vis = visibleOptions(st2);
+        const bad = vis.filter((o) => !readable(o.value, st2.type)).length;
         typeHint.textContent = bad
-            ? `${bad} of ${st2.options.length} ${bad === 1 ? "entry does" : "entries do"} not read as ${TYPE_LABELS[st2.type].toLowerCase()}. They are kept, and send the fallback until you change them.`
+            ? `${bad} of ${vis.length} ${bad === 1 ? "entry does" : "entries do"} not read as ${TYPE_LABELS[st2.type].toLowerCase()}. They are kept, and send the fallback until you change them.`
             : "Changing this renames the output and unplugs anything that no longer fits. Your text is always kept.";
     }
 
@@ -504,7 +655,8 @@ export function openDropdownPanel(node, onChange) {
         writeState(node, { type: t });
         syncOutput(node);
         const cut = dropIncompatibleLinks(node);
-        const bad = readState(node).options.filter((o) => !readable(o.value, t)).length;
+        const vis = visibleOptions(readState(node));
+        const bad = vis.filter((o) => !readable(o.value, t)).length;
 
         // 说明发生了什么。静默警告标记对改变节点输出的事太轻，静默剪线更糟。
         const bits = [];
@@ -526,21 +678,37 @@ export function openDropdownPanel(node, onChange) {
     }
 
     // 追加一个条目并把光标放进它的名字框，直接开打。footer 按钮与空态按钮
-    // 共用，永不漂移。
+    // 共用，永不漂移。行归属 = 当前分类。
     function addRow() {
         const cur = readState(node);
-        cur.options.push({ name: "", value: "" });
-        commit({ options: cur.options });
+        const vis = visibleOptions(cur);
+        vis.push({ name: "", value: "", category: cur.category });
+        commit({ options: mergeBack(cur, vis), index: cur.index });
         const boxes = list.querySelectorAll(".sf-ddp-nm");
         boxes[boxes.length - 1]?.focus();
     }
 
+    // 当前分类行的全局索引。
+    function globalsOf(cur) {
+        const g = [];
+        cur.options.forEach((o, i) => { if (o.category === cur.category) g.push(i); });
+        return g;
+    }
+
+    // 把编辑后的当前分类行（vis）写回全量 options：其他分类的行保持相对顺序。
+    function mergeBack(cur, vis) {
+        const g = globalsOf(cur);
+        const others = cur.options.filter((o, i) => !g.includes(i));
+        return [...others, ...vis];
+    }
+
     function renderList() {
         const st = readState(node);
-        count.textContent = st.options.length === 1 ? "1 option" : `${st.options.length} options`;
+        const vis = visibleOptions(st);
+        count.textContent = vis.length === 1 ? "1 option" : `${vis.length} options`;
         list.textContent = "";
 
-        if (!st.options.length) {
+        if (!vis.length) {
             // 按钮属于这里——列表应在的位置、目光已在此处——而不是只在 footer
             // 里配一行指向它的散文。
             const box = el("div", "sf-ddp-empty");
@@ -552,7 +720,7 @@ export function openDropdownPanel(node, onChange) {
             return;
         }
 
-        st.options.forEach((o, i) => {
+        vis.forEach((o, i) => {
             const row = el("div", "sf-ddp-row");
 
             // GRIP 是可拖拽元素，不是行。行 draggable 会让 e.target 是行，
@@ -587,18 +755,19 @@ export function openDropdownPanel(node, onChange) {
             list.appendChild(row);
             autoGrow(vl);
 
-            // 实时编辑直写；每次按键重渲染会毁掉正在输入的字段。
+            // 实时编辑直写；每次按键重渲染会毁掉正在输入的字段。vis 里的行与
+            // cur.options 是同一对象引用，改字段即改状态。
             nm.addEventListener("input", () => {
                 const cur = readState(node);
-                if (!cur.options[i]) return;
-                cur.options[i].name = nm.value;
+                if (!visibleOptions(cur)[i]) return;
+                cur.options[globalsOf(cur)[i]].name = nm.value;
                 writeState(node, { options: cur.options });
                 fire();
             });
             vl.addEventListener("input", () => {
                 const cur = readState(node);
-                if (!cur.options[i]) return;
-                cur.options[i].value = vl.value;
+                if (!visibleOptions(cur)[i]) return;
+                cur.options[globalsOf(cur)[i]].value = vl.value;
                 writeState(node, { options: cur.options });
                 autoGrow(vl);
                 const ok = readable(vl.value, readState(node).type);
@@ -610,20 +779,22 @@ export function openDropdownPanel(node, onChange) {
 
             ins.addEventListener("click", () => {
                 const cur = readState(node);
-                cur.options.splice(i + 1, 0, { name: "", value: "" });
+                const vis = visibleOptions(cur);
+                vis.splice(i + 1, 0, { name: "", value: "", category: cur.category });
                 // 选中保持在同一 OPTION 上：上方插入会移位。
-                commit({ options: cur.options, index: cur.index > i ? cur.index + 1 : cur.index });
+                commit({ options: mergeBack(cur, vis), index: cur.index > i ? cur.index + 1 : cur.index });
             });
 
             del.addEventListener("click", () => {
                 const cur = readState(node);
-                cur.options.splice(i, 1);
+                const vis = visibleOptions(cur);
+                vis.splice(i, 1);
                 // 删除选中行把选中移到接替它的位置（或最后一行）。搞错这点
                 // 会让节点静默发出与面上名字不同的值。
                 let idx = cur.index;
                 if (i < idx) idx -= 1;
-                else if (i === idx) idx = Math.min(i, cur.options.length - 1);
-                commit({ options: cur.options, index: Math.max(0, idx) });
+                else if (i === idx) idx = Math.min(i, vis.length - 1);
+                commit({ options: mergeBack(cur, vis), index: Math.max(0, idx) });
             });
 
             grip.addEventListener("dragstart", (e) => {
@@ -660,14 +831,15 @@ export function openDropdownPanel(node, onChange) {
                 const r = row.getBoundingClientRect();
                 let to = e.clientY > r.top + r.height / 2 ? i + 1 : i;
                 const cur = readState(node);
-                const moved = cur.options[dragFrom];
+                const vis = visibleOptions(cur);
+                const moved = vis[dragFrom];
                 // 按身份跨移动跟踪选中 OPTION，重排永不改变节点在发的条目。
-                const selected = cur.options[cur.index];
-                cur.options.splice(dragFrom, 1);
+                const selected = vis[cur.index];
+                vis.splice(dragFrom, 1);
                 if (dragFrom < to) to -= 1;
-                cur.options.splice(to, 0, moved);
+                vis.splice(to, 0, moved);
                 dragFrom = -1;
-                commit({ options: cur.options, index: Math.max(0, cur.options.indexOf(selected)) });
+                commit({ options: mergeBack(cur, vis), index: Math.max(0, vis.indexOf(selected)) });
             });
         });
     }
@@ -681,7 +853,11 @@ export function openDropdownPanel(node, onChange) {
     bExp.addEventListener("click", () => {
         const st = readState(node);
         const blob = new Blob([JSON.stringify(
-            { sfnodes: "value_dropdown", version: 1, type: st.type, options: st.options }, null, 2)],
+            {
+                sfnodes: "value_dropdown", version: 1, type: st.type,
+                categories: st.categories, category: st.category,
+                options: st.options.map((o) => ({ name: o.name, value: o.value, category: o.category })),
+            }, null, 2)],
             { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -703,27 +879,46 @@ export function openDropdownPanel(node, onChange) {
                 const data = JSON.parse(await file.text());
                 const opts = Array.isArray(data?.options) ? data.options : null;
                 if (!opts) { toast("That file does not hold a Dropdown list.", "error"); return; }
+
+                // 分类：文件显式声明的列表权威；缺省（旧格式/手写文件）从行的
+                // category 收集，再保证 default 恒在。行 category 不在列表中的
+                // 补进去而非丢数据（与 readState 同规则）。
+                const cats = [];
+                for (const c of Array.isArray(data?.categories) ? data.categories : []) {
+                    const s = typeof c === "string" ? c.trim() : "";
+                    if (s && !cats.includes(s)) cats.push(s);
+                }
                 const clean = opts
                     .filter((o) => o && typeof o === "object" && !Array.isArray(o))
-                    .map((o) => ({
-                        name: typeof o.name === "string" ? o.name : "",
-                        value: typeof o.value === "string" ? o.value : (o.value == null ? "" : String(o.value)),
-                    }));
+                    .map((o) => {
+                        let c = (typeof o.category === "string" ? o.category.trim() : "") || "default";
+                        if (!cats.includes(c)) cats.push(c);
+                        return {
+                            name: typeof o.name === "string" ? o.name : "",
+                            value: typeof o.value === "string" ? o.value : (o.value == null ? "" : String(o.value)),
+                            category: c,
+                        };
+                    });
                 if (!clean.length) { toast("That file has no entries in it.", "error"); return; }
+                if (!cats.includes("default")) cats.unshift("default");
+                let cat = typeof data?.category === "string" ? data.category.trim() : "";
+                if (!cats.includes(cat)) cat = cats[0] || "default";
 
                 // 导出的文件总带着导出时的类型，所以 Import 可以改变本节点的
                 // 类型——以及它的输出槽——与类型按钮一样。它也必须剪掉不再合适
                 // 的线，否则节点保留着槽位不再支持的连接，不匹配只到运行时才
                 // 浮出，远离引发它的 Import。
                 const wasType = readState(node).type;
-                commit({ options: clean, index: 0, type: data.type || wasType });
+                commit({ options: clean, index: 0, type: data.type || wasType, categories: cats, category: cat });
+                node._sfDropdownPending = null;
+                node._sfDropdownCursor = null;
                 syncOutput(node);
                 const nowType = readState(node).type;
                 // 只在类型真变了时剪线。剪线是破坏性的，导入同类型列表绝不能
                 // 碰任何连接。
                 const cut = nowType !== wasType ? dropIncompatibleLinks(node) : 0;
 
-                const bits = [`Loaded ${clean.length} ${clean.length === 1 ? "entry" : "entries"}`];
+                const bits = [`Loaded ${clean.length} ${clean.length === 1 ? "entry" : "entries"} in ${cats.length} ${cats.length === 1 ? "category" : "categories"}`];
                 if (nowType !== wasType) bits.push(`and switched this node to ${TYPE_LABELS[nowType].toLowerCase()}`);
                 if (cut) bits.push(`- ${cut} ${cut === 1 ? "wire that no longer fits was" : "wires that no longer fit were"} unplugged`);
                 toast(bits.join(" ") + ".", cut ? "warn" : "info");
@@ -735,13 +930,15 @@ export function openDropdownPanel(node, onChange) {
     });
 
     const bClr = el("button", "sf-ddp-btn", "Clear list");
-    bClr.title = "Remove every entry from this list at once";
+    bClr.title = "Remove every entry from this category at once";
     bClr.addEventListener("click", async () => {
-        const n = readState(node).options.length;
+        const cur = readState(node);
+        const vis = visibleOptions(cur);
+        const n = vis.length;
         if (!n) { toast("The list is already empty."); return; }
         const ok = await askInPanel({
             title: "Clear the whole list?",
-            message: `This removes ${n === 1 ? "the only entry" : `all ${n} entries`} from this node. `
+            message: `This removes ${n === 1 ? "the only entry" : `all ${n} entries`} from category "${cur.category}". `
                 + "If you might want them back, Export first - Import brings the file straight back in.",
             okText: "Clear the list",
         });
@@ -750,7 +947,7 @@ export function openDropdownPanel(node, onChange) {
         // 存在的列表。
         node._sfDropdownPending = null;
         node._sfDropdownCursor = null;
-        commit({ options: [], index: 0 });
+        commit({ options: mergeBack(cur, []), index: 0 });
     });
 
     const bDone = el("button", "sf-ddp-btn sf-ddp-push", "Done");
@@ -766,6 +963,7 @@ export function openDropdownPanel(node, onChange) {
     // 下标，一次点击能删掉没人看得见的面板里的行。单次打开看着完全正常，
     // 只有打开两次才会暴露。
     _panel = panel;
+    renderCatBtn();
     renderTypes();
     renderModes();
     renderList();

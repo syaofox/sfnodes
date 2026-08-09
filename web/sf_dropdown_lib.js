@@ -13,8 +13,12 @@
 //   取整）。改 Python 侧规则必须同一 commit 改这里。
 //
 // 状态存 node.properties.dropdownState（随工作流保存）：
-//   { version:1, type:"text"|"int"|"float"|"bool", index, mode:"fixed"|"increment"|"random",
-//     options:[{name,value}] }
+//   { version:2, type:"text"|"int"|"float"|"bool", index, mode:"fixed"|"increment"|"random",
+//     categories:[...], category:"default", options:[{name,value,category?}] }
+// version 1（无分类字段）在 readState 中自动归一化：categories=["default"]、
+// category="default"、行归 default——旧工作流行为不变。
+// index 永远是"当前分类过滤后"列表内的索引；游标（pending/cursor）同理。
+//
 // 运行游标（_sfDropdownPending/_sfDropdownCursor）只存节点内存，永不序列化：
 //   写进工作流会把每次 Run 标成 modified（Seed 陷阱，见 AGENTS.md 经验摘要）。
 //
@@ -187,11 +191,38 @@ export const MODE_LABELS = {
 };
 
 export function defaultState() {
-    return { version: 1, type: "text", index: 0, mode: "fixed", options: [] };
+    return { version: 2, type: "text", index: 0, mode: "fixed", categories: ["default"], category: "default", options: [] };
 }
 
 function normalizeMode(m) {
     return MODES.includes(m) ? m : "fixed";
+}
+
+// 分类名归一。空/非字符串 -> "default"。用户可输入的任意字符串都是合法分类名。
+export function normalizeCategory(c) {
+    if (typeof c !== "string") return "default";
+    const s = c.trim();
+    return s ? s : "default";
+}
+
+/** 状态 -> 当前分类下的行。所有 index/游标语义都基于此数组。 */
+export function visibleOptions(st) {
+    const cat = st?.category || "default";
+    return (st?.options || []).filter((o) => (o?.category || "default") === cat);
+}
+
+// 归一化分类列表：去空去重保序，default 恒在首位。
+function normalizeCategories(list) {
+    const cats = [];
+    const push = (c) => {
+        const s = normalizeCategory(c);
+        if (!cats.includes(s)) cats.push(s);
+    };
+    if (Array.isArray(list)) {
+        for (const c of list) push(c);
+    }
+    if (!cats.includes("default")) cats.unshift("default");
+    return cats;
 }
 
 /** node -> 其状态，永远是合法对象。绝不信任找到的东西。 */
@@ -203,6 +234,20 @@ export function readState(node) {
     st.type = normalizeType(raw.type);
     st.mode = normalizeMode(raw.mode);
 
+    // 分类权威列表，但行里出现列表外的分类（手改文件）时补进去而非丢掉数据。
+    st.categories = normalizeCategories(raw.categories);
+    if (Array.isArray(raw.options)) {
+        for (const o of raw.options) {
+            if (!o || typeof o !== "object" || Array.isArray(o)) continue;
+            const c = normalizeCategory(o.category);
+            if (!st.categories.includes(c)) st.categories.push(c);
+        }
+    }
+
+    let cat = normalizeCategory(raw.category);
+    if (!st.categories.includes(cat)) cat = st.categories[0] || "default";
+    st.category = cat;
+
     if (Array.isArray(raw.options)) {
         for (const o of raw.options) {
             // 丢掉非对象行，不让它以后炸掉列表。Control Panel 为此吃过亏：
@@ -211,13 +256,15 @@ export function readState(node) {
             st.options.push({
                 name: typeof o.name === "string" ? o.name : "",
                 value: typeof o.value === "string" ? o.value : (o.value == null ? "" : String(o.value)),
+                category: normalizeCategory(o.category),
             });
         }
     }
 
+    const vis = visibleOptions(st);
     const n = Number(raw.index);
-    st.index = Number.isFinite(n) ? Math.max(0, Math.min(st.options.length - 1, Math.trunc(n))) : 0;
-    if (!st.options.length) st.index = 0;
+    st.index = Number.isFinite(n) ? Math.max(0, Math.min(vis.length - 1, Math.trunc(n))) : 0;
+    if (!vis.length) st.index = 0;
     return st;
 }
 
@@ -234,25 +281,37 @@ export function writeState(node, patch) {
     const cur = readState(node);
     const next = { ...cur, ...(patch || {}) };
 
-    next.version = 1;
+    next.version = 2;
     next.type = normalizeType(next.type);
     next.mode = normalizeMode(next.mode);
+    next.categories = normalizeCategories(next.categories);
+    if (Array.isArray(next.options)) {
+        for (const o of next.options) {
+            if (!o || typeof o !== "object" || Array.isArray(o)) continue;
+            const c = normalizeCategory(o.category);
+            if (!next.categories.includes(c)) next.categories.push(c);
+        }
+    }
+    next.category = normalizeCategory(next.category);
+    if (!next.categories.includes(next.category)) next.category = next.categories[0] || "default";
     next.options = Array.isArray(next.options) ? next.options.map((o) => ({
         name: typeof o?.name === "string" ? o.name : "",
         value: typeof o?.value === "string" ? o.value : (o?.value == null ? "" : String(o.value)),
+        category: normalizeCategory(o?.category),
     })) : [];
+    const vis = visibleOptions(next);
     const n = Number(next.index);
-    next.index = Number.isFinite(n) ? Math.max(0, Math.min(next.options.length - 1, Math.trunc(n))) : 0;
-    if (!next.options.length) next.index = 0;
+    next.index = Number.isFinite(n) ? Math.max(0, Math.min(vis.length - 1, Math.trunc(n))) : 0;
+    if (!vis.length) next.index = 0;
 
     node.properties[STATE_PROP] = next;
     return next;
 }
 
-/** 当前选中的条目，列表为空时为 null。 */
+/** 当前选中的条目，列表（当前分类）为空时为 null。 */
 export function selectedOption(node) {
     const st = readState(node);
-    return st.options[st.index] || null;
+    return visibleOptions(st)[st.index] || null;
 }
 
 // ── 运行游标（节点内存，不序列化）─────────────────────────────────────
@@ -270,7 +329,7 @@ export function selectedOption(node) {
  */
 export function pendingIndex(node) {
     const st = readState(node);
-    const n = st.options.length;
+    const n = visibleOptions(st).length;
     if (!n) return 0;
     const clamp = (i) => Math.max(0, Math.min(i, n - 1));
     if (st.mode === "fixed") return clamp(st.index);
@@ -313,7 +372,7 @@ export function commitPick(node) {
 /** 节点面应显示的：已排队或上次运行的牌，而非盲目存的那个。 */
 export function shownIndex(node) {
     const st = readState(node);
-    const n = st.options.length;
+    const n = visibleOptions(st).length;
     if (!n) return 0;
     const clamp = (i) => Math.max(0, Math.min(i, n - 1));
     if (st.mode === "fixed") return clamp(st.index);
@@ -331,8 +390,8 @@ export function shownIndex(node) {
  */
 export function injectedState(node) {
     const st = readState(node);
-    const opt = st.options[pendingIndex(node)];
-    return { version: 1, type: st.type, value: opt ? opt.value : null };
+    const opt = visibleOptions(st)[pendingIndex(node)];
+    return { version: 2, type: st.type, value: opt ? opt.value : null };
 }
 
 // ── 输出槽类型同步（前端半边）─────────────────────────────────────────
