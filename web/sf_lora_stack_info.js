@@ -29,9 +29,11 @@ function injectCSS() {
     .sf-ls-info-p { position:fixed; z-index:10025; width:420px; max-width:94vw; background:#2b2b2b;
       border:1px solid var(--acc, var(--sf-acc, #f66744)); border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
-      display:flex; flex-direction:column; }
-    /* 中间滚动容器：面板被用户拉高/拉矮后，头部与 footer 固定，内容滚动。 */
-    .sf-ls-info-body { flex:1 1 auto; min-height:0; overflow-y:auto; }
+      display:flex; flex-direction:column; max-height:92vh; }
+    /* 中间滚动容器：面板被用户拉高/拉矮后，头部与 footer 固定，内容滚动。
+       flex:0 1 auto——拉高增量只给 Description，触发词区保持内容高度；
+       拉矮时按内容比例收缩、内部滚动。 */
+    .sf-ls-info-body { flex:0 1 auto; min-height:0; overflow-y:auto; }
     /* 右下角拖拽调大小手柄 */
     .sf-ls-resize { position:absolute; right:0; bottom:0; width:16px; height:16px;
       cursor:se-resize; z-index:3; }
@@ -63,7 +65,10 @@ function injectCSS() {
     .sf-ls-info-x { margin-left:auto; color:#8a8a8a; cursor:pointer; align-self:flex-start; }
     .sf-ls-info-x:hover { color:#fff; }
     .sf-ls-info-sec { padding:11px 12px; }
-    .sf-ls-desc { padding:11px 12px 12px; border-top:1px solid #1c1c1c; }
+    /* Description 区块是面板直接 flex 子项（在 bodyWrap 之外、footer 之前）：
+       flex:1 1 auto 让它随面板拉高/拉矮弹性伸缩，查看态正文充满剩余空间。 */
+    .sf-ls-desc { padding:11px 12px 12px; border-top:1px solid #1c1c1c;
+      flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
     .sf-ls-desc h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
     .sf-ls-desc h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -73,11 +78,12 @@ function injectCSS() {
       color:#9a9a9a; cursor:pointer; }
     .sf-ls-desc h4 .qa:hover { color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-desc-body { font-size:11px; color:#d0d0d0; line-height:1.6; white-space:normal;
-      word-break:break-word; max-height:180px; overflow-y:auto; padding-right:2px; }
+      word-break:break-word; flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:2px; }
     .sf-ls-desc-none { color:#777; font-size:11px; }
     .sf-ls-desc textarea { width:100%; box-sizing:border-box; background:#161616;
       border:1px solid rgba(255,255,255,0.14); border-radius:6px; color:#fff;
-      font:11px 'Segoe UI'; padding:6px 8px; outline:none; resize:vertical; min-height:64px; }
+      font:11px 'Segoe UI'; padding:6px 8px; outline:none; resize:vertical; min-height:64px;
+      flex:1 1 auto; }
     .sf-ls-desc textarea:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-desc-actions { display:flex; gap:5px; margin-top:6px; }
     .sf-ls-desc-actions button { background:rgba(255,255,255,0.06);
@@ -946,9 +952,10 @@ export async function openInfoPanel(node, id, refresh) {
         panel.appendChild(top);
 
         // 中间滚动容器：头部与 footer 固定，内容随面板高度滚动（用户可
-        // 拖拽右下角手柄调整面板大小）。所有中间区块（消息/状态/迁移条、
-        // 触发词、Description）都必须进 bodyWrap——漏掉一个会在面板拉矮时
-        // 被 overflow:hidden 裁剪。
+        // 拖拽右下角手柄调整面板大小）。消息/状态/迁移条、触发词都进
+        // bodyWrap——漏掉一个会在面板拉矮时被 overflow:hidden 裁剪。
+        // Description 是例外：它要随面板拉高弹性伸缩，放在 bodyWrap 之外
+        // 作为面板的直接 flex 子项（见 panel.appendChild(dsec)）。
         const bodyWrap = el("div", "sf-ls-info-body");
 
         // ── 图片的问题（如果有）────────────────────────────────────────────
@@ -1157,9 +1164,11 @@ export async function openInfoPanel(node, id, refresh) {
                     "No description in this file - write your own, or try the Civitai lookup."));
             }
         }
-        // 面板内容区（除 top/foot 外全部）进滚动容器。
-        bodyWrap.appendChild(dsec);
         panel.appendChild(bodyWrap);
+        // Description 在 bodyWrap 之外、footer 之前：面板直接 flex 子项，
+        // 拉高面板时它弹性占满剩余高度（查看态正文/编辑态 textarea 同步
+        // 长高），拉矮时与 bodyWrap 按比例收缩、各自滚动。
+        panel.appendChild(dsec);
 
         // ── footer ──────────────────────────────────────────────────────────
         const foot = el("div", "sf-ls-info-foot");
