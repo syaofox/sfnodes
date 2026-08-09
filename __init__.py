@@ -90,6 +90,7 @@ from .nodes.model.lora_selector import LoraSelector
 from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.model.power_lora_loader import PowerLoraLoader
 from .nodes.model.power_lora_preset import PowerLoraPreset
+from .nodes.model.lora_stack import SFLoraStack
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.sage_attention import SFPatchSageAttention
 from .nodes.image.compare import ImageCompare
@@ -262,6 +263,7 @@ NODE_CLASS_MAPPINGS = {
     "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
     "SFPowerLoraLoader": PowerLoraLoader,
     "SFPowerLoraPreset": PowerLoraPreset,
+    "SFLoraStack": SFLoraStack,
     "SFLoraLoader": LoraLoader,
     "SFLoraLoaderModelOnly": LoraLoaderModelOnly,
     "SFLoraSelector": LoraSelector,
@@ -438,6 +440,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
     "SFPowerLoraLoader": "SF Power Lora Loader",
     "SFPowerLoraPreset": "SF Power Lora Preset",
+    "SFLoraStack": "SF LoRA Stack",
     "SFLoraLoader": "SF LoRA Loader",
     "SFLoraLoaderModelOnly": "SF LoRA Loader (Model Only)",
     "SFLoraSelector": "SF LoRA Selector",
