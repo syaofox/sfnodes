@@ -13,6 +13,7 @@
 
 import { api } from "/scripts/api.js";
 import { getState } from "./sf_pause_image_lib.js";
+import { sfApiUrl } from "./sf_common.js";
 
 const ACCENT = "#f66744";
 
@@ -23,14 +24,6 @@ export const NODE_MIN_W = 300;  // 4 按钮工具行容纳所需
 // 常量 getMinHeight：固定数字每次保存/加载字节一致，node.size 不抖动，
 // 工作流不会被误标"已修改"
 export const NODE_MIN_H = HEADER_H + PREVIEW_MIN_H + DIMS_H;
-
-// 绝对安全的 URL：api.apiURL 处理托管部署的基址前缀，失败降级原样返回
-function sfApiUrl(route) {
-    try {
-        if (typeof api?.apiURL === "function") return api.apiURL(route);
-    } catch { /* 降级 */ }
-    return route;
-}
 
 function injectCSS() {
     if (document.getElementById("sf-pi-css")) return;

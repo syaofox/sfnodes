@@ -22,6 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { applyAdaptiveCanvasOnly } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { getState, setGate, STATE_PROP } from "./sf_pause_image_lib.js";
 import { applyGateMode } from "./sf_pause_text_lib.js";
@@ -32,26 +33,6 @@ import {
 const CLASS = "SFPauseImage";
 const HIDDEN_INPUT = "PauseState";
 const WIDGET_TYPE = "sf_pause_image_ui";
-
-// ── 内联 shared 辅助 ────────────────────────────────────────────────────
-// Nodes 2.0（Vue）渲染器判定，实时读取
-function isVueNodes() {
-    return !!window.LiteGraph?.vueNodesMode;
-}
-// adaptive canvasOnly：legacy 下 true（不进 Parameters tab），Nodes 2.0 下 false
-function applyAdaptiveCanvasOnly(widget) {
-    if (!widget || !widget.options) return widget;
-    try {
-        Object.defineProperty(widget.options, "canvasOnly", {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return !isVueNodes();
-            },
-        });
-    } catch { /* ignore */ }
-    return widget;
-}
 
 // ── 队列：带一次性提交模式跑一次 run ──
 // "continue" -> 剪上游（跳过它），下游重载快照；"pause" -> 剪下游（停在闸门），

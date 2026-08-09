@@ -13,11 +13,8 @@ Disk state lives in input/sfnodes_crop/ (route-guarded: dataURL uploads +
 safe_join on every read).
 """
 
-import base64
-import io
 import json
 import os
-import re
 import uuid
 
 import numpy as np
@@ -29,6 +26,9 @@ from aiohttp import web
 import folder_paths
 
 from ...sf_utils.common import AnyType
+from ...sf_utils.disk_state import safe_join
+from ...sf_utils.disk_state import sanitize_id
+from ...sf_utils.disk_state import decode_image
 
 _CATEGORY = "sfnodes/image"
 
@@ -52,63 +52,21 @@ def _crop_dir() -> str:
 def _safe_join(rel: str) -> str:
     """Resolve a saved relative path inside input/sfnodes_crop/, returning an
     absolute path or None if it escapes the directory or doesn't exist.
-
-    Rejects absolute / drive-qualified / UNC values lexically BEFORE any
-    filesystem resolve (a UNC path would open an SMB connection just by being
-    resolved), then realpath + startswith containment."""
-    if not rel or not isinstance(rel, str):
-        return None
-    q = rel.strip().strip('"').strip("'")
-    if not q:
-        return None
-    if q.replace("/", "\\").startswith("\\\\"):
-        return None
-    try:
-        if os.path.splitdrive(q)[0]:
-            return None
-        if os.path.isabs(q):
-            return None
-    except (ValueError, TypeError):
-        return None
-    # 兼容子目录前缀：上传/保存路由返回的 path 是 "sfnodes_crop/<file>"
-    # （ComfyUI 惯例 subfolder/filename），剥掉前缀后 join 到子目录本身，
-    # 否则会解析成 input/sfnodes_crop/sfnodes_crop/... 双重拼接（文件不存在）。
-    for _prefix in (_CROP_SUBDIR + "/", _CROP_SUBDIR + "\\", "./"):
-        if q.startswith(_prefix):
-            q = q[len(_prefix):]
-            break
-    root = os.path.realpath(_crop_dir())
-    try:
-        full = os.path.realpath(os.path.join(root, q))
-    except (OSError, ValueError, TypeError):
-        return None
-    if full == root or not full.startswith(root + os.sep):
-        return None
-    if not os.path.exists(full):
-        return None
-    return full
+    Thin alias over sf_utils.disk_state.safe_join (shared with inpaint_editor):
+    the root is the sfnodes_crop subdir itself, and the "sfnodes_crop/" prefix
+    produced by the upload/save routes is stripped before joining."""
+    return safe_join(_crop_dir(), rel, _CROP_SUBDIR)
 
 
 def _sanitize_id(raw, fallback: str) -> str:
     """Strip every character that is not a word char / dash, so a crafted
-    project_id can never smuggle a path separator."""
-    s = str(raw or "")
-    s = re.sub(r"[^A-Za-z0-9_-]", "", s)
-    return s[:64] or fallback
+    project_id can never smuggle a path separator (shared impl)."""
+    return sanitize_id(raw, fallback)
 
 
 def _decode_image(b64: str):
-    """Decode a dataURL (or bare base64) into a PIL Image, or None."""
-    if not isinstance(b64, str) or not b64:
-        return None
-    try:
-        payload = b64.split(",", 1)[-1] if "," in b64 else b64
-        raw = base64.b64decode(payload)
-        img = Image.open(io.BytesIO(raw))
-        img.load()
-        return img
-    except Exception:
-        return None
+    """Decode a dataURL (or bare base64) into a PIL Image, or None (shared impl)."""
+    return decode_image(b64)
 
 
 # ── 节点类 ────────────────────────────────────────────────────────────────
@@ -298,6 +256,16 @@ class SFImageCrop:
                 img_t, mask_t, out_w, out_h, crop_info = self._load_disk_composite(meta, empty_image, upstream_mask)
         else:
             img_t, mask_t, out_w, out_h, crop_info = self._load_disk_composite(meta, empty_image, upstream_mask)
+            # 磁盘源（粘贴 / 拖放 / 编辑器 Load Image）也向执行期事件暴露源帧，
+            # 否则前端 executed 事件收不到 sf_crop_source，节点预览缓存停在旧图
+            # （运行结果正确但预览不刷新）。帧指向 input/sfnodes_crop/ 的 src。
+            if ui_payload is None:
+                src_path = meta.get("src_path", "")
+                if src_path and _safe_join(src_path):
+                    ui_payload = {"sf_crop_source": [
+                        {"filename": os.path.basename(src_path.replace("\\", "/")),
+                         "subfolder": _CROP_SUBDIR, "type": "input"}
+                    ]}
 
         result = (img_t, mask_t, crop_info, out_w, out_h)
         if ui_payload:

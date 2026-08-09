@@ -90,7 +90,7 @@ globalThis.api = {
 
 // ── 加载模块（替换 /scripts/* import，相对 import 改 .mjs 同 tmp）──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_inpaint_"));
-const files = ["sf_crop_framework.js", "sf_crop_preview.js", "sf_crop_undo_guard.js",
+const files = ["sf_common.js", "sf_crop_framework.js", "sf_crop_preview.js", "sf_crop_undo_guard.js",
     "sf_inpaint_geometry.js", "sf_inpaint_core.js", "sf_inpaint_paint.js",
     "sf_inpaint_render.js", "sf_inpaint.js"];
 for (const n of files) {
@@ -104,8 +104,9 @@ for (const n of files) {
 }
 
 (async () => {
+    const origLoadGraphData = globalThis.app.loadGraphData;
     await import(path.join(tmpDir, "sf_inpaint.mjs"));
-    check("loadGraphData 已包装", app._sfInpaintGraphLoadWrapped === true);
+    check("loadGraphData 已包装", globalThis.app.loadGraphData !== origLoadGraphData);
     check("queuePrompt 已包装", api._sfInpaintQueueWrapped === true);
     check("扩展已注册", !!app._ext && app._ext.name === "sfnodes.InpaintCrop");
 

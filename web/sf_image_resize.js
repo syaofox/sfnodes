@@ -10,6 +10,7 @@
 // into the prompt by the graphToPrompt hook below (subgraph-safe).
 
 import { app } from "/scripts/app.js";
+import { isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { renderUI, injectCSS, measureContentHeight, refreshReadout, paintReadout } from "./sf_image_resize_ui.js";
 import { STATE_PROP, HIDDEN_INPUT, DEFAULT_STATE } from "./sf_image_resize_ui.js";
@@ -19,7 +20,7 @@ injectCSS();
 const MIN_W = 360; // minimum node width (the two IN/OUT cards need the room)
 const CARDS_CANVAS_H = 100;
 
-// ── 内联小工具（移植自 pixaroma js/shared/ + sf_load_image.js，去除插件专属依赖）──
+// ── 共享小工具（isGraphLoading / canvasZoom / URL 等）收敛于 sf_common.js ─
 
 function hideJsonWidget(widgets, widgetName) {
   const w = (widgets || []).find((x) => x.name === widgetName);
@@ -35,47 +36,8 @@ function hideJsonWidget(widgets, widgetName) {
   return w;
 }
 
-// 工作流加载守卫：wrap app.loadGraphData 一次，加载 + 300ms 尾窗内
-// isGraphLoading() 为 true。加载路径上的序列化状态变更必须被此守卫门控
-// （连接恢复发生在 onConfigure 之后，若不加守卫会把已保存的接线误当用户
-// 新连接而自动断开）。
-let _sfIrGraphLoading = false;
-if (app && app.loadGraphData && !app._sfIrGraphLoadWrapped) {
-  app._sfIrGraphLoadWrapped = true;
-  const _origLoadGraphData = app.loadGraphData.bind(app);
-  app.loadGraphData = function (...args) {
-    _sfIrGraphLoading = true;
-    let r;
-    try {
-      r = _origLoadGraphData(...args);
-    } finally {
-      Promise.resolve(r).finally(() => setTimeout(() => { _sfIrGraphLoading = false; }, 300));
-    }
-    return r;
-  };
-}
-function isGraphLoading() {
-  return _sfIrGraphLoading;
-}
-
-function isVueNodes() {
-  return !!window.LiteGraph?.vueNodesMode;
-}
-function applyAdaptiveCanvasOnly(widget) {
-  if (!widget || !widget.options) return widget;
-  try {
-    Object.defineProperty(widget.options, "canvasOnly", {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return !window.LiteGraph?.vueNodesMode;
-      },
-    });
-  } catch (e) {
-    widget.options.canvasOnly = !window.LiteGraph?.vueNodesMode;
-  }
-  return widget;
-}
+// 工作流加载守卫（wrap app.loadGraphData + 300ms 尾窗）由 sf_common.js
+// 顶层统一安装（幂等单例），此处不再重复包装。
 const CANVAS_BACKING_CAP = 6000;
 function canvasBackingScale(cssW, cssH) {
   const dpr = window.devicePixelRatio || 1;
@@ -84,52 +46,6 @@ function canvasBackingScale(cssW, cssH) {
   const longCss = Math.max(cssW || 0, cssH || 0);
   if (longCss > 0 && longCss * s > CANVAS_BACKING_CAP) s = CANVAS_BACKING_CAP / longCss;
   return s;
-}
-
-// 滚轮缩放透传（仅 Classic 渲染器）：滚轮事件被 DOM widget 吞掉时转发到
-// canvas；光标在仍有滚动余量的可滚动区域上时允许其正常滚动。Nodes 2.0
-// 由前端自身转发，这里 no-op。
-function installCanvasZoomPassthrough(root) {
-  if (!root || typeof root.addEventListener !== "function") return () => {};
-  const onWheel = (e) => {
-    if (isVueNodes()) return;
-    let el = e.target;
-    const vertical = Math.abs(e.deltaY) >= Math.abs(e.deltaX);
-    let scrollable = false;
-    while (el && el !== root.parentElement) {
-      if (el.nodeType === 1) {
-        const cs = getComputedStyle(el);
-        if (vertical) {
-          const oy = cs.overflowY;
-          if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) {
-            const atTop = el.scrollTop <= 0;
-            const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-            if ((e.deltaY < 0 && !atTop) || (e.deltaY > 0 && !atBottom)) { scrollable = true; break; }
-          }
-        } else {
-          const ox = cs.overflowX;
-          if ((ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 1) {
-            const atLeft = el.scrollLeft <= 0;
-            const atRight = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-            if ((e.deltaX < 0 && !atLeft) || (e.deltaX > 0 && !atRight)) { scrollable = true; break; }
-          }
-        }
-      }
-      el = el.parentElement;
-    }
-    if (scrollable) return;
-    const canvasEl = app?.canvas?.canvas;
-    if (!canvasEl) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const { clientX, clientY, deltaX, deltaY, deltaMode, ctrlKey, metaKey, shiftKey } = e;
-    canvasEl.dispatchEvent(new WheelEvent("wheel", {
-      clientX, clientY, deltaX, deltaY, deltaMode,
-      ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true,
-    }));
-  };
-  root.addEventListener("wheel", onWheel, { passive: false });
-  return () => root.removeEventListener("wheel", onWheel);
 }
 
 // ── 节点行为 ─────────────────────────────────────────────────────────────────

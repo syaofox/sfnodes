@@ -88,7 +88,7 @@ globalThis.api = {
 
 // ── 加载模块 ──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_pm_"));
-for (const n of ["sf_pause_text_lib.js", "sf_pause_mask_lib.js",
+for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_mask_lib.js",
     "sf_pause_mask_ui.js", "sf_pause_mask.js"]) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")

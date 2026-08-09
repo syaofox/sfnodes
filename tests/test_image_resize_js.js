@@ -216,7 +216,7 @@ function makeNode(graph) {
     check("readout wired longest 可读 -> 计算", r.mode === "dual" && r.outW === 512 && r.outH === 256);
 
     // ── 2. 主扩展冒烟 ──
-    stageJs(["sf_image_resize.js", "sf_image_resize_ui.js", "sf_image_resize_lib.js",
+    stageJs(["sf_common.js", "sf_image_resize.js", "sf_image_resize_ui.js", "sf_image_resize_lib.js",
         "sf_load_image_resize.js", "sf_load_image_ui.js", "sf_load_image_api.js"]);
     const M = await import(path.join(tmpDir, "sf_image_resize.mjs"));
     check("扩展已注册", globalThis.app._ext?.name === "sfnodes.ImageResize");

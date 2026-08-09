@@ -20,6 +20,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { isVueNodes, applyAdaptiveCanvasOnly } from "./sf_common.js";
 import {
     readState,
     restoreFromProperties,
@@ -142,27 +143,6 @@ function makeHandlers(node, root) {
         },
     };
     return { handlers, rerender };
-}
-
-// ── Nodes 2.0（Vue）渲染器辅助（内联，见 sf_pause_text.js）─────────────
-// 由设置 Comfy.VueNodes.Enabled 驱动；实时读取，运行时切换渲染器也尊重
-function isVueNodes() {
-    return !!window.LiteGraph?.vueNodesMode;
-}
-// adaptive canvasOnly：legacy 下 true（不进 Parameters tab），Nodes 2.0 下 false
-// （否则 Vue 根本不渲染该 widget）。实时 getter，渲染时求值
-function applyAdaptiveCanvasOnly(widget) {
-    if (!widget || !widget.options) return widget;
-    try {
-        Object.defineProperty(widget.options, "canvasOnly", {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return !isVueNodes();
-            },
-        });
-    } catch { /* ignore */ }
-    return widget;
 }
 
 app.registerExtension({

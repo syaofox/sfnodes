@@ -132,7 +132,7 @@ let _fakeType = null;
 // ── 加载模块（替换 /scripts/* import，相对 import 改 .mjs 同 tmp）──
 (async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_pr_smoke_"));
-    for (const n of ["sf_prompt_reader.js"]) {
+    for (const n of ["sf_common.js", "sf_prompt_reader.js"]) {
         const code = fs.readFileSync(path.join(__dirname, "..", "web", n), "utf8")
             .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
             .replaceAll('import { api } from "/scripts/api.js";', "const api = globalThis.api;")

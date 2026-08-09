@@ -25,11 +25,14 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
 import {
     ROW_H, MIN_W, BODY_PAD, readState, writeState, shownIndex,
     MODE_LETTERS, MODE_LABELS, MODES,
 } from "./sf_dropdown_lib.js";
 import { SOCKET_LABELS, previewText, readable } from "./sf_dropdown_lib.js";
+// 供 sf_dropdown_settings.js 使用（历史 export 契约）
+export { isVueNodes, applyAdaptiveCanvasOnly };
 
 // 固定强调色（复刻范围外：无 accent 颜色设置，参照 sf_pause_text_ui.js）。
 const ACCENT = "#f66744";
@@ -53,28 +56,6 @@ const GEAR_SVG = "data:image/svg+xml," + encodeURIComponent(
 );
 
 let _cssDone = false;
-
-// ── 内联 shared 辅助（与 sf_pause_text.js 相同的实现）────────────────────
-// Nodes 2.0（Vue）渲染器判定，由设置 Comfy.VueNodes.Enabled 驱动；实时读取，
-// 运行时切换渲染器也尊重
-export function isVueNodes() {
-    return !!window.LiteGraph?.vueNodesMode;
-}
-// adaptive canvasOnly：legacy 下 true（不进 Parameters tab），Nodes 2.0 下 false
-// （否则 Vue 根本不渲染该 widget）。实时 getter，渲染时求值
-export function applyAdaptiveCanvasOnly(widget) {
-    if (!widget || !widget.options) return widget;
-    try {
-        Object.defineProperty(widget.options, "canvasOnly", {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return !isVueNodes();
-            },
-        });
-    } catch { /* ignore */ }
-    return widget;
-}
 
 // 12px 匹配原生节点 widget——Pixaroma 行在 100% 缩放下就是这么大。
 const POPUP_BASE_FONT_PX = 12;
@@ -146,31 +127,6 @@ export function placeZoomedPopup(pop, anchorEl, opts = {}) {
         : Math.round(r.bottom + gap) + "px";
 
     return zoom;
-}
-
-// 滚轮穿透（Classic only）：DOM widget 覆盖在 canvas 上，滚轮被 widget 消费，
-// 画布缩放就停了（ComfyUI 的 wheel-to-zoom 监听在 <canvas> 元素上）。除非光标
-// 在仍有滚动余地的可滚动区域内（长 textarea / 列表照常滚动），否则把 wheel
-// 转发给 canvas。Nodes 2.0 自带转发，no-op。
-function installCanvasZoomPassthrough(root) {
-    if (!root || typeof root.addEventListener !== "function") return () => {};
-    const onWheel = (e) => {
-        if (isVueNodes()) return;                  // Nodes 2.0 自己转发给 canvas
-        if (scrollRegionWantsWheel(e.target, root, e.deltaX, e.deltaY)) return;
-        const canvasEl = app?.canvas?.canvas;      // 惰性读取；canvas 可被重建
-        if (!canvasEl) return;
-        e.preventDefault();                        // 需要非 passive 监听器（下面）
-        e.stopPropagation();
-        // 向 LiteGraph canvas 重发合成 wheel 使其缩放——与 ComfyUI 自己的
-        // forwardEventToCanvas 对预览节点做的完全一样。
-        const { clientX, clientY, deltaX, deltaY, deltaMode, ctrlKey, metaKey, shiftKey } = e;
-        canvasEl.dispatchEvent(new WheelEvent("wheel", {
-            clientX, clientY, deltaX, deltaY, deltaMode,
-            ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true,
-        }));
-    };
-    root.addEventListener("wheel", onWheel, { passive: false });
-    return () => root.removeEventListener("wheel", onWheel);
 }
 
 // target 与 root 之间（含）某元素可滚动且在该方向仍有滚动余量——滚轮应滚动它

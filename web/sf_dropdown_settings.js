@@ -15,6 +15,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { isGraphLoading } from "./sf_common.js";
 import { isVueNodes } from "./sf_dropdown_ui.js";
 import {
     readState, writeState, syncOutput, slotAccepts,
@@ -26,28 +27,8 @@ import { TYPES, TYPE_LABELS, readable, previewText } from "./sf_dropdown_lib.js"
 // "是否正在加载工作流？"守卫。LiteGraph 在节点 onConfigure 返回之后才在图
 // 级别恢复已保存的线（此时任何节点级 configuring 标志早已清除），所以在
 // onConnectionsChange 里改动序列化状态的节点会被那次连接回放覆盖——除非
-// 抑制回放。包装 app.loadGraphData（工作流打开/切页/undo 的唯一漏斗）恰好
-// 一次，在整个加载 + 300ms 尾窗（连接恢复晚一拍落定）内持有标志。
-let _loading = false;
-
-if (app && app.loadGraphData && !app._sfDropdownGraphLoadWrapped) {
-    app._sfDropdownGraphLoadWrapped = true;
-    const _origLoadGraphData = app.loadGraphData.bind(app);
-    app.loadGraphData = function (...args) {
-        _loading = true;
-        let r;
-        try {
-            r = _origLoadGraphData(...args);
-        } finally {
-            Promise.resolve(r).finally(() => setTimeout(() => { _loading = false; }, 300));
-        }
-        return r;
-    };
-}
-
-function isGraphLoading() {
-    return _loading;
-}
+// 抑制回放。包装 app.loadGraphData（工作流打开/切页/undo 的唯一漏斗）由
+// sf_common.js 顶层统一安装（幂等单例），此处仅 import 判定函数。
 
 // ── 内联 shared：dropIncompatibleLinks ───────────────────────────────────
 // 剪掉新类型喂不了的线。只限真实用户动作。返回剪掉的线数让调用方能说出来——

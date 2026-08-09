@@ -13,18 +13,9 @@ import {
 } from "./sf_crop_framework.js";
 import { installGraphUndoGuard } from "./sf_crop_undo_guard.js";
 import { api } from "/scripts/api.js";
+import { sfApiUrl } from "./sf_common.js";
 
 export { BRAND };
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function sfApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
 
 // ── 图标（内联 data URI，项目惯例见 sf_crop_framework.js）──────────────
 const ICONS = {

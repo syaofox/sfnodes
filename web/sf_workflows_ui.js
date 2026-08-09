@@ -22,15 +22,8 @@ export const el = (tag, cls, text) => {
     return e;
 };
 
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-export function sfApiUrl(route) {
-    try {
-        if (typeof api?.apiURL === "function") return api.apiURL(route);
-    } catch { /* 降级 */ }
-    return route;
-}
-
 // ── "面板正在自我重绘吗？" ──────────────────────────────────────────────
+export { sfApiUrl } from "./sf_common.js";
 // 打开的改名框必须分清两件事：用户点走（提交输入）与重渲染把框从脚下拆走
 // （保留并在之后放回）。两者都以普通 blur 到达。`input.isConnected` 看似
 // 可行其实不行（Chrome 实测：移除聚焦元素时 blur 仍在元素已附加时触发，

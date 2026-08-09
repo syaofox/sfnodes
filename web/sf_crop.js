@@ -2,7 +2,7 @@
 // Pixaroma Image Crop Editor — Entry Point
 // ============================================================
 // SF Image Crop — 主扩展（移植自 comfyui-pixaroma js/crop/index.js）。
-// Pixaroma 插件共享基础设施内联于下方（isGraphLoading / nodes2 / canvasZoom）。
+// 共享小工具（isGraphLoading / canvasZoom / URL）收敛于 sf_common.js。
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
@@ -21,122 +21,16 @@ import {
   clearNodePreview,
   activateNodePreview,
 } from "./sf_crop_preview.js";
-
-// ── 内联小工具（移植自 pixaroma js/shared/，去除插件专属依赖） ──────────────
-
-// 工作流加载守卫：wrap app.loadGraphData 一次，加载 + 300ms 尾窗内
-// isGraphLoading() 为 true。
-let _sfCropGraphLoading = false;
-if (app && app.loadGraphData && !app._sfCropGraphLoadWrapped) {
-  app._sfCropGraphLoadWrapped = true;
-  const _origLoadGraphData = app.loadGraphData.bind(app);
-  app.loadGraphData = function (...args) {
-    _sfCropGraphLoading = true;
-    let r;
-    try {
-      r = _origLoadGraphData(...args);
-    } finally {
-      Promise.resolve(r).finally(() => setTimeout(() => { _sfCropGraphLoading = false; }, 300));
-    }
-    return r;
-  };
-}
-function isGraphLoading() {
-  return _sfCropGraphLoading;
-}
-
-// Nodes 2.0 (Vue) 渲染器检测 + canvasOnly 自适应
-function isVueNodes() {
-  return !!window.LiteGraph?.vueNodesMode;
-}
-function applyAdaptiveCanvasOnly(widget) {
-  if (!widget || !widget.options) return widget;
-  try {
-    Object.defineProperty(widget.options, "canvasOnly", {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return !window.LiteGraph?.vueNodesMode;
-      },
-    });
-  } catch (e) {
-    widget.options.canvasOnly = !window.LiteGraph?.vueNodesMode;
-  }
-  return widget;
-}
-
-// 滚轮缩放透传（仅 Classic 渲染器）
-function installCanvasZoomPassthrough(root) {
-  if (!root || typeof root.addEventListener !== "function") return () => {};
-  const onWheel = (e) => {
-    if (isVueNodes()) return;
-    const canvasEl = app?.canvas?.canvas;
-    if (!canvasEl) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const { clientX, clientY, deltaX, deltaY, deltaMode, ctrlKey, metaKey, shiftKey } = e;
-    canvasEl.dispatchEvent(new WheelEvent("wheel", {
-      clientX, clientY, deltaX, deltaY, deltaMode,
-      ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true,
-    }));
-  };
-  root.addEventListener("wheel", onWheel, { passive: false });
-  return () => root.removeEventListener("wheel", onWheel);
-}
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function sfApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
-
-// ─── Upstream-image resolver ──────────────────────────────────────────────
-// Walks the graph from this node's "image" input to find a usable preview URL.
-// Mirrors the composer/placeholder.mjs::getUpstreamImageUrlForNode helper but
-// scoped to a single fixed input. Returns null when nothing is connected or
-// the source has no preview yet.
-function getUpstreamImageURL(node) {
-  // image 输入已接线时优先上游解析——缓存的 source URL 可能指向已消失的
-  // temp 文件（容器重启清空 temp），此时 404 会让节点预览空着
-  // （"连接了输入图像却没自动加载"）。未接线才用执行期缓存（磁盘 src）。
-  const inputs = node.inputs || [];
-  const input = inputs.find((inp) => inp.name === "image");
-  const wired = !!(input && input.link != null);
-  if (!wired && node._sfCropSourceURL) return node._sfCropSourceURL;
-
-  if (!input || input.link == null) return null;
-  const graph = node.graph;
-  if (!graph) return null;
-
-  // Vue Compat #3: graph.links can be a Map in newer ComfyUI versions.
-  let link = graph.links?.[input.link];
-  if (!link && typeof graph.links?.get === "function") link = graph.links.get(input.link);
-  if (!link) return null;
-  const srcNode = graph.getNodeById(link.origin_id);
-  if (!srcNode) return null;
-
-  // LoadImage: read filename from its "image" widget.
-  if (srcNode.comfyClass === "LoadImage" || srcNode.type === "LoadImage") {
-    const imgWidget = (srcNode.widgets || []).find((w) => w.name === "image");
-    if (imgWidget && imgWidget.value) {
-      return sfApiUrl(`/view?filename=${encodeURIComponent(imgWidget.value)}&type=input&t=${Date.now()}`);
-    }
-  }
-
-  // Any node with cached preview images post-execution.
-  if (srcNode.imgs && srcNode.imgs.length > 0) {
-    const img = srcNode.imgs[link.origin_slot] || srcNode.imgs[0];
-    if (typeof img === "string") return img;
-    if (img && img.src) return img.src;
-  }
-
-  // 上游解析失败（链接未建立 / 上游无预览）→ 回退执行期缓存
-  return node._sfCropSourceURL || null;
-}
+import {
+  sfApiUrl,
+  isGraphLoading,
+  isVueNodes,
+  applyAdaptiveCanvasOnly,
+  installCanvasZoomPassthrough,
+  installPasteHandler,
+  getUpstreamImageURL,
+  buildSourceURL,
+} from "./sf_common.js";
 
 // ─── Upstream snapshot for change detection ───────────────────────────────
 // Same idea as composer's polling — onDrawForeground doesn't fire in Vue,
@@ -172,21 +66,6 @@ function getUpstreamSnapshot(node) {
     if (s) return `imgs:${s}`;
   }
   return `link:${link.origin_id}/${link.origin_slot}`;
-}
-
-// Build a /view URL from a {filename, subfolder, type} record. Adds a fresh
-// cache-buster timestamp at runtime; persisted records (in node.properties)
-// store only the structural parts so workflow JSON stays clean.
-function buildSourceURL(part, withCacheBust) {
-  if (!part || !part.filename) return null;
-  // The cache-buster is part of the ROUTE handed to sfApiUrl, never appended to
-  // its RESULT: a hosted ComfyUI adds its auth token to the finished url, so
-  // concatenating afterwards writes our param on the far side of that token
-  // (see js/shared/api_url.mjs). Locally the two produce the identical string.
-  return sfApiUrl(`/view?filename=${encodeURIComponent(part.filename)}` +
-              `&subfolder=${encodeURIComponent(part.subfolder || "")}` +
-              `&type=${encodeURIComponent(part.type || "temp")}` +
-              (withCacheBust ? `&t=${Date.now()}` : ""));
 }
 
 // Give a duplicated node its own on-disk scratch space. The crop_json carries a
@@ -231,116 +110,9 @@ function dedupeCropProjectId(node) {
       delete node.properties.pixaromaCropSource;
       delete node.properties.pixaromaCropSourceURL;
     }
-    if (getUpstreamImageURL(node)) node._sfCropRefresh?.();
+    if (getUpstreamImageURL(node, node._sfCropSourceURL)) node._sfCropRefresh?.();
     else node._sfCropClearPreview?.();
   } catch (e) { console.warn("[SFImageCrop] dedupe project id failed:", e); }
-}
-
-// ─── Global paste handler (clipboard → selected Crop node) ────────────────
-// Mirrors the way native LoadImage accepts a clipboard paste: when the user
-// presses Ctrl+V with an image in the clipboard AND a SFImageCrop node is
-// selected AND no upstream wire is connected, the image is uploaded to
-// input/sfnodes_crop/ and used as the source. Skipped silently when an upstream
-// is wired (the workflow uses that tensor, pasting would be confusing).
-let _pasteHandlerInstalled = false;
-function installPasteHandler() {
-  if (_pasteHandlerInstalled) return;
-  _pasteHandlerInstalled = true;
-  // Capture phase + stopImmediatePropagation can't fully suppress ComfyUI's
-  // own paste handler (it registers earlier in the page lifecycle). So we
-  // also snapshot graph node ids before, then remove any LoadImage with a
-  // "pasted/" filename that ComfyUI auto-created from the same paste event.
-  window.addEventListener("paste", async (e) => {
-    // Don't steal paste from form fields (panel inputs, editor inputs, etc.)
-    const t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-
-    const node = findActiveCropNode();
-    if (!node) return;
-
-    const items = e.clipboardData?.items || [];
-    const imageItem = Array.from(items).find((it) => it.type?.startsWith("image/"));
-    if (!imageItem) return;
-
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    // If upstream wire is connected, disconnect it — pasting an image is an
-    // unambiguous "use this image now" override. Without this, Python would
-    // keep using the upstream tensor and the paste would have no effect on
-    // workflow output.
-    const imgInputIdx = (node.inputs || []).findIndex((i) => i.name === "image");
-    if (imgInputIdx >= 0 && node.inputs[imgInputIdx].link != null) {
-      try { node.disconnectInput(imgInputIdx); } catch {}
-    }
-
-    // Snapshot existing graph node IDs so we can remove any LoadImage that
-    // ComfyUI auto-creates from this same paste event.
-    const idsBefore = new Set((app.graph?._nodes || []).map((n) => n.id));
-
-    const blob = imageItem.getAsFile();
-    if (!blob) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      node._sfCropPaste(ev.target.result);
-    };
-    reader.readAsDataURL(blob);
-
-    // Schedule a sweep for the auto-created LoadImage node (if any).
-    // 50ms is enough for ComfyUI's createNode + widget setup to settle.
-    setTimeout(() => {
-      const after = app.graph?._nodes || [];
-      for (const n of after) {
-        if (idsBefore.has(n.id)) continue;
-        if (n.comfyClass !== "LoadImage" && n.type !== "LoadImage") continue;
-        const w = (n.widgets || []).find((x) => x.name === "image");
-        const v = w?.value;
-        if (typeof v === "string" && v.startsWith("pasted/")) {
-          try { app.graph.remove(n); } catch {}
-        }
-      }
-    }, 50);
-  }, true); // capture phase
-}
-
-// Find the "active" SFImageCrop node from any of the selection sources
-// ComfyUI might use across versions/frontends:
-//   1. app.canvas.selected_nodes  (object/array/map of selected nodes)
-//   2. app.canvas.current_node    (LiteGraph's last-clicked node)
-//   3. node_over                  (hovered node)
-//   4. Iterate all nodes and pick one with `.is_selected` (Vue may set this)
-// Returns the first one that's a Crop node with our paste hook attached.
-function findActiveCropNode() {
-  const c = app.canvas;
-  if (!c) return null;
-  const isCrop = (n) =>
-    n && n.comfyClass === "SFImageCrop" && typeof n._sfCropPaste === "function";
-
-  // 1. selected_nodes — try Object.values, Array, and Map .values()
-  const sel = c.selected_nodes;
-  if (sel) {
-    let iter = null;
-    if (Array.isArray(sel)) iter = sel;
-    else if (typeof sel.values === "function") iter = Array.from(sel.values());
-    else if (typeof sel === "object") iter = Object.values(sel);
-    if (iter) {
-      const hit = iter.find(isCrop);
-      if (hit) return hit;
-    }
-  }
-
-  // 2. current_node (LiteGraph internal)
-  if (isCrop(c.current_node)) return c.current_node;
-
-  // 3. node_over (hovered)
-  if (isCrop(c.node_over)) return c.node_over;
-
-  // 4. Fallback — scan all nodes for an is_selected flag
-  const nodes = app.graph?._nodes || [];
-  for (const n of nodes) {
-    if (isCrop(n) && (n.is_selected || n.flags?.is_selected)) return n;
-  }
-  return null;
 }
 
 app.registerExtension({
@@ -463,6 +235,24 @@ app.registerExtension({
     // （Maximum call stack size exceeded）。graphToPrompt 与 workflow 保存
     // 都经 getValue 闭包读取 cropJson，无需反向同步 DOM widget。
     node._sfCropJsonSync = (jsonStr) => {
+      // 编辑器 Load Image / 粘贴更新了 src_path 时同步预览缓存：否则节点预览
+      // 停留在旧源图（保存退出不运行也错，运行后靠 executed 事件兜底修复）。
+      // src_path 不变（如拖动裁切框）则跳过，零成本。
+      let prevSrc = "", newSrc = "";
+      try { prevSrc = JSON.parse(cropJson || "{}").src_path || ""; } catch {}
+      try { newSrc = JSON.parse(jsonStr || "{}").src_path || ""; } catch {}
+      if (newSrc && newSrc !== prevSrc) {
+        const part = {
+          filename: newSrc.split(/[\\/]/).pop(),
+          subfolder: "sfnodes_crop",
+          type: "input",
+        };
+        node._sfCropSourceURL = buildSourceURL(part, true);
+        if (!node.properties) node.properties = {};
+        node.properties.sfCropSource = part;
+        delete node.properties.pixaromaCropSource;
+        delete node.properties.pixaromaCropSourceURL;
+      }
       cropJson = jsonStr;
       sfJsonWidget.value = jsonStr;
     };
@@ -471,7 +261,7 @@ app.registerExtension({
     // Mini-preview rebuilder: fetch upstream image + apply saved crop client-side
     // so the node body shows the same result the Python node will return.
     const rebuildPreviewFromUpstream = () => {
-      const url = getUpstreamImageURL(node);
+      const url = getUpstreamImageURL(node, node._sfCropSourceURL);
       if (!url) return;
       // Seed lastSnap synchronously so the polling loop won't fire a
       // redundant rebuild while this one is in flight (would flash).
@@ -575,7 +365,7 @@ app.registerExtension({
 
       // Pass upstream URL so the editor opens with the live source image
       // when one is wired in.
-      const upstreamURL = getUpstreamImageURL(node);
+      const upstreamURL = getUpstreamImageURL(node, node._sfCropSourceURL);
       editor.open(cropJson, upstreamURL);
     });
 
@@ -630,7 +420,7 @@ app.registerExtension({
 
         if (willHaveUpstream) {
           queueMicrotask(() => {
-            if (getUpstreamImageURL(node)) {
+            if (getUpstreamImageURL(node, node._sfCropSourceURL)) {
               rebuildPreviewFromUpstream();
             } else {
               // Link slot was set but graph.links never resolved (rare).
@@ -658,7 +448,11 @@ app.registerExtension({
     // this node is selected. Uploads the pasted image to input/sfnodes_crop/
     // via the existing crop API routes, then updates cropJson + the cached
     // source URL so the mini-preview rebuilds immediately.
-    installPasteHandler();
+    installPasteHandler({
+      comfyClass: "SFImageCrop",
+      hook: "_sfCropPaste",
+      onPasteImage: (n, dataURL) => n._sfCropPaste(dataURL),
+    });
     node._sfCropPaste = async (dataURL) => {
       try {
         // Read dimensions from the dataURL.
@@ -771,7 +565,7 @@ app.registerExtension({
     // and DOM is shared across workflow tabs (architecture vs portrait).
     node._sfCropRefresh = () => {
       lastSnap = ""; // force next poll to detect "change"
-      if (getUpstreamImageURL(node)) {
+      if (getUpstreamImageURL(node, node._sfCropSourceURL)) {
         rebuildPreviewFromUpstream();
       } else {
         restoreNodePreview(parts, cropJson, node);
@@ -852,7 +646,7 @@ app.registerExtension({
       if (detail === null || detail?.node === null) {
         if (executionRunning) {
           executionRunning = false;
-          if (getUpstreamImageURL(node)) {
+          if (getUpstreamImageURL(node, node._sfCropSourceURL)) {
             setTimeout(() => rebuildPreviewFromUpstream(), 200);
           }
         }

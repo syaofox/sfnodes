@@ -13,8 +13,7 @@ import {
 } from "./sf_load_image_ui.js";
 import { pickAndUploadFile, pasteFromClipboard, uploadImageToInput, setSelectedImage, updateNativePreview, previewMatches, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
 import { buildModePanel, previewResize } from "./sf_load_image_resize.js";
-
-// ── 内联小工具（移植自 pixaroma js/shared/，去除插件专属依赖） ──────────────
+import { sfApiUrl, isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
 
 // 品牌主色（原版 var(--pix-acc)，本项目固定）
 const SF_LI_ACCENT = "#f66744";
@@ -35,46 +34,6 @@ function hideJsonWidget(widgets, widgetName) {
   return w;
 }
 
-// 工作流加载守卫：wrap app.loadGraphData 一次，加载 + 300ms 尾窗内
-// isGraphLoading() 为 true。加载路径上的序列化状态变更必须被此守卫门控。
-let _sfLiGraphLoading = false;
-if (app && app.loadGraphData && !app._sfLiGraphLoadWrapped) {
-  app._sfLiGraphLoadWrapped = true;
-  const _origLoadGraphData = app.loadGraphData.bind(app);
-  app.loadGraphData = function (...args) {
-    _sfLiGraphLoading = true;
-    let r;
-    try {
-      r = _origLoadGraphData(...args);
-    } finally {
-      Promise.resolve(r).finally(() => setTimeout(() => { _sfLiGraphLoading = false; }, 300));
-    }
-    return r;
-  };
-}
-function isGraphLoading() {
-  return _sfLiGraphLoading;
-}
-
-// Nodes 2.0 (Vue) 渲染器检测 + canvas 缩放兼容
-function isVueNodes() {
-  return !!window.LiteGraph?.vueNodesMode;
-}
-function applyAdaptiveCanvasOnly(widget) {
-  if (!widget || !widget.options) return widget;
-  try {
-    Object.defineProperty(widget.options, "canvasOnly", {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return !window.LiteGraph?.vueNodesMode;
-      },
-    });
-  } catch (e) {
-    widget.options.canvasOnly = !window.LiteGraph?.vueNodesMode;
-  }
-  return widget;
-}
 const CANVAS_BACKING_CAP = 6000;
 function canvasBackingScale(cssW, cssH) {
   const dpr = window.devicePixelRatio || 1;
@@ -136,65 +95,9 @@ function installResizeFloor(root, measureFn, onRelease) {
   };
 }
 
-// 滚轮缩放透传（仅 Classic 渲染器）：滚轮事件被 DOM widget 吞掉时转发到
-// canvas；光标在仍有滚动余量的可滚动区域上时允许其正常滚动。Nodes 2.0
-// 由前端自身转发，这里 no-op。
-function installCanvasZoomPassthrough(root) {
-  if (!root || typeof root.addEventListener !== "function") return () => {};
-  const onWheel = (e) => {
-    if (isVueNodes()) return;
-    let el = e.target;
-    const vertical = Math.abs(e.deltaY) >= Math.abs(e.deltaX);
-    let scrollable = false;
-    while (el && el !== root.parentElement) {
-      if (el.nodeType === 1) {
-        const cs = getComputedStyle(el);
-        if (vertical) {
-          const oy = cs.overflowY;
-          if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) {
-            const atTop = el.scrollTop <= 0;
-            const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-            if ((e.deltaY < 0 && !atTop) || (e.deltaY > 0 && !atBottom)) { scrollable = true; break; }
-          }
-        } else {
-          const ox = cs.overflowX;
-          if ((ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 1) {
-            const atLeft = el.scrollLeft <= 0;
-            const atRight = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-            if ((e.deltaX < 0 && !atLeft) || (e.deltaX > 0 && !atRight)) { scrollable = true; break; }
-          }
-        }
-      }
-      el = el.parentElement;
-    }
-    if (scrollable) return;
-    const canvasEl = app?.canvas?.canvas;
-    if (!canvasEl) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const { clientX, clientY, deltaX, deltaY, deltaMode, ctrlKey, metaKey, shiftKey } = e;
-    canvasEl.dispatchEvent(new WheelEvent("wheel", {
-      clientX, clientY, deltaX, deltaY, deltaMode,
-      ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true,
-    }));
-  };
-  root.addEventListener("wheel", onWheel, { passive: false });
-  return () => root.removeEventListener("wheel", onWheel);
-}
-
 // ── 节点逻辑 ─────────────────────────────────────────────────────────────────
 
 let _activeLoadImageNode = null;
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function sfLiApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
 
 function refreshDropdown(node) {
   const root = node._sfLiRoot;
@@ -557,7 +460,7 @@ function updateLoadPreview(node) {
       // places, so all three now share splitTypeAnnotation.
       const { name, type } = splitTypeAnnotation(fn);
       const { subfolder, filename } = splitFilenameSubfolder(name);
-      const src = sfLiApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}&t=${Date.now()}`);
+      const src = sfApiUrl(`/view?filename=${encodeURIComponent(filename)}&type=${encodeURIComponent(type)}&subfolder=${encodeURIComponent(subfolder)}&t=${Date.now()}`);
       let el = node._sfLiPreviewImgEl;
       if (!el) { el = new Image(); node._sfLiPreviewImgEl = el; }
       el.onload = () => { renderLoadPreviewCanvas(node); node.setDirtyCanvas?.(true, true); };

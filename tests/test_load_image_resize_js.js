@@ -126,7 +126,8 @@ function stageJs(names) {
     check("safeMathEval 除零 -> NaN", Number.isNaN(safeMathEval("1/0")));
 
     // ── 2. api 拆分函数 ──
-    stageJs(["sf_load_image_api.js"]);
+    const origLoadGraphData = globalThis.app.loadGraphData;
+    stageJs(["sf_common.js", "sf_load_image_api.js"]);
     const A = await import(path.join(tmpDir, "sf_load_image_api.mjs"));
     const { splitFilenameSubfolder, splitTypeAnnotation, previewMatches } = A;
     check("split 子文件夹", JSON.stringify(splitFilenameSubfolder("Studio1/cat.png")) ===
@@ -147,11 +148,11 @@ function stageJs(names) {
     check("previewMatches 无 imgs", !previewMatches({ imgs: [] }, "cat.png"));
 
     // ── 3. 主扩展冒烟 ──
-    stageJs(["sf_load_image.js", "sf_load_image_ui.js", "sf_load_image_api.js", "sf_load_image_resize.js"]);
+    stageJs(["sf_common.js", "sf_load_image.js", "sf_load_image_ui.js", "sf_load_image_api.js", "sf_load_image_resize.js"]);
     await import(path.join(tmpDir, "sf_load_image.mjs"));
     check("扩展已注册", !!app._ext && app._ext.name === "sfnodes.LoadImageResize");
     check("graphToPrompt 已包装", typeof app.graphToPrompt === "function");
-    check("loadGraphData 已包装", app._sfLiGraphLoadWrapped === true);
+    check("loadGraphData 已包装", globalThis.app.loadGraphData !== origLoadGraphData);
 
     const ext = app._ext;
     const proto = {};

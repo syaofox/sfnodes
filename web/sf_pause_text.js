@@ -22,6 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { isVueNodes, applyAdaptiveCanvasOnly } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import {
     getState, setGate, setText, setModelText, revertText, STATE_PROP,
@@ -34,28 +35,6 @@ import {
 const CLASS = "SFPauseText";
 const HIDDEN_INPUT = "PauseState";
 const WIDGET_TYPE = "sf_pause_text_ui";
-
-// ── 内联 shared 辅助 ────────────────────────────────────────────────────
-// Nodes 2.0（Vue）渲染器判定，由设置 Comfy.VueNodes.Enabled 驱动；实时读取，
-// 运行时切换渲染器也尊重
-function isVueNodes() {
-    return !!window.LiteGraph?.vueNodesMode;
-}
-// adaptive canvasOnly：legacy 下 true（不进 Parameters tab），Nodes 2.0 下 false
-// （否则 Vue 根本不渲染该 widget）。实时 getter，渲染时求值
-function applyAdaptiveCanvasOnly(widget) {
-    if (!widget || !widget.options) return widget;
-    try {
-        Object.defineProperty(widget.options, "canvasOnly", {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return !isVueNodes();
-            },
-        });
-    } catch { /* ignore */ }
-    return widget;
-}
 
 // ── 队列：带一次性提交模式跑一次 run ──
 // "continue" -> 剪掉上游，把编辑文本送下游；"pause" -> 剪掉下游（停在闸门），

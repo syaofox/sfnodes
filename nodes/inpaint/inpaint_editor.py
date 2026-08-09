@@ -15,11 +15,8 @@ Stitch: 把修复后的裁剪图按记录区域贴回原图，接缝无缝混合
 编辑器画的遮罩与粘贴/拖放的源图都存在这里，state_json 随 workflow 保存。
 """
 
-import base64
-import io
 import json
 import os
-import re
 import uuid
 
 import numpy as np
@@ -30,6 +27,9 @@ from aiohttp import web
 import folder_paths
 
 from ...sf_utils.common import AnyType
+from ...sf_utils.disk_state import safe_join
+from ...sf_utils.disk_state import sanitize_id as _sanitize_id
+from ...sf_utils.disk_state import decode_image as _decode_image
 from ...sf_utils.inpaint_helpers import (
     SF_CROP_INFO,
     DEFAULTS,
@@ -60,38 +60,12 @@ def _inpaint_dir() -> str:
 def _safe_join(rel: str) -> str:
     """把保存的相对路径解析为 input/ 目录下的绝对路径，越界或不存在返回 None。
 
-    词法层面先拒绝绝对路径 / 盘符 / UNC 值（UNC 路径仅解析就会打开 SMB 连接），
-    再 realpath + startswith 包含性检查。"""
-    if not rel or not isinstance(rel, str):
-        return None
-    if os.path.isabs(rel) or re.match(r"^[A-Za-z]:", rel) or rel.startswith(("\\\\", "//")):
-        return None
-    input_dir = os.path.realpath(folder_paths.get_input_directory())
-    full_path = os.path.realpath(os.path.join(input_dir, rel))
-    if not full_path.startswith(input_dir + os.sep):
-        return None
-    return full_path if os.path.exists(full_path) else None
+    薄别名（sf_utils.disk_state 共享实现）：解析根是 input/ 本身，路径自带
+    sfnodes_inpaint/ 前缀天然兼容，无需剥前缀。"""
+    return safe_join(folder_paths.get_input_directory(), rel)
 
 
-def _sanitize_id(raw, fallback: str) -> str:
-    """仅保留单词字符 / 连字符，构造的 project_id 无法夹带路径分隔符。"""
-    s = str(raw or "")
-    s = re.sub(r"[^A-Za-z0-9_-]", "", s)
-    return s[:64] or fallback
-
-
-def _decode_image(b64: str):
-    """把 dataURL（或裸 base64）解码为 PIL Image，失败返回 None。"""
-    if not isinstance(b64, str) or not b64:
-        return None
-    try:
-        payload = b64.split(",", 1)[-1] if "," in b64 else b64
-        raw = base64.b64decode(payload)
-        img = Image.open(io.BytesIO(raw))
-        img.load()
-        return img
-    except Exception:
-        return None
+# _sanitize_id / _decode_image 为 sf_utils.disk_state 共享实现（import 别名）。
 
 
 # ── 节点类 ────────────────────────────────────────────────────────────────
@@ -381,6 +355,16 @@ class SFInpaintCrop:
                     {"filename": src_fname, "subfolder": "", "type": "temp"}]}
         else:
             image = self._load_disk_image(meta.get("src_path", ""))
+            # 磁盘源（粘贴 / 拖放 / 编辑器 Load Image）也向执行期事件暴露源帧，
+            # 否则前端 executed 事件收不到 sf_inpaint_source，节点预览缓存停在
+            # 旧图（运行结果正确但预览不刷新）。帧指向 input/sfnodes_inpaint/。
+            if image is not None:
+                src_path = meta.get("src_path", "")
+                if src_path:
+                    ui_payload = {"sf_inpaint_source": [
+                        {"filename": os.path.basename(src_path.replace("\\", "/")),
+                         "subfolder": _INPAINT_SUBDIR, "type": "input"}
+                    ]}
 
         if not isinstance(image, torch.Tensor):
             return self._empty()

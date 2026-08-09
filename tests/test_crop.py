@@ -30,6 +30,7 @@ torch.float32 = "float32"
 torch.Tensor = type("Tensor", (), {})
 torch.zeros = lambda *a, **k: "zeros"
 torch.ones = lambda *a, **k: "ones"
+torch.from_numpy = lambda a: a  # numpy 数组 [None,] 合法，mock 保持轻量
 torch.nn = types.ModuleType("torch.nn")
 torch.nn.functional = types.ModuleType("torch.nn.functional")
 torch.nn.functional.interpolate = lambda *a, **k: None
@@ -141,6 +142,25 @@ check("widget str 套层 JSON", fw('{"crop_json": "{\\"crop_w\\": 100}"}')["crop
 check("widget 坏 JSON", fw("{oops") == {})
 check("widget None", fw(None) == {})
 check("widget 非 dict/str", fw(123) == {})
+
+# ── 磁盘源执行输出 sf_crop_source（回归：编辑器 Load Image 后节点预览
+# 停留旧图——后端不输出源帧，前端 executed 事件无法刷新缓存）──
+import json as _json
+img_buf = io.BytesIO()
+Image.new("RGB", (8, 8), (0, 255, 0)).save(img_buf, "PNG")
+with open(os.path.join(_crop_dir, "crop_src_x.png"), "wb") as fh:
+    fh.write(img_buf.getvalue())
+node2 = mod.SFImageCrop()
+disk_meta = {"src_path": "sfnodes_crop/crop_src_x.png",
+             "crop_x": 0, "crop_y": 0, "crop_w": 4, "crop_h": 4,
+             "doc_w": 8, "doc_h": 8}
+res = node2.load_crop(SFCropJson=_json.dumps(disk_meta))
+frame = res.get("ui", {}).get("sf_crop_source", [{}])[0] if isinstance(res, dict) else {}
+check("磁盘源执行输出 sf_crop_source", isinstance(res, dict) and bool(res.get("ui", {}).get("sf_crop_source")))
+check("源帧指向 sfnodes_crop/input", frame.get("filename") == "crop_src_x.png" and
+      frame.get("subfolder") == "sfnodes_crop" and frame.get("type") == "input")
+res_nosrc = node2.load_crop(SFCropJson=_json.dumps({"crop_w": 4}))
+check("无 src_path 不输出源帧", not (isinstance(res_nosrc, dict) and res_nosrc.get("ui")))
 
 # ── 注册键一致性（AST）──
 import ast

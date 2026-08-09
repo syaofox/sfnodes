@@ -11,6 +11,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { sfApiUrl, isGraphLoading } from "./sf_common.js";
 
 const STATE_PROP = "promptReaderState";
 
@@ -19,38 +20,8 @@ const STATE_PROP = "promptReaderState";
 // on deselect or removal.
 let _activePromptReaderNode = null;
 
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-// （项目惯例，同 sf_load_image_api.js）
-function sfApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
-
-// 加载路径守卫：包装 app.loadGraphData + 300ms 尾窗。configure 的连接恢复
-// 发生在 onConfigure 之后，无此守卫打开工作流会误触发手动接管逻辑。
-// （与 sf_load_image.js 的 isGraphLoading 同款，各自独立包装不冲突。）
-let _sfPrGraphLoading = false;
-function installGraphLoadingGuard() {
-  const orig = app.loadGraphData?.bind?.(app) || app.loadGraphData;
-  if (typeof orig !== "function") return;
-  app.loadGraphData = function (...args) {
-    _sfPrGraphLoading = true;
-    let r;
-    try {
-      r = orig(...args);
-    } finally {
-      Promise.resolve(r).finally(() => setTimeout(() => { _sfPrGraphLoading = false; }, 300));
-    }
-    return r;
-  };
-}
-function isGraphLoading() {
-  return _sfPrGraphLoading;
-}
+// 加载路径守卫（wrap app.loadGraphData + 300ms 尾窗）由 sf_common.js 顶层
+// 统一安装（幂等单例），isGraphLoading 从公共模块 import。
 
 // ── State helpers ──────────────────────────────────────────────────────────
 
@@ -1271,5 +1242,4 @@ window.addEventListener("keydown", (e) => {
   pickByOffset(_activePromptReaderNode, e.key === "PageUp" ? -1 : +1);
 }, true);
 
-// 加载守卫安装（防 loadGraphData 已存在包装；各自扩展独立包装不冲突）
-installGraphLoadingGuard();
+// 加载守卫由 sf_common.js 顶层自动安装（幂等单例）。

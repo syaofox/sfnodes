@@ -124,7 +124,8 @@ function stageJs(names) {
     check("defaultAlignForMeta 已有裁剪保持 free", defaultAlignForMeta({ crop_w: 100 }) === "free");
 
     // ── 2. core 常量 ──
-    stageJs(["sf_crop_undo_guard.js", "sf_crop_alignments.js", "sf_crop_framework.js", "sf_crop_core.js"]);
+    const origLoadGraphData = globalThis.app.loadGraphData;
+    stageJs(["sf_common.js", "sf_crop_undo_guard.js", "sf_crop_alignments.js", "sf_crop_framework.js", "sf_crop_core.js"]);
     const C = await import(path.join(tmpDir, "sf_crop_core.mjs"));
     check("RATIOS 10 项", C.RATIOS.length === 10);
     check("SNAPS 5 项", C.SNAPS.length === 5);
@@ -137,13 +138,13 @@ function stageJs(names) {
     })());
 
     // ── 3. 主扩展冒烟 ──
-    const ALL = ["sf_crop.js", "sf_crop_framework.js", "sf_crop_preview.js", "sf_crop_undo_guard.js",
+    const ALL = ["sf_common.js", "sf_crop.js", "sf_crop_framework.js", "sf_crop_preview.js", "sf_crop_undo_guard.js",
         "sf_crop_alignments.js", "sf_crop_core.js", "sf_crop_panel.js", "sf_crop_interaction.js",
         "sf_crop_render.js"];
     stageJs(ALL);
     await import(path.join(tmpDir, "sf_crop.mjs"));
     check("扩展已注册", !!app._ext && app._ext.name === "sfnodes.ImageCrop");
-    check("loadGraphData 已包装", app._sfCropGraphLoadWrapped === true);
+    check("loadGraphData 已包装", globalThis.app.loadGraphData !== origLoadGraphData);
 
     const ext = app._ext;
     const proto = {};

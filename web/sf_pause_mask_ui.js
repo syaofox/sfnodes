@@ -8,8 +8,8 @@
 //
 // ==========================================================================
 
-import { api } from "/scripts/api.js";
 import { getState } from "./sf_pause_mask_lib.js";
+import { sfApiUrl } from "./sf_common.js";
 
 const ACCENT = "#f66744";
 
@@ -18,14 +18,6 @@ const PREVIEW_MIN_H = 150;  // 预览区最小高度
 const DIMS_H = 16;          // 预览下的尺寸行
 export const NODE_MIN_W = 300;
 export const NODE_MIN_H = HEADER_H + PREVIEW_MIN_H + DIMS_H;
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function sfApiUrl(route) {
-    try {
-        if (typeof api?.apiURL === "function") return api.apiURL(route);
-    } catch { /* 降级 */ }
-    return route;
-}
 
 function injectCSS() {
     if (document.getElementById("sf-pm-css")) return;

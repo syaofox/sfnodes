@@ -12,6 +12,7 @@
 // 纯数学镜像在 sf_outpaint_core.js（可 .mjs 直测），本文件只做 UI。
 
 import { app } from "/scripts/app.js";
+import { isGraphLoading, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { injectResizePanelCSS, makeNumericInput } from "./sf_load_image_resize.js";
 import {
@@ -36,67 +37,10 @@ const PREVIEW_MIN = 120;
 const FLOOR_MIN = 60;
 const FLOOR_CAP = 460;
 
-// ── 内联小工具（移植自 pixaroma js/shared/，去除插件专属依赖，同 sf_crop.js）─
+// ── 共享小工具（isGraphLoading / canvasZoom / URL 等）收敛于 sf_common.js ─
 
-// 工作流加载守卫：wrap app.loadGraphData 一次，加载 + 300ms 尾窗内
-// isGraphLoading() 为 true。
-let _sfOpGraphLoading = false;
-if (app && app.loadGraphData && !app._sfOpGraphLoadWrapped) {
-  app._sfOpGraphLoadWrapped = true;
-  const _origLoadGraphData = app.loadGraphData.bind(app);
-  app.loadGraphData = function (...args) {
-    _sfOpGraphLoading = true;
-    let r;
-    try {
-      r = _origLoadGraphData(...args);
-    } finally {
-      Promise.resolve(r).finally(() => setTimeout(() => { _sfOpGraphLoading = false; }, 300));
-    }
-    return r;
-  };
-}
-function isGraphLoading() {
-  return _sfOpGraphLoading;
-}
-
-// Nodes 2.0 (Vue) 渲染器检测 + canvasOnly 自适应
-function isVueNodes() {
-  return !!window.LiteGraph?.vueNodesMode;
-}
-function applyAdaptiveCanvasOnly(widget) {
-  if (!widget || !widget.options) return widget;
-  try {
-    Object.defineProperty(widget.options, "canvasOnly", {
-      configurable: true,
-      enumerable: true,
-      get() {
-        return !window.LiteGraph?.vueNodesMode;
-      },
-    });
-  } catch (e) {
-    widget.options.canvasOnly = !window.LiteGraph?.vueNodesMode;
-  }
-  return widget;
-}
-
-// 滚轮缩放透传（仅 Classic 渲染器）
-function installCanvasZoomPassthrough(root) {
-  if (!root || typeof root.addEventListener !== "function") return () => {};
-  const onWheel = (e) => {
-    if (isVueNodes()) return;
-    const canvasEl = app?.canvas?.canvas;
-    if (!canvasEl) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const { clientX, clientY, deltaX, deltaY, deltaMode, ctrlKey, metaKey, shiftKey } = e;
-    canvasEl.dispatchEvent(new WheelEvent("wheel", {
-      clientX, clientY, deltaX, deltaY, deltaMode,
-      ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true,
-    }));
-  };
-  root.addEventListener("wheel", onWheel, { passive: false });
-  return () => root.removeEventListener("wheel", onWheel);
-}
+// 工作流加载守卫（wrap app.loadGraphData + 300ms 尾窗）由 sf_common.js
+// 顶层统一安装（幂等单例），此处不再重复包装。
 
 // 画布 backing store 缩放：dpr * 图缩放（Vue 节点体被 CSS transform 缩放，
 // 只按布局像素画会在大图缩放时发糊），长边封顶防深缩放分配巨型画布。

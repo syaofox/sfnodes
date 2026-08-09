@@ -4,12 +4,7 @@
 // ╚═══════════════════════════════════════════════════════════════╝
 
 import { createDummyWidget } from "./sf_crop_framework.js";
-import { api } from "/scripts/api.js";
-function sfApiUrl(route) {
-  try { if (typeof api?.apiURL === "function") return api.apiURL(route); } catch {}
-  return route;
-}
-
+import { sfApiUrl } from "./sf_common.js";
 /**
  * Creates the DOM elements for a node preview area.
  * @returns {{ container, previewBox, preview, dummy, infoLabel }}

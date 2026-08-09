@@ -3,11 +3,7 @@
 // ============================================================
 import { CropEditor, BRAND, RATIOS, SNAPS, CropAPI } from "./sf_crop_core.js";
 import { api } from "/scripts/api.js";
-function sfApiUrl(route) {
-  try { if (typeof api?.apiURL === "function") return api.apiURL(route); } catch {}
-  return route;
-}
-
+import { sfApiUrl } from "./sf_common.js";
 const proto = CropEditor.prototype;
 
 // --- Load Image ---

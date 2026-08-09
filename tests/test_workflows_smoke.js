@@ -157,7 +157,7 @@ globalThis.window.sfnodesSetSetting = () => {};
 
 // ── 加载模块 ──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_wf_"));
-for (const n of ["sf_workflows_lib.js", "sf_workflows_ui.js", "sf_workflows.js"]) {
+for (const n of ["sf_common.js", "sf_workflows_lib.js", "sf_workflows_ui.js", "sf_workflows.js"]) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")

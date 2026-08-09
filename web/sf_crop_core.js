@@ -15,16 +15,7 @@ import {
 import { ALIGNMENTS, computeAlignedXY, defaultAlignForMeta } from "./sf_crop_alignments.js";
 import { installGraphUndoGuard } from "./sf_crop_undo_guard.js";
 import { api } from "/scripts/api.js";
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-function sfApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
+import { sfApiUrl } from "./sf_common.js";
 
 export const RATIOS = [
   { label: "Free", w: 0, h: 0 },
@@ -346,28 +337,10 @@ export class CropEditor {
       showClear: false,
       addImageLabel: "Load Image",
       onReset: () => {
-        this.img = null;
-        this.imgW = 0;
-        this.imgH = 0;
-        this.cropX = 0;
-        this.cropY = 0;
-        this.cropW = 0;
-        this.cropH = 0;
-        this.ratioIdx = 0;
-        this.snapIdx = 0;
-        this._canvasSettings.setRatio(0);
-        this._canvasSettings.setSize(1024, 1024);
-        this._snapGrid.setActive(0);
-        if (this.el.canvas) {
-          this.el.ctx.clearRect(
-            0,
-            0,
-            this.el.canvas.width,
-            this.el.canvas.height,
-          );
-        }
-        this._updateInfo();
-        this._setStatus("Reset to default");
+        // Reset to Default：重置裁切参数（回到全图裁切），保留源图。
+        // 清空图片是 Clear 的语义（工具栏已隐藏 Clear 按钮）；修复前
+        // 这里把 img 置 null，Reset 会误清掉已加载的图片。
+        this._resetCrop();
       },
     });
     sidebar.appendChild(this._canvasToolbar.el);

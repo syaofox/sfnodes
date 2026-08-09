@@ -19,6 +19,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { applyAdaptiveCanvasOnly } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { getState, setGate, STATE_PROP } from "./sf_pause_mask_lib.js";
 import { applyGateMode } from "./sf_pause_text_lib.js";
@@ -29,24 +30,6 @@ import {
 const CLASS = "SFPauseMask";
 const HIDDEN_INPUT = "PauseState";
 const WIDGET_TYPE = "sf_pause_mask_ui";
-
-// ── 内联 shared 辅助 ────────────────────────────────────────────────────
-function isVueNodes() {
-    return !!window.LiteGraph?.vueNodesMode;
-}
-function applyAdaptiveCanvasOnly(widget) {
-    if (!widget || !widget.options) return widget;
-    try {
-        Object.defineProperty(widget.options, "canvasOnly", {
-            configurable: true,
-            enumerable: true,
-            get() {
-                return !isVueNodes();
-            },
-        });
-    } catch { /* ignore */ }
-    return widget;
-}
 
 // ── 队列：带一次性提交模式跑一次 run ──
 async function queueWithMode(node, mode) {

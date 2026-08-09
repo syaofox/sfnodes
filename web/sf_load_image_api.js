@@ -2,17 +2,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-
-// 绝对安全的 URL：api.apiURL 处理托管部署基址，失败降级原样返回
-// （项目惯例，同 sf_pause_image_ui.js）
-function sfApiUrl(route) {
-  try {
-    if (typeof api?.apiURL === "function") return api.apiURL(route);
-  } catch {
-    /* 降级 */
-  }
-  return route;
-}
+import { sfApiUrl } from "./sf_common.js";
 
 // 通知 ComfyUI 图已变更（DOM 控制 click 提交晚于核心 mouseup 快照，若不
 // 显式 capture，工作流不会被标记"已修改"，重新打开图片会回退）。
