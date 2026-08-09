@@ -885,7 +885,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 - 查询成功 → 服务端把缩略图**下载到本地**（`user/sfnodes/lora_previews/<sha1(键)>.jpg`，与手动自定义预览同目录同名规则；https-only + 4MB cap + magic bytes 校验；失败不致命，文本照常返回）。`_download_thumb` 流式 iter_chunked 同 civitai body 模式。
 - **已有用户自定义预览 → 查询不覆盖**（返回 thumb_skipped），found 后面板风确认框询问 → 确认后走独立端点 `POST /lora/civitai_thumb_save`（读侧车 `sidecar_thumbnail` 拿同一张图重下载覆盖，**无需重新查询**）。
-- **面板风确认框必须豁免宿主面板的 document 捕获监听**：确认框挂 `document.body`、不在面板 DOM 内——信息面板的 `onDown`（document capture）会把点击判为"面板外"关掉整个面板（用户报"点 Replace 把信息框一起关了"）。onDown/onKey/onPaste 三监听都要 `closest('.sf-ls-confirm-mask')` 豁免。
+- **面板风确认框必须豁免宿主面板的 document 捕获监听**：确认框挂 `document.body`、不在面板 DOM 内——不豁免则其事件会穿透到面板监听（Esc 连关面板、Ctrl+V 误设图）。onKey/onPaste 都要 `closest('.sf-ls-confirm-mask')` 豁免。**信息面板只经 ✕ 关闭**（画布点击不关闭，用户边看信息边操作工作流；面板随节点跟随移动）——曾有过 onDown（外部点击关闭），按用户需求移除。
 - **文件移动后封面自动恢复**：预览图按路径 hash 命名，移动后 hash 失配本地找不到；`/lora_info` 检测"本地无预览 && 侧车有缩略图" → `restorable_thumb` → 前端打开面板时静默 `saveCivitaiThumb` 重下载到新 hash 名（一次会话一次，失败静默下次再试）。
 
 ### 3. 用户数据键失配与两级孤儿匹配（核心难点）

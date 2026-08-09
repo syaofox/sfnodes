@@ -946,7 +946,9 @@ export async function openInfoPanel(node, id, refresh) {
         panel.appendChild(top);
 
         // 中间滚动容器：头部与 footer 固定，内容随面板高度滚动（用户可
-        // 拖拽右下角手柄调整面板大小）。
+        // 拖拽右下角手柄调整面板大小）。所有中间区块（消息/状态/迁移条、
+        // 触发词、Description）都必须进 bodyWrap——漏掉一个会在面板拉矮时
+        // 被 overflow:hidden 裁剪。
         const bodyWrap = el("div", "sf-ls-info-body");
 
         // ── 图片的问题（如果有）────────────────────────────────────────────
@@ -1051,7 +1053,7 @@ export async function openInfoPanel(node, id, refresh) {
         addRow.append(inp, addBtn);
         sec.appendChild(addRow);
 
-        panel.appendChild(sec);
+        bodyWrap.appendChild(sec);
 
         // ── Description（Civitai 说明 + 自定义覆盖）───────────────────────
         const dsec = el("div", "sf-ls-desc");
@@ -1296,14 +1298,10 @@ export async function openInfoPanel(node, id, refresh) {
     renderBody();
     place(panel, node);
 
-    // 三个 document 监听都豁免确认框（.sf-ls-confirm-mask）：它挂在 body 上、
-    // 不在面板内，不豁免的话点击 Replace 会被 onDown 判为"面板外点击"把
-    // 信息面板一起关掉（用户报告的 bug）；Esc 同理；粘贴同理（确认框开着
-    // 时 Ctrl+V 不应悄悄设图）。
-    const onDown = (e) => {
-        if (e.target.closest?.(".sf-ls-confirm-mask")) return;
-        if (!panel.contains(e.target) && !e.target.closest?.(".sf-ls-dd")) closeInfoPanel();
-    };
+    // 面板只通过右上角 ✕ 关闭：画布/工作流上的点击不再关闭它（用户可
+    // 边看信息边操作画布，面板随节点跟随移动）。Esc 是主动关闭意图，保留；
+    // onPaste 照常（Ctrl+V 在画布上是粘贴图片节点，面板开着时改为设预览图）。
+    // 确认框（.sf-ls-confirm-mask）挂在 body 上，onKey/onPaste 需豁免。
     const onKey = (e) => {
         if (e.target.closest?.(".sf-ls-confirm-mask")) return;
         if (e.key === "Escape") { e.stopPropagation(); closeInfoPanel(); }
@@ -1333,12 +1331,10 @@ export async function openInfoPanel(node, id, refresh) {
     };
     setTimeout(() => {
         if (_panel !== panel) return; // 同一 tick 被关/被替换 - 不挂孤儿监听器
-        document.addEventListener("pointerdown", onDown, true);
         document.addEventListener("keydown", onKey, true);
         document.addEventListener("paste", onPaste, true);
     }, 0);
     _cleanup = () => {
-        document.removeEventListener("pointerdown", onDown, true);
         document.removeEventListener("keydown", onKey, true);
         document.removeEventListener("paste", onPaste, true);
     };
