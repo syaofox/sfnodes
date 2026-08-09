@@ -21,7 +21,7 @@ import {
     readState, loadDefaults, promptState,
 } from "./sf_lora_stack_core.js";
 import { injectCSS, renderNode, contentHeight, repaintAll } from "./sf_lora_stack_render.js";
-import { attachInteractions } from "./sf_lora_stack_interaction.js";
+import { attachInteractions, loadPresetInto, watchPresetUpstream } from "./sf_lora_stack_interaction.js";
 import { openLoraPanel, closeLoraPanelFor } from "./sf_lora_stack_settings.js";
 import { closeInfoPanelFor } from "./sf_lora_stack_info.js";
 import { closeLoraDropdown } from "./sf_lora_stack_dropdown.js";
@@ -30,8 +30,8 @@ import { closeRowMenu } from "./sf_lora_stack_interaction.js";
 const CLASS = "SFLoraStack";
 
 const MIN_W = 300;
-const CHROME = 66;      // legacy 回退：标题 + 2 输入 + 3 输出槽行
-const VUE_CHROME = 96;  // Nodes 2.0 回退
+const CHROME = 86;      // legacy 回退：标题 + 3 输入 + 3 输出槽行
+const VUE_CHROME = 116; // Nodes 2.0 回退（3 输入槽）
 
 // Python hidden 输入（LoraLoaderState）。多数环境不建 widget，此函数防御。
 // Nodes 2.0 下 hidden + computeSize 单独不足以抑制 Vue 节点体里的 STRING
@@ -114,6 +114,9 @@ function setupNode(node) {
     node.size[1] = fitNodeH(node);
 
     attachInteractions(node, widget.element || root, makeRefresh(node));
+    // 主扩展生命周期（onConnectionsChange / onAfterGraphConfigured）需要
+    // refresh——原型方法里没有闭包可拿，存在节点上。
+    node._sfLsRefresh = makeRefresh(node);
 
     // 首次渲染推迟到 configure() 之后，让恢复的工作流渲染已存行而非默认
     // （Vue Compat #8）。fitToContent 在加载路径上让位。
@@ -253,6 +256,32 @@ app.registerExtension({
             closeLoraDropdown(); // 瞬态——删除节点的画布点击也会自动关
             closeRowMenu();
             return _origRemoved?.apply(this, arguments);
+        };
+
+        // ── preset 输入（SF_LORA_PRESET）：连接即加载配置、刷新列表 ──
+        // 连接是用户交互（非加载路径）——直接加载（writeState 刷新 UI）。
+        // 加载路径恢复连接（configure 直赋 links 不触发 onConnectionsChange，
+        // 见 Vue Compat #18）由 onAfterGraphConfigured 补 watch，刻意不写
+        // 状态：预设行已随工作流序列化，重写会把干净文件标成 modified。
+        const _origConn = nodeType.prototype.onConnectionsChange;
+        nodeType.prototype.onConnectionsChange = function (...args) {
+            const r = _origConn ? _origConn.apply(this, args) : undefined;
+            if (this.comfyClass !== CLASS) return r;
+            const [slot_type, , is_connected, , input] = args;
+            if (slot_type !== LiteGraph.INPUT || input?.name !== "preset") return r;
+            const refresh = this._sfLsRefresh;
+            watchPresetUpstream(this, refresh);
+            if (is_connected) loadPresetInto(this, refresh);
+            return r;
+        };
+
+        const _origGraphCfg = nodeType.prototype.onAfterGraphConfigured;
+        nodeType.prototype.onAfterGraphConfigured = function (...args) {
+            const r = _origGraphCfg ? _origGraphCfg.apply(this, args) : undefined;
+            // 连接恢复发生在 onConfigure 之后（Vue Compat #18）——这里看
+            // 到的连接是最终的。只 watch（上游 combo 变化仍跟随），不加载。
+            if (this.comfyClass === CLASS) watchPresetUpstream(this, this._sfLsRefresh);
+            return r;
         };
     },
 

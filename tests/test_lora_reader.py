@@ -496,15 +496,41 @@ check("DESCRIPTION 存在", isinstance(node.DESCRIPTION, str) and len(node.DESCR
 it = node.INPUT_TYPES()
 check("INPUT_TYPES model", it["required"]["model"][0] == "MODEL")
 check("INPUT_TYPES clip 可选", it["optional"]["clip"][0] == "CLIP")
+check("INPUT_TYPES preset 可选", it["optional"]["preset"][0] == "SF_LORA_PRESET")
 check("INPUT_TYPES hidden LoraLoaderState", it["hidden"]["LoraLoaderState"][1]["default"] == "{}")
 check("RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "CLIP", "STRING"))
 check("RETURN_NAMES", node.RETURN_NAMES == ("MODEL", "CLIP", "triggers"))
 check("FUNCTION = apply", node.FUNCTION == "apply")
 
+# ── preset_override（Power 预设形状 -> 行形状，预设优先）──
+po = utils.preset_override
+st_po = {"loras": [
+    {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1, "triggers": ["keep"]},
+    {"name": "b.safetensors", "on": True, "sm": 0.5, "sc": 0.5, "triggers": ["x"]},
+], "sep": "|", "cacheMode": "all"}
+preset_po = {"normalize": False, "loras": [
+    {"lora": "a.safetensors", "on": True, "strength": 0.9, "strengthTwo": 0.7},
+    {"lora": "c.safetensors", "on": False, "strength": 1.5},
+    {"lora": "", "on": True, "strength": 1},   # 空名丢弃
+    "not a dict",                              # 非 dict 丢弃
+]}
+out_po = po(st_po, preset_po)
+check("preset_override 行覆盖", len(out_po["loras"]) == 2)
+check("preset_override 名称/强度", out_po["loras"][0]["name"] == "a.safetensors"
+      and out_po["loras"][0]["sm"] == 0.9 and out_po["loras"][0]["sc"] == 0.7)
+check("preset_override strengthTwo 缺省 = sm", out_po["loras"][1]["sm"] == 1.5 and out_po["loras"][1]["sc"] == 1.5)
+check("preset_override on", out_po["loras"][1]["on"] is False)
+check("preset_override 同名行触发词继承", out_po["loras"][0]["triggers"] == ["keep"])
+check("preset_override 新行触发词空", out_po["loras"][1]["triggers"] == [])
+check("preset_override 其余状态不变", out_po["sep"] == "|" and out_po["cacheMode"] == "all")
+check("preset_override 非 dict 原样", po(st_po, None) == st_po and po(st_po, "x") == st_po
+      and po(st_po, {"loras": "x"}) == st_po)
+check("preset_override 强度钳制", po(st_po, {"loras": [{"lora": "z.safetensors", "strength": 999}]})["loras"][0]["sm"] == 100.0)
+
 # ── apply 全链路 ──
-def run_apply(state_str, model=0, clip=0):
+def run_apply(state_str, model=0, clip=0, preset=None):
     load_calls.clear(); apply_calls.clear()
-    return node.apply(model, clip, state_str)
+    return node.apply(model, clip, preset=preset, LoraLoaderState=state_str)
 
 # 全 off -> 不加载
 res = run_apply(json.dumps({"loras": [{"name": "test.safetensors", "on": False, "sm": 1.0, "sc": 1.0}]}))
@@ -530,6 +556,14 @@ check("apply 无 clip sc=0", apply_calls == [(0.5, 0.0)])
 res = run_apply(json.dumps({"sep": "|", "loras": [
     {"name": "test.safetensors", "on": True, "sm": 1, "sc": 1, "triggers": ["a", "b"]}]}))
 check("apply 分隔符", res[2] == "a|b")
+
+# preset 分支：preset 优先（强度覆盖行状态；触发词从行状态同名行继承）
+res = run_apply(json.dumps({"loras": [{"name": "test.safetensors", "on": True, "sm": 0.1, "sc": 0.1, "triggers": ["alpha"]}]}),
+                preset={"loras": [{"lora": "test.safetensors", "on": True, "strength": 0.5, "strengthTwo": 0.5}]})
+check("apply preset 优先强度", apply_calls == [(0.5, 0.5)])
+check("apply preset 触发词继承", res[2] == "alpha")
+check("apply preset 非 dict 忽略", run_apply(json.dumps({
+    "loras": [{"name": "test.safetensors", "on": True, "sm": 0.5, "sc": 0.5}]}), preset=None)[0] == 1)
 
 # cacheMode=all 保留已用路径
 run_apply(json.dumps({"cacheMode": "all", "loras": [{"name": "test.safetensors", "on": True, "sm": 1, "sc": 1}]}))

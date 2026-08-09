@@ -294,6 +294,48 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     await tick(); await tick();
     check("DELETE 后列表移除", !findByText(menu3, "my-stack") && !serverPresets["my-stack"]);
 
+    // ── preset 输入连接（SF_LORA_PRESET）：自动加载预设到行 ──
+    const upstream = {
+        id: 99, comfyClass: "SFPowerLoraPreset", type: "SFPowerLoraPreset",
+        widgets: [{ name: "preset", value: "power-style", callback: null }],
+    };
+    const stack2 = {
+        id: 3, comfyClass: "SFLoraStack", type: "SFLoraStack",
+        properties: {
+            loraStackState: JSON.stringify({
+                version: 1, sep: ", ", linkStrength: false,
+                loras: [{ id: "old", name: "old.safetensors", on: true, sm: 1, sc: 1, triggers: [], custom: [] }],
+            }),
+        },
+        inputs: [{ name: "model", link: null }, { name: "clip", link: null }, { name: "preset", link: 7 }],
+        graph: {
+            links: { 7: { origin_id: 99 } },
+            getNodeById(id) { return id === 99 ? upstream : null; },
+        },
+        widgets: [], size: [336, 0],
+        setDirtyCanvas() {}, computeSize() { return [336, 100]; }, setSize() {},
+    };
+    const refresh2 = [];
+    const loaded2 = await I.loadPresetInto(stack2, (structural) => refresh2.push(!!structural));
+    const rows2 = JSON.parse(stack2.properties.loraStackState).loras;
+    check("loadPresetInto 加载", loaded2 === true && rows2.length === 2);
+    check("loadPresetInto 行内容", rows2[0].name === "dirA/x.safetensors"
+        && rows2[0].sm === 0.9 && rows2[0].sc === 0.7 && rows2[1].on === false);
+    check("loadPresetInto refresh(true)", refresh2[refresh2.length - 1] === true);
+    check("loadPresetInto 未连接返回 false", (await I.loadPresetInto({ inputs: [] }, null)) === false);
+
+    // 上游切换预设名 -> callback 包装 -> 自动重载
+    const refresh3 = [];
+    I.watchPresetUpstream(stack2, (structural) => refresh3.push(!!structural));
+    check("watch 包装一次（幂等）", upstream.widgets[0]._sfLsPresetWatched === true);
+    serverPresets["two"] = { loras: [{ lora: "d.safetensors", on: true, strength: 0.4, strengthTwo: 0.3 }] };
+    upstream.widgets[0].value = "two";
+    upstream.widgets[0].callback("two");
+    await tick();
+    const rows3 = JSON.parse(stack2.properties.loraStackState).loras;
+    check("上游切换自动重载", rows3.length === 1 && rows3[0].name === "d.safetensors" && rows3[0].sm === 0.4);
+    check("上游切换 refresh(true)", refresh3[refresh3.length - 1] === true);
+
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });
     process.exit(failures.length ? 1 : 0);

@@ -38,10 +38,12 @@ const EMPTY_H = 46;
 // Nodes 2.0（子元素浮到 widget 顶部以上会被节点体裁切）保持正常流顶部。
 // 分支在 renderNode。
 const BAND_H = ADD_H + TOP_GAP + TOPROW_H; // 59
-// Classic 浮动：节点局部 px。widget 体从节点顶下方 ~66px 开始；3 输出槽带
-// 约 4..64，抬 ~62px 让它落在槽带里。注：校准于本节点的槽位布局（2 输入 /
-// 3 输出）——增删槽位需重调这里和主扩展的 CHROME，否则 band 漂出死带。
-const CLASSIC_BAND_TOP = -62;
+// Classic 浮动：节点局部 px。widget 体从节点顶下方开始（标题 30 + 输入槽带）；
+// 3 输入槽带（model/clip/preset）比 2 输入多一行（约 18px），widget 体顶从
+// ~66 下移到 ~84，band 顶随之从 -62 调到 -80 保持落在输出槽带（~4..64）里。
+// 注：校准于本节点的槽位布局（3 输入 / 3 输出）——增删槽位需重调这里和
+// 主扩展的 CHROME，否则 band 漂出死带。
+const CLASSIC_BAND_TOP = -80;
 const CLASSIC_RSV_L = 64;   // 避开左侧 model / clip 标签
 const CLASSIC_RSV_R = 80;   // 避开右侧 MODEL / CLIP / triggers 标签
 

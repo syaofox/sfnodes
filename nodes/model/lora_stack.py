@@ -34,6 +34,8 @@ class SFLoraStack:
         "以纯文本给出，可直接接入提示词。触发词直接读自文件，离线可用；"
         "可选按 LoRA 的 Civitai 查询（仅在你点击时才联网）。Add LoRA 添加行，"
         "全部开/关与齿轮设置位于节点中部；右键行可上移/下移/复制/删除。"
+        "可选 preset 输入（SF Power Lora Preset 输出）：连接后自动把预设的"
+        "顺序与强度加载到行上，执行时预设优先（行上勾选的触发词仍保留）。"
     )
 
     @classmethod
@@ -44,6 +46,7 @@ class SFLoraStack:
             },
             "optional": {
                 "clip": ("CLIP", {"tooltip": "LoRA 应用到的 CLIP（文本编码器）。可选但建议连接（checkpoint CLIP 进这里，CLIP 输出再去你的文本编码），这样 LoRA 也能调整触发词如何被读取。仅模型设置时可留空。"}),
+                "preset": ("SF_LORA_PRESET", {"tooltip": "SF Power Lora Preset 的选择输出。连接后自动把预设的顺序与强度加载到行上；执行时预设优先（行状态仅保留同名行的触发词勾选）。"}),
             },
             "hidden": {"LoraLoaderState": ("STRING", {"default": "{}"})},
         }
@@ -82,8 +85,11 @@ class SFLoraStack:
         self._cache[path] = (lora, meta)
         return (lora, meta)
 
-    def apply(self, model, clip=None, LoraLoaderState="{}"):
+    def apply(self, model, clip=None, preset=None, LoraLoaderState="{}"):
         state = R.parse_state(LoraLoaderState)
+        if isinstance(preset, dict):
+            # 预设优先（Power 同语义）：preset 覆盖行，触发词继承自行状态。
+            state = R.preset_override(state, preset)
         cache_mode = state.get("cacheMode", "last")
         # 本次 run 实际加载的最近一行。与 self._last_path（上一 run 保留的条目）
         # 分开——本 run 第一行应用时就逐出保留条目，会让 "last" 对任何

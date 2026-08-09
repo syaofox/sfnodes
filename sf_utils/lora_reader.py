@@ -327,6 +327,41 @@ def parse_state(state_str):
     return {"loras": loras, "sep": sep, "cacheMode": cache_mode}
 
 
+def preset_override(state, preset):
+    """预设（Power 形状 {loras: [{lora, on, strength, strengthTwo}]}）优先覆盖行。
+
+    与 SFPowerLoraLoader 的 preset 输入同语义（连接后预设优先）：name/on/sm/sc
+    全取预设（strength -> sm，strengthTwo 缺省取 strength）；行状态仅用于继承
+    同名行的勾选触发词——预设本身无触发词概念，用户勾选仍到达 triggers 输出。
+    预设缺失/形状不对 -> 原样返回。永不抛错（手写 API 工作流也可能传进来）。
+    """
+    if not isinstance(preset, dict) or not isinstance(preset.get("loras"), list):
+        return state
+    by_name = {}
+    for e in state.get("loras", []):
+        if isinstance(e, dict):
+            by_name[e.get("name", "")] = e
+    rows = []
+    for item in preset["loras"]:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("lora")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        sm = _clamp_strength(item.get("strength", 1.0))
+        sc = _clamp_strength(item.get("strengthTwo", sm))
+        prev = by_name.get(name, {})
+        rows.append({
+            "name": name,
+            "on": bool(item.get("on", True)),
+            "sm": sm,
+            "sc": sc,
+            "triggers": list(prev.get("triggers", [])) if isinstance(prev, dict) else [],
+        })
+    state["loras"] = rows
+    return state
+
+
 def collect_triggers(state):
     """仅从 ENABLED loras 连接并去重（大小写不敏感）的触发词，
     用 state['sep'] 作分隔符。顺序按首次出现。"""

@@ -452,3 +452,54 @@ function attachDragSort(node, widgetEl, refresh) {
 }
 
 export { closeRowMenu };
+
+// ── preset 输入（SF_LORA_PRESET，来自 SF Power Lora Preset）───────────────
+// 连接后自动把预设加载到行（"连接即刷新"）；上游切换预设名时跟随重载。
+// 加载路径（工作流恢复连接）只 watch 不写状态——writeState 会把干净的工作流
+// 标成 modified（Vue Compat #18）。断开保留已加载的行（用户可继续编辑）。
+// 执行语义在 Python：preset 优先覆盖行，行状态仅继承同名行的触发词勾选。
+
+const PRESET_SLOT = 2;   // inputs: [model, clip, preset]
+
+export function presetUpstream(node) {
+    const slot = node?.inputs?.[PRESET_SLOT];
+    if (!slot || slot.link == null) return null;
+    const link = node.graph?.links?.[slot.link];
+    if (!link) return null;
+    const up = node.graph?.getNodeById?.(link.origin_id);
+    return up && (up.comfyClass === "SFPowerLoraPreset" || up.type === "SFPowerLoraPreset") ? up : null;
+}
+
+// 读上游 combo 名 -> fetch 预设 -> 加载到行并刷新。加载路径不执行。
+export async function loadPresetInto(node, refresh) {
+    const up = presetUpstream(node);
+    if (!up) return false;
+    const combo = up.widgets?.find((w) => w.name === "preset");
+    const name = combo?.value;
+    if (!name || name === "None") return false;
+    const res = await loadPresets();
+    if (!res.ok || !res.presets[name]) return false;
+    const rows = presetToRows(res.presets[name]);
+    if (!rows.length) return false;
+    const st = readState(node);
+    writeState(node, { ...st, loras: rows });
+    if (refresh) refresh(true);
+    return true;
+}
+
+// 包装上游 preset combo 的 callback：切换预设时自动重载。幂等（每个 combo
+// 只包一次）。上游 configure 重建 widget 后包装丢失——主扩展在
+// onAfterGraphConfigured 重新调用本函数补上。
+export function watchPresetUpstream(node, refresh) {
+    const up = presetUpstream(node);
+    if (!up) return;
+    const combo = up.widgets?.find((w) => w.name === "preset");
+    if (!combo || combo._sfLsPresetWatched) return;
+    combo._sfLsPresetWatched = true;
+    const orig = combo.callback;
+    combo.callback = function (v) {
+        const r = orig ? orig.apply(this, arguments) : undefined;
+        loadPresetInto(node, refresh);
+        return r;
+    };
+}
