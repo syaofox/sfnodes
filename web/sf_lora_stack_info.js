@@ -266,8 +266,13 @@ function attachResize(panel) {
 }
 
 // 面板风确认框：返回 Promise<boolean>。遮罩点击 / Esc = 取消。与信息面板
-// 同主题（accent 边框 + 主按钮），替代割裂的原生 confirm。
-function confirmDialog(opts) {
+// 同主题（accent 边框 + 主按钮），替代割裂的原生 confirm。行菜单（载入预设
+// 等）也复用它。
+export function confirmDialog(opts) {
+    // 确认框样式随信息面板的 injectCSS 注入——预设菜单等独立入口从未打开
+    // 信息面板，不注入会得到无样式遮罩（透明、无定位，挂在 body 末尾不可
+    // 见，"确认框没出现"）。injectCSS 幂等（#sf-ls-info-css 守卫）。
+    injectCSS();
     return new Promise((resolve) => {
         const { title, message, okLabel = "Replace", cancelLabel = "Keep mine", accent = BRAND } = opts || {};
         const mask = el("div", "sf-ls-confirm-mask");

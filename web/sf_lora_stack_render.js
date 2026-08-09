@@ -130,6 +130,14 @@ export function injectCSS() {
     .sf-ls-gear:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-gear:hover::before { background:var(--acc, var(--sf-acc, #f66744)); }
 
+    /* 预设按钮：存/取整个栈。All 有 min-width:0，宽节点下名称显示正常，
+       窄节点里 All 内容被裁剪也不破坏布局。 */
+    .sf-ls-presets { flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+      padding:0 8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14);
+      border-radius:5px; cursor:pointer; user-select:none; font:11px 'Segoe UI',sans-serif;
+      color:#a8a8a8; }
+    .sf-ls-presets:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#ddd; }
+
     .sf-ls-rows { display:flex; flex-direction:column; gap:${ROW_GAP}px; }
     .sf-ls-row { box-sizing:border-box; height:${ROW_H}px; display:flex; align-items:center; gap:6px;
       background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px;
@@ -255,7 +263,12 @@ export function renderNode(node) {
     gear.dataset.act = "gear";
     // 无 textContent：图标由 ::before mask 绘制。
     gear.title = "LoRA Stack settings";
-    toprow.append(all, gear);
+    const presets = document.createElement("div");
+    presets.className = "sf-ls-presets";
+    presets.dataset.act = "presets";
+    presets.textContent = "Presets";
+    presets.title = "Save the current stack as a preset, or load one";
+    toprow.append(all, presets, gear);
     band.appendChild(toprow);
     inner.appendChild(band);
 

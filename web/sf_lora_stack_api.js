@@ -286,3 +286,42 @@ export async function migrateLoraData(name, oldKey) {
         return { ok: false, message: "Could not reach the server." };
     }
 }
+
+// ── 预设（与 SFPowerLoraLoader 共享 user/sfnodes/lora_presets.json）──────────
+// 存 Power 的行形状 {lora, on, strength, strengthTwo}，两节点互通。机器级
+// 存储（user/ 目录），不进工作流。
+
+export async function loadPresets() {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora_presets"), { cache: "no-store" });
+        const j = await r.json();
+        if (!r.ok || j?.error) return { ok: false, presets: {} };
+        const presets = (j && typeof j.presets === "object" && j.presets) || {};
+        return { ok: true, presets };
+    } catch {
+        return { ok: false, presets: {} };
+    }
+}
+
+export async function savePreset(name, data) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora_presets"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, data }),
+        });
+        return await r.json();
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
+export async function deletePreset(name) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora_presets?name=" + encodeURIComponent(name)),
+            { method: "DELETE" });
+        return await r.json();
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}

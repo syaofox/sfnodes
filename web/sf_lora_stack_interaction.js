@@ -4,12 +4,13 @@
 // structural 时重适配节点高度。
 // ==========================================================================
 import {
-    readState, patchLora, addLora, removeLora, duplicateLora, moveLora,
-    setAllOn, countOn, accentOf, MAX_LORAS,
+    readState, writeState, patchLora, addLora, removeLora, duplicateLora, moveLora,
+    setAllOn, countOn, accentOf, MAX_LORAS, rowsToPreset, presetToRows,
 } from "./sf_lora_stack_core.js";
 import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
-import { openInfoPanel } from "./sf_lora_stack_info.js";
+import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
 import { openLoraPanel } from "./sf_lora_stack_settings.js";
+import { loadPresets, savePreset, deletePreset } from "./sf_lora_stack_api.js";
 
 let _menu = null;
 let _menuCleanup = null;
@@ -26,60 +27,53 @@ function injectMenuCSS() {
     const s = document.createElement("style");
     s.id = "sf-ls-menu-css";
     s.textContent = `
-    .sf-ls-menu { position:fixed; z-index:10030; width:168px; background:#2b2b2b; border:1px solid #4a4a4a;
-      border-radius:8px; box-shadow:0 12px 34px rgba(0,0,0,0.65); overflow:hidden;
+    .sf-ls-menu { position:fixed; z-index:10030; min-width:178px; max-width:300px;
+      background:#2b2b2b; border:1px solid #4a4a4a; border-radius:8px;
+      box-shadow:0 12px 34px rgba(0,0,0,0.65); overflow:hidden;
       font:12px 'Segoe UI',system-ui,sans-serif; color:#e0e0e0; padding:3px 0; }
     .sf-ls-menu .it { display:flex; align-items:center; gap:9px; padding:7px 12px; cursor:pointer; }
-    .sf-ls-menu .it .k { width:14px; text-align:center; color:#8a8a8a; }
+    .sf-ls-menu .it .k { width:14px; text-align:center; color:#8a8a8a; flex:none; }
+    .sf-ls-menu .it .l { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .sf-ls-menu .it:hover { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; } .sf-ls-menu .it:hover .k { color:#fff; }
     .sf-ls-menu .it.danger:hover { background:#e2504a; }
     .sf-ls-menu .it.dis { opacity:.35; pointer-events:none; }
     .sf-ls-menu .sep { height:1px; background:#1b1b1b; margin:3px 0; }
+    /* 预设菜单：行尾删除 ✕（hover 显示）、保存命名输入行、状态消息 */
+    .sf-ls-menu .del { margin-left:auto; flex:none; color:#c9736a; opacity:0; padding:0 2px;
+      font-size:10px; cursor:pointer; }
+    .sf-ls-menu .it:hover .del { opacity:1; }
+    .sf-ls-menu .it .del:hover { color:#fff; }
+    .sf-ls-menu .in { display:flex; align-items:center; gap:6px; padding:6px 8px; }
+    .sf-ls-menu .in input { flex:1; min-width:0; box-sizing:border-box; background:#161616;
+      border:1px solid #4a4a4a; border-radius:5px; color:#fff; font:11px 'Segoe UI',sans-serif;
+      padding:5px 7px; outline:none; }
+    .sf-ls-menu .in input:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-menu .in .ok { flex:0 0 auto; padding:4px 8px; border-radius:4px; font-size:11px;
+      color:#ccc; cursor:pointer; user-select:none; }
+    .sf-ls-menu .in .ok:hover { color:#fff; background:rgba(255,255,255,0.08); }
+    .sf-ls-menu .in .ok.pri { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; font-weight:600; }
+    .sf-ls-menu .in .ok.pri:hover { filter:brightness(1.1); }
+    .sf-ls-menu .msg { padding:6px 12px; font-size:11px; color:#c98a6a; }
   `;
     document.head.appendChild(s);
 }
 
-function openRowMenu(node, id, x, y, refresh) {
-    closeRowMenu();
-    injectMenuCSS();
-    const st = readState(node);
-    const idx = st.loras.findIndex((e) => e.id === id);
-    if (idx < 0) return;
-    const e = st.loras[idx];
+// 菜单条目（共享：行菜单 + 预设菜单）。点击后先关菜单再回调。
+function makeMenuItem(k, label, cb, { danger = false, dis = false } = {}) {
+    const it = document.createElement("div");
+    it.className = "it" + (danger ? " danger" : "") + (dis ? " dis" : "");
+    const ks = document.createElement("span"); ks.className = "k"; ks.textContent = k;
+    const ls = document.createElement("span"); ls.className = "l"; ls.textContent = label;
+    it.append(ks, ls);
+    if (!dis && cb) it.addEventListener("click", () => { closeRowMenu(); cb(); });
+    return it;
+}
 
-    const menu = document.createElement("div");
-    menu.className = "sf-ls-menu";
-    // 菜单 fixed 定位在 <body> 上，不继承任何东西——显式把本节点强调色交给
-    // 它，否则 hover 保持品牌橙。
-    menu.style.setProperty("--acc", accentOf(node));
-    const item = (k, label, cb, { danger = false, dis = false } = {}) => {
-        const it = document.createElement("div");
-        it.className = "it" + (danger ? " danger" : "") + (dis ? " dis" : "");
-        const ks = document.createElement("span"); ks.className = "k"; ks.textContent = k;
-        const ls = document.createElement("span"); ls.textContent = label;
-        it.append(ks, ls);
-        if (!dis) it.addEventListener("click", () => { closeRowMenu(); cb(); });
-        return it;
-    };
-    const sep = () => { const d = document.createElement("div"); d.className = "sep"; return d; };
+function menuSep() { const d = document.createElement("div"); d.className = "sep"; return d; }
 
-    menu.append(
-        item("i", "More info", () => openInfoPanel(node, id, refresh)),
-        sep(),
-        item("↑", "Move up", () => { moveLora(node, id, -1); refresh(true); }, { dis: idx === 0 }),
-        item("↓", "Move down", () => { moveLora(node, id, +1); refresh(true); }, { dis: idx === st.loras.length - 1 }),
-        item("⧉", "Duplicate", () => { duplicateLora(node, id); refresh(true); },
-            { dis: st.loras.length >= MAX_LORAS }),
-        item(e.on ? "◉" : "○", e.on ? "Disable" : "Enable",
-            () => {
-                const cur = readState(node).loras.find((x) => x.id === id); // 点击时重读
-                patchLora(node, id, { on: !cur?.on });
-                refresh(false);
-            }),
-        sep(),
-        item("⌫", "Remove", () => { removeLora(node, id); refresh(true); }, { danger: true }),
-    );
-
+// 把菜单挂到 body：fixed 定位在点击处（越界钳制）+ 外部点击/Esc 关闭。
+// 调用方负责先 closeRowMenu()（本函数假设 _menu 已被清空）。
+function showMenu(menu, x, y) {
     document.body.appendChild(menu);
     const mw = menu.offsetWidth, mh = menu.offsetHeight;
     menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";
@@ -101,6 +95,174 @@ function openRowMenu(node, id, x, y, refresh) {
         document.removeEventListener("pointerdown", onDown, true);
         document.removeEventListener("keydown", onKey, true);
     };
+}
+
+function openRowMenu(node, id, x, y, refresh) {
+    closeRowMenu();
+    injectMenuCSS();
+    const st = readState(node);
+    const idx = st.loras.findIndex((e) => e.id === id);
+    if (idx < 0) return;
+    const e = st.loras[idx];
+
+    const menu = document.createElement("div");
+    menu.className = "sf-ls-menu";
+    // 菜单 fixed 定位在 <body> 上，不继承任何东西——显式把本节点强调色交给
+    // 它，否则 hover 保持品牌橙。
+    menu.style.setProperty("--acc", accentOf(node));
+
+    menu.append(
+        makeMenuItem("i", "More info", () => openInfoPanel(node, id, refresh)),
+        menuSep(),
+        makeMenuItem("↑", "Move up", () => { moveLora(node, id, -1); refresh(true); }, { dis: idx === 0 }),
+        makeMenuItem("↓", "Move down", () => { moveLora(node, id, +1); refresh(true); }, { dis: idx === st.loras.length - 1 }),
+        makeMenuItem("⧉", "Duplicate", () => { duplicateLora(node, id); refresh(true); },
+            { dis: st.loras.length >= MAX_LORAS }),
+        makeMenuItem(e.on ? "◉" : "○", e.on ? "Disable" : "Enable",
+            () => {
+                const cur = readState(node).loras.find((x) => x.id === id); // 点击时重读
+                patchLora(node, id, { on: !cur?.on });
+                refresh(false);
+            }),
+        menuSep(),
+        makeMenuItem("⌫", "Remove", () => { removeLora(node, id); refresh(true); }, { danger: true }),
+    );
+
+    showMenu(menu, x, y);
+}
+
+// ── 预设菜单（参考 SFPowerLoraLoader：存/取整个栈，机器级存储）────────────
+// 与行菜单同 DOM 骨架（.sf-ls-menu），共享 closeRowMenu/showMenu。列表异步
+// 加载（GET 预设），失败显示占位消息。保存命名在菜单内联输入（无
+// app.canvas.prompt 依赖，Vue/Classic 双环境可用）。
+async function openPresetsMenu(node, x, y, refresh) {
+    closeRowMenu();
+    injectMenuCSS();
+    const menu = document.createElement("div");
+    menu.className = "sf-ls-menu";
+    menu.style.setProperty("--acc", accentOf(node));
+    let presets = {};
+    let msg = "";
+
+    menu.appendChild(makeMenuItem("⏳", "Loading presets…", null, { dis: true }));
+    showMenu(menu, x, y);
+    const res = await loadPresets();
+    if (!menu.isConnected) return;
+    if (res.ok) presets = res.presets;
+    else msg = res.message || "Could not load presets.";
+    renderPresetsMenu();
+
+    function renderPresetsMenu(extraMsg) {
+        if (extraMsg) msg = extraMsg;
+        menu.textContent = "";
+        menu.append(
+            makeMenuItem("💾", "Save current as preset…", enterPresetName),
+            menuSep(),
+        );
+        if (msg) menu.appendChild(makeMenuItem("", msg, null, { dis: true }));
+        const names = Object.keys(presets).sort();
+        if (!names.length) {
+            menu.appendChild(makeMenuItem("", "(no presets yet)", null, { dis: true }));
+            return;
+        }
+        for (const nm of names) {
+            const it = makeMenuItem("📚", nm, () => applyPreset(nm));
+            const del = document.createElement("span");
+            del.className = "del";
+            del.textContent = "✕";
+            del.title = "Delete this preset";
+            del.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                deletePreset(nm).then(() => {
+                    delete presets[nm];
+                    if (menu.isConnected) renderPresetsMenu();
+                });
+            });
+            it.appendChild(del);
+            menu.appendChild(it);
+        }
+    }
+
+    // 保存命名输入模式：菜单内容换成 input + Save/Cancel。Enter 提交、
+    // Esc 取消。同设置面板 key 编辑器的交互。
+    function enterPresetName() {
+        menu.textContent = "";
+        const row = document.createElement("div");
+        row.className = "in";
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.placeholder = "Preset name…";
+        inp.maxLength = 64;
+        const ok = document.createElement("span");
+        ok.className = "ok pri";
+        ok.textContent = "Save";
+        const no = document.createElement("span");
+        no.className = "ok";
+        no.textContent = "Cancel";
+        const commit = async () => {
+            const nm = inp.value.trim();
+            if (!nm) return;
+            const data = rowsToPreset(readState(node));
+            if (!data.loras.length) {
+                renderPresetsMenu("Nothing to save - add a LoRA first.");
+                return;
+            }
+            if (presets[nm]) {
+                const replace = await confirmDialog({
+                    title: "Replace preset?",
+                    message: `A preset named "${nm}" already exists. Replace it?`,
+                    okLabel: "Replace",
+                    cancelLabel: "Cancel",
+                    accent: accentOf(node),
+                });
+                if (!replace) return;
+            }
+            const r = await savePreset(nm, data);
+            if (!r?.ok) { renderPresetsMenu((r && r.message) || "Could not save."); return; }
+            presets[nm] = data;
+            msg = "";
+            renderPresetsMenu();
+        };
+        const cancel = () => renderPresetsMenu();
+        ok.addEventListener("click", commit);
+        no.addEventListener("click", cancel);
+        inp.addEventListener("keydown", (ev) => {
+            ev.stopPropagation();
+            if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+            if (ev.key === "Escape") { ev.preventDefault(); cancel(); }
+        });
+        row.append(inp, ok, no);
+        menu.appendChild(row);
+        inp.focus();
+        inp.select();
+    }
+
+    // 载入 = 替换整个栈（触发词随旧行丢弃，词本身在文件级存储，可重勾）。
+    // 确认框防误点丢掉精心调好的配置。
+    async function applyPreset(nm) {
+        const preset = presets[nm];
+        if (!preset) return;
+        const st = readState(node);
+        const rows = presetToRows(preset);
+        if (!rows.length) {
+            // 预设里没有合法行（如所有 lora 名为空/缺失）——菜单已关，静默
+            // 关闭会让用户以为载入失败，这里至少留一条可查的日志。
+            console.warn("[SF LoRA Stack] preset has no valid LoRA rows:", nm, JSON.stringify(preset).slice(0, 200));
+            closeRowMenu();
+            return;
+        }
+        const ok = await confirmDialog({
+            title: "Load preset?",
+            message: `Load "${nm}"? This replaces the current stack.`,
+            okLabel: "Load",
+            cancelLabel: "Cancel",
+            accent: accentOf(node),
+        });
+        if (!ok) return;
+        writeState(node, { ...st, loras: rows });
+        refresh(true);
+        closeRowMenu();
+    }
 }
 
 function rowIdOf(target) {
@@ -147,6 +309,7 @@ export function attachInteractions(node, widgetEl, refresh) {
             return;
         }
         if (act === "gear") { openLoraPanel(node, refresh); return; }
+        if (act === "presets") { openPresetsMenu(node, ev.clientX, ev.clientY, refresh); return; }
 
         const id = rowIdOf(t);
         if (!id) return;

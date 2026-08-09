@@ -263,3 +263,40 @@ export function accentOf(node) {
     } catch { /* 忽略 */ }
     return BRAND;
 }
+
+// ── 预设（与 SFPowerLoraLoader 共享 user/sfnodes/lora_presets.json）──────────
+// 预设存 Power 的形状 {lora, on, strength, strengthTwo}（后端校验该形状），
+// 两个节点互通：Stack 存的 Power 能载，Power 存的 Stack 能载。SF 行里
+// 的 triggers/custom 词不入预设（词属文件级存储，不随栈走）。
+
+// 行形状 -> 预设形状。无名行（占位/未选）跳过。
+export function rowsToPreset(st) {
+    return {
+        loras: st.loras
+            .filter((e) => e.name)
+            .map((e) => ({ lora: e.name, on: e.on, strength: e.sm, strengthTwo: e.sc })),
+    };
+}
+
+// 预设形状 -> 行形状。防御垃圾输入：缺字段回默认，坏行丢弃。
+export function presetToRows(preset) {
+    const items = Array.isArray(preset?.loras) ? preset.loras : [];
+    return items
+        .filter((it) => it && typeof it === "object" && typeof it.lora === "string" && it.lora.trim())
+        .map((it) => {
+            const smF = parseFloat(it.strength);
+            const scF = parseFloat(it.strengthTwo);
+            const sm = Number.isFinite(smF) ? roundStrength(smF) : 1;
+            const sc = Number.isFinite(scF) ? roundStrength(scF) : sm;
+            return {
+                id: newId(),
+                name: it.lora,
+                on: it.on == null ? true : !!it.on,
+                sm,
+                sc,
+                triggers: [],
+                custom: [],
+            };
+        })
+        .slice(0, MAX_LORAS);
+}

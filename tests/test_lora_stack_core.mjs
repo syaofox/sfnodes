@@ -149,6 +149,46 @@ function fakeNode(properties = {}) {
         ps.loras[0].sc === 0.5 && ps.loras[0].on === true);
     check("promptState custom 剥掉", !("custom" in ps.loras[0]) && !("id" in ps.loras[0]));
 
+    // ---- 预设（与 SFPowerLoraLoader 共享形状 {lora,on,strength,strengthTwo}）----
+    const n8 = fakeNode();
+    writeState(n8, {
+        linkStrength: false,
+        loras: [
+            { name: "a.safetensors", on: true, sm: 1.2, sc: 0.8, triggers: ["w"], custom: ["c"] },
+            { name: "b.safetensors", on: false, sm: 0.5, sc: 2.0 },
+            { name: "", sm: 1.0 },               // 无名行不存
+        ],
+    });
+    const p8 = C.rowsToPreset(readState(n8));
+    check("rowsToPreset 过滤无名行", p8.loras.length === 2);
+    check("rowsToPreset 形状兼容 Power", p8.loras[0].lora === "a.safetensors" && p8.loras[0].strength === 1.2
+        && p8.loras[0].strengthTwo === 0.8 && p8.loras[0].on === true);
+    check("rowsToPreset 不含 triggers/custom", !("triggers" in p8.loras[0]) && !("custom" in p8.loras[0]));
+
+    // Power 存的预设（无 sm/sc，带 strengthTwo 缺省）载入
+    const powerPreset = {
+        normalize: true, normalize_weight: 1.0, separate: false,
+        loras: [
+            { lora: "x.safetensors", on: true, strength: 0.9, strengthTwo: 0.7 },
+            { lora: "y.safetensors", on: false, strength: 1.5 },
+            { lora: "", on: true, strength: 1 },          // 坏行：空 lora 丢弃
+            "not a dict",                                  // 非 dict 丢弃
+        ],
+    };
+    const rows8 = C.presetToRows(powerPreset);
+    check("presetToRows 坏行丢弃", rows8.length === 2);
+    check("presetToRows 字段映射", rows8[0].name === "x.safetensors" && rows8[0].sm === 0.9
+        && rows8[0].sc === 0.7 && rows8[0].on === true);
+    check("presetToRows strengthTwo 缺省 = sm", rows8[1].sc === 1.5);
+    check("presetToRows 新 id", rows8[0].id !== rows8[1].id && typeof rows8[0].id === "string");
+    check("presetToRows 触发词清空", rows8[0].triggers.length === 0 && rows8[0].custom.length === 0);
+    check("presetToRows 垃圾预设", C.presetToRows(null).length === 0 && C.presetToRows({}).length === 0);
+    check("presetToRows 强度钳制", C.presetToRows({ loras: [{ lora: "z", strength: 999 }] })[0].sm === MAX_STRENGTH);
+    check("presetToRows 垃圾强度回 1", C.presetToRows({ loras: [{ lora: "z", strength: "abc" }] })[0].sm === 1);
+    // 往返：rowsToPreset -> presetToRows 还原强度/开关注
+    const round = C.presetToRows(p8);
+    check("预设往返强度", round[0].sm === 1.2 && round[0].sc === 0.8 && round[1].on === false);
+
     // ---- loadDefaults/saveDefaults 走 globalThis.app ----
     const saved = {};
     globalThis.app = {
