@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放（含工作流内缩放 resize_image.py：wired 尺寸）、拼接、处理、对比、外绘填充+贴回（outpaint.py）、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
@@ -40,8 +40,9 @@ sfnodes/
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
+│   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_workflows*.js 工作流面板三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_dropdown*.js 值下拉四模块、sf_workflows*.js 工作流面板三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -222,6 +223,15 @@ class SFMyNode:
 - 替换逻辑 Python 权威 + JS 预览镜像（`applyRulesJS` ≡ `_apply_rules`），测试同用例同期望值。**literal 模式**：替换文本反斜杠必须双写（`\1` 是字面量不是 backref），JS 端 `$` 转义；**regex 模式**：backref `\1`（Python）vs `$1`（JS）靠 pyTemplateToJs 翻译、`(?P<n>)`→`(?<n>)`、`/u` flag 匹配 Python Unicode 大小写折叠；`\w` 类在 JS 预览仅 ASCII——预览可能比实际窄，Python 是权威。
 - **ReDoS 防护**：嵌套无界量词启发式（`(a+)+` `(a*)*`）双端 1:1 镜像——Python 服务端无超时执行，命中即跳过规则 + 警告；预览每次按键重算，同模式会冻结浏览器。
 - **预览样本上限 4000 存 `node.properties.findReplacePreview`（不注入 prompt）**：预览 = 上次运行输入 × 当前规则实时重算；规则状态 `findReplaceState` 经 graphToPrompt 注入隐藏 FindReplaceState（Pattern #9，随 workflow 保存）。
+
+**前端：值下拉与输出点对齐（`web/sf_dropdown*.js`、`nodes/text/dropdown_value.py`，SFValueDropdown）**
+- **lean 注入形状作缓存键**：graphToPrompt 注入 `{"version", "type", "value"}`（只有选中行的值 + 类型）而非整个列表——注入字符串即缓存键，改行名/重排/改未选中行/切模式都不重跑；Python `selected_value` 接受 lean 与 full 双形状（full 兜底手写 API 文件）。
+- **运行游标存节点内存而非未注册设置**（与 SFPromptTags 不同：列表是每节点的）：`_sfDropdownPending` 持有掷出的牌，`api.queuePrompt` 成功后才 `commitPick` 到 `_sfDropdownCursor`——Export/校验失败的 queue 不推进序列；写 node.properties 会把每次 Run 标 modified（Seed 陷阱）。刷新后从选中条目重新开始（可预测）。
+- **双端数字语法契约（THE PARITY RULE）**：`sf_utils/dropdown.py` 与 lib 的 coerce 1:1 镜像——`_NUMBER_RE` 拒 `0x10`/`1_0`/Infinity（两侧原生解析器各自分歧，正则才是契约）、`_JS_WHITESPACE`（JS trim 集合含 BOM，Python strip 不含）、half-away-from-zero 取整（Python round 银行家舍入 vs Math.round 向 +∞）、1e12 钳制（可读性警告含钳制移动）、readable 坏行警告标记；两侧测试同用例同期望值。
+- **输出点对齐双渲染器（本项目首个对齐节点）**：Classic 硬编码 `output.pos`（getConnectionPos 原样返回 + 自动堆叠跳过 positioned 输出；**注意 margin**：元素画在 node.pos+margin+widget.y 而 widget.y 不带 margin，点要 +margin）；Vue 无官方方式 → DOM nudge（槽位定一行高 → 块拉出文档流 `marginBottom:-offsetHeight` → `translateY` 点上行，**先定尺寸后测块**）；**350ms 自愈 poll**（Vue 重渲染替换节点元素，MutationObserver 被孤立；无变化早退，稳态成本一次 rect）；serialize 剥离 `output.pos`（Legacy 会写进文件，两渲染器文件不一致 → 打开即 modified）。
+- 弹出列表（document.body，position:fixed 不继承画布 transform）：根 font-size 按 canvas scale 缩放（内尺寸全 em 联动）、锚点宽是最小值（内容可增长，先算 maxW 再钳 minW）、left 在宽度已知后钳、下方不足向上翻转；外部点击/Esc/滚轮三关闭（wheel 只豁免列表本身，因为坐标写一次、画布移动即搁浅）。
+- **isGraphLoading**：包装 `app.loadGraphData` + 300ms 尾窗（连接恢复在 onConfigure 之后）——切换类型断线（dropIncompatibleLinks）与加载路径剪线防护；`slotAccepts` 兼容 `"FLOAT,INT,BOOLEAN"` 多类型槽（相等测试会剪掉用户刚画的线）。
+- 写路径 vs 读路径对非对象行处理不同：`writeState` map 归一（null 行变空行），`readState` filter 丢弃——移植时别混。
 
 **前端：SF Workflows 工作流面板（`web/sf_workflows*.js`、`nodes/workflow_routes.py`、`sf_utils/workflow_index_helpers.py`）**
 - **无节点设计**：面板是"应用"不是节点——节点会被存进工作流文件，分享工作流会把多余节点带给每个打开的人。打开方式：工具栏按钮 + 热键 + canvas 右键菜单。

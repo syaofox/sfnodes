@@ -692,3 +692,66 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_find_replace_ui.js`：DOM widget（injectCSS/buildRoot/renderAll/buildRuleRow/refreshResetState/renderPreview + 交互 attachFieldEditor/attachDragHandlers/autoGrowAllFields/sfConfirm 主题确认框）。
 - `web/sf_find_replace.js`：主扩展（onNodeCreated 微任务 setup/onConfigure/onExecuted/onResize/onDrawForeground legacy 钳制/onRemoved + graphToPrompt 注入，subgraph 复合 id 递归索引）。
 - 数据契约：`FindReplaceState`（hidden STRING，graphToPrompt 从 node.properties.findReplaceState 注入）；`sf_find_replace` ui 键；`node.properties.findReplacePreview`（预览样本，不注入 prompt）；`node.properties._sfFrAutoH`（自动高度记忆，区分自动适配与手动拖拽）。
+## 15. SFValueDropdown：值下拉与输出点对齐（复刻 Pixaroma Dropdown）
+
+> 背景：复刻 PixaromaDropdown（2026-08），落地为 `nodes/text/dropdown_value.py` + `sf_utils/dropdown.py` + `web/sf_dropdown*.js` 四模块（lib/ui/settings/主扩展）。节点是"自己写的 name→value 列表"：每行短名 + 实际值，四种输出类型（text/int/float/bool），三种运行模式（F 固定 / I 递增 / R 随机）。**本项目第一个做输出点对齐的节点**（把输出点移上节点行、随类型改名），也是第三个"纯逻辑双端契约 + 注入"案例。以下为可迁移结论，细节见代码注释。
+
+### 1. lean 注入形状作缓存键（改行名不重跑）
+
+- 前端 `graphToPrompt` 注入 `{"version": 1, "type": ..., "value": ...}`（**只有选中行的值 + 类型**），Python `selected_value` 接受两种形状：**LEAN**（`{"type","value"}`，浏览器注入，键判断 `"value" in state` 而非真值——空串/0/False 都是合法值）与 **FULL**（`{"type","index","options"}`，工作流存储形状，兜底手写 API 文件）。
+- **注入字符串即缓存键**：只含影响结果的部分。行名、列表其余行、模式、任何 UI 标志都是显示用——改行名/重排/改未选中行/切模式都不触发重跑。这是 Pattern #9 的"缓存键最小化"原则，与 SFPromptTags 的注入同款。
+- 隐藏输入必须声明为 Python `INPUT_TYPES` 的 `hidden`（required STRING 会在 Vue 前端同时显示为 widget 和可转换输入点）；键名 PascalCase（`DropdownState`），node.properties 键 camelCase（`dropdownState`），两者刻意不同——第二个打错 Python 永远看到默认值、节点"无视一切修改"。
+
+### 2. 运行游标：pending 持有 + commitPick（存节点内存而非设置）
+
+- **与 SFPromptTags 的关键差异**：游标存 `node._sfDropdownPending`/`node._sfDropdownCursor`（**节点内存**），不存未注册设置。因为列表是每节点的（prompt_tags 的 #list 跨节点共享才需要设置），而写 node.properties 会把每次 Run 标 modified（Seed 陷阱）。
+- 语义照搬 prompt_tags：`pendingIndex` 掷出牌存 `_pending`（同一次 queue 的多次 graphToPrompt——Export/保存/校验失败——都发同一张）；`api.queuePrompt` **成功后才** `commitPick`（`_pending` → `_cursor`，清空 `_pending`）。
+- **首轮语义**：Increment 首轮发"节点正显示的条目"（`shownIndex` = pending ?? cursor ?? index），之后 +1 回绕；Random 首轮也真随机（不套用 increment 的首轮分支，否则面板承诺"每次随机"而首轮发面上那条）；手工选择（箭头/点选）清空 pending+cursor，从选中处重新开始。
+- Fixed 模式不产生游标（`commitPick` 把 cursor 置 null）；空列表 `pendingIndex` 恒 0、注入 value null → Python 发类型 fallback。
+- commitPick 后只 `renderRow`（DOM），绝不写序列化状态；`_pending` 只在仍指向真实行时有效（删行后失效）。
+
+### 3. 输出点对齐双渲染器（本项目首个对齐节点，两个独立机制）
+
+- **CLASSIC：硬编码 `output.pos`**。`getConnectionPos` 原样返回 `node.pos + slot.pos`，且自动堆叠跳过已 positioned 输出。**MIND THE MARGIN**：Legacy 按 `widget.margin`（默认 10）内缩 DOM widget 的 ELEMENT——元素画在 `node.pos + margin + widget.y` 而 `widget.y` 不带 margin，点在 `widget.y + ROW_H/2` 会整体高 10px（26px 行上几乎是顶边）。原版真出过这个 bug，用户一眼抓到。`arrange()` 第二遍重测槽位（widget.y 就位后）。
+- **NODES 2.0：DOM nudge**（无官方方式——NodeSlots.vue 把所有输出渲染在右上角列）。三步且**顺序要紧**：① 槽位定一行高（改变块高度）→ ② `block.marginBottom = -offsetHeight`（把尺寸正确的块拉出文档流）→ ③ `translateY` 点上行。**先测块后定尺寸 = 少拉一行、点神秘偏高**（Control Panel 追了几个回合的 bug）。样式写 LAYOUT px 而 getBoundingClientRect 返回 SCREEN px（节点被图缩放 CSS 缩放）→ 从已知 layout 高度的元素量比例换算，任何缩放下正确。全程 try/catch：失败点回角落、节点照常工作。
+- **350ms 自愈 poll**：MutationObserver 不够——Vue 重渲染**替换**节点元素，静默孤立旧 observer。`alignOutput` 无变化早退，稳态成本一次 rect 读取。**不门控 isVueNodes**：渲染器可在节点已存在时切换（切换不重跑 onNodeCreated），两种渲染器下都跑 poll、Classic 早退。
+- **serialize 剥离 `output.pos`**：Legacy 把它写进工作流文件，Nodes 2.0 不认 → 两渲染器保存的文件不同 → 干净工作流打开即 modified。每次 arrange 重建，剥离无损。
+- 行上用 `widgets_start_y = 2` 钉顶（否则 widget 从量得的槽界之下开始 → 输出点依赖 widget.y 而 widget.y 依赖槽界 → 节点每帧长高）；`computeSize` 返回 `[MIN_W, bodyHeight()]`（**绝不 this.size[0]**——computeSize[0] 也是拖拽下限，返回活宽度会让下限随加宽垫高、节点只能长）。
+
+### 4. 弹出列表：zoom 跟随 + 三关闭
+
+- 列表在 `document.body` 上 `position:fixed`，**不继承画布 transform**：canvas 缩放到 1.5x 时节点 DOM 行跟着长、固定 12px 的列表在旁边读着像芝麻。**根 font-size 按 `app.canvas.ds.scale` 缩放**（钳 1..2.5），内部尺寸全 em 联动。缩放字体与自适应宽度必须一起做（缩放文字 + 锁锚点宽 = 重新切掉刚放开的行名）；**字体先设再测量**（向上翻转分支读 offsetHeight，依赖已应用的字体）。
+- 锚点宽是**最小值**不是宽度（内容可增长，长名显示全）；**CSS min-width 压过 max-width** → 先算 maxW 上限、minW 在它下面钳（宽节点高缩放时锚点 rect 能超上限，否则 1409px 列表挂 1350px 窗口）；left 在宽度已知后钳；下方不足向上翻转。
+- 三关闭：外部 pointerdown（CAPTURE 阶段，只豁免 field 本身而非整行——整行豁免会让类型标签/间隙/输出点预留内边距点击关不掉列表）、Esc、**wheel**（坐标写一次、画布移动即搁浅，所以行上滚轮也必须关；只豁免列表本身的滚动）。
+
+### 5. 双端数字语法契约（THE PARITY RULE，第三个同款案例）
+
+- **`_NUMBER_RE` 是契约，两侧原生解析器都不是**：`Number("0x10")` = 16 而 Python `float("0x10")` 拒绝；Python 接受 `"1_0"` 而 `Number("1_0")` 是 NaN——parity 实测抓到，正则才一致。`[0-9]` 而非 `\d`（Python `\d` 还匹配全角/阿拉伯印度数字，JS `\d` 严格 ASCII）。
+- **`_JS_WHITESPACE` 对齐 JS trim**（Python strip 集合两边都不对）：JS trim 含 U+FEFF（Excel CSV / BOM 文件粘贴带的）而 Python strip 不含；Python strip 掉 U+001C..U+001F/U+0085 而 JS 保留。
+- **half-away-from-zero 取整**：Python round 银行家舍入（2.5→2）、Math.round 向 +∞（-3.5→-3），每个精确半值都分歧。
+- **1e12 钳制**（对齐 Control Panel `_value_of`）：超钳制的值 `readable` 判 False（面板打 ⚠）——只解析不算可读，否则 15 位种子无警告而运行发 1000000000000。
+- 测试同用例同期望值：Python 直测 `_as_number`/`readable`/`coerce_value`/`selected_value`，JS 复制 lib 为 .mjs 直测同批断言（数字语法 19 例 + readable 10 例 + coerce 17 例）。
+- **防御增强**：text 分支 `str(raw)` 兜底包 RecursionError（深嵌套容器）→ 空串；`parse_state`/`_loads` 的 `json.loads` 捕获 RecursionError（C 实现约 10 万层才抛，纯 Python 更早）。实测 2000 层嵌套 str() 不炸（CPython 3.11+ 迭代式 repr），10 万层由 json.loads 防御兜住。
+
+### 6. 切换类型断线（slotAccepts + isGraphLoading）
+
+- Python 声明 ANY，前端改 `node.outputs[0].type`（STRING/INT/FLOAT/BOOLEAN）让画布拒绝不兼容拖拽——背后没有第二次服务端检查（与 Switch/Control Panel 相同）。
+- 切换类型/Import 改类型时 `dropIncompatibleLinks`：**`slotAccepts` 而非 `===`**——ComfyUI V3 起多类型输入以字面 `"FLOAT,INT,BOOLEAN"` 到达（核心 Math Expression），相等测试读成一个未知名字、剪掉用户刚画的线；通配 `*`（Reroute/Set/Get）任一侧都接受。**只在真实用户动作时剪**（加载期间 `isGraphLoading()` 返回即 0——已保存图定义上自洽，剪 = 打开文件就损坏）。
+- **isGraphLoading**：包装 `app.loadGraphData`（打开/切页/undo 唯一漏斗）一次 + 300ms 尾窗——LiteGraph 在节点 onConfigure 返回**之后**才图级别恢复已保存的线（sf_image_resize 的三重守卫同款结论）。
+- 剪线/坏行都要 toast 明说（"N wires were unplugged; M entries send the fallback"）——静默剪线 = 工作流悄悄停转。
+
+### 7. 移植简化与测试
+
+- **shared 依赖裁剪**（第四个同款案例，惯例确认）：`isVueNodes`/`applyAdaptiveCanvasOnly` 内联（sf_pause_text.js 同款）；省略 accent 颜色（CSS 固定 `#f66744`）、XY Plot sweep provider（sfnodes 无 XY Plot）、帮助系统、registerNodeSettings 中央注册（右键菜单用 LiteGraph 原生 `getExtraMenuOptions`，any_pack.js 先例）；`popupZoom`/`placeZoomedPopup`/`installCanvasZoomPassthrough`（滚轮设置项固定默认：可滚动区域滚动、否则转发 canvas）内联；gear 图标 data URI（无资产服务路由）。
+- **面板保留全量**：类型/模式/列表增删拖拽排序（grip 是 draggable 元素而非行——行 draggable 让 e.target 是行、守卫不匹配、拖拽静默无效且劫持文本选择）/autoGrow 值框（空框钉单行防 placeholder 撑高）/⚠ 警告列（readable）/Export/Import（含类型变更断线提示）/Clear（**面板内**确认框——放 document.body 会被外部点击关闭器第一击带走；Esc 听 window capture 先于面板的 document capture 应答提问）/面板拖拽（pointer capture 双防线）+ rAF 跟随 canvas（用户拖动后停止跟随）。
+- **测试**（2 个文件，62+86 断言）：后端 `test_dropdown.py` 直测纯逻辑（数字语法 23 例/readable 14/coerce 16/parse_state 8/selected_value 12，含 10 万层深嵌套与 300 位大整数钳制）；前端 `test_dropdown_js.js` 复制 lib 为 .mjs 测同批 coerce 用例 + 状态归一（**writeState map 归一 null 行、readState filter 丢弃——写读路径不同，测试各验一个**）+ 游标全套（fixed 不动/increment 首轮+推进+wrap+pending 持有+commit 花牌+手工选择压过/random 20 轮无连续重复）+ syncOutput 四类型 + slotAccepts 多类型/通配。首次测试失败全是断言错（引用比较 vs 深度比较、map 归一误解为丢弃），代码零改动。
+
+### 8. 模块边界（复用/修改时的快速索引）
+
+- `sf_utils/dropdown.py`：纯函数（`normalize_type`/`_as_number`/`_round_half_away`/`_number_to_text`/`readable`/`coerce_value`/`parse_state`/`selected_value`），无 ComfyUI 依赖可直接单测；`TYPES`/`FALLBACKS` 是线格式（JS 与 hidden 输入共用，勿改名）。
+- `nodes/text/dropdown_value.py`：`ValueDropdown` 薄封装（hidden `DropdownState` + ANY 输出 + `run`），`_CATEGORY = "sfnodes/text"`。
+- `web/sf_dropdown_lib.js`：纯函数（coerce 镜像 `normalizeType`/`readable`/`coerceValue`/`previewText` + 状态 `readState`/`writeState`/`defaultState` + 游标 `pendingIndex`/`commitPick`/`shownIndex` + `injectedState`/`syncOutput`/`slotAccepts`）——无 app/DOM，测试 copy 直跑。
+- `web/sf_dropdown_ui.js`：节点面 DOM（`buildRow`/`renderRow`/`step`/`cycleMode`）+ 弹出列表（`openPopup`/`closePopup`）+ 对齐（`alignOutputLegacy`/`alignOutput`/`scheduleAlign`/`watchAlign`/`unwatchAlign`）+ 内联 shared（isVueNodes/applyAdaptiveCanvasOnly/placeZoomedPopup/installCanvasZoomPassthrough）。
+- `web/sf_dropdown_settings.js`：浮动面板（`openDropdownPanel`/`closeDropdownPanelFor`）+ 内联 isGraphLoading/dropIncompatibleLinks。
+- `web/sf_dropdown.js`：主扩展（beforeRegisterNodeDef 全钩子 + serialize 剥 pos + getExtraMenuOptions + graphToPrompt 注入含子图复合 id 递归索引 + api.queuePrompt commitPick，防重标志 `app._sfDropdownQueuePatched`）。
+- 数据契约：hidden `DropdownState`（lean 注入 / full 兜底）；`node.properties.dropdownState`（随工作流保存）；游标 `_sfDropdownPending`/`_sfDropdownCursor`（节点内存，不序列化）。
