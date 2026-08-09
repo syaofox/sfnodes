@@ -42,7 +42,7 @@ function fakeNode(properties = {}) {
     check("HIDDEN_INPUT 匹配 Python 键", HIDDEN_INPUT === "LoraLoaderState");
     check("MAX_LORAS = 64", MAX_LORAS === 64);
     check("强度范围 ±10", MIN_STRENGTH === -10 && MAX_STRENGTH === 10);
-    check("DEFAULT_PREFS 完整", ["sep", "step", "defStrength", "linkStrength", "civitai", "thumbs", "hideExt", "accent", "cacheMode"].every(
+    check("DEFAULT_PREFS 完整", ["sep", "step", "defStrength", "linkStrength", "civitai", "thumbs", "hideExt", "cacheMode"].every(
         (k) => k in DEFAULT_PREFS));
 
     // ---- 归一 ----
@@ -157,27 +157,23 @@ function fakeNode(properties = {}) {
             setSettingValueAsync: async (k, v) => { saved[k] = v; },
         } },
     };
-    check("saveDefaults 只存 prefs 键", await C.saveDefaults({ sep: ";", accent: "#f00", bogus: 1 }) === true
-        && Object.keys(JSON.parse(saved["sfnodes.LoraStack.Defaults"])).sort().join(",") === "accent,sep");
+    check("saveDefaults 只存 prefs 键", await C.saveDefaults({ sep: ";", bogus: 1 }) === true
+        && Object.keys(JSON.parse(saved["sfnodes.LoraStack.Defaults"])).sort().join(",") === "sep");
     check("loadDefaults 读回", (() => {
         saved["sfnodes.LoraStack.Defaults"] = JSON.stringify({ sep: ";" });
         return C.loadDefaults().sep === ";";
     })());
 
-    // accentOf
+    // accentOf：统一遵循全局设置（sfnodes.Accent），无节点级自定义
+    // （旧 state 的 accent 字段被忽略）。
     check("accentOf 默认品牌色", accentOf(fakeNode()) === BRAND);
-    check("accentOf 节点覆盖", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === "#123456");
-    // 优先级链：node > 节点默认（Set as default）> 全局设置（sfnodes.Accent）> BRAND
-    delete saved["sfnodes.LoraStack.Defaults"];
+    check("accentOf 旧节点 accent 被忽略", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === BRAND);
     globalThis.app.ui.settings.getSettingValue = (k) => {
         if (k === "sfnodes.Accent") return "#abcdef";
         return saved[k];
     };
     check("accentOf 全局设置", accentOf(fakeNode()) === "#abcdef");
-    check("accentOf 节点级胜全局", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === "#123456");
-    saved["sfnodes.LoraStack.Defaults"] = JSON.stringify({ accent: "#ff0000" });
-    check("accentOf 节点默认胜全局", accentOf(fakeNode()) === "#ff0000");
-    delete saved["sfnodes.LoraStack.Defaults"];
+    check("accentOf 旧节点 accent 不覆盖全局", accentOf(fakeNode({ loraStackState: JSON.stringify({ accent: "#123456" }) })) === "#abcdef");
     globalThis.app.ui.settings.getSettingValue = (k) => saved[k];   // 恢复无全局设置
     check("accentOf 无全局设置回品牌色", accentOf(fakeNode()) === BRAND);
 

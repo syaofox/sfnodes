@@ -21,7 +21,9 @@ export const MIN_STRENGTH = -10;
 export const MAX_STRENGTH = 10;
 
 // 新节点从保存的默认继承的每节点偏好（DEFAULTS_SETTING 里一个 JSON blob）。
-// 状态里其余都是每节点数据。
+// 状态里其余都是每节点数据。强调色统一走全局设置（sfnodes.Accent），
+// 无节点级自定义（DEFAULT_PREFS 不再含 accent；旧 state 里的 accent 字段
+// 被忽略）。
 export const DEFAULT_PREFS = {
     sep: ", ",          // 触发词输出连接符
     step: 0.05,         // 强度箭头/步进增量
@@ -30,7 +32,6 @@ export const DEFAULT_PREFS = {
     civitai: true,      // 信息面板允许可选 Civitai 查询按钮
     thumbs: true,       // 信息面板显示预览缩略图
     hideExt: true,      // 行上显示 "MoXin" 而非 "MoXin.safetensors"
-    accent: null,       // 强调色；null = 品牌橙
     // Python 在 run 之间保留多少 LoRA 数据（齿轮 "LoRA memory use"）：
     // "last"（默认）= ComfyUI 对齐，只留最近使用的文件；
     // "all" = 保留整个栈（重跑最快，大栈可占 GB 级内存）；
@@ -99,7 +100,6 @@ export function normalize(raw) {
     st.civitai = st.civitai == null ? true : !!st.civitai;
     st.thumbs = st.thumbs == null ? true : !!st.thumbs;
     st.hideExt = st.hideExt == null ? true : !!st.hideExt;
-    if (st.accent != null && typeof st.accent !== "string") st.accent = null;
     st.cacheMode = st.cacheMode === "all" || st.cacheMode === "none" ? st.cacheMode : "last";
     st.loras = (Array.isArray(st.loras) ? st.loras : [])
         .map((e) => normLora(e, st))
@@ -254,13 +254,9 @@ export function promptState(state) {
     };
 }
 
+// 强调色：统一遵循全局设置（sfnodes.Accent），无节点级自定义。
+// 节点参数保留签名兼容（调用方传 node，返回值与 node 无关）。
 export function accentOf(node) {
-    const st = readState(node);
-    if (st.accent) return st.accent;
-    // 优先级链：node.accent > "Set as default" 的节点默认 > 全局系统设置
-    // （sfnodes.Accent，未单独设色的节点统一跟随）> 品牌橙。
-    const d = loadDefaults();
-    if (d && d.accent) return d.accent;
     try {
         const g = globalThis.app?.ui?.settings?.getSettingValue?.("sfnodes.Accent");
         if (typeof g === "string" && g.trim()) return g;

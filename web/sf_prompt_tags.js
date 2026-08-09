@@ -901,7 +901,6 @@ function insertToken(node, name, sym) {
 // 打开全屏标签库编辑器。`prefill` 来自右键 "Save as tag"（选中文字进创建表单）
 function openLibraryFor(node, prefill) {
     openLibraryEditor(node, {
-        accent: "#f66744",
         prefill: prefill || "",
         onInsert: (name, sym) => {
             // 每次重新解析（Vue 重建 DOM widget 后旧引用会失效），绝不捕获一次

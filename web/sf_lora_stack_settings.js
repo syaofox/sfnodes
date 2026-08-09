@@ -4,10 +4,9 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import {
-    readState, writeState, accentOf, saveDefaults, roundStrength, BRAND,
+    readState, writeState, accentOf, saveDefaults, roundStrength,
 } from "./sf_lora_stack_core.js";
 import { getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
-import { repaintAll } from "./sf_lora_stack_render.js";
 
 let _panel = null;
 let _panelNode = null;
@@ -79,11 +78,6 @@ function injectCSS() {
     .sf-lsp-state { flex:1; font-size:11px; color:#7a7a7a; }
     .sf-lsp-state.set { color:#3ec371; }
     .sf-lsp-msg { font-size:10px; line-height:1.4; color:#c98a6a; }
-    /* 强调色小色板：点色块直接设置，另含重置品牌橙。 */
-    .sf-lsp-pal { display:flex; flex-wrap:wrap; gap:5px; }
-    .sf-lsp-palb { width:20px; height:20px; border-radius:4px; border:1px solid rgba(255,255,255,0.2);
-      cursor:pointer; flex:0 0 auto; }
-    .sf-lsp-palb:hover { border-color:#fff; transform:scale(1.12); }
   `;
     document.head.appendChild(s);
 }
@@ -493,27 +487,6 @@ export function openLoraPanel(node, refresh) {
         });
     }
 
-    // 强调色：点色块直接设置，或重置品牌橙。
-    const ACC_PALETTE = ["#f66744", "#4f7cff", "#3ec371", "#e9a53d", "#e2504a", "#a06ee0", "#3aa0b0", "#ffffff"];
-    const accRow = el("div", "sf-lsp-row");
-    accRow.appendChild(el("div", "lab", "Highlight colour"));
-    const pal = el("div", "sf-lsp-pal");
-    for (const c of ACC_PALETTE) {
-        const b = el("div", "sf-lsp-palb");
-        b.style.background = c;
-        b.title = c === BRAND ? "Reset to the brand orange" : c;
-        b.addEventListener("click", () => {
-            const col = c === "#ffffff" ? null : c; // 白色色块 = 重置默认（品牌橙）
-            set({ accent: col });
-            panel.style.setProperty("--acc", col || BRAND);
-            node._sfLsInner?.style.setProperty("--acc", col || BRAND);
-            fire();
-        });
-        pal.appendChild(b);
-    }
-    accRow.appendChild(pal);
-    body.appendChild(accRow);
-
     // footer
     const foot = el("div", "sf-lsp-f");
     const mkDefault = el("button", "sf-lsp-btn", "Set as default");
@@ -524,22 +497,11 @@ export function openLoraPanel(node, refresh) {
         mkDefault.textContent = ok ? "Saved as default" : "Could not save";
         setTimeout(() => { mkDefault.textContent = "Set as default"; }, 1200);
     });
-    // 写入全局强调色设置（ComfyUI Settings 页的 sfnodes.Accent）：未单独设色
-    // 的节点统一跟随。写当前生效色（node 级 > 节点默认 > 全局 > 品牌橙）。
-    const mkAll = el("button", "sf-lsp-btn", "Every SF node");
-    mkAll.title = "Use this colour for every SF node without its own colour (SF nodes setting)";
-    mkAll.addEventListener("click", async () => {
-        try {
-            const col = accentOf(node);
-            await app.ui.settings.setSettingValueAsync("sfnodes.Accent", col);
-            repaintAll();
-            mkAll.textContent = "Saved";
-            setTimeout(() => { mkAll.textContent = "Every SF node"; }, 1200);
-        } catch { /* 设置系统不可用 */ }
-    });
+    // 强调色统一走 ComfyUI Settings 的 sfnodes.Accent（无节点级自定义），
+    // 节点设置面板不再提供颜色入口。
     const done = el("button", "sf-lsp-btn sf-lsp-push", "Done");
     done.addEventListener("click", closeLoraPanel);
-    foot.append(mkDefault, mkAll, done);
+    foot.append(mkDefault, done);
 
     panel.append(title, body, foot);
     document.body.appendChild(panel);
