@@ -6,7 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
-    saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb } from "./sf_lora_stack_api.js";
+    saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 
 let _panel = null;
@@ -113,6 +113,12 @@ function injectCSS() {
     .sf-ls-strip.found { background:rgba(62,195,113,0.12); } .sf-ls-strip.found .st-ic { background:#3ec371; }
     .sf-ls-strip.nofind { background:rgba(255,255,255,0.05); } .sf-ls-strip.nofind .st-ic { background:#6f6f6f; }
     .sf-ls-strip.offline { background:rgba(233,165,61,0.12); } .sf-ls-strip.offline .st-ic { background:#e9a53d; }
+    .sf-ls-strip-acts { display:flex; gap:5px; margin-left:auto; flex:none; align-items:center; }
+    .sf-ls-strip-acts button { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18);
+      color:#ccc; border-radius:6px; padding:4px 10px; font:11px 'Segoe UI',sans-serif; cursor:pointer; }
+    .sf-ls-strip-acts button:hover { border-color:${BRAND}; color:#fff; }
+    .sf-ls-strip-acts button.pri { background:${BRAND}; border-color:${BRAND}; color:#fff; font-weight:600; }
+    .sf-ls-strip-acts button.pri:hover { filter:brightness(1.1); }
     .sf-ls-spin { width:11px; height:11px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
       border-radius:50%; animation:sf-ls-sp 1s linear infinite; }
     @keyframes sf-ls-sp { to { transform:rotate(360deg); } }
@@ -252,7 +258,9 @@ export async function openInfoPanel(node, id, refresh) {
     startFollowing(panel, node);
 
     // 本面板会话的视图数据
-    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", custom_description: "" };
+    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", custom_description: "", orphan_key: "" };
+    // 孤儿迁移提示条按面板会话 dismiss（文件没动的话每次打开都值得再看一眼）。
+    let _orphanDismissed = false;
     let civ = null; // { state:"searching"|"found"|"nofind"|"offline", info?, message? }
     // 展示哪组候选词："file" | "civitai"。null = 自动（有已存侧车/刚取回则
     // Civitai，否则文件自己的词）。用户选中的词与视图无关地持久在 row.triggers。
@@ -399,6 +407,10 @@ export async function openInfoPanel(node, id, refresh) {
             _descEditing = false;
             _descDraft = "";
             info.custom_description = res.description || "";   // 本地即画，不等 loadInfo
+            // 使任何在途 loadInfo 作废：它的响应是保存前的旧快照，落地会把
+            // 刚保存的自定义描述覆盖回 Civitai/文件原文（"保存后仍显示来自
+            // Civitai"就是这么来的）。
+            _infoSeq++;
             renderBody();
         });
     }
@@ -520,6 +532,8 @@ export async function openInfoPanel(node, id, refresh) {
      */
     let _infoSeq = 0;
     let _hydrated = false;
+    // 封面静默恢复已尝试（防重复请求；失败也停，下次打开面板再试）。
+    let _thumbRestoreTried = false;
 
     async function attemptInfo(force) {
         const ticket = ++_infoSeq;
@@ -533,6 +547,17 @@ export async function openInfoPanel(node, id, refresh) {
         // 回来 stale/superseded 时，hydrateCustom——没有其它调用点——永不跑，
         // 用户存储的触发词到不了行。
         if (!_hydrated) { _hydrated = true; hydrateCustom(); }
+        // 封面静默恢复：自动保存的封面以路径 hash 命名，文件移动/改名后
+        // hash 失配、本地找不到，但侧车（跟随文件）里有同一张缩略图——
+        // 静默重下载到新 hash 名下，不打扰用户。失败静默（下次打开再试）。
+        if (info.restorable_thumb && !_thumbRestoreTried && name) {
+            _thumbRestoreTried = true;
+            saveCivitaiThumb(name).then((res) => {
+                if (!panel.isConnected || !res?.ok) return;
+                _thumbBust = res.v || Date.now();
+                loadInfo({ force: true }).then((ok) => { if (ok) renderBody(); });
+            });
+        }
         return "ok";
     }
 
@@ -773,6 +798,31 @@ export async function openInfoPanel(node, id, refresh) {
         // ── 可选 Civitai 状态条 ────────────────────────────────────────────
         if (civ) panel.appendChild(civStrip());
 
+        // ── 孤儿数据迁移提示（文件移动/改名后旧键数据仍在）────────────────
+        if (info.orphan_key && !_orphanDismissed && name) {
+            const parts = [];
+            if ((info.orphan_triggers?.length || 0) > 0) {
+                parts.push(info.orphan_triggers.length + " trigger word" + (info.orphan_triggers.length > 1 ? "s" : ""));
+            }
+            if (info.orphan_description) parts.push("a description");
+            if (info.orphan_preview) parts.push("a preview picture");
+            const strip = el("div", "sf-ls-strip nofind");
+            strip.append(el("span", "st-ic", "↻"));
+            const body = el("div");
+            body.textContent = "Found saved data under the old path ("
+                + (parts.join(", ") || "saved data") + "). Migrate it to this file?";
+            const acts = el("div", "sf-ls-strip-acts");
+            const mig = el("button", "pri", "Migrate");
+            mig.title = "Move the words, description and preview from the old path to this file";
+            mig.addEventListener("click", () => runMigrate());
+            const dis = el("button", null, "Dismiss");
+            dis.title = "Leave the old data where it is";
+            dis.addEventListener("click", () => { _orphanDismissed = true; renderBody(); });
+            acts.append(mig, dis);
+            strip.append(body, acts);
+            panel.appendChild(strip);
+        }
+
         // ── 触发词 ─────────────────────────────────────────────────────────
         const sec = el("div", "sf-ls-info-sec");
         const head = el("h4");
@@ -1009,6 +1059,20 @@ export async function openInfoPanel(node, id, refresh) {
         invalidateInfo(name);                 // 丢缓存的（侧车味的）info
         civ = null;
         viewSource = "file";                  // 没有可切换的了——显示文件词
+        await loadInfo({ force: true });
+        if (!panel.isConnected) return;
+        renderBody();
+    }
+
+    // 迁移旧路径键下的自定义数据到当前文件名（词/描述/预览图）。成功后
+    // info 刷新（custom_triggers/custom_description 出现、orphan 字段消失）。
+    async function runMigrate() {
+        clearMsg();
+        const res = await migrateLoraData(name);
+        if (!panel.isConnected) return;
+        if (!res?.ok) { showMsg((res && res.message) || "Nothing to migrate."); return; }
+        _msg = null;
+        _orphanDismissed = true;
         await loadInfo({ force: true });
         if (!panel.isConnected) return;
         renderBody();

@@ -252,11 +252,29 @@ export async function deleteLoraPreview(name) {
     }
 }
 
-/** 用户确认后，把侧车里的 Civitai 缩略图下载并覆盖保存为本地预览
- *  （查询时因已有自定义预览被跳过保存的补做）。 */
+/** 把侧车里的 Civitai 缩略图下载并覆盖保存为本地预览。两种用途：
+ *  1) 用户确认覆盖自己的预览图后（查询时因已有自定义预览被跳过保存）；
+ *  2) 文件移动后封面 hash 失配的静默恢复（无自定义预览时）。 */
 export async function saveCivitaiThumb(name) {
     try {
         const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai_thumb_save"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+        });
+        const j = await r.json();
+        if (j?.ok) invalidateInfo(name);
+        return j;
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
+/** 文件被移动/改名后，把旧路径键下的自定义数据（词/描述/预览图）迁移到
+ *  当前 LoRA 名（基名唯一匹配，前端已确认）。 */
+export async function migrateLoraData(name) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/migrate"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name }),

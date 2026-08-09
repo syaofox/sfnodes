@@ -272,6 +272,47 @@ check("set_custom_description 截断限长", len(utils.set_custom_description(st
 check("set_custom_description 非 str -> 清", utils.set_custom_description(store_path, "t.safetensors", None) == ""
       and cd(store_path, "t.safetensors") == "")
 
+# ── 孤儿数据迁移（文件移动/改名后）──
+bk = utils.base_key
+check("base_key 去目录去扩展", bk("a/b/c.safetensors") == "c" and bk("d.ckpt") == "d")
+check("base_key 无扩展名", bk("x") == "x")
+check("base_key 垃圾", bk("") == "" and bk(None) == "")
+# 构造：旧键有数据（词+描述），新键无数据 -> 唯一基名匹配
+mig_store = os.path.join(tempfile.mkdtemp(prefix="sf_lora_mig_"), "triggers.json")
+utils.set_custom_triggers(mig_store, "old/dir/char.safetensors", ["w1"])
+utils.set_custom_description(mig_store, "old/dir/char.safetensors", "old desc")
+check("find_orphan_key 唯一匹配", utils.find_orphan_key(
+    utils.read_custom_store(mig_store), "new/dir/char.safetensors") == "old/dir/char.safetensors")
+check("find_orphan_key 同名键排除", utils.find_orphan_key(
+    utils.read_custom_store(mig_store), "old/dir/char.safetensors") is None)
+# 歧义：两个不同目录同名 -> 不匹配
+utils.set_custom_triggers(mig_store, "another/char.safetensors", ["w2"])
+check("find_orphan_key 同名多目录歧义放弃", utils.find_orphan_key(
+    utils.read_custom_store(mig_store), "new/dir/char.safetensors") is None)
+utils.set_custom_triggers(mig_store, "another/char.safetensors", [])  # 清歧义条目
+# 迁移
+res = utils.migrate_custom_data(mig_store, "new/dir/char.safetensors")
+check("migrate_custom_data ok", res["ok"] is True and res["old_key"] == "old/dir/char.safetensors")
+check("migrate_custom_data 词迁移", utils.get_custom_triggers(mig_store, "new/dir/char.safetensors") == ["w1"])
+check("migrate_custom_data 描述迁移", utils.get_custom_description(mig_store, "new/dir/char.safetensors") == "old desc")
+check("migrate_custom_data 旧键删除", utils.get_custom_triggers(mig_store, "old/dir/char.safetensors") == []
+      and utils.get_custom_description(mig_store, "old/dir/char.safetensors") == "")
+check("migrate_custom_data 新键已有不迁移", utils.migrate_custom_data(mig_store, "new/dir/char.safetensors")["ok"] is False)
+check("migrate_custom_data 无唯一匹配", utils.migrate_custom_data(mig_store, "totally/new.safetensors")["ok"] is False)
+# 预览图迁移
+mig_pv = tempfile.mkdtemp(prefix="sf_lora_migpv_")
+old_pv = utils.custom_preview_path(mig_pv, "old/dir/char.safetensors")
+with open(old_pv, "wb") as f:
+    f.write(b"\xff\xd8\xff\xe0img")
+check("migrate_custom_preview ok", utils.migrate_custom_preview(mig_pv, "new/dir/char.safetensors", "old/dir/char.safetensors") is True)
+check("migrate_custom_preview 新键文件在", utils.find_custom_preview(mig_pv, "new/dir/char.safetensors") is not None)
+check("migrate_custom_preview 旧键文件无", utils.find_custom_preview(mig_pv, "old/dir/char.safetensors") is None)
+# 目标已存在不覆盖
+with open(old_pv, "wb") as f:
+    f.write(b"xx")
+check("migrate_custom_preview 目标已存在不覆盖", utils.migrate_custom_preview(mig_pv, "new/dir/char.safetensors", "old/dir/char.safetensors") is False
+      and utils.find_custom_preview(mig_pv, "new/dir/char.safetensors") is not None)
+
 # ── _clean_description ──
 cl = utils._clean_description
 check("clean_desc 剥标签", cl("<b>Hello</b> world") == "Hello world")

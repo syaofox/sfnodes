@@ -253,6 +253,22 @@ def _register_routes():
                 info["civitai_host"] = _civitai_account().get("host", "com")
             except Exception:
                 info["civitai_host"] = "com"
+            # 孤儿数据检测：文件被移动/改名后，新键下没有自定义数据，但存储
+            # 里有唯一基名匹配的旧键（自定义词/描述/预览图仍在）。附字段让
+            # 前端显示迁移提示条；迁移由用户确认后执行（不自动，防同名误配）。
+            try:
+                has_custom = bool(info.get("custom_triggers")) or bool(info.get("custom_description"))
+                if not has_custom:
+                    store = R.read_custom_store(_custom_triggers_file())
+                    orphan = R.find_orphan_key(store, name)
+                    if orphan:
+                        entry = store.get(orphan, {})
+                        info["orphan_key"] = orphan
+                        info["orphan_triggers"] = entry.get("words", [])
+                        info["orphan_description"] = entry.get("description", "")
+                        info["orphan_preview"] = bool(R.find_custom_preview(_previews_dir(), orphan))
+            except Exception:
+                pass
             # ...以及他们自己的预览图。custom_preview 驱动面板的 "remove"
             # 开关；preview_v 是 mtime，让浏览器越过缩略图路由的一小时缓存
             # （别的节点/别的会话换过图而本面板没看见的情况）。
@@ -265,6 +281,18 @@ def _register_routes():
             except Exception:
                 info["custom_preview"] = False
                 info["preview_v"] = 0
+            # 封面恢复：自动保存的封面图以 LoRA 路径 hash 命名，文件移动/
+            # 改名后 hash 失配、本地找不到。侧车（跟随文件）里仍有缩略图
+            # URL——附标志让前端静默重下载到新 hash 名下。仅当本地确无预览
+            # 时附 True，避免打扰本就有封面的 LoRA（此处 custom_preview 已定）。
+            try:
+                info["restorable_thumb"] = False
+                if not info.get("custom_preview"):
+                    acc = _civitai_account()
+                    if R.sidecar_thumbnail(path, allow_adult=bool(acc.get("adult_thumbs"))):
+                        info["restorable_thumb"] = True
+            except Exception:
+                info["restorable_thumb"] = False
             return web.json_response({"ok": True, "info": info},
                                      headers={"Cache-Control": "no-store"})
 
@@ -539,6 +567,34 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "description": stored})
+
+        @routes.post("/api/sfnodes/lora/migrate")
+        async def api_lora_migrate(request):
+            """把旧路径键下的自定义数据（词/描述/预览图）迁移到当前 LoRA 名。
+            POST {name}。基名唯一匹配由纯逻辑决定；新键已有数据时不迁移。
+            恒 200。"""
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            name = data.get("name", "") or request.query.get("name", "")
+            path = _resolve_lora_path(name)
+            roots = _lora_dirs()
+            if not path or not roots or not _is_path_under(path, *roots):
+                return web.json_response({"ok": False, "message": "LoRA not found."})
+            import asyncio
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(None, R.migrate_custom_data, _custom_triggers_file(), name)
+            if not res.get("ok"):
+                return web.json_response({"ok": False, "message": "Nothing to migrate."})
+            old_key = res["old_key"]
+            moved_pv = await loop.run_in_executor(
+                None, R.migrate_custom_preview, _previews_dir(), name, old_key
+            )
+            return web.json_response({"ok": True, "old_key": old_key,
+                                      "preview_moved": bool(moved_pv)})
 
         @routes.post("/api/sfnodes/lora/civitai_thumb_save")
         async def api_lora_civitai_thumb_save(request):

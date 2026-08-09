@@ -756,6 +756,86 @@ def set_custom_description(path, name, desc):
     return clean
 
 
+# ── 文件移动/改名后的孤儿数据迁移 ─────────────────────────────────────────
+#
+# 自定义词/描述/预览图都以 LoRA 相对路径名为键。用户整理目录（移动/改名
+# 文件）后键失配：数据还在存储里，但新路径名下读不到。侧车（<base>.
+# .civitai.info）随文件走，天然跟上；这三样需要显式迁移。
+#
+# 匹配策略：基名唯一匹配——存储里恰有一个键的基名（去目录、去扩展名）与
+# 当前文件相同。唯一才匹配：同名多目录会歧义，宁可放弃也不冒误配。迁移
+# 由前端提示 + 用户确认触发，不自动执行。
+
+_LORA_KEY_EXTS = (".safetensors", ".safetensor", ".ckpt", ".pt", ".pth", ".bin", ".sft")
+
+
+def base_key(key):
+    """存储键 -> 基名（去目录与扩展名）。垃圾返回 "". 永不抛错。"""
+    if not isinstance(key, str):
+        return ""
+    b = key.replace("\\", "/").rsplit("/", 1)[-1]
+    low = b.lower()
+    for ext in _LORA_KEY_EXTS:
+        if low.endswith(ext):
+            return b[:-len(ext)]
+    return b
+
+
+def find_orphan_key(store, name):
+    """store 中与 name 基名相同、键不同的条目。唯一才返回（同名多目录 ->
+    歧义，放弃自动匹配），否则 None。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return None
+    target = base_key(key)
+    if not target:
+        return None
+    matches = [k for k in store if k != key and base_key(k) == target]
+    return matches[0] if len(matches) == 1 else None
+
+
+def migrate_custom_data(path, name):
+    """把旧路径键下的自定义词/描述迁移到当前 name 键（基名唯一匹配时）。
+
+    新键已有数据不迁移（不覆盖）；旧键空不迁移。返回
+    {"ok": True, "old_key": ...} 或 {"ok": False, "reason": ...}。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return {"ok": False, "reason": "bad name"}
+    store = read_custom_store(path)
+    cur = store.get(key)
+    if cur and (cur["words"] or cur["description"]):
+        return {"ok": False, "reason": "already has data"}
+    old = find_orphan_key(store, name)
+    if old is None:
+        return {"ok": False, "reason": "no unique match"}
+    entry = store.get(old)
+    if not entry or not (entry["words"] or entry["description"]):
+        return {"ok": False, "reason": "old entry empty"}
+    store[key] = entry
+    del store[old]
+    write_custom_store(path, store)
+    return {"ok": True, "old_key": old}
+
+
+def migrate_custom_preview(folder, name, old_key):
+    """把旧键的预览图文件迁移到当前 name 的 hash 名下（同目录 rename）。
+
+    旧文件存在且新目标不存在才迁移；已存在则不覆盖（保留现状）。
+    成功返回 True。永不抛错。"""
+    old = custom_preview_path(folder, old_key)
+    new = custom_preview_path(folder, name)
+    if not old or not new or old == new:
+        return False
+    if not os.path.isfile(old) or os.path.isfile(new):
+        return False
+    try:
+        os.rename(old, new)
+        return True
+    except Exception:
+        return False
+
+
 # ── 用户自己的预览图 ──────────────────────────────────────────────────────
 #
 # 存在 user 目录（路由决定文件夹），原因同自定义词存储：models 目录常只读/
