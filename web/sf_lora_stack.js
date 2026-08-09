@@ -141,15 +141,17 @@ app.registerExtension({
                 type: "combo",
                 options: () => {
                     const cur = app.ui.settings.getSettingValue("sfnodes.Accent");
+                    // 选项文本带颜色 emoji 图例（ComfyUI 设置 combo 只渲染
+                    // 文字，无原生色块支持——emoji 是零风险的近似图例）。
                     const opts = [
-                        { value: "#f66744", text: "Default (brand orange)", selected: cur === "#f66744" },
-                        { value: "#4f7cff", text: "Blue", selected: cur === "#4f7cff" },
-                        { value: "#3ec371", text: "Green", selected: cur === "#3ec371" },
-                        { value: "#e9a53d", text: "Amber", selected: cur === "#e9a53d" },
-                        { value: "#e2504a", text: "Red", selected: cur === "#e2504a" },
-                        { value: "#a06ee0", text: "Purple", selected: cur === "#a06ee0" },
-                        { value: "#3aa0b0", text: "Teal", selected: cur === "#3aa0b0" },
-                        { value: "#e8e8e8", text: "Light grey", selected: cur === "#e8e8e8" },
+                        { value: "#f66744", text: "🟠 Default (brand orange)", selected: cur === "#f66744" },
+                        { value: "#4f7cff", text: "🔵 Blue", selected: cur === "#4f7cff" },
+                        { value: "#3ec371", text: "🟢 Green", selected: cur === "#3ec371" },
+                        { value: "#e9a53d", text: "🟡 Amber", selected: cur === "#e9a53d" },
+                        { value: "#e2504a", text: "🔴 Red", selected: cur === "#e2504a" },
+                        { value: "#a06ee0", text: "🟣 Purple", selected: cur === "#a06ee0" },
+                        { value: "#3aa0b0", text: "🔷 Teal", selected: cur === "#3aa0b0" },
+                        { value: "#e8e8e8", text: "⚪ Light grey", selected: cur === "#e8e8e8" },
                     ];
                     return opts;
                 },
