@@ -30,8 +30,8 @@ import { closeRowMenu } from "./sf_lora_stack_interaction.js";
 const CLASS = "SFLoraStack";
 
 const MIN_W = 300;
-const CHROME = 86;      // legacy 回退：标题 + 3 输入 + 3 输出槽行
-const VUE_CHROME = 116; // Nodes 2.0 回退（3 输入槽）
+const CHROME = 66;      // legacy 回退：标题 + 输入槽 + 输出槽行（输入槽数不影响 widget 顶）
+const VUE_CHROME = 96;  // Nodes 2.0 回退（槽带绝对定位，不占 widget 区高度）
 
 // Python hidden 输入（LoraLoaderState）。多数环境不建 widget，此函数防御。
 // Nodes 2.0 下 hidden + computeSize 单独不足以抑制 Vue 节点体里的 STRING
