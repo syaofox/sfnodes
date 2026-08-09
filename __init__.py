@@ -130,6 +130,8 @@ from .nodes.text.prompt_preset import SFPromptPreset, SFUnpackPromptPreset
 from .nodes.text.prompt_tags import SFPromptTags
 from .nodes.text.pause_text import SFPauseText
 from .nodes.text.find_replace import SFTextFindReplace
+from .nodes.text.prompt_reader import SFPromptReader
+from .nodes.text import prompt_reader_routes  # noqa: F401  # 副作用注册 /api/sfnodes/prompt_reader/extract 路由
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
@@ -288,6 +290,7 @@ NODE_CLASS_MAPPINGS = {
     "SFPromptTags": SFPromptTags,
     "SFPauseText": SFPauseText,
     "SFTextFindReplace": SFTextFindReplace,
+    "SFPromptReader": SFPromptReader,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFSimpleMathSlider": SimpleMathSlider,
@@ -463,6 +466,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPromptTags": "SF Prompt Tags",
     "SFPauseText": "SF Pause Text",
     "SFTextFindReplace": "SF Text Find Replace",
+    "SFPromptReader": "SF Prompt Reader",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFSimpleMathSlider": "SF Simple Math Slider",
