@@ -15,6 +15,11 @@ let _cleanup = null;
 let _ownerNode = null;
 let _followRaf = null;   // 让面板跟随其节点，见 startFollowing()
 let _userMoved = false;  // 用户拖过它，停止跟随
+// 用户手动调整过的面板大小（会话级记忆：关闭重开保持，刷新页面回默认）。
+let _panelSize = null;
+
+const _PANEL_MIN_W = 280;
+const _PANEL_MIN_H = 240;
 
 function injectCSS() {
     if (document.getElementById("sf-ls-info-css")) return;
@@ -23,7 +28,16 @@ function injectCSS() {
     s.textContent = `
     .sf-ls-info-p { position:fixed; z-index:10025; width:420px; max-width:94vw; background:#2b2b2b;
       border:1px solid ${BRAND}; border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
-      overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd; }
+      overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
+      display:flex; flex-direction:column; }
+    /* 中间滚动容器：面板被用户拉高/拉矮后，头部与 footer 固定，内容滚动。 */
+    .sf-ls-info-body { flex:1 1 auto; min-height:0; overflow-y:auto; }
+    /* 右下角拖拽调大小手柄 */
+    .sf-ls-resize { position:absolute; right:0; bottom:0; width:16px; height:16px;
+      cursor:se-resize; z-index:3; }
+    .sf-ls-resize::after { content:""; position:absolute; right:3px; bottom:3px;
+      width:7px; height:7px; border-right:2px solid #7a7a7a; border-bottom:2px solid #7a7a7a; }
+    .sf-ls-resize:hover::after { border-color:var(--acc,${BRAND}); }
     .sf-ls-info-top { display:flex; gap:11px; padding:12px; border-bottom:1px solid #1c1c1c; cursor:grab; }
     .sf-ls-info-th { width:64px; height:64px; border-radius:7px; flex:none; border:1px solid #000;
       background:radial-gradient(circle at 60% 35%,#4a3a5b,#221a2e 72%); background-size:cover; background-position:center;
@@ -197,6 +211,45 @@ function resolveSampleUrl(rel, loraName) {
     return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
 }
 
+// ── 右下角拖拽调大小手柄 ───────────────────────────────────────────────────
+// renderBody 每次重建面板时调用（handle 是面板子元素，随 innerHTML 清除）。
+// 拖拽调整 width/height 并记忆（_panelSize）；最小尺寸钳制；释放即结束
+// （buttons 守卫兜底丢失的 pointerup）。
+function attachResize(panel) {
+    const h = el("div", "sf-ls-resize");
+    h.title = "Drag to resize";
+    panel.appendChild(h);
+    h.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = panel.getBoundingClientRect();
+        try { h.setPointerCapture(e.pointerId); } catch { /* 不可捕获 */ }
+        let done = false;
+        const move = (ev) => {
+            if (!panel.isConnected) return up();
+            if (!(ev.buttons & 1)) return up();
+            const w = Math.max(_PANEL_MIN_W, Math.min(window.innerWidth - 16, ev.clientX - r.left));
+            const hh = Math.max(_PANEL_MIN_H, Math.min(window.innerHeight - 16, ev.clientY - r.top));
+            panel.style.width = w + "px";
+            panel.style.height = hh + "px";
+            _panelSize = { w, h: hh };
+        };
+        const up = () => {
+            if (done) return;
+            done = true;
+            try { h.releasePointerCapture(e.pointerId); } catch { /* 已离开 */ }
+            h.removeEventListener("pointermove", move, true);
+            h.removeEventListener("pointerup", up, true);
+            h.removeEventListener("pointercancel", up, true);
+            h.removeEventListener("lostpointercapture", up, true);
+        };
+        h.addEventListener("pointermove", move, true);
+        h.addEventListener("pointerup", up, true);
+        h.addEventListener("pointercancel", up, true);
+        h.addEventListener("lostpointercapture", up, true);
+    });
+}
+
 // 面板风确认框：返回 Promise<boolean>。遮罩点击 / Esc = 取消。与信息面板
 // 同主题（accent 边框 + 主按钮），替代割裂的原生 confirm。
 function confirmDialog(opts) {
@@ -296,6 +349,11 @@ export async function openInfoPanel(node, id, refresh) {
     const panel = el("div", "sf-ls-info-p");
     panel.style.setProperty("--acc", accent);   // body 级面板不继承任何东西
     panel.style.borderColor = accent;
+    // 恢复用户上次手动调整的大小（会话级记忆）。
+    if (_panelSize) {
+        panel.style.width = _panelSize.w + "px";
+        panel.style.height = _panelSize.h + "px";
+    }
     document.body.appendChild(panel);
     _panel = panel;
     _ownerNode = node;
@@ -887,11 +945,15 @@ export async function openInfoPanel(node, id, refresh) {
         if (th) top.append(th, h, x); else top.append(h, x);
         panel.appendChild(top);
 
+        // 中间滚动容器：头部与 footer 固定，内容随面板高度滚动（用户可
+        // 拖拽右下角手柄调整面板大小）。
+        const bodyWrap = el("div", "sf-ls-info-body");
+
         // ── 图片的问题（如果有）────────────────────────────────────────────
-        if (_msg) panel.appendChild(msgStrip());
+        if (_msg) bodyWrap.appendChild(msgStrip());
 
         // ── 可选 Civitai 状态条 ────────────────────────────────────────────
-        if (civ) panel.appendChild(civStrip());
+        if (civ) bodyWrap.appendChild(civStrip());
 
         // ── 孤儿数据迁移提示（文件移动/改名后旧键数据仍在）────────────────
         if (info.orphan_key && !_orphanDismissed && name) {
@@ -915,7 +977,7 @@ export async function openInfoPanel(node, id, refresh) {
             dis.addEventListener("click", () => { _orphanDismissed = true; renderBody(); });
             acts.append(mig, dis);
             strip.append(body, acts);
-            panel.appendChild(strip);
+            bodyWrap.appendChild(strip);
         }
 
         // ── 触发词 ─────────────────────────────────────────────────────────
@@ -1093,7 +1155,9 @@ export async function openInfoPanel(node, id, refresh) {
                     "No description in this file - write your own, or try the Civitai lookup."));
             }
         }
-        panel.appendChild(dsec);
+        // 面板内容区（除 top/foot 外全部）进滚动容器。
+        bodyWrap.appendChild(dsec);
+        panel.appendChild(bodyWrap);
 
         // ── footer ──────────────────────────────────────────────────────────
         const foot = el("div", "sf-ls-info-foot");
@@ -1114,6 +1178,7 @@ export async function openInfoPanel(node, id, refresh) {
             foot.appendChild(del);
         }
         panel.appendChild(foot);
+        attachResize(panel);
         // 每次重渲染都可能改变面板高度（勾词、加自定义词、切 File/Civitai
         // 视图、查询落地）。在这里统一钳制覆盖所有调用点，footer 永不会被
         // 推出屏幕底部。
