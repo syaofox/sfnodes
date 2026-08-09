@@ -64,6 +64,101 @@ function writeState(node, patch) {
   node.properties[STATE_PROP] = { ...cur, ...patch };
 }
 
+// ── 目录切换（input/ ↔ output/）────────────────────────────────────────────
+
+// Peel ComfyUI's type annotation off a combo value. A value can be
+// "sub/out.png [output]" - the annotation names the folder the file lives
+// in and must never reach the file-name display / split.
+function splitTypeAnnotation(value) {
+  const s = String(value ?? "");
+  const m = s.match(/^(.*?)\s*\[(input|output|temp)\]\s*$/i);
+  if (!m) return { name: s, type: "input" };
+  return { name: m[1], type: m[2].toLowerCase() };
+}
+
+// 当前读取目录：state.folder === "output" → output/，否则 input/。
+// （字段名避开 applyResult 写入的 source=comfyui/a1111 提取来源）
+function currentSource(node) {
+  return readState(node).folder === "output" ? "output" : "input";
+}
+
+function updateSourceButton(node, type) {
+  const root = node._sfPrRoot;
+  if (!root) return;
+  const btn = root.querySelector('[data-role="source"]');
+  if (!btn) return;
+  const isOut = type === "output";
+  btn.textContent = isOut ? "OUT" : "IN";
+  btn.title = isOut
+    ? "Reading from output/ · click to switch to input/"
+    : "Reading from input/ · click to switch to output/";
+  btn.classList.toggle("sf-pr-srcbtn-active", isOut);
+}
+
+// 拉取目录文件列表（纯相对路径，正斜杠）；失败返回 null。
+async function fetchMediaList(type) {
+  const url = pixApiUrl(`/api/sfnodes/prompt_reader/list?type=${encodeURIComponent(type)}`);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return Array.isArray(json) ? json : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 列表 → combo options 值：output 项拼 [output] 注解（get_annotated_filepath
+// 原生解析，extract 路由的 allowed_roots 已含 output/）。
+function buildSourceValues(list, type) {
+  return (list || []).map((f) => (type === "output" ? f + " [output]" : f));
+}
+
+// 切换目录：拉列表 → 替换 options → 持久化 source → 选中 selectFile（若在新
+// 列表中）否则第一项并提取；列表为空则清空值 + 提示。
+async function switchSource(node, target, selectFile = null) {
+  const w = node._sfPrImageWidget;
+  if (!w) return;
+  const list = await fetchMediaList(target);
+  if (list == null) {
+    applyResult(node, { found: false, message: "Could not load the file list." }, w.value || "");
+    return;
+  }
+  const values = buildSourceValues(list, target);
+  if (!w.options) w.options = {};
+  w.options.values = values;
+  writeState(node, { folder: target });
+  updateSourceButton(node, target);
+  let picked = null;
+  if (selectFile && values.includes(selectFile)) {
+    picked = selectFile;
+  } else if (values.length) {
+    picked = values[0];
+  }
+  if (picked) {
+    w.value = picked;
+    node._sfPrSelectedFilename = picked;
+    onImageChanged(node);
+  } else {
+    w.value = "";
+    node._sfPrSelectedFilename = "";
+    applyResult(
+      node,
+      { found: false, message: `No media files in the ${target} folder.` },
+      ""
+    );
+    refreshDropdown(node);
+  }
+}
+
+// 上传/拖拽落盘的文件在 input/：若当前是 output 模式，切回 input 并选中新
+// 文件（避免"选了但列表里没有"）。返回 true 表示已切回（调用方不再重复提取）。
+async function ensureSourceIsInput(node, saved) {
+  if (currentSource(node) !== "output") return false;
+  await switchSource(node, "input", saved);
+  return true;
+}
+
 // ── CSS injection ──────────────────────────────────────────────────────────
 
 let _cssInjected = false;
@@ -119,6 +214,25 @@ function injectCSS() {
       align-items: stretch;
     }
     .sf-pr-filerow .sf-pr-dropdown { flex: 1; min-width: 0; }
+    .sf-pr-srcbtn {
+      background: #1d1d1d;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #aaa;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      flex-shrink: 0;
+      transition: background 0.08s, border-color 0.08s, color 0.08s;
+    }
+    .sf-pr-srcbtn:hover { border-color: #f66744; color: #f66744; }
+    .sf-pr-srcbtn-active { background: #f66744; border-color: #f66744; color: #fff; }
+    .sf-pr-srcbtn-active:hover { color: #fff; }
     .sf-pr-nav {
       background: #1d1d1d;
       border: 1px solid #444;
@@ -289,10 +403,17 @@ function buildRoot() {
   hint.dataset.role = "hint";
   root.appendChild(hint);
 
-  // File row with prev/next arrows so users can flip through images
-  // visually, mirroring Load Image SF.
+  // File row: [IN/OUT] [◀] [ dropdown ] [▶] - the source toggle switches the
+  // file list between input/ and output/ (mirrors Load Image Browser).
   const fileRow = document.createElement("div");
   fileRow.className = "sf-pr-filerow";
+
+  const srcBtn = document.createElement("button");
+  srcBtn.type = "button";
+  srcBtn.className = "sf-pr-srcbtn";
+  srcBtn.dataset.role = "source";
+  srcBtn.title = "Reading from input/ · click to switch to output/";
+  srcBtn.textContent = "IN";
 
   const prev = document.createElement("button");
   prev.type = "button";
@@ -313,7 +434,7 @@ function buildRoot() {
   next.title = "Next image (PageDown)";
   next.textContent = "▶";
 
-  fileRow.append(prev, dd, next);
+  fileRow.append(srcBtn, prev, dd, next);
   root.appendChild(fileRow);
 
   // Order: dropdown → readout → status (info + Copy). The status pill is
@@ -507,7 +628,9 @@ function refreshDropdown(node) {
   const nameEl = root.querySelector('[data-role="dropdown"] .name');
   const counter = root.querySelector('[data-role="counter"]');
   const value = w?.value || "";
-  if (nameEl) nameEl.textContent = value ? value : "— no image —";
+  // 显示剥离 [output] 注解（"sub/out.png [output]" 只显示文件名路径）
+  const display = value ? splitTypeAnnotation(value).name : "";
+  if (nameEl) nameEl.textContent = display ? display : "— no image —";
   const values = w?.options?.values || [];
   if (counter) {
     if (value && values.length > 1) {
@@ -746,10 +869,11 @@ function openDropdown(node, anchorEl) {
   } else {
     // Group by subfolder: root first, then alphabetised folders. Each item
     // shows only the bare filename; the `title` attribute holds the full
-    // path for hover discoverability.
+    // path for hover discoverability. The [output] annotation is peeled
+    // before splitting so it never lands in the subfolder / filename.
     const map = new Map();
     for (const v of values) {
-      const { subfolder, filename } = splitPath(v);
+      const { subfolder, filename } = splitPath(splitTypeAnnotation(v).name);
       if (!map.has(subfolder)) map.set(subfolder, []);
       map.get(subfolder).push({ full: v, name: filename });
     }
@@ -912,11 +1036,17 @@ function setupNode(node) {
     imageWidget.callback = function () {
       const r = orig?.apply(this, arguments);
       if (imageWidget.value) node._sfPrSelectedFilename = imageWidget.value;
-      // A genuine native drop / combo change is a manual pick and takes over
-      // from a wire - but NEVER during load (a configure-time value restore
-      // must not sever a saved wire). If the takeover severed a wire, its
-      // cascade already refreshed the readout, so only extract here otherwise.
-      if (isGraphLoading() || !takeOverFromWire(node)) onImageChanged(node);
+      const v = imageWidget.value;
+      if (v && currentSource(node) === "output" && !v.includes("[output]")) {
+        // 原生 drop 落盘的是 input 文件（无注解值）：切回 input 并选中它
+        switchSource(node, "input", v);
+      } else {
+        // A genuine native drop / combo change is a manual pick and takes over
+        // from a wire - but NEVER during load (a configure-time value restore
+        // must not sever a saved wire). If the takeover severed a wire, its
+        // cascade already refreshed the readout, so only extract here otherwise.
+        if (isGraphLoading() || !takeOverFromWire(node)) onImageChanged(node);
+      }
       return r;
     };
     // Seed the defensive cache from whatever value the widget has at setup
@@ -931,11 +1061,21 @@ function setupNode(node) {
     e.stopPropagation();
     try {
       const saved = await pickAndUpload(node);
-      if (saved && !takeOverFromWire(node)) onImageChanged(node);  // manual upload wins over a wire
+      // 上传落盘在 input/：output 模式下自动切回 input 并选中新文件
+      if (saved && !(await ensureSourceIsInput(node, saved))) {
+        if (!takeOverFromWire(node)) onImageChanged(node);  // manual upload wins over a wire
+      }
     } catch (err) {
       console.error("[SFPromptReader] upload failed", err);
       applyResult(node, { found: false, message: `Upload failed: ${err.message}` });
     }
+  });
+
+  // Source toggle: switch the file list between input/ and output/.
+  root.querySelector('[data-role="source"]')?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const target = currentSource(node) === "output" ? "input" : "output";
+    switchSource(node, target);
   });
 
   // Dropdown
@@ -997,8 +1137,11 @@ function setupNode(node) {
     const t = file.type || "";
     if (t && !t.startsWith("image/") && !t.startsWith("video/")) return;
     try {
-      await uploadImage(node, file);
-      if (!takeOverFromWire(node)) onImageChanged(node);  // dropping a file wins over a wire
+      const saved = await uploadImage(node, file);
+      // 上传落盘在 input/：output 模式下自动切回 input 并选中新文件
+      if (!(await ensureSourceIsInput(node, saved))) {
+        if (!takeOverFromWire(node)) onImageChanged(node);  // dropping a file wins over a wire
+      }
     } catch (err) {
       console.error("[SFPromptReader] drop upload failed", err);
       applyResult(node, { found: false, message: `Upload failed: ${err.message}` });
@@ -1010,22 +1153,35 @@ function setupNode(node) {
   // values). We always re-extract on load rather than using the cached
   // state, so any message-text changes from an update propagate
   // to existing workflows without the user having to re-pick a file.
-  queueMicrotask(() => {
-    refreshDropdown(node);
-    // A connected filename input drives the read and overrides the picker.
-    if (isFilenameWired(node)) {
-      refreshWiredState(node);
-      return;
-    }
-    const wval = imageWidget?.value || "";
-    if (wval) {
-      onImageChanged(node);
+  queueMicrotask(() => initReadout(node, imageWidget));
+}
+
+// 初始/恢复统一入口（setupNode 与 onConfigure 共用）：
+//   - filename 接线 → 跟随接线（忽略选择器）
+//   - 值带 [output] 注解或保存的 source=output → 拉 output 列表恢复
+//   - 否则按选择器值提取；无值 → 恢复缓存文本
+function initReadout(node, imageWidget) {
+  refreshDropdown(node);
+  updateSourceButton(node, currentSource(node));
+  // A connected filename input drives the read and overrides the picker.
+  if (isFilenameWired(node)) {
+    refreshWiredState(node);
+    return;
+  }
+  const wval = imageWidget?.value || "";
+  if (wval) {
+    node._sfPrSelectedFilename = wval;
+    if (currentSource(node) === "output" || /\[output\]\s*$/i.test(wval)) {
+      // 保持当前值恢复 output 列表（值不在新列表时落到第一项）
+      switchSource(node, "output", wval);
     } else {
-      // No image selected - restore at least the cached UI text so the
-      // user sees the previous result on tab switch without a flash.
-      restoreFromState(node);
+      onImageChanged(node);
     }
-  });
+  } else {
+    // No image selected - restore at least the cached UI text so the
+    // user sees the previous result on tab switch without a flash.
+    restoreFromState(node);
+  }
 }
 
 // ── Extension registration ─────────────────────────────────────────────────
@@ -1038,20 +1194,7 @@ app.registerExtension({
     const origCfg = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (info) {
       const r = origCfg?.apply(this, arguments);
-      queueMicrotask(() => {
-        refreshDropdown(this);
-        if (isFilenameWired(this)) {
-          refreshWiredState(this);
-          return;
-        }
-        const wval = this._sfPrImageWidget?.value || "";
-        if (wval) {
-          this._sfPrSelectedFilename = wval;
-          onImageChanged(this);
-        } else {
-          restoreFromState(this);
-        }
-      });
+      queueMicrotask(() => initReadout(this, this._sfPrImageWidget));
       return r;
     };
 

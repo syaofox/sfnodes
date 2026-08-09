@@ -37,7 +37,12 @@ function makeEl() {
         prepend(...kids) { this.children.unshift(...kids); },
         remove() { this.removed = true; },
         contains() { return false; },
-        querySelector() { return makeEl(); },
+        // 按选择器缓存返回同一元素，便于测试拿到 setupNode 挂的事件 handler
+        querySelector(sel) {
+            if (!this._qsCache) this._qsCache = {};
+            if (!this._qsCache[sel]) this._qsCache[sel] = makeEl();
+            return this._qsCache[sel];
+        },
         querySelectorAll() { return []; },
         addEventListener(name, fn) { this._handlers[name] = fn; },
         removeEventListener() {},
@@ -70,11 +75,17 @@ globalThis.FormData = class { append() {} };
 
 // ── app / api mock ──
 let extractCalls = [];
+let listCalls = [];
 globalThis.fetch = async (url) => {
     const u = String(url);
     if (u.includes("/api/sfnodes/prompt_reader/extract")) {
         extractCalls.push(u);
         return { ok: true, status: 200, json: async () => ({ found: true, text: "smoke prompt", source: "comfyui" }) };
+    }
+    if (u.includes("/api/sfnodes/prompt_reader/list")) {
+        const type = new URL(u, "http://localhost").searchParams.get("type");
+        listCalls.push(type);
+        return { ok: true, json: async () => (type === "output" ? ["out1.png", "out2.mp4"] : ["smoke.png", "uploaded.png"]) };
     }
     if (u.startsWith("/upload/image")) {
         return { ok: true, json: async () => ({ name: "uploaded.png" }) };
@@ -199,6 +210,42 @@ let _fakeType = null;
         await new Promise((r) => setTimeout(r, 20));
         check("drop 空 type 放行", extractCalls.length === before + 1);
     }
+
+    // ── 目录切换（IN/OUT 按钮）──
+    const srcBtn = root._qsCache?.['[data-role="source"]'];
+    const srcClick = srcBtn?._handlers?.click;
+    check("source 按钮已挂", typeof srcClick === "function");
+    if (typeof srcClick === "function") {
+        const before = extractCalls.length;
+        await srcClick({ stopPropagation() {} });
+        await new Promise((r) => setTimeout(r, 20));
+        check("切到 output: 已拉取列表", listCalls.at(-1) === "output");
+        const vals = node._sfPrImageWidget.options.values;
+        check("切到 output: options 带 [output] 注解",
+            vals.length === 2 && vals.every((v) => v.endsWith(" [output]")) && vals[0] === "out1.png [output]");
+        check("切到 output: 选中第一项", node._sfPrImageWidget.value === "out1.png [output]");
+        check("切到 output: 自动提取", extractCalls.length === before + 1
+            && extractCalls.at(-1).includes("out1.png%20%5Boutput%5D"));
+        check("切到 output: 状态持久化", node.properties.promptReaderState.folder === "output");
+        check("按钮显示 OUT", srcBtn.textContent === "OUT");
+
+        // output 模式下 drop 上传 → 自动切回 input 并选中新文件
+        const before2 = extractCalls.length;
+        await root._handlers.drop(ev("video/mp4"));
+        await new Promise((r) => setTimeout(r, 20));
+        check("output 模式 drop: 切回 input", node.properties.promptReaderState.folder === "input");
+        check("output 模式 drop: 选中上传文件", node._sfPrImageWidget.value === "uploaded.png");
+        check("output 模式 drop: 已提取", extractCalls.length === before2 + 1);
+        check("按钮显示 IN", srcBtn.textContent === "IN");
+    }
+
+    // ── 加载恢复：state.source=output 的节点 → 拉 output 列表 ──
+    const node2 = makeNode();
+    node2.properties = { promptReaderState: { folder: "output", filename: "smoke.png" } };
+    app._ext.nodeCreated(node2);
+    await new Promise((r) => setTimeout(r, 20));
+    check("恢复 output 源: 拉取 output 列表", listCalls.at(-1) === "output");
+    check("恢复 output 源: 值带 [output] 注解", node2._sfPrImageWidget.value === "out1.png [output]");
 
     // onRemoved 清理
     FakeType.prototype.onRemoved.call(node);

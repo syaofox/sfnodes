@@ -53,12 +53,18 @@ def get_annotated_filepath(name):
 
 
 # folder_paths mock（在加载 helpers 之前注入，让模块拿到 mock 而非 None）
+_IMG_VIDEO_EXTS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tiff", ".tif",
+    ".mp4", ".m4v", ".mov", ".webm", ".mkv",
+}
 fp_mock = types.ModuleType("folder_paths")
 fp_mock.get_annotated_filepath = get_annotated_filepath
 fp_mock.get_input_directory = lambda: input_dir
 fp_mock.get_output_directory = lambda: output_dir
 fp_mock.get_temp_directory = lambda: temp_dir
-fp_mock.filter_files_content_types = lambda files, content_types: files
+fp_mock.filter_files_content_types = lambda files, content_types: [
+    f for f in files if os.path.splitext(f)[1].lower() in _IMG_VIDEO_EXTS
+]
 fp_mock.get_save_image_path = lambda prefix, base, w, h: (base, "x", 1, "", "")
 sys.modules["folder_paths"] = fp_mock
 
@@ -468,6 +474,27 @@ check("resolve: 注解 + 裸名走剥离 fallback", helpers.resolve_input_image_
 check("resolve: 子目录裸名", helpers.resolve_input_image_name("cat") == "sub/cat.png")
 check("resolve: 空名 None", helpers.resolve_input_image_name("") is None)
 check("resolve: 不存在 None", helpers.resolve_input_image_name("ghost") is None)
+
+# ── 目录列表（_list_media_recursive：input/output 切换用）──
+# 放在 resolve 段之后：sub/ 子目录在此前已创建
+check("list: input 根文件", "gen1.png" in mod_r._list_media_recursive("input")
+      and "gen1.mp4" in mod_r._list_media_recursive("input"))
+check("list: input 子目录递归", "sub/cat.png" in mod_r._list_media_recursive("input"))
+check("list: input 含视频", "gen1.webm" in mod_r._list_media_recursive("input"))
+check("list: input 排序", mod_r._list_media_recursive("input") == sorted(mod_r._list_media_recursive("input")))
+# 非媒体文件被过滤
+with open(os.path.join(input_dir, "notes.txt"), "w") as f:
+    f.write("x")
+check("list: 非媒体被过滤", "notes.txt" not in mod_r._list_media_recursive("input"))
+os.remove(os.path.join(input_dir, "notes.txt"))
+# output 目录
+write_png(os.path.join(output_dir, "out1.png"), prompt_json={})
+os.makedirs(os.path.join(output_dir, "subout"), exist_ok=True)
+write_png(os.path.join(output_dir, "subout", "out2.png"), prompt_json={})
+files_out = mod_r._list_media_recursive("output")
+check("list: output 列出文件", "out1.png" in files_out and "subout/out2.png" in files_out)
+check("list: output 不含 input 文件", "gen1.png" not in files_out)
+check("list: 非法类型回落 input", "out1.png" not in mod_r._list_media_recursive("bogus"))
 
 # ── 节点结构 ──
 node = mod.SFPromptReader()
