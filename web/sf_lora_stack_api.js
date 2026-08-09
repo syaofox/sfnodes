@@ -271,13 +271,13 @@ export async function saveCivitaiThumb(name) {
 }
 
 /** 文件被移动/改名后，把旧路径键下的自定义数据（词/描述/预览图）迁移到
- *  当前 LoRA 名（基名唯一匹配，前端已确认）。 */
-export async function migrateLoraData(name) {
+ *  当前 LoRA 名。`oldKey` 来自孤儿检测结果（info.orphan_key）。 */
+export async function migrateLoraData(name, oldKey) {
     try {
         const r = await fetch(sfApiUrl("/api/sfnodes/lora/migrate"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ name, old_key: oldKey || "" }),
         });
         const j = await r.json();
         if (j?.ok) invalidateInfo(name);

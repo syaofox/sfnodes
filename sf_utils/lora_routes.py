@@ -254,13 +254,19 @@ def _register_routes():
             except Exception:
                 info["civitai_host"] = "com"
             # 孤儿数据检测：文件被移动/改名后，新键下没有自定义数据，但存储
-            # 里有唯一基名匹配的旧键（自定义词/描述/预览图仍在）。附字段让
-            # 前端显示迁移提示条；迁移由用户确认后执行（不自动，防同名误配）。
+            # 里还有旧键的数据（自定义词/描述/预览图仍在）。指纹优先（内容
+            # 级证据，文件改名也匹配），基名兜底（存量无指纹数据）。附字段
+            # 让前端显示迁移提示条；迁移由用户确认后执行（不自动，防误配）。
             try:
                 has_custom = bool(info.get("custom_triggers")) or bool(info.get("custom_description"))
                 if not has_custom:
                     store = R.read_custom_store(_custom_triggers_file())
-                    orphan = R.find_orphan_key(store, name)
+                    orphan = None
+                    fp = await loop.run_in_executor(None, R.file_fingerprint, path)
+                    if fp:
+                        orphan = R.find_orphan_by_fingerprint(store, fp, exclude=R.custom_trigger_key(name))
+                    if orphan is None:
+                        orphan = R.find_orphan_key(store, name)
                     if orphan:
                         entry = store.get(orphan, {})
                         info["orphan_key"] = orphan
@@ -531,9 +537,11 @@ def _register_routes():
             import asyncio
             loop = asyncio.get_event_loop()
             try:
-                stored = await loop.run_in_executor(
-                    None, R.set_custom_triggers, _custom_triggers_file(), name, words
-                )
+                # 内容指纹随条目记录：文件日后改名/移动，孤儿匹配靠它找回。
+                def _set_with_fp():
+                    fp = R.file_fingerprint(path)
+                    return R.set_custom_triggers(_custom_triggers_file(), name, words, fp)
+                stored = await loop.run_in_executor(None, _set_with_fp)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "words": stored})
@@ -561,9 +569,11 @@ def _register_routes():
             import asyncio
             loop = asyncio.get_event_loop()
             try:
-                stored = await loop.run_in_executor(
-                    None, R.set_custom_description, _custom_triggers_file(), name, description
-                )
+                # 内容指纹随条目记录（同 custom_triggers）。
+                def _set_with_fp():
+                    fp = R.file_fingerprint(path)
+                    return R.set_custom_description(_custom_triggers_file(), name, description, fp)
+                stored = await loop.run_in_executor(None, _set_with_fp)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "description": stored})
@@ -580,20 +590,28 @@ def _register_routes():
             if not isinstance(data, dict):
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
+            old_key = data.get("old_key", "") or None
             path = _resolve_lora_path(name)
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             import asyncio
             loop = asyncio.get_event_loop()
-            res = await loop.run_in_executor(None, R.migrate_custom_data, _custom_triggers_file(), name)
+            try:
+                # old_key 来自孤儿检测（指纹或基名命中）；fp 随迁移写入新键。
+                def _migrate_with_fp():
+                    fp = R.file_fingerprint(path)
+                    return R.migrate_custom_data(_custom_triggers_file(), name, fp, old_key)
+                res = await loop.run_in_executor(None, _migrate_with_fp)
+            except Exception as exc:
+                return web.json_response({"ok": False, "message": "Could not migrate: {}".format(exc)})
             if not res.get("ok"):
                 return web.json_response({"ok": False, "message": "Nothing to migrate."})
-            old_key = res["old_key"]
+            old = res["old_key"]
             moved_pv = await loop.run_in_executor(
-                None, R.migrate_custom_preview, _previews_dir(), name, old_key
+                None, R.migrate_custom_preview, _previews_dir(), name, old
             )
-            return web.json_response({"ok": True, "old_key": old_key,
+            return web.json_response({"ok": True, "old_key": old,
                                       "preview_moved": bool(moved_pv)})
 
         @routes.post("/api/sfnodes/lora/civitai_thumb_save")

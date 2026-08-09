@@ -614,15 +614,86 @@ def sanitize_custom_description(desc):
     return desc.strip()[:_MAX_DESCRIPTION_LEN]
 
 
+# ── 轻量内容指纹（孤儿匹配的内容级证据）───────────────────────────────────
+# 基名匹配只能覆盖"文件夹改名/移动"；文件本身改名后基名也变了。改名不改
+# 内容——指纹（大小 + 头/中/尾采样哈希）不变，可作为"这是同一个文件"的
+# 强证据。读 ~192KB，只在孤儿检测需要时计算。
+
+_FP_CHUNK = 64 * 1024
+
+
+def file_fingerprint(path):
+    """轻量内容指纹：(size, sha256(头64KB), sha256(中64KB), sha256(尾64KB))。
+    小文件（<=64KB）三段同取。任何问题返回 None。永不抛错。"""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            head = f.read(_FP_CHUNK)
+            if size > _FP_CHUNK:
+                f.seek(size // 2)
+                mid = f.read(_FP_CHUNK)
+                f.seek(max(0, size - _FP_CHUNK))
+                tail = f.read(_FP_CHUNK)
+            else:
+                mid = head
+                tail = head
+    except Exception:
+        return None
+    if not head:
+        return None
+    h = hashlib.sha256
+    return {
+        "size": size,
+        "head": h(head).hexdigest(),
+        "mid": h(mid).hexdigest(),
+        "tail": h(tail).hexdigest(),
+    }
+
+
+def _norm_fp(v):
+    """存储条目里的 fp 字段清洗：形状不对/垃圾丢弃，返回 None。"""
+    if not isinstance(v, dict):
+        return None
+    try:
+        size = int(v.get("size"))
+    except (TypeError, ValueError):
+        return None
+    head, mid, tail = v.get("head"), v.get("mid"), v.get("tail")
+    if not all(isinstance(x, str) and len(x) == 64 for x in (head, mid, tail)):
+        return None
+    return {"size": size, "head": head, "mid": mid, "tail": tail}
+
+
+def _fp_equal(a, b):
+    """两个指纹是否同文件（size 一致 + 三段哈希全等）。"""
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return False
+    return (a.get("size") == b.get("size")
+            and a.get("head") == b.get("head")
+            and a.get("mid") == b.get("mid")
+            and a.get("tail") == b.get("tail"))
+
+
+def find_orphan_by_fingerprint(store, fp, exclude=None):
+    """store 中指纹与当前文件相同的条目键（排除 exclude 键，防自匹配）。
+    唯一才返回，歧义/无匹配返回 None。永不抛错。"""
+    if not fp or not isinstance(store, dict):
+        return None
+    matches = [k for k, v in store.items()
+               if k != exclude and isinstance(v, dict) and _fp_equal(v.get("fp"), fp)]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _norm_store_entry(v):
-    """旧 {key: [words]} 与新 {key: {"words": [...], "description": str}} 兼容
+    """旧 {key: [words]} 与新 {key: {"words", "description", "fp"?}} 兼容
     归一。非 dict/list 垃圾 -> 空条目。"""
     if isinstance(v, dict):
         return {
             "words": sanitize_custom_words(v.get("words")),
             "description": sanitize_custom_description(v.get("description")),
+            "fp": _norm_fp(v.get("fp")),
         }
-    return {"words": sanitize_custom_words(v), "description": ""}
+    return {"words": sanitize_custom_words(v), "description": "", "fp": None}
 
 
 def read_custom_store(path):
@@ -712,9 +783,10 @@ def get_custom_triggers(path, name):
     return read_custom_store(path).get(key, {}).get("words", [])
 
 
-def set_custom_triggers(path, name, words):
+def set_custom_triggers(path, name, words, fp=None):
     """替换一个 LoRA 的词。空列表且无描述时移除条目（存储不积累死键）。
-    返回实际存储的列表。永不抛错。"""
+    `fp` 是文件轻量内容指纹（路由层从文件计算），记入条目供改名/移动后的
+    孤儿匹配使用；不传则保留旧条目已有的指纹。返回实际存储的列表。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
         return []
@@ -723,7 +795,11 @@ def set_custom_triggers(path, name, words):
     entry = store.get(key)
     desc = (entry or {}).get("description", "")
     if clean or desc:
-        store[key] = {"words": clean, "description": desc}
+        store[key] = {
+            "words": clean,
+            "description": desc,
+            "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
+        }
     else:
         store.pop(key, None)
     write_custom_store(path, store)
@@ -738,9 +814,9 @@ def get_custom_description(path, name):
     return read_custom_store(path).get(key, {}).get("description", "")
 
 
-def set_custom_description(path, name, desc):
+def set_custom_description(path, name, desc, fp=None):
     """替换一个 LoRA 的自定义描述。空描述且无词时移除条目。
-    返回实际存储的描述。永不抛错。"""
+    `fp` 同 set_custom_triggers。返回实际存储的描述。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
         return ""
@@ -749,7 +825,11 @@ def set_custom_description(path, name, desc):
     entry = store.get(key)
     words = (entry or {}).get("words", [])
     if clean or words:
-        store[key] = {"words": words, "description": clean}
+        store[key] = {
+            "words": words,
+            "description": clean,
+            "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
+        }
     else:
         store.pop(key, None)
     write_custom_store(path, store)
@@ -794,10 +874,12 @@ def find_orphan_key(store, name):
     return matches[0] if len(matches) == 1 else None
 
 
-def migrate_custom_data(path, name):
-    """把旧路径键下的自定义词/描述迁移到当前 name 键（基名唯一匹配时）。
+def migrate_custom_data(path, name, fp=None, old_key=None):
+    """把旧路径键下的自定义词/描述迁移到当前 name 键。
 
-    新键已有数据不迁移（不覆盖）；旧键空不迁移。返回
+    `old_key` 由调用方（路由）从孤儿检测结果传入（指纹或基名匹配找到的键）；
+    缺省时内部回退基名唯一匹配。新键已有数据不迁移（不覆盖）；旧键空不迁移。
+    `fp` 是当前文件的内容指纹，迁移后记入新键（此后改名也能找回）。返回
     {"ok": True, "old_key": ...} 或 {"ok": False, "reason": ...}。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
@@ -806,13 +888,24 @@ def migrate_custom_data(path, name):
     cur = store.get(key)
     if cur and (cur["words"] or cur["description"]):
         return {"ok": False, "reason": "already has data"}
-    old = find_orphan_key(store, name)
-    if old is None:
-        return {"ok": False, "reason": "no unique match"}
+    if old_key:
+        # 调用方已确证（指纹或基名）——直接用指定旧键。防御：必须是存储
+        # 里的真实键且不是新键自身（手写请求传错也不能拿新键的数据覆盖）。
+        old = custom_trigger_key(old_key)
+        if not old or old == key or old not in store:
+            return {"ok": False, "reason": "bad old key"}
+    else:
+        old = find_orphan_key(store, name)
+        if old is None:
+            return {"ok": False, "reason": "no unique match"}
     entry = store.get(old)
     if not entry or not (entry["words"] or entry["description"]):
         return {"ok": False, "reason": "old entry empty"}
-    store[key] = entry
+    store[key] = {
+        "words": entry["words"],
+        "description": entry["description"],
+        "fp": _norm_fp(fp) or _norm_fp(entry.get("fp")),
+    }
     del store[old]
     write_custom_store(path, store)
     return {"ok": True, "old_key": old}

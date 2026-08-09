@@ -277,6 +277,48 @@ bk = utils.base_key
 check("base_key 去目录去扩展", bk("a/b/c.safetensors") == "c" and bk("d.ckpt") == "d")
 check("base_key 无扩展名", bk("x") == "x")
 check("base_key 垃圾", bk("") == "" and bk(None) == "")
+
+# ── 内容指纹（文件改名/移动的内容级证据）──
+fp_path = os.path.join(LORAS_DIR, "fptest.bin")
+with open(fp_path, "wb") as f:
+    f.write(os.urandom(200 * 1024))  # 200KB，跨头/中/尾三段
+import shutil
+shutil.copy(fp_path, os.path.join(LORAS_DIR, "renamed.bin"))  # 模拟"改名"（内容不变）
+fp1 = utils.file_fingerprint(fp_path)
+check("file_fingerprint 形状", fp1 is not None and set(fp1.keys()) == {"size", "head", "mid", "tail"}
+      and fp1["size"] == 200 * 1024)
+check("file_fingerprint 改名后一致", utils.file_fingerprint(os.path.join(LORAS_DIR, "renamed.bin")) is not None
+      and utils.file_fingerprint(os.path.join(LORAS_DIR, "renamed.bin"))["head"] == fp1["head"])
+fp_renamed = utils.file_fingerprint(os.path.join(LORAS_DIR, "renamed.bin"))
+check("file_fingerprint 改名后全等", utils._fp_equal(fp1, fp_renamed) is True)
+with open(os.path.join(LORAS_DIR, "other.bin"), "wb") as f:
+    f.write(os.urandom(200 * 1024))
+check("file_fingerprint 不同文件不同", utils._fp_equal(fp1, utils.file_fingerprint(os.path.join(LORAS_DIR, "other.bin"))) is False)
+check("file_fingerprint 缺失文件 None", utils.file_fingerprint(os.path.join(LORAS_DIR, "nope.bin")) is None)
+small = os.path.join(LORAS_DIR, "small.bin")
+with open(small, "wb") as f:
+    f.write(b"tiny")
+fps = utils.file_fingerprint(small)
+check("file_fingerprint 小文件三段一致", fps["head"] == fps["mid"] == fps["tail"])
+# find_orphan_by_fingerprint
+fp_store = utils.read_custom_store(store_path)
+utils.set_custom_triggers(store_path, "a/x.bin", ["w"], fp1)
+fp_store2 = utils.read_custom_store(store_path)
+check("fp 写入条目", utils._fp_equal(fp_store2["a/x.bin"]["fp"], fp1) is True)
+check("find_orphan_by_fingerprint 唯一命中",
+      utils.find_orphan_by_fingerprint(fp_store2, utils.file_fingerprint(os.path.join(LORAS_DIR, "renamed.bin"))) == "a/x.bin")
+check("find_orphan_by_fingerprint 无匹配 None",
+      utils.find_orphan_by_fingerprint(fp_store2, utils.file_fingerprint(os.path.join(LORAS_DIR, "small.bin"))) is None)
+check("find_orphan_by_fingerprint exclude 排除", utils.find_orphan_by_fingerprint(
+    fp_store2, utils.file_fingerprint(os.path.join(LORAS_DIR, "renamed.bin")), exclude="a/x.bin") is None)
+check("find_orphan_by_fingerprint 歧义 None", utils.find_orphan_by_fingerprint(
+    {"k1": {"fp": fp1}, "k2": {"fp": fp1}}, fp1) is None)
+check("find_orphan_by_fingerprint 坏指纹 None", utils.find_orphan_by_fingerprint(fp_store2, None) is None)
+utils.set_custom_triggers(store_path, "a/x.bin", [])  # 清理
+# _norm_fp 容错
+check("_norm_fp 坏形状 None", utils._norm_fp("x") is None and utils._norm_fp({"size": 1}) is None
+      and utils._norm_fp({"size": "a", "head": "h" * 64, "mid": "m" * 64, "tail": "t" * 64}) is None)
+check("_norm_fp 好形状", utils._norm_fp(fp1) == fp1)
 # 构造：旧键有数据（词+描述），新键无数据 -> 唯一基名匹配
 mig_store = os.path.join(tempfile.mkdtemp(prefix="sf_lora_mig_"), "triggers.json")
 utils.set_custom_triggers(mig_store, "old/dir/char.safetensors", ["w1"])
@@ -299,6 +341,17 @@ check("migrate_custom_data 旧键删除", utils.get_custom_triggers(mig_store, "
       and utils.get_custom_description(mig_store, "old/dir/char.safetensors") == "")
 check("migrate_custom_data 新键已有不迁移", utils.migrate_custom_data(mig_store, "new/dir/char.safetensors")["ok"] is False)
 check("migrate_custom_data 无唯一匹配", utils.migrate_custom_data(mig_store, "totally/new.safetensors")["ok"] is False)
+# 指纹路径迁移：指定 old_key（孤儿检测指纹命中时）+ 迁移后新键带 fp
+utils.set_custom_triggers(mig_store, "old/dir/char.safetensors", ["w1"])
+res2 = utils.migrate_custom_data(mig_store, "new2/dir/char.safetensors", fp1, "old/dir/char.safetensors")
+check("migrate_custom_data 指定 old_key", res2["ok"] is True and res2["old_key"] == "old/dir/char.safetensors")
+check("migrate_custom_data 新键带 fp", utils._fp_equal(
+    utils.read_custom_store(mig_store)["new2/dir/char.safetensors"]["fp"], fp1) is True)
+check("migrate_custom_data 指定合法 old_key 迁移", utils.migrate_custom_data(
+    mig_store, "z.safetensors", None, "new/dir/char.safetensors")["ok"] is True)
+check("migrate_custom_data 坏 old_key 拒绝", utils.migrate_custom_data(
+    mig_store, "new/dir/char.safetensors", None, "nope")["ok"] is False
+    and utils.migrate_custom_data(mig_store, "z.safetensors", None, "z.safetensors")["ok"] is False)
 # 预览图迁移
 mig_pv = tempfile.mkdtemp(prefix="sf_lora_migpv_")
 old_pv = utils.custom_preview_path(mig_pv, "old/dir/char.safetensors")

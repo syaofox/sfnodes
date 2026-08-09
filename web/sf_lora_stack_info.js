@@ -1068,7 +1068,7 @@ export async function openInfoPanel(node, id, refresh) {
     // info 刷新（custom_triggers/custom_description 出现、orphan 字段消失）。
     async function runMigrate() {
         clearMsg();
-        const res = await migrateLoraData(name);
+        const res = await migrateLoraData(name, info.orphan_key);
         if (!panel.isConnected) return;
         if (!res?.ok) { showMsg((res && res.message) || "Nothing to migrate."); return; }
         _msg = null;
