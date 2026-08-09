@@ -23,7 +23,10 @@ def _get_images_base_dir() -> str:
 
 def _list_one_level_subdirs(root: str) -> list:
     try:
-        return sorted(d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)))
+        return sorted(
+            d for d in os.listdir(root)
+            if os.path.isdir(os.path.join(root, d)) and not d.startswith(".")
+        )
     except OSError:
         return []
 
@@ -31,6 +34,7 @@ def _list_one_level_subdirs(root: str) -> list:
 def _list_folders() -> list:
     folders = [_DEFAULT_FOLDER]
     images_base = _get_images_base_dir()
+    folders += ["images"]
     folders += ["images/" + d for d in _list_one_level_subdirs(images_base) if d != _DEFAULT_FOLDER]
     for prefix, root in (
         ("input", folder_paths.get_input_directory()),
@@ -61,6 +65,12 @@ def _resolve_folder(folder: str) -> str:
     if not name or name == _DEFAULT_FOLDER:
         return os.path.join(_get_images_base_dir(), _DEFAULT_FOLDER)
 
+    # 直接输入路径模式：绝对路径原样使用（用户主动输入的任意目录）。
+    if os.path.isabs(name):
+        return os.path.normpath(name)
+
+    if name == "images":
+        return _get_images_base_dir()
     if name == "input":
         return os.path.normpath(folder_paths.get_input_directory())
     if name == "output":
@@ -134,23 +144,26 @@ class SFLoadImagesPath:
             return f"Directory '{_resolve_folder(folder)}' cannot be found."
         return True
 
+    def _empty_result(self):
+        """空目录 / 目录不存在 / 无图片：返回 64×64 占位图 + 空列表，不抛错。
+
+        占位图保证下游（反推等）能拿到一张可处理的张量；frame_count=0 与
+        空文件名列表明确表达"没有内容"，由下游自行判断。"""
+        img = torch.ones((1, 64, 64, 3), dtype=torch.float32)
+        mask = torch.zeros((1, 64, 64), dtype=torch.float32)
+        return (img, mask, 0, [], [])
+
     def load_images(self, folder, image_load_cap=0, skip_first_images=0, select_every_nth=1):
         directory = _resolve_folder(folder)
         if not os.path.isdir(directory):
-            raise FileNotFoundError(
-                f"Directory '{directory}' does not exist. "
-                "Please create the folder and add image files, "
-                "then click the refresh button on the node to update the folder list."
-            )
+            # 目录不存在：不抛错，返回空占位（工作流继续跑；VALIDATE_INPUTS
+            # 在节点面板给出提示，运行路径保持宽容）。
+            return self._empty_result()
 
         dir_files = _sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
         if len(dir_files) == 0:
-            entries = sorted(os.listdir(directory))[:5]
-            hint = ", ".join(repr(e) for e in entries) if entries else "directory is empty"
-            raise FileNotFoundError(
-                f"No images could be loaded from directory '{directory}' "
-                f"(contents: {hint}). Supported formats include png/jpg/jpeg/webp/gif/bmp/tiff."
-            )
+            # 空目录 / 全部被 skip/nth 滤掉：返回空占位而非抛错
+            return self._empty_result()
 
         sizes = {}
         has_alpha = False
@@ -192,6 +205,17 @@ class SFLoadImagesPath:
         return (images_out, masks, len(dir_files), filenames, dir_files)
 
 
+def _list_subdirs(folder: str) -> list:
+    """解析 folder 值并返回其下一级子目录名（隐藏目录已在枚举层过滤）。
+
+    folder 复用 _resolve_folder 解析（前缀/绝对路径/包含性安全校验），
+    越界或不存在返回空列表。前端按需加载（渐进式目录浏览）。"""
+    directory = _resolve_folder(folder)
+    if not os.path.isdir(directory):
+        return []
+    return _list_one_level_subdirs(directory)
+
+
 def _register_routes():
     try:
         from server import PromptServer
@@ -204,6 +228,14 @@ def _register_routes():
         async def _list_folders_route(request: web.Request) -> web.Response:
             try:
                 return web.json_response({"folders": _list_folders()})
+            except Exception:
+                return web.Response(status=500)
+
+        @routes.get("/api/sfnodes/images_path/subdirs")
+        async def _list_subdirs_route(request: web.Request) -> web.Response:
+            try:
+                folder = request.query.get("folder", "")
+                return web.json_response({"subdirs": _list_subdirs(folder)})
             except Exception:
                 return web.Response(status=500)
     except Exception:
