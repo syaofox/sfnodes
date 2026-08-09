@@ -18,6 +18,7 @@
 - [11. SFImageCrop/SFImageUncrop：可视化裁剪与贴回（复刻 Pixaroma Crop/Uncrop）](#11-sfimagecropsfimageuncrop可视化裁剪与贴回复刻-pixaroma-cropuncrop)
 - [12. SFImageOutpaint/Stitch：外绘填充与原始图贴回（复刻 Pixaroma Outpaint）](#12-sfimageoutpaintstitch外绘填充与原始图贴回复刻-pixaroma-outpaint)
 - [13. SFImageResize：wired 尺寸缩放（复刻 Pixaroma Image Resize）](#13-sfimageresizewired-尺寸缩放复刻-pixaroma-image-resize)
+- [14. SFTextFindReplace：查找替换双端镜像（复刻 Pixaroma Find & Replace）](#14-sftextfindreplace查找替换双端镜像复刻-pixaroma-find--replace)
 
 ---
 
@@ -653,3 +654,41 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `web/sf_image_resize_ui.js`：DOM（injectCSS/buildChips/wired 面板/applyWiredLocks/refreshReadout/paintReadout/renderUI），复用 `sf_load_image_resize.js` + `sf_load_image_ui.js`（后者 renderGlobalControls 已参数化 statePropName）。
 - `web/sf_image_resize.js`：扩展注册（onNodeCreated/onConfigure/onConnectionsChange 互斥+守卫/onRemoved/onResize/onDrawForeground + Vue cards canvas）+ graphToPrompt 注入 + executed 收 `sf_image_resize`。
 - 数据契约：`SFImageResizeState`（hidden STRING，graphToPrompt 从 node.properties.sfImageResizeState 注入，随 workflow 保存）；`sf_image_resize` ui 键（in/out dims 回填）；**未移植 temp PNG 预览**——原版 JS 的 executed 处理器从不读 filename（只读 dims），省掉垃圾文件。
+
+## 14. SFTextFindReplace：查找替换双端镜像（复刻 Pixaroma Find & Replace）
+
+> 背景：复刻 Pixaroma 的 `PixaromaFindReplace`（2026-08），落地为 `nodes/text/find_replace.py` + `web/sf_find_replace*.js` 三模块（lib/ui/主扩展）。节点坐在文本连线中间，按规则编辑流过它的文本：每条规则 find→replace，四个全局开关（Case / Whole word / Regex / Tidy），节点上实时预览"上次运行输入 × 当前规则"的前后对比（LCS 词级 diff，红删绿增）。核心机制是**替换逻辑 Python/JS 双端镜像 + ReDoS 启发式防护**——"预览必须与真实运行一致"的完整案例。
+
+### 1. 双端镜像的差异点（做"节点上实时预览"必知）
+
+- **literal 模式**：Python 侧 `safe_repl = repl.replace("\\", "\\\\")` 双写替换文本的反斜杠，使字面含 `\1`/`\g<1>` 的字符串不被当反向引用；JS 侧只转义 `$`（`repl.replace(/\$/g, "$$$$")`，反斜杠天然字面）——两边各转各的特殊字符，语义对齐。
+- **regex 模式**：Python 用 `re.sub`，JS 用 `String.replace`。三处翻译（`pyTemplateToJs`/`pyPatternToJs`/`makeRegexU`）：
+  - 反向引用 `\1`（Python）→ `$1`（JS）；`\g<0>`（整个匹配）→ `$&`；命名组 `(?P<n>)` → `(?<n>)`，`(?P=n)` → `\k<n>`；替换文本中的 `\n`/`\t`/`\r`/`\f`/`\v`/`\\` 字符转义 Python 会处理而 JS 不处理，需手工展开。
+  - 忽略大小写用 `/u` flag 使 Unicode 折叠对齐 Python `re.IGNORECASE`（Kelvin 符号 K→k、重音 A-ring 等）；`/u` 编译失败回退非 `/u`（正则模式，转义字面量总是 `/u` 安全）。
+  - **已知偏差（文档化，Python 是权威）**：`\w \d \s \b` 类在 JS 预览仅 ASCII、Python 中 Unicode 感知（`\w+` 作用于重音/希腊/CJK 预览比实际窄）；内联 flags `(?s)/(?m)`、`\10` 两位引用、替换模板未知转义 `\q` 等 Python 报错跳规则而 JS 静默成字面文本——这些情况预览稍有出入但运行正确。whole-word 的 JS 侧不用 `\b`（ASCII 边界），改用显式 `(?<![\\p{L}\\p{N}_])`/`(?![\\p{L}\\p{N}_])` 断言镜像 Python 的 Unicode `\b`。
+- **测试同用例同期望值**：literal/whole-word/大小写/中文/`$` 转义/backref 翻译/命名组翻译两侧各跑一遍（Python 直接跑 `_apply_rules`，JS 复制 lib 为 .mjs 直跑 `applyRulesJS`），两侧独立通过即视为镜像一致。**复查抓到的断言反例全是测试错、代码对**：`(a+)+b` 本身就是嵌套量词（组内 `+` 又被 `+` 限定）；`tidy("a  x , ,  b,")` = "a x, b"（tidy 只修空格/逗号，不删 x——先应用规则再 tidy）；删除规则后的空格计数要先数清（`"a  x b"` 删 x 后是三空格）。
+
+### 2. ReDoS 防护：嵌套无界量词启发式（双端 1:1 镜像）
+
+- **问题**：Python 侧 `re.sub` 无超时执行，`(a+)+` 对不匹配输入可指数级回溯卡死 worker；前端预览每次按键重算，同一模式冻结浏览器。原生正则无法限时，只能拒绝明显形状。
+- **启发式**：栈扫描——每个打开组记 `inner`（组体内出现过无界量词 `*`/`+`/`{n,}`）；组关闭时若组后紧跟无界量词且 `inner` 为真 → 判定灾难性，跳过该规则 + 警告。`{n}`/`{n,m}` 有界不触发；跳过转义字符与字符类 `[...]`（`[()]+` 不误报）。误报率低：嵌套无界量词总是冗余的（`(a+)+ == a+`），合法模式不用。Python `_is_catastrophic_regex` 与 JS `isCatastrophicRegex` 逐分支镜像，两侧测试同用例（嵌套四例触发、有界/转义/字符类不触发）。
+
+### 3. 状态与预览持久化（数据载体模式）
+
+- 规则状态存 `node.properties.findReplaceState`（{version, caseSensitive, wholeWord, regex, tidy, rules:[{id, enabled, find, replace}]}），`graphToPrompt` hook 经 `readState` 规范化后注入隐藏 `FindReplaceState` 输入（Pattern #9，随 workflow 保存、在缓存键中，规则变化自动失效下游，Python 侧不设 IS_CHANGED——SFPauseText 的 NaN 踩坑同款）。id 用 Date+counter+random 保证跨刷新唯一（删除/排序的键）。
+- **预览样本与规则状态分离**：输入样本存 `node.properties.findReplacePreview`（{input, truncated}，4000 字符自我保护上限）**绝不注入 prompt**——否则每次 Run 的文本会膨胀工作流文件与 websocket 负载。预览 = 上次运行输入 × 当前规则实时重算：Run 一次后编辑任意规则，前后对比即时刷新（diff 高亮是预览的卖点）。`readState` 只在畸形时重写（加载不脏），`onNodeCreated` 时深拷贝 state 防粘贴/克隆节点共享 rules 数组引用。
+- executed 回填：Python 返回 `{"ui": {"sf_find_replace": [{input, output, truncated, warnings}]}}` → 前端 `onExecuted` 读 `message.sf_find_replace[0]` → `setPreviewInput` + 重绘预览。**onExecuted 不调整节点尺寸**（Run 不改变规则数，每次 setSize 会把普通 Run 误标 modified）。
+
+### 4. 移植简化与测试
+
+- **shared 依赖裁剪**（第三个同款案例，惯例确认）：`isVueNodes`/`applyAdaptiveCanvasOnly` 内联（sf_pause_text.js 同款）；省略 accent 颜色（CSS 固定 `#f66744`）、注册帮助面板、resize floor、canvas zoom 穿透。CSS 类名全 `sf-fr-` 前缀 + 全局钩子 `app._sfFindReplacePatched` guard——**与 Pixaroma 共存时类名不互相污染、graphToPrompt 各包装一次链式组合**。
+- **高度自适应简化**：`measureMinHeight(root)` 实时测量固定部分（开关+规则行+操作，预览用 PREVIEW_MIN 100 代替），4px 网格取整防累积；`refitNode` 只在用户操作时调用（加载路径不动 node.size 防误标 modified）——增行增高、删行且用户未手动拉高则缩回、拖高保留；Nodes 2.0 用 `computeLayoutSize`（忽略 legacy getMinHeight）喂同款测量。
+- **测试**（2 个文件，49+70 断言）：后端 `test_find_replace.py` 直测 `_apply_rules`（literal/whole-word/大小写/regex backref/`$`/tidy/ReDoS 警告/非法正则/畸形状态容错/中文/Unicode 折叠/预览截断 4000+结果全长）；前端 `test_find_replace_js.js` 复制 lib 为 .mjs 测 state 全 mutator/readState 容错/applyRulesJS 全分支/diffTokens（含 1M 上限退化）/isCatastrophicRegex/escapeHtml。**lib 额外导出 `isCatastrophicRegex`**（原件不导出）供直接与 Python 版对照。
+
+### 5. 模块边界（复用/修改时的快速索引）
+
+- `nodes/text/find_replace.py`：`SFTextFindReplace`（apply/_parse_state）+ 模块级纯函数（`_apply_rules`/`_tidy`/`_is_catastrophic_regex`/`_unbounded_quant_at`），无 torch 依赖可直接单测。
+- `web/sf_find_replace_lib.js`：纯函数（state 全套 mutators/readState 容错/`applyRulesJS`/`tidy`/`isCatastrophicRegex`/`diffTokens`/`escapeHtml` + 内部 `pyTemplateToJs`/`pyPatternToJs`/`makeRegexU`）——无 app/DOM，测试 copy 直跑。
+- `web/sf_find_replace_ui.js`：DOM widget（injectCSS/buildRoot/renderAll/buildRuleRow/refreshResetState/renderPreview + 交互 attachFieldEditor/attachDragHandlers/autoGrowAllFields/sfConfirm 主题确认框）。
+- `web/sf_find_replace.js`：主扩展（onNodeCreated 微任务 setup/onConfigure/onExecuted/onResize/onDrawForeground legacy 钳制/onRemoved + graphToPrompt 注入，subgraph 复合 id 递归索引）。
+- 数据契约：`FindReplaceState`（hidden STRING，graphToPrompt 从 node.properties.findReplaceState 注入）；`sf_find_replace` ui 键；`node.properties.findReplacePreview`（预览样本，不注入 prompt）；`node.properties._sfFrAutoH`（自动高度记忆，区分自动适配与手动拖拽）。

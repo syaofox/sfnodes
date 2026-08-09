@@ -17,7 +17,7 @@ sfnodes/
 │   ├── image/           # 图片：加载、缩放（含工作流内缩放 resize_image.py：wired 尺寸）、拼接、处理、对比、外绘填充+贴回（outpaint.py）、图片闸门（pause_image.py）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）
+│   ├── text/            # 文本：翻译、拼接、下拉选择、角色选择、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
 │   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
@@ -41,7 +41,7 @@ sfnodes/
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_workflows*.js 工作流面板三模块）
+├── web/                 # 前端 JS Widget（含 sf_dynamic_slots.js 动态槽位公共库、prompt_preset.js 预设互斥联动/选中预设说明动态 tooltip、sf_prompt_tags*.js @tag 标签库六模块、sf_pause_text*.js 文本闸门三模块、sf_pause_image*.js 图片闸门三模块、sf_pause_mask*.js 遮罩闸门三模块、sf_outpaint*.js 外绘预览两模块、sf_image_resize*.js 图片缩放三模块、sf_find_replace*.js 查找替换三模块、sf_workflows*.js 工作流面板三模块）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
@@ -217,6 +217,11 @@ class SFMyNode:
 - **接线互斥自动断开**（longest_side ↔ width/height）必须三重守卫：onConfigure 窗口 + `app.loadGraphData` 包装 300ms 尾窗（**连接恢复发生在 onConfigure 之后**，无此守卫打开工作流会误断已保存的线）+ 自递归标志。显示模式不写 `state.mode`（双线时渲染强制 Crop to fill，断开后恢复用户原模式）。
 - `readWiredInt` 只信任**恰好一个数值 widget** 的上游（多数值/字符串 → null → 显示"由接线输入决定"或上次运行 dims，绝不显示错误数字）；wired 字段锁定 = readOnly + opacity + makeNumericInput 的 readOnly 守卫（步进箭头天然失效）。
 - **PIL NEAREST 缩小是 box 平均**（非点采样）：单像素点缩小会被稀释，放大/同尺寸才像素保真——mask 对齐断言用"同尺寸直通 + 放大角点"两场景。
+
+**前后端：文本查找替换双端镜像（`nodes/text/find_replace.py`、`web/sf_find_replace*.js`，SFTextFindReplace）**
+- 替换逻辑 Python 权威 + JS 预览镜像（`applyRulesJS` ≡ `_apply_rules`），测试同用例同期望值。**literal 模式**：替换文本反斜杠必须双写（`\1` 是字面量不是 backref），JS 端 `$` 转义；**regex 模式**：backref `\1`（Python）vs `$1`（JS）靠 pyTemplateToJs 翻译、`(?P<n>)`→`(?<n>)`、`/u` flag 匹配 Python Unicode 大小写折叠；`\w` 类在 JS 预览仅 ASCII——预览可能比实际窄，Python 是权威。
+- **ReDoS 防护**：嵌套无界量词启发式（`(a+)+` `(a*)*`）双端 1:1 镜像——Python 服务端无超时执行，命中即跳过规则 + 警告；预览每次按键重算，同模式会冻结浏览器。
+- **预览样本上限 4000 存 `node.properties.findReplacePreview`（不注入 prompt）**：预览 = 上次运行输入 × 当前规则实时重算；规则状态 `findReplaceState` 经 graphToPrompt 注入隐藏 FindReplaceState（Pattern #9，随 workflow 保存）。
 
 **前端：SF Workflows 工作流面板（`web/sf_workflows*.js`、`nodes/workflow_routes.py`、`sf_utils/workflow_index_helpers.py`）**
 - **无节点设计**：面板是"应用"不是节点——节点会被存进工作流文件，分享工作流会把多余节点带给每个打开的人。打开方式：工具栏按钮 + 热键 + canvas 右键菜单。
