@@ -19,6 +19,8 @@
 - [12. SFImageOutpaint/Stitch：外绘填充与原始图贴回（复刻 Pixaroma Outpaint）](#12-sfimageoutpaintstitch外绘填充与原始图贴回复刻-pixaroma-outpaint)
 - [13. SFImageResize：wired 尺寸缩放（复刻 Pixaroma Image Resize）](#13-sfimageresizewired-尺寸缩放复刻-pixaroma-image-resize)
 - [14. SFTextFindReplace：查找替换双端镜像（复刻 Pixaroma Find & Replace）](#14-sftextfindreplace查找替换双端镜像复刻-pixaroma-find--replace)
+- [15. SFValueDropdown：值下拉与输出点对齐（复刻 Pixaroma Dropdown）](#15-sfvaluedropdown值下拉与输出点对齐复刻-pixaroma-dropdown)
+- [16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）](#16-sfpromptreaderpng视频元数据提示词恢复复刻-pixaroma-prompt-reader)
 
 ---
 

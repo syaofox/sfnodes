@@ -9,7 +9,7 @@
 - **随机机制**：全分类随机（`随机`）/ 组内随机（`随机·组名`，如 `随机·NSFW`）/ `[选项A, 选项B]` 括号随机；同 seed 结果可复现（`IS_CHANGED` 随 seed 重跑）
 - **pose/couple 互斥**：单人/双人动作同时启用时保留 pose（前端联动 + 后端兜底）
 - **分组选择器弹窗**（节点上"☰ 预设"按钮）：
-  - 10 个分类 tab（记忆上次打开的 tab 与组筛选）
+  - 11 个分类 tab（记忆上次打开的 tab 与组筛选）
   - group 筛选 chips（`🎲 全随机` / `全部` / 各分组）
   - 组标题行 `🎲 随机`（组内随机）/ 选项 hover 显示 description 预览 / 搜索过滤
 - **动态说明**：combo 悬停显示当前选中预设的英文 description（写入 `widget.tooltip`）
@@ -21,7 +21,7 @@
 |---|---|
 | `input_text` | 基础提示词（建议提供主体，如 "a beautiful woman"） |
 | `seed` | 随机种子（0 ~ 2^64-1） |
-| 10 个 combo | 各分类选择：`禁用` / `随机` / `随机·组名` / 具体预设 |
+| 11 个 combo | 各分类选择：`禁用` / `随机` / `随机·组名` / 具体预设 |
 
 输出 3 个：
 
@@ -58,7 +58,7 @@ SFPromptPreset ──optimize_request─┴→ TextGenerate.prompt → generated
 | 表情（39） | 开心微笑/诱惑挑逗/色气娇媚/情绪波动/高冷淡漠/害羞脸红/眼神交流 |
 | 服装（71） | SFW / NSFW |
 | 单人动作（76） | SFW / NSFW |
-| 双人动作（47） | SFW / NSFW |
+| 双人动作（47） | 女女 / 男女 / 通用 |
 | 环境（112） | 自然风光/城市街景/室内空间/历史复古/科幻未来/恐怖暗黑/日系生活/私密场所 |
 | 灯光（62） | 自然日光/人工光源/光效氛围/柔光漫射/人像布光/夜晚星光/黄昏日落 |
 | 风格（48） | 写实 / 非写实 |
@@ -120,6 +120,6 @@ SFPromptPreset ──optimize_request─┴→ TextGenerate.prompt → generated
 ## 测试
 
 ```bash
-python3 tests/test_prompt_preset.py   # 后端 214 项断言（mock 环境，无需 ComfyUI）
-node tests/test_prompt_preset_js.js   # 前端 42 项断言（Node 直接运行）
+python3 tests/test_prompt_preset.py   # 后端 200+ 项断言（mock 环境，无需 ComfyUI）
+node tests/test_prompt_preset_js.js   # 前端 40+ 项断言（Node 直接运行）
 ```
