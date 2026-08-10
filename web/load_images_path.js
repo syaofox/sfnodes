@@ -12,6 +12,7 @@ import { applyAdaptiveCanvasOnly, sfApiUrl } from "./sf_common.js";
 
 const SOURCES = ["input", "output", "images"];
 const WIDGET_TYPE = "sf_lip_ui";
+const MIN_W = 320; // 源三档按钮行 + 面包屑行容纳所需的最小节点宽度
 
 // ── folder 值解析 ─────────────────────────────────────────────────────────
 // 目录模式判定只依赖前缀（input/output/images 或 default）——不检查列表
@@ -45,15 +46,17 @@ function injectCSS() {
     style.id = "sf-lip-css";
     style.textContent = `
     .sf-lip-root { width:100%; box-sizing:border-box; padding:8px; display:flex;
-      flex-direction:column; gap:6px; background:#1e1e1e; border-radius:4px; font-size:12px; }
+      flex-direction:column; gap:6px; background:#1e1e1e; border-radius:4px; font-size:12px;
+      overflow:hidden; }
     .sf-lip-row { display:flex; gap:4px; align-items:center; }
-    .sf-lip-btn { flex:1; padding:4px 0; border:1px solid #444; border-radius:4px;
+    .sf-lip-btn { flex:1; min-width:0; padding:4px 0; border:1px solid #444; border-radius:4px;
       background:#2a2a2a; color:#aaa; font-size:11px; cursor:pointer; text-align:center;
-      user-select:none; font-family:inherit; }
+      user-select:none; font-family:inherit; overflow:hidden; white-space:nowrap;
+      text-overflow:ellipsis; }
     .sf-lip-btn:hover { color:#ddd; }
     .sf-lip-btn.on { background:${"var(--sf-acc, #f66744)"}; color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-btn:disabled { opacity:.4; cursor:default; }
-    .sf-lip-mode { flex:none; padding:3px 0; font-size:10px; color:#888; cursor:pointer;
+    .sf-lip-mode { flex:none; padding:3px 12px; font-size:10px; color:#888; cursor:pointer;
       border:1px solid #3a3a3a; border-radius:4px; background:#242424; }
     .sf-lip-mode.on { color:#fff; border-color:${"var(--sf-acc, #f66744)"}; }
     .sf-lip-trigger { flex:1; min-width:0; display:flex; align-items:center; gap:4px;
@@ -81,8 +84,6 @@ function injectCSS() {
     .sf-lip-crumb { padding:2px 5px; border-radius:3px; cursor:pointer; color:#ccc; }
     .sf-lip-crumb:hover { background:#333; color:#fff; }
     .sf-lip-crumb-sep { color:#666; flex:none; }
-    .sf-lip-current { font-size:10px; color:#888; overflow:hidden; text-overflow:ellipsis;
-      white-space:nowrap; direction:rtl; text-align:left; }
     `;
     document.head.appendChild(style);
 }
@@ -112,6 +113,28 @@ app.registerExtension({
         // ── DOM UI ──
         const root = document.createElement("div");
         root.className = "sf-lip-root";
+
+        // 内容真实高度（6 行 + padding + gap，~140-170px 随模式切换变化）。
+        // 硬编码 138 曾让 footRow（刷新按钮行）永远落在节点边框外。
+        // 首帧未布局 / 组折叠隐藏时 offsetHeight 全为 0：返回上次良好值兜底，
+        // 防止高度塌缩（sf_load_image measureH 同款防塌缩）。
+        let _lastGoodH = 138;
+        const measureHeight = () => {
+            let totalH = 0;
+            let visible = 0;
+            for (const child of root.children) {
+                const style = window.getComputedStyle(child);
+                if (style.position === "absolute" || style.position === "fixed") continue;
+                if (style.display === "none") continue;
+                totalH += child.offsetHeight;
+                visible += 1;
+            }
+            const padding = 16; // root padding 8×2
+            const gaps = Math.max(0, visible - 1) * 6; // flex gap 6px
+            if (totalH < 20) return _lastGoodH;
+            _lastGoodH = totalH + padding + gaps;
+            return _lastGoodH;
+        };
 
         let _currentSubdirs = [];   // 当前层子目录（渐进式按需加载）
 
@@ -209,9 +232,6 @@ app.registerExtension({
                     });
                 }
             }
-
-            const cur = root.querySelector("[data-role='current']");
-            if (cur) cur.textContent = `📁 ${raw || "—"}`;
 
             // 左右同级切换：根层（无父层）无同级可切 → 禁用
             const prevBtn = root.querySelector("[data-role='dir-prev']");
@@ -375,7 +395,7 @@ app.registerExtension({
         // ── 模式切换：目录选择 / 直接输入路径 ──
         const modeRow = document.createElement("div");
         modeRow.className = "sf-lip-row";
-        for (const m of [["dir", "目录选择"], ["path", "直接输入路径"]]) {
+        for (const m of [["dir", "Folder Mode"], ["path", "Path Mode"]]) {
             const b = document.createElement("button");
             b.type = "button";
             b.className = "sf-lip-btn sf-lip-mode";
@@ -456,7 +476,7 @@ app.registerExtension({
         const applyBtn = document.createElement("button");
         applyBtn.type = "button";
         applyBtn.className = "sf-lip-btn";
-        applyBtn.textContent = "应用";
+        applyBtn.textContent = "Apply";
         applyBtn.addEventListener("click", () => setValue(input.value.trim()));
         input.addEventListener("keydown", (e) => {
             if (e.key === "Enter") setValue(input.value.trim());
@@ -464,31 +484,39 @@ app.registerExtension({
         pathRow.append(input, applyBtn);
         root.appendChild(pathRow);
 
-        // ── 底部：刷新 + 当前值 ──
+        // ── 底部：刷新 ──
         const footRow = document.createElement("div");
         footRow.className = "sf-lip-row";
         const refreshBtn = document.createElement("button");
         refreshBtn.type = "button";
         refreshBtn.className = "sf-lip-btn";
-        refreshBtn.textContent = "刷新当前目录";
+        refreshBtn.textContent = "Refresh";
         refreshBtn.addEventListener("click", () => {
             loadCurrentSubdirs(true);   // 强制重新加载当前层
             if (app.graph) app.graph.setDirtyCanvas(true, true);
         });
-        const cur = document.createElement("div");
-        cur.className = "sf-lip-current";
-        cur.dataset.role = "current";
         footRow.append(refreshBtn);
         root.appendChild(footRow);
-        root.appendChild(cur);
 
         const widget = node.addDOMWidget("lip_ui", WIDGET_TYPE, root, {
             serialize: false,
-            getMinHeight: () => 138,
-            getMaxHeight: () => 138,
+            getMinHeight: measureHeight,
+            getMaxHeight: measureHeight,
             margin: 4,
         });
         applyAdaptiveCanvasOnly(widget);
+        // Nodes 2.0 忽略 legacy getMinHeight/getMaxHeight，改走 computeLayoutSize：
+        // 同样锁住内容高度下限，并借 minWidth 兜住拖拽宽度（Vue 下 onResize 不可靠）。
+        widget.computeLayoutSize = () => ({ minHeight: measureHeight(), minWidth: MIN_W });
+
+        // 最小宽度钳制：初始只抬升过小的尺寸（已保存宽度永不变更 -> 不脏加载）；
+        // legacy 拖拽路径由 onResize 兜底。
+        if (!node.size || node.size[0] < MIN_W) node.size[0] = MIN_W;
+        const origResize = node.onResize;
+        node.onResize = function (size) {
+            if (size && size[0] < MIN_W) size[0] = MIN_W;
+            return origResize?.apply(this, arguments);
+        };
 
         // 初始渲染（combo 默认值已在 INPUT_TYPES 提供）
         renderFromValue();
