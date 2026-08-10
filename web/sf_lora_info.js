@@ -4,6 +4,10 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { renderMarkdown } from "./sf_markdown.js";
+// Civitai 查询/账户封装复用 SFLoraStack 同一套（同一 civitai.json 配置，
+// 机器级共享）。该模块只依赖 sf_common.js，无 Stack 节点依赖。
+import { loraInfo, civitaiLookup, deleteCivitai, saveCivitaiThumb,
+    getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
 
 // ---------------------------------------------------------------------------
 // PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
@@ -138,12 +142,56 @@ export function showLoraInfoDialog(event, name, meta) {
         description: meta.description || "",
     };
 
+    // ── Civitai 查询状态（与 SFLoraStack 面板同语义，见 sf_lora_stack_info.js）──
+    let civ = null;            // { state:"searching"|"found"|"nofind"|"offline", info?, message?, note? }
+    let hasSidecar = false;    // .civitai.info 侧车存在（fire-and-forget 探测，控制 🗑 按钮）
+    let _thumbBust = 0;        // 封面 bust：越过缩略图路由的一小时缓存
+    let _acc = null;           // Civitai 账户公开形状 {configured,hint,host,adultThumbs}（key 永不回页）
+    let _accBusy = false;      // 账户保存防重入
+
     // ---------- dialog (native modal, like rgthree) ----------
     if (!showLoraInfoDialog._cssInjected) {
         showLoraInfoDialog._cssInjected = true;
         const style = document.createElement("style");
         style.textContent = `
             dialog.sf-lora-info::backdrop { background: rgba(0,0,0,0.5); }
+            /* ── Civitai 查询状态条（与 SFLoraStack 面板四态同语义） ── */
+            .sf-li-civstrip { display:flex; align-items:flex-start; gap:8px; margin:10px 18px 2px;
+                padding:8px 10px; border-radius:6px; font-size:11px; line-height:1.5; }
+            .sf-li-civstrip .ic { flex:0 0 auto; }
+            .sf-li-civstrip.searching { background:rgba(121,170,255,0.10); border:1px solid rgba(121,170,255,0.35); color:#9db8e8; }
+            .sf-li-civstrip.found { background:rgba(62,195,113,0.10); border:1px solid rgba(62,195,113,0.4); color:#8fce9f; }
+            .sf-li-civstrip.nofind { background:rgba(255,193,7,0.10); border:1px solid rgba(255,193,7,0.35); color:#e0c27a; }
+            .sf-li-civstrip.offline { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); color:#b0b0b0; }
+            .sf-li-civstrip .civlink { color:#8fc0ff; cursor:pointer; }
+            .sf-li-civstrip .civlink:hover { color:#b8d8ff; text-decoration:underline; }
+            .sf-li-spin { display:inline-block; width:10px; height:10px; border:2px solid rgba(255,255,255,0.25);
+                border-top-color:#9db8e8; border-radius:50%; animation:sf-li-spin .7s linear infinite; vertical-align:-1px; }
+            @keyframes sf-li-spin { to { transform:rotate(360deg); } }
+            /* ── Civitai 账户设置区（同一份 civitai.json，与 Stack 共享） ── */
+            .sf-li-acc { margin:0 18px 10px; border:1px solid #444; border-radius:8px; padding:10px 12px; }
+            .sf-li-acc-head { font-size:12px; font-weight:600; color:#eee; }
+            .sf-li-acc-sub { font-size:10.5px; color:#8a8a8a; line-height:1.5; margin-top:3px; }
+            .sf-li-acc-row { display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; color:#ccc; }
+            .sf-li-acc-row .lab { flex:1; min-width:0; }
+            .sf-li-acc-mini { flex:0 0 auto; font-size:11px; color:#8fc0ff; cursor:pointer;
+                border:1px solid #3a5a80; border-radius:4px; padding:2px 8px; }
+            .sf-li-acc-mini:hover { color:#b8d8ff; border-color:#5a7ab0; }
+            .sf-li-acc-mini.rm { color:#c9736a; border-color:#6a4038; }
+            .sf-li-acc-mini.rm:hover { color:#e0604a; border-color:#8a4a40; }
+            .sf-li-acc-key { flex:1; min-width:0; background:#1a1a1e; border:1px solid #6af; border-radius:5px;
+                color:#eee; font-size:12px; padding:5px 8px; outline:none; }
+            .sf-li-acc-seg { display:flex; gap:4px; }
+            .sf-li-acc-segb { font-size:11px; color:#aaa; border:1px solid #555; border-radius:4px; padding:3px 10px; cursor:pointer; }
+            .sf-li-acc-segb:hover { color:#ddd; }
+            .sf-li-acc-segb.on { color:#fff; border-color:var(--sf-acc, #f66744); background:rgba(246,103,68,0.12); }
+            .sf-li-acc-sw { width:30px; height:16px; border-radius:9px; background:#555; position:relative; cursor:pointer; flex:0 0 auto; }
+            .sf-li-acc-sw::after { content:""; position:absolute; top:2px; left:2px; width:12px; height:12px;
+                border-radius:50%; background:#ccc; transition:left .12s; }
+            .sf-li-acc-sw.on { background:rgba(246,103,68,0.7); }
+            .sf-li-acc-sw.on::after { left:16px; background:#fff; }
+            .sf-li-acc-msg { font-size:10.5px; margin-top:6px; display:none; }
+            .sf-li-acc-msg.ok { color:#3ec371; }
         `;
         document.head.appendChild(style);
     }
@@ -393,7 +441,25 @@ export function showLoraInfoDialog(event, name, meta) {
         return row;
     }
 
-    // read-only row factory
+    // read-only row factory（row.valueEl 供 Civitai 查询后刷新复用）
+    function renderReadonlyValue(row, value, linkUrl) {
+        row.valueEl.innerHTML = "";
+        if (linkUrl && value) {
+            const a = document.createElement("a");
+            a.href = linkUrl;
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.textContent = value;
+            a.style.cssText = "color: #7aa2ff; text-decoration: none; word-break: break-all;";
+            a.addEventListener("mouseenter", () => { a.style.textDecoration = "underline"; });
+            a.addEventListener("mouseleave", () => { a.style.textDecoration = ""; });
+            row.valueEl.appendChild(a);
+        } else {
+            row.valueEl.textContent = value || "";
+            if (!value) row.valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
+        }
+    }
+
     function createReadonlyRow(displayLabel, value, linkUrl) {
         const row = document.createElement("div");
         row.style.cssText = `
@@ -410,22 +476,10 @@ export function showLoraInfoDialog(event, name, meta) {
             flex: 1; font-size: 13px; color: #eee; line-height: 1.5;
             white-space: pre-wrap; word-break: break-word; min-height: 20px;
         `;
-        if (linkUrl && value) {
-            const a = document.createElement("a");
-            a.href = linkUrl;
-            a.target = "_blank";
-            a.rel = "noopener";
-            a.textContent = value;
-            a.style.cssText = "color: #7aa2ff; text-decoration: none; word-break: break-all;";
-            a.addEventListener("mouseenter", () => { a.style.textDecoration = "underline"; });
-            a.addEventListener("mouseleave", () => { a.style.textDecoration = ""; });
-            valueEl.appendChild(a);
-        } else {
-            valueEl.textContent = value || "";
-            if (!value) valueEl.innerHTML = '<span style="color:#666;">(empty)</span>';
-        }
         row.appendChild(labelEl);
         row.appendChild(valueEl);
+        row.valueEl = valueEl;
+        renderReadonlyValue(row, value, linkUrl);
         return row;
     }
 
@@ -437,10 +491,12 @@ export function showLoraInfoDialog(event, name, meta) {
         true,
         "支持 Markdown 格式：![图片](url)、[链接](url)、**加粗**、列表、代码块等"
     );
+    // Civitai 查询后 base_model/source_url 可能变化（侧车信息）：保存行引用供刷新
+    let bmRow = null, urlRow = null;
     body.appendChild(twRow);
     body.appendChild(descRow);
-    if (meta.base_model) body.appendChild(createReadonlyRow("Base Model", meta.base_model));
-    if (meta.source_url) body.appendChild(createReadonlyRow("Source URL", meta.source_url, meta.source_url));
+    if (meta.base_model) { bmRow = createReadonlyRow("Base Model", meta.base_model); body.appendChild(bmRow); }
+    if (meta.source_url) { urlRow = createReadonlyRow("Source URL", meta.source_url, meta.source_url); body.appendChild(urlRow); }
 
     // ---------- sample images（描述 Markdown 图片插入） ----------
     const samplePanel = document.createElement("div");
@@ -635,7 +691,7 @@ export function showLoraInfoDialog(event, name, meta) {
     // ---------- footer ----------
     const footer = document.createElement("div");
     footer.style.cssText = `
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
         padding: 12px 18px; border-top: 1px solid #444;
     `;
 
@@ -694,14 +750,49 @@ export function showLoraInfoDialog(event, name, meta) {
         }
     }
 
+    // ── Civitai 按钮组（常驻 footer，不随编辑态切换）───────────────────────
+    // 账户展开区先声明：refreshCivButtons 的 Account 按钮切换它（const TDZ）
+    let accOpen = false;
+    const accPanel = document.createElement("div");
+    accPanel.className = "sf-li-acc";
+    accPanel.style.display = "none";
+    const civBtns = document.createElement("div");
+    civBtns.style.cssText = "display:flex; align-items:center; gap:8px;";
+
+    function refreshCivButtons() {
+        civBtns.innerHTML = "";
+        // ↻ Civitai：查询入口（文件缺失时无意义，隐藏）
+        if (name && name !== "None" && !meta._file_missing) {
+            const searching = civ?.state === "searching";
+            const b = makeFooterBtn(searching ? "Looking up…" : "↻ Civitai", "#aaa", searching ? null : runCivitai,
+                "按内容指纹在 Civitai 上查找该文件，并把信息保存到文件旁（之后离线即得）");
+            if (searching) b.style.opacity = "0.6";
+            civBtns.appendChild(b);
+        }
+        // 🗑 删除已存 Civitai 侧车——回到文件自己的词（仅当侧车存在）
+        if (hasSidecar) {
+            const b = makeFooterBtn("🗑", "#c9736a", runDeleteCivitai,
+                "Delete the saved Civitai info (back to the file's own words)");
+            b.title = "Delete the saved Civitai info (back to the file's own words)";
+            civBtns.appendChild(b);
+        }
+        // Civitai account：与 SFLoraStack 同一份配置（civitai.json，机器级）
+        const ab = makeFooterBtn(accOpen ? "▾ Account" : "▸ Account", "#aaa", toggleAccount,
+            "API key & lookup preferences — saved on this computer, shared with the LoRA Stack node");
+        civBtns.appendChild(ab);
+    }
+
     footer.appendChild(copyBtn);
     footer.appendChild(clearBtn);
     footer.appendChild(spacer);
+    footer.appendChild(civBtns);
     footer.appendChild(footerRight);
     renderFooterActions();
+    refreshCivButtons();
 
     card.appendChild(header);
     card.appendChild(body);
+    card.appendChild(accPanel);
     card.appendChild(footer);
     dialog.appendChild(card);
 
@@ -728,6 +819,296 @@ export function showLoraInfoDialog(event, name, meta) {
                 descRow.refresh();
             })
             .catch(e => console.warn("[SF Model Info] Failed to save notes:", e));
+    }
+
+    // ── Civitai 查询（复用 SFLoraStack 同一套路由/配置）────────────────────
+    // 状态条：body 顶部动态插入/移除；只更新自身元素，不重建行（编辑中的
+    // 行由 applyMetaRefresh 守卫跳过）。
+    let civStripEl = null;
+    function refreshCivStrip() {
+        if (!civ) { civStripEl?.remove(); civStripEl = null; return; }
+        if (!civStripEl) {
+            civStripEl = document.createElement("div");
+            body.insertBefore(civStripEl, body.firstChild);
+        }
+        const st = civ.state;
+        civStripEl.className = "sf-li-civstrip " + (st === "searching" ? "searching"
+            : st === "found" ? "found" : st === "offline" ? "offline" : "nofind");
+        civStripEl.innerHTML = "";
+        const ic = document.createElement("span");
+        ic.className = "ic";
+        if (st === "searching") ic.innerHTML = '<span class="sf-li-spin"></span>';
+        else ic.textContent = st === "found" ? "✓" : st === "offline" ? "!" : "?";
+        const stripBody = document.createElement("div");
+        if (st === "searching") {
+            stripBody.textContent = "Looking up on Civitai… matching this file's fingerprint.";
+        } else if (st === "found") {
+            stripBody.textContent = "Found on Civitai. Saved next to the file, so it's instant and offline next time.";
+            if (civ.note) stripBody.appendChild(document.createTextNode(" " + civ.note));
+            if (civ.info?.model_id != null) {
+                // 按账户主机偏好选网页域（red 用户看 civitai.red）
+                const host = _acc?.host === "red" ? "civitai.red" : "civitai.com";
+                const link = document.createElement("a");
+                link.className = "civlink";
+                link.textContent = " View on Civitai ↗";
+                link.href = `https://${host}/models/${civ.info.model_id}`
+                    + (civ.info.version_id != null ? `?modelVersionId=${civ.info.version_id}` : "");
+                link.target = "_blank";
+                link.rel = "noopener";
+                stripBody.appendChild(link);
+            }
+        } else if (st === "nofind") {
+            stripBody.textContent = "Not on Civitai. This exact file isn't in their database (it may be private, renamed, or custom-trained). The words read from the file are still shown.";
+        } else {
+            stripBody.textContent = civ.message || "Couldn't reach Civitai. No connection, or it's busy. Use the file's own words, or try again.";
+        }
+        civStripEl.append(ic, stripBody);
+    }
+
+    // 查询成功/删除侧车后用新合并元数据刷新展示：非编辑中的行直接更新
+    // （不写存储——用户点 Save 才落盘自定义词）；编辑中的行保持草稿。
+    function applyMetaRefresh(meta2) {
+        if (!twRow._editing) { state.trigger_words = meta2.trigger_words || ""; twRow.refresh(); }
+        if (!descRow._editing) { state.description = meta2.description || ""; descRow.refresh(); }
+        if (meta2.base_model !== undefined) {
+            if (meta2.base_model) {
+                if (!bmRow) { bmRow = createReadonlyRow("Base Model", meta2.base_model); body.insertBefore(bmRow, urlRow || samplePanel); }
+                else { bmRow.style.display = ""; renderReadonlyValue(bmRow, meta2.base_model); }
+            } else if (bmRow) bmRow.style.display = "none";
+        }
+        if (meta2.source_url !== undefined) {
+            if (meta2.source_url) {
+                if (!urlRow) { urlRow = createReadonlyRow("Source URL", meta2.source_url, meta2.source_url); body.insertBefore(urlRow, samplePanel); }
+                else { urlRow.style.display = ""; renderReadonlyValue(urlRow, meta2.source_url, meta2.source_url); }
+            } else if (urlRow) urlRow.style.display = "none";
+        }
+    }
+
+    function updateThumb() {
+        if (name && name !== "None") {
+            thumbEl.src = `/api/sfnodes/lora_thumb?name=${encodeURIComponent(name)}&t=${_thumbBust || Date.now()}`;
+        }
+    }
+
+    async function runCivitai() {
+        if (!name || name === "None" || civ?.state === "searching") return;
+        civ = { state: "searching" };
+        refreshCivStrip();
+        refreshCivButtons();
+        const res = await civitaiLookup(name);
+        if (!dialog.isConnected) return;
+        if (res.ok && res.found) {
+            civ = { state: "found", info: res.info || {}, note: "" };
+            // 封面保存结果附在状态条上：成功静默（本地图经 /lora_thumb 刷新后
+            // 自动显示）；被跳过（已有自定义预览）稍后用确认框询问；失败则提示。
+            if (res.thumb_v) _thumbBust = res.thumb_v;
+            else if (res.thumb_skipped) civ.note = "Your own preview picture was kept.";
+            else if (res.thumb_error) civ.note = "Couldn't save the preview: " + res.thumb_error;
+            hasSidecar = true;
+            refreshCivStrip();
+            // 侧车已写入：force 重取合并元数据刷新展示（编辑中的行跳过）
+            const meta2 = await getLoraMetadata(name, true);
+            if (!dialog.isConnected) return;
+            if (meta2 && !meta2._not_found) applyMetaRefresh(meta2);
+            updateThumb();
+            app.graph.setDirtyCanvas(true, true);
+            // 已有用户自定义预览时查询不覆盖保存（thumb_skipped）——确认后走
+            // 独立保存端点（读侧车同一张图下载，无需重新查询）
+            if (res.thumb_skipped) {
+                if (confirm("This LoRA already has a preview picture you set.\nReplace it with the one found on Civitai?")) {
+                    const sv = await saveCivitaiThumb(name);
+                    if (!dialog.isConnected) return;
+                    if (!sv?.ok) civ.note = "Couldn't save the preview: " + ((sv && sv.message) || "unknown error");
+                    else { _thumbBust = sv.v || Date.now(); updateThumb(); }
+                    refreshCivStrip();
+                }
+            }
+        } else if (res.reason === "notfound") {
+            civ = { state: "nofind" };
+        } else {
+            civ = { state: "offline", message: res.message || "Couldn't reach Civitai." };
+        }
+        if (!dialog.isConnected) return;
+        refreshCivStrip();
+        refreshCivButtons();
+    }
+
+    async function runDeleteCivitai() {
+        if (!name || name === "None") return;
+        await deleteCivitai(name);
+        if (!dialog.isConnected) return;
+        civ = null;
+        hasSidecar = false;
+        _thumbBust = Date.now();              // 侧车（因此预览）变了
+        const meta2 = await getLoraMetadata(name, true);
+        if (!dialog.isConnected) return;
+        if (meta2 && !meta2._not_found) applyMetaRefresh(meta2);
+        updateThumb();
+        app.graph.setDirtyCanvas(true, true);
+        refreshCivStrip();
+        refreshCivButtons();
+    }
+
+    // ── Civitai 账户（与 SFLoraStack 同一份 civitai.json，机器级共享）────────
+    function buildAccountPanel() {
+        accPanel.innerHTML = "";
+        const head = document.createElement("div");
+        head.className = "sf-li-acc-head";
+        head.textContent = "Civitai account";
+        const sub = document.createElement("div");
+        sub.className = "sf-li-acc-sub";
+        sub.textContent = "Saved on this computer, shared with the LoRA Stack node — never in your workflows. A key lets the lookup see models that Civitai hides from anonymous requests.";
+        accPanel.append(head, sub);
+
+        let editing = false;
+        const msg = document.createElement("div");
+        msg.className = "sf-li-acc-msg";
+        const say = (t, ok) => {
+            msg.textContent = t || "";
+            msg.style.display = t ? "block" : "none";
+            msg.className = "sf-li-acc-msg" + (ok ? " ok" : "");
+        };
+
+        // key 行（显示 <-> 编辑切换；编辑中绝不整行重建——见 paintKeyRow）
+        const keyRow = document.createElement("div");
+        keyRow.className = "sf-li-acc-row";
+        const paintKeyRow = () => {
+            editing = false;
+            keyRow.textContent = "";
+            const st = document.createElement("span");
+            st.className = "lab";
+            st.textContent = _acc?.configured ? "✓ Key saved  " + (_acc.hint || "") : "No key — anonymous lookups";
+            const edit = document.createElement("span");
+            edit.className = "sf-li-acc-mini";
+            edit.textContent = _acc?.configured ? "Change" : "Add key";
+            edit.title = "Paste a key from civitai.com > Account settings > API Keys";
+            edit.addEventListener("click", showEditor);
+            keyRow.append(st, edit);
+            if (_acc?.configured) {
+                const rm = document.createElement("span");
+                rm.className = "sf-li-acc-mini rm";
+                rm.textContent = "Remove";
+                rm.title = "Forget the key. Lookups go back to anonymous.";
+                rm.addEventListener("click", () => save({ key: "" }, "Key removed."));
+                keyRow.appendChild(rm);
+            }
+        };
+        function showEditor() {
+            editing = true;
+            say("");
+            keyRow.textContent = "";
+            const inp = document.createElement("input");
+            inp.className = "sf-li-acc-key";
+            inp.type = "password";
+            inp.placeholder = "Paste your API key";
+            inp.autocomplete = "off";
+            inp.spellcheck = false;
+            inp.addEventListener("keydown", (e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") { e.preventDefault(); commit(); }
+            });
+            const ok = document.createElement("span");
+            ok.className = "sf-li-acc-mini";
+            ok.textContent = "Save";
+            const no = document.createElement("span");
+            no.className = "sf-li-acc-mini";
+            no.textContent = "Cancel";
+            const commit = () => {
+                const v = inp.value.trim();
+                if (!v) { say("Nothing to save — paste a key first."); return; }
+                // 唯一一个应把编辑器换回状态行的保存，且只在服务器确认后
+                save({ key: v }, "Key saved.", true);
+            };
+            ok.addEventListener("click", commit);
+            no.addEventListener("click", () => { say(""); paintKeyRow(); });
+            keyRow.append(inp, ok, no);
+            inp.focus();
+        }
+
+        // host 行
+        const hostRow = document.createElement("div");
+        hostRow.className = "sf-li-acc-row";
+        const hostLab = document.createElement("span");
+        hostLab.className = "lab";
+        hostLab.textContent = "Ask this site first";
+        const hostSeg = document.createElement("div");
+        hostSeg.className = "sf-li-acc-seg";
+        const HOSTS = [
+            { v: "com", label: "Standard", hint: "civitai.com, then civitai.red as a backup", title: "The usual choice" },
+            { v: "red", label: "Unrestricted", hint: "civitai.red first, for adult-rated models", title: "Civitai's unrestricted domain. Use this if your LoRAs are not found." },
+        ];
+        for (const o of HOSTS) {
+            const b = document.createElement("div");
+            b.className = "sf-li-acc-segb";
+            b.textContent = o.label;
+            b.dataset.v = o.v;
+            b.title = o.title;
+            b.addEventListener("click", () => save({ host: o.v }, ""));
+            hostSeg.appendChild(b);
+        }
+        hostRow.append(hostLab, hostSeg);
+
+        // adult 行
+        const adultRow = document.createElement("div");
+        adultRow.className = "sf-li-acc-row";
+        const adultLab = document.createElement("span");
+        adultLab.className = "lab";
+        adultLab.textContent = "Allow adult preview images";
+        const adultSw = document.createElement("div");
+        adultSw.className = "sf-li-acc-sw";
+        adultSw.addEventListener("click", () => save({ adultThumbs: !_acc?.adultThumbs }, ""));
+        adultRow.append(adultLab, adultSw);
+
+        const paintRest = () => {
+            for (const b of hostSeg.children) b.classList.toggle("on", b.dataset.v === _acc?.host);
+            adultSw.classList.toggle("on", !!_acc?.adultThumbs);
+        };
+        const paint = () => { if (!editing) paintKeyRow(); paintRest(); };
+
+        // 按服务器实际存储的应答重绘，绝不按我们以为它收下的。_accDirty：
+        // 用户已保存过，打开面板时发出的 GET 应答可能迟到，落地会把面板从
+        // 刚设的值跳回旧值（"设了 red 它显示 com"）。
+        let _accDirty = false;
+        async function save(patch, okNote, closeEditor) {
+            if (_accBusy) return;
+            _accBusy = true;
+            try {
+                const res = await setCivitaiAccount(patch);
+                if (!dialog.isConnected) return;
+                if (!res || !res.ok) {
+                    say((res && res.message) || "Could not save.");
+                    // 不整面板重绘：paintKeyRow 从零重建会丢掉编辑器和打好的 key
+                    paintRest();
+                    return;
+                }
+                _accDirty = true;
+                _acc = res;
+                if (closeEditor) editing = false;
+                say(okNote || "", true);
+                paint();
+                app.graph.setDirtyCanvas(true, true);
+            } finally {
+                _accBusy = false;
+            }
+        }
+
+        accPanel.append(keyRow, msg, hostRow, adultRow);
+        paint();
+        // 对话框尾部预取失败时（_acc 为 null）展开面板再读一次
+        if (!_acc) {
+            getCivitaiAccount().then((res) => {
+                if (!dialog.isConnected || !res || !res.ok || _accDirty) return;
+                _acc = res;
+                paint();
+            });
+        }
+    }
+
+    function toggleAccount() {
+        accOpen = !accOpen;
+        accPanel.style.display = accOpen ? "block" : "none";
+        if (accOpen && !accPanel.firstChild) buildAccountPanel();
+        refreshCivButtons();
     }
 
     function closeDialog() {
@@ -775,6 +1156,23 @@ export function showLoraInfoDialog(event, name, meta) {
 
     document.body.appendChild(dialog);
     dialog.showModal();
+
+    // ── 打开即预取（fire-and-forget，dialog 关闭后落地无副作用）───────────
+    // 账户公开状态：View on Civitai 链接域选择 + Account 展开区显示。
+    getCivitaiAccount().then((res) => {
+        if (dialog.isConnected && res && res.ok) _acc = res;
+    });
+    // 已存 Civitai 侧车探测：决定 🗑 按钮（对话框打开时静默，不打扰）。
+    if (name && name !== "None" && !meta._file_missing) {
+        loraInfo(name).then((res) => {
+            if (!dialog.isConnected || !res?.ok || !res.info) return;
+            const had = res.info.source === "sidecar" || (res.info.sidecar_triggers?.length || 0) > 0;
+            if (had && !hasSidecar) {
+                hasSidecar = true;
+                refreshCivButtons();
+            }
+        });
+    }
 }
 
 // ---------------------------------------------------------------------------
