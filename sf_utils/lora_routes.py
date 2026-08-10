@@ -237,6 +237,15 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not read: {}".format(exc)})
             # 用户自己的词随文件词和 Civitai 词一起返回，面板打开瞬间三源齐备。
+            # 统一存储真源（2026-08 起 Power 系 lora_notes 也写这里）。旧
+            # lora_notes 侧车（<base>.sf.json）在任一读取入口首次惰性迁移
+            # 并入后删除（幂等：store 已有该 LoRA 数据则跳过）。
+            try:
+                await loop.run_in_executor(
+                    None, R.migrate_legacy_sidecar, _custom_triggers_file(), path, name
+                )
+            except Exception:
+                pass
             try:
                 info["custom_triggers"] = R.get_custom_triggers(_custom_triggers_file(), name)
             except Exception:

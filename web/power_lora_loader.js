@@ -798,7 +798,8 @@ function createLoraWidget(name, node) {
                         // 出现导致 LiteGraph widget 交互状态残留
                         w._mouseDown = null;
                         w._dragTarget = null;
-                        getLoraMetadata(loraName).then(meta => {
+                        // force：打开必新（SFLoraStack 面板等另一端可能刚保存过）
+                        getLoraMetadata(loraName, true).then(meta => {
                             requestAnimationFrame(() => {
                                 setTimeout(() => showLoraInfoDialog(event, loraName, meta), 0);
                             });

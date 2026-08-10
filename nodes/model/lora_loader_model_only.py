@@ -30,7 +30,7 @@ class LoraLoaderModelOnly(LoraLoader):
     CATEGORY = _CATEGORY
 
     def load_lora_model_only(self, model, lora_name, strength_model):
-        meta = get_merged_metadata(lora_name, "loras")
+        meta = get_merged_metadata(lora_name)
         stem = os.path.splitext(os.path.basename(lora_name))[0]
         return (
             super().load_lora(model, None, lora_name, strength_model, 0)[0],

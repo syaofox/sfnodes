@@ -36,7 +36,7 @@ sfnodes/
 │   ├── blend.py         # 混合工具
 │   ├── insightface_utils.py # InsightFace 封装
 │   ├── face_detector.py  # 人脸检测
-│   ├── lora_notes.py     # LoRA 笔记/说明
+│   ├── lora_notes.py     # LoRA 用户数据统一存储网关（Power 系对话框/loader 节点与 SFLoraStack 共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见经验摘要 §LoRA 信息数据统一）
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   ├── lora_reader.py    # LoRA 元数据/触发词/内容指纹纯逻辑（SFLoraStack 用，无 ComfyUI 依赖）
@@ -279,6 +279,14 @@ class SFMyNode:
 - **全局强调色统一走 `--sf-acc` CSS 变量**（`sf_common.js` getSfAccent/applySfAccentVar/sfAccent，注册在 SFLoraStack 扩展 init）：CSS 部分 `var(--sf-acc, #f66744)` 响应式自动生效；canvas 每帧 `sfAccent()`（inline 变量读取轻量）；**无节点级自定义**（旧 state 的 accent 字段被忽略），面板/下拉/菜单的局部 `--acc`/`--sf-acc` 只是把全局色带到局部作用域。**三个时序坑**：① ComfyUI 设置 onChange 在 store 更新前触发、参数是 (newValue, oldValue)——回调里读 getSettingValue 拿到旧值（"设了 red 显示 teal"），必须用传入参数；② 由此连带：**onChange 里的节点重绘也要 setTimeout(0) 推迟**——同步执行时 accentOf 读 store 仍是旧值（"SFLoraStack 设置后不立即生效"）；③ 初始 applySfAccentVar 必须在 addSetting 之后（未注册读不到用户值），且**设置值从服务器异步加载、晚于扩展 init**——需轮询重试几次（幂等），否则 --sf-acc 被钉死在默认色、CSS 变量类节点（Load Image Resize 等）硬刷新后不跟随（accentOf 直读 store 的节点不受影响，症状不一致易误判）。
 - **保存成功后 `_infoSeq++` 作废在途旧响应**：面板打开时 loadInfo 在飞，用户保存描述后迟到响应落地会覆盖回旧值（"保存了仍显示来自 Civitai"）；设置面板同理用 `_accDirty` 挡 GET 迟到应答覆盖刚保存的 host。
 - 存储形状升级必须兼容旧数据（`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一）；`promptState` 只注入执行字段（cosmetic 剥掉避免改缓存签名），`cacheMode` 例外（Python 需要它决定内存策略）。完整踩坑见 `doc/experience.md` §19。
+
+**前后端：LoRA 信息数据统一（2026-08，`sf_utils/lora_notes.py` 网关化）**
+- **单一真源**：Power 系（SFPowerLoraLoader 对话框 / SFLoraLoader / ModelOnly 的 execute 输出）与 SFLoraStack 面板的用户自定义词/描述统一存 `user/sfnodes/lora_triggers.json`（路径只由 `lora_routes._custom_triggers_file()` 定义，网关 import 它而非复制）。lora_notes 只是形状转换网关：`trigger_words` 字符串 ↔ `words` 数组（`split_trigger_text` 按英文/中文逗号+换行拆，读写同源）。
+- **读优先级三源合并**：统一存储 > `.civitai.info` 侧车（`read_sidecar_info`，去扩展名 `<base>.civitai.info`）> 文件内嵌元数据。Power 系对话框因此也能看到 Stack 面板查过 Civitai 的词。
+- **旧 `.sf.json` 侧车彻底废弃**：约定是**保留扩展名**（`<路径>.safetensors.sf.json`，与 `.civitai.info` 的去扩展名约定不同！）；任一读取入口（lora_notes / lora_info）首次读到该 LoRA 时经 `migrate_legacy_sidecar` 惰性迁移并入新存储后删除（幂等：store 已有数据跳过）。`?type=` 类型泛化移除（key 空间无类型维度，混入 checkpoints 等会撞 key；消费节点本就用 loras）。
+- **跨节点缓存失效用事件桥**：任一端保存成功 → `document.dispatchEvent("sfnodes.lora-data-changed", {detail:{name}})` → 另一端清自己的缓存（`loraMetadataCache.delete` / `invalidateInfo`）；对话框打开时 `getLoraMetadata(name, true)` force 重取双保险。
+- **封面跨节点可见（只读）**：Power 系对话框 header 也显示封面（`/api/sfnodes/lora_thumb` 同路由：用户自定义预览 > 模型旁 .preview 图），URL 带 `&t=Date.now()` bust 越过一小时缓存；无图 404 → onerror 隐藏。封面编辑仍只在 SFLoraStack 面板（对话框无编辑入口）。
+- **`_has_custom` 陷阱**：`desc` 变量会被 sidecar/embedded 兜底覆盖，自定义标志必须用独立变量（`entry_desc`）算，否则 embedded 有描述时 `_has_custom` 恒 True（i 图标误判蓝色）。
 
 **实际环境调试**
 - 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。

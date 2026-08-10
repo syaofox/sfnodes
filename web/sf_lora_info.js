@@ -79,22 +79,27 @@ export async function loadImageAsWorkflow(path, onError) {
 
 // ---------------------------------------------------------------------------
 // Metadata fetch (merged custom notes + embedded safetensors metadata via
-// the /api/sfnodes/lora_notes endpoint, generic over folder type)
+// the /api/sfnodes/lora_notes gateway endpoint)
 // ---------------------------------------------------------------------------
 
 export const loraMetadataCache = new Map();
 const _loraMetadataPending = new Map();
 
-export async function getLoraMetadata(name, modelType = "loras") {
+// 2026-08 统一存储：元数据读写走 /api/sfnodes/lora_notes（后端网关，与
+// SFLoraStack 同一 lora_triggers.json 真源）。`force` 跳过缓存与在途去重，
+// 打开对话框时用（另一节点刚保存过，缓存可能陈旧）。
+export async function getLoraMetadata(name, force = false) {
     if (!name || name === "None") return null;
-    if (loraMetadataCache.has(name)) return loraMetadataCache.get(name);
+    if (!force && loraMetadataCache.has(name)) return loraMetadataCache.get(name);
     // Join an in-flight request instead of firing a duplicate
-    if (_loraMetadataPending.has(name)) return _loraMetadataPending.get(name);
+    if (!force && _loraMetadataPending.has(name)) return _loraMetadataPending.get(name);
 
-    const typeParam = modelType && modelType !== "loras" ? `&type=${encodeURIComponent(modelType)}` : "";
     const promise = (async () => {
         try {
-            const resp = await fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(name)}${typeParam}`);
+            // force（打开对话框）= 必新：no-store 越过浏览器启发式缓存
+            // （后端响应无 Cache-Control，默认模式可能命中陈旧副本）。
+            const resp = await fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(name)}`,
+                { cache: force ? "no-store" : "default" });
             if (!resp.ok) { loraMetadataCache.set(name, null); return null; }
             const meta = await resp.json();
             loraMetadataCache.set(name, meta);
@@ -105,16 +110,28 @@ export async function getLoraMetadata(name, modelType = "loras") {
         }
     })();
 
-    _loraMetadataPending.set(name, promise);
-    try { return await promise; }
-    finally { _loraMetadataPending.delete(name); }
+    if (!force) {
+        _loraMetadataPending.set(name, promise);
+        try { return await promise; }
+        finally { _loraMetadataPending.delete(name); }
+    }
+    return promise;
+}
+
+// ── 跨节点缓存失效：任一节点（Power 系对话框 / SFLoraStack 面板）保存
+// LoRA 用户数据后广播，两端各自清自己模块的缓存，下次打开即新数据。────
+if (typeof document !== "undefined") {
+    document.addEventListener("sfnodes.lora-data-changed", (e) => {
+        const name = e?.detail?.name;
+        if (name) loraMetadataCache.delete(name);
+    });
 }
 
 // ---------------------------------------------------------------------------
 // Info dialog (native <dialog> modal, like rgthree)
 // ---------------------------------------------------------------------------
 
-export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
+export function showLoraInfoDialog(event, name, meta) {
     meta = meta || {};
     const state = {
         trigger_words: meta.trigger_words || "",
@@ -155,9 +172,26 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     title.textContent = name;
     title.title = name;
     title.style.cssText = `
+        flex: 1 1 auto; min-width: 0;
         font-size: 13px; font-weight: 600; color: #fff;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     `;
+    // ---------- 封面缩略图（只读展示） ----------
+    // 与 SFLoraStack 共用 /api/sfnodes/lora_thumb（用户自定义预览 > 模型旁
+    // .preview 图）。Stack 面板换封面后本对话框打开即新图：URL 带时间戳
+    // bust 越过缩略图路由的一小时缓存（Stack 面板的 thumbUrl 同款机制）。
+    // 无图时 404 -> onerror 隐藏，不占布局。
+    const thumbEl = document.createElement("img");
+    thumbEl.alt = "";
+    thumbEl.style.cssText = `
+        width: 44px; height: 44px; border-radius: 6px; object-fit: cover;
+        border: 1px solid #444; flex: 0 0 auto; display: none;
+    `;
+    if (name && name !== "None") {
+        thumbEl.onload = () => { thumbEl.style.display = "block"; };
+        thumbEl.onerror = () => { thumbEl.style.display = "none"; };
+        thumbEl.src = `/api/sfnodes/lora_thumb?name=${encodeURIComponent(name)}&t=${Date.now()}`;
+    }
     const closeBtn = document.createElement("button");
     closeBtn.textContent = "✕";
     closeBtn.title = "Close";
@@ -168,6 +202,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
     closeBtn.addEventListener("mouseenter", () => { closeBtn.style.color = "#fff"; });
     closeBtn.addEventListener("mouseleave", () => { closeBtn.style.color = "#aaa"; });
     closeBtn.addEventListener("click", () => closeDialog());
+    header.appendChild(thumbEl);
     header.appendChild(title);
     header.appendChild(closeBtn);
 
@@ -662,8 +697,7 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             trigger_words: state.trigger_words,
             description: state.description,
         };
-        const typeParam = modelType && modelType !== "loras" ? `&type=${encodeURIComponent(modelType)}` : "";
-        fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(name)}${typeParam}`, {
+        fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(name)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(bodyData),
@@ -671,6 +705,8 @@ export function showLoraInfoDialog(event, name, meta, modelType = "loras") {
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(updated => {
                 loraMetadataCache.set(name, updated);
+                // 广播给其它节点的缓存（SFLoraStack 面板等），另一端打开即新数据
+                document.dispatchEvent(new CustomEvent("sfnodes.lora-data-changed", { detail: { name } }));
                 app.graph.setDirtyCanvas(true, true);
                 state.trigger_words = updated.trigger_words || "";
                 state.description = updated.description || "";
@@ -818,9 +854,10 @@ function createInfoWidget(comboName) {
                 if (loraName && loraName !== "None") {
                     // 延迟到 pointerup 由 canvas 处理完成后再打开对话框，
                     // 避免 DOM 遮罩在点击过程中出现导致 LiteGraph widget 交互状态残留
-                    getLoraMetadata(loraName).then((meta) => {
+                    // force：打开必新（SFLoraStack 面板等另一端可能刚保存过）
+                    getLoraMetadata(loraName, true).then((meta) => {
                         requestAnimationFrame(() => {
-                            setTimeout(() => showLoraInfoDialog(event, loraName, meta, "loras"), 0);
+                            setTimeout(() => showLoraInfoDialog(event, loraName, meta), 0);
                         });
                     });
                 }

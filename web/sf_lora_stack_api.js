@@ -127,7 +127,11 @@ export async function civitaiLookup(name, overwrite) {
     try {
         const q = overwrite ? "&overwrite=1" : "";
         const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q));
-        return await r.json();
+        const j = await r.json();
+        // 查询可能写入 .civitai.info 侧车（Power 系读 lora_notes 时合并它的
+        // 词/描述）——广播让另一端缓存失效，打开即新数据。
+        if (j?.ok) broadcastDataChanged(name);
+        return j;
     } catch {
         return { ok: false, reason: "offline", message: "Could not reach Civitai." };
     }
@@ -174,7 +178,7 @@ export async function saveCustomTriggers(name, words) {
         });
         const j = await r.json();
         // 面板从缓存 info 读自定义词，陈旧缓存会在下次打开时撤销保存。
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
@@ -206,7 +210,7 @@ export async function saveCustomDescription(name, description) {
             body: JSON.stringify({ name, description }),
         });
         const j = await r.json();
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
@@ -229,7 +233,7 @@ export async function saveLoraPreview(name, dataUrl) {
             body: JSON.stringify({ name, dataUrl }),
         });
         const j = await r.json();
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
@@ -245,7 +249,7 @@ export async function deleteLoraPreview(name) {
             body: JSON.stringify({ name }),
         });
         const j = await r.json();
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
@@ -263,7 +267,7 @@ export async function saveCivitaiThumb(name) {
             body: JSON.stringify({ name }),
         });
         const j = await r.json();
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
@@ -280,11 +284,26 @@ export async function migrateLoraData(name, oldKey) {
             body: JSON.stringify({ name, old_key: oldKey || "" }),
         });
         const j = await r.json();
-        if (j?.ok) invalidateInfo(name);
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
         return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
     }
+}
+
+// ── 跨节点缓存失效（2026-08 统一存储）──────────────────────────────────────
+// Power 系（sf_lora_info.js 对话框 / SFLoraLoader 节点）与本面板共享
+// lora_triggers.json 真源：任何一端保存后广播 "sfnodes.lora-data-changed"
+// （detail.name），两端各自清自己的缓存，另一端打开即新数据。本模块：
+//   监听 -> invalidateInfo（下方）；自身保存成功 -> broadcast（各函数内）。
+function broadcastDataChanged(name) {
+    document.dispatchEvent(new CustomEvent("sfnodes.lora-data-changed", { detail: { name } }));
+}
+if (typeof document !== "undefined") {
+    document.addEventListener("sfnodes.lora-data-changed", (e) => {
+        const name = e?.detail?.name;
+        if (name) invalidateInfo(name);
+    });
 }
 
 // ── 预设（与 SFPowerLoraLoader 共享 user/sfnodes/lora_presets.json）──────────

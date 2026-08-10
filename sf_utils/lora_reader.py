@@ -649,6 +649,19 @@ def sanitize_custom_description(desc):
     return desc.strip()[:_MAX_DESCRIPTION_LEN]
 
 
+_TRIGGER_SPLIT_RE = re.compile(r"[,，\n]")
+
+
+def split_trigger_text(text):
+    """把用户输入的触发词文本（逗号/换行分隔，含中文逗号）拆成词列表清洗后
+    返回。旧 lora_notes 侧车的 trigger_words 字符串同此语义——迁移与写网关
+    共用，拆法 1:1。垃圾输入 -> []。永不抛错。"""
+    if not isinstance(text, str):
+        return []
+    parts = [p.strip() for p in _TRIGGER_SPLIT_RE.split(text) if p.strip()]
+    return sanitize_custom_words(parts)
+
+
 # ── 轻量内容指纹（孤儿匹配的内容级证据）───────────────────────────────────
 # 基名匹配只能覆盖"文件夹改名/移动"；文件本身改名后基名也变了。改名不改
 # 内容——指纹（大小 + 头/中/尾采样哈希）不变，可作为"这是同一个文件"的
@@ -962,6 +975,56 @@ def migrate_custom_preview(folder, name, old_key):
         return True
     except Exception:
         return False
+
+
+# ── 旧 lora_notes 侧车（<base>.sf.json）一次性迁移 ─────────────────────────
+# 2026-08 统一用户数据存储：SFPowerLoraLoader/SFLoraLoader 系的 lora_notes
+# 曾把自定义词/描述写在模型旁的 <base>.sf.json（随文件走但改名即失配、无
+# 孤儿迁移），现统一到 user/sfnodes/lora_triggers.json（与 SFLoraStack 同
+# 存储）。存量侧车在任一读取入口首次读到该 LoRA 时惰性迁移（并入后删除），
+# 之后代码路径无侧车。
+
+def migrate_legacy_sidecar(store_path, lora_path, name):
+    """把旧 lora_notes 侧车（<base>.sf.json）的用户数据并入统一存储。
+
+    store 已有该 LoRA 数据时不迁移（新数据优先）；侧车缺失/损坏/无可迁移
+    内容跳过。迁移成功删除侧车（并入即接管，防"清除后又复活"）；删除失败
+    静默（只读目录），下次读取时 store 已有数据、不会重复迁移。返回是否
+    迁移了数据。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return False
+    # 旧 lora_notes 约定：<模型路径>.sf.json（保留扩展名，如 xxx.safetensors.sf.json）
+    sp = lora_path + ".sf.json"
+    if not os.path.isfile(sp):
+        return False
+    try:
+        with open(sp, "r", encoding="utf-8") as f:
+            obj = json.load(f)
+    except Exception:
+        return False
+    if not isinstance(obj, dict):
+        return False
+    words = split_trigger_text(obj.get("trigger_words"))
+    desc = sanitize_custom_description(obj.get("description"))
+    if not words and not desc:
+        return False
+    store = read_custom_store(store_path)
+    cur = store.get(key)
+    if cur and (cur["words"] or cur["description"]):
+        return False
+    store[key] = {
+        "words": words,
+        "description": desc,
+        "fp": _norm_fp(file_fingerprint(lora_path)) or _norm_fp((cur or {}).get("fp")),
+    }
+    if not write_custom_store(store_path, store):
+        return False
+    try:
+        os.remove(sp)
+    except Exception:
+        pass
+    return True
 
 
 # ── 用户自己的预览图 ──────────────────────────────────────────────────────

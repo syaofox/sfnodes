@@ -33,6 +33,6 @@ class LoraLoader(NativeLoraLoader):
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         result = super().load_lora(model, clip, lora_name, strength_model, strength_clip)
-        meta = get_merged_metadata(lora_name, "loras")
+        meta = get_merged_metadata(lora_name)
         stem = os.path.splitext(os.path.basename(lora_name))[0]
         return result + (meta.get("trigger_words", ""), meta.get("description", ""), stem)
