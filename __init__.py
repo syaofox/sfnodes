@@ -84,7 +84,6 @@ from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacte
 from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.lora_selector import LoraSelector
-from .nodes.model.multi_lora import MultiLoraLoader, MultiLoraLoaderModelOnly
 from .nodes.model.power_lora_loader import PowerLoraLoader
 from .nodes.model.power_lora_preset import PowerLoraPreset
 from .nodes.model.lora_stack import SFLoraStack
@@ -252,8 +251,6 @@ NODE_CLASS_MAPPINGS = {
     "SFHyperLoRALoadCharacter": HyperLoRALoadCharacter,
     "SFHyperLoRASaveCharacter": HyperLoRASaveCharacter,
     # 多LoRA节点
-    "SFMultiLoraLoader": MultiLoraLoader,
-    "SFMultiLoraLoaderModelOnly": MultiLoraLoaderModelOnly,
     "SFPowerLoraLoader": PowerLoraLoader,
     "SFPowerLoraPreset": PowerLoraPreset,
     "SFLoraStack": SFLoraStack,
@@ -425,8 +422,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFHyperLoRALoadCharacter": "SF HyperLoRA Load Character",
     "SFHyperLoRASaveCharacter": "SF HyperLoRA Save Character",
     # 多LoRA节点
-    "SFMultiLoraLoader": "SF Multi LoRA Loader",
-    "SFMultiLoraLoaderModelOnly": "SF Multi LoRA Loader (Model Only)",
     "SFPowerLoraLoader": "SF Power Lora Loader",
     "SFPowerLoraPreset": "SF Power Lora Preset",
     "SFLoraStack": "SF LoRA Stack",

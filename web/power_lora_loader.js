@@ -149,7 +149,7 @@ function showLoraChooser(event, callback) {
         callback,
     });
     // Check display mode: 0=List, 1=Tree
-    const mode = app.ui?.settings?.getSettingValue?.("sfnodes.MultiLoraLoader.DisplayMode");
+    const mode = app.ui?.settings?.getSettingValue?.("sfnodes.LoraLoader.DisplayMode");
     if (mode === 1) {
         requestAnimationFrame(() => buildLoraTree(menu));
     }

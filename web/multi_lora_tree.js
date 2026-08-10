@@ -4,8 +4,7 @@
 //
 // Description:
 // JavaScript extension that provides folder tree view for LoRA dropdown menus
-// in SFLoraLoader, SFLoraLoaderModelOnly, MultiLoraLoader and
-// MultiLoraLoaderModelOnly nodes.
+// in SFLoraLoader and SFLoraLoaderModelOnly nodes.
 //
 // Features:
 // - Displays LoRA files in a collapsible folder tree structure
@@ -25,7 +24,7 @@ const DISPLAY_MODE = {
 };
 
 app.registerExtension({
-    name: "sfnodes.MultiLoraLoader.TreeView",
+    name: "sfnodes.LoraLoader.TreeView",
 
     init() {
         const displayOptions = {
@@ -34,15 +33,15 @@ app.registerExtension({
         };
 
         app.ui.settings.addSetting({
-            id: "sfnodes.MultiLoraLoader.DisplayMode",
-            name: "SF LoRA Loader: dropdown display mode (flat list / folder tree)",
+            id: "sfnodes.LoraLoader.DisplayMode",
+            name: "SF LoRa Loader: dropdown display mode (flat list / folder tree)",
             defaultValue: DISPLAY_MODE.TREE,
             type: "combo",
             options: () => {
                 return Object.entries(displayOptions).map(([text, value]) => ({
                     value,
                     text,
-                    selected: app.ui.settings.getSettingValue("sfnodes.MultiLoraLoader.DisplayMode") == value
+                    selected: app.ui.settings.getSettingValue("sfnodes.LoraLoader.DisplayMode") == value
                 }));
             },
             onChange: () => {
@@ -99,11 +98,9 @@ app.registerExtension({
             
             if (!node) return;
             
-            const isMultiLora = node.comfyClass === "SFMultiLoraLoader" || 
-                               node.comfyClass === "SFMultiLoraLoaderModelOnly" ||
-                               node.comfyClass === "SFLoraLoader" ||
+            const isLoraLoader = node.comfyClass === "SFLoraLoader" ||
                                node.comfyClass === "SFLoraLoaderModelOnly";
-            if (!isMultiLora) return;
+            if (!isLoraLoader) return;
 
             for (const mutation of mutations) {
                 for (const added of mutation.addedNodes) {
@@ -125,7 +122,7 @@ app.registerExtension({
         mutationObserver.observe(document.body, { childList: true, subtree: false });
 
         const updateMenu = (menu, widget) => {
-            const displayMode = app.ui.settings.getSettingValue("sfnodes.MultiLoraLoader.DisplayMode");
+            const displayMode = app.ui.settings.getSettingValue("sfnodes.LoraLoader.DisplayMode");
             
             const position = menu.getBoundingClientRect();
             const maxHeight = window.innerHeight - position.top - 20;
