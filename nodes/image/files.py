@@ -1,13 +1,10 @@
 import os
 import re
-from pathlib import Path
 
-import numpy as np
 import torch
 from PIL import Image, ImageOps
 
 import comfy.utils
-import folder_paths
 
 from ...sf_utils.image_convert import pil2tensor
 
@@ -70,151 +67,6 @@ def _load_images_from_folder(folder_path, start_index=0, max_index=None):
     file_list = [os.path.join(folder_path, file_list[i]) for i in range(start_index, end_index)]
 
     return image_batch, images_out, file_list
-
-
-class LoadImageFromPath:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image_path": ("STRING", {"default": "images"}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "file_full_path")
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "读取指定路径图片，返回图片和图片名称"
-
-    def execute(self, image_path):
-        # 去掉可能存在的双引号
-        image_path = image_path.strip('"')
-
-        if not os.path.exists(image_path):
-            raise FileNotFoundError(f"文件未找到: {image_path}")
-
-        file_full_path = str(Path(image_path).absolute())
-
-        img = Image.open(image_path)
-        img = ImageOps.exif_transpose(img)
-
-        if img is None:
-            raise ValueError(f"无法从文件中读取有效图像: {image_path}")
-
-        if img.mode == "I":
-            img = img.point(lambda i: i * (1 / 255))
-        img = img.convert("RGB")
-
-        image = np.array(img).astype(np.float32) / 255.0
-        image = torch.from_numpy(image)[None,]
-
-        return (image, file_full_path)
-
-
-class LoadImagesFromFolder:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "input_path": ("STRING", {"default": "", "multiline": False}),
-                "start_index": (
-                    "INT",
-                    {"default": 0, "min": 0, "max": 9999, "tooltip": "设置开始索引"},
-                ),
-                "max_index": (
-                    "INT",
-                    {"default": 1, "min": 1, "max": 9999, "tooltip": "设置最大索引"},
-                ),
-            }
-        }
-
-    RETURN_TYPES = (
-        "IMAGE",
-        "IMAGE",
-        "LIST",
-    )
-    RETURN_NAMES = (
-        "images_list",
-        "image_batch",
-        "file_list",
-    )
-    OUTPUT_IS_LIST = (
-        True,
-        False,
-        True,
-    )
-    FUNCTION = "make_list"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "读取文件夹中的图片，返回图片列表和图片批次"
-
-    def make_list(self, start_index, max_index, input_path):
-        image_batch, images_out, file_list = _load_images_from_folder(input_path, start_index, max_index)
-        return (images_out, image_batch, file_list)
-
-
-class FaceBankLoader:
-    dir_dict = {}
-
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        target_dir = os.path.join(
-            folder_paths.get_user_directory(), "sfnodes", "face_pieces"
-        )
-        if os.path.exists(target_dir):
-            for d in Path(target_dir).iterdir():
-                if d.is_dir():
-                    cls.dir_dict[d.name] = d
-        else:
-            os.makedirs(target_dir, exist_ok=True)
-
-        return {
-            "required": {
-                "face_name": (list(cls.dir_dict.keys()), {"default": next(iter(cls.dir_dict.keys()), "")}),
-                "start_index": (
-                    "INT",
-                    {"default": 0, "min": 0, "max": 9999, "tooltip": "设置开始索引"},
-                ),
-                "max_index": (
-                    "INT",
-                    {"default": 1, "min": 1, "max": 9999, "tooltip": "设置最大索引"},
-                ),
-            },
-        }
-
-    RETURN_TYPES = (
-        "IMAGE",
-        "IMAGE",
-        "LIST",
-        "STRING",
-        "STRING",
-    )
-    RETURN_NAMES = (
-        "images",
-        "images_list",
-        "file_list",
-        "face_path",
-        "face_name",
-    )
-    OUTPUT_IS_LIST = (
-        False,
-        True,
-        True,
-        False,
-        False,
-    )
-    FUNCTION = "execute"
-
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "选择人脸文件夹，返回路径、名称及文件夹中的图片列表"
-
-    def execute(self, face_name, start_index, max_index):
-        face_path = str(self.dir_dict[face_name])
-        image_batch, images_out, file_list = _load_images_from_folder(face_path, start_index, max_index)
-        return (image_batch, images_out, file_list, face_path, face_name)
 
 
 class LoadImages:

@@ -10,9 +10,6 @@ from .nodes.face.align import (
 from .nodes.face.region import GenerateRegionFaceMask
 from .nodes.face.person_mask import SFPersonMask
 from .nodes.image.files import (
-    LoadImagesFromFolder,
-    LoadImageFromPath,
-    FaceBankLoader,
     LoadImages,
 )
 from .nodes.image.browser import SFLoadImageBrowser
@@ -184,9 +181,6 @@ NODE_CLASS_MAPPINGS = {
     "SFFaceWarp": FaceWarp,
     "SFPersonMask": SFPersonMask,
     # 文件节点
-    "SFLoadImagesFromFolder": LoadImagesFromFolder,
-    "SFLoadImageFromPath": LoadImageFromPath,
-    "SFFaceBankLoader": FaceBankLoader,
     "SFLoadImages": LoadImages,
     "SFLoadImageBrowser": SFLoadImageBrowser,
     "SFLoadImagesPath": SFLoadImagesPath,
@@ -360,9 +354,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFFaceWarp": "SF Face Warp",
     "SFPersonMask": "SF Person Mask",
     # 文件节点
-    "SFLoadImagesFromFolder": "SF Load Images From Folder",
-    "SFLoadImageFromPath": "SF Load Image From Path",
-    "SFFaceBankLoader": "SF Face Bank Loader",
     "SFLoadImages": "SF Load Images",
     "SFLoadImageBrowser": "SF Load Image Browser",
     "SFLoadImagesPath": "SF Load Images Path",
