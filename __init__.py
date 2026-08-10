@@ -21,7 +21,6 @@ from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.scale import (
     GetImageSize,
-    ImageScalerForSDModels,
     ImageScalerByPixels,
     ImageScaleBySpecifiedSide,
     ComputeImageScaleRatio,
@@ -192,7 +191,6 @@ NODE_CLASS_MAPPINGS = {
     "SFImageBatchIndex": SFImageBatchIndex,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
-    "SFImageScalerForSDModels": ImageScalerForSDModels,
     "SFImageScalerByPixels": ImageScalerByPixels,
     "SFImageScaleBySpecifiedSide": ImageScaleBySpecifiedSide,
     "SFComputeImageScaleRatio": ComputeImageScaleRatio,
@@ -363,7 +361,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageBatchIndex": "SF Image Batch Index",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
-    "SFImageScalerForSDModels": "SF Image Scaler For SD Models",
     "SFImageScalerByPixels": "SF Image Scaler By Pixels",
     "SFImageScaleBySpecifiedSide": "SF Image Scale By Specified Side",
     "SFComputeImageScaleRatio": "SF Compute Image Scale Ratio",

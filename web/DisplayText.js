@@ -3,7 +3,6 @@ import { ComfyWidgets } from "/scripts/widgets.js";
 
 const _DISPLAY_TEXT_NODES = new Set([
     "SFDisplayAny",
-    "SFImageScalerForSDModels",
     "SFImageScalerByPixels",
     "SFImageScaleBySpecifiedSide",
     "SFComputeImageScaleRatio",
@@ -30,7 +29,6 @@ app.registerExtension({
         }
         
         switch (nodeData.name) {  
-            case "SFImageScalerForSDModels":
             case "SFImageScalerByPixels":
             case "SFImageScaleBySpecifiedSide":
             case "SFComputeImageScaleRatio":

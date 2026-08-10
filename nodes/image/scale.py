@@ -8,7 +8,6 @@ from comfy.utils import common_upscale
 from ...sf_utils.image_convert import mask2tensor, np2tensor, tensor2mask, tensor2np
 from ...sf_utils.mask_utils import solid_mask
 from ...sf_utils.image_convert import contrast_adaptive_sharpening
-from ...sf_utils.cutpaste import get_target_size
 from nodes import LoadImage
 import folder_paths
 import comfy.utils
@@ -135,55 +134,6 @@ class BaseImageScaler:
                 min(width, height),
             ),
         }
-
-
-class ImageScalerForSDModels(BaseImageScaler):
-    @classmethod
-    def INPUT_TYPES(cls):
-        base_inputs = super().INPUT_TYPES()
-        base_inputs["required"]["sd_model_type"] = (
-            ["sdxl", "sd15", "sd15+", "sdxl+", "custom"],
-            {
-                "tooltip": "根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1280x1280"
-            },
-        )
-        base_inputs["required"].update(
-            {
-                "custom_megapixels": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.01,
-                        "max": 16.0,
-                        "step": 0.01,
-                        "tooltip": "设置自定义的像素数，如果选择custom，则使用自定义的像素数",
-                    },
-                ),
-            }
-        )
-        return base_inputs
-
-    FUNCTION = "execute"
-    DESCRIPTION = """
-    根据SD模型类型缩放图片到指定像素数，sd15为512x512，sd15+为512x768，sdxl为1024x1024，sdxl+为1280x1280
-    """
-
-    def execute(
-        self, image, upscale_method, sd_model_type, custom_megapixels, mask=None
-    ):
-        total_pixels = self._get_target_size(sd_model_type, custom_megapixels)
-        scale_by = math.sqrt(total_pixels / (image.shape[2] * image.shape[1]))
-        width = round(image.shape[2] * scale_by)
-        height = round(image.shape[1] * scale_by)
-
-        scaled_image, result_mask = self.scale_image(
-            image, width, height, upscale_method, mask
-        )
-        return self.prepare_result(scaled_image, result_mask, width, height)
-
-    @staticmethod
-    def _get_target_size(rescale_mode, custom_megapixels):
-        return get_target_size(rescale_mode, custom_megapixels)
 
 
 class ImageScalerByPixels(BaseImageScaler):
