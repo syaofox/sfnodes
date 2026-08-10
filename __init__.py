@@ -122,6 +122,7 @@ from .nodes.text.any_to_string import SFAnyToString
 from .nodes.text.prompt_batcher import SFLoadPromptsFromFolder, SFSaveTextToFiles
 from .nodes.text.regex_extract import SFTextRegexExtract
 from .nodes.text.random_edit_prompt import SFRandomEditPrompt
+from .nodes.text.multiangle_camera import SFMultiangleCamera
 from .nodes.text.prompt_preset import SFPromptPreset, SFUnpackPromptPreset
 from .nodes.text.prompt_tags import SFPromptTags
 from .nodes.text.pause_text import SFPauseText
@@ -277,6 +278,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadPromptsFromFolder": SFLoadPromptsFromFolder,
     "SFSaveTextToFiles": SFSaveTextToFiles,
     "SFRandomEditPrompt": SFRandomEditPrompt,
+    "SFMultiangleCamera": SFMultiangleCamera,
     "SFPromptPreset": SFPromptPreset,
     "SFUnpackPromptPreset": SFUnpackPromptPreset,
     "SFPromptTags": SFPromptTags,
@@ -449,6 +451,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadPromptsFromFolder": "SF Load Prompts From Folder",
     "SFSaveTextToFiles": "SF Save Text To Files",
     "SFRandomEditPrompt": "SF Random Edit Prompt",
+    "SFMultiangleCamera": "SF Multiangle Camera",
     "SFPromptPreset": "SF Prompt Preset",
     "SFUnpackPromptPreset": "SF Unpack Prompt Preset",
     "SFPromptTags": "SF Prompt Tags",
