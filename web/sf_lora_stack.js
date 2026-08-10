@@ -38,7 +38,7 @@ const VUE_CHROME = 96;  // Nodes 2.0 回退（槽带绝对定位，不占 widget
 // widget——它会渲染成显示原始 JSON 的 textarea（Note 上见过）；canvasOnly
 // 把它排除出 Vue 体（shouldRenderAsVue = !canvasOnly）并排除出 legacy
 // Parameters 标签页。这是内部序列化 widget，两个渲染器都必须保持隐藏。
-function hideJsonWidget(node) {
+export function hideJsonWidget(node) {
     const w = node.widgets?.find((x) => x.name === HIDDEN_INPUT);
     if (!w) return;
     w.hidden = true;
@@ -299,16 +299,19 @@ app.registerExtension({
 });
 
 // ── graphToPrompt：注入每节点状态（只注入，从不剪枝）────────────────────────
-function buildIndex() {
+// buildIndex/findNode 参数化导出：SFLoraPlot 的注入钩子复用同一实现
+// （AGENTS.md 规则 14——不内联副本）。classNames：类名数组或单个类名。
+export function buildIndex(classNames) {
     const index = new Map();
     const visit = (graph, prefix) => {
         if (!graph) return;
+        const names = Array.isArray(classNames) ? classNames : [classNames];
         for (const n of graph._nodes || graph.nodes || []) {
             if (!n) continue;
             // 复合 id（顶层 ""，子图内 "5:" 风格），让子图节点精确匹配它的
             // "5:3" prompt id，且不与碰巧共享裸 id 的顶层节点冲突。
             const cid = String(prefix) + n.id;
-            if (n.comfyClass === CLASS || n.type === CLASS) {
+            if (names.includes(n.comfyClass) || names.includes(n.type)) {
                 index.set(cid, n);
                 // 裸 id，first-write-wins（顶层先访问），子图节点不覆盖顶层
                 // 节点的精确 id 解析。
@@ -321,7 +324,7 @@ function buildIndex() {
     visit(app.graph, "");
     return index;
 }
-function findNode(index, id) {
+export function findNode(index, id) {
     const s = String(id);
     if (index.has(s)) return index.get(s);
     const tail = s.includes(":") ? s.slice(s.lastIndexOf(":") + 1) : null;
@@ -338,7 +341,7 @@ app.graphToPrompt = async function (...args) {
             for (const id in out) {
                 const entry = out[id];
                 if (!entry || entry.class_type !== CLASS) continue;
-                if (!index) index = buildIndex();
+                if (!index) index = buildIndex([CLASS]);
                 entry.inputs = entry.inputs || {};
                 const node = findNode(index, id);
                 const st = node ? readState(node) : { ...DEFAULT_STATE, ...loadDefaults(), loras: [] };

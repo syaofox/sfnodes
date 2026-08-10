@@ -64,14 +64,14 @@ function baseName(name) {
 // 只剥尾部已知模型扩展名（白名单，不是"最后一个点后的一切"），版本化名字
 // 如 "MoXin_v1.0" 保留 ".0"。仅用于显示——行 title 保留真实文件名。
 const LORA_EXT_RE = /\.(safetensors|safetensor|ckpt|pt|pth|bin|sft)$/i;
-function displayName(name, hideExt) {
+export function displayName(name, hideExt) {
     const b = baseName(name);
     return hideExt ? b.replace(LORA_EXT_RE, "") : b;
 }
 
 // 一个权重框：可输入值 + ▲▼ 步进。`which` 是 "m"（model）或 "c"（clip）；
 // data-act 值让委托处理器知道改哪个强度。
-function weightBox(value, which) {
+export function weightBox(value, which) {
     const w = document.createElement("div");
     w.className = "sf-ls-w";
     const val = document.createElement("input");

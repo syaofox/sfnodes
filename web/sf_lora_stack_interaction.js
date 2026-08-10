@@ -22,7 +22,7 @@ function closeRowMenu() {
     _menu = null;
 }
 
-function injectMenuCSS() {
+export function injectMenuCSS() {
     if (document.getElementById("sf-ls-menu-css")) return;
     const s = document.createElement("style");
     s.id = "sf-ls-menu-css";
@@ -59,7 +59,7 @@ function injectMenuCSS() {
 }
 
 // 菜单条目（共享：行菜单 + 预设菜单）。点击后先关菜单再回调。
-function makeMenuItem(k, label, cb, { danger = false, dis = false } = {}) {
+export function makeMenuItem(k, label, cb, { danger = false, dis = false } = {}) {
     const it = document.createElement("div");
     it.className = "it" + (danger ? " danger" : "") + (dis ? " dis" : "");
     const ks = document.createElement("span"); ks.className = "k"; ks.textContent = k;
@@ -69,11 +69,11 @@ function makeMenuItem(k, label, cb, { danger = false, dis = false } = {}) {
     return it;
 }
 
-function menuSep() { const d = document.createElement("div"); d.className = "sep"; return d; }
+export function menuSep() { const d = document.createElement("div"); d.className = "sep"; return d; }
 
 // 把菜单挂到 body：fixed 定位在点击处（越界钳制）+ 外部点击/Esc 关闭。
 // 调用方负责先 closeRowMenu()（本函数假设 _menu 已被清空）。
-function showMenu(menu, x, y) {
+export function showMenu(menu, x, y) {
     document.body.appendChild(menu);
     const mw = menu.offsetWidth, mh = menu.offsetHeight;
     menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";
