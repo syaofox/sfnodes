@@ -227,6 +227,39 @@ def _register_routes():
             name = request.query.get("name", "")
             path = _resolve_lora_path(name)
             if not path:
+                # 文件不存在（改名/移动后旧路径行）：统一存储按基名孤儿兜底
+                # （无文件可算指纹，只做基名唯一匹配）。命中返回 store 数据
+                # + _file_missing/orphan_key，面板提示用户重新选择路径。
+                try:
+                    store = R.read_custom_store(_custom_triggers_file())
+                    orphan = R.find_orphan_key(store, name)
+                    if orphan:
+                        entry = store.get(orphan) or {}
+                        info = {
+                            "title": name.rsplit("/", 1)[-1] or name,
+                            "base_model": "",
+                            "description": entry.get("description", ""),
+                            "triggers": entry.get("words", []),
+                            "file_triggers": [],
+                            "sidecar_triggers": [],
+                            "source": "custom",
+                            "has_preview": False,
+                            "custom_triggers": entry.get("words", []),
+                            "custom_description": entry.get("description", ""),
+                            "orphan_key": orphan,
+                            "orphan_triggers": entry.get("words", []),
+                            "orphan_description": entry.get("description", ""),
+                            "orphan_preview": False,
+                            "preview_v": 0,
+                            "custom_preview": False,
+                            "restorable_thumb": False,
+                            "civitai_host": _civitai_account().get("host", "com"),
+                            "_file_missing": True,
+                        }
+                        return web.json_response({"ok": True, "info": info},
+                                                 headers={"Cache-Control": "no-store"})
+                except Exception:
+                    pass
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             try:
                 import asyncio

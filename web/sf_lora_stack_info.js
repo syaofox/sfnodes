@@ -1013,8 +1013,25 @@ export async function openInfoPanel(node, id, refresh) {
         // ── 可选 Civitai 状态条 ────────────────────────────────────────────
         if (civ) bodyWrap.appendChild(civStrip());
 
+        // ── 文件已不存在（改名/移动后旧路径行）：数据在旧 key 下，无法
+        // 迁移（迁移端点需要文件存在）——提示用户重新选择 LoRA 路径。──────
+        if (info._file_missing && info.orphan_key && !_orphanDismissed && name) {
+            const strip = el("div", "sf-ls-strip nofind");
+            strip.append(el("span", "st-ic", "↻"));
+            const body = el("div");
+            body.textContent = "This LoRA file was moved or renamed. Saved data is under the old path ("
+                + info.orphan_key + "). Pick this LoRA again from the list to read it.";
+            const acts = el("div", "sf-ls-strip-acts");
+            const dis = el("button", null, "Dismiss");
+            dis.title = "Hide this notice for this panel session";
+            dis.addEventListener("click", () => { _orphanDismissed = true; renderBody(); });
+            acts.append(dis);
+            strip.append(body, acts);
+            bodyWrap.appendChild(strip);
+        }
+
         // ── 孤儿数据迁移提示（文件移动/改名后旧键数据仍在）────────────────
-        if (info.orphan_key && !_orphanDismissed && name) {
+        if (info.orphan_key && !info._file_missing && !_orphanDismissed && name) {
             const parts = [];
             if ((info.orphan_triggers?.length || 0) > 0) {
                 parts.push(info.orphan_triggers.length + " trigger word" + (info.orphan_triggers.length > 1 ? "s" : ""));

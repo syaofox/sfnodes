@@ -79,15 +79,68 @@ def _embedded_base_model(meta):
     )
 
 
+def _find_orphan_entry(store, filename, path=None):
+    """store 中与当前 LoRA 唯一匹配的非空孤儿条目（key 不同、数据非空）。
+
+    文件存在时指纹优先（内容级证据：改名/移动后内容不变）、基名兜底；
+    文件不存在（path=None）时仅基名（无文件可算指纹）。同名多目录歧义
+    由 lora_reader.find_orphan_* 放弃（返回 None）。永不抛错。
+    返回 (entry, orphan_key) 或 None。
+    """
+    key = R.custom_trigger_key(filename)
+    if not key:
+        return None
+    if path is not None:
+        try:
+            fp = R.file_fingerprint(path)
+        except Exception:
+            fp = None
+        if fp:
+            ok = R.find_orphan_by_fingerprint(store, fp, exclude=key)
+            if ok:
+                e = store.get(ok)
+                if e and (e.get("words") or e.get("description")):
+                    return (e, ok)
+    ok = R.find_orphan_key(store, filename)
+    if ok:
+        e = store.get(ok)
+        if e and (e.get("words") or e.get("description")):
+            return (e, ok)
+    return None
+
+
+def _orphan_meta(entry, orphan_key):
+    """孤儿条目 -> merged 形状（文件数据缺失时只有 store 的用户数据）。"""
+    return {
+        "trigger_words": ", ".join(entry.get("words") or []),
+        "description": entry.get("description", ""),
+        "base_model": "",
+        "source_url": "",
+        "_has_custom": True,
+        "_has_embedded": False,
+        "_file_missing": True,
+        "orphan_key": orphan_key,
+    }
+
+
 def get_merged_metadata(filename):
     """一个 LoRA 的合并元数据（前端对话框 + loader 节点 execute 输出共用）。
 
     形状与旧版 /lora_notes 兼容。自定义数据优先级：统一存储
     （lora_triggers.json）> Civitai 侧车（.civitai.info）> 文件内嵌元数据。
-    文件缺失返回 {"_not_found": True}。永不抛错。
+    文件不存在时按基名从统一存储孤儿兜底（改名/移动后数据仍可读，
+    附 orphan_key/_file_missing 让前端提示重新选择路径）。永不抛错。
     """
     path = _resolve_lora_path(filename)
     if path is None:
+        # 文件不存在：统一存储基名孤儿兜底（指纹不可用——无文件可算内容指纹）
+        try:
+            store = R.read_custom_store(_custom_triggers_file())
+        except Exception:
+            store = {}
+        found = _find_orphan_entry(store, filename, None)
+        if found:
+            return _orphan_meta(*found)
         return {"_not_found": True}
     # 惰性迁移旧 .sf.json 侧车（store 已有该 LoRA 数据时幂等跳过）
     try:
@@ -97,16 +150,23 @@ def get_merged_metadata(filename):
     meta = R.read_safetensors_metadata(path)
     side = R.read_sidecar_info(path) or {}
     try:
-        entry = R.read_custom_store(_custom_triggers_file()).get(
-            R.custom_trigger_key(filename), {}
-        ) or {}
+        store = R.read_custom_store(_custom_triggers_file())
     except Exception:
-        entry = {}
+        store = {}
+    entry = store.get(R.custom_trigger_key(filename), {}) or {}
 
     words = list(entry.get("words") or [])
     # 自定义描述先单独留存：_has_custom 只看统一存储里有没有用户数据，
     # desc 随后会被 sidecar/embedded 兜底覆盖，不能复用同一变量。
     entry_desc = entry.get("description") or ""
+    orphan_key = ""
+    if not words and not entry_desc:
+        # 本 key 无数据：孤儿检测找回改名/移动前的数据（文件存在 -> 指纹+基名）
+        found = _find_orphan_entry(store, filename, path)
+        if found:
+            entry, orphan_key = found
+            words = list(entry.get("words") or [])
+            entry_desc = entry.get("description") or ""
     desc = entry_desc
     if words:
         trigger_words = ", ".join(words)
@@ -128,6 +188,7 @@ def get_merged_metadata(filename):
         or bool(side.get("triggers"))
         or bool(side.get("description")),
         "_has_embedded": bool(meta),
+        "orphan_key": orphan_key,
     }
 
 

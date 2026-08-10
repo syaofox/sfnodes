@@ -191,6 +191,29 @@ check("set: 空数据回到 embedded 词", m["trigger_words"] == "alpha, beta")
 check("set: 空数据删除条目", "emb.safetensors" not in read_store())
 check("set: 文件缺失返回 {}", notes.set_custom_notes("nope.safetensors", {"trigger_words": "x"}) == {})
 
+# ── 文件不存在 + 基名孤儿兜底（改名/移动后旧路径行仍可读数据）──
+reader.set_custom_triggers(STORE, "olddir/X.safetensors", ["o1", "o2"], None)
+reader.set_custom_description(STORE, "olddir/X.safetensors", "orphan desc", None)
+m = notes.get_merged_metadata("X.safetensors")  # 文件不存在
+check("orphan: 文件不存在时基名兜底词", m["trigger_words"] == "o1, o2")
+check("orphan: 文件不存在时基名兜底描述", m["description"] == "orphan desc")
+check("orphan: _file_missing=True", m.get("_file_missing") is True)
+check("orphan: orphan_key 标记", m.get("orphan_key") == "olddir/X.safetensors")
+check("orphan: 无匹配仍 _not_found", notes.get_merged_metadata("ghost.safetensors") == {"_not_found": True})
+
+# ── 文件存在 + store 无该 key + 孤儿基名匹配（新路径读旧数据）──
+write_lora("moved.safetensors", {"modelspec.trigger_phrase": "embed"})
+reader.set_custom_triggers(STORE, "oldplace/moved.safetensors", ["om1"], None)
+m = notes.get_merged_metadata("moved.safetensors")
+check("orphan: 文件存在时孤儿词优先于 embedded", m["trigger_words"] == "om1")
+check("orphan: 文件存在时 orphan_key 标记", m.get("orphan_key") == "oldplace/moved.safetensors")
+check("orphan: 文件存在时 _file_missing 缺省", m.get("_file_missing") is None)
+
+# ── 同名多目录歧义 -> 降级无匹配 ──
+reader.set_custom_triggers(STORE, "a/X2.safetensors", ["x"], None)
+reader.set_custom_triggers(STORE, "b/X2.safetensors", ["y"], None)
+check("orphan: 同名多目录歧义降级", notes.get_merged_metadata("X2.safetensors") == {"_not_found": True})
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: {failures}")

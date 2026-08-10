@@ -210,6 +210,20 @@ export function showLoraInfoDialog(event, name, meta) {
     const body = document.createElement("div");
     body.style.cssText = "overflow-y: auto; padding: 6px 0;";
 
+    // ---------- 孤儿/文件缺失提示（改名/移动后数据在旧路径 key 下） ----------
+    if ((meta._file_missing || meta.orphan_key) && name) {
+        const strip = document.createElement("div");
+        strip.style.cssText = `
+            margin: 8px 18px 4px; padding: 8px 10px; border-radius: 6px;
+            background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.4);
+            font-size: 11px; color: #e8c877; line-height: 1.5;
+        `;
+        strip.textContent = meta._file_missing && meta.orphan_key
+            ? `该 LoRA 文件已被移动或改名，数据仍保存在旧路径下（${meta.orphan_key}）。请在节点上重新选择该 LoRA 以读取。`
+            : `检测到该 LoRA 在旧路径（${meta.orphan_key}）下保存的数据，当前显示的内容来自旧路径。`;
+        body.appendChild(strip);
+    }
+
     // row factory: editable rows
     function createEditRow(displayLabel, key, isTextarea, hint) {
         const row = document.createElement("div");
