@@ -882,6 +882,15 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - smoke 测试的 **async 步进需 await**：`() => stepSubdir(prev)` 箭头函数返回 promise，`await _handlers.click()` 才能拿到完成后的值。
 - mock 增强：`document.addEventListener` 记录（Esc 关闭断言）、`body.appendChild` 记录（拿 popup 元素）、`innerHTML` setter 清空 children（模拟真实 DOM 重建）。
 
+### 6. DOM widget 高度/宽度溢出修复（2026-08）
+
+- **现象**：初始添加节点"刷新当前目录"按钮就落在节点边框外（下方），拖窄后按钮行横向溢出。根因：widget 高度硬编码 `getMinHeight/getMaxHeight = 138`，而 DOM 内容实际高度 ~140-190px（6 行 + padding 16 + gap 36，随 dir/path 模式切换变化）。**DOM widget element 高度是内容自适应的（CSS 无显式 height），节点边框却按 widget 声称的高度绘制**——声称 < 内容时底部内容必然溢出边框；节点未被拖小时被更大的边框遮住（假正常），初始添加/拖小即暴露。
+- **主修复 = 动态测量内容高度**：`measureHeight()` 求和各可见子行 `offsetHeight` + padding 16 + gap 6×(行数-1)，`getMinHeight/getMaxHeight` 双锁改用它（保持原"锁定高度"语义但锁在正确高度）。**last-good 缓存防塌缩**（首帧未布局/组折叠隐藏时 offsetHeight 全 0 → 返回上次良好值，初始 138）——sf_load_image `_lastGoodH` 同款，硬编码常量做兜底值而非目标值。
+- **Nodes 2.0 双保险**：`widget.computeLayoutSize = () => ({ minHeight: measureHeight(), minWidth: MIN_W })`——Vue 前端忽略 legacy getMinHeight/getMaxHeight，改走 computeLayoutSize；顺带借 `minWidth` 兜住拖拽宽度（Vue 下 onResize 不可靠）。
+- **宽度钳制**：`MIN_W=320`（源三档按钮行 + 面包屑行容纳所需）。初始只抬升过小的尺寸（已保存宽度永不变更 → 不脏加载）+ 实例包装 `node.onResize` 钳制（legacy 拖拽路径）。
+- **CSS 兜底**：`.sf-lip-btn` 加 `min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis`（按钮收缩省略而非撑破边界）；`.sf-lip-root` 加 `overflow:hidden`（最后防线；popup 挂 document.body 不受影响）。
+- **顺带清理**：移除冗余的"📁 当前路径"显示行——它曾躺在 138px 裁剪区外被遮挡，修复后露出才发现与面包屑导航重复（面包屑 + 下拉按钮 title 已承载路径）；按钮文案统一英文化（Folder Mode / Path Mode / Apply / Refresh）。
+
 ## 19. SFLoraStack：多行 LoRA 栈复刻（触发词/描述/封面/Civitai 查询/孤儿数据迁移）
 
 > 背景：复刻 PixaromaLoraLoader 为 SFLoraStack。核心 = 多行 LoRA 栈（行级 on/off + sm/sc 强度 + 触发词勾选输出 triggers 字符串）；信息面板 = 离线元数据/触发词读取 + 可选 Civitai 查询（文本+封面本地保存）；用户数据（自定义词/描述/预览图）按 LoRA 路径名键控，文件移动/改名后的孤儿迁移是主要难点。双端模式与 SFPauseText 同构：状态存 `node.properties.loraStackState` → graphToPrompt 注入隐藏 LoraLoaderState 输入。
