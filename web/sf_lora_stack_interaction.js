@@ -5,7 +5,7 @@
 // ==========================================================================
 import {
     readState, writeState, patchLora, addLora, removeLora, duplicateLora, moveLora,
-    setAllOn, countOn, accentOf, MAX_LORAS, rowsToPreset, presetToRows,
+    reorderLora, setAllOn, countOn, accentOf, MAX_LORAS, rowsToPreset, presetToRows,
 } from "./sf_lora_stack_core.js";
 import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
