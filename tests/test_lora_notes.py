@@ -143,6 +143,7 @@ with open(civ_path, "w", encoding="utf-8") as f:
 m = notes.get_merged_metadata("emb.safetensors")
 check("merged: sidecar 触发词优先于 embedded", m["trigger_words"] == "civ1, civ2")
 check("merged: sidecar 描述优先于 embedded", m["description"] == "civ desc")
+check("merged: 仅 sidecar 有信息 _has_custom=True", m["_has_custom"] is True)
 os.remove(civ_path)
 
 # ── get_merged_metadata：统一存储优先于 sidecar/embedded ──

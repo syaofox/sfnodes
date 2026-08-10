@@ -121,7 +121,12 @@ def get_merged_metadata(filename):
         "description": desc,
         "base_model": _embedded_base_model(meta) or side.get("base_model", ""),
         "source_url": meta.get("source_url", "") if isinstance(meta, dict) else "",
-        "_has_custom": bool(words or entry_desc),
+        # 高亮语义（i 图标"有信息"标记）：统一存储有用户词/描述，或
+        # .civitai.info 侧车有词/描述（用户主动查过 Civitai 获取的信息）。
+        # 刻意不含 embedded——文件自带词/描述几乎人人都有，无区分度。
+        "_has_custom": bool(words or entry_desc)
+        or bool(side.get("triggers"))
+        or bool(side.get("description")),
         "_has_embedded": bool(meta),
     }
 

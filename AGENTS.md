@@ -286,7 +286,7 @@ class SFMyNode:
 - **旧 `.sf.json` 侧车彻底废弃**：约定是**保留扩展名**（`<路径>.safetensors.sf.json`，与 `.civitai.info` 的去扩展名约定不同！）；任一读取入口（lora_notes / lora_info）首次读到该 LoRA 时经 `migrate_legacy_sidecar` 惰性迁移并入新存储后删除（幂等：store 已有数据跳过）。`?type=` 类型泛化移除（key 空间无类型维度，混入 checkpoints 等会撞 key；消费节点本就用 loras）。
 - **跨节点缓存失效用事件桥**：任一端保存成功 → `document.dispatchEvent("sfnodes.lora-data-changed", {detail:{name}})` → 另一端清自己的缓存（`loraMetadataCache.delete` / `invalidateInfo`）；对话框打开时 `getLoraMetadata(name, true)` force 重取双保险。
 - **封面跨节点可见（只读）**：Power 系对话框 header 也显示封面（`/api/sfnodes/lora_thumb` 同路由：用户自定义预览 > 模型旁 .preview 图），URL 带 `&t=Date.now()` bust 越过一小时缓存；无图 404 → onerror 隐藏。封面编辑仍只在 SFLoraStack 面板（对话框无编辑入口）。
-- **`_has_custom` 陷阱**：`desc` 变量会被 sidecar/embedded 兜底覆盖，自定义标志必须用独立变量（`entry_desc`）算，否则 embedded 有描述时 `_has_custom` 恒 True（i 图标误判蓝色）。
+- **`_has_custom` 陷阱**：`desc` 变量会被 sidecar/embedded 兜底覆盖，自定义标志必须用独立变量（`entry_desc`）算，否则 embedded 有描述时 `_has_custom` 恒 True（i 图标误判蓝色）。**高亮语义（2026-08 修订）**：`_has_custom` = 统一存储有词/描述 **或** `.civitai.info` 侧车有词/描述（用户主动查过 Civitai）——侧车-only 的 LoRA（如只查过 Civitai 没写过自定义）也应高亮；刻意不含 embedded（文件自带词/描述几乎人人都有，无区分度）。
 
 **实际环境调试**
 - 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。
