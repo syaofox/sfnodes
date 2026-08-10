@@ -10,6 +10,7 @@ import { loadImageAsWorkflow } from "./sf_lora_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
+import { copyText } from "./sf_workflows_ui.js";
 
 let _panel = null;
 let _cleanup = null;
@@ -1220,6 +1221,26 @@ export async function openInfoPanel(node, id, refresh) {
 
         // ── footer ──────────────────────────────────────────────────────────
         const foot = el("div", "sf-ls-info-foot");
+        // 复制已勾选的触发词（row.triggers = 最终进 triggers 输出的词），
+        // 逗号+空格拼接。复用 copyText（navigator.clipboard 在 LAN 明文 http
+        // 下缺席时回退 execCommand）。成功闪烁按钮文本，不触发 renderBody。
+        const copyBtn = el("div", "b gh", "Copy");
+        copyBtn.title = "Copy the selected trigger words to the clipboard";
+        copyBtn.addEventListener("click", async () => {
+            clearMsg();
+            const row = readState(node).loras.find((e) => e.id === id);
+            const words = (row?.triggers || []).filter((w) => w);
+            if (!words.length) {
+                showMsg("Nothing selected - tap the words you want first.");
+                return;
+            }
+            const ok = await copyText(words.join(", "));
+            if (!panel.isConnected) return;
+            if (!ok) { showMsg("Could not copy to clipboard."); return; }
+            copyBtn.textContent = "Copied";
+            setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = "Copy"; }, 1500);
+        });
+        foot.appendChild(copyBtn);
         const done = el("div", "b pri", "Done");
         done.addEventListener("click", closeInfoPanel);
         foot.appendChild(done);
