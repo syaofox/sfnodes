@@ -25,7 +25,7 @@ from aiohttp import web
 
 from . import lora_reader as R
 from .logger import get_logger
-from .lora_routes import _custom_triggers_file  # 统一存储路径（单一实现，杜绝双真源）
+from .lora_routes import _custom_triggers_file, _previews_dir  # 统一存储/预览路径（单一实现，杜绝双真源）
 
 logger = get_logger(__name__)
 
@@ -160,6 +160,11 @@ def get_merged_metadata(filename):
     # desc 随后会被 sidecar/embedded 兜底覆盖，不能复用同一变量。
     entry_desc = entry.get("description") or ""
     orphan_key = ""
+    # 孤儿明细（对齐 SFLoraStack 面板 /lora_info 形状）：迁移提示条显示
+    # 旧路径下有什么可迁移（词/描述/预览图）。仅孤儿命中时非空。
+    orphan_triggers = []
+    orphan_description = ""
+    orphan_preview = False
     if not words and not entry_desc:
         # 本 key 无数据：孤儿检测找回改名/移动前的数据（文件存在 -> 指纹+基名）
         found = _find_orphan_entry(store, filename, path)
@@ -167,6 +172,9 @@ def get_merged_metadata(filename):
             entry, orphan_key = found
             words = list(entry.get("words") or [])
             entry_desc = entry.get("description") or ""
+            orphan_triggers = list(entry.get("words") or [])
+            orphan_description = entry.get("description") or ""
+            orphan_preview = bool(R.find_custom_preview(_previews_dir(), orphan_key))
     desc = entry_desc
     if words:
         trigger_words = ", ".join(words)
@@ -189,6 +197,9 @@ def get_merged_metadata(filename):
         or bool(side.get("description")),
         "_has_embedded": bool(meta),
         "orphan_key": orphan_key,
+        "orphan_triggers": orphan_triggers,
+        "orphan_description": orphan_description,
+        "orphan_preview": orphan_preview,
     }
 
 

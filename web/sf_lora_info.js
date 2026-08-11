@@ -7,7 +7,7 @@ import { renderMarkdown } from "./sf_markdown.js";
 // Civitai 查询/账户封装复用 SFLoraStack 同一套（同一 civitai.json 配置，
 // 机器级共享）。该模块只依赖 sf_common.js，无 Stack 节点依赖。
 import { loraInfo, civitaiLookup, deleteCivitai, saveCivitaiThumb,
-    getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
+    getCivitaiAccount, setCivitaiAccount, migrateLoraData } from "./sf_lora_stack_api.js";
 
 // ---------------------------------------------------------------------------
 // PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
@@ -259,17 +259,75 @@ export function showLoraInfoDialog(event, name, meta) {
     body.style.cssText = "overflow-y: auto; padding: 6px 0;";
 
     // ---------- 孤儿/文件缺失提示（改名/移动后数据在旧路径 key 下） ----------
-    if ((meta._file_missing || meta.orphan_key) && name) {
+    // 文件不存在（旧路径行）：数据在旧 key 下，无法迁移（迁移端点需文件
+    // 存在）——提示用户重新选择 LoRA 路径。
+    if (meta._file_missing && meta.orphan_key && name) {
         const strip = document.createElement("div");
         strip.style.cssText = `
             margin: 8px 18px 4px; padding: 8px 10px; border-radius: 6px;
             background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.4);
             font-size: 11px; color: #e8c877; line-height: 1.5;
         `;
-        strip.textContent = meta._file_missing && meta.orphan_key
-            ? `该 LoRA 文件已被移动或改名，数据仍保存在旧路径下（${meta.orphan_key}）。请在节点上重新选择该 LoRA 以读取。`
-            : `检测到该 LoRA 在旧路径（${meta.orphan_key}）下保存的数据，当前显示的内容来自旧路径。`;
+        strip.textContent = `该 LoRA 文件已被移动或改名，数据仍保存在旧路径下（${meta.orphan_key}）。请在节点上重新选择该 LoRA 以读取。`;
         body.appendChild(strip);
+    }
+    // 孤儿数据迁移提示（文件被移动/改名后旧键数据仍在，本文件可读取）：
+    // 与 SFLoraStack 面板同机制——Migrate 调 /api/sfnodes/lora/migrate 把
+    // 旧键下的词/描述/预览图迁到当前文件；Dismiss 本次打开隐藏。明细
+    // （orphan_triggers/orphan_description/orphan_preview）由后端
+    // get_merged_metadata 孤儿命中时附带。
+    let orphanStrip = null;
+    if (meta.orphan_key && !meta._file_missing && name) {
+        orphanStrip = document.createElement("div");
+        orphanStrip.style.cssText = `
+            display: flex; align-items: flex-start; gap: 10px;
+            margin: 8px 18px 4px; padding: 8px 10px; border-radius: 6px;
+            background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.4);
+            font-size: 11px; color: #e8c877; line-height: 1.5;
+        `;
+        const parts = [];
+        if ((meta.orphan_triggers?.length || 0) > 0) parts.push(meta.orphan_triggers.length + " 个触发词");
+        if (meta.orphan_description) parts.push("描述");
+        if (meta.orphan_preview) parts.push("预览图");
+        const txt = document.createElement("div");
+        txt.style.cssText = "flex: 1; min-width: 0;";
+        txt.textContent = `检测到该 LoRA 在旧路径（${meta.orphan_key}）下保存的数据（${parts.join("、") || "自定义数据"}）。迁移到当前文件？`;
+        const acts = document.createElement("div");
+        acts.style.cssText = "flex: 0 0 auto; display: flex; gap: 6px;";
+        const mig = document.createElement("button");
+        mig.textContent = "迁移";
+        mig.title = "把旧路径下的触发词、描述和预览图迁到当前文件";
+        mig.style.cssText = "padding: 3px 10px; border: 1px solid #4f7cff; border-radius: 5px; font-size: 11px; cursor: pointer; color: #4f7cff; background: transparent;";
+        mig.addEventListener("mouseenter", () => { mig.style.background = "rgba(79,124,255,0.15)"; });
+        mig.addEventListener("mouseleave", () => { mig.style.background = ""; });
+        mig.addEventListener("click", () => runMigrate());
+        const dis = document.createElement("button");
+        dis.textContent = "忽略";
+        dis.title = "本次打开不提示（数据保留在旧路径下）";
+        dis.style.cssText = "padding: 3px 10px; border: 1px solid #777; border-radius: 5px; font-size: 11px; cursor: pointer; color: #aaa; background: transparent;";
+        dis.addEventListener("mouseenter", () => { dis.style.background = "#3a3a3e"; });
+        dis.addEventListener("mouseleave", () => { dis.style.background = ""; });
+        dis.addEventListener("click", () => orphanStrip.remove());
+        acts.append(mig, dis);
+        orphanStrip.append(txt, acts);
+        body.appendChild(orphanStrip);
+    }
+
+    // 把旧路径键下的自定义数据（词/描述/预览图）迁移到当前 LoRA 名。
+    // 成功后移除提示条 + force 重取合并元数据（applyMetaRefresh 更新词/描述
+    // 行，orphan 字段消失）；失败就地替换条内文本（保留条，可关闭重来）。
+    async function runMigrate() {
+        const res = await migrateLoraData(name, meta.orphan_key);
+        if (!dialog.isConnected) return;
+        if (!res?.ok) {
+            if (orphanStrip) orphanStrip.textContent = "迁移失败：" + ((res && res.message) || "未知错误");
+            return;
+        }
+        orphanStrip?.remove();
+        const meta2 = await getLoraMetadata(name, true);
+        if (!dialog.isConnected) return;
+        if (meta2 && !meta2._not_found) applyMetaRefresh(meta2);
+        app.graph.setDirtyCanvas(true, true);
     }
 
     // row factory: editable rows

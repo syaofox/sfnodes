@@ -204,10 +204,23 @@ check("orphan: 无匹配仍 _not_found", notes.get_merged_metadata("ghost.safete
 # ── 文件存在 + store 无该 key + 孤儿基名匹配（新路径读旧数据）──
 write_lora("moved.safetensors", {"modelspec.trigger_phrase": "embed"})
 reader.set_custom_triggers(STORE, "oldplace/moved.safetensors", ["om1"], None)
+reader.set_custom_description(STORE, "oldplace/moved.safetensors", "orphan desc", None)
 m = notes.get_merged_metadata("moved.safetensors")
 check("orphan: 文件存在时孤儿词优先于 embedded", m["trigger_words"] == "om1")
 check("orphan: 文件存在时 orphan_key 标记", m.get("orphan_key") == "oldplace/moved.safetensors")
 check("orphan: 文件存在时 _file_missing 缺省", m.get("_file_missing") is None)
+check("orphan: 明细 orphan_triggers", m.get("orphan_triggers") == ["om1"])
+check("orphan: 明细 orphan_description", m.get("orphan_description") == "orphan desc")
+check("orphan: 明细 orphan_preview 无图 False", m.get("orphan_preview") is False)
+# 旧键下有自定义预览图 -> orphan_preview=True（预览文件名按旧键 hash 生成）
+prev_dir = os.path.join(USER_DIR, "sfnodes", "lora_previews")
+os.makedirs(prev_dir, exist_ok=True)
+prev_name = reader.custom_preview_name("oldplace/moved.safetensors")
+with open(os.path.join(prev_dir, prev_name), "wb") as f:
+    f.write(b"\xff\xd8\xff\xe0")
+m = notes.get_merged_metadata("moved.safetensors")
+check("orphan: 明细 orphan_preview 有图 True", m.get("orphan_preview") is True)
+os.remove(os.path.join(prev_dir, prev_name))
 
 # ── 同名多目录歧义 -> 降级无匹配 ──
 reader.set_custom_triggers(STORE, "a/X2.safetensors", ["x"], None)
