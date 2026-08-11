@@ -867,9 +867,12 @@ export function showLoraInfoDialog(event, name, meta) {
         })
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(updated => {
-                loraMetadataCache.set(name, updated);
-                // 广播给其它节点的缓存（SFLoraStack 面板等），另一端打开即新数据
+                // 先广播失效再写回自己的缓存：dispatchEvent 同步触发事件桥监听器
+                // （含本模块的 loraMetadataCache.delete），顺序反了会把自己刚写入的
+                // 新值一并删掉——保存后 i 图标变灰，重开对话框 force 重取才恢复。
                 document.dispatchEvent(new CustomEvent("sfnodes.lora-data-changed", { detail: { name } }));
+                loraMetadataCache.set(name, updated);
+                // 另一端（SFLoraStack 面板等）的缓存已被广播清掉，下次打开即新数据
                 app.graph.setDirtyCanvas(true, true);
                 state.trigger_words = updated.trigger_words || "";
                 state.description = updated.description || "";

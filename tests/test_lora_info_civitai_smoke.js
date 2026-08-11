@@ -22,13 +22,17 @@ function makeEl(tag) {
     const el = {
         tagName: (tag || "div").toUpperCase(),
         style: {}, dataset: {}, children: [],
-        className: "", textContent: "", _innerHTML: "", value: "", placeholder: "",
+        className: "", _textContent: "", _innerHTML: "", value: "", placeholder: "",
         type: "", title: "", rows: 1, spellcheck: false, disabled: false, checked: false,
         href: "", src: "", open: false, isConnected: true, _removed: false, _parent: null,
         classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
         get firstChild() { return el.children[0] || null; },
         get innerHTML() { return el._innerHTML; },
         set innerHTML(v) { el._innerHTML = v; el.children.length = 0; }, // 真实 DOM 语义：赋值即清空子节点
+        // 真实 DOM 语义：textContent 赋值同样清空子节点（否则旧子节点残留，
+        // 如账户行重建后旧 Save 按钮仍被 findBtn 命中）
+        get textContent() { return el._textContent || ""; },
+        set textContent(v) { el._textContent = String(v == null ? "" : v); el.children.length = 0; },
         append(...kids) { for (const k of kids) el.appendChild(k); },
         appendChild(c) { c._parent = el; this.children.push(c); return c; },
         prepend(...kids) { for (const k of [...kids].reverse()) el.insertBefore(k, el.children[0]); },
@@ -64,14 +68,16 @@ function makeEl(tag) {
 }
 
 const bodyEl = { children: [], appendChild(c) { c._parent = bodyEl; this.children.push(c); return c; } };
+const docListeners = {};
 globalThis.document = {
     createElement(tag) { return makeEl(tag); },
     createTextNode(t) { return { nodeType: 3, textContent: String(t), children: [] }; },
     body: bodyEl,
     head: { appendChild() {} },
-    addEventListener() {}, removeEventListener() {},
+    addEventListener(t, f) { (docListeners[t] ||= []).push(f); },
+    removeEventListener(t, f) { docListeners[t] = (docListeners[t] || []).filter((x) => x !== f); },
+    dispatchEvent(e) { for (const f of docListeners[e.type] || []) f(e); },
     getElementById() { return null; },
-    dispatchEvent() {},
     activeElement: makeEl(),
 };
 globalThis.window = {
@@ -109,6 +115,7 @@ globalThis.__apiMock = {
     deleteCivitai: async (name) => { callLog.delete++; return { ok: true }; },
     saveCivitaiThumb: async (name) => { callLog.saveThumb++; return { ok: true, v: 99 }; },
     getCivitaiAccount: async () => ({ ok: true, configured: false, hint: "", host: "com", adultThumbs: false }),
+    migrateLoraData: async () => ({ ok: true }),
     setCivitaiAccount: async (patch) => {
         callLog.setAcc.push(patch);
         return { ok: true, configured: !!(patch.key ?? null), hint: patch.key ? "1234" : "",
@@ -129,7 +136,8 @@ fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_api.mjs"),
     "const m = globalThis.__apiMock;\n" +
     "export const loraInfo = m.loraInfo;\nexport const civitaiLookup = m.civitaiLookup;\n" +
     "export const deleteCivitai = m.deleteCivitai;\nexport const saveCivitaiThumb = m.saveCivitaiThumb;\n" +
-    "export const getCivitaiAccount = m.getCivitaiAccount;\nexport const setCivitaiAccount = m.setCivitaiAccount;\n");
+    "export const getCivitaiAccount = m.getCivitaiAccount;\nexport const setCivitaiAccount = m.setCivitaiAccount;\n" +
+    "export const migrateLoraData = m.migrateLoraData;\n");
 
 function findEl(root, pred) {
     if (!root || !root.children) return null;
@@ -261,6 +269,25 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
     const ta2 = findEl(dialog, (e) => e.tagName === "TEXTAREA");
     check("编辑中草稿未被覆盖", !!ta2 && ta2.value === "my draft");
     check("非编辑行（Trigger Words）仍刷新", !!findEl(dialog, (e) => e.textContent === "civ-new"));
+
+    // ── T9 保存后缓存保持（回归：saveNotes 必须先广播失效再写回自身缓存，
+    // 否则事件桥同步 delete 会删掉刚写入的新值——i 图标保存后变灰，
+    // 重开对话框 force 重取才恢复）──
+    const { loraMetadataCache } = await import(path.join(tmpDir, "sf_lora_info.mjs"));
+    loraMetadataCache.set("test/lora_a.safetensors", { _has_custom: false }); // 模拟陈旧缓存
+    notesMeta = { trigger_words: "my-words", description: "my-desc", base_model: "sd15",
+        source_url: "", _has_custom: true };
+    const editBtns9 = findAll(dialog, (e) => String(e.textContent || "").includes("✏️") && !!e._listeners?.click);
+    editBtns9[0].click(); // Trigger Words 行进入编辑
+    const inp9 = findEl(dialog, (e) => e.tagName === "INPUT" && e.type !== "password");
+    check("Trigger Words 编辑输入框", !!inp9);
+    inp9.value = "my-words";
+    const saveBtn9 = findBtn(dialog, "Save");
+    check("Save 按钮（编辑态）", !!saveBtn9);
+    saveBtn9.click();
+    await tick();
+    const cached9 = loraMetadataCache.get("test/lora_a.safetensors");
+    check("保存后缓存保持新值（i 图标高亮不丢失）", !!cached9 && cached9._has_custom === true);
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });
