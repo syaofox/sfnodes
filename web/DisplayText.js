@@ -44,6 +44,7 @@ app.registerExtension({
                         value += "_" + message["count"].join("");
                         value += "_" + message["min_dimension"].join("");
                         value += "_" + message["max_dimension"].join("");
+                        value += "_" + message["megapixels"].join("");
                     }
                     
                     updateWidget(this, "return_text", value);

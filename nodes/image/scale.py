@@ -49,6 +49,7 @@ class GetImageSize:
         "INT",
         "INT",
         "INT",
+        "FLOAT",
     )
     RETURN_NAMES = (
         "width",
@@ -56,27 +57,32 @@ class GetImageSize:
         "count",
         "min_dimension",
         "max_dimension",
+        "megapixels",
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True
-    DESCRIPTION = "获取图像的宽、高、数量、最小和最大边长"
+    DESCRIPTION = "获取图像的宽、高、数量、最小和最大边长，以及单张图像的像素数量（百万像素，保留两位小数）"
 
     def execute(self, image):
+        width, height = image.shape[2], image.shape[1]
+        megapixels = round(width * height / 1_000_000, 2)
         return {
             "ui": {
-                "width": (image.shape[2],),
-                "height": (image.shape[1],),
+                "width": (width,),
+                "height": (height,),
                 "count": (image.shape[0],),
-                "min_dimension": (min(image.shape[2], image.shape[1]),),
-                "max_dimension": (max(image.shape[2], image.shape[1]),),
+                "min_dimension": (min(width, height),),
+                "max_dimension": (max(width, height),),
+                "megapixels": (megapixels,),
             },
             "result": (
-                image.shape[2],
-                image.shape[1],
+                width,
+                height,
                 image.shape[0],
-                min(image.shape[2], image.shape[1]),
-                max(image.shape[2], image.shape[1]),
+                min(width, height),
+                max(width, height),
+                megapixels,
             ),
         }
 
