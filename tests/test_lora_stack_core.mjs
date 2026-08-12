@@ -42,15 +42,19 @@ function fakeNode(properties = {}) {
     check("HIDDEN_INPUT 匹配 Python 键", HIDDEN_INPUT === "LoraLoaderState");
     check("MAX_LORAS = 64", MAX_LORAS === 64);
     check("强度范围 ±10", MIN_STRENGTH === -10 && MAX_STRENGTH === 10);
-    check("DEFAULT_PREFS 完整", ["sep", "step", "defStrength", "linkStrength", "civitai", "thumbs", "hideExt", "cacheMode"].every(
+    check("DEFAULT_PREFS 完整", ["sep", "step", "defStrength", "linkStrength", "civitai", "thumbs", "hideExt", "cacheMode", "mergeMethod"].every(
         (k) => k in DEFAULT_PREFS));
 
     // ---- 归一 ----
     check("readState 无状态回默认", readState(fakeNode()).loras.length === 0);
     check("readState 坏 JSON 回默认", readState(fakeNode({ loraStackState: "{oops" })).loras.length === 0);
     check("readState 空串回默认", readState(fakeNode({ loraStackState: "" })).loras.length === 0);
-    check("readState 默认 prefs", readState(fakeNode()).sep === ", " && readState(fakeNode()).cacheMode === "last");
+    check("readState 默认 prefs", readState(fakeNode()).sep === ", " && readState(fakeNode()).cacheMode === "last"
+        && readState(fakeNode()).mergeMethod === "sequential");
     check("normalize 垃圾根对象", normalize(null).loras.length === 0 && normalize("x").loras.length === 0);
+    check("normalize mergeMethod ortho_gs 保留", normalize({ mergeMethod: "ortho_gs" }).mergeMethod === "ortho_gs");
+    check("normalize mergeMethod 未知钳 sequential", normalize({ mergeMethod: "weird" }).mergeMethod === "sequential"
+        && normalize({ mergeMethod: null }).mergeMethod === "sequential");
 
     const n1 = fakeNode();
     writeState(n1, {
@@ -138,13 +142,14 @@ function fakeNode(properties = {}) {
     const n7 = fakeNode();
     writeState(n7, {
         accent: "#123456", thumbs: false, step: 0.5, defStrength: 2.0, linkStrength: false,
-        sep: "|", cacheMode: "all",
+        sep: "|", cacheMode: "all", mergeMethod: "ortho_gs",
         loras: [{ name: "a.safetensors", on: true, sm: 1, sc: 0.5, triggers: ["w"], custom: ["secret"] }],
     });
     const ps = promptState(readState(n7));
     check("promptState 剥 cosmetic", !("accent" in ps) && !("thumbs" in ps) && !("step" in ps) &&
         !("defStrength" in ps) && !("linkStrength" in ps));
-    check("promptState 保留执行字段", ps.sep === "|" && ps.cacheMode === "all" && ps.version === 1);
+    check("promptState 保留执行字段", ps.sep === "|" && ps.cacheMode === "all" && ps.version === 1
+        && ps.mergeMethod === "ortho_gs");
     check("promptState loras 形状", ps.loras[0].name === "a.safetensors" && ps.loras[0].sm === 1 &&
         ps.loras[0].sc === 0.5 && ps.loras[0].on === true);
     check("promptState custom 剥掉", !("custom" in ps.loras[0]) && !("id" in ps.loras[0]));

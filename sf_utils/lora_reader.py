@@ -285,13 +285,15 @@ def _clamp_strength(v):
 
 def parse_state(state_str):
     """把隐藏 LoraLoaderState JSON 归一化为
-    {'loras': [...], 'sep': str, 'cacheMode': 'last'|'all'|'none'}。
+    {'loras': [...], 'sep': str, 'cacheMode': 'last'|'all'|'none',
+     'mergeMethod': 'sequential'|'ortho_gs'}。
 
     刻意宽容（手写 API 工作流也必须能跑）：坏/空输入
-    -> {'loras': [], 'sep': ', ', 'cacheMode': 'last'}；无名或非 dict 条目丢弃；
-    每个保留条目为 {name, on, sm, sc, triggers}。sc 缺省取 sm（单强度驱动双端）。
-    cacheMode 未知值钳到 'last'（ComfyUI 对齐，只留最近使用的文件）。
-    永不抛错。
+    -> {'loras': [], 'sep': ', ', 'cacheMode': 'last', 'mergeMethod': 'sequential'}；
+    无名或非 dict 条目丢弃；每个保留条目为 {name, on, sm, sc, triggers}。
+    sc 缺省取 sm（单强度驱动双端）。cacheMode 未知值钳到 'last'（ComfyUI 对齐，
+    只留最近使用的文件）。mergeMethod 未知值钳到 'sequential'（顺序叠加，
+    默认行为）。永不抛错。
     """
     try:
         obj = json.loads(state_str) if isinstance(state_str, str) else (state_str or {})
@@ -305,6 +307,9 @@ def parse_state(state_str):
     cache_mode = obj.get("cacheMode")
     if cache_mode not in ("last", "all", "none"):
         cache_mode = "last"
+    merge_method = obj.get("mergeMethod")
+    if merge_method != "ortho_gs":
+        merge_method = "sequential"
     loras = []
     raw = obj.get("loras")
     if isinstance(raw, list):
@@ -324,7 +329,8 @@ def parse_state(state_str):
                 "triggers": [str(w).strip() for w in trg if str(w).strip()]
                             if isinstance(trg, list) else [],
             })
-    return {"loras": loras, "sep": sep, "cacheMode": cache_mode}
+    return {"loras": loras, "sep": sep, "cacheMode": cache_mode,
+            "mergeMethod": merge_method}
 
 
 def preset_override(state, preset):

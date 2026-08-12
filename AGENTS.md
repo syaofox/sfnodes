@@ -280,6 +280,13 @@ class SFMyNode:
 - **保存成功后 `_infoSeq++` 作废在途旧响应**：面板打开时 loadInfo 在飞，用户保存描述后迟到响应落地会覆盖回旧值（"保存了仍显示来自 Civitai"）；设置面板同理用 `_accDirty` 挡 GET 迟到应答覆盖刚保存的 host。
 - 存储形状升级必须兼容旧数据（`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一）；`promptState` 只注入执行字段（cosmetic 剥掉避免改缓存签名），`cacheMode` 例外（Python 需要它决定内存策略）。完整踩坑见 `doc/experience.md` §19。
 
+**前后端：SFLoraStack 正交堆叠 ortho_gs（2026-08，`sf_utils/lora_ortho.py`）**
+- **数学**：ΔW = Σ s·(α/r)·(A_i·B_i)，多个 LoRA 的 down 矩阵行空间重叠 = 干扰源（相似 LoRA 叠糊）。ortho_gs 把每个 down 的行投影到前序 down 行空间的正交补（`d' = d - (d@Qᵀ)@Q`，Q 用 SVD 右奇异向量扩基 + QR 去线性相关，float32 计算）——**第一个 LoRA 不动、后续让位**，up/alpha/strength 全不动；行空间被完全覆盖时投影归零（幅度损失是 tradeoff 非 bug）。
+- **必须走独立加载路径**：链式 `load_lora_for_models` 的 patch 已展开进 patcher，拿不回 up/down——ortho 需自己 `model_lora_keys_unet`(+clip) 建 key map + `convert_lora`（官方路径有，DuoNodes 漏掉）+ `load_lora` + clone + add_patches + `set_attachments("lora_metadata")`，**按模型 key 分组**（同 key 多 LoRA 才 GS，单条直通），非 LoRA patch（conv/diff/set）该 key fallback 顺序；key map 构建失败整体 fallback 顺序，绝不报错。
+- **patch 结构**：当前 ComfyUI 是 `LoRAAdapter.weights = (up, down, alpha, mid, dora_scale, reshape)`（**up 是 [0]、down 是 [1]**）；`replace_down` 对 LoRAAdapter 浅拷贝换 weights[1]，字符串标签/tensor-first/float 前缀多格式回退；**replace_down 对 `("diff", (w,))` 之类 1 元素内部元组必须原样返回**（直接 `list(patch[1])` 会 IndexError）。
+- **契约**：`mergeMethod` 与 cacheMode 同模式——前端 `DEFAULT_PREFS`/`normalize`/`promptState` 与 Python `parse_state` 双端 1:1，默认 `"sequential"`（向后兼容，齿轮手动切）；**ortho 模式 run 内全栈 sd 驻留**（分组需要，与 "last" 逐行释放不同，峰值=栈大小），run 后仍按 cacheMode 统一修剪。
+- **测试**：本机无 torch——GS 数学用 numpy 参考实现逐行对应验证（行两两正交/投影残差在基行空间/覆盖归零）；节点链路 monkeypatch GS + fake `load_lora` **必须按 key_map 值过滤**（unet 与 clip patch 键空间不同，不过滤会串侧）。
+
 **前后端：LoRA 信息数据统一（2026-08，`sf_utils/lora_notes.py` 网关化）**
 - **单一真源**：Power 系（SFPowerLoraLoader 对话框 / SFLoraLoader / ModelOnly 的 execute 输出）与 SFLoraStack 面板的用户自定义词/描述统一存 `user/sfnodes/lora_triggers.json`（路径只由 `lora_routes._custom_triggers_file()` 定义，网关 import 它而非复制）。lora_notes 只是形状转换网关：`trigger_words` 字符串 ↔ `words` 数组（`split_trigger_text` 按英文/中文逗号+换行拆，读写同源）。
 - **读优先级三源合并**：统一存储 > `.civitai.info` 侧车（`read_sidecar_info`，去扩展名 `<base>.civitai.info`）> 文件内嵌元数据。Power 系对话框因此也能看到 Stack 面板查过 Civitai 的词。

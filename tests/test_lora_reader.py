@@ -36,6 +36,9 @@ comfy_sd = types.ModuleType("comfy.sd"); sys.modules["comfy.sd"] = comfy_sd
 comfy.utils = comfy_utils  # sys.modules 直塞不设置属性，`import comfy.utils` 需要
 comfy.sd = comfy_sd
 
+# lora_stack 依赖 lora_ortho -> import torch（节点层只做 isinstance 检查，空模块即可）
+torch = types.ModuleType("torch"); sys.modules["torch"] = torch
+
 loaded = {}          # path -> state_dict（记录 load_torch_file 次数）
 load_calls = []
 apply_calls = []
@@ -186,9 +189,10 @@ os.remove(sidecar_path)
 
 # ── parse_state ──
 ps = utils.parse_state
-check("parse_state 空串", ps("") == {"loras": [], "sep": ", ", "cacheMode": "last"})
-check("parse_state 垃圾 JSON", ps("{oops") == {"loras": [], "sep": ", ", "cacheMode": "last"})
-check("parse_state 非 dict JSON", ps("[1]") == {"loras": [], "sep": ", ", "cacheMode": "last"})
+_DEFAULT_STATE = {"loras": [], "sep": ", ", "cacheMode": "last", "mergeMethod": "sequential"}
+check("parse_state 空串", ps("") == _DEFAULT_STATE)
+check("parse_state 垃圾 JSON", ps("{oops") == _DEFAULT_STATE)
+check("parse_state 非 dict JSON", ps("[1]") == _DEFAULT_STATE)
 check("parse_state 非字符串输入", ps(None)["loras"] == [] and ps({"loras": []})["loras"] == [])
 st = ps(json.dumps({"sep": "|", "cacheMode": "all", "loras": [
     {"name": "a.safetensors", "on": True, "sm": 1.0},
@@ -201,6 +205,10 @@ check("parse_state 结构", len(st["loras"]) == 2 and st["sep"] == "|" and st["c
 check("parse_state sc 缺省 = sm", st["loras"][0]["sc"] == 1.0)
 check("parse_state on 缺省 true", st["loras"][0]["on"] is True and st["loras"][1]["on"] is False)
 check("parse_state cacheMode 未知钳 last", ps('{"cacheMode":"weird"}')["cacheMode"] == "last")
+check("parse_state mergeMethod 缺省 sequential", st["mergeMethod"] == "sequential")
+check("parse_state mergeMethod ortho_gs 保留", ps('{"mergeMethod":"ortho_gs"}')["mergeMethod"] == "ortho_gs")
+check("parse_state mergeMethod 未知钳 sequential", ps('{"mergeMethod":"weird"}')["mergeMethod"] == "sequential")
+check("parse_state mergeMethod 非字符串钳", ps('{"mergeMethod":1}')["mergeMethod"] == "sequential")
 check("parse_state 强度钳制", ps(json.dumps({"loras": [{"name": "x", "sm": 999, "sc": -999}]}))["loras"][0] ==
       {"name": "x", "on": True, "sm": 100.0, "sc": -100.0, "triggers": []})
 check("parse_state nan/inf -> 0", ps(json.dumps({"loras": [{"name": "x", "sm": "nan", "sc": "inf"}]}))["loras"][0]["sm"] == 0.0

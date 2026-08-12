@@ -316,6 +316,17 @@ export function openLoraPanel(node, refresh) {
             title: "Smallest memory footprint, best for low-RAM machines" },
     ]));
 
+    body.appendChild(segRow("Stacking method", "mergeMethod", [
+        { v: "sequential", label: "Sequential", hint: "Each LoRA is added in turn, like ComfyUI",
+            title: "Standard additive stacking — the A/B baseline for Orthogonal" },
+        { v: "ortho_gs", label: "Orthogonal", hint: "Later LoRAs read input directions earlier ones ignore",
+            title: "Gram-Schmidt in input space, reduces interference between similar LoRAs. "
+                + "Row order = priority: the first LoRA is kept as-is, later ones give way and "
+                + "may lose magnitude when their subspace is already covered. UNet layers are "
+                + "orthogonalized; the CLIP side is still stacked sequentially. Peak memory "
+                + "during a run equals the whole stack." },
+    ]));
+
     body.appendChild(toggleRow("Hide file extension",
         "Show the LoRA name without .safetensors", "hideExt"));
     body.appendChild(toggleRow("Civitai lookup button",

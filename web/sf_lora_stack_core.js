@@ -37,6 +37,12 @@ export const DEFAULT_PREFS = {
     // "all" = 保留整个栈（重跑最快，大栈可占 GB 级内存）；
     // "none" = 什么都不留（内存最低，每 run 重读文件）。
     cacheMode: "last",
+    // LoRA 叠加方式（齿轮 "Stacking method"）：
+    // "sequential"（默认）= 标准逐行相加；
+    // "ortho_gs" = 输入空间 Gram-Schmidt 正交化（减少相似 LoRA 干扰；
+    // 行顺序即优先级——第一个 LoRA 保持原样、后续让位、可能损失幅度；
+    // 仅 UNet 层正交化，CLIP 仍顺序叠加）。改变输出，必须注入 promptState。
+    mergeMethod: "sequential",
 };
 
 export const DEFAULT_STATE = {
@@ -101,6 +107,7 @@ export function normalize(raw) {
     st.thumbs = st.thumbs == null ? true : !!st.thumbs;
     st.hideExt = st.hideExt == null ? true : !!st.hideExt;
     st.cacheMode = st.cacheMode === "all" || st.cacheMode === "none" ? st.cacheMode : "last";
+    st.mergeMethod = st.mergeMethod === "ortho_gs" ? st.mergeMethod : "sequential";
     st.loras = (Array.isArray(st.loras) ? st.loras : [])
         .map((e) => normLora(e, st))
         .filter(Boolean)
@@ -248,6 +255,9 @@ export function promptState(state) {
         // 的东西，它需要内存模式决定 run 之间保留什么。代价：切换模式会多
         // 重跑一次节点——对内存行为开关可接受，与上面剥掉的外观偏好相反。
         cacheMode: state.cacheMode,
+        // mergeMethod 同样保留：它改变执行语义（正交化 vs 顺序）。切换会多
+        // 重跑一次节点，代价可接受。
+        mergeMethod: state.mergeMethod,
         loras: state.loras.map((e) => ({
             name: e.name, on: !!e.on, sm: e.sm, sc: e.sc, triggers: e.triggers,
         })),
