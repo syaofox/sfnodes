@@ -176,6 +176,12 @@ app.registerExtension({
             document.addEventListener("sfnodes.lora-display-mode-changed", () => {
                 setTimeout(repaintAll, 0);
             });
+            // 任一节点保存 LoRA 用户数据（触发词/描述/封面）后广播——行 i 按钮
+            // 的 _has_custom 高亮要跟着刷新。loraMetadataCache 已被
+            // sf_lora_info.js 的同事件监听清掉，重渲染时每行重新查询得新值。
+            document.addEventListener("sfnodes.lora-data-changed", () => {
+                setTimeout(repaintAll, 0);
+            });
             // 初始应用必须在 addSetting 之后：设置项未注册时 getSettingValue
             // 拿不到用户保存的值（返回默认 #f66744）——先 apply 会把 --sf-acc
             // 钉死在橙色，且注册后不再刷新（"Crop 品牌文字还是橙色"）。

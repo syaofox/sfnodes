@@ -960,3 +960,11 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **关闭确认**：`closeInfoPanel()` 改造为返回 `Promise<boolean>`——dirty 时经同主题 `confirmDialog`（"Discard description changes?"）确认才关；✕/Esc 忽略返回值（内部异步自关）；**`openInfoPanel` 切换行 `await closeInfoPanel()`，取消则不打开新行面板**；**节点删除路径 `closeInfoPanelFor` 走 `doCloseInfoPanel` 不弹框**（删除不能被阻塞）。textarea 内 Esc（原直接丢草稿）dirty 时也弹确认（误按保护）。
 - **顺带修复草稿泄漏 bug**：`_descEditing/_descDraft` 原是 openInfoPanel 闭包内变量，`closeInfoPanel` 是模块级函数读不到——提升为模块级（闭包共享）后，`doCloseInfoPanel` 关闭时统一重置；旧代码关闭面板不清状态，重开另一行会带着上一行的旧草稿直接进编辑态。
 - 测试 `tests/test_lora_stack_info_desc_smoke.js`：**mock 的 className 必须与 classList 双向同步**（单向时 `el.className="qa"` 后 `_s` 为空，第一次 `toggle("dirty",true)` 的 sync 用 `_s` 覆盖 className 把 "qa" 冲掉，第二次 `querySelector(".qa")` 误匹配 Cancel——真实 DOM 没有此问题，是 mock 失真）；断言链：改动高亮 → 改回基准不高亮 → Esc 确认框 → 取消保留草稿 → ✕ 确认 Discard → 重开无残留编辑态。
+
+### 9. 行 i 按钮 _has_custom 高亮（2026-08）
+
+- **需求**：SFLoraStack 行的 info 按钮（`.sf-ls-info` "i"）按"该 LoRA 是否有用户编辑过的信息"高亮（用户以 `.civitai.info` 侧车为标志物）。
+- **判定源与 Power 系 i 图标统一**：用 `lora_notes` 网关的 `_has_custom`（统一存储有词/描述 **或** 侧车有词/描述，lora_notes.py 计算）——比"仅 source==='sidecar'"准（lora_reader 只在侧车有 **triggers** 时置 source=sidecar，侧车仅 description 会漏判）且覆盖统一存储（面板保存的词/描述也亮）。**两节点同一数据源同一语义，跨节点高亮一致**。
+- **实现**：`sf_lora_stack_render.js` 行渲染时 `getLoraMetadata(e.name).then(meta => info.classList.toggle("net", !!meta?._has_custom))`（`isConnected` 守卫：行被 renderNode 重建则丢弃，新行自己会查；缓存命中零请求，未命中 lora_notes 端点轻量）。**`classList.toggle` 传单个类名 `"net"` 而非 `"sf-ls-info.net"`**（后者是含点字符串，会作为单个非法类名添加——CSS 选择器 `.sf-ls-info.net` = 两个类）。
+- **即时刷新**：`sf_lora_stack.js` init 监听 `sfnodes.lora-data-changed` → `setTimeout(repaintAll, 0)`——保存触发词/描述/封面后行高亮更新（loraMetadataCache 已被 sf_lora_info.js 的同事件监听清掉，重渲染时重新查询）。
+- 测试：presets smoke 扩展（makeEl 的 classList 升级为真实 Set + className 双向同步，行 i 高亮的 toggle 依赖）；断言注意 **linkStrength=false 时行结构为 [grip, name, wm, wm(c), info, sw]**，info 是 children[4] 不是 children[3]。

@@ -7,6 +7,7 @@ import { app } from "/scripts/app.js";
 import { isVueNodes, loraRowLabel } from "./sf_common.js";
 import { BRAND, readState, accentOf, countOn, MAX_LORAS } from "./sf_lora_stack_core.js";
 import { hasLora } from "./sf_lora_stack_api.js";
+import { getLoraMetadata } from "./sf_lora_info.js";
 
 // 重渲染图中全部 LoRA Stack 节点（含子图嵌套）。全局设置（sfnodes.Accent）
 // 变化后调用，让新色立即生效。重绘纯 DOM，不触碰序列化状态。
@@ -177,6 +178,10 @@ export function injectCSS() {
       cursor:pointer; display:flex; align-items:center; justify-content:center;
       font:italic 12px Georgia,serif; }
     .sf-ls-info:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
+    /* 高亮：该 LoRA 有用户编辑过的信息（_has_custom——与 Power 系 i 图标
+       同语义同蓝色系：统一存储有词/描述或 .civitai.info 侧车有词/描述） */
+    .sf-ls-info.net { border-color:rgba(79,195,247,0.7); color:#79c3f7;
+      background:rgba(79,195,247,0.15); }
 
     .sf-ls-sw { flex:0 0 auto; width:30px; height:16px; border-radius:99px; background:#3a3a3a;
       position:relative; cursor:pointer; border:1px solid #000; }
@@ -314,6 +319,18 @@ export function renderNode(node) {
         info.dataset.act = "info";
         info.textContent = "i";
         info.title = "Info + pick trigger words";
+        // 高亮 = 该 LoRA 有用户编辑过的信息（_has_custom：统一存储有词/描述，
+        // 或 .civitai.info 侧车有词/描述——与 Power 系对话框 i 图标同一判定
+        // 源，见 lora_notes 网关）。缓存命中即时；未命中 fetch 落地后碰活
+        // 元素（renderNode 重建会重跑）。行已重建（isConnected=false）时
+        // 丢弃——新行自己会查。
+        if (e.name) {
+            getLoraMetadata(e.name).then((meta) => {
+                if (!info.isConnected) return;
+                // "net" 是单个类名（CSS 选择器 .sf-ls-info.net = 两个类）
+                info.classList.toggle("net", !!(meta && meta._has_custom));
+            });
+        }
 
         const sw = document.createElement("div");
         sw.className = "sf-ls-sw" + (e.on ? " on" : "");

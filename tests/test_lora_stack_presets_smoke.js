@@ -15,15 +15,26 @@ function check(name, cond) {
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-// ── mock DOM（惰性元素 + 事件记录/分发；textContent 赋值清空子节点）──
+// ── mock DOM（惰性元素 + 事件记录/分发；textContent 赋值清空子节点；
+//    className 与 classList 双向同步——真实 DOM 语义，行 i 按钮的
+//    classList.toggle 高亮依赖它）──
 function makeEl() {
     const el = {
         style: { setProperty() {}, getPropertyValue() { return ""; } },
-        dataset: {}, children: [], listeners: {},
-        className: "", value: "", placeholder: "", type: "", title: "", rows: 1,
+        dataset: {}, children: [], listeners: {}, _cls: new Set(),
+        value: "", placeholder: "", type: "", title: "", rows: 1,
         disabled: false, isConnected: true, offsetWidth: 100, offsetHeight: 20,
         selectionStart: 0, selectionEnd: 0, _text: "",
-        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        classList: {
+            add(...c) { c.forEach((x) => el._cls.add(x)); sync(); },
+            remove(...c) { c.forEach((x) => el._cls.delete(x)); sync(); },
+            toggle(c, force) {
+                if (force === undefined) { el._cls.has(c) ? el._cls.delete(c) : el._cls.add(c); }
+                else { force ? el._cls.add(c) : el._cls.delete(c); }
+                sync();
+            },
+            contains(c) { return el._cls.has(c); },
+        },
         append(...kids) { this.children.push(...kids); },
         appendChild(c) { this.children.push(c); return c; },
         prepend(...kids) { this.children.unshift(...kids); },
@@ -45,6 +56,13 @@ function makeEl() {
         getBoundingClientRect() { return { left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 }; },
         scrollIntoView() {}, setPointerCapture() {}, releasePointerCapture() {}, setSelectionRange() {},
     };
+    function sync() {
+        el.className = [...el._cls].join(" ");
+    }
+    Object.defineProperty(el, "className", {
+        get() { return [...el._cls].join(" "); },
+        set(v) { el._cls = new Set(String(v).split(/\s+/).filter(Boolean)); },
+    });
     Object.defineProperty(el, "textContent", {
         get() { return el._text; },
         set(v) { el._text = v; el.children = []; },
@@ -110,6 +128,14 @@ globalThis.fetch = async (url, opts) => {
         const nm = decodeURIComponent(u.split("name=")[1]);
         delete serverPresets[nm];
         return { ok: true, status: 200, json: async () => ({ deleted: nm }) };
+    }
+    // 行 i 按钮 _has_custom 高亮判定（lora_notes 网关）：x.safetensors 有
+    // 用户信息（_has_custom），y 无
+    if (u.includes("/api/sfnodes/lora_notes?filename=")) {
+        const nm = decodeURIComponent(u.split("filename=")[1]);
+        return { ok: true, status: 200, json: async () => ({
+            trigger_words: "", description: "", _has_custom: nm === "dirA/x.safetensors",
+        }) };
     }
     return { ok: false, status: 404, json: async () => ({}) };
 };
@@ -258,6 +284,14 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
         && rowsWrap.children.every((r) => String(r.className).includes("sf-ls-row")));
     const nmEl = rowsWrap.children[0].children[1].children[0];
     check("行名渲染正确（hideExt 剥扩展名）", rowsWrap.children[0].children[1].children[0]._text === "x");
+
+    // ── 行 i 按钮 _has_custom 高亮（lora_notes 网关判定，与 Power 系同源）──
+    // 行结构（linkStrength=false 分离 model/clip）：[grip, name, wm, wm(c), info, sw]
+    await tick(); // getLoraMetadata promise 落地
+    const infoX = rowsWrap.children[0].children[4];
+    const infoY = rowsWrap.children[1].children[4];
+    check("有自定义信息的行 i 高亮", String(infoX.className).split(/\s+/).includes("net"));
+    check("无自定义信息的行不高亮", !String(infoY.className).split(/\s+/).includes("net"));
 
     // ── Cancel 路径：再开菜单 -> 点预设 -> Cancel -> 状态不变 ──
     widgetEl.emit("click", { target: presetsBtn, clientX: 40, clientY: 60 });
