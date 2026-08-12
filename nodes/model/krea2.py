@@ -83,7 +83,7 @@ KREA2_PRESETS = {
         "Generate a detailed paragraph that combines the subject, actions, environment, "
         "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
         "rather than speculation. Note that you should not describe any character's facial "
-        "features, appearance, facial contours, body shape, height, hairstyle or hair color. "
+        "features, appearance, facial contours, body shape, height, hairstyle, hair color or eye color. "
         "Keep the characters' expressions and gender consistent with the reference where "
         "appropriate."
     ),
@@ -91,7 +91,7 @@ KREA2_PRESETS = {
         "Generate a detailed paragraph that combines the subject, actions, environment, "
         "lighting, and mood into 2-3 cohesive sentences. Focus on accurate visual details "
         "rather than speculation. Note that you should not describe any character's facial "
-        "features, appearance, facial contours, body shape, height, hairstyle or hair color. "
+        "features, appearance, facial contours, body shape, height, hairstyle, hair color or eye color. "
         "Keep the characters' expressions, gender, poses and actions consistent with the "
         "reference where appropriate."
     ),

@@ -611,9 +611,13 @@ for _stmt in _k2_tree.body:
     if isinstance(_stmt, _ast.Assign) and any(getattr(t, "id", "") == "KREA2_PRESETS" for t in _stmt.targets):
         for _k in _stmt.value.keys:
             _k2_keys.append(_k.value if isinstance(_k, _ast.Constant) else None)
+        _k2_vals = {_k.value: _v.value for _k, _v in zip(_stmt.value.keys, _stmt.value.values)
+                    if isinstance(_k, _ast.Constant) and isinstance(_v, _ast.Constant)}
         break
 check("Krea2 预设含官方扩展", "Krea2 提示词扩展（官方规则）" in _k2_keys)
 check("Krea2 预设键无重复", len(_k2_keys) == len(set(_k2_keys)))
+check("Krea2 发型发色排除含 eye color（与反推版对称）",
+      all("eye color" in t for k, t in _k2_vals.items() if "发型发色" in k))
 
 # 7g. Krea2 适配：非镜头分类无 SD 质量标签/营销词
 import re as _re_k2
