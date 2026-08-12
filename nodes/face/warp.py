@@ -7,6 +7,7 @@ from color_matcher.normalizer import Normalizer
 from comfy.utils import ProgressBar
 from ...sf_utils.image_convert import tensor2np, image_to_tensor
 from ...sf_utils.mask_utils import mask_process, mask_from_landmarks
+from ...sf_utils.skin import estimate_skin_color
 from ...sf_utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +25,6 @@ class FaceWarp:
                     "ANALYSIS_MODELS",
                     {"tooltip": "人脸分析模型，由 SF Face Analysis Models 输出"},
                 ),
-                "image_from": ("IMAGE", {"tooltip": "源图像：其人脸将被扭曲变形"}),
                 "image_to": ("IMAGE", {"tooltip": "目标图像：人脸特征要对齐的目标"}),
                 "keypoints": (
                     ["main features", "full face", "full face+forehead (if available)"],
@@ -34,13 +34,19 @@ class FaceWarp:
                 ),
             },
             "optional": {
+                "image_from": (
+                    "IMAGE",
+                    {
+                        "tooltip": "源图像：其人脸将被扭曲变形；不连接时对目标图像的人脸区域填充近似肤色（抹除人脸）"
+                    },
+                ),
                 "mask_from": (
                     "MASK",
-                    {"tooltip": "源图像遮罩，限定参与变形的区域；不提供时按源关键点凸包自动生成"},
+                    {"tooltip": "源图像遮罩，限定参与变形的区域；不提供时按源关键点凸包自动生成；未连接 image_from 时忽略"},
                 ),
                 "mask_to": (
                     "MASK",
-                    {"tooltip": "目标图像遮罩，限定变形结果的范围；不提供时按目标关键点凸包自动生成"},
+                    {"tooltip": "目标图像遮罩，限定变形/填充结果的范围；不提供时按目标关键点凸包自动生成"},
                 ),
                 "mask_params": (
                     "MASKPARAMS",
@@ -48,13 +54,13 @@ class FaceWarp:
                 ),
                 "is_mathcolor": (
                     "BOOLEAN",
-                    {"default": True, "tooltip": "是否对变形区域做颜色匹配，使其色调与目标图像一致"},
+                    {"default": True, "tooltip": "是否对变形/填充区域做颜色匹配，使其色调与目标图像一致"},
                 ),
                 "include_background": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "为 True 时输出保留源图像除人脸外的其他部分（整体按同一仿射变换对齐）；为 False 时非变形区域使用目标图像",
+                        "tooltip": "为 True 时输出保留源图像除人脸外的其他部分（整体按同一仿射变换对齐）；为 False 时非变形区域使用目标图像；未连接 image_from 时忽略",
                     },
                 ),
                 "match_strength": (
@@ -64,7 +70,7 @@ class FaceWarp:
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "颜色匹配强度：1.0 完全采用匹配结果，0.0 保持变形后的原始颜色",
+                        "tooltip": "颜色匹配强度：1.0 完全采用匹配结果，0.0 保持变形/填充后的原始颜色",
                     },
                 ),
                 "strength": (
@@ -74,7 +80,7 @@ class FaceWarp:
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "变形强度：1.0 完全匹配目标人脸特征，0.0 保持源图像不变",
+                        "tooltip": "变形强度：1.0 完全匹配目标人脸特征，0.0 保持源图像不变；未连接 image_from 时忽略",
                     },
                 ),
             },
@@ -90,14 +96,14 @@ class FaceWarp:
     )
     FUNCTION = "warp"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将源图像的人脸扭曲变形以匹配目标图像的人脸特征，支持变形强度与颜色匹配强度控制"
+    DESCRIPTION = "将源图像的人脸扭曲变形以匹配目标图像的人脸特征，支持变形强度与颜色匹配强度控制；未连接源图像时对目标图像的人脸区域填充近似肤色（抹除人脸）"
 
     def warp(
         self,
         analysis_models,
-        image_from,
         image_to,
         keypoints,
+        image_from=None,
         mask_from=None,
         mask_to=None,
         mask_params=None,
@@ -106,32 +112,45 @@ class FaceWarp:
         match_strength=0.8,
         strength=1.0,
     ):
-        if image_from.shape[0] < image_to.shape[0]:
-            image_from = torch.cat(
-                [
-                    image_from,
-                    image_from[-1:].repeat(
-                        (image_to.shape[0] - image_from.shape[0], 1, 1, 1)
-                    ),
-                ],
-                dim=0,
-            )
-        elif image_from.shape[0] > image_to.shape[0]:
-            image_from = image_from[: image_to.shape[0]]
-            logger.info(
-                f"image_from has more frames than image_to; truncated to {image_to.shape[0]} frame(s)"
-            )
+        has_source = image_from is not None
 
-        if mask_from is not None and mask_from.shape[0] < image_from.shape[0]:
-            logger.info(
-                f"mask_from has fewer frames ({mask_from.shape[0]}) than image_from; last frame will be reused for the remaining frames"
-            )
+        if has_source:
+            if image_from.shape[0] < image_to.shape[0]:
+                image_from = torch.cat(
+                    [
+                        image_from,
+                        image_from[-1:].repeat(
+                            (image_to.shape[0] - image_from.shape[0], 1, 1, 1)
+                        ),
+                    ],
+                    dim=0,
+                )
+            elif image_from.shape[0] > image_to.shape[0]:
+                image_from = image_from[: image_to.shape[0]]
+                logger.info(
+                    f"image_from has more frames than image_to; truncated to {image_to.shape[0]} frame(s)"
+                )
+
+            if mask_from is not None and mask_from.shape[0] < image_from.shape[0]:
+                logger.info(
+                    f"mask_from has fewer frames ({mask_from.shape[0]}) than image_from; last frame will be reused for the remaining frames"
+                )
+        else:
+            if mask_from is not None:
+                logger.info("mask_from is ignored when image_from is not connected")
+            if include_background:
+                logger.info(
+                    "include_background is ignored when image_from is not connected"
+                )
+            if strength < 1.0:
+                logger.info("strength is ignored when image_from is not connected")
+
         if mask_to is not None and mask_to.shape[0] < image_to.shape[0]:
             logger.info(
                 f"mask_to has fewer frames ({mask_to.shape[0]}) than image_to; last frame will be reused for the remaining frames"
             )
 
-        steps = image_from.shape[0]
+        steps = image_to.shape[0]
         if steps > 1:
             pbar = ProgressBar(steps)
 
@@ -141,87 +160,51 @@ class FaceWarp:
         result_mask = []
 
         for i in range(steps):
-            img_from = tensor2np(image_from[i])
             img_to = tensor2np(image_to[i])
-
-            shape_from = analysis_models.get_landmarks(
-                img_from, extended_landmarks=("forehead" in keypoints)
-            )
             shape_to = analysis_models.get_landmarks(
                 img_to, extended_landmarks=("forehead" in keypoints)
             )
 
-            if shape_from is None or shape_to is None:
-                logger.warning(f"No landmarks detected at frame {i}")
-                img = image_to[i].unsqueeze(0)
-                mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
-                result_image.append(img)
-                result_mask.append(mask)
-                if steps > 1:
-                    pbar.update(1)
-                continue
+            if has_source:
+                img_from = tensor2np(image_from[i])
+                shape_from = analysis_models.get_landmarks(
+                    img_from, extended_landmarks=("forehead" in keypoints)
+                )
+                if shape_from is None or shape_to is None:
+                    logger.warning(f"No landmarks detected at frame {i}")
+                    img = image_to[i].unsqueeze(0)
+                    mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
+                    result_image.append(img)
+                    result_mask.append(mask)
+                    if steps > 1:
+                        pbar.update(1)
+                    continue
+            else:
+                if shape_to is None:
+                    logger.warning(f"No landmarks detected at frame {i}")
+                    img = image_to[i].unsqueeze(0)
+                    mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
+                    result_image.append(img)
+                    result_mask.append(mask)
+                    if steps > 1:
+                        pbar.update(1)
+                    continue
 
             if keypoints == "main features":
-                shape_from = shape_from[1]
+                if has_source:
+                    shape_from = shape_from[1]
                 shape_to = shape_to[1]
             elif "forehead" in keypoints:
                 # 全部 106 点 + 前额近似弧线点（outline_forehead）
-                shape_from = np.vstack([shape_from[0], shape_from[-1]])
+                if has_source:
+                    shape_from = np.vstack([shape_from[0], shape_from[-1]])
                 shape_to = np.vstack([shape_to[0], shape_to[-1]])
             else:
-                shape_from = shape_from[0]
+                if has_source:
+                    shape_from = shape_from[0]
                 shape_to = shape_to[0]
 
-            # get the transformation matrix
-            from_points = np.array(shape_from, dtype=np.float64)
-            to_points = np.array(shape_to, dtype=np.float64)
-
-            matrix = cv2.estimateAffine2D(from_points, to_points)[0]
-            if matrix is None:
-                logger.warning(f"Could not estimate affine transform at frame {i}")
-                img = image_to[i].unsqueeze(0)
-                mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
-                result_image.append(img)
-                result_mask.append(mask)
-                if steps > 1:
-                    pbar.update(1)
-                continue
-
-            if strength < 1.0:
-                # 向恒等变换插值，实现部分变形
-                identity = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
-                matrix = strength * matrix + (1.0 - strength) * identity
-
-            output = cv2.warpAffine(
-                img_from,
-                matrix,
-                (img_to.shape[1], img_to.shape[0]),
-                flags=cv2.INTER_LINEAR,
-                borderMode=cv2.BORDER_REFLECT_101,
-            )
-
-            # 处理mask_from和mask_to（帧数不足时复用最后一帧）
-            if mask_from is not None and mask_from.shape[0] > 0:
-                mask_from_tensor = mask_from[min(i, mask_from.shape[0] - 1)]
-                # 确保mask_from是二维的
-                if len(mask_from_tensor.shape) == 3 and mask_from_tensor.shape[2] == 1:
-                    mask_from_tensor = mask_from_tensor.squeeze(-1)
-                mask_from_np = mask_from_tensor.cpu().numpy().astype(np.float64)
-
-                # 确保mask_from与img_from尺寸一致，如果不一致则调整大小
-                if (
-                    mask_from_np.shape[0] != img_from.shape[0]
-                    or mask_from_np.shape[1] != img_from.shape[1]
-                ):
-                    mask_from_np = cv2.resize(
-                        mask_from_np,
-                        (img_from.shape[1], img_from.shape[0]),
-                        interpolation=cv2.INTER_NEAREST,
-                    )
-            else:
-                # 计算mask_from
-                mask_from_np = mask_from_landmarks(img_from, shape_from)
-
+            # 处理mask_to（两路径共用；帧数不足时复用最后一帧）
             if mask_to is not None and mask_to.shape[0] > 0:
                 mask_to_tensor = mask_to[min(i, mask_to.shape[0] - 1)]
                 # 确保mask_to是二维的
@@ -243,20 +226,90 @@ class FaceWarp:
                 # 计算mask_to
                 mask_to_np = mask_from_landmarks(img_to, shape_to)
 
-            # 对mask_from进行仿射变换
-            output_mask = cv2.warpAffine(
-                mask_from_np, matrix, (img_to.shape[1], img_to.shape[0])
-            )
-
-            output_mask = (
-                torch.from_numpy(output_mask).unsqueeze(0).unsqueeze(-1).float()
-            )
             mask_to_local = (
                 torch.from_numpy(mask_to_np).unsqueeze(0).unsqueeze(-1).float()
             )
-            output_mask = torch.min(output_mask, mask_to_local)
 
-            output = image_to_tensor(output).unsqueeze(0)
+            if has_source:
+                # 源路径：扭曲源脸
+                # 处理mask_from（帧数不足时复用最后一帧）
+                if mask_from is not None and mask_from.shape[0] > 0:
+                    mask_from_tensor = mask_from[min(i, mask_from.shape[0] - 1)]
+                    # 确保mask_from是二维的
+                    if len(mask_from_tensor.shape) == 3 and mask_from_tensor.shape[2] == 1:
+                        mask_from_tensor = mask_from_tensor.squeeze(-1)
+                    mask_from_np = mask_from_tensor.cpu().numpy().astype(np.float64)
+
+                    # 确保mask_from与img_from尺寸一致，如果不一致则调整大小
+                    if (
+                        mask_from_np.shape[0] != img_from.shape[0]
+                        or mask_from_np.shape[1] != img_from.shape[1]
+                    ):
+                        mask_from_np = cv2.resize(
+                            mask_from_np,
+                            (img_from.shape[1], img_from.shape[0]),
+                            interpolation=cv2.INTER_NEAREST,
+                        )
+                else:
+                    # 计算mask_from
+                    mask_from_np = mask_from_landmarks(img_from, shape_from)
+
+                # get the transformation matrix
+                from_points = np.array(shape_from, dtype=np.float64)
+                to_points = np.array(shape_to, dtype=np.float64)
+
+                matrix = cv2.estimateAffine2D(from_points, to_points)[0]
+                if matrix is None:
+                    logger.warning(f"Could not estimate affine transform at frame {i}")
+                    img = image_to[i].unsqueeze(0)
+                    mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
+                    result_image.append(img)
+                    result_mask.append(mask)
+                    if steps > 1:
+                        pbar.update(1)
+                    continue
+
+                if strength < 1.0:
+                    # 向恒等变换插值，实现部分变形
+                    identity = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+                    matrix = strength * matrix + (1.0 - strength) * identity
+
+                output = cv2.warpAffine(
+                    img_from,
+                    matrix,
+                    (img_to.shape[1], img_to.shape[0]),
+                    flags=cv2.INTER_LINEAR,
+                    borderMode=cv2.BORDER_REFLECT_101,
+                )
+
+                # 对mask_from进行仿射变换
+                output_mask = cv2.warpAffine(
+                    mask_from_np, matrix, (img_to.shape[1], img_to.shape[0])
+                )
+
+                output_mask = (
+                    torch.from_numpy(output_mask).unsqueeze(0).unsqueeze(-1).float()
+                )
+                output_mask = torch.min(output_mask, mask_to_local)
+                output = image_to_tensor(output).unsqueeze(0)
+            else:
+                # 肤色路径：对目标人脸区域填充近似肤色
+                skin = estimate_skin_color(img_to, mask_to_np)
+                if skin is None:
+                    logger.warning(f"Empty mask at frame {i}")
+                    img = image_to[i].unsqueeze(0)
+                    mask = torch.zeros((1, img.shape[1], img.shape[2]), dtype=img.dtype)
+                    result_image.append(img)
+                    result_mask.append(mask)
+                    if steps > 1:
+                        pbar.update(1)
+                    continue
+
+                output_np = np.empty_like(img_to, dtype=np.float32)
+                output_np[:] = skin * 255.0
+                output = image_to_tensor(output_np.astype(np.uint8)).unsqueeze(0)
+                output_mask = mask_to_local
+
             img_to = image_to_tensor(img_to).unsqueeze(0)
 
             # 处理mask维度：[B,H,W,1] -> [B,H,W] 用于mask_process
@@ -307,11 +360,11 @@ class FaceWarp:
                         match_strength * normalized + (1 - match_strength) * cm_image
                     )
 
-            if include_background:
+            if has_source and include_background:
                 # 背景同样经过同一仿射变换（warped 源图），与变形后的人脸保持同一坐标系
                 output_image = output
             else:
-                # 原有逻辑：使用目标图像的其他部分
+                # 默认：非变形/填充区域使用目标图像
                 output_image = output * output_mask + img_to * (1 - output_mask)
 
             output_image = output_image.clamp(0, 1)
