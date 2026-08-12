@@ -169,6 +169,13 @@ app.registerExtension({
                     setTimeout(repaintAll, 0);
                 },
             });
+            // 全局 LoRA 显示名设置（sfnodes.PowerLoraLoader.DisplayName，
+            // 由 power_lora_loader.js 注册）变化时经事件桥通知——Stack/Plot
+            // 行名随设置重渲染（DOM 重绘，setDirtyCanvas 管不到 widget DOM）。
+            // setTimeout(0) 推迟到设置 store 更新后（同 Accent 时序教训）。
+            document.addEventListener("sfnodes.lora-display-mode-changed", () => {
+                setTimeout(repaintAll, 0);
+            });
             // 初始应用必须在 addSetting 之后：设置项未注册时 getSettingValue
             // 拿不到用户保存的值（返回默认 #f66744）——先 apply 会把 --sf-acc
             // 钉死在橙色，且注册后不再刷新（"Crop 品牌文字还是橙色"）。

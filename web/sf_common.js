@@ -60,6 +60,70 @@ export function sfAccent() {
   return getSfAccent() || "#f66744";
 }
 
+// ── LoRA 名称显示（全局设置 sfnodes.PowerLoraLoader.DisplayName）───────
+// 供 SFPowerLoraLoader / SFLoraStack / SFLoraPlot 统一读取（单一真源，
+// 禁止各节点内联副本——复制后语义分叉会让行显示与设置不一致）。四档：
+// full 完整相对路径（默认）/ filename 文件名含扩展名 / basename 文件名
+// 去扩展名 / folder 所在文件夹名（根目录文件降级文件名）。
+export const LORA_DISPLAY_MODES = {
+  FULL: "full",
+  FILENAME: "filename",
+  BASENAME: "basename",
+  FOLDER: "folder",
+};
+export const LORA_DISPLAY_SETTING = "sfnodes.PowerLoraLoader.DisplayName";
+
+// 单一路径 → 显示名（纯函数，不读设置；mode 由调用方传入）
+export function loraDisplayName(path, mode) {
+  if (!path || path === "None") return path || "None";
+  const parts = String(path).split(/[\\/]/);
+  const file = parts.pop() || path;
+  switch (mode) {
+    case LORA_DISPLAY_MODES.FILENAME:
+      return file;
+    case LORA_DISPLAY_MODES.BASENAME: {
+      const i = file.lastIndexOf(".");
+      return i > 0 ? file.slice(0, i) : file; // 点开头（.hidden）或无扩展名原样
+    }
+    case LORA_DISPLAY_MODES.FOLDER:
+      // 根目录文件（无文件夹）降级显示文件名
+      return parts.length ? parts[parts.length - 1] : file;
+    default:
+      return path;
+  }
+}
+
+// 每渲染直读（getSettingValue 是轻量 map 查找）；未设置/异常回退 full
+export function getLoraDisplayMode() {
+  try {
+    return (
+      app.ui?.settings?.getSettingValue?.(LORA_DISPLAY_SETTING) || LORA_DISPLAY_MODES.FULL
+    );
+  } catch {
+    return LORA_DISPLAY_MODES.FULL;
+  }
+}
+
+// 只剥尾部已知模型扩展名（白名单，不是"最后一个点后的一切"），版本化名字
+// 如 "MoXin_v1.0" 保留 ".0"。仅用于显示——行 title 保留真实文件名。
+const LORA_EXT_RE = /\.(safetensors|safetensor|ckpt|pt|pth|bin|sft)$/i;
+function loraBaseName(name) {
+  if (!name) return "";
+  const i = name.replace(/\\/g, "/").lastIndexOf("/");
+  return i < 0 ? name : name.slice(i + 1);
+}
+
+// SFLoraStack / SFLoraPlot 行名统一入口：全局模式 ≠ full 时设置语义优先
+// （basename 用 lastIndexOf 剥任意扩展名——"xyz.v1.0" → "xyz.v1"）；full
+// （默认）回退每节点 hideExt 语义（白名单剥模型扩展名）——默认行为与
+// 旧版逐字节一致。hideExt 仅在 full 模式参与。
+export function loraRowLabel(name, hideExt) {
+  const mode = getLoraDisplayMode();
+  if (mode && mode !== LORA_DISPLAY_MODES.FULL) return loraDisplayName(name, mode);
+  const b = loraBaseName(name);
+  return hideExt ? b.replace(LORA_EXT_RE, "") : b;
+}
+
 // ── 渲染器检测（Vue 2.0 vs Classic）──────────────────────────────────
 export function isVueNodes() {
   return !!window.LiteGraph?.vueNodesMode;

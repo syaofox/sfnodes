@@ -42,10 +42,18 @@ fs.writeFileSync(path.join(tmpDir, "sf_lora_info.mjs"),
     "export const showLoraInfoDialog = () => {};\n" +
     "export const ensureEventHook = () => {};\n" +
     "export const getLastCanvasEvent = () => null;\n");
+// sf_common 复制真实文件（loraDisplayName/loraRowLabel 单一真源在此直测；
+// 顶层 installGraphLoadingGuard 因 mock app 无 loadGraphData 而早退）
+fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
+    fs.readFileSync(path.join(__dirname, "..", "web", "sf_common.js"), "utf8")
+        .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
+        .replaceAll('import { api } from "/scripts/api.js";', "const api = {};"));
 
 (async () => {
     const mod = await import(path.join(tmpDir, "power_lora_loader.mjs"));
     const { displayLoraName, DISPLAY_MODES, DISPLAY_MODE_SETTING } = mod;
+    const commonMod = await import(path.join(tmpDir, "sf_common.mjs"));
+    const { loraRowLabel, loraDisplayName, getLoraDisplayMode } = commonMod;
     const { app } = globalThis;
 
     // ── displayLoraName 转换 ──
@@ -77,12 +85,40 @@ fs.writeFileSync(path.join(tmpDir, "sf_lora_info.mjs"),
 
     // ── getDisplayMode 读取当前设置 ──
     settings[DISPLAY_MODE_SETTING] = "filename";
-    // getDisplayMode 未导出，但 displayLoraName 由扩展 draw 调用——
-    // 通过导入模块内函数验证读取路径：以 draw 同款调用方式模拟
     check("设置读取 filename 生效（函数层）", displayLoraName("a/b.safetensors", "filename") === "b.safetensors");
     settings[DISPLAY_MODE_SETTING] = "folder";
     check("设置读取 folder 生效（函数层）", displayLoraName("a/b.safetensors", "folder") === "a");
     check("设置默认（未设时）回退 full", displayLoraName("a/b.safetensors", "full") === "a/b.safetensors");
+
+    // ── loraRowLabel（SFLoraStack/SFLoraPlot 行名：全局模式 + full 回退）──
+    const set = (m) => {
+        if (m == null) delete settings[DISPLAY_MODE_SETTING];
+        else settings[DISPLAY_MODE_SETTING] = m;
+    };
+    set("full");
+    check("row full+hideExt=true 剥模型扩展名", loraRowLabel("sdxl/style/beauty.safetensors", true) === "beauty");
+    check("row full+hideExt=false 保留扩展名", loraRowLabel("sdxl/style/beauty.safetensors", false) === "beauty.safetensors");
+    set("filename");
+    check("row filename 含扩展名（hideExt 让位）", loraRowLabel("sdxl/style/beauty.safetensors", true) === "beauty.safetensors");
+    set("basename");
+    check("row basename 去扩展名", loraRowLabel("sdxl/style/beauty.safetensors", false) === "beauty");
+    check("row basename 版本化名保留 .0", loraRowLabel("sdxl/MoXin_v1.0.safetensors", true) === "MoXin_v1.0");
+    check("row basename 无模型扩展名也剥（lastIndexOf 语义）", loraRowLabel("sdxl/xyz.v1.0", true) === "xyz.v1");
+    set("full");
+    check("row full 无模型扩展名保留（白名单语义）", loraRowLabel("sdxl/xyz.v1.0", true) === "xyz.v1.0");
+    set("folder");
+    check("row folder 最近文件夹名", loraRowLabel("sdxl/style/beauty.safetensors", true) === "style");
+    check("row folder 根目录文件降级文件名", loraRowLabel("beauty.safetensors", true) === "beauty.safetensors");
+    set("full");
+    check("row 反斜杠路径", loraRowLabel("sub\\dir\\x.safetensors", true) === "x");
+    set(null);
+    check("row 设置未设回退 full+hideExt", loraRowLabel("a/b.safetensors", true) === "b");
+    check("getLoraDisplayMode 未设回退 full", getLoraDisplayMode() === "full");
+    set("folder");
+    check("getLoraDisplayMode 读取设置", getLoraDisplayMode() === "folder");
+
+    // ── 共享实现一致性：Power 行与 Stack/Plot 行同源 ──
+    check("loraDisplayName 与 Power 行同实现", loraDisplayName("a/b.safetensors", "filename") === "b.safetensors");
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });

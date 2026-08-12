@@ -9,6 +9,12 @@ import {
     ensureEventHook,
     getLastCanvasEvent,
 } from "./sf_lora_info.js";
+import {
+    loraDisplayName as displayLoraName,
+    LORA_DISPLAY_MODES as DISPLAY_MODES,
+    LORA_DISPLAY_SETTING as DISPLAY_MODE_SETTING,
+    getLoraDisplayMode,
+} from "./sf_common.js";
 
 // ---------------------------------------------------------------------------
 // Canvas Drawing Utilities
@@ -274,38 +280,9 @@ const OPT_SINGLE = "Single Strength";
 const OPT_SEPARATE = "Separate Model & Clip";
 const NODE_TYPE = "SFPowerLoraLoader";
 
-// ── lora 项显示方式（ComfyUI 设置 sfnodes.PowerLoraLoader.DisplayName）──────
-const DISPLAY_MODES = {
-    FULL: "full",          // 完整相对路径（默认，现行为）
-    FILENAME: "filename",  // 文件名（含扩展名）
-    BASENAME: "basename",  // 文件名不含扩展名
-    FOLDER: "folder",      // 所在文件夹的文件名（不含完整路径）
-};
-const DISPLAY_MODE_SETTING = "sfnodes.PowerLoraLoader.DisplayName";
-
-function displayLoraName(path, mode) {
-    if (!path || path === "None") return path || "None";
-    const parts = String(path).split(/[\\/]/);
-    const file = parts.pop() || path;
-    switch (mode) {
-        case DISPLAY_MODES.FILENAME:
-            return file;
-        case DISPLAY_MODES.BASENAME: {
-            const i = file.lastIndexOf(".");
-            return i > 0 ? file.slice(0, i) : file;   // 点开头（.hidden）或无扩展名原样
-        }
-        case DISPLAY_MODES.FOLDER:
-            // 根目录文件（无文件夹）降级显示文件名
-            return parts.length ? parts[parts.length - 1] : file;
-        default:
-            return path;
-    }
-}
-
-// 每帧直读（getSettingValue 是轻量 map 查找；无缓存免去跨标签页同步失效问题）
-function getDisplayMode() {
-    return app.ui?.settings?.getSettingValue?.(DISPLAY_MODE_SETTING) || DISPLAY_MODES.FULL;
-}
+// ── lora 项显示方式（ComfyUI 设置 sfnodes.PowerLoraLoader.DisplayName）──
+// 模式常量/displayLoraName/getDisplayMode 收敛于 sf_common.js（SFLoraStack
+// / SFLoraPlot 行名共用），此处仅保留别名导入，禁止再内联副本。
 
 // ---------------------------------------------------------------------------
 // Setup node instance
@@ -761,7 +738,7 @@ function createLoraWidget(name, node) {
             const loraWidth = Math.max(0, nameEndX - posX);
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
-            ctx.fillText(fitString(ctx, displayLoraName(this._value?.lora, getDisplayMode()), loraWidth), posX, midY);
+            ctx.fillText(fitString(ctx, displayLoraName(this._value?.lora, getLoraDisplayMode()), loraWidth), posX, midY);
             this._hit.lora = [posX, loraWidth];
             if (hasLora) {
                 const cachedMeta = loraMetadataCache.get(this._value.lora);
@@ -948,6 +925,10 @@ app.registerExtension({
             },
             onChange: () => {
                 app.graph.setDirtyCanvas(true);
+                // 事件桥：SFLoraStack/SFLoraPlot 行名也读这个设置——DOM 行
+                // 需要重渲染（setDirtyCanvas 只重绘画布层，管不到 widget
+                // DOM），由 sf_lora_stack.js 监听本事件调 repaintAll。
+                document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"));
             },
         });
     },

@@ -329,6 +329,16 @@ function setupNode(node) {
 app.registerExtension({
     name: "sfnodes.LoraPlot",
 
+    // 全局 LoRA 显示名设置（sfnodes.PowerLoraLoader.DisplayName）变化时经
+    // 事件桥通知（LoRA Stack 同款）——行名随设置即时重绘（DOM 行，
+    // setDirtyCanvas 管不到 widget DOM）。setTimeout(0) 推迟到设置 store
+    // 更新后（同 Accent 时序教训）。
+    init() {
+        document.addEventListener("sfnodes.lora-display-mode-changed", () => {
+            setTimeout(renderAllPlots, 0);
+        });
+    },
+
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== CLASS) return;
         if (nodeType.prototype._sfPlotPatched) return;

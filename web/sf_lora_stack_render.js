@@ -4,7 +4,7 @@
 // 属性分发。主扩展拥有尺寸计算并调用 renderNode()。
 // ==========================================================================
 import { app } from "/scripts/app.js";
-import { isVueNodes } from "./sf_common.js";
+import { isVueNodes, loraRowLabel } from "./sf_common.js";
 import { BRAND, readState, accentOf, countOn, MAX_LORAS } from "./sf_lora_stack_core.js";
 import { hasLora } from "./sf_lora_stack_api.js";
 
@@ -55,18 +55,12 @@ export function contentHeight(state) {
 }
 
 const NO_LORAS = "(put LoRAs in models/loras)";
-function baseName(name) {
-    if (!name) return "";
-    const i = name.replace(/\\/g, "/").lastIndexOf("/");
-    return i < 0 ? name : name.slice(i + 1);
-}
-
-// 只剥尾部已知模型扩展名（白名单，不是"最后一个点后的一切"），版本化名字
-// 如 "MoXin_v1.0" 保留 ".0"。仅用于显示——行 title 保留真实文件名。
-const LORA_EXT_RE = /\.(safetensors|safetensor|ckpt|pt|pth|bin|sft)$/i;
+// 行名显示收敛于 sf_common.js::loraRowLabel（单一真源）：全局设置
+// sfnodes.PowerLoraLoader.DisplayName ≠ full 时设置语义优先，full（默认）
+// 回退每节点 hideExt（basename + 白名单剥模型扩展名）。SFLoraPlot 复用。
+// 仅用于显示——行 title 保留真实文件名。
 export function displayName(name, hideExt) {
-    const b = baseName(name);
-    return hideExt ? b.replace(LORA_EXT_RE, "") : b;
+    return loraRowLabel(name, hideExt);
 }
 
 // 一个权重框：可输入值 + ▲▼ 步进。`which` 是 "m"（model）或 "c"（clip）；

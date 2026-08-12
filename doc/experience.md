@@ -944,3 +944,10 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - `_is_path_under` 用 realpath 双端严格检查 + 跨盘（junction）lexical 回退（原版 `_path_guard` 语义）；纯 abspath 会让同盘 symlink 逃逸误判通过。
 - `hideJsonWidget` 四件套（hidden + computeSize=[0,-4] + canvasOnly + element display:none）：Vue 下隐藏 STRING widget 会渲染成显示原始 JSON 的 textarea。
 - 测试：纯逻辑模块（lora_reader）无 ComfyUI 依赖直跑（tests/test_lora_reader.py 百余断言，含 symlink 逃逸拒绝）；web import/export 交叉验证 tests/check_web_imports.py。
+
+### 7. 行名显示全局设置共享（2026-08）
+
+- **单一真源**：Power 系设置 `sfnodes.PowerLoraLoader.DisplayName`（full/filename/basename/folder，注册在 power_lora_loader.js）不只管 Power 行——SFLoraStack/SFLoraPlot 行名也读它。逻辑收敛于 `sf_common.js`：`LORA_DISPLAY_MODES`/`LORA_DISPLAY_SETTING`/`loraDisplayName(path, mode)`（纯函数）/`getLoraDisplayMode()`/`loraRowLabel(name, hideExt)`（行名统一入口），**禁止各节点内联副本**。
+- **语义与边界**：模式 ≠ full 时设置优先——basename 用 `lastIndexOf(".")` 剥**任意**扩展名（"xyz.v1.0"→"xyz.v1"，与 Stack 白名单语义不同）；full（默认）回退每节点 hideExt（白名单 `LORA_EXT_RE` 只剥模型扩展名，"xyz.v1.0" 保留）——默认行为与旧版逐字节一致，向后兼容。hideExt 仅在 full 模式参与（全局非默认时让位）。
+- **事件桥重绘**：设置 onChange（power_lora_loader.js 注册处）追加 `document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"))`——Power 不 import Stack/Plot 模块（避免节点间耦合，同 lora-data-changed 先例）；sf_lora_stack.js 与 sf_lora_plot.js 各自监听 → `setTimeout(repaintAll / renderAllPlots, 0)`。DOM 行重绘必须走 repaintAll/renderAllPlots（setDirtyCanvas 只重绘画布层，管不到 widget DOM）；setTimeout(0) 推迟到设置 store 更新后（同 Accent 时序坑 3）。
+- 测试：`tests/test_power_lora_display_smoke.js` 复制真实 sf_common.js（重写 `/scripts/app.js`+`/scripts/api.js` import）直测 `loraRowLabel` 四模式 + full 回退 + 版本化名/无扩展名文件边界。
