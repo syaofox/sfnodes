@@ -128,7 +128,12 @@ class InsightFace:
         left_brow = landmarks[97:106]
         right_brow = landmarks[43:52]
         outline = landmarks[[*range(33), *range(48, 51), *range(102, 105)]]
-        outline_forehead = outline
+        if extended_landmarks:
+            outline_forehead = np.vstack(
+                [outline, self._forehead_points(image, face[face_index])]
+            )
+        else:
+            outline_forehead = outline
 
         return [
             landmarks,
@@ -143,6 +148,21 @@ class InsightFace:
             outline,
             outline_forehead,
         ]
+
+    def _forehead_points(self, image, face):
+        # 106 点轮廓不含前额：基于检测框顶部生成一条近似额头弧线
+        height, width = image.shape[:2]
+        x1, y1, x2, y2 = face["bbox"]
+        box_w = max(x2 - x1, 1.0)
+        box_h = max(y2 - y1, 1.0)
+
+        n = 7
+        xs = x1 + box_w * (0.10 + 0.80 * np.linspace(0, 1, n))
+        ys = y1 - 0.03 * box_h - 0.05 * box_h * np.sin(np.linspace(0, np.pi, n))
+        pts = np.stack([xs, ys], axis=1)
+        pts[:, 0] = np.clip(pts[:, 0], 0, width - 1)
+        pts[:, 1] = np.clip(pts[:, 1], 0, height - 1)
+        return np.round(pts).astype(np.int64)
 
 
     def get_single_bbox(
