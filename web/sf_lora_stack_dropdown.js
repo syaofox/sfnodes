@@ -101,12 +101,21 @@ export async function openLoraDropdown(anchorEl, opts) {
     pop.style.width = Math.min(Math.max(r.width, 240), 360) + "px";
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + "px";
 
-    // 默认放锚点下方；空间不足翻到上方。列表有内容后重算一次（真实高度
-    // 那时才知道）。
+    // 方向在打开时定一次：比较上下两侧可用空间，选大者（相等时向下——
+    // 视线习惯）。展开期间永不翻转（导航/搜索改变高度只更新 top 与
+    // maxHeight，弹窗不会"一会上、一会下"跳变）。
+    const upSpace = r.top - 4;   // 锚点上方可用空间（含 4px 间距）
+    const downSpace = window.innerHeight - 8 - (r.bottom + 4); // 下方（含底部 8px 边距）
+    const goUp = upSpace > downSpace;
     function place() {
         const h = pop.offsetHeight;
-        if (r.bottom + 4 + h <= window.innerHeight - 8) pop.style.top = (r.bottom + 4) + "px";
-        else pop.style.top = Math.max(8, r.top - 4 - h) + "px";
+        // 上限取"所选方向可用空间"而非固定 60vh：内容超高时 list 内部
+        // 滚动（overflow-y:auto），弹窗实际高度 ≤ 方向空间 → 永不越界，
+        // 无需再靠 top 钳制兜底。
+        const maxH = Math.min(0.6 * window.innerHeight, goUp ? upSpace : downSpace);
+        pop.style.maxHeight = Math.max(40, maxH) + "px";
+        if (goUp) pop.style.top = Math.max(8, r.top - 4 - h) + "px"; // 底边贴锚点、顶边延伸
+        else pop.style.top = (r.bottom + 4) + "px";                  // 恒定
     }
     place();
 
@@ -217,10 +226,9 @@ export async function openLoraDropdown(anchorEl, opts) {
             for (const name of files) list.appendChild(fileRow(name, false));
             if (!folders.length && !files.length) emptyRow(all.length ? "Empty folder." : "No LoRAs in models/loras.");
         }
-        // 每次内容变化后重新锚定：目录导航/搜索/回退都会改变弹窗高度，而
-        // 打开时判定的方向会过期（如向下展开后导航进大目录，60vh 上限下
-        // 底边越出视口、overflow:hidden 把内容裁掉不可见）。max-height:60vh
-        // 保证实际高度 ≤ 60% 视口——上翻（top=8）后弹窗恒完整可见。
+        // 内容变化后重新定位（方向打开时已定死，这里只更新 top/maxHeight）：
+        // 目录导航/搜索/回退改变弹窗高度，而 maxHeight 按所选方向空间钳制
+        // （≤ 60vh），弹窗恒完整可见、方向不跳变。
         place();
     }
     renderList();
