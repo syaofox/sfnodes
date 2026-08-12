@@ -195,28 +195,35 @@ export async function openLoraDropdown(anchorEl, opts) {
         const q = input.value.trim().toLowerCase();
         if (q) {
             const matched = all.filter((n) => n.toLowerCase().includes(q));
-            if (!matched.length) { emptyRow(all.length ? "No match." : "No LoRAs in models/loras."); return; }
-            for (const name of matched) list.appendChild(fileRow(name, true));
-            return;
+            if (matched.length) {
+                for (const name of matched) list.appendChild(fileRow(name, true));
+            } else {
+                emptyRow(all.length ? "No match." : "No LoRAs in models/loras.");
+            }
+        } else {
+            const { folders, files } = levelItems();
+            if (curPath) {
+                const back = document.createElement("div");
+                back.className = "sf-ls-dd-back";
+                back.textContent = "‹ back";
+                back.addEventListener("click", () => {
+                    const i = curPath.lastIndexOf("/");
+                    curPath = i < 0 ? "" : curPath.slice(0, i);
+                    renderList();
+                });
+                list.appendChild(back);
+            }
+            for (const [f, count] of folders) list.appendChild(folderRow(f, count));
+            for (const name of files) list.appendChild(fileRow(name, false));
+            if (!folders.length && !files.length) emptyRow(all.length ? "Empty folder." : "No LoRAs in models/loras.");
         }
-        const { folders, files } = levelItems();
-        if (curPath) {
-            const back = document.createElement("div");
-            back.className = "sf-ls-dd-back";
-            back.textContent = "‹ back";
-            back.addEventListener("click", () => {
-                const i = curPath.lastIndexOf("/");
-                curPath = i < 0 ? "" : curPath.slice(0, i);
-                renderList();
-            });
-            list.appendChild(back);
-        }
-        for (const [f, count] of folders) list.appendChild(folderRow(f, count));
-        for (const name of files) list.appendChild(fileRow(name, false));
-        if (!folders.length && !files.length) emptyRow(all.length ? "Empty folder." : "No LoRAs in models/loras.");
+        // 每次内容变化后重新锚定：目录导航/搜索/回退都会改变弹窗高度，而
+        // 打开时判定的方向会过期（如向下展开后导航进大目录，60vh 上限下
+        // 底边越出视口、overflow:hidden 把内容裁掉不可见）。max-height:60vh
+        // 保证实际高度 ≤ 60% 视口——上翻（top=8）后弹窗恒完整可见。
+        place();
     }
     renderList();
-    place(); // 列表已有高度 - 重新锚定（必要时上翻）
     input.addEventListener("input", renderList);
     setTimeout(() => input.focus(), 0);
 
