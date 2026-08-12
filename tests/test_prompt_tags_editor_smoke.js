@@ -97,12 +97,14 @@ const names = [
     "sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
     "sf_prompt_tags_cursors.js",
     "sf_prompt_tags_store.js", "sf_prompt_tags_guard.js",
+    "sf_common.js",
     "sf_prompt_tags_editor.js",
 ];
 for (const n of names) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
+        .replaceAll('import { api } from "/scripts/api.js";', "const api = {};")
         .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
     fs.writeFileSync(path.join(tmpDir, n.replace(/\.js$/, ".mjs")), code);
 }

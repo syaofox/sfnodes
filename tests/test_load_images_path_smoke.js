@@ -278,11 +278,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await wait(20);
 
     // ── onConfigure 恢复：外部改值（如工作流加载）→ DOM 状态同步 + fetch 当前层 ──
+    // 当前路径由面包屑承载（commit 2491fbb 移除了独立的 current 行）——
+    // "output/render" → [src=output, ▸, render] 三段，末段为当前目录名。
     folderWidget.value = "output/render";
     if (node.onConfigure) node.onConfigure({});
     await wait(20);
-    const cur = root.querySelector("[data-role='current']");
-    check("onConfigure 同步当前值显示", typeof cur.textContent === "string" && cur.textContent.includes("output/render"));
+    const crumbsRestored = root.querySelector("[data-role='crumbs']");
+    check("onConfigure 同步当前值显示", crumbsRestored.children.length === 3
+        && crumbsRestored.children[0].textContent === "output" && crumbsRestored.children[2].textContent === "render");
     check("恢复后 fetch 当前层", subdirCalls.includes("output/render"));
 
     console.log();

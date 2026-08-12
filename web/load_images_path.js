@@ -510,8 +510,10 @@ app.registerExtension({
         widget.computeLayoutSize = () => ({ minHeight: measureHeight(), minWidth: MIN_W });
 
         // 最小宽度钳制：初始只抬升过小的尺寸（已保存宽度永不变更 -> 不脏加载）；
-        // legacy 拖拽路径由 onResize 兜底。
-        if (!node.size || node.size[0] < MIN_W) node.size[0] = MIN_W;
+        // legacy 拖拽路径由 onResize 兜底。nodeCreated 早于 LiteGraph 尺寸
+        // 初始化（测试/子图路径可能无 size 数组）——必须先补默认值再赋值。
+        if (!Array.isArray(node.size)) node.size = [MIN_W, 0];
+        else if (node.size[0] < MIN_W) node.size[0] = MIN_W;
         const origResize = node.onResize;
         node.onResize = function (size) {
             if (size && size[0] < MIN_W) size[0] = MIN_W;

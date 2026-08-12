@@ -119,7 +119,8 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_lsp_"));
 for (const n of ["sf_lora_stack_core.js", "sf_lora_stack_api.js",
     "sf_lora_stack_dropdown.js", "sf_lora_stack_info.js",
     "sf_lora_stack_settings.js", "sf_common.js", "sf_markdown.js",
-    "sf_lora_info.js", "sf_lora_stack_render.js", "sf_lora_stack_interaction.js"]) {
+    "sf_lora_info.js", "sf_lora_stack_render.js", "sf_lora_stack_interaction.js",
+    "sf_workflows_ui.js", "sf_workflows_lib.js"]) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
