@@ -62,6 +62,7 @@ from .nodes.image.processing import (
     FlatteningEffect,
     ImageColorMatch,
 )
+from .nodes.image.color_match_points import ImageColorMatchByPoints
 from .nodes.image.imitation_hue import ImitationHue
 from .nodes.image.lut import SFLoadLUT, SFApplyLUT, SFExtractLUT
 from .nodes.image.rfmsr_upscale import SFRFMSRUpscale
@@ -234,6 +235,7 @@ NODE_CLASS_MAPPINGS = {
     "SFColorBlockEffect": ColorBlockEffect,
     "SFFlatteningEffect": FlatteningEffect,
     "SFImageColorMatch": ImageColorMatch,
+    "SFImageColorMatchByPoints": ImageColorMatchByPoints,
     "SFImitationHue": ImitationHue,
     # LUT 节点
     "SFLoadLUT": SFLoadLUT,
@@ -410,6 +412,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFColorBlockEffect": "SF Color Block Effect",
     "SFFlatteningEffect": "SF Flattening Effect",
     "SFImageColorMatch": "SF Image Color Match",
+    "SFImageColorMatchByPoints": "SF Image Color Match By Points",
     "SFImitationHue": "SF Imitation Hue",
     # LUT 节点
     "SFLoadLUT": "SF Load LUT",
