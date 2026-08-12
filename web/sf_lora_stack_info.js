@@ -19,6 +19,15 @@ let _followRaf = null;   // 让面板跟随其节点，见 startFollowing()
 let _userMoved = false;  // 用户拖过它，停止跟随
 // 用户手动调整过的面板大小（会话级记忆：关闭重开保持，刷新页面回默认）。
 let _panelSize = null;
+let _panelAccent = BRAND; // 当前面板 accent（关闭确认框同主题用）
+
+// ── Description 编辑态（模块级：closeInfoPanel 需要读 dirty 判定确认框）──
+// 关闭面板时重置（doCloseInfoPanel）——残留会让下一行面板带着旧行草稿
+// 直接进编辑态（泄漏 bug）。
+let _descEditing = false;
+let _descDraft = "";
+let _descBase = "";
+let _descDirty = false;
 
 const _PANEL_MIN_W = 280;
 const _PANEL_MIN_H = 240;
@@ -79,6 +88,9 @@ function injectCSS() {
     .sf-ls-desc h4 .qa { margin-left:8px; font:9.5px 'Segoe UI'; text-transform:none; letter-spacing:0;
       color:#9a9a9a; cursor:pointer; }
     .sf-ls-desc h4 .qa:hover { color:var(--acc, var(--sf-acc, #f66744)); }
+    /* Save 按钮 dirty 高亮：草稿 ≠ 进入编辑时的基准值（改动未保存） */
+    .sf-ls-desc h4 .qa.dirty { background:var(--acc, var(--sf-acc, #f66744)); color:#fff;
+      border-radius:4px; padding:1px 7px; font-weight:600; }
     .sf-ls-desc-body { font-size:11px; color:#d0d0d0; line-height:1.6; white-space:normal;
       word-break:break-word; flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:2px; }
     .sf-ls-desc-none { color:#777; font-size:11px; }
@@ -305,7 +317,35 @@ export function confirmDialog(opts) {
     });
 }
 
+// 关闭面板。有未保存的 Description 修改时先经同主题确认框（返回
+// Promise<boolean>：true = 已关闭/无需确认；false = 用户取消保留草稿）。
+// ✕/Esc 等调用方忽略返回值即可（内部异步确认后自行关闭）；openInfoPanel
+// 切换行时 await 它，取消则不切换。节点删除路径走 doCloseInfoPanel
+// （closeInfoPanelFor）——删除不能弹框阻塞，且面板随节点消失。
 export function closeInfoPanel() {
+    if (_panel && _descEditing && _descDirty) {
+        return confirmDialog({
+            title: "Discard description changes?",
+            message: "You have unsaved changes to this description. Close and discard them?",
+            okLabel: "Discard",
+            cancelLabel: "Keep editing",
+            accent: _panelAccent,
+        }).then((ok) => {
+            if (ok) doCloseInfoPanel();
+            return ok;
+        });
+    }
+    doCloseInfoPanel();
+    return Promise.resolve(true);
+}
+
+function doCloseInfoPanel() {
+    // 关闭即丢弃草稿：残留的编辑态/基准会让下一次打开带着上一行的旧草稿
+    // 直接进编辑态（泄漏 bug），必须重置。
+    _descEditing = false;
+    _descDraft = "";
+    _descBase = "";
+    _descDirty = false;
     if (_cleanup) { try { _cleanup(); } catch { /* 忽略 */ } }
     _cleanup = null;
     stopFollowing();
@@ -317,8 +357,8 @@ export function closeInfoPanel() {
 }
 
 // 只在本节点拥有打开的面板时关闭（删除无关的 LoRA Stack 节点不能扯走
-// 另一个节点开着的面板）。
-export function closeInfoPanelFor(node) { if (_ownerNode === node) closeInfoPanel(); }
+// 另一个节点开着的面板）。节点删除路径不弹未保存确认——删除不能被阻塞。
+export function closeInfoPanelFor(node) { if (_ownerNode === node) doCloseInfoPanel(); }
 
 function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -360,12 +400,15 @@ function clampIntoView(panel) {
 }
 
 export async function openInfoPanel(node, id, refresh) {
-    closeInfoPanel();
+    // 切换行/重开：上一面板有未保存 Description 修改时先确认——取消则
+    // 保留草稿、不打开新面板（await 返回 false）。
+    if (!(await closeInfoPanel())) return;
     injectCSS();
     const entry0 = readState(node).loras.find((e) => e.id === id);
     if (!entry0) return;
     const name = entry0.name;
     const accent = accentOf(node);
+    _panelAccent = accent;
 
     const panel = el("div", "sf-ls-info-p");
     panel.style.setProperty("--acc", accent);   // body 级面板不继承任何东西
@@ -509,9 +552,8 @@ export async function openInfoPanel(node, id, refresh) {
     // 自定义描述与自定义触发词同存储（user 目录单一文件，按 LoRA 名键控）。
     // 展示优先级：custom > 当次查询（Civitai live）> 侧车/文件说明。
     // 编辑态草稿独立于 renderBody 生命周期——勾词等重渲染不丢已打文字。
-    let _descEditing = false;
-    let _descDraft = "";
-
+    // 状态（_descEditing/_descDraft/_descBase/_descDirty）是模块级：关闭
+    // 面板的确认判定在模块级 closeInfoPanel，闭包需共享同一份。
     const shownDesc = () => info.custom_description
         || (civ?.state === "found" && civ.info?.description)
         || info.description || "";
@@ -530,6 +572,8 @@ export async function openInfoPanel(node, id, refresh) {
             _msg = null;
             _descEditing = false;
             _descDraft = "";
+            _descBase = "";
+            _descDirty = false;
             info.custom_description = res.description || "";   // 本地即画，不等 loadInfo
             // 使任何在途 loadInfo 作废：它的响应是保存前的旧快照，落地会把
             // 刚保存的自定义描述覆盖回 Civitai/文件原文（"保存后仍显示来自
@@ -537,6 +581,14 @@ export async function openInfoPanel(node, id, refresh) {
             _infoSeq++;
             renderBody();
         });
+    }
+
+    // 放弃编辑：恢复浏览态并重置 dirty 状态（基准/草稿都清，防泄漏）
+    function cancelDescEdit() {
+        _descEditing = false;
+        _descDraft = "";
+        _descBase = "";
+        _descDirty = false;
     }
 
     function clearDesc() {
@@ -1138,18 +1190,20 @@ export async function openInfoPanel(node, id, refresh) {
                 dsrc === "custom" ? "custom" : dsrc === "civitai" ? "from Civitai" : "from file"));
         }
         if (_descEditing) {
-            const save = el("span", "qa", "Save");
+            const save = el("span", "qa" + (_descDirty ? " dirty" : ""), "Save");
             save.title = "Save my description";
             save.addEventListener("click", () => saveDesc(_descDraft));
             const cancel = el("span", "qa", "Cancel");
             cancel.title = "Discard changes";
-            cancel.addEventListener("click", () => { _descEditing = false; _descDraft = ""; renderBody(); });
+            cancel.addEventListener("click", () => { cancelDescEdit(); renderBody(); });
             dhead.append(save, cancel);
         } else {
             const edit = el("span", "qa", "✏️");
             edit.title = "Write your own description (overrides Civitai / file)";
             edit.addEventListener("click", () => {
-                _descDraft = shownDesc();
+                _descBase = shownDesc();
+                _descDraft = _descBase;
+                _descDirty = false;
                 _descEditing = true;
                 renderBody();
                 setTimeout(() => panel.querySelector(".sf-ls-desc textarea")?.focus(), 0);
@@ -1164,9 +1218,36 @@ export async function openInfoPanel(node, id, refresh) {
             ta.placeholder = "write your own description…\nMarkdown supported - upload a sample image and it is inserted as ![alt](sample/xxx.png)";
             ta.addEventListener("keydown", (ev) => {
                 ev.stopPropagation();
-                if (ev.key === "Escape") { ev.preventDefault(); _descEditing = false; _descDraft = ""; renderBody(); }
+                if (ev.key === "Escape") {
+                    ev.preventDefault();
+                    if (_descDirty) {
+                        // 有未保存修改：误按保护——确认后才丢弃
+                        confirmDialog({
+                            title: "Discard description changes?",
+                            message: "You have unsaved changes to this description. Discard them?",
+                            okLabel: "Discard",
+                            cancelLabel: "Keep editing",
+                            accent,
+                        }).then((ok) => {
+                            if (!ok || !panel.isConnected) return;
+                            cancelDescEdit();
+                            renderBody();
+                        });
+                    } else {
+                        cancelDescEdit();
+                        renderBody();
+                    }
+                }
             });
-            ta.addEventListener("input", () => { _descDraft = ta.value; });
+            ta.addEventListener("input", () => {
+                _descDraft = ta.value;
+                const dirty = _descDraft !== _descBase;
+                if (dirty === _descDirty) return;
+                _descDirty = dirty;
+                // 碰活元素更新 Save 按钮高亮（renderBody 重建时按 _descDirty 重画）
+                const save = panel.querySelector(".sf-ls-desc h4 .qa");
+                if (save) save.classList.toggle("dirty", dirty);
+            });
             dsec.appendChild(ta);
 
             // 上传示例图（存 <lora>/sample/）+ 图库网格（点击插入 markdown）

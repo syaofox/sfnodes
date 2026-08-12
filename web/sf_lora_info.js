@@ -800,6 +800,13 @@ export function showLoraInfoDialog(event, name, meta) {
                 descRow.commitEdit();
                 saveNotes();
             }, "保存并返回浏览页");
+            if (dirty) {
+                // 未保存修改高亮：实底主色 + 白字粗体（替代纯文本星号）
+                saveBtn.style.background = "#4f7cff";
+                saveBtn.style.color = "#fff";
+                saveBtn.style.fontWeight = "600";
+                saveBtn.style.borderColor = "#4f7cff";
+            }
             footerRight.appendChild(cancelBtn);
             footerRight.appendChild(saveBtn);
         } else {
