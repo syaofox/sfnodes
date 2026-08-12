@@ -1,5 +1,6 @@
 import os
 import folder_paths
+import comfy.utils
 from typing import Union
 
 from nodes import LoraLoader
@@ -57,9 +58,25 @@ def get_lora_by_filename(file_path, lora_paths=None):
     return None
 
 
+def _load_sd_direct(path):
+    """直接读盘返回 (sd, meta)（Power 无缓存；SFLoraStack 用自己的 _get_lora）。"""
+    try:
+        lora, meta = comfy.utils.load_torch_file(path, safe_load=True, return_metadata=True)
+    except TypeError:
+        # 旧 ComfyUI：没有 return_metadata 参数。
+        lora, meta = comfy.utils.load_torch_file(path, safe_load=True), None
+    return lora, meta
+
+
 class PowerLoraLoader:
     """A powerful, flexible node to add multiple loras to a model/clip with custom UI."""
-    DESCRIPTION = "功能强大的多 LoRA 加载器，支持动态槽位、权重归一化与预设输入（连接后预设优先）"
+    DESCRIPTION = (
+        "功能强大的多 LoRA 加载器，支持动态槽位、权重归一化与预设输入（连接后预设优先）。"
+        "节点上方的 Merge method 下拉框可切换叠加方式：Linear（线性，默认，逐行相加）"
+        "或 Ortho GS（Gram-Schmidt 输入空间正交化，减少相似 LoRA 之间的干扰；"
+        "行顺序即优先级——第一个 LoRA 保持原样、后续让位、可能损失幅度；"
+        "仅 UNet 层正交化，CLIP 仍线性叠加）。"
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -82,6 +99,16 @@ class PowerLoraLoader:
                         "tooltip": "归一化目标总权重",
                     },
                 ),
+                "merge_method": (
+                    ["linear", "ortho_gs"],
+                    {
+                        "default": "linear",
+                        "tooltip": "叠加方式：Linear（线性，默认，逐个相加）；"
+                            "Ortho GS（Gram-Schmidt 输入空间正交化，减少相似 LoRA "
+                            "干扰；行顺序即优先级，第一个 LoRA 保持原样、后续让位、"
+                            "可能损失幅度；仅 UNet 层正交化，CLIP 仍线性叠加）",
+                    },
+                ),
             },
             "optional": FlexibleOptionalInputType(
                 type=any_type,
@@ -100,7 +127,8 @@ class PowerLoraLoader:
     CATEGORY = _CATEGORY
 
     def load_loras(
-        self, normalize, normalize_weight, model=None, clip=None, preset=None, **kwargs
+        self, normalize, normalize_weight, merge_method="linear",
+        model=None, clip=None, preset=None, **kwargs
     ):
         # Collect enabled loras
         enabled_loras = []
@@ -149,6 +177,12 @@ class PowerLoraLoader:
                 f"total_abs_weight={total_weight:.4f}, loras={len(enabled_loras)}"
             )
 
+        # 应用计划：[(规范文件名, path, norm_s_model, norm_s_clip)]（栈顺序）。
+        # 第一项必须是 get_lora_by_filename 的规范化结果（短名/无扩展名输入已
+        # 解析为列表完整条目）——官方 LoraLoader 内部 get_full_path_or_raise
+        # 只做精确解析，原始短名会失败。归一化/路径解析在此统一完成，顺序与
+        # ortho 两条路径共用。
+        plan = []
         for key, value, strength_model, strength_clip in enabled_loras:
             lora_name = value["lora"]
             lora = get_lora_by_filename(lora_name)
@@ -188,9 +222,36 @@ class PowerLoraLoader:
                 norm_s_clip = strength_clip
 
             if norm_s_model != 0 or norm_s_clip != 0:
-                model, clip = LoraLoader().load_lora(
-                    model, clip, lora, norm_s_model, norm_s_clip
+                plan.append(
+                    (lora, folder_paths.get_full_path("loras", lora),
+                     norm_s_model, norm_s_clip)
                 )
+
+        if not plan:
+            return (model, clip)
+
+        # Ortho GS：≥2 行且 key map 构建成功才正交化，否则静默回落线性
+        #（DuoNodes 同款兜底——ComfyUI 内部结构变化时绝不报错）。
+        if merge_method == "ortho_gs" and len(plan) >= 2:
+            from ...sf_utils import lora_ortho_load as OL
+
+            result = OL.ortho_apply(model, clip, plan, _load_sd_direct)
+            if result is not None:
+                new_model, new_clip, _ok_paths, (ortho_keys, pass_keys) = result
+                logger.info(
+                    f"[PowerLoraLoader] ortho: {ortho_keys} key(s) orthogonalized, "
+                    f"{pass_keys} pass-through"
+                )
+                return (new_model, new_clip)
+            logger.info("[PowerLoraLoader] ortho key map failed; falling back to linear")
+
+        # 线性路径：plan 里存的是 get_lora_by_filename 规范化后的文件名
+        #（短名/无扩展名输入已解析为列表中的完整条目；官方 LoraLoader 内部
+        # get_full_path_or_raise 只做精确解析，原始短名会失败）。
+        for lora_name, _path, norm_s_model, norm_s_clip in plan:
+            model, clip = LoraLoader().load_lora(
+                model, clip, lora_name, norm_s_model, norm_s_clip
+            )
 
         return (model, clip)
 

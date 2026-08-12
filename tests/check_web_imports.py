@@ -11,6 +11,7 @@ MODS = [
     "sf_lora_stack_render", "sf_lora_stack_interaction",
     "sf_lora_stack_dropdown", "sf_lora_stack_info", "sf_lora_stack_settings",
     "sf_common", "sf_markdown", "sf_lora_info",
+    "sf_workflows", "sf_workflows_ui", "sf_workflows_lib",
 ]
 
 EXPORT_RE = re.compile(

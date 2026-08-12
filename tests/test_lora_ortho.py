@@ -283,6 +283,33 @@ def fake_gs(downs):
 
 ortho_mod.gram_schmidt_ortho_downs = fake_gs
 
+# ── 2.5 build_ortho_replacements 分组/直通/统计（直接单测）───────────────────
+gs_calls.clear()
+br_ = ortho_mod.build_ortho_replacements
+pd0 = (
+    {"k1": FakeAdapter(MockTensor("u1"), MockTensor("d1")),
+     "k2": FakeAdapter(MockTensor("u2"), MockTensor("d2"))},
+    0.8,
+)
+pd1 = ({"k1": FakeAdapter(MockTensor("u3"), MockTensor("d3"))}, 1.0)
+pd2 = ({"k3": FakeAdapter(MockTensor("u4"), MockTensor("d4"))}, 0.6)  # 独占 key
+repl, ok_keys, pass_keys = br_([pd0, pd1, pd2])
+check("build_ortho 统计 k1 正交化 k2/k3 直通", ok_keys == 1 and pass_keys == 2 and gs_calls == [2])
+check("build_ortho 重叠 key 替换", repl[0][0]["k1"].weights[1].name.startswith("ortho_"))
+check("build_ortho 单条目 key 原样", repl[0][0]["k2"] is pd0[0]["k2"])
+check("build_ortho 重叠行也被替换", repl[1][0]["k1"].weights[1].name.startswith("ortho_"))
+check("build_ortho 独立 key 行直通", repl[2][0]["k3"] is pd2[0]["k3"])
+check("build_ortho 强度保留", [s for _, s in repl] == [0.8, 1.0, 0.6])
+
+repl2, ok2, pass2 = br_([({}, 0.5)])
+check("build_ortho 空 dict 行", repl2 == [({}, 0.5)] and ok2 == 0 and pass2 == 0)
+
+diff_pd0 = ({"k1": ("diff", (MockTensor("w"),))}, 1.0)
+diff_pd1 = ({"k1": FakeAdapter(MockTensor("u"), MockTensor("d"))}, 1.0)
+repl3, ok3, pass3 = br_([diff_pd0, diff_pd1])
+check("build_ortho diff fallback 该 key 直通", ok3 == 0 and pass3 == 1
+      and repl3[0][0]["k1"] is diff_pd0[0]["k1"] and repl3[1][0]["k1"] is diff_pd1[0]["k1"])
+
 node = node_mod.SFLoraStack()
 
 def reset():

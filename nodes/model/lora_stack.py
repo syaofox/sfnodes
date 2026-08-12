@@ -20,7 +20,6 @@ import comfy.sd
 import comfy.utils
 
 from ...sf_utils import lora_reader as R
-from ...sf_utils import lora_ortho as LO
 from ...sf_utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -103,7 +102,7 @@ class SFLoraStack:
         plan = self._build_plan(state, clip)
 
         if state.get("mergeMethod") == "ortho_gs":
-            result = self._apply_ortho(model, clip, plan, cache_mode)
+            result = self._apply_ortho(model, clip, plan)
             if result is None:
                 # key map 构建失败等整体兜底：顺序路径（绝不报错，DuoNodes 同款）。
                 result = self._apply_sequential(model, clip, plan, cache_mode)
@@ -191,12 +190,11 @@ class SFLoraStack:
                 logger.warning("[SFLoraStack] failed to apply {}: {}".format(entry["name"], exc))
         return model, clip, resolved, used_paths, last_this_run, applied
 
-    def _apply_ortho(self, model, clip, plan, cache_mode):
+    def _apply_ortho(self, model, clip, plan):
         """ortho_gs 模式：UNet 侧同 key 多 LoRA 先做 Gram-Schmidt 正交化。
 
-        与 comfy.sd.load_lora_for_models 对齐的加载路径：model_lora_keys_unet /
-        model_lora_keys_clip 建 key map、convert_lora 转换、load_lora 解析、
-        clone + add_patches + set_attachments("lora_metadata")。区别：
+        委托 sf_utils/lora_ortho_load.ortho_apply（与 SFPowerLoraLoader 共用
+        同一条加载路径，规则 14 不内联副本）：
           - UNet 侧：同一模型 key 的多个 LoRA down 矩阵提取后正交化再替换
             （首行不动，后续让位），一次 clone 全栈应用；非 LoRA patch
             （conv/diff/set 等）或提取失败 -> 该 key 全部顺序叠加；
@@ -206,129 +204,35 @@ class SFLoraStack:
         返回 None 表示 key map 构建失败（调用方整体 fallback 顺序路径）；
         单行加载失败只跳过该行（不进 resolved，触发词不计入）。
         """
-        import comfy.lora
-        import comfy.lora_convert
+        from ...sf_utils import lora_ortho_load as OL
 
-        try:
-            unet_key_map = comfy.lora.model_lora_keys_unet(model.model, {})
-        except Exception as exc:
-            logger.warning("[SFLoraStack] ortho: model key map failed ({}); "
-                           "falling back to sequential".format(exc))
+        entries = []
+        for entry, path, sm, sc, zero in plan:
+            if not zero:
+                entries.append((entry["name"], path, sm, sc))
+
+        result = OL.ortho_apply(model, clip, entries, self._get_lora)
+        if result is None:
             return None
-        if clip is not None:
-            try:
-                clip_key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, {})
-            except Exception as exc:
-                logger.warning("[SFLoraStack] ortho: clip key map failed ({}); "
-                               "falling back to sequential".format(exc))
-                return None
-        else:
-            clip_key_map = None
+        new_model, new_clip, ok_paths, (ortho_keys, pass_keys) = result
+        logger.info("[SFLoraStack] ortho: {} key(s) orthogonalized, {} pass-through"
+                    .format(ortho_keys, pass_keys))
 
-        # 逐行加载（复用 _cache 的 sd，免二次读盘）。
-        unet_entries = []  # [(patch_dict, sm, meta)] —— sm != 0 的行
-        clip_entries = []  # [(patch_dict, sc, meta)] —— clip 且 sc != 0 的行
+        # resolved/used_paths 严格按栈顺序构建（与顺序路径一致，触发词顺序
+        # 稳定）：zero 行（刻意无操作）与 ok 行（成功应用）都计数触发词；
+        # ok_paths 是 set，绝不能直接迭代它——顺序会随机。last_this_run
+        # 只作 run 后修剪的游标（循环内不逐出，分组需要全栈驻留）。
         resolved = []
         used_paths = set()
-        last_this_run = None
         applied = 0
-        for entry, path, sm, sc, zero in plan:
-            if zero:
-                # 与顺序路径同语义：刻意无操作行算 resolved（触发词计数）。
+        last_this_run = None
+        for entry, path, _sm, _sc, zero in plan:
+            if zero or path in ok_paths:
                 used_paths.add(path)
                 resolved.append(entry)
-                continue
-            try:
-                lora_sd, meta = self._get_lora(path)
-                # 与官方 load_lora_for_models 对齐（DuoNodes 漏掉的步骤）。
-                lora_sd = comfy.lora_convert.convert_lora(lora_sd)
-            except Exception as exc:
-                logger.warning("[SFLoraStack] ortho: failed to load {}: {}".format(entry["name"], exc))
-                continue
-            ok = False
-            if sm != 0:
-                try:
-                    patches = comfy.lora.load_lora(lora_sd, unet_key_map)
-                except Exception as exc:
-                    logger.warning("[SFLoraStack] ortho: failed to parse {}: {}".format(entry["name"], exc))
-                    patches = None
-                if patches is not None:
-                    unet_entries.append((patches, sm, meta))
-                    ok = True
-            if clip is not None and clip_key_map is not None and sc != 0:
-                try:
-                    patches = comfy.lora.load_lora(lora_sd, clip_key_map)
-                except Exception as exc:
-                    logger.warning("[SFLoraStack] ortho: failed to parse {} (clip): {}".format(entry["name"], exc))
-                    patches = None
-                if patches is not None:
-                    clip_entries.append((patches, sc, meta))
-                    ok = True
-            if ok:
-                used_paths.add(path)
-                resolved.append(entry)
-                applied += 1
-                # 与顺序路径不同：ortho 需要全部 sd 驻留到分组完成，循环内
-                # 不逐出；last_this_run 只作 run 后修剪的游标。
-                last_this_run = path
-
-        if unet_entries:
-            # 按模型 key 分组（同一 key 的多个 LoRA 才需要正交化）。
-            key_to_entries = {}  # key -> [(patch, sm)]（栈顺序）
-            for patches, sm, _meta in unet_entries:
-                for key, patch in patches.items():
-                    key_to_entries.setdefault(key, []).append((patch, sm))
-
-            # 每 key 预处理：ortho_by_key[key] 为 None 表示直通原 patch；
-            # 否则是 {原 patch: 替换后 patch}（同一 key 的多 LoRA 正交化产物）。
-            ortho_by_key = {}
-            ortho_keys = 0
-            for key, entries in key_to_entries.items():
-                if len(entries) == 1:
-                    ortho_by_key[key] = None
-                    continue
-                components = []  # [(patch, down)]
-                fallback = False
-                for patch, _sm in entries:
-                    up, down = LO.extract_up_down(patch)
-                    if up is None or down is None or down.dim() != 2:
-                        # conv 等非 LoRA patch：该 key 全部顺序叠加。
-                        fallback = True
-                        break
-                    components.append((patch, down))
-                if fallback:
-                    ortho_by_key[key] = None
-                    continue
-                ortho_downs = LO.gram_schmidt_ortho_downs([d for _p, d in components])
-                ortho_by_key[key] = {
-                    p: LO.replace_down(p, od.to(d.dtype))
-                    for (p, d), od in zip(components, ortho_downs)
-                }
-                ortho_keys += 1
-            logger.info("[SFLoraStack] ortho: {} key(s) orthogonalized, {} pass-through"
-                        .format(ortho_keys, len(key_to_entries) - ortho_keys))
-
-            new_model = model.clone()
-            for patches, sm, meta in unet_entries:
-                replaced = {}
-                for key, patch in patches.items():
-                    entry_map = ortho_by_key[key]
-                    replaced[key] = patch if entry_map is None else entry_map[patch]
-                new_model.add_patches(replaced, sm)
-                if meta:
-                    new_model.set_attachments("lora_metadata", meta)
-        else:
-            new_model = model
-
-        if clip is not None and clip_entries:
-            new_clip = clip.clone()
-            for patches, sc, meta in clip_entries:
-                new_clip.add_patches(patches, sc)
-                if meta:
-                    new_clip.patcher.set_attachments("lora_metadata", meta)
-        else:
-            new_clip = clip
-
+                if not zero:
+                    applied += 1
+                    last_this_run = path
         return new_model, new_clip, resolved, used_paths, last_this_run, applied
 
     def _trim_cache(self, cache_mode, used_paths, last_this_run):

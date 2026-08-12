@@ -76,6 +76,62 @@ def gram_schmidt_ortho_downs(downs_list):
     return result
 
 
+def build_ortho_replacements(patch_dicts):
+    """对多个 LoRA 的 patch dict 做分组 Gram-Schmidt 正交化替换。
+
+    patch_dicts: [(patch_dict, strength)] —— 每个 patch_dict 是一个 LoRA 的
+    {model_key: patch} 映射，顺序即栈顺序（第一个 LoRA 不动）。
+    返回 (replaced, ortho_keys, pass_keys)：
+      replaced = [(new_patch_dict, strength)] —— 新 dict，仅重叠 key 的 down
+                被替换（其余原样）；顺序与输入一致。
+      ortho_keys = 正交化 key 数；pass_keys = 直通 key 数（单条目 / 非 LoRA
+                  patch / conv 等提取失败，该 key 全部保留原 patch）。
+    纯逻辑（无 comfy 依赖）——patch 已由 comfy.lora.load_lora 解析完毕。
+    """
+    # 按模型 key 分组（同一 key 的多个 LoRA 才需要正交化；栈顺序保留）。
+    key_to_entries = {}  # key -> [(patch, strength)]
+    for patches, _strength in patch_dicts:
+        for key, patch in patches.items():
+            key_to_entries.setdefault(key, []).append((patch, _strength))
+
+    # 每 key 预处理：ortho_by_key[key] 为 None 表示直通原 patch；
+    # 否则是 {原 patch: 替换后 patch}（同一 key 的多 LoRA 正交化产物）。
+    ortho_by_key = {}
+    ortho_keys = 0
+    for key, entries in key_to_entries.items():
+        if len(entries) == 1:
+            ortho_by_key[key] = None
+            continue
+        components = []  # [(patch, down)]
+        fallback = False
+        for patch, _sm in entries:
+            up, down = extract_up_down(patch)
+            if up is None or down is None or down.dim() != 2:
+                # conv 等非 LoRA patch：该 key 全部顺序叠加。
+                fallback = True
+                break
+            components.append((patch, down))
+        if fallback:
+            ortho_by_key[key] = None
+            continue
+        ortho_downs = gram_schmidt_ortho_downs([d for _p, d in components])
+        ortho_by_key[key] = {
+            p: replace_down(p, od.to(d.dtype))
+            for (p, d), od in zip(components, ortho_downs)
+        }
+        ortho_keys += 1
+    pass_keys = len(key_to_entries) - ortho_keys
+
+    replaced = []
+    for patches, strength in patch_dicts:
+        new_dict = {}
+        for key, patch in patches.items():
+            entry_map = ortho_by_key[key]
+            new_dict[key] = patch if entry_map is None else entry_map[patch]
+        replaced.append((new_dict, strength))
+    return replaced, ortho_keys, pass_keys
+
+
 def extract_up_down(patch):
     """从 ComfyUI patch 中提取 (lora_up, lora_down)，无法识别返回 (None, None)。
 
