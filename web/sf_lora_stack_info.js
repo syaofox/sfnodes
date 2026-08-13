@@ -1474,8 +1474,9 @@ export async function openInfoPanel(node, id, refresh) {
     renderBody();
     place(panel, node);
 
-    // 面板只通过右上角 ✕ 关闭：画布/工作流上的点击不再关闭它（用户可
-    // 边看信息边操作画布，面板随节点跟随移动）。Esc 是主动关闭意图，保留；
+    // 点击面板外部 = 离开意图：查看态点击工作流其他位置关闭面板；编辑态
+    // （有未保存修改）不关——误关会丢草稿，与 Esc/✕ 的确认保护同对象。
+    // 拖动（位移 > 6px）不视为点击；确认框挂在 body、不在面板内，需豁免。
     // onPaste 照常（Ctrl+V 在画布上是粘贴图片节点，面板开着时改为设预览图）。
     // 确认框（.sf-ls-confirm-mask）挂在 body 上，onKey/onPaste 需豁免。
     const onKey = (e) => {
@@ -1505,14 +1506,31 @@ export async function openInfoPanel(node, id, refresh) {
             return;
         }
     };
+    // 外部点击判定：pointerdown 记坐标，click 里比位移区分"点击"与"拖动"
+    // （LiteGraph 拖动节点/画布后 mouseup 也会在同一 canvas 上触发 click，
+    // 浏览器不检查位移，不判则拖动即误关）。
+    let _downX = 0, _downY = 0;
+    const onPointerDown = (e) => { _downX = e.clientX; _downY = e.clientY; };
+    const onDocClick = (e) => {
+        if (!panel.isConnected || _panel !== panel) return;
+        if (e.target.closest?.(".sf-ls-confirm-mask")) return;   // 确认框豁免
+        if (panel.contains(e.target)) return;                    // 面板内不关
+        if (Math.hypot((e.clientX ?? 0) - _downX, (e.clientY ?? 0) - _downY) > 6) return; // 拖动
+        if (_descDirty) return;                                  // 编辑态保留草稿
+        doCloseInfoPanel();
+    };
     setTimeout(() => {
         if (_panel !== panel) return; // 同一 tick 被关/被替换 - 不挂孤儿监听器
         document.addEventListener("keydown", onKey, true);
         document.addEventListener("paste", onPaste, true);
+        document.addEventListener("pointerdown", onPointerDown, true);
+        document.addEventListener("click", onDocClick, true);
     }, 0);
     _cleanup = () => {
         document.removeEventListener("keydown", onKey, true);
         document.removeEventListener("paste", onPaste, true);
+        document.removeEventListener("pointerdown", onPointerDown, true);
+        document.removeEventListener("click", onDocClick, true);
     };
 }
 

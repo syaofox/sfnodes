@@ -43,7 +43,10 @@ function makeEl(tag) {
         appendChild(c) { this.children.push(c); return c; },
         prepend(...kids) { this.children.unshift(...kids); },
         remove() { this.removed = true; },
-        contains() { return false; },
+        contains(t) {
+            if (this === t) return true;
+            return (this.children || []).some((c) => c === t || (c.contains && c.contains(t)));
+        },
         focus() {}, blur() {}, select() {},
         setPointerCapture() {}, releasePointerCapture() {},
         querySelector(sel) {
@@ -106,7 +109,13 @@ globalThis.document = {
     body: { appendChild(c) { bodyChildren.push(c); return c; }, contains() { return false; } },
     head: { appendChild() {} },
     querySelector() { return null; },
-    addEventListener() {}, removeEventListener() {},
+    _listeners: {},
+    addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) {
+        const a = this._listeners[type];
+        if (a) { const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); }
+    },
+    emit(type, evt) { for (const fn of [...(this._listeners[type] || [])]) fn(evt); },
     getElementById() { return null; },
     activeElement: makeEl(),
 };
@@ -254,6 +263,65 @@ const lastPanel = () => [...bodyChildren].reverse().find((c) => hasClass(c, "sf-
     panel = lastPanel();
     check("重开面板无残留 textarea", panel.querySelector(".sf-ls-desc textarea") === null);
     check("重开无 Save 按钮（浏览态）", findByText(panel, "Save") === null);
+
+    // ── 外部点击关闭：查看态关闭；编辑态（dirty）不关；拖动/面板内/确认框豁免 ──
+    // document 监听在面板打开的 setTimeout(0) 后挂载——每次打开面板后必须先
+    // await tick()（宏任务）再发事件，否则监听器还没挂上（假阳性）。
+    // click 前需先 pointerdown 记录按下位置（位移判定区分点击与拖动）。
+    const docClick = (target, dx, dy, cx, cy) => {
+        document.emit("pointerdown", { clientX: dx ?? 10, clientY: dy ?? 10 });
+        document.emit("click", {
+            clientX: cx ?? 10, clientY: cy ?? 10,
+            target: target ?? { closest: () => null },
+        });
+    };
+
+    // 查看态：点击面板外 → 关闭
+    await tick();
+    docClick({ closest: () => null });
+    check("查看态外部点击关闭", panel.removed === true);
+
+    // 重开 → 编辑 → dirty → 外部点击不关、草稿保留
+    await I.openInfoPanel(node, "l1", () => {});
+    panel = lastPanel();
+    await tick();
+    findByText(panel, "✏️").emit("click");
+    ta = panel.querySelector(".sf-ls-desc textarea");
+    ta.value = "draft keep";
+    ta.emit("input");
+    docClick({ closest: () => null });
+    check("编辑态外部点击不关闭", panel.removed !== true);
+    check("编辑态外部点击草稿保留", panel.querySelector(".sf-ls-desc textarea").value === "draft keep");
+
+    // 拖动（位移 > 6px）不算点击 → 不关闭
+    docClick({ closest: () => null }, 10, 10, 200, 200);
+    check("拖动不关闭", panel.removed !== true);
+
+    // 面板内点击 → 不关闭
+    docClick(panel);
+    check("面板内点击不关闭", panel.removed !== true);
+
+    // 确认框豁免：dirty Esc 弹框后点击框内元素不关闭（框挂在 body 不在面板内）
+    ta.emit("keydown", { key: "Escape", target: ta });
+    mask = lastMask();
+    check("外部点击用例确认框弹出", !!mask);
+    docClick({ closest: () => mask });
+    check("确认框点击不关闭", panel.removed !== true);
+    findByText(mask, "Keep editing").emit("click");
+    await tick();
+
+    // 监听器解绑：关闭后面板的 document 监听不再触发（防孤儿监听器）
+    const snap = { keydown: document._listeners.keydown?.length || 0,
+                   click: document._listeners.click?.length || 0,
+                   pointerdown: document._listeners.pointerdown?.length || 0 };
+    findByClass(panel, "sf-ls-info-x").emit("click");
+    mask = lastMask();
+    findByText(mask, "Discard").emit("click");
+    await tick();
+    check("关闭后解绑 document 监听", panel.removed === true
+        && (document._listeners.click?.length || 0) < snap.click
+        && (document._listeners.pointerdown?.length || 0) < snap.pointerdown
+        && (document._listeners.keydown?.length || 0) < snap.keydown);
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });
