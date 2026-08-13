@@ -1,5 +1,7 @@
 colour-science
 color_matcher
+curl_cffi
+markdownify
 translators
 mediapipe
 opencv-contrib-python

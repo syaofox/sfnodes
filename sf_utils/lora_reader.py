@@ -27,8 +27,6 @@ import threading
 _MAX_HEADER_BYTES = 200 * 1024 * 1024
 # 频率推导出的候选触发词数量上限。
 _MAX_TRIGGERS = 20
-# 描述是说明文字，不是小说（Civitai 模型描述清洗后截断 + 自定义描述限长）。
-_MAX_DESCRIPTION_LEN = 2000
 
 _PREVIEW_EXTS = (
     ".preview.png", ".preview.jpeg", ".preview.jpg", ".preview.webp",
@@ -190,7 +188,7 @@ def read_sidecar_info(lora_path):
         if not desc and isinstance(model, dict):
             desc = model.get("description")
         if desc:
-            info["description"] = _clean_description(desc)
+            info["description"] = _html_to_markdown(desc)
         if obj.get("baseModel"):
             info["base_model"] = str(obj["baseModel"])
         # modelId / version id 让前端可链接到 Civitai 模型页。
@@ -241,7 +239,7 @@ def build_lora_info(lora_path):
         "alpha": meta.get("ss_network_alpha", "") or "",
         "num_images": meta.get("ss_num_train_images", "") or "",
         "date": meta.get("modelspec.date", "") or "",
-        "description": _clean_description(meta.get("modelspec.description")),
+        "description": _html_to_markdown(meta.get("modelspec.description")),
         "triggers": file_triggers,
         "file_triggers": file_triggers,
         "sidecar_triggers": [],
@@ -425,13 +423,8 @@ def _thumb_url(url):
 _HTML_ENT_RE = re.compile(r"&(#x?[0-9a-fA-F]+|[a-zA-Z]+);")
 
 
-def _clean_description(raw, limit=_MAX_DESCRIPTION_LEN):
-    """Civitai 模型描述是 HTML——<br> 等换行标签转行、其余标签剥掉、解码
-    实体、折叠空白、截断。坏输入返回 "". 永不抛错。"""
-    if not isinstance(raw, str) or not raw.strip():
-        return ""
-    s = re.sub(r"<(br|/p|/div|/li)\s*/?>", "\n", raw, flags=re.IGNORECASE)
-    s = re.sub(r"<[^>]*>", "", s)
+def _decode_entities(s):
+    """HTML 实体解码（数字 + 常见命名实体）。坏输入原样返回。永不抛错。"""
 
     def _unesc(m):
         e = m.group(1)
@@ -448,9 +441,49 @@ def _clean_description(raw, limit=_MAX_DESCRIPTION_LEN):
         return {"amp": "&", "lt": "<", "gt": ">", "quot": '"',
                 "apos": "'", "nbsp": " "}.get(e, "")
 
-    s = _HTML_ENT_RE.sub(_unesc, s)
+    return _HTML_ENT_RE.sub(_unesc, s)
+
+
+def _clean_description(raw):
+    """Civitai 模型描述是 HTML——<br> 等换行标签转行、其余标签剥掉、解码
+    实体、折叠空白。坏输入返回 "". 永不抛错。"""
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    s = re.sub(r"<(br|/p|/div|/li)\s*/?>", "\n", raw, flags=re.IGNORECASE)
+    s = re.sub(r"<[^>]*>", "", s)
+    s = _decode_entities(s)
     lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in s.split("\n")]
-    return "\n".join(lines).strip()[:limit]
+    return "\n".join(lines).strip()
+
+
+def _html_to_markdown(raw):
+    """把描述 HTML 转成 markdown 文本（保留标题/列表/粗体/链接结构）。
+
+    markdownify 是微软 markitdown 的 HTML 转换内核（轻量纯 Python）。
+    延迟 import：缺库（本机测试环境/未安装）或转换异常时回退纯文本清洗
+    `_clean_description`——功能永远可用，只是不带 markdown 标记。
+
+    无 HTML 标签的输入（纯文本、或已 markdown 化的侧车描述）只做实体解码、
+    整体 strip——不做任何行级处理（行首 strip 会拍平嵌套列表缩进、折叠代码
+    块）：markdownify 对非 HTML 输入不幂等（`**bold**` 会被转义成反斜杠
+    星号），而侧车读取路径会二次处理拼接结果——必须原样放行。永不抛错。"""
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    if "<" not in raw:
+        return _decode_entities(raw).strip()
+    try:
+        from markdownify import markdownify as _md
+        text = _md(raw, heading_style="ATX")
+        if isinstance(text, str) and text.strip():
+            lines = [ln.rstrip() for ln in text.split("\n")]
+            while lines and not lines[0].strip():
+                lines.pop(0)
+            while lines and not lines[-1].strip():
+                lines.pop()
+            return "\n".join(lines).strip()
+    except Exception:
+        pass
+    return _clean_description(raw)
 
 
 def parse_civitai_modelversion(obj, allow_adult=False):
@@ -477,7 +510,7 @@ def parse_civitai_modelversion(obj, allow_adult=False):
     if not desc and isinstance(model, dict):
         desc = model.get("description")
     if desc:
-        out["description"] = _clean_description(desc)
+        out["description"] = _html_to_markdown(desc)
     if isinstance(model, dict):
         if model.get("name"):
             out["name"] = str(model["name"])
@@ -512,6 +545,54 @@ def parse_civitai_modelversion(obj, allow_adult=False):
         if "thumbnail" not in out and allow_adult and any_img:
             out["thumbnail"] = _thumb_url(any_img)
     return out
+
+
+def extract_page_description(html):
+    """从 Civitai 模型页 HTML 提取模型级描述（页面主体 Description 卡）。
+
+    页面是 Next.js SSR：完整数据内嵌在 `<script id="__NEXT_DATA__">` JSON
+    里，描述在 `props.pageProps.trpcState.json.queries[]` 中 queryKey 为
+    `[["model","getById"], ...]` 条目的 `state.data.description`（原始
+    HTML）。实测 API 的 version 级 description 常常为空，而页面主体显示
+    的就是这段模型级描述（4110 字符实测）。
+
+    返回 `_html_to_markdown` 处理后的文本，任何问题返回 "". 永不抛错。
+    """
+    if not isinstance(html, str) or not html:
+        return ""
+    m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                  html, re.S)
+    if not m:
+        return ""
+    try:
+        data = json.loads(m.group(1))
+        queries = data["props"]["pageProps"]["trpcState"]["json"]["queries"]
+    except Exception:
+        return ""
+    if not isinstance(queries, list):
+        return ""
+    for q in queries:
+        if not isinstance(q, dict):
+            continue
+        key = q.get("queryKey")
+        if (isinstance(key, list) and key and isinstance(key[0], list)
+                and len(key[0]) >= 2 and key[0][0] == "model"
+                and key[0][1] == "getById"):
+            d = q.get("state", {}).get("data")
+            if isinstance(d, dict) and isinstance(d.get("description"), str):
+                return _html_to_markdown(d["description"])
+            break
+    return ""
+
+
+def merge_descriptions(api_desc, page_desc):
+    """API（版本级）描述在前、页面（模型级）描述在后拼接，空边忽略。
+
+    两种描述来源语义不同、不互斥——API 有就保留，页面有就追加在后方
+    （实测 API 描述常为空、页面主体是完整描述）。不截断。永不抛错。"""
+    parts = [s for s in (api_desc, page_desc)
+             if isinstance(s, str) and s.strip()]
+    return "\n\n".join(parts)
 
 
 # ── Civitai 账户（可选 API key + 首选主机）─────────────────────────────────
@@ -649,10 +730,10 @@ def sanitize_custom_words(words):
 
 
 def sanitize_custom_description(desc):
-    """自定义描述：str 校验 + 限长 + strip。垃圾返回 "". 永不抛错。"""
+    """自定义描述：str 校验 + strip。垃圾返回 "". 永不抛错。"""
     if not isinstance(desc, str):
         return ""
-    return desc.strip()[:_MAX_DESCRIPTION_LEN]
+    return desc.strip()
 
 
 _TRIGGER_SPLIT_RE = re.compile(r"[,，\n]")

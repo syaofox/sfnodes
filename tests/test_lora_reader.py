@@ -95,6 +95,13 @@ utils = importlib.util.module_from_spec(spec_utils)
 sys.modules[spec_utils.name] = utils
 spec_utils.loader.exec_module(utils)
 
+# markdownify 可选：装了测转换输出，没装验证回退路径（两种环境都绿）
+try:
+    import markdownify  # noqa: F401
+    has_markdownify = True
+except Exception:
+    has_markdownify = False
+
 # ── lora_routes（mock 掉 aiohttp web / folder_paths；测守卫函数）─────────────
 aiohttp_web = types.ModuleType("aiohttp"); sys.modules["aiohttp"] = aiohttp_web
 web_mod = types.ModuleType("aiohttp.web")
@@ -184,7 +191,7 @@ check("build_lora_info 侧车触发词胜出", info2["triggers"] == ["side1"] an
 check("build_lora_info 侧车 title", info2["title"] == "Test Model")
 check("build_lora_info 侧车 ids", info2["model_id"] == 123 and info2["version_id"] == 456)
 check("build_lora_info source=sidecar", info2["source"] == "sidecar")
-check("build_lora_info 侧车 description 清洗", info2["description"] == "Hello & welcome\nline 2")
+check("build_lora_info 侧车 description 清洗", info2["description"] == ("**Hello** & welcome\nline 2" if has_markdownify else "Hello & welcome\nline 2"))
 os.remove(sidecar_path)
 
 # ── parse_state ──
@@ -276,7 +283,7 @@ check("清词保留描述", cd(store_path, "other.safetensors") == "my desc")
 utils.set_custom_description(store_path, "other.safetensors", "")
 check("描述与词都空删条目", cd(store_path, "other.safetensors") == ""
       and utils.get_custom_triggers(store_path, "other.safetensors") == [])
-check("set_custom_description 截断限长", len(utils.set_custom_description(store_path, "t.safetensors", "x" * 9999)) <= 2000)
+check("set_custom_description 不截断", len(utils.set_custom_description(store_path, "t.safetensors", "x" * 9999)) == 9999)
 check("set_custom_description 非 str -> 清", utils.set_custom_description(store_path, "t.safetensors", None) == ""
       and cd(store_path, "t.safetensors") == "")
 
@@ -374,14 +381,61 @@ with open(old_pv, "wb") as f:
 check("migrate_custom_preview 目标已存在不覆盖", utils.migrate_custom_preview(mig_pv, "new/dir/char.safetensors", "old/dir/char.safetensors") is False
       and utils.find_custom_preview(mig_pv, "new/dir/char.safetensors") is not None)
 
-# ── _clean_description ──
+# ── _clean_description / _html_to_markdown ──
 cl = utils._clean_description
 check("clean_desc 剥标签", cl("<b>Hello</b> world") == "Hello world")
 check("clean_desc 实体解码", cl("a &amp; b &lt;c&gt;") == "a & b <c>")
 check("clean_desc br 转行", cl("line1<br>line2<br/>line3") == "line1\nline2\nline3")
 check("clean_desc 空白折叠", cl("a   b\tc") == "a b c")
 check("clean_desc 非 str -> ''", cl(None) == "" and cl(123) == "" and cl("") == "")
-check("clean_desc 截断", len(cl("x" * 5000)) == 2000)
+check("clean_desc 不截断", len(cl("x" * 5000)) == 5000)
+
+hm = utils._html_to_markdown
+check("html_to_md 非 str -> ''", hm(None) == "" and hm("") == "")
+# 无 HTML 标签的输入（纯文本/已 markdown 化的侧车描述）必须原样：
+# markdownify 会把 `*` 转义成 `\*` 不幂等，侧车读取路径二次处理会变乱。
+check("html_to_md 幂等原样", hm("**bold**\n\n# Page\n\n* a") == "**bold**\n\n# Page\n\n* a")
+check("html_to_md 嵌套列表无损", hm("* top\n  * nested item\n* bottom") == "* top\n  * nested item\n* bottom")
+check("html_to_md 代码块无损", hm("```\n    indented code\n```") == "```\n    indented code\n```")
+check("html_to_md 纯文本实体解码", hm("Tom &amp; Jerry") == "Tom & Jerry")
+if has_markdownify:
+    check("html_to_md 转换结构", hm("<h1>Hi</h1><ul><li>a</li><li>b</li></ul>") == "# Hi\n\n* a\n* b")
+    check("html_to_md 粗体", hm("<p>Great <b>style</b> &amp; more</p>") == "Great **style** & more")
+else:
+    check("html_to_md 回退纯文本", hm("<h1>Hi</h1><ul><li>a</li><li>b</li></ul>") == "Hia\nb")
+    check("html_to_md 回退粗体", hm("<p>Great <b>style</b> &amp; more</p>") == "Great style & more")
+
+# ── extract_page_description（SSR __NEXT_DATA__ 模型页描述）──
+epd = utils.extract_page_description
+
+def page_html(desc="Page desc", key0="model"):
+    obj = {
+        "props": {"pageProps": {"trpcState": {"json": {"queries": [
+            {"queryKey": [[key0, "getById"], {"input": {"id": 1}}],
+             "state": {"data": {"id": 1, "description": desc}}},
+            {"queryKey": [["image", "getInfinite"], {}], "state": {"data": None}},
+        ]}}}},
+        "page": "/models/[id]/[[...slug]]",
+        "query": {"id": "1"},
+    }
+    return ('<html><body><script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(obj) + "</script></body></html>")
+
+check("extract_page 命中", epd(page_html("Page <b>desc</b>")) == ("Page **desc**" if has_markdownify else "Page desc"))
+check("extract_page 无 NEXT_DATA", epd("<html>plain</html>") == "")
+check("extract_page 坏 JSON", epd('<script id="__NEXT_DATA__" type="application/json">{bad</script>') == "")
+check("extract_page 无 getById", epd(page_html("x", key0="image")) == "")
+check("extract_page 描述非 str", epd(page_html(desc=None)) == "")
+check("extract_page 非 str", epd(None) == "" and epd(123) == "")
+
+# ── merge_descriptions（API 在前、页面在后拼接，不截断）──
+mdj = utils.merge_descriptions
+check("merge_desc 双边 API 在前", mdj("api", "page") == "api\n\npage")
+check("merge_desc 仅 API", mdj("api", "") == "api")
+check("merge_desc 仅页面", mdj("", "page") == "page")
+check("merge_desc 全空", mdj("", "") == "" and mdj(None, "  ") == "")
+check("merge_desc 非 str 边忽略", mdj(123, "page") == "page")
+check("merge_desc 不截断", len(mdj("a" * 9000, "b" * 9000)) == 18002)
 
 # ── 自定义预览名（安全形状）──
 cpn = utils.custom_preview_name
@@ -410,7 +464,7 @@ civ = pmv({"trainedWords": ["t1"], "baseModel": "SDXL",
            "images": [{"url": "https://x/o/original=true/1.jpg", "nsfw": "X", "nsfwLevel": 16},
                       {"url": "https://x/o/original=true/2.jpg", "nsfw": None}]})
 check("parse_civitai 触发词", civ["triggers"] == ["t1"])
-check("parse_civitai description 清洗", civ["description"] == "Great style & more")
+check("parse_civitai description 清洗", civ["description"] == ("Great *style* & more" if has_markdownify else "Great style & more"))
 check("parse_civitai 顶层空则 model 兜底", pmv({"model": {"description": "fallback"}})["description"] == "fallback")
 check("parse_civitai 无描述", "description" not in pmv({"trainedWords": ["x"]}))
 check("parse_civitai 跳过显式图取下一张", civ["thumbnail"] == "https://x/o/width=256/2.jpg")
@@ -492,6 +546,11 @@ check("looks_like_image 空", li(b"") is False)
 ts = routes._thumb_url_safe
 check("thumb_url_safe https 收", ts("https://image.civitai.com/x.jpg") is True)
 check("thumb_url_safe http 拒", ts("http://image.civitai.com/x.jpg") is False)
+
+# ── 页面抓取：curl_cffi 缺库回退（本机测试环境无 curl_cffi）──
+pfc = routes._page_fetch_curl_cffi
+check("page_fetch_curl 缺库 -> None", pfc("https://example.invalid/") is None)
+check("page_fetch_curl 非 str", pfc(None) is None)
 check("thumb_url_safe ftp 拒", ts("ftp://x/y.jpg") is False)
 check("thumb_url_safe 无 scheme 拒", ts("//image.civitai.com/x.jpg") is False)
 check("thumb_url_safe 非 str 拒", ts(None) is False and ts(123) is False)

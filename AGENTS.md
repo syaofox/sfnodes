@@ -306,6 +306,13 @@ class SFMyNode:
 - **封面跨节点可见（只读）**：Power 系对话框 header 也显示封面（`/api/sfnodes/lora_thumb` 同路由：用户自定义预览 > 模型旁 .preview 图），URL 带 `&t=Date.now()` bust 越过一小时缓存；无图 404 → onerror 隐藏。封面编辑仍只在 SFLoraStack 面板（对话框无编辑入口）。
 - **`_has_custom` 陷阱**：`desc` 变量会被 sidecar/embedded 兜底覆盖，自定义标志必须用独立变量（`entry_desc`）算，否则 embedded 有描述时 `_has_custom` 恒 True（i 图标误判蓝色）。**高亮语义（2026-08 修订）**：`_has_custom` = 统一存储有词/描述 **或** `.civitai.info` 侧车有词/描述（用户主动查过 Civitai）——侧车-only 的 LoRA（如只查过 Civitai 没写过自定义）也应高亮；刻意不含 embedded（文件自带词/描述几乎人人都有，无区分度）。
 
+**前后端：Civitai 页面主体描述补充（2026-08，`lora_reader._html_to_markdown` / `extract_page_description` / `merge_descriptions` + `lora_routes._download_page`）**
+- **API 描述常为空、页面有完整描述**：实测 model-versions 的 version 级 `description` 常是空串，而模型页 Description 卡显示**模型级**完整描述（4110 字符实测）。by-hash 找到模型后总是抓页面补充，拼接**API 在前、页面在后**（`"\n\n"` 分隔，不截断）。
+- **页面是 Next.js SSR，别碰 DOM**：数据在 `<script id="__NEXT_DATA__">` JSON 里，描述在 `props.pageProps.trpcState.json.queries[]` 中 `queryKey[0]==["model","getById"]` 的 `state.data.description`。**mantine 随机 id 无关**——按 queryKey 结构定位（`[["model","getById"],...]`），绝不用 CSS 选择器。无 slug URL `/models/{id}?modelVersionId={vid}` 302 后数据完整。
+- **抓页面必须模拟浏览器，不只是 UA——TLS 指纹（JA3）也会被 Cloudflare 拦截**：`ComfyUI-sfnodes` UA 直接 403；**连带 Chrome UA 的 aiohttp 请求也实测 403**（Python 默认 TLS 握手指纹被识别），curl / curl_cffi 的指纹才放行。教训：**用 curl 验证"页面可抓"不代表 aiohttp 能抓**——必须以实际代码路径验证。`_download_page` 因此主路径走 **curl_cffi**（`impersonate="chrome"`，自带 libcurl 轮子，executor 线程运行不阻塞事件循环），aiohttp 兜底，都失败返回 None——**降级语义**：页面抓取失败 = 维持仅有 API 描述，绝不影响查询成功路径。`_PAGE_MAX_BYTES=2MB`、15s 超时。
+- **拼接结果写入侧车 `data["description"]`**（覆盖 API 空值）：读取端（lora_notes/Power 系走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
+- **描述统一走 `_html_to_markdown`**（markdownify 转换，缺库/异常回退 `_clean_description` 纯文本，测试双环境全绿）：API/页面/文件内嵌/侧车描述同一入口。**幂等保护**：无 `<` 的输入（纯文本/已 markdown 化的侧车描述）只走轻清洗原样放行——markdownify 对非 HTML 输入不幂等（`*` 会转义成 `\*`），而侧车读取路径会二次处理，不保护则"首次查询正常、下次打开面板变转义文本"。**`_MAX_DESCRIPTION_LEN` 已删除**——不截断（来源有流量守卫：API 4MB/页面 2MB/文件本地；前端面板滚动展示）。
+
 **实际环境调试**
 - 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。
 

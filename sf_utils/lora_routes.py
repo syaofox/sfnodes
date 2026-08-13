@@ -10,6 +10,7 @@
   <user>/sfnodes/lora_triggers.json    用户自定义触发词（按 LoRA 名）
   <user>/sfnodes/lora_previews/        用户自定义预览图
 """
+import asyncio
 import base64
 import json
 import os
@@ -194,6 +195,71 @@ async def _download_thumb(url):
     if not _looks_like_image(raw):
         return None
     return raw
+
+
+# 模型页 HTML 上限：页面（SSR + __NEXT_DATA__）实测约 130KB，2MB 只挡
+# 异常/改版膨胀，不设限可能让一次性请求拖进 GB 级垃圾。
+_PAGE_MAX_BYTES = 2 * 1024 * 1024
+
+# 模型页抓取必须模拟浏览器：Cloudflare 既按 UA 也按 TLS 握手指纹（JA3）
+# 拦截——"ComfyUI-sfnodes" UA 直接 403；连带 Chrome UA 的 aiohttp 请求也
+# 实测 403（Python 默认 TLS 指纹被识别），curl 与 curl_cffi 的指纹才放行。
+_PAGE_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+
+def _page_fetch_curl_cffi(url):
+    """curl_cffi 同步抓取（模拟浏览器 TLS 指纹 + HTTP/2 过 Cloudflare）。
+
+    请求库自身带 libcurl 轮子，不需要系统 curl。在 executor 线程运行。
+    任何失败返回 None，永不抛错。"""
+    try:
+        from curl_cffi import requests as cr
+    except Exception:
+        return None
+    try:
+        r = cr.get(url, impersonate="chrome", timeout=(10, 15))
+        if r.status_code != 200:
+            return None
+        body = r.content
+        if not body or len(body) > _PAGE_MAX_BYTES:
+            return None
+        return body
+    except Exception:
+        return None
+
+
+async def _download_page(url):
+    """抓一个 HTML 页面到 bytes，任何问题返回 None。永不抛错。
+
+    curl_cffi（浏览器 TLS 指纹，实测过 CF）优先，aiohttp 兜底（部分直连
+    网络不需要指纹伪装）。2MB 上限。失败一律返回 None 由调用方降级——
+    页面只是描述的补充来源，绝不拖垮主查询。"""
+    loop = asyncio.get_event_loop()
+    raw = await loop.run_in_executor(None, _page_fetch_curl_cffi, url)
+    if raw:
+        return raw
+    try:
+        import aiohttp
+    except Exception:
+        return None
+    timeout = aiohttp.ClientTimeout(total=15, connect=10)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers={"User-Agent": _PAGE_UA,
+                                                 "Accept": "text/html,application/xhtml+xml"}) as resp:
+                if resp.status != 200:
+                    return None
+                chunks = []
+                total = 0
+                async for chunk in resp.content.iter_chunked(65536):
+                    total += len(chunk)
+                    if total > _PAGE_MAX_BYTES:
+                        return None
+                    chunks.append(chunk)
+    except Exception:
+        return None
+    return b"".join(chunks)
 
 
 def _register_routes():
@@ -487,6 +553,29 @@ def _register_routes():
             # trainedWords 和 model.name（很多都没有）。
             if not parsed:
                 return web.json_response({"ok": True, "found": False, "reason": "notfound"})
+            # 页面主体描述补充：API 的 version 级 description 实测常常为空，
+            # 而模型页 Description 卡显示模型级完整描述（SSR __NEXT_DATA__）。
+            # 抓页面提取后拼接——API 在前、页面在后。任何失败降级为仅有 API
+            # 描述，绝不破坏查询结果。
+            page_desc = ""
+            if parsed.get("model_id"):
+                page_url = "https://{}/models/{}".format(host, parsed["model_id"])
+                if parsed.get("version_id"):
+                    page_url += "?modelVersionId={}".format(parsed["version_id"])
+                try:
+                    raw = await _download_page(page_url)
+                    if raw:
+                        page_desc = R.extract_page_description(
+                            raw.decode("utf-8", errors="replace"))
+                except Exception as exc:
+                    logger.warning("[SFLoraStack] page description fetch failed for {}: {}".format(
+                        name, exc))
+            merged = R.merge_descriptions(parsed.get("description"), page_desc)
+            if merged:
+                parsed["description"] = merged
+                # 侧车同步存拼接版：未来读取/其他节点（lora_notes、Power 系）
+                # 从侧车解析即拿到完整描述，无需重新抓取。
+                data["description"] = merged
             await loop.run_in_executor(None, R.save_sidecar_cache, path, data)
             resp = {"ok": True, "found": True, "info": parsed}
             # 封面自动保存到本地（与用户自定义预览同目录同名规则）：
