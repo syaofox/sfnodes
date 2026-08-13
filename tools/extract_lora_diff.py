@@ -52,8 +52,24 @@ except ImportError:
     _HAVE_CK = False
 
 
+_KNOWN_PREFIXES = ("model.diffusion_model.", "diffusion_model.")
+
+
+def _normalize_key(key):
+    """Strip known prefixes so keys match across files with different conventions."""
+    for prefix in _KNOWN_PREFIXES:
+        if key.startswith(prefix):
+            return key[len(prefix):]
+    return key
+
+
 def collect_layers(path):
-    """Return {base_key: (weight_key, scale_key)} for quantized linear layers."""
+    """Return {norm_key: (weight_key, scale_key)} for quantized linear layers.
+
+    Keys are normalized by stripping common prefixes (e.g.
+    ``model.diffusion_model.`` / ``diffusion_model.``) so that files saved
+    with or without a prefix can be compared.
+    """
     layers = {}
     with safetensors.safe_open(path, framework="pt") as sf:
         for k in sf.keys():
@@ -66,7 +82,8 @@ def collect_layers(path):
             base = k[: -len(".weight")]
             scale_key = base + ".weight_scale"
             if scale_key in sf.keys():
-                layers[base] = (k, scale_key)
+                norm_key = _normalize_key(k)
+                layers[norm_key] = (k, scale_key)
     return layers
 
 
@@ -190,7 +207,7 @@ def main():
         down = S.sqrt().unsqueeze(-1) * V.transpose(0, 1)  # [r, in]
         del U, S, V, delta
 
-        lora_base = "lora_unet_" + base_key.replace(".", "_")
+        lora_base = "lora_unet_" + base_key[: -len(".weight")].replace(".", "_")
         out_sd[f"{lora_base}.lora_up.weight"] = up.contiguous().to(store_dtype).to("cpu")
         out_sd[f"{lora_base}.lora_down.weight"] = down.contiguous().to(store_dtype).to("cpu")
         out_sd[f"{lora_base}.alpha"] = torch.tensor(float(rank), dtype=torch.float32)
