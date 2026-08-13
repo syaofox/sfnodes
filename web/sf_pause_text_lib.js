@@ -130,13 +130,17 @@ export function addAncestors(output, keep) {
 }
 
 // 应用一个闸门的生效模式到 prompt `out`。
-//   opts = { inputKey = "text", editedText = "" }
+//   opts = { inputKey = "text", editedText = "", extraInputKeys = [] }
 // `isOutput(classType)` 返回 true 表示 class_type 是 OUTPUT_NODE。Continue 只
 // 删除其他输出节点；非输出节点留作无害孤儿（永不校验/运行），下游 Save 节点
 // 因此保留完整生成元数据——与 Pause Image 同理。
+// extraInputKeys：continue 时一并删除的辅助输入链接（如 SFPauseLatent 的
+// 预览 image 输入）。预览源在闸门上游时，不删会让它的输出仍被本闸门消费、
+// 把被跳过的上游链拉活。
 export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "PauseState", opts = {}) {
     const inputKey = opts.inputKey || "text";
     const editedText = typeof opts.editedText === "string" ? opts.editedText : "";
+    const extraInputKeys = Array.isArray(opts.extraInputKeys) ? opts.extraInputKeys : [];
     entry.inputs = entry.inputs || {};
 
     if (mode === "pause") {
@@ -154,6 +158,7 @@ export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "Pa
             : null;
 
         delete entry.inputs[inputKey];
+        for (const ek of extraInputKeys) delete entry.inputs[ek];
         entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "continue", text: editedText });
 
         const consumers = buildConsumers(out);
