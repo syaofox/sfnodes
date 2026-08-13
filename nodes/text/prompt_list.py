@@ -12,6 +12,7 @@ class SFPromptList:
                 "start_index": ("INT", {"default": 0, "min": 0, "max": 9999, "tooltip": "起始行索引"}),
                 "max_rows": ("INT", {"default": 1000, "min": 1, "max": 9999, "tooltip": "最大行数"}),
                 "skip_empty": ("BOOLEAN", {"default": True, "tooltip": "过滤空白行（去掉首尾空白后为空的行）"}),
+                "wrap_text": ("BOOLEAN", {"default": False, "tooltip": "编辑器自动换行（仅编辑体验，不影响输出）"}),
             }
         }
 
@@ -22,7 +23,7 @@ class SFPromptList:
     CATEGORY = _CATEGORY
     DESCRIPTION = "将多行文本按行拆分，每行可添加前后缀，支持索引切片与空白行过滤，输出字符串列表"
 
-    def make_list(self, multiline_text, prepend_text="", append_text="", start_index=0, max_rows=9999, skip_empty=True):
+    def make_list(self, multiline_text, prepend_text="", append_text="", start_index=0, max_rows=9999, skip_empty=True, wrap_text=False):
         lines = multiline_text.split('\n')
 
         if skip_empty:

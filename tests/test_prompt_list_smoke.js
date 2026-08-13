@@ -71,9 +71,13 @@ function makeNode() {
         name: "skip_empty", value: true, hidden: false,
         options: {}, computeSize: () => [0, 0], element: null, callback: null,
     };
+    const wrapWidget = {
+        name: "wrap_text", value: false, hidden: false,
+        options: {}, computeSize: () => [0, 0], element: null, callback: null,
+    };
     return {
         id: "1", comfyClass: "SFPromptList", type: "SFPromptList",
-        widgets: [textWidget, skipWidget], inputs: [], outputs: [], properties: {},
+        widgets: [textWidget, skipWidget, wrapWidget], inputs: [], outputs: [], properties: {},
         size: [400, 300],
         graph: { setDirtyCanvas() {} },
         setDirtyCanvas() {},
@@ -111,6 +115,7 @@ function makeNode() {
     const node = makeNode();
     const textWidget = node.widgets[0];
     const skipWidget = node.widgets[1];
+    const wrapWidget = node.widgets[2];
     FakeType.prototype.onNodeCreated.call(node);
     const root = node._sfPromptListRoot;
     check("DOM widget 已添加", node.widgets.some((w) => w.name === "sf_prompt_list_editor"));
@@ -121,6 +126,7 @@ function makeNode() {
     check("默认尺寸", node.size[0] === 420 && node.size[1] === 320);
     check("callback 已包装", typeof textWidget.callback === "function");
     check("skip_empty callback 已包装", typeof skipWidget.callback === "function");
+    check("wrap_text callback 已包装", typeof wrapWidget.callback === "function");
 
     // 初始行号：1 行（"body_text"）→ 行号 0
     const ta = root.children[1].children[1];
@@ -129,6 +135,18 @@ function makeNode() {
     check("初始 1 行", gutter.children[0]?.children?.length === 1);
     check("初始行号 0", gutter.children[0]?.children?.[0]?.textContent === "0");
     check("初始计数", count.textContent === "1/1 line");
+
+    // wrap 默认关闭 → textarea wrap="off"（水平滚动不换行）
+    check("wrap 默认关闭", ta.wrap === "off");
+
+    // 打开 wrap → textarea wrap="soft"（自动换行）+ 行号重渲染
+    wrapWidget.value = true;
+    wrapWidget.callback();
+    check("wrap 打开后 ta.wrap=soft", ta.wrap === "soft");
+    check("wrap 打开后行号仍正确", gutter.children[0]?.children?.map((s) => s.textContent).join(",") === "0");
+    wrapWidget.value = false;
+    wrapWidget.callback();
+    check("wrap 关闭后 ta.wrap=off", ta.wrap === "off");
 
     // 输入 → 回写 widget.value + 行号从 0 起
     ta.value = "row0\nrow1\nrow2";

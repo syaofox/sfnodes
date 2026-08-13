@@ -131,6 +131,16 @@ function buildEditor(node, textWidget) {
     return true;
   };
 
+  // wrap_text 开关实时读取（默认 False，与后端默认一致）：关闭时
+  // wrap="off" 水平滚动不软换行（行号恒单行高，跳过测量）；打开时软换行
+  // 走行高测量对齐
+  const wrapOn = () => {
+    for (const w of node.widgets || []) {
+      if (w && w.name === "wrap_text") return !!w.value;
+    }
+    return false;
+  };
+
   // ── 行高测量（软换行精确对齐）──
   // textarea 长行自动软换行时视觉行数大于逻辑行数，gutter 若按固定 LINE_H
   // 渲染会与视觉行逐行错位。每个逻辑行的视觉高度只取决于该行文本与容器
@@ -147,7 +157,7 @@ function buildEditor(node, textWidget) {
   // 空行/纯空白行固定单行；needsMeasure 判定必不换行的行直接 LINE_H 跳过测量。
   function measureHeights(rows) {
     const cw = contentWidth();
-    if (cw <= 0) return; // 未布局：保持单行兜底（ResizeObserver 布局后修正）
+    if (!wrapOn() || cw <= 0) return; // 关闭换行无软换行；未布局保持单行兜底
     if (measWidth !== cw) {
       hCache.clear();
       measWidth = cw;
@@ -181,7 +191,7 @@ function buildEditor(node, textWidget) {
     }
     measContainer.innerHTML = "";
   }
-  const lineH = (t) => hCache.get(t) ?? LINE_H;
+  const lineH = (t) => (wrapOn() ? hCache.get(t) ?? LINE_H : LINE_H);
 
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
   // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号
@@ -288,6 +298,7 @@ function buildEditor(node, textWidget) {
   function syncFromWidget() {
     const v = textWidget ? textWidget.value : "";
     if (ta.value !== v) ta.value = v;
+    ta.wrap = wrapOn() ? "soft" : "off";
     renderGutter();
   }
 
@@ -329,6 +340,19 @@ function setupNode(node) {
       const origSkipCb = w.callback;
       w.callback = function () {
         const r = origSkipCb?.apply(this, arguments);
+        node._sfPromptListRoot?._sfPlSync();
+        return r;
+      };
+      break;
+    }
+  }
+
+  // wrap_text 开关变化 → 切换 ta.wrap（软换行/水平滚动）+ 重渲染行号
+  for (const w of node.widgets || []) {
+    if (w && w.name === "wrap_text") {
+      const origWrapCb = w.callback;
+      w.callback = function () {
+        const r = origWrapCb?.apply(this, arguments);
         node._sfPromptListRoot?._sfPlSync();
         return r;
       };
