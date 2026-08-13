@@ -237,6 +237,20 @@ check("SFPromptList: 行拆分 + 前后缀", r == "PRE row one POST\n\nPRE row t
 
 w = {**sampler("1", ["2", 0]),
      "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
+     "3": {"class_type": "SFPromptList", "inputs": {
+         "multiline_text": "row one\n   \nrow two\n\n", "prepend_text": "", "append_text": ""}}}
+r = extract(w)
+check("SFPromptList: skip_empty 默认 True 过滤空白行", r == "row one\n\nrow two")
+
+w = {**sampler("1", ["2", 0]),
+     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
+     "3": {"class_type": "SFPromptList", "inputs": {
+         "multiline_text": "row one\n\nrow two", "skip_empty": False}}}
+r = extract(w)
+check("SFPromptList: skip_empty=False 保留空行（空段落）", r == "row one\n\n\n\nrow two")
+
+w = {**sampler("1", ["2", 0]),
+     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
      "3": {"class_type": "SFPromptPreset", "inputs": {"input_text": "base prompt [a, b]", "seed": 5}}}
 r = extract(w)
 check("SFPromptPreset: 基础文本（预设部分不可恢复）", r == "base prompt [a, b]")

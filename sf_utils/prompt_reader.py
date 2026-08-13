@@ -1207,16 +1207,20 @@ def _walk_for_text(
         # fall through (pause/pass/keep with a wired input)
 
     # SFPromptList: text lives in plain widgets (multiline_text with
-    # prepend/append). Recover each resulting row.
+    # prepend/append). Recover each resulting row. skip_empty mirrors the
+    # node's filter switch; missing key (old workflows) means True, which
+    # matches the pre-switch behaviour of always skipping blank rows.
     if cls == _SF_PROMPT_LIST_CLASS:
         body = inputs.get("multiline_text")
         prepend = inputs.get("prepend_text") or ""
         append = inputs.get("append_text") or ""
+        skip_empty = inputs.get("skip_empty", True)
         if isinstance(body, str) and body.strip():
             for line in body.split("\n"):
+                if skip_empty and not line.strip():
+                    continue
                 s = (prepend + line + append).strip()
-                if s:
-                    captured.append(s)
+                captured.append(s)
         return
 
     # SFPromptPreset: the typed base prompt is a plain widget; the preset

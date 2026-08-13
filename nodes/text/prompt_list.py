@@ -11,6 +11,7 @@ class SFPromptList:
                 "append_text": ("STRING", {"multiline": False, "default": "", "tooltip": "添加到每行后面的文本"}),
                 "start_index": ("INT", {"default": 0, "min": 0, "max": 9999, "tooltip": "起始行索引"}),
                 "max_rows": ("INT", {"default": 1000, "min": 1, "max": 9999, "tooltip": "最大行数"}),
+                "skip_empty": ("BOOLEAN", {"default": True, "tooltip": "过滤空白行（去掉首尾空白后为空的行）"}),
             }
         }
 
@@ -19,10 +20,13 @@ class SFPromptList:
     OUTPUT_IS_LIST = (True, True)
     FUNCTION = "make_list"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将多行文本按行拆分，每行可添加前后缀，支持索引切片，输出字符串列表"
+    DESCRIPTION = "将多行文本按行拆分，每行可添加前后缀，支持索引切片与空白行过滤，输出字符串列表"
 
-    def make_list(self, multiline_text, prepend_text="", append_text="", start_index=0, max_rows=9999):
+    def make_list(self, multiline_text, prepend_text="", append_text="", start_index=0, max_rows=9999, skip_empty=True):
         lines = multiline_text.split('\n')
+
+        if skip_empty:
+            lines = [line for line in lines if line.strip()]
 
         start_index = max(0, min(start_index, len(lines) - 1))
         end_index = min(start_index + max_rows, len(lines))
