@@ -3,6 +3,7 @@ import { api } from "/scripts/api.js";
 
 const PAGE_SIZE = 50;
 const SORT_KEY = "sfnodes_image_browser_sort";
+const LOCATION_KEY = "sfnodes_image_browser_location";
 
 let modalStyleInjected = false;
 
@@ -57,6 +58,17 @@ function injectModalStyles() {
         .sf-imgbrowser-pathbar span:hover.sep { background: transparent; }
         .sf-imgbrowser-pathbar .current { color: #89B; cursor: default; }
         .sf-imgbrowser-pathbar .current:hover { background: transparent; }
+        .sf-imgbrowser-crumbs {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+            flex: 1; min-width: 0;
+        }
+        .sf-imgbrowser-locate {
+            margin-left: auto; flex: none;
+            background: none; border: 1px solid #444; color: #888;
+            padding: 2px 10px; border-radius: 3px; cursor: pointer;
+            font-size: 12px; transition: 0.15s;
+        }
+        .sf-imgbrowser-locate:hover { border-color: #89B; color: #ddd; }
         .sf-imgbrowser-sortbar {
             display: flex; align-items: center; gap: 4px;
             padding: 4px 16px; border-bottom: 1px solid #333;
@@ -169,6 +181,13 @@ function getImageFolderFromValue(value) {
     return { type: isOutput ? "output" : "input", folder };
 }
 
+// 目录有效性：folder 为空恒有效（根目录），否则需存在至少一个文件位于该目录下
+function folderExists(items, folder) {
+    if (!folder) return true;
+    const prefix = folder + "/";
+    return items.some(it => it.path.startsWith(prefix));
+}
+
 function showImageBrowser(node) {
     injectModalStyles();
 
@@ -198,7 +217,10 @@ function showImageBrowser(node) {
             <div class="sf-imgbrowser-search">
                 <input type="text" placeholder="Filter images..." autofocus>
             </div>
-            <div class="sf-imgbrowser-pathbar"></div>
+            <div class="sf-imgbrowser-pathbar">
+                <div class="sf-imgbrowser-crumbs"></div>
+                <button class="sf-imgbrowser-locate" title="跳转到当前选中文件所在目录">定位当前</button>
+            </div>
             <div class="sf-imgbrowser-sortbar"></div>
             <div class="sf-imgbrowser-grid"></div>
         </div>
@@ -216,21 +238,17 @@ function showImageBrowser(node) {
     const currentValue = imageWidget ? imageWidget.value : "";
     const typeToggle = overlay.querySelector(".sf-imgbrowser-type-toggle");
 
-    function switchType(newType) {
-        if (newType === currentType) return;
-        currentType = newType;
-        typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
-            btn.classList.toggle("active", btn.dataset.type === newType);
-        });
-        currentFolder = "";
-        page = 0;
-        hasMore = true;
-        isLoadingMore = false;
+    // 拉取当前类型全量列表 → 校验目录有效性（失效回退根目录）→ 渲染
+    function loadListAndRender() {
         grid.innerHTML = '<div class="sf-imgbrowser-spinner">Loading images</div>';
         api.fetchApi(`/api/sfnodes/images/list?type=${currentType}`)
             .then(r => { if (!r.ok) throw new Error("Failed to fetch images"); return r.json(); })
             .then(data => {
                 allItems = data;
+                if (!folderExists(allItems, currentFolder)) {
+                    currentFolder = "";
+                }
+                saveLocationPref();
                 loadCurrentFolder();
             })
             .catch(() => {
@@ -238,8 +256,41 @@ function showImageBrowser(node) {
             });
     }
 
+    function switchType(newType, folder) {
+        if (newType === currentType) return;
+        currentType = newType;
+        typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
+            btn.classList.toggle("active", btn.dataset.type === newType);
+        });
+        currentFolder = folder || "";
+        page = 0;
+        hasMore = true;
+        isLoadingMore = false;
+        loadListAndRender();
+    }
+
     typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
         btn.addEventListener("click", () => switchType(btn.dataset.type));
+    });
+
+    // 定位到当前选中文件所在目录（显式触发，不做自动跟随——系统写入
+    // 如蒙版编辑保存的 clipspace 会静默改写 image 值，自动跟随会割裂浏览上下文）
+    overlay.querySelector(".sf-imgbrowser-locate").addEventListener("click", () => {
+        const v = imageWidget ? imageWidget.value : "";
+        const { type: t, folder: f } = getImageFolderFromValue(v);
+        if (t === currentType) {
+            // 同类型：allItems 已加载，本地校验目录有效性
+            currentFolder = folderExists(allItems, f) ? f : "";
+            page = 0;
+            hasMore = true;
+            isLoadingMore = false;
+            grid.innerHTML = "";
+            saveLocationPref();
+            loadCurrentFolder();
+        } else {
+            // 跨类型：allItems 属旧类型不可校验，交给列表回调回退
+            switchType(t, f);
+        }
     });
 
     function saveSortPref() {
@@ -251,6 +302,21 @@ function showImageBrowser(node) {
     function loadSortPref() {
         try {
             const raw = localStorage.getItem(SORT_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveLocationPref() {
+        try {
+            localStorage.setItem(LOCATION_KEY, JSON.stringify({ type: currentType, folder: currentFolder }));
+        } catch (e) { /* ignore */ }
+    }
+
+    function loadLocationPref() {
+        try {
+            const raw = localStorage.getItem(LOCATION_KEY);
             return raw ? JSON.parse(raw) : null;
         } catch (e) {
             return null;
@@ -286,8 +352,9 @@ function showImageBrowser(node) {
     }
 
     function renderBreadcrumbs() {
+        const crumbsEl = pathbar.querySelector(".sf-imgbrowser-crumbs");
         if (!currentFolder) {
-            pathbar.innerHTML = '<span class="current">All Images</span>';
+            crumbsEl.innerHTML = '<span class="current">All Images</span>';
             return;
         }
         const parts = currentFolder.split("/");
@@ -303,9 +370,9 @@ function showImageBrowser(node) {
                 html += `<span data-folder="${accumulated}">${parts[i]}</span>`;
             }
         }
-        pathbar.innerHTML = html;
+        crumbsEl.innerHTML = html;
 
-        pathbar.querySelectorAll("[data-folder]").forEach(el => {
+        crumbsEl.querySelectorAll("[data-folder]").forEach(el => {
             el.addEventListener("click", () => {
                 currentFolder = el.dataset.folder;
                 page = 0;
@@ -436,6 +503,7 @@ function showImageBrowser(node) {
                 }
                 node.setDirtyCanvas(true, true);
             }
+            saveLocationPref();
             close();
         });
 
@@ -494,6 +562,7 @@ function showImageBrowser(node) {
     }
 
     function loadCurrentFolder() {
+        saveLocationPref();
         const q = searchInput.value.toLowerCase().trim();
 
         if (q) {
@@ -545,26 +614,20 @@ function showImageBrowser(node) {
         sortAsc = pref.sortAsc !== undefined ? pref.sortAsc : true;
     }
 
-    // Navigate to the folder of the currently selected image
-    if (currentValue) {
-        const { type: imgType, folder: imgFolder } = getImageFolderFromValue(currentValue);
-        currentType = imgType;
-        if (imgFolder) currentFolder = imgFolder;
+    // 初始位置：优先恢复上次浏览位置（localStorage 记忆），无记忆 → input 根目录。
+    // 不复用 widget 值推导——蒙版编辑等系统写入会静默改写 image 值（如
+    // clipspace），跟随会割裂浏览上下文；widget 值只影响选中高亮。
+    const loc = loadLocationPref();
+    if (loc) {
+        currentType = loc.type === "output" ? "output" : "input";
+        currentFolder = typeof loc.folder === "string" ? loc.folder : "";
     }
 
     typeToggle.querySelectorAll(".sf-imgbrowser-typebtn").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.type === currentType);
     });
 
-    api.fetchApi(`/api/sfnodes/images/list?type=${currentType}`)
-        .then(r => { if (!r.ok) throw new Error("Failed to fetch images"); return r.json(); })
-        .then(data => {
-            allItems = data;
-            loadCurrentFolder();
-        })
-        .catch(() => {
-            grid.innerHTML = '<div class="sf-imgbrowser-error">Failed to load images</div>';
-        });
+    loadListAndRender();
 }
 
 app.registerExtension({
