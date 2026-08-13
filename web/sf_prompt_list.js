@@ -7,8 +7,9 @@
 // 左侧行号栏（从 0 开始）+ textarea，编辑时写回原生 widget.value。
 //
 // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
-// 跳过不占号（空行位置显示 · 占位符），关闭时按逻辑行编号；长行软换行时
-// 行号与视觉行近似对齐（scrollTop 同步，不做镜像逐行测量——已确认取舍）。
+// 跳过不占号（空行位置显示 · 占位符），关闭时按逻辑行编号。长行软换行时
+// 行号与视觉行精确对齐：逐行镜像测量视觉高度（行高缓存 + 宽度变化失效），
+// 仅 > MAX_FULL_LINES 的虚拟化模式保留固定行高近似（scrollTop 同步）。
 // 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），防极端
 // 行数卡顿。
 //
@@ -31,6 +32,12 @@ const MIN_W = 340;
 // 虚拟化阈值与行高——LINE_H 必须与 CSS 的 font:12px monospace line-height:1.4 一致
 const MAX_FULL_LINES = 500;
 const LINE_H = 12 * 1.4;
+
+// 该行是否必须镜像测量：含 tab（等宽字体下宽度不可估）或
+// 字符数 × 12px（等宽字体最大字符宽，CJK 全角）超过容器宽度
+function needsMeasure(text, cw) {
+  return text.includes("\t") || text.length * 12 > cw;
+}
 
 function injectCSS() {
   if (document.getElementById("sf-pl-css")) return;
@@ -124,6 +131,58 @@ function buildEditor(node, textWidget) {
     return true;
   };
 
+  // ── 行高测量（软换行精确对齐）──
+  // textarea 长行自动软换行时视觉行数大于逻辑行数，gutter 若按固定 LINE_H
+  // 渲染会与视觉行逐行错位。每个逻辑行的视觉高度只取决于该行文本与容器
+  // 宽度（pre-wrap 换行无上下文依赖）→ 按行缓存高度，编辑只重测变化的行；
+  // 节点宽度变化（换行重新分布）时清空缓存。
+  const hCache = new Map();
+  let measContainer = null;
+  let measWidth = 0;
+  const contentWidth = () => {
+    const w = ta.clientWidth - 16; // padding 8×2
+    return Number.isFinite(w) && w > 0 ? w : 0;
+  };
+  // 批量测量缓存未命中行：一次性建镜像节点 + 批量读高度（防 layout thrash）。
+  // 空行/纯空白行固定单行；needsMeasure 判定必不换行的行直接 LINE_H 跳过测量。
+  function measureHeights(rows) {
+    const cw = contentWidth();
+    if (cw <= 0) return; // 未布局：保持单行兜底（ResizeObserver 布局后修正）
+    if (measWidth !== cw) {
+      hCache.clear();
+      measWidth = cw;
+    }
+    if (!measContainer) {
+      measContainer = document.createElement("div");
+      measContainer.style.cssText =
+        "position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;" +
+        "font:12px monospace;line-height:1.4;white-space:pre-wrap;overflow-wrap:break-word;";
+      root.appendChild(measContainer);
+    }
+    measContainer.style.width = cw + "px";
+    measContainer.innerHTML = "";
+    const pending = [];
+    for (const t of rows) {
+      if (hCache.has(t)) continue;
+      // 空白行（trim 后为空）通常固定单行——但超长纯空白行在 pre-wrap 下
+      // 同样会软换行，长度判定（needsMeasure）前不能仅凭 trim 跳过
+      if (needsMeasure(t, cw)) {
+        const d = document.createElement("div");
+        d.textContent = t;
+        measContainer.appendChild(d);
+        pending.push([t, d]);
+      } else if (t.trim()) {
+        hCache.set(t, LINE_H);
+      }
+    }
+    for (const [t, d] of pending) {
+      const h = d.getBoundingClientRect().height;
+      hCache.set(t, h >= LINE_H ? h : LINE_H);
+    }
+    measContainer.innerHTML = "";
+  }
+  const lineH = (t) => hCache.get(t) ?? LINE_H;
+
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
   // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号
   function renderGutter() {
@@ -139,6 +198,7 @@ function buildEditor(node, textWidget) {
     if (rows.length <= MAX_FULL_LINES) {
       gutter.style.paddingTop = "";
       gutter.style.paddingBottom = "";
+      measureHeights(rows);
       const frag = document.createDocumentFragment();
       let idx = 0;
       for (const r of rows) {
@@ -150,6 +210,7 @@ function buildEditor(node, textWidget) {
         } else {
           s.textContent = String(idx++);
         }
+        s.style.height = lineH(r) + "px";
         frag.appendChild(s);
       }
       gutter.replaceChildren(frag);
@@ -200,6 +261,20 @@ function buildEditor(node, textWidget) {
     gutter.scrollTop = ta.scrollTop;
     if (lineCount() > MAX_FULL_LINES) scheduleRender();
   });
+
+  // 节点宽度变化 → 换行重新分布：清行高缓存并重渲染（软换行对齐跟随）。
+  // 首次布局（nodeCreated 时 clientWidth=0）也由这里修正为精确高度。
+  // 走 80ms 防抖：拖拽拉伸连续触发 RO 时合并渲染，避免每帧全量测量。
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => {
+      const w = contentWidth();
+      if (w !== measWidth) {
+        hCache.clear();
+        measWidth = w;
+      }
+      if (lineCount() <= MAX_FULL_LINES) scheduleRender();
+    }).observe(ta);
+  }
 
   // 事件防护：防 canvas 拖拽/取消选中/快捷键；Ctrl+Enter 放行 run-workflow
   ta.addEventListener("keydown", (e) => {
