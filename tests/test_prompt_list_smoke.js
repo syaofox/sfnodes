@@ -176,7 +176,7 @@ function makeNode() {
     check("wrap 关闭后 ta.wrap=off", ta.wrap === "off");
 
     // wrap 开启 + 长行（软换行多视觉行）：行号按镜像测量行高精确对齐
-    // （mock：>30 字符 = 2 个视觉行 33.6px）；高亮保持关闭（用户确认取舍）
+    // （mock：>30 字符 = 2 个视觉行 33.6px）；高亮与行号同源随测量展开
     wrapWidget.value = true;
     wrapWidget.callback();
     const longLine = "x".repeat(40);
@@ -185,11 +185,19 @@ function makeNode() {
     const h0 = parseFloat(gutter.children[0]?.children?.[0]?.style.height);
     const h1 = parseFloat(gutter.children[0]?.children?.[1]?.style.height);
     check("wrap 长行行号高度", Math.abs(h0 - 33.6) < 0.01 && Math.abs(h1 - 16.8) < 0.01);
-    // wrap 开时即使切片裁剪也不高亮（用户确认取舍）
+    // wrap 开 + 切片裁剪：高亮块按测量行高展开（idx0 高 33.6，top=6）
     maxRowsWidget.value = 1;
     maxRowsWidget.callback();
-    check("wrap 开无高亮块", (hl.children[0]?.children || []).length === 0);
+    check("wrap 开高亮块", hl.children[0]?.children?.length === 1
+        && Math.abs(parseFloat(hl.children[0]?.children?.[0]?.style.height) - 33.6) < 0.01
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6);
     check("wrap 开行号仍标记", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true);
+    // y 累计：第二行（short）高亮时 top = 6 + 33.6
+    startWidget.value = 1;
+    startWidget.callback();
+    check("wrap 开高亮 y 累计", hl.children[0]?.children?.length === 1
+        && Math.abs(parseFloat(hl.children[0]?.children?.[0]?.style.top) - (6 + 33.6)) < 0.01);
+    startWidget.value = 0;
     // 渲染后强制重同步 scrollTop（resize/删文本后浏览器钳制 ta.scrollTop 不触发事件）
     ta.scrollTop = 123;
     ta._handlers.input();

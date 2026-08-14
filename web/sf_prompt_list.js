@@ -13,10 +13,11 @@
 // （resize/删文本后浏览器钳制 textarea.scrollTop 不触发 scroll 事件，
 // 不同步则行号错位）。
 // start_index/max_rows 切片范围高亮：仅当切片实际裁剪（start>0 或 max_rows
-// 非默认值/截断）且**未开启自动换行**时，选中行文本区叠加半透明强调色
-// 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切）+ 行号变强调色
-// 联动；wrap 开启时关闭高亮（用户确认取舍）。行数超过 MAX_FULL_LINES 时
-// 切换可视区虚拟渲染（padding 占位），防极端行数卡顿。
+// 非默认值/截断）时，选中行文本区叠加半透明强调色背景块（hl 层 absolute
+// 全局坐标 + scrollTop 同步裁切）+ 行号变强调色联动；wrap 开启时高亮随
+// 镜像测量行高展开（与行号同源，scrollTop 重同步后两者一致对齐）。
+// 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），防极端
+// 行数卡顿。
 //
 // ==========================================================================
 
@@ -224,9 +225,9 @@ function buildEditor(node, textWidget) {
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
   // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号。
   // 切片范围（start_index/max_rows）高亮：仅当切片实际裁剪（start>0 或
-  // max_rows 非默认值/实际截断）且**未开启自动换行**时，选中行行号加
-  // .sf-pl-on + 文本区叠加背景块（hl 层 absolute 全局坐标 + scrollTop 同步
-  // 裁切；wrap 开启时关闭高亮——用户确认取舍，行号测量已恢复精确对齐）
+  // max_rows 非默认值/实际截断）时，选中行行号加 .sf-pl-on + 文本区叠加
+  // 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时随
+  // 镜像测量行高展开，与行号同源对齐）
   function renderGutter() {
     const rows = ta.value.split("\n");
     const skip = skipEmptyOn();
@@ -252,8 +253,9 @@ function buildEditor(node, textWidget) {
     gutter.style.width = `calc(${digits}ch + 16px)`;
     const frag = document.createDocumentFragment();
     const hlFrag = document.createDocumentFragment();
-    const wrap = wrapOn();
-    const hlOn = (i) => !wrap && selected(i);
+    // 高亮与行号同源（同一份镜像测量行高 + y 累计）：wrap 开时行号已精确
+    // 对齐，高亮块随之对齐，无需再门控
+    const hlOn = (i) => selected(i);
     if (rows.length <= MAX_FULL_LINES) {
       gutter.style.paddingTop = "";
       gutter.style.paddingBottom = "";
