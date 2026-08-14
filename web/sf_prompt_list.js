@@ -13,8 +13,10 @@
 // start_index/max_rows 切片范围高亮跟随：仅当切片实际裁剪（start>0 或
 // max_rows 截断）时，选中行文本区叠加半透明强调色背景块（hl 层 absolute
 // 全局坐标 + scrollTop 同步裁切）+ 行号变强调色联动；wrap 开启时按测量
-// 行高定位。行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），
-// 防极端行数卡顿。
+// 行高定位。widget 值变化监听三通道：callback 包装（checkbox/combo 交互）、
+// onWidgetChanged 节点级回调（数字输入路径）、400ms 轮询兜底（任何前端
+// 更新 widget.value 的方式都覆盖）。行数超过 MAX_FULL_LINES 时切换可视区
+// 虚拟渲染（padding 占位），防极端行数卡顿。
 //
 // ==========================================================================
 
@@ -220,8 +222,9 @@ function buildEditor(node, textWidget) {
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
   // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号。
   // 切片范围（start_index/max_rows）高亮：仅当切片实际裁剪（start>0 或
-  // max_rows 截断）时，选中行行号加 .sf-pl-on + 文本区叠加背景块（hl 层
-  // absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时按测量行高定位）
+  // max_rows 非默认值/实际截断）时，选中行行号加 .sf-pl-on + 文本区叠加
+  // 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时按
+  // 测量行高定位）
   function renderGutter() {
     const rows = ta.value.split("\n");
     const skip = skipEmptyOn();
@@ -232,9 +235,14 @@ function buildEditor(node, textWidget) {
       idxOf[i] = skip && !rows[i].trim() ? -1 : valid++;
     }
     // 切片范围（与后端语义一致：start clamp 到有效行末、end 按 max_rows 截断）
-    const start = Math.min(Math.max(0, intOf("start_index", 0)), Math.max(0, valid - 1));
-    const end = Math.min(start + Math.max(1, intOf("max_rows", 1000)), valid);
-    const clipped = start > 0 || end < valid;
+    const startRaw = Math.max(0, intOf("start_index", 0));
+    const start = Math.min(startRaw, Math.max(0, valid - 1));
+    const maxRows = Math.max(1, intOf("max_rows", 1000));
+    const end = Math.min(start + maxRows, valid);
+    // 仅裁剪时高亮：start 非 0、max_rows 非默认 1000（显式设置即裁剪意图，
+    // 即使恰好覆盖全部行也高亮）、或 max_rows 实际截断（如默认 1000 但
+    // 行数超 1000）
+    const clipped = startRaw > 0 || maxRows !== 1000 || end < valid;
     const selected = (i) => clipped && idxOf[i] >= start && idxOf[i] < end;
 
     count.textContent = `${valid}/${rows.length} line${rows.length === 1 ? "" : "s"}`;
@@ -353,7 +361,29 @@ function buildEditor(node, textWidget) {
     renderGutter();
   }
 
+  // ── 切片/开关 widget 值轮询兜底 ──
+  // callback 在部分前端路径（Vue 数字输入组件等）不触发——任何前端更新
+  // widget.value 的方式都经此兜底：400ms 轻量比较四值快照，变化才重渲染。
+  // 快照在构建时初始化（代表初始渲染状态）；onWidgetChanged 改值后经
+  // _sfPlUpdateWatch 同步快照，避免轮询误判"无变化"。与 callback/
+  // onWidgetChanged 触发时合并（scheduleRender 防抖天然去重）。
+  let watchVals = null;
+  function updateWatch() {
+    watchVals = [intOf("start_index", 0), intOf("max_rows", 1000), skipEmptyOn(), wrapOn()].join("|");
+  }
+  function checkWatch() {
+    const prev = watchVals;
+    updateWatch();
+    if (prev !== null && prev !== watchVals) syncFromWidget();
+  }
+  updateWatch();
+  root._sfPlCheckWatch = checkWatch;
+  root._sfPlUpdateWatch = updateWatch;
+  const watchTimer = setInterval(checkWatch, 400);
+  node._sfPromptListWatchTimer = watchTimer;
+
   root._sfPlSync = syncFromWidget;
+  root._sfPlSchedule = scheduleRender;
   return root;
 }
 
@@ -420,6 +450,21 @@ app.registerExtension({
       return r;
     };
 
+    // onWidgetChanged：LiteGraph/ComfyUI 的 widget 值变化节点级回调——
+    // 数字输入等不触发 callback 的路径经此刷新（防抖；与轮询兜底重叠无害）。
+    // 同时更新轮询快照，防止 checkWatch 把已生效的变化误判为"无变化"
+    const origWidgetChanged = nodeType.prototype.onWidgetChanged;
+    nodeType.prototype.onWidgetChanged = function (widget, value, prevValue) {
+      const r = origWidgetChanged?.apply(this, arguments);
+      if (widget && this._sfPromptListRoot
+          && (widget.name === "skip_empty" || widget.name === "wrap_text"
+              || widget.name === "start_index" || widget.name === "max_rows")) {
+        this._sfPromptListRoot._sfPlSchedule();
+        this._sfPromptListRoot._sfPlUpdateWatch();
+      }
+      return r;
+    };
+
     // 自愈最小尺寸（与 getMinHeight 双保险）。只抬升过小的尺寸，
     // 已保存（>= min）的尺寸永不变更 -> 不脏加载
     const origResize = nodeType.prototype.onResize;
@@ -435,6 +480,7 @@ app.registerExtension({
     const origRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
       if (this._sfPromptListRenderTimer) clearTimeout(this._sfPromptListRenderTimer);
+      if (this._sfPromptListWatchTimer) clearInterval(this._sfPromptListWatchTimer);
       this._sfPromptListRoot = null;
       return origRemoved?.apply(this, arguments);
     };

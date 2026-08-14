@@ -54,6 +54,8 @@ globalThis.window = {
     LiteGraph: { vueNodesMode: false },
 };
 globalThis.requestAnimationFrame = (fn) => fn();
+globalThis.setInterval = () => 0;       // 轮询兜底 timer 保持 no-op，不挂住进程
+globalThis.clearInterval = () => {};
 
 // ── app mock ──
 globalThis.app = {
@@ -116,6 +118,7 @@ function makeNode() {
     app._ext.beforeRegisterNodeDef(FakeType, { name: "SFPromptList" });
     check("onNodeCreated 已包装", typeof FakeType.prototype.onNodeCreated === "function");
     check("onConfigure 已包装", typeof FakeType.prototype.onConfigure === "function");
+    check("onWidgetChanged 已包装", typeof FakeType.prototype.onWidgetChanged === "function");
     check("onResize 已包装", typeof FakeType.prototype.onResize === "function");
     check("onRemoved 已包装", typeof FakeType.prototype.onRemoved === "function");
 
@@ -233,6 +236,16 @@ function makeNode() {
     startWidget.callback();
     check("改值重渲染", hl.children[0]?.children?.length === 1 && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6 + 3 * (12 * 1.4));
 
+    // max_rows 显式设置恰好覆盖全部行（3 行 + max_rows=3）→ 也高亮（显式裁剪意图）
+    startWidget.value = 0;
+    maxRowsWidget.value = 3;
+    startWidget.callback();
+    maxRowsWidget.callback();
+    check("max_rows=行数全高亮", hl.children[0]?.children?.length === 3
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6
+        && parseFloat(hl.children[0]?.children?.[2]?.style.top) === 6 + 3 * (12 * 1.4));
+    check("max_rows=行数行号联动", gutter.children[0]?.children?.filter((s) => s.textContent !== "\u00B7").every((s) => s.classList.contains("sf-pl-on")) === true);
+
     // start 超界：clamp 到有效行末（与后端一致）→ 高亮最后一行
     startWidget.value = 99;
     startWidget.callback();
@@ -266,6 +279,31 @@ function makeNode() {
     ta.scrollTop = 123;
     ta._handlers.scroll();
     check("hl 滚动同步", hl.scrollTop === 123 && gutter.scrollTop === 123);
+
+    // ── widget 值变化监听三通道：轮询兜底路径（checkWatch）──
+    // max_rows 1000→1："a\n\nb\nc"（skip 开，idxOf=[0,-1,1,2]，valid=3）→ 高亮 index 0（a）
+    ta.value = "a\n\nb\nc";
+    ta._handlers.input();
+    maxRowsWidget.value = 1;
+    root._sfPlCheckWatch();
+    check("轮询检测 max_rows 变化", (hl.children[0]?.children || []).length === 1
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6);
+    // 值未变：再次 checkWatch 不抖动（快照一致不重渲染）
+    root._sfPlCheckWatch();
+    check("轮询值未变不抖动", (hl.children[0]?.children || []).length === 1);
+    maxRowsWidget.value = 1000;
+    root._sfPlCheckWatch();
+    check("轮询恢复覆盖无高亮", (hl.children[0]?.children || []).length === 0);
+
+    // onWidgetChanged 路径：start_index 2 → 防抖后高亮 index 2（c）
+    startWidget.value = 2;
+    FakeType.prototype.onWidgetChanged.call(node, startWidget, 2, 0);
+    await new Promise((r) => setTimeout(r, 120));
+    check("onWidgetChanged 重渲染", (hl.children[0]?.children || []).length === 1
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6 + 3 * (12 * 1.4));
+    startWidget.value = 0;
+    root._sfPlCheckWatch();
+    check("onWidgetChanged 后恢复", (hl.children[0]?.children || []).length === 0);
 
     // 外部写 widget 值 → callback → DOM 同步
     textWidget.value = "x\ny";
