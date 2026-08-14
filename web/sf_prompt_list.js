@@ -168,14 +168,15 @@ function buildEditor(node, textWidget) {
   };
 
   // ── 行高测量（wrap 开启时软换行精确对齐）──
-  // mirror 与 textarea 同几何（同宽同 padding 同字体同换行参数）：每逻辑行
-  // 一个**块级 div**（inline span 的行盒高度取字体度量而非 line-height，
-  // 实测系统性偏小——必须用块级），div 的 getBoundingClientRect().height =
-  // 该逻辑行在 textarea 中的视觉高度（同宽同字体下断行与 textarea 一致，
-  // 实测行数吻合）。按行文本缓存，编辑只重测变化的行；宽度变化（换行
-  // 重新分布）时清空缓存。**不做 scrollHeight 总高校准**——textarea 的
-  // scrollHeight 含底部预留行（单行/空内容虚高 1-2 行实测），校准会把正确
-  // 测量改错。
+  // mirror 与 textarea 同几何（同 padding 同字体同换行参数）且**同一布局
+  // 容器内 left:0;right:0 拉伸**——宽度与 textarea 精确一致（含浮点），
+  // 不用 clientWidth 取整值（亚像素宽度差在超长文本下会累积成 1 行差）。
+  // 每逻辑行一个**块级 div**（inline span 的行盒高度取字体度量而非
+  // line-height，实测系统性偏小——必须用块级），div 的
+  // getBoundingClientRect().height = 该逻辑行在 textarea 中的视觉高度。
+  // 按行文本缓存，编辑只重测变化的行；宽度变化（换行重新分布）时清空。
+  // 不做 scrollHeight 总高校准——textarea 的 scrollHeight 含底部预留行
+  // （超长文本实测虚高 1-2 行），校准会把正确测量改错。
   const hCache = new Map();
   let measContainer = null;
   let measWidth = 0;
@@ -193,12 +194,16 @@ function buildEditor(node, textWidget) {
     if (!measContainer) {
       measContainer = document.createElement("div");
       measContainer.style.cssText =
-        "position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;" +
+        "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;" +
         "font:12px monospace;line-height:1.4;white-space:pre-wrap;overflow-wrap:break-word;" +
-        "box-sizing:border-box;padding:6px 8px;";
-      root.appendChild(measContainer);
+        "box-sizing:border-box;padding:6px 8px;overflow:hidden;";
+      taWrap.appendChild(measContainer);
     }
-    measContainer.style.width = ta.clientWidth + "px"; // 与 textarea 同宽（border-box）
+    // 精确内容宽 = ta 布局宽（浮点） - 滚动条宽——与 textarea 内容区精确一致。
+    // clientWidth 是取整值，亚像素差在超长文本（十几行）下累积成 1 行差；
+    // 传统滚动条占宽 ~15px 需显式扣除（clientWidth 已扣，这里基于 rect 重算）
+    const sb = Math.max(0, ta.offsetWidth - ta.clientWidth);
+    measContainer.style.width = (ta.getBoundingClientRect().width - sb) + "px";
     measContainer.innerHTML = "";
     const pending = [];
     for (const t of rows) {
