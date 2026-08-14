@@ -24,7 +24,7 @@ function makeEl() {
         style: {}, dataset: {}, children: [], _handlers: {},
         className: "", textContent: "", innerHTML: "", value: "", placeholder: "",
         type: "", title: "", spellcheck: true, id: "",
-        clientHeight: 200, scrollTop: 0,
+        clientHeight: 200, clientWidth: 400, offsetWidth: 415, scrollHeight: 200, scrollTop: 0,
         classList: {
             _s: new Set(),
             add(...c) { c.forEach((x) => this._s.add(x)); },
@@ -39,11 +39,18 @@ function makeEl() {
         remove() { this.removed = true; },
         addEventListener(name, fn) { this._handlers[name] = fn; },
         removeEventListener() {},
+        // 行高模拟：>30 字符的文本视为软换行 2 个视觉行（33.6px）
+        getBoundingClientRect() {
+            const long = typeof this.textContent === "string" && this.textContent.length > 30;
+            const h = long ? 33.6 : 16.8;
+            return { left: 0, top: 0, right: 100, bottom: h, width: 100, height: h };
+        },
     };
 }
 globalThis.document = {
     createElement() { return makeEl(); },
     createDocumentFragment() { return makeEl(); },
+    createTextNode() { return makeEl(); },
     getElementById() { return null; },
     body: { appendChild() {} },
     head: { appendChild() {} },
@@ -168,6 +175,32 @@ function makeNode() {
     wrapWidget.callback();
     check("wrap 关闭后 ta.wrap=off", ta.wrap === "off");
 
+    // wrap 开启 + 长行（软换行多视觉行）：行号按镜像测量行高精确对齐
+    // （mock：>30 字符 = 2 个视觉行 33.6px）；高亮保持关闭（用户确认取舍）
+    wrapWidget.value = true;
+    wrapWidget.callback();
+    const longLine = "x".repeat(40);
+    ta.value = longLine + "\nshort";
+    ta._handlers.input();
+    const h0 = parseFloat(gutter.children[0]?.children?.[0]?.style.height);
+    const h1 = parseFloat(gutter.children[0]?.children?.[1]?.style.height);
+    check("wrap 长行行号高度", Math.abs(h0 - 33.6) < 0.01 && Math.abs(h1 - 16.8) < 0.01);
+    // wrap 开时即使切片裁剪也不高亮（用户确认取舍）
+    maxRowsWidget.value = 1;
+    maxRowsWidget.callback();
+    check("wrap 开无高亮块", (hl.children[0]?.children || []).length === 0);
+    check("wrap 开行号仍标记", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true);
+    // 渲染后强制重同步 scrollTop（resize/删文本后浏览器钳制 ta.scrollTop 不触发事件）
+    ta.scrollTop = 123;
+    ta._handlers.input();
+    check("渲染后 scrollTop 重同步", gutter.scrollTop === 123 && hl.scrollTop === 123);
+    // 关闭 wrap → 恢复精确行号 + 高亮
+    maxRowsWidget.value = 1000;
+    maxRowsWidget.callback();
+    wrapWidget.value = false;
+    wrapWidget.callback();
+    check("wrap 关恢复", ta.wrap === "off");
+
     // 输入 → 回写 widget.value + 行号从 0 起
     ta.value = "row0\nrow1\nrow2";
     ta._handlers.input();
@@ -221,7 +254,7 @@ function makeNode() {
         && gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === false);
     const hlTops = hl.children[0]?.children?.map((b) => parseFloat(b.style.top)) || [];
     check("高亮块数量与位置", hl.children[0]?.children?.length === 2 && hlTops[0] === 6 + 2 * (12 * 1.4) && hlTops[1] === 6 + 3 * (12 * 1.4));
-    check("高亮块高度", hl.children[0]?.children?.[0]?.style.height === `${12 * 1.4}px`);
+    check("高亮块高度", Math.abs(parseFloat(hl.children[0]?.children?.[0]?.style.height) - 16.8) < 0.01);
 
     // max_rows 截断：start=0, max_rows=1 → 只高亮 index 0（a）
     startWidget.value = 0;

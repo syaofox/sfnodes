@@ -7,16 +7,16 @@
 // 左侧行号栏（从 0 开始）+ textarea，编辑时写回原生 widget.value。
 //
 // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
-// 跳过不占号（空行位置显示 · 占位符），关闭时按逻辑行编号。长行软换行时
-// 行号与视觉行精确对齐：逐行镜像测量视觉高度（行高缓存 + 宽度变化失效），
-// 仅 > MAX_FULL_LINES 的虚拟化模式保留固定行高近似（scrollTop 同步）。
-// start_index/max_rows 切片范围高亮跟随：仅当切片实际裁剪（start>0 或
-// max_rows 截断）时，选中行文本区叠加半透明强调色背景块（hl 层 absolute
-// 全局坐标 + scrollTop 同步裁切）+ 行号变强调色联动；wrap 开启时按测量
-// 行高定位。widget 值变化监听三通道：callback 包装（checkbox/combo 交互）、
-// onWidgetChanged 节点级回调（数字输入路径）、400ms 轮询兜底（任何前端
-// 更新 widget.value 的方式都覆盖）。行数超过 MAX_FULL_LINES 时切换可视区
-// 虚拟渲染（padding 占位），防极端行数卡顿。
+// 跳过不占号（空行位置显示 · 占位符），关闭时按逻辑行编号。wrap 开启时
+// 长行软换行走行高镜像测量对齐（mirror 与 textarea 同几何块级 div，行高
+// 按行文本缓存、宽度变化清空）；渲染后强制重同步 gutter/hl scrollTop
+// （resize/删文本后浏览器钳制 textarea.scrollTop 不触发 scroll 事件，
+// 不同步则行号错位）。
+// start_index/max_rows 切片范围高亮：仅当切片实际裁剪（start>0 或 max_rows
+// 非默认值/截断）且**未开启自动换行**时，选中行文本区叠加半透明强调色
+// 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切）+ 行号变强调色
+// 联动；wrap 开启时关闭高亮（用户确认取舍）。行数超过 MAX_FULL_LINES 时
+// 切换可视区虚拟渲染（padding 占位），防极端行数卡顿。
 //
 // ==========================================================================
 
@@ -72,8 +72,7 @@ function injectCSS() {
 .sf-pl-tawrap { flex:1 1 0; min-height:0; position:relative; display:flex; }
 .sf-pl-hl { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
 .sf-pl-hl-row { position:absolute; left:0; right:0; height:16.8px;
-  background:rgba(246,103,68,0.16);
-  background:color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 16%, transparent); }
+  background:${"var(--sf-acc, #f66744)"}; opacity:0.16; }
 .sf-pl-ta { flex:1 1 0; min-height:0; width:100%; box-sizing:border-box;
   background:transparent; color:#e0e0e0; border:0; outline:none; resize:none;
   font:12px monospace; line-height:1.4; padding:6px 8px; }
@@ -158,7 +157,7 @@ function buildEditor(node, textWidget) {
   };
 
   // wrap_text 开关实时读取（默认 False，与后端默认一致）：关闭时
-  // wrap="off" 水平滚动不软换行（行号恒单行高，跳过测量）；打开时软换行
+  // wrap="off" 水平滚动不软换行（行号恒单行高，精确对齐）；打开时软换行
   // 走行高测量对齐
   const wrapOn = () => {
     for (const w of node.widgets || []) {
@@ -167,20 +166,22 @@ function buildEditor(node, textWidget) {
     return false;
   };
 
-  // ── 行高测量（软换行精确对齐）──
-  // textarea 长行自动软换行时视觉行数大于逻辑行数，gutter 若按固定 LINE_H
-  // 渲染会与视觉行逐行错位。每个逻辑行的视觉高度只取决于该行文本与容器
-  // 宽度（pre-wrap 换行无上下文依赖）→ 按行缓存高度，编辑只重测变化的行；
-  // 节点宽度变化（换行重新分布）时清空缓存。
+  // ── 行高测量（wrap 开启时软换行精确对齐）──
+  // mirror 与 textarea 同几何（同宽同 padding 同字体同换行参数）：每逻辑行
+  // 一个**块级 div**（inline span 的行盒高度取字体度量而非 line-height，
+  // 实测系统性偏小——必须用块级），div 的 getBoundingClientRect().height =
+  // 该逻辑行在 textarea 中的视觉高度（同宽同字体下断行与 textarea 一致，
+  // 实测行数吻合）。按行文本缓存，编辑只重测变化的行；宽度变化（换行
+  // 重新分布）时清空缓存。**不做 scrollHeight 总高校准**——textarea 的
+  // scrollHeight 含底部预留行（单行/空内容虚高 1-2 行实测），校准会把正确
+  // 测量改错。
   const hCache = new Map();
   let measContainer = null;
   let measWidth = 0;
   const contentWidth = () => {
-    const w = ta.clientWidth - 16; // padding 8×2
+    const w = ta.clientWidth - 16; // padding 8×2（clientWidth 已扣滚动条）
     return Number.isFinite(w) && w > 0 ? w : 0;
   };
-  // 批量测量缓存未命中行：一次性建镜像节点 + 批量读高度（防 layout thrash）。
-  // 空行/纯空白行固定单行；needsMeasure 判定必不换行的行直接 LINE_H 跳过测量。
   function measureHeights(rows) {
     const cw = contentWidth();
     if (!wrapOn() || cw <= 0) return; // 关闭换行无软换行；未布局保持单行兜底
@@ -192,28 +193,29 @@ function buildEditor(node, textWidget) {
       measContainer = document.createElement("div");
       measContainer.style.cssText =
         "position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;" +
-        "font:12px monospace;line-height:1.4;white-space:pre-wrap;overflow-wrap:break-word;";
+        "font:12px monospace;line-height:1.4;white-space:pre-wrap;overflow-wrap:break-word;" +
+        "box-sizing:border-box;padding:6px 8px;";
       root.appendChild(measContainer);
     }
-    measContainer.style.width = cw + "px";
+    measContainer.style.width = ta.clientWidth + "px"; // 与 textarea 同宽（border-box）
     measContainer.innerHTML = "";
     const pending = [];
     for (const t of rows) {
       if (hCache.has(t)) continue;
       // 空白行（trim 后为空）通常固定单行——但超长纯空白行在 pre-wrap 下
       // 同样会软换行，长度判定（needsMeasure）前不能仅凭 trim 跳过
-      if (needsMeasure(t, cw)) {
-        const d = document.createElement("div");
-        d.textContent = t;
-        measContainer.appendChild(d);
-        pending.push([t, d]);
-      } else if (t.trim()) {
+      if (!needsMeasure(t, cw) && t.trim()) {
         hCache.set(t, LINE_H);
+        continue;
       }
+      const d = document.createElement("div"); // 块级：行盒高度 = line-height
+      d.textContent = t;
+      measContainer.appendChild(d);
+      pending.push([t, d]);
     }
     for (const [t, d] of pending) {
       const h = d.getBoundingClientRect().height;
-      hCache.set(t, h >= LINE_H ? h : LINE_H);
+      hCache.set(t, h >= LINE_H ? h : LINE_H); // 空 div 高 0 → 兜底单行高
     }
     measContainer.innerHTML = "";
   }
@@ -222,9 +224,9 @@ function buildEditor(node, textWidget) {
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
   // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号。
   // 切片范围（start_index/max_rows）高亮：仅当切片实际裁剪（start>0 或
-  // max_rows 非默认值/实际截断）时，选中行行号加 .sf-pl-on + 文本区叠加
-  // 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时按
-  // 测量行高定位）
+  // max_rows 非默认值/实际截断）且**未开启自动换行**时，选中行行号加
+  // .sf-pl-on + 文本区叠加背景块（hl 层 absolute 全局坐标 + scrollTop 同步
+  // 裁切；wrap 开启时关闭高亮——用户确认取舍，行号测量已恢复精确对齐）
   function renderGutter() {
     const rows = ta.value.split("\n");
     const skip = skipEmptyOn();
@@ -250,14 +252,15 @@ function buildEditor(node, textWidget) {
     gutter.style.width = `calc(${digits}ch + 16px)`;
     const frag = document.createDocumentFragment();
     const hlFrag = document.createDocumentFragment();
+    const wrap = wrapOn();
+    const hlOn = (i) => !wrap && selected(i);
     if (rows.length <= MAX_FULL_LINES) {
       gutter.style.paddingTop = "";
       gutter.style.paddingBottom = "";
       measureHeights(rows);
       let y = 6; // textarea padding-top，与首行基线对齐
       for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-        const h = lineH(r);
+        const h = lineH(rows[i]);
         const s = document.createElement("span");
         s.className = "sf-pl-gn";
         if (idxOf[i] < 0) {
@@ -268,7 +271,7 @@ function buildEditor(node, textWidget) {
           if (selected(i)) s.classList.add("sf-pl-on");
         }
         s.style.height = h + "px";
-        if (selected(i)) {
+        if (hlOn(i)) {
           const b = document.createElement("div");
           b.className = "sf-pl-hl-row";
           b.style.top = y + "px";
@@ -295,7 +298,7 @@ function buildEditor(node, textWidget) {
           s.textContent = String(idxOf[i]);
           if (selected(i)) s.classList.add("sf-pl-on");
         }
-        if (selected(i)) {
+        if (hlOn(i)) {
           const b = document.createElement("div");
           b.className = "sf-pl-hl-row";
           b.style.top = `${6 + i * LINE_H}px`;
@@ -306,6 +309,10 @@ function buildEditor(node, textWidget) {
       gutter.replaceChildren(frag);
     }
     hl.replaceChildren(hlFrag);
+    // 渲染改变 gutter/hl 内容高度 → 浏览器可能钳制其 scrollTop 与 ta 失步
+    // （resize/删文本后 ta 的 scrollTop 被钳制也不触发 scroll 事件）→ 强制重同步
+    gutter.scrollTop = ta.scrollTop;
+    hl.scrollTop = ta.scrollTop;
   }
 
   let renderTimer = null;
@@ -333,9 +340,12 @@ function buildEditor(node, textWidget) {
 
   // 节点宽度变化 → 换行重新分布：清行高缓存并重渲染（软换行对齐跟随）。
   // 首次布局（nodeCreated 时 clientWidth=0）也由这里修正为精确高度。
-  // 走 80ms 防抖：拖拽拉伸连续触发 RO 时合并渲染，避免每帧全量测量。
+  // 同时强制重同步 gutter/hl scrollTop——resize 后浏览器钳制 ta.scrollTop
+  // 不触发 scroll 事件，不同步则行号/高亮与文字错位。80ms 防抖合并拖拽。
   if (typeof ResizeObserver === "function") {
     new ResizeObserver(() => {
+      gutter.scrollTop = ta.scrollTop;
+      hl.scrollTop = ta.scrollTop;
       const w = contentWidth();
       if (w !== measWidth) {
         hCache.clear();
