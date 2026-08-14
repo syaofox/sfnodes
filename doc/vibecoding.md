@@ -21,12 +21,14 @@
    - 新增/修改函数保持项目代码风格（无类型注解强制、使用 `_CATEGORY` 常量、纯函数工具等）。
    - 新增节点必须添加 `DESCRIPTION` 类属性。
    - 新增依赖必须同步更新 `requirements.txt`。
+   - **新增/修改节点或功能后同步文档**：根 `__init__.py` 两字典、`AGENTS.md` 架构树与经验摘要（或归档至 `doc/experience.md` 并同步其目录锚点）、相关专项文档（如 `doc/prompt_preset.md` 在预设数据改动时）。
    - 发现过时或错误的注释应一并修正。
    - JS Widget 遵循 `app.registerExtension` 注册方式。
    - 子目录 `__init__.py` 为空，仅根 `__init__.py` 负责注册。
 5. **后置处理**（手动检查，无自动化测试框架）：
    - 检查 `NODE_CLASS_MAPPINGS` 与 `NODE_DISPLAY_NAME_MAPPINGS` 键是否一致。
    - 确认所有节点类在根 `__init__.py` 中正确导入。
+   - 若新增了 `doc/experience.md` 章节，确认「目录」锚点已同步。
    - 复查所有修改，确保无错漏。
 6. **硬约束查询**：涉及 ComfyUI API、节点注册、工具函数、JS Widget 等改动时，务必先阅读 `AGENTS.md` 中的对应章节，遵循既有约定。
 7. **不确定时**：务必追问，禁止猜测。

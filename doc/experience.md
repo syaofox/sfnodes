@@ -1,7 +1,7 @@
 # 历史经验归档（experience）
 
 > 本文件归档 AGENTS.md 精简（2026-08）时删除的具体机制与踩坑经验；主文档只保留通用约束与每类机制的结论摘要（见 AGENTS.md「经验摘要」）。
-> 内容基于当时代码/前端版本（comfyui_frontend_package 1.47.x），可能随版本升级过时，使用时结合代码核实。
+> 内容基于当时代码/前端版本（comfyui_frontend_package 1.47.x~1.48.x，各节另有标注），可能随版本升级过时，使用时结合代码核实。
 
 ## 目录
 
@@ -23,6 +23,13 @@
 - [16. SFPromptReader：PNG/视频元数据提示词恢复（复刻 Pixaroma Prompt Reader）](#16-sfpromptreaderpng视频元数据提示词恢复复刻-pixaroma-prompt-reader)
 - [17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑](#17-复刻节点去重sf_commonjs--disk_statepy-公共模块收敛与踩坑)
 - [18. SFLoadImagesPath 目录切换：三源 + 渐进式浏览 + popup 下拉](#18-sfloadimagespath-目录切换三源--渐进式浏览--popup-下拉)
+- [19. SFLoraStack：多行 LoRA 栈复刻（触发词/描述/封面/Civitai 查询/孤儿数据迁移）](#19-sflorastack多行-lora-栈复刻触发词描述封面civitai-查询孤儿数据迁移)
+- [20. SFLoraStack/SFPowerLoraLoader：正交堆叠 ortho_gs（2026-08）](#20-sflorastacksfpowerloraloader正交堆叠-orthogs2026-08)
+- [21. Civitai 页面主体描述补充（curl_cffi / __NEXT_DATA__ 与 Cloudflare 拦截）](#21-civitai-页面主体描述补充curl_cffi--__next_data__-与-cloudflare-拦截)
+- [22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）](#22-sfpauselatentlatent-快照闸门分段采样中间暂停)
+- [23. SFPromptList：行号编辑器与 wrap 镜像测量](#23-sfpromptlist行号编辑器与-wrap-镜像测量)
+- [24. SFPromptStack：动态 Prompt 列表与行高拖拽](#24-sfpromptstack动态-prompt-列表与行高拖拽)
+- [25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）](#25-sfregionallora多区域角色-loratoken-网格注入与匹配诊断)
 
 ---
 
@@ -968,3 +975,110 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **实现**：`sf_lora_stack_render.js` 行渲染时 `getLoraMetadata(e.name).then(meta => info.classList.toggle("net", !!meta?._has_custom))`（`isConnected` 守卫：行被 renderNode 重建则丢弃，新行自己会查；缓存命中零请求，未命中 lora_notes 端点轻量）。**`classList.toggle` 传单个类名 `"net"` 而非 `"sf-ls-info.net"`**（后者是含点字符串，会作为单个非法类名添加——CSS 选择器 `.sf-ls-info.net` = 两个类）。
 - **即时刷新**：`sf_lora_stack.js` init 监听 `sfnodes.lora-data-changed` → `setTimeout(repaintAll, 0)`——保存触发词/描述/封面后行高亮更新（loraMetadataCache 已被 sf_lora_info.js 的同事件监听清掉，重渲染时重新查询）。
 - 测试：presets smoke 扩展（makeEl 的 classList 升级为真实 Set + className 双向同步，行 i 高亮的 toggle 依赖）；断言注意 **linkStrength=false 时行结构为 [grip, name, wm, wm(c), info, sw]**，info 是 children[4] 不是 children[3]。
+
+---
+
+## 20. SFLoraStack/SFPowerLoraLoader：正交堆叠 ortho_gs（2026-08）
+
+> 背景：`sf_utils/lora_ortho.py`（纯数学）+ `lora_ortho_load.py`（加载应用，2026-08）。相似 LoRA 叠加糊脸——多个 LoRA 的 down 矩阵行空间重叠 = 干扰源。ortho_gs 把后续 LoRA 的 down 行投影到前序 down 行空间的正交补。落地于 SFLoraStack（`mergeMethod`）与 SFPowerLoraLoader（`merge_method` combo）。
+
+### 1. 数学
+
+- ΔW = Σ s·(α/r)·(A_i·B_i)，多个 LoRA 的 down 矩阵行空间重叠 = 干扰源（相似 LoRA 叠糊）。ortho_gs 把每个 down 的行投影到前序 down 行空间的正交补（`d' = d - (d@Qᵀ)@Q`，Q 用 SVD 右奇异向量扩基 + QR 去线性相关，float32 计算）——**第一个 LoRA 不动、后续让位**，up/alpha/strength 全不动；行空间被完全覆盖时投影归零（幅度损失是 tradeoff 非 bug）。
+
+### 2. 必须走独立加载路径
+
+- 链式 `load_lora_for_models` 的 patch 已展开进 patcher，拿不回 up/down——ortho 需自己 `model_lora_keys_unet`(+clip) 建 key map + `convert_lora`（官方路径有，DuoNodes 漏掉）+ `load_lora` + clone + add_patches + `set_attachments("lora_metadata")`，**按模型 key 分组**（同 key 多 LoRA 才 GS，单条直通），非 LoRA patch（conv/diff/set）该 key fallback 顺序；key map 构建失败整体 fallback 顺序，绝不报错。
+- 加载+应用路径收敛在 **`lora_ortho_load.ortho_apply(model, clip, entries, load_sd)`**——Stack 传 `self._get_lora`（复用缓存）与 Power 传 `_load_sd_direct`（直接读盘），**禁止两节点各写一份**（AGENTS.md 规则 14）；纯数学/格式探测在 `lora_ortho.py`（仅 torch，可单测）。
+
+### 3. patch 结构
+
+- 当前 ComfyUI 是 `LoRAAdapter.weights = (up, down, alpha, mid, dora_scale, reshape)`（**up 是 [0]、down 是 [1]**）；`replace_down` 对 LoRAAdapter 浅拷贝换 weights[1]，字符串标签/tensor-first/float 前缀多格式回退；**replace_down 对 `("diff", (w,))` 之类 1 元素内部元组必须原样返回**（直接 `list(patch[1])` 会 IndexError）。
+
+### 4. 契约与内存
+
+- Stack 的 `mergeMethod` 与 cacheMode 同模式（前端 `DEFAULT_PREFS`/`normalize`/`promptState` 与 Python `parse_state` 双端 1:1，默认 `"sequential"`）；Power 是**节点面 combo**（`merge_method` ∈ `["linear","ortho_gs"]` 默认 `"linear"`，标准 widget 前端零改动）。
+- **ortho 模式 run 内全栈 sd 驻留**（分组需要，与 "last" 逐行释放不同，峰值=栈大小），run 后仍按 cacheMode/无缓存统一修剪。
+- **Power 的应用计划第一项必须存 `get_lora_by_filename` 的规范化结果**——官方 `LoraLoader.load_lora` 内部 `get_full_path_or_raise` 只做精确解析，短名/无扩展名 widget 值直接传会失败（重构搬移时曾回归，测试补短名用例）。
+- **ok_paths 是 set——绝不能直接迭代它来组装 resolved/触发词/修剪游标**（顺序随机 → 触发词顺序/`last_this_run` 偶发不稳定，表现为测试偶发 FAIL）；必须按 plan 栈顺序扫描 `if zero or path in ok_paths`。
+
+### 5. 测试
+
+- 本机无 torch——GS 数学用 numpy 参考实现逐行对应验证（行两两正交/投影残差在基行空间/覆盖归零）；节点链路 monkeypatch GS + fake `load_lora` **必须按 key_map 值过滤**（unet 与 clip patch 键空间不同，不过滤会串侧）；Power 测试需 mock `nodes.LoraLoader`（顺序路径）与 `folder_paths.get_user_directory`（lora_presets 模块级调用）。
+
+---
+
+## 21. Civitai 页面主体描述补充（curl_cffi / __NEXT_DATA__ 与 Cloudflare 拦截）
+
+> 背景：`lora_reader._html_to_markdown` / `extract_page_description` / `merge_descriptions` + `lora_routes._download_page`（2026-08）。model-versions API 的 version 级 `description` 常是空串，而模型页 Description 卡显示**模型级**完整描述（4110 字符实测）。by-hash 找到模型后总是抓页面补充。
+
+### 1. 页面结构（Next.js SSR，别碰 DOM）
+
+- 数据在 `<script id="__NEXT_DATA__">` JSON 里，描述在 `props.pageProps.trpcState.json.queries[]` 中 `queryKey[0]==["model","getById"]` 的 `state.data.description`。**mantine 随机 id 无关**——按 queryKey 结构定位（`[["model","getById"],...]`），绝不用 CSS 选择器。无 slug URL `/models/{id}?modelVersionId={vid}` 302 后数据完整。
+- 拼接：**API 在前、页面在后**（`"\n\n"` 分隔，不截断）。拼接结果写入侧车 `data["description"]`（覆盖 API 空值）：读取端（lora_notes/Power 系走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
+
+### 2. Cloudflare 拦截（TLS 指纹，JA3）
+
+- 抓页面必须模拟浏览器，不只是 UA——`ComfyUI-sfnodes` UA 直接 403；**连带 Chrome UA 的 aiohttp 请求也实测 403**（Python 默认 TLS 握手指纹被识别），curl / curl_cffi 的指纹才放行。教训：**用 curl 验证"页面可抓"不代表 aiohttp 能抓**——必须以实际代码路径验证。
+- `_download_page` 主路径走 **curl_cffi**（`impersonate="chrome"`，自带 libcurl 轮子，executor 线程运行不阻塞事件循环），aiohttp 兜底，都失败返回 None——**降级语义**：页面抓取失败 = 维持仅有 API 描述，绝不影响查询成功路径。`_PAGE_MAX_BYTES=2MB`、15s 超时。
+
+### 3. 描述统一清洗（_html_to_markdown）
+
+- markdownify 转换，缺库/异常回退 `_clean_description` 纯文本，测试双环境全绿；API/页面/文件内嵌/侧车描述同一入口。
+- **幂等保护**：无 `<` 的输入（纯文本/已 markdown 化的侧车描述）只走轻清洗原样放行——markdownify 对非 HTML 输入不幂等（`*` 会转义成 `\*`），而侧车读取路径会二次处理，不保护则"首次查询正常、下次打开面板变转义文本"。
+- **`_MAX_DESCRIPTION_LEN` 已删除**——不截断（来源有流量守卫：API 4MB/页面 2MB/文件本地；前端面板滚动展示）。
+
+---
+
+## 22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）
+
+> 背景：`nodes/image/pause_latent.py` + `web/sf_pause_latent*.js` 三模块。LATENT 闸门，专为"分段采样中间暂停"：KSampler(A) [start=0,end=4] → latent 闸门 → KSampler(B) [start=4,end=8]，image 预览输入接 VAEDecode。
+
+### 1. 与 image/mask 闸门的核心差异
+
+- Pause 停在第一段结束显示预览，Continue 跳过第一段整条链、从快照 latent 继续第二段（第一段零重跑），Regenerate 重跑第一段，Pass 一次跑完。
+- **快照是 latent 张量（safetensors）而非 PNG**：`latent_tensor` 键 + `latent_format_version_0` 标记（对齐官方 SaveLatent 格式，官方 LoadLatent 读 multiplier=1）；**保存 latent dict 中全部张量键**（samples + noise_mask/batch_index）——继续采样需完整 batch 与重绘遮罩，不同于 image/mask 闸门仅首帧；读回时 `latent_tensor` 还原为 `samples` 键。`.latent` + 预览 `.png` 双快照同前缀 `sf_pause_latent_`。
+
+### 2. 预览输入剪枝（applyGateMode 扩展）
+
+- **预览输入（image）必须在 continue 时连同 latent 链接一并剪掉**：`applyGateMode` 新增 `opts.extraInputKeys`（continue 分支循环删除）——预览源（VAEDecode）在闸门上游，不删其输出仍被闸门消费，会把被跳过的第一段采样器拉活。extraInputKeys 仅 continue 生效（pause/pass 预览链接保留），不传时与 image/text/mask 旧调用行为完全一致（有回归测试锁定）。
+- **无 image 预览输入也可用**：latent 快照照存照续，只是无 frame（前端不显示、Save/Copy/Open 不可用）。
+
+### 3. 模块边界
+
+- `nodes/image/pause_latent.py`：节点（快照/continue 读回/无 IS_CHANGED）。
+- `web/sf_pause_latent_lib.js`：state + prune（复用 `sf_pause_text_lib.js::applyGateMode` + extraInputKeys）。
+- `web/sf_pause_latent_ui.js`：DOM widget（latent/预览）。
+- `web/sf_pause_latent.js`：主扩展（双钩子/Save/Copy/Open/executed）。
+- 测试：`tests/test_pause_latent.py` + `test_pause_latent_js.js`（快照 round-trip、extraInputKeys 仅 continue 生效）。
+
+---
+
+## 23. SFPromptList：行号编辑器与 wrap 镜像测量
+
+> 背景：`nodes/text/prompt_list.py` + `web/sf_prompt_list.js`（2026-08）。行拆分/切片/空白行过滤（skip_empty）的文本节点，前端提供带行号的 DOM 编辑器。
+
+- **值真源 = 隐藏原生 multiline_text widget**（值随工作流保存、graphToPrompt 自动收集），DOM widget 行号栏只是视图：行号从 0 起、跳过空白行对齐输出 index、超 500 行虚拟化、值恢复三通道。
+- **wrap 开启走镜像测量**：mirror 与 textarea 同几何的块级 div，行高按行缓存、宽度变化清空；渲染后强制重同步 scrollTop（浏览器对超长文本的 scrollTop 钳制会错位）。
+- **start_index/max_rows 切片范围高亮跟随**：仅裁剪时文本背景块 + 行号联动；wrap 开时高亮随测量行高展开（与行号同源）。
+- 测试：`tests/test_prompt_list_lines_js.js`（行号/高亮对齐）+ `test_prompt_list_smoke.js`。
+
+---
+
+## 24. SFPromptStack：动态 Prompt 列表与行高拖拽
+
+> 背景：`nodes/text/prompt_stack.py` + `web/sf_prompt_stack_core.js`（纯逻辑）+ `sf_prompt_stack.js`（行 UI）（2026-08）。行动态添加/每条开关/右下角角标拖拽调行高。
+
+- **状态对齐 Pixaroma PromptStack 形状** `rows/enabled/text`：prompt_reader 的 graph walker 恢复共享该形状，改形状会破坏跨插件恢复。
+- **行高 `state.rows[i].h` 随工作流保存**：右下角角标拖拽调行高；核心 UI 逻辑在 `sf_prompt_stack_core.js`（无 app/DOM 可直测），`sf_prompt_stack.js` 只做行渲染。
+- 测试：`tests/test_prompt_stack_core.js`（纯逻辑）+ `test_prompt_stack_smoke.js` + `test_prompt_stack.py`（后端行拆分）。
+
+---
+
+## 25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）
+
+> 背景：`nodes/model/regional_lora.py` + `sf_utils/regional_engine.py`（纯逻辑）+ `web/sf_regional_lora*.js` 两模块（2026-08）。Krea2 专用多区域角色 LoRA：每 box 一个 LoRA，激活 delta 只注入 box 内 image token。
+
+- **纯逻辑在 `sf_utils/regional_engine.py`**（键归一化/矩阵解析/regions JSON/层规划 + 每区域匹配诊断/token 网格 mask 数学/彩虹预览，无 ComfyUI 依赖可独立测试）；节点层 forward hook 稀疏注入。
+- **前端 DOM canvas 多 box 编辑**：拖拽/8 向 resize/画新框/背景图对齐；隐藏 `SFRegionsJson` widget 为真源（值随工作流保存），行控件 enable/lora/strength/remove。
+- 测试：`tests/test_regional_engine.py`（纯逻辑）+ `test_regional_lora_node.py`（节点 mock）+ `test_regional_lora_js.js`（前端）。
