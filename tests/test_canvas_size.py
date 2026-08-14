@@ -58,17 +58,15 @@ RESOLUTION_VALUES = mod.RESOLUTION_VALUES
 MODELS = mod.MODELS
 
 # ── 1. 全表整除 + 比例一致 ──
-# 例外表：官方规格中非 16 倍数但为官方尺寸的条目（HunyuanVideo 540p，
-# VAE 8 整除系 + 内部 pad）
-_NON_16_ALIGNED = {(960, 540), (540, 960)}
+# 全部条目均 16 整除（官方尺寸/算法输出，含 Hunyuan 480p 的 848x480 与
+# LTX 的 1280x736/1376x768）
 RATIO_OK = 0
 for model, tiers in PRESETS.items():
     for tier, items in tiers.items():
         for ratio, w, h in items:
-            aligned = (w % 16 == 0 and h % 16 == 0) or (w, h) in _NON_16_ALIGNED
-            check(f"{model}/{tier}/{w}x{h}: 对齐", aligned)
+            check(f"{model}/{tier}/{w}x{h}: 16 整除", w % 16 == 0 and h % 16 == 0)
             # 比例容差校验：官方近似标签（如 Qwen 16:9=1664x928 实际约分
-            # 52:29、Hunyuan 540p 的 960x540 非精确 16:9）允许 <1% 偏差
+            # 52:29）允许 <1% 偏差；精确约分标签（53:30/40:23 等）偏差为 0
             rw, rh = map(int, ratio.split(":"))
             expect = rw / rh
             check(f"{model}/{tier}/{w}x{h}: 比例 {ratio}",
@@ -92,8 +90,11 @@ check("分组头为 Image/Video", MODELS[0] == "-- Image --" and "-- Video --" i
 check("PRESETS 键全部在 MODELS 中", set(PRESETS.keys()) <= set(MODELS))
 check("默认模型为 Z-Image (Turbo)", mod.DEFAULT_MODEL == "Z-Image (Turbo)")
 check("Qwen 官方表 7 项", len(PRESETS["Qwen-Image (2512)"]["Official"]) == 7)
-check("HunyuanVideo 1.5 两档", set(PRESETS["HunyuanVideo 1.5"].keys()) == {"720p", "540p"})
+check("HunyuanVideo 1.5 两档", set(PRESETS["HunyuanVideo 1.5"].keys()) == {"720p", "480p"})
+check("Hunyuan 480p 官方 bucket 值", PRESETS["HunyuanVideo 1.5"]["480p"][0] == ("53:30", 848, 480))
 check("LTX-2.5 两档", set(PRESETS["LTX-2.5"].keys()) == {"0.9MP", "1K"})
+check("LTX 0.9MP 模板输出值", PRESETS["LTX-2.5"]["0.9MP"][0] == ("40:23", 1280, 736))
+check("LTX 1K 模板输出值", PRESETS["LTX-2.5"]["1K"][1] == ("43:24", 1376, 768))
 
 # ── 3. 解析兜底 ──
 w, h, r = mod._parse_resolution("1024x1024 (1:1)")

@@ -18,14 +18,18 @@ Canvas Size Preset 节点：按模型选择官方分辨率预设，输出画布�
   https://github.com/krea-ai/krea-2
 - Wan2.2 T2V/I2V-A14B 与 TI2V-5B：官方 SUPPORTED_SIZES（480p/720p）
   https://github.com/Wan-Video/Wan2.2/blob/main/wan/configs/__init__.py
-- HunyuanVideo 1.5（腾讯 8.3B）：官方 720p（ComfyUI 模板 EmptyHunyuanVideo15Latent
-  实测 1280x720，可上采样 1080p）；540p 档沿用 HunyuanVideo 1.0 官方档位
-  （VAE 8 整除系，960x540 非 16 倍数）
-  https://docs.comfy.org/tutorials/video/hunyuan/hunyuan-video-1-5.md
-- LTX-2.5（Lightricks 22B）：分辨率 32 整除；0.9MP 档取 LTX 系官方默认
-  1216x704（约分 19:11，模板 ResolutionSelector 16:9/0.9MP/32 整除）；
-  1K 档取 32 整除的 16:9 组合
-  https://github.com/Lightricks/LTX-Video
+- HunyuanVideo 1.5（腾讯 8.3B）：官方 --resolution 仅支持 480p/720p（generate.py
+  choices，模型卡含 480P/720P T2V·I2V 权重）；720p 官方 ComfyUI 模板实测
+  1280x720（可上采样 1080p）；480p 按官方 bucket 算法（target_size_config
+  480p=base 640 + stride 16）16:9 最接近输出 848x480（53x30 patches，
+  约分 53:30）
+  https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5
+- LTX-2.5（Lightricks 22B）：分辨率 32 整除。0.9MP 与 1K 档按官方 ComfyUI
+  模板 ResolutionSelector（comfy_extras/nodes_resolution.py：
+  round(ratio × sqrt(megapixels·1024²/(w·h)) / 32) × 32）精确输出——
+  16:9/0.9MP → 1280x736（约分 40:23）；1:1/1MP → 1024x1024；
+  16:9/1MP → 1376x768（约分 43:24）
+  https://github.com/Comfy-Org/workflow_templates（video_ltx2_5_t2v.json）
 """
 
 from aiohttp import web
@@ -83,16 +87,18 @@ _QWEN_OFFICIAL = [
     ("2:3", 1056, 1584),
 ]
 
-# HunyuanVideo 1.5 官方 720p（ComfyUI 官方模板实测 1280x720，可上采样 1080p）；
-# 540p 档沿用 HunyuanVideo 1.0 官方档位（VAE 8 整除系，960x540 非 16 倍数）。
+# HunyuanVideo 1.5 官方 720p（ComfyUI 官方模板 EmptyHunyuanVideo15Latent 实测
+# 1280x720，可上采样 1080p）；480p 按官方 bucket 算法（base=640, stride=16）
+# 16:9 最接近输出 848x480（约分 53:30，近似 16:9）。
 _HUNYUAN_720P = [("16:9", 1280, 720), ("9:16", 720, 1280)]
-_HUNYUAN_540P = [("16:9", 960, 540), ("9:16", 540, 960)]
+_HUNYUAN_480P = [("53:30", 848, 480), ("30:53", 480, 848)]
 
-# LTX-2.5：分辨率 32 整除。0.9MP 档取 LTX 系官方默认 1216x704（约分 19:11，
-# 官方模板 ResolutionSelector 16:9/0.9MP/32 整除 ≈ 该值）；1K 档为 32 整除
-# 的 16:9 精确组合。
-_LTX_0P9MP = [("19:11", 1216, 704), ("11:19", 704, 1216)]
-_LTX_1K = [("1:1", 1024, 1024), ("16:9", 1024, 576), ("9:16", 576, 1024)]
+# LTX-2.5：分辨率 32 整除。档位取官方 ComfyUI 模板 ResolutionSelector
+# （nodes_resolution.py 算法：round(ratio·sqrt(mp·1024²/(w·h))/32)·32）的
+# 精确输出——16:9/0.9MP → 1280x736（40:23，近似 16:9）；1:1/1MP → 1024x1024；
+# 16:9/1MP → 1376x768（43:24）。
+_LTX_0P9MP = [("40:23", 1280, 736), ("23:40", 736, 1280)]
+_LTX_1K = [("1:1", 1024, 1024), ("43:24", 1376, 768), ("24:43", 768, 1376)]
 
 # 模型 -> 档位 -> [(比例, 宽, 高)]。顺序与 MODEL_GROUPS 保持一致；
 # 新模型追加到对应分组即可。
@@ -106,7 +112,7 @@ PRESETS = {
     "Wan2.2 T2V": {"480p": _WAN_480P, "720p": _WAN_720P},
     "Wan2.2 I2V": {"480p": _WAN_480P, "720p": _WAN_720P},
     "Wan2.2 TI2V-5B": {"720p": _WAN_5B_720P},
-    "HunyuanVideo 1.5": {"720p": _HUNYUAN_720P, "540p": _HUNYUAN_540P},
+    "HunyuanVideo 1.5": {"480p": _HUNYUAN_480P, "720p": _HUNYUAN_720P},
     "LTX-2.5": {"0.9MP": _LTX_0P9MP, "1K": _LTX_1K},
 }
 

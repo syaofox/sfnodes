@@ -80,11 +80,11 @@ const PAYLOAD = {
         ],
         "HunyuanVideo 1.5": [
             "--720p--", "1280x720 (16:9)", "720x1280 (9:16)",
-            "--540p--", "960x540 (16:9)", "540x960 (9:16)",
+            "--480p--", "848x480 (53:30)", "480x848 (30:53)",
         ],
         "LTX-2.5": [
-            "--0.9MP--", "1216x704 (19:11)", "704x1216 (11:19)",
-            "--1K--", "1024x1024 (1:1)", "1024x576 (16:9)",
+            "--0.9MP--", "1280x736 (40:23)", "736x1280 (23:40)",
+            "--1K--", "1024x1024 (1:1)", "1376x768 (43:24)",
         ],
         "Flux.2 Klein 9B": ["--1K--", "1024x1024 (1:1)", "--2K--", "2048x1152 (16:9)"],
     },
@@ -183,7 +183,7 @@ const head = (arr) => arr.find((v) => !(v.startsWith("--") && v.endsWith("--")))
     modelWidget.callback("LTX-2.5");
     await new Promise((r) => setTimeout(r, 10));
     check("切到 LTX-2.5 重建表", JSON.stringify(resWidget.options.values) === JSON.stringify(PAYLOAD.values["LTX-2.5"]));
-    check("值回退到 1216x704 (19:11)", resWidget.value === head(PAYLOAD.values["LTX-2.5"]));
+    check("值回退到 1280x736 (40:23)", resWidget.value === head(PAYLOAD.values["LTX-2.5"]));
 
     // ── onAfterGraphConfigured 恢复场景（直接赋链接不触发 callback）──
     const node2 = makeNode("Wan2.2 T2V", "1280x720 (16:9)");
