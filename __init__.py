@@ -137,6 +137,7 @@ from .nodes.text import prompt_reader_routes  # noqa: F401  # 副作用注册 /a
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.flux_resolution import FluxResolution
+from .nodes.utils.canvas_size import CanvasSizePreset  # noqa: F401  # 副作用注册 /api/sfnodes/canvas_size_presets 路由
 from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
 
 from .nodes.inpaint.cropstitch import InpaintExtendOutpaint
@@ -317,6 +318,8 @@ NODE_CLASS_MAPPINGS = {
     "SFPatchSageAttention": SFPatchSageAttention,
     # Flux 分辨率节点
     "SFFluxResolution": FluxResolution,
+    # 画布分辨率预设节点
+    "SFCanvasSizePreset": CanvasSizePreset,
     # 内存清理节点
     "SFVRAMCleanup": VRAMCleanup,
     "SFRAMCleanup": RAMCleanup,
@@ -497,6 +500,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPatchSageAttention": "SF Patch Sage Attention",
     # Flux 分辨率节点
     "SFFluxResolution": "SF Flux Resolution Calculator",
+    # 画布分辨率预设节点
+    "SFCanvasSizePreset": "SF Canvas Size Preset",
     # 内存清理节点
     "SFVRAMCleanup": "SF VRAM Cleanup",
     "SFRAMCleanup": "SF RAM Cleanup",
