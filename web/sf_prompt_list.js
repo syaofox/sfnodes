@@ -10,8 +10,11 @@
 // 跳过不占号（空行位置显示 · 占位符），关闭时按逻辑行编号。长行软换行时
 // 行号与视觉行精确对齐：逐行镜像测量视觉高度（行高缓存 + 宽度变化失效），
 // 仅 > MAX_FULL_LINES 的虚拟化模式保留固定行高近似（scrollTop 同步）。
-// 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），防极端
-// 行数卡顿。
+// start_index/max_rows 切片范围高亮跟随：仅当切片实际裁剪（start>0 或
+// max_rows 截断）时，选中行文本区叠加半透明强调色背景块（hl 层 absolute
+// 全局坐标 + scrollTop 同步裁切）+ 行号变强调色联动；wrap 开启时按测量
+// 行高定位。行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），
+// 防极端行数卡顿。
 //
 // ==========================================================================
 
@@ -63,6 +66,12 @@ function injectCSS() {
 .sf-pl-gn { display:block; text-align:right; padding-right:8px;
   font:12px monospace; line-height:1.4; color:#777; white-space:pre; }
 .sf-pl-gn.sf-pl-gap { color:#555; font-style:italic; }
+.sf-pl-gn.sf-pl-on { color:${"var(--sf-acc, #f66744)"}; font-weight:bold; }
+.sf-pl-tawrap { flex:1 1 0; min-height:0; position:relative; display:flex; }
+.sf-pl-hl { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.sf-pl-hl-row { position:absolute; left:0; right:0; height:16.8px;
+  background:rgba(246,103,68,0.16);
+  background:color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 16%, transparent); }
 .sf-pl-ta { flex:1 1 0; min-height:0; width:100%; box-sizing:border-box;
   background:transparent; color:#e0e0e0; border:0; outline:none; resize:none;
   font:12px monospace; line-height:1.4; padding:6px 8px; }
@@ -114,14 +123,29 @@ function buildEditor(node, textWidget) {
   editor.className = "sf-pl-editor";
   const gutter = document.createElement("div");
   gutter.className = "sf-pl-gutter";
+  const taWrap = document.createElement("div");
+  taWrap.className = "sf-pl-tawrap";
+  const hl = document.createElement("div");
+  hl.className = "sf-pl-hl";
   const ta = document.createElement("textarea");
   ta.className = "sf-pl-ta";
   ta.spellcheck = false;
-  editor.append(gutter, ta);
+  taWrap.append(hl, ta);
+  editor.append(gutter, taWrap);
 
   root.append(hdr, editor);
 
   const lineCount = () => ta.value.split("\n").length;
+
+  // INT widget 读取（非数字兜底默认值）
+  const intOf = (name, dflt) => {
+    for (const w of node.widgets || []) {
+      if (w && w.name === name && typeof w.value === "number" && Number.isFinite(w.value)) {
+        return Math.max(0, Math.floor(w.value));
+      }
+    }
+    return dflt;
+  };
 
   // skip_empty 开关实时读取（找不到 widget 时默认 True，与后端默认一致）
   const skipEmptyOn = () => {
@@ -194,33 +218,56 @@ function buildEditor(node, textWidget) {
   const lineH = (t) => (wrapOn() ? hCache.get(t) ?? LINE_H : LINE_H);
 
   // 行号 = 后端过滤后的输出 index：skip_empty 开启时空白行（trim 后为空）
-  // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号
+  // 跳过不占号，空行位置渲染 · 占位符；关闭时按逻辑行编号。
+  // 切片范围（start_index/max_rows）高亮：仅当切片实际裁剪（start>0 或
+  // max_rows 截断）时，选中行行号加 .sf-pl-on + 文本区叠加背景块（hl 层
+  // absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时按测量行高定位）
   function renderGutter() {
     const rows = ta.value.split("\n");
     const skip = skipEmptyOn();
+    // 过滤后 index 映射：逻辑行 i → 输出 index（skip 时空行 -1）
+    const idxOf = new Array(rows.length);
     let valid = 0;
-    for (const r of rows) {
-      if (!(skip && !r.trim())) valid += 1;
+    for (let i = 0; i < rows.length; i++) {
+      idxOf[i] = skip && !rows[i].trim() ? -1 : valid++;
     }
+    // 切片范围（与后端语义一致：start clamp 到有效行末、end 按 max_rows 截断）
+    const start = Math.min(Math.max(0, intOf("start_index", 0)), Math.max(0, valid - 1));
+    const end = Math.min(start + Math.max(1, intOf("max_rows", 1000)), valid);
+    const clipped = start > 0 || end < valid;
+    const selected = (i) => clipped && idxOf[i] >= start && idxOf[i] < end;
+
     count.textContent = `${valid}/${rows.length} line${rows.length === 1 ? "" : "s"}`;
     const digits = Math.max(2, String(Math.max(0, valid - 1)).length);
     gutter.style.width = `calc(${digits}ch + 16px)`;
+    const frag = document.createDocumentFragment();
+    const hlFrag = document.createDocumentFragment();
     if (rows.length <= MAX_FULL_LINES) {
       gutter.style.paddingTop = "";
       gutter.style.paddingBottom = "";
       measureHeights(rows);
-      const frag = document.createDocumentFragment();
-      let idx = 0;
-      for (const r of rows) {
+      let y = 6; // textarea padding-top，与首行基线对齐
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const h = lineH(r);
         const s = document.createElement("span");
         s.className = "sf-pl-gn";
-        if (skip && !r.trim()) {
+        if (idxOf[i] < 0) {
           s.classList.add("sf-pl-gap");
           s.textContent = "\u00B7";
         } else {
-          s.textContent = String(idx++);
+          s.textContent = String(idxOf[i]);
+          if (selected(i)) s.classList.add("sf-pl-on");
         }
-        s.style.height = lineH(r) + "px";
+        s.style.height = h + "px";
+        if (selected(i)) {
+          const b = document.createElement("div");
+          b.className = "sf-pl-hl-row";
+          b.style.top = y + "px";
+          b.style.height = h + "px";
+          hlFrag.appendChild(b);
+        }
+        y += h;
         frag.appendChild(s);
       }
       gutter.replaceChildren(frag);
@@ -230,24 +277,27 @@ function buildEditor(node, textWidget) {
       const last = Math.min(rows.length, first + visible);
       gutter.style.paddingTop = `${first * LINE_H}px`;
       gutter.style.paddingBottom = `${Math.max(0, rows.length - last) * LINE_H}px`;
-      const frag = document.createDocumentFragment();
-      let idx = 0;
-      for (let i = 0; i < first; i++) {
-        if (!(skip && !rows[i].trim())) idx += 1;
-      }
       for (let i = first; i < last; i++) {
         const s = document.createElement("span");
         s.className = "sf-pl-gn";
-        if (skip && !rows[i].trim()) {
+        if (idxOf[i] < 0) {
           s.classList.add("sf-pl-gap");
           s.textContent = "\u00B7";
         } else {
-          s.textContent = String(idx++);
+          s.textContent = String(idxOf[i]);
+          if (selected(i)) s.classList.add("sf-pl-on");
+        }
+        if (selected(i)) {
+          const b = document.createElement("div");
+          b.className = "sf-pl-hl-row";
+          b.style.top = `${6 + i * LINE_H}px`;
+          hlFrag.appendChild(b);
         }
         frag.appendChild(s);
       }
       gutter.replaceChildren(frag);
     }
+    hl.replaceChildren(hlFrag);
   }
 
   let renderTimer = null;
@@ -265,10 +315,11 @@ function buildEditor(node, textWidget) {
     node.setDirtyCanvas?.(true, true);
   });
 
-  // 滚动同步：gutter 为 overflow:hidden，scrollTop 仍可程序化设置（近似对齐）。
+  // 滚动同步：gutter/hl 为 overflow:hidden，scrollTop 仍可程序化设置（近似对齐）。
   // 虚拟化模式下重渲染窗口（防抖）
   ta.addEventListener("scroll", () => {
     gutter.scrollTop = ta.scrollTop;
+    hl.scrollTop = ta.scrollTop;
     if (lineCount() > MAX_FULL_LINES) scheduleRender();
   });
 
@@ -333,30 +384,16 @@ function setupNode(node) {
     };
   }
 
-  // skip_empty 开关变化 → 重渲染行号（空行占号/跳号切换）；
+  // 切片/开关 widget 变化 → 重渲染（行号跳号 / 换行模式 / 高亮范围切换）；
   // configure 恢复已由 onConfigure → _sfPlSync 覆盖
   for (const w of node.widgets || []) {
-    if (w && w.name === "skip_empty") {
-      const origSkipCb = w.callback;
+    if (w && (w.name === "skip_empty" || w.name === "wrap_text" || w.name === "start_index" || w.name === "max_rows")) {
+      const origCb = w.callback;
       w.callback = function () {
-        const r = origSkipCb?.apply(this, arguments);
+        const r = origCb?.apply(this, arguments);
         node._sfPromptListRoot?._sfPlSync();
         return r;
       };
-      break;
-    }
-  }
-
-  // wrap_text 开关变化 → 切换 ta.wrap（软换行/水平滚动）+ 重渲染行号
-  for (const w of node.widgets || []) {
-    if (w && w.name === "wrap_text") {
-      const origWrapCb = w.callback;
-      w.callback = function () {
-        const r = origWrapCb?.apply(this, arguments);
-        node._sfPromptListRoot?._sfPlSync();
-        return r;
-      };
-      break;
     }
   }
 

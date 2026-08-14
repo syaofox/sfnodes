@@ -75,9 +75,17 @@ function makeNode() {
         name: "wrap_text", value: false, hidden: false,
         options: {}, computeSize: () => [0, 0], element: null, callback: null,
     };
+    const startWidget = {
+        name: "start_index", value: 0, hidden: false,
+        options: {}, computeSize: () => [0, 0], element: null, callback: null,
+    };
+    const maxRowsWidget = {
+        name: "max_rows", value: 1000, hidden: false,
+        options: {}, computeSize: () => [0, 0], element: null, callback: null,
+    };
     return {
         id: "1", comfyClass: "SFPromptList", type: "SFPromptList",
-        widgets: [textWidget, skipWidget, wrapWidget], inputs: [], outputs: [], properties: {},
+        widgets: [textWidget, skipWidget, wrapWidget, startWidget, maxRowsWidget], inputs: [], outputs: [], properties: {},
         size: [400, 300],
         graph: { setDirtyCanvas() {} },
         setDirtyCanvas() {},
@@ -116,25 +124,34 @@ function makeNode() {
     const textWidget = node.widgets[0];
     const skipWidget = node.widgets[1];
     const wrapWidget = node.widgets[2];
+    const startWidget = node.widgets[3];
+    const maxRowsWidget = node.widgets[4];
     FakeType.prototype.onNodeCreated.call(node);
     const root = node._sfPromptListRoot;
     check("DOM widget 已添加", node.widgets.some((w) => w.name === "sf_prompt_list_editor"));
     check("multiline_text 已隐藏", textWidget.hidden === true);
     check("multiline_text 零高度", textWidget.computeSize()[0] === 0);
     check("值真源保留", textWidget.value === "body_text");
-    check("初始值已同步 DOM", root.children[1].children[1].value === "body_text");
+    check("初始值已同步 DOM", root.children[1].children[1].children[1].value === "body_text");
     check("默认尺寸", node.size[0] === 420 && node.size[1] === 320);
     check("callback 已包装", typeof textWidget.callback === "function");
     check("skip_empty callback 已包装", typeof skipWidget.callback === "function");
     check("wrap_text callback 已包装", typeof wrapWidget.callback === "function");
+    check("start_index callback 已包装", typeof startWidget.callback === "function");
+    check("max_rows callback 已包装", typeof maxRowsWidget.callback === "function");
 
-    // 初始行号：1 行（"body_text"）→ 行号 0
-    const ta = root.children[1].children[1];
+    // 初始行号：1 行（"body_text"）→ 行号 0；DOM 结构 editor[gutter, tawrap[hl, ta]]
+    const ta = root.children[1].children[1].children[1];
+    const hl = root.children[1].children[1].children[0];
     const gutter = root.children[1].children[0];
     const count = root.children[0].children[1];
     check("初始 1 行", gutter.children[0]?.children?.length === 1);
     check("初始行号 0", gutter.children[0]?.children?.[0]?.textContent === "0");
     check("初始计数", count.textContent === "1/1 line");
+
+    // 默认全覆盖（start=0, max_rows=1000）→ 无高亮（仅裁剪时高亮）
+    check("默认无高亮块", (hl.children[0]?.children || []).length === 0);
+    check("默认行号无高亮", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === false);
 
     // wrap 默认关闭 → textarea wrap="off"（水平滚动不换行）
     check("wrap 默认关闭", ta.wrap === "off");
@@ -188,6 +205,68 @@ function makeNode() {
     skipWidget.callback();
     check("重新开启恢复跳号", gutter.children[0]?.children?.map((s) => s.textContent).join(",") === "\u00B7,0");
 
+    // ── 切片范围高亮（仅裁剪时）──
+    // start_index=1："a\n\nb\nc"（skip 开 → idxOf=[0,-1,1,2]）→ 高亮 index 1,2（逻辑行 2,3）
+    // 顺序注意：先 input 同步真源再改 widget 值（callback 的 _sfPlSync 会用真源覆盖 ta）
+    ta.value = "a\n\nb\nc";
+    ta._handlers.input();
+    startWidget.value = 1;
+    startWidget.callback();
+    check("裁剪高亮行号", gutter.children[0]?.children?.map((s) => s.textContent).join(",") === "0,\u00B7,1,2");
+    check("行号联动高亮", gutter.children[0]?.children?.[2]?.classList.contains("sf-pl-on") === true
+        && gutter.children[0]?.children?.[3]?.classList.contains("sf-pl-on") === true
+        && gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === false);
+    const hlTops = hl.children[0]?.children?.map((b) => parseFloat(b.style.top)) || [];
+    check("高亮块数量与位置", hl.children[0]?.children?.length === 2 && hlTops[0] === 6 + 2 * (12 * 1.4) && hlTops[1] === 6 + 3 * (12 * 1.4));
+    check("高亮块高度", hl.children[0]?.children?.[0]?.style.height === `${12 * 1.4}px`);
+
+    // max_rows 截断：start=0, max_rows=1 → 只高亮 index 0（a）
+    startWidget.value = 0;
+    maxRowsWidget.value = 1;
+    maxRowsWidget.callback();
+    check("max_rows 截断高亮", hl.children[0]?.children?.length === 1 && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6);
+    check("max_rows 行号联动", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true
+        && gutter.children[0]?.children?.[2]?.classList.contains("sf-pl-on") === false);
+
+    // 改值 + callback 重渲染：start_index=2 → 只高亮 index 2（c）
+    startWidget.value = 2;
+    startWidget.callback();
+    check("改值重渲染", hl.children[0]?.children?.length === 1 && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6 + 3 * (12 * 1.4));
+
+    // start 超界：clamp 到有效行末（与后端一致）→ 高亮最后一行
+    startWidget.value = 99;
+    startWidget.callback();
+    check("start 超界 clamp", hl.children[0]?.children?.length === 1 && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6 + 3 * (12 * 1.4));
+    startWidget.value = 0;
+    maxRowsWidget.value = 1000;
+    maxRowsWidget.callback();
+
+    // 全覆盖恢复 → 无高亮
+    startWidget.value = 0;
+    startWidget.callback();
+    check("恢复覆盖无高亮", (hl.children[0]?.children || []).length === 0);
+
+    // skip 关闭时空行可高亮（空行有 index）
+    skipWidget.value = false;
+    skipWidget.callback();
+    ta.value = "a\n\nb";
+    ta._handlers.input();
+    startWidget.value = 1;
+    startWidget.callback();
+    check("skip 关空行高亮", hl.children[0]?.children?.length === 2
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6 + 1 * (12 * 1.4)
+        && parseFloat(hl.children[0]?.children?.[1]?.style.top) === 6 + 2 * (12 * 1.4));
+    check("skip 关行号高亮", gutter.children[0]?.children?.[1]?.classList.contains("sf-pl-on") === true);
+    startWidget.value = 0;
+    startWidget.callback();
+    skipWidget.value = true;
+    skipWidget.callback();
+
+    // 滚动同步：hl.scrollTop 跟随 ta.scrollTop
+    ta.scrollTop = 123;
+    ta._handlers.scroll();
+    check("hl 滚动同步", hl.scrollTop === 123 && gutter.scrollTop === 123);
+
     // 外部写 widget 值 → callback → DOM 同步
     textWidget.value = "x\ny";
     textWidget.callback("x\ny");
@@ -210,6 +289,7 @@ function makeNode() {
     check("onResize 抬升最小尺寸", size[0] >= 340 && size[1] >= 182);
 
     // 虚拟化分支（> 500 行，防抖 80ms）：滚动顶部时渲染窗口行号
+    ta.scrollTop = 0; // 清掉 "hl 滚动同步" 用例的残留
     ta.value = Array.from({ length: 601 }, (_, i) => "line" + i).join("\n");
     ta._handlers.input();
     await new Promise((r) => setTimeout(r, 120));
@@ -225,6 +305,22 @@ function makeNode() {
     await new Promise((r) => setTimeout(r, 120));
     const midRows = gutter.children[0]?.children || [];
     check("虚拟化滚动跟随", midRows.length >= 10 && midRows[0].textContent !== "0");
+
+    // 虚拟化 + 切片高亮：601 行 + start_index=100 → 窗口内高亮块跟随滚动
+    startWidget.value = 100;
+    startWidget.callback();
+    ta.scrollTop = 0;
+    ta._handlers.scroll();
+    await new Promise((r) => setTimeout(r, 120));
+    check("虚拟化窗口顶部无高亮", (hl.children[0]?.children || []).length === 0);
+    ta.scrollTop = 100 * (12 * 1.4);
+    ta._handlers.scroll();
+    await new Promise((r) => setTimeout(r, 120));
+    const hlV = hl.children[0]?.children || [];
+    check("虚拟化窗口高亮", hlV.length >= 10 && parseFloat(hlV[0]?.style.top) === 6 + 100 * (12 * 1.4));
+    check("虚拟化行号联动", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true);
+    startWidget.value = 0;
+    startWidget.callback();
 
     // 虚拟化含空行：601 行中间（第 300 位置）插空行 → 窗口内 · 占位 + index 连续
     const rows601 = Array.from({ length: 600 }, (_, i) => "line" + i);
