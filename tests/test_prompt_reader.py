@@ -270,6 +270,17 @@ check("PixaromaPromptStack: 启用的行按分隔符拼接", r == "stack1, stack
 
 w = {**sampler("1", ["2", 0]),
      "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
+     "3": {"class_type": "SFPromptStack", "inputs": {
+         "PromptStackState": json.dumps({
+             "version": 1,
+             "rows": [{"enabled": True, "text": "sf one"},
+                      {"enabled": False, "text": "skip"},
+                      {"enabled": True, "text": "sf two"}]})}}}
+r = extract(w)
+check("SFPromptStack: 状态形状兼容恢复", r == "sf one, sf two")
+
+w = {**sampler("1", ["2", 0]),
+     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
      "3": {"class_type": "PixaromaDropdown", "inputs": {
          "DropdownState": json.dumps({"type": "text", "value": "pix-value"})}}}
 r = extract(w)

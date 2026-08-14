@@ -121,6 +121,7 @@ from .nodes.text.dropdown_value import ValueDropdown
 from .nodes.text.text_preset import SFTextPreset
 from .nodes.text.replace import SFTextReplace
 from .nodes.text.prompt_list import SFPromptList
+from .nodes.text.prompt_stack import SFPromptStack
 from .nodes.text.concatenate import SFTextConcatenate
 from .nodes.text.any_to_string import SFAnyToString
 from .nodes.text.prompt_batcher import SFLoadPromptsFromFolder, SFSaveTextToFiles
@@ -283,6 +284,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextReplace": SFTextReplace,
     "SFTextRegexExtract": SFTextRegexExtract,
     "SFPromptList": SFPromptList,
+    "SFPromptStack": SFPromptStack,
     "SFTextConcatenate": SFTextConcatenate,
     "SFAnyToString": SFAnyToString,
     "SFLoadPromptsFromFolder": SFLoadPromptsFromFolder,
@@ -462,6 +464,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextReplace": "SF Text Replace",
     "SFTextRegexExtract": "SF Text Regex Extract",
     "SFPromptList": "SF Prompt List",
+    "SFPromptStack": "SF Prompt Stack",
     "SFTextConcatenate": "SF Text Concatenate",
     "SFAnyToString": "SF Any To String",
     "SFLoadPromptsFromFolder": "SF Load Prompts From Folder",

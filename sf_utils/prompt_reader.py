@@ -191,6 +191,10 @@ _RGTHREE_ANY_KEY_RE = re.compile(r"^any_(\d+)$")
 # in pure Python (mirrors nodes/node_prompt_stack.py's build() logic).
 _PROMPT_STACK_CLASS = "PixaromaPromptStack"
 
+# SFPromptStack（sfnodes）：状态形状对齐 Pixaroma（rows/enabled/text，键名同为
+# PromptStackState）——共享 _pix_prompt_stack_extract 恢复。
+_SF_PROMPT_STACK_CLASS = "SFPromptStack"
+
 # Prompt Multi Pixaroma: holds a library of prompts AND can run in either
 # of two modes (Queue or List). The hidden PromptMultiState STRING input is
 # {"version":2, "mode":"queue"|"list", "activePrompt":"...", "rowTexts":[...]}.
@@ -1122,10 +1126,11 @@ def _walk_for_text(
                 )
         return
 
-    # Prompt Stack Pixaroma: text is NOT a wired input - all rows live as a
-    # JSON blob inside the hidden PromptStackState string. Rebuild the joined
-    # output the same way the Python node does at run-time.
-    if cls == _PROMPT_STACK_CLASS:
+    # Prompt Stack Pixaroma / SF Prompt Stack: text is NOT a wired input - all
+    # rows live as a JSON blob inside the hidden PromptStackState string
+    # (sfnodes 状态形状对齐，键名相同）。Rebuild the joined output the same
+    # way the Python nodes do at run-time.
+    if cls in (_PROMPT_STACK_CLASS, _SF_PROMPT_STACK_CLASS):
         joined = _pix_prompt_stack_extract(inputs)
         if joined:
             captured.append(joined)
