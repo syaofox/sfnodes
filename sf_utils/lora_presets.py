@@ -1,5 +1,7 @@
+import asyncio
 import json
 import os
+import threading
 
 import folder_paths
 from aiohttp import web
@@ -7,6 +9,10 @@ from aiohttp import web
 from .logger import get_logger
 
 logger = get_logger(__name__)
+
+# 预设 read-modify-write 互斥锁：两个并发请求同时读-改-写会互相覆盖
+# （workflows meta 的 _WF_META_LOCK 同款）。
+_presets_lock = asyncio.Lock()
 
 # ---------------------------------------------------------------------------
 # 约定：LoRA 预设（顺序 + 强度 + normalize 设置）统一存于
@@ -35,7 +41,9 @@ def _load_presets() -> dict:
 def _save_presets(presets: dict) -> None:
     d = os.path.dirname(_PRESETS_PATH)
     os.makedirs(d, exist_ok=True)
-    tmp = _PRESETS_PATH + ".tmp"
+    # 临时名带线程 id：并发写同一文件时抢同一个 .tmp 会写出混杂内容
+    # （lora_reader.write_custom_store 同款做法）。
+    tmp = f"{_PRESETS_PATH}.{threading.get_ident()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump({"presets": presets}, f, ensure_ascii=False, indent=2)
     os.replace(tmp, _PRESETS_PATH)
@@ -97,9 +105,10 @@ def _register_routes():
                     return web.json_response({"error": "invalid name"}, status=400)
                 if not _valid_preset_data(data):
                     return web.json_response({"error": "invalid data"}, status=400)
-                presets = _load_presets()
-                presets[name.strip()] = data
-                _save_presets(presets)
+                async with _presets_lock:
+                    presets = _load_presets()
+                    presets[name.strip()] = data
+                    _save_presets(presets)
                 return web.json_response({"ok": True, "name": name.strip()})
             except Exception as e:
                 logger.error(f"POST /api/sfnodes/lora_presets failed: {e}")
@@ -111,11 +120,12 @@ def _register_routes():
                 name = request.rel_url.query.get("name", "")
                 if not _valid_preset_name(name):
                     return web.json_response({"error": "invalid name"}, status=400)
-                presets = _load_presets()
-                if name not in presets:
-                    return web.json_response({"error": "not found"}, status=404)
-                del presets[name]
-                _save_presets(presets)
+                async with _presets_lock:
+                    presets = _load_presets()
+                    if name not in presets:
+                        return web.json_response({"error": "not found"}, status=404)
+                    del presets[name]
+                    _save_presets(presets)
                 return web.json_response({"deleted": name})
             except Exception as e:
                 logger.error(f"DELETE /api/sfnodes/lora_presets failed: {e}")

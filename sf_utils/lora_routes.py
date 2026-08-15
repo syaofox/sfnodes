@@ -235,7 +235,7 @@ async def _download_page(url):
     curl_cffi（浏览器 TLS 指纹，实测过 CF）优先，aiohttp 兜底（部分直连
     网络不需要指纹伪装）。2MB 上限。失败一律返回 None 由调用方降级——
     页面只是描述的补充来源，绝不拖垮主查询。"""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     raw = await loop.run_in_executor(None, _page_fetch_curl_cffi, url)
     if raw:
         return raw
@@ -328,8 +328,7 @@ def _register_routes():
                     pass
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 # 头部读取虽小，但哈希/侧车 I/O 是磁盘绑定的——移出 aiohttp
                 # 事件循环。
                 info = await loop.run_in_executor(None, R.build_lora_info, path)
@@ -443,8 +442,7 @@ def _register_routes():
             path = _resolve_lora_path(name)
             if not path:
                 return web.json_response({"ok": False, "reason": "notfound", "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             try:
                 sha = await loop.run_in_executor(None, R.file_sha256, path)
             except Exception as exc:
@@ -665,8 +663,7 @@ def _register_routes():
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             try:
                 # 内容指纹随条目记录：文件日后改名/移动，孤儿匹配靠它找回。
                 def _set_with_fp():
@@ -697,8 +694,7 @@ def _register_routes():
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             try:
                 # 内容指纹随条目记录（同 custom_triggers）。
                 def _set_with_fp():
@@ -726,8 +722,7 @@ def _register_routes():
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             try:
                 # old_key 来自孤儿检测（指纹或基名命中）；fp 随迁移写入新键。
                 def _migrate_with_fp():
@@ -764,8 +759,7 @@ def _register_routes():
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             thumbnail = R.sidecar_thumbnail(path, allow_adult=bool(_civitai_account().get("adult_thumbs")))
             if not thumbnail:
                 return web.json_response({"ok": False,
@@ -816,8 +810,7 @@ def _register_routes():
             if not _looks_like_image(raw):
                 return web.json_response(
                     {"ok": False, "message": "That file is not a picture the browser can show."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             folder = _previews_dir()
             try:
                 written = await loop.run_in_executor(None, R.write_custom_preview, folder, name, raw)
@@ -865,8 +858,7 @@ def _register_routes():
             roots = _lora_dirs()
             if not path or not roots or not _is_path_under(path, *roots):
                 return web.json_response({"ok": False, "message": "LoRA not found."})
-            import asyncio
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             ok = await loop.run_in_executor(None, R.delete_sidecar_cache, path)
             return web.json_response({"ok": bool(ok)})
 

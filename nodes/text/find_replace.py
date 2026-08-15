@@ -103,14 +103,210 @@ def _unbounded_quant_at(src, j):
     return re.match(r"\{\d*,\}", src[j:]) is not None
 
 
+# 交替型指数回溯：_alternation_overlap_risk 的专用哨兵。
+_ANY_CHARS = object()   # 未知/任意字符集合（. [^..] \d 等）
+_EMPTY = object()       # 空分支（如 (a|)+）：与任何非空分支都可重叠
+
+
+def _split_top_level_alt(body):
+    """按顶层 | 切分组体（跳过转义/字符类/嵌套组），返回分支片段列表。"""
+    branches = []
+    start = 0
+    escaped = False
+    in_class = False
+    depth = 0
+    i = 0
+    n = len(body)
+    while i < n:
+        c = body[i]
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+        if c == "\\":
+            escaped = True
+            i += 1
+            continue
+        if in_class:
+            if c == "]":
+                in_class = False
+            i += 1
+            continue
+        if c == "[":
+            in_class = True
+            i += 1
+            continue
+        if c == "(":
+            depth += 1
+            i += 1
+            continue
+        if c == ")":
+            depth -= 1
+            i += 1
+            continue
+        if c == "|" and depth == 0:
+            branches.append(body[start:i])
+            start = i + 1
+            i += 1
+            continue
+        i += 1
+    branches.append(body[start:])
+    return branches
+
+
+def _class_first_chars(seg):
+    """解析字符类 [..] 的首字符集合；否定/含转义类/超大范围时保守返回 _ANY_CHARS。"""
+    negate = False
+    chars = set()
+    j = 1
+    n = len(seg)
+    while j < n:
+        c = seg[j]
+        if c == "^" and j == 1:
+            negate = True
+            j += 1
+            continue
+        if c == "\\":
+            if j + 1 < n:
+                e = seg[j + 1]
+                if e in "dDwWsS":
+                    return _ANY_CHARS
+                chars.add(e)
+                j += 2
+                continue
+        if c == "]":
+            break
+        if j + 2 < n and seg[j + 1] == "-" and seg[j + 2] != "]":
+            a, b = c, seg[j + 2]
+            if ord(b) - ord(a) <= 64:
+                chars.update(chr(x) for x in range(ord(a), ord(b) + 1))
+            else:
+                return _ANY_CHARS
+            j += 3
+            continue
+        chars.add(c)
+        j += 1
+    if negate:
+        return _ANY_CHARS
+    return chars
+
+
+def _branch_first_chars(branch):
+    """分支的首字符集合。返回 set / _ANY_CHARS / _EMPTY / None（无法判定，跳过该组）。"""
+    if not branch:
+        return _EMPTY
+    j = 0
+    n = len(branch)
+    # 跳过行/文本断言
+    while j < n and branch[j] in "^$":
+        j += 1
+    if j >= n:
+        return _EMPTY
+    c = branch[j]
+    if c == "\\":
+        if j + 1 >= n:
+            return None
+        e = branch[j + 1]
+        if e in "dDwWsS":
+            return _ANY_CHARS
+        if e in "bBAZ":  # 断言（\b \B \A \Z）：无字符，继续看下一个
+            return _branch_first_chars(branch[j + 2:])
+        return {e}
+    if c == "[":
+        return _class_first_chars(branch[j:])
+    if c == ".":
+        return _ANY_CHARS
+    if c == "(":
+        return None  # 嵌套组首字符难算；内层组会被独立检测
+    if c in "*+?{":
+        return None  # 量词开头（非法/罕见），保守跳过
+    return {c}
+
+
+def _alternation_overlap_risk(src):
+    """交替型指数回溯启发式：(a|aa)+ / (a|a?)+ / (a|)+ 家族。
+
+    组内顶层 | 分出至少两个分支、任意两分支的首字符集合重叠、且组后紧跟无界
+    量词（* + {n,}）→ 该组匹配方式随输入长度指数增长（经典 ReDoS）。
+    分支互斥（(a|b)+）不命中——两分支首字符 {a}/{b} 无交集。
+    必须与 web/sf_find_replace_lib.js 的 alternationOverlapRisk 保持同步。
+    """
+    # 1) 找出所有 ( ... ) 组的范围（跳过转义与字符类）
+    groups = []
+    stack = []
+    escaped = False
+    in_class = False
+    i = 0
+    n = len(src)
+    while i < n:
+        c = src[i]
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+        if c == "\\":
+            escaped = True
+            i += 1
+            continue
+        if in_class:
+            if c == "]":
+                in_class = False
+            i += 1
+            continue
+        if c == "[":
+            in_class = True
+            i += 1
+            continue
+        if c == "(":
+            stack.append(i)
+            i += 1
+            continue
+        if c == ")":
+            if stack:
+                groups.append((stack.pop(), i))
+            i += 1
+            continue
+        i += 1
+
+    for gs, ge in groups:
+        body = src[gs + 1:ge]
+        branches = _split_top_level_alt(body)
+        if len(branches) < 2:
+            continue
+        # 组后必须紧跟无界量词（lazy 变体 +? *? 以 +/* 开头，同样命中）
+        q = src[ge + 1] if ge + 1 < n else ""
+        if q not in ("*", "+"):
+            if q == "{" and re.match(r"\{\d*,\}", src[ge + 1:]):
+                pass
+            else:
+                continue
+        # 分支首字符两两重叠判定
+        firsts = [_branch_first_chars(b) for b in branches]
+        skip = False
+        seen = set()
+        for f in firsts:
+            if f is None:
+                skip = True
+                break
+            if f is _EMPTY or f is _ANY_CHARS:
+                return True  # 空分支或任意匹配分支与其它分支必重叠
+            if seen & f:
+                return True
+            seen |= f
+        if skip:
+            continue
+    return False
+
+
 def _is_catastrophic_regex(src):
     """启发式 ReDoS 防护 - 镜像 web/sf_find_replace_lib.js 的 isCatastrophicRegex。
 
     标记嵌套的无界量词（无界量词限定的组、其体内还含无界量词，如 (a+)+ (a*)*
-    (.*)* (\\w+)+），这种模式可能指数级回溯。它在服务端每次 Run 时执行且无
-    超时，所以此类模式会卡死 worker；我们跳过该规则并给出警告。启发式而非完备；
-    误报率低（嵌套无界量词总是冗余的，真实模式不会用）。必须与 JS 版本保持
-    同步，使节点上的预览与运行一致。
+    (.*)* (\\w+)+）与交替型指数回溯（(a|aa)+ (a|a?)+ (a|)+，两分支首字符重叠），
+    这种模式可能指数级回溯。它在服务端每次 Run 时执行且无超时，所以此类模式会
+    卡死 worker；我们跳过该规则并给出警告。启发式而非完备；误报率低（嵌套无界
+    量词总是冗余的，交替型命中要求分支首字符重叠）。必须与 JS 版本保持同步，
+    使节点上的预览与运行一致。
     """
     stack = []  # 每个打开的组一个 dict；"inner" = 组体内含无界量词
     escaped = False
@@ -155,6 +351,8 @@ def _is_catastrophic_regex(src):
             i += 1
             continue
         i += 1
+    if _alternation_overlap_risk(src):
+        return True
     return False
 
 

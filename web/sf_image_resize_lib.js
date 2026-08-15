@@ -42,7 +42,9 @@ export function readWiredInt(node, name) {
   const up = node.graph.getNodeById(l.origin_id);
   if (!up) return null;
   const nums = (up.widgets || []).filter((x) => typeof x.value === "number");
-  return nums.length === 1 && Number.isFinite(nums[0].value) ? Math.round(nums[0].value) : null;
+  // 镜像 Python _apply_wired_size 的 int() 截断（2.7 -> 2）：Math.round 会
+  // 把 2.7 报成 3，而真实执行是 2，预览对输出说谎。
+  return nums.length === 1 && Number.isFinite(nums[0].value) ? Math.trunc(nums[0].value) : null;
 }
 
 // Central wired-input state: which axes are wired + their best-effort values.

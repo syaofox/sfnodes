@@ -260,6 +260,118 @@ function unboundedQuantAt(src, j) {
     if (c === "*" || c === "+") return true;
     return /^\{\d*,\}/.test(src.slice(j));
 }
+// 交替型指数回溯启发式（镜像 nodes/text/find_replace.py::_alternation_overlap_risk）：
+// (a|aa)+ / (a|a?)+ / (a|)+ 家族——组内顶层 | 分出至少两个分支、任意两分支的
+// 首字符集合重叠、且组后紧跟无界量词 → 匹配方式随输入长度指数增长。分支互斥
+// （(a|b)+）不命中。与 Python 端 1:1 同步，预览与运行一致。
+const _ANY_CHARS = Symbol("any");
+const _EMPTY = Symbol("empty");
+
+function splitTopLevelAlt(body) {
+    const branches = [];
+    let start = 0;
+    let escaped = false;
+    let inClass = false;
+    let depth = 0;
+    for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (escaped) { escaped = false; continue; }
+        if (c === "\\") { escaped = true; continue; }
+        if (inClass) { if (c === "]") inClass = false; continue; }
+        if (c === "[") { inClass = true; continue; }
+        if (c === "(") { depth++; continue; }
+        if (c === ")") { depth--; continue; }
+        if (c === "|" && depth === 0) { branches.push(body.slice(start, i)); start = i + 1; }
+    }
+    branches.push(body.slice(start));
+    return branches;
+}
+
+function classFirstChars(seg) {
+    let negate = false;
+    const chars = new Set();
+    let j = 1;
+    while (j < seg.length) {
+        const c = seg[j];
+        if (c === "^" && j === 1) { negate = true; j++; continue; }
+        if (c === "\\") {
+            const e = seg[j + 1];
+            if (e === undefined) break;
+            if ("dDwWsS".includes(e)) return _ANY_CHARS;
+            chars.add(e); j += 2; continue;
+        }
+        if (c === "]") break;
+        if (seg[j + 1] === "-" && seg[j + 2] !== "]" && seg[j + 2] !== undefined) {
+            const a = c;
+            const b = seg[j + 2];
+            if (b.charCodeAt(0) - a.charCodeAt(0) <= 64) {
+                for (let k = a.charCodeAt(0); k <= b.charCodeAt(0); k++) chars.add(String.fromCharCode(k));
+            } else { return _ANY_CHARS; }
+            j += 3; continue;
+        }
+        chars.add(c); j++;
+    }
+    if (negate) return _ANY_CHARS;
+    return chars;
+}
+
+function branchFirstChars(branch) {
+    if (!branch) return _EMPTY;
+    let j = 0;
+    while (j < branch.length && (branch[j] === "^" || branch[j] === "$")) j++;
+    if (j >= branch.length) return _EMPTY;
+    const c = branch[j];
+    if (c === "\\") {
+        const e = branch[j + 1];
+        if (e === undefined) return null;
+        if ("dDwWsS".includes(e)) return _ANY_CHARS;
+        if ("bBAZ".includes(e)) return branchFirstChars(branch.slice(j + 2));
+        return new Set([e]);
+    }
+    if (c === "[") return classFirstChars(branch.slice(j));
+    if (c === ".") return _ANY_CHARS;
+    if (c === "(") return null;
+    if ("*+?{".includes(c)) return null;
+    return new Set([c]);
+}
+
+function alternationOverlapRisk(src) {
+    const groups = [];
+    const stack = [];
+    let escaped = false;
+    let inClass = false;
+    for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (escaped) { escaped = false; continue; }
+        if (c === "\\") { escaped = true; continue; }
+        if (inClass) { if (c === "]") inClass = false; continue; }
+        if (c === "[") { inClass = true; continue; }
+        if (c === "(") { stack.push(i); continue; }
+        if (c === ")") { if (stack.length) groups.push([stack.pop(), i]); continue; }
+    }
+    for (const [gs, ge] of groups) {
+        const branches = splitTopLevelAlt(src.slice(gs + 1, ge));
+        if (branches.length < 2) continue;
+        const q = src[ge + 1] || "";
+        let unbounded = q === "*" || q === "+";
+        if (q === "{" && /^\{\d*,\}/.test(src.slice(ge + 1))) unbounded = true;
+        if (!unbounded) continue;
+        const firsts = branches.map(branchFirstChars);
+        let skip = false;
+        const seen = new Set();
+        for (const f of firsts) {
+            if (f === null) { skip = true; break; }
+            if (f === _EMPTY || f === _ANY_CHARS) return true;
+            let overlap = false;
+            for (const ch of f) { if (seen.has(ch)) { overlap = true; break; } }
+            if (overlap) return true;
+            for (const ch of f) seen.add(ch);
+        }
+        if (skip) continue;
+    }
+    return false;
+}
+
 
 // 对灾难性回溯（"ReDoS"）模式的启发式防护。嵌套的无界量词——无界量词限定的组、
 // 其体内还含无界量词，如 (a+)+ (a*)* (.*)* (\\w+)+——对不匹配的输入可能指数级
@@ -293,6 +405,7 @@ export function isCatastrophicRegex(src) {
             continue;
         }
     }
+    if (alternationOverlapRisk(src)) return true;
     return false;
 }
 

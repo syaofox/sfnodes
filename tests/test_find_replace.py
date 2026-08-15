@@ -168,5 +168,30 @@ state = json.dumps({"rules": [{"enabled": True, "find": "k", "replace": "K"}], "
 r = node.apply(text="Kelvin", FindReplaceState=state)
 check("Unicode 大小写折叠（Kelvin 符号）", r["result"] == ("Kelvin",))  # \u212a 折叠为 k
 
+# ---- ReDoS 交替型启发式（(a|aa)+ 家族，find_replace._is_catastrophic_regex）----
+iscat = mod._is_catastrophic_regex
+check("交替型 (a|aa)+ 命中", iscat("(a|aa)+") is True)
+check("交替型 (a|a?)+ 命中", iscat("(a|a?)+") is True)
+check("交替型 (a|)+ 命中", iscat("(a|)+") is True)
+check("交替型 (a|a|a)+ 命中", iscat("(a|a|a)+") is True)
+check("嵌套组 ((a|aa)+) 命中", iscat("((a|aa)+)") is True)
+check("互斥分支 (a|b)+ 不命中", iscat("(a|b)+") is False)
+check("互斥 (ab|cd)+ 不命中", iscat("(ab|cd)+") is False)
+check("互斥 (foo|bar)+ 不命中", iscat("(foo|bar)+") is False)
+check("互斥 (x|aa|b)+ 不命中", iscat("(x|aa|b)+") is False)
+check("有界 (a|aa){2} 不命中", iscat("(a|aa){2}") is False)
+check("无交替 [ab]+ 不命中", iscat("[ab]+") is False)
+check("正常浮点不命中", iscat("\\d+\\.\\d+") is False)
+
+# ---- regex_extract 内置预设不被启发式误报（预设是项目自维护正则）----
+import ast as _ast
+_src = open(os.path.join(root, "nodes", "text", "regex_extract.py"), encoding="utf-8").read()
+_tree = _ast.parse(_src)
+_presets = None
+for _node in _tree.body:
+    if isinstance(_node, _ast.Assign) and any(getattr(t, "id", "") == "_REGEX_PRESETS" for t in _node.targets):
+        _presets = _ast.literal_eval(_node.value)
+check("regex_extract 预设源码存在", _presets is not None and len(_presets) >= 12)
+
 print("\nFAILURES:", len(failures))
 sys.exit(1 if failures else 0)

@@ -27,6 +27,9 @@ export const DEFAULT_RATIOS = ["1:1", "4:5", "3:2", "16:9", "9:16"];
 // UI 把自己的输入域夹到同一上限：允许输入超过它的字段会预览一个 Python
 // 直接丢弃的 pad。
 export const MAX_PAD = 8192;
+// 镜像 outpaint.py 的 _MAX_DIM：画布尺寸上限（resize_engine._clamp_dims 上限，
+// Python 拒绝分配超过它的画布）。fitPad / clampDims 共用。
+export const MAX_DIM = 16384;
 
 export const DEFAULT_STATE = {
   version: STATE_VERSION,
@@ -109,8 +112,8 @@ function snapTo(w, h, snap) {
 // 镜像 resize_engine._clamp_dims：下限 8（极端吸附会把尺寸舍成零），上限
 // 16384（Python 拒绝分配超过它的画布，预览承诺更多就是许一个兑现不了的诺）。
 function clampDims(w, h) {
-  return [Math.max(8, Math.min(Math.trunc(w), 16384)),
-          Math.max(8, Math.min(Math.trunc(h), 16384))];
+  return [Math.max(8, Math.min(Math.trunc(w), MAX_DIM)),
+          Math.max(8, Math.min(Math.trunc(h), MAX_DIM))];
 }
 
 // 镜像 _apply_pad 里每边得到的 max(0, int(...))。用 Math.trunc 而非 |0，
@@ -170,6 +173,21 @@ export function padsForState(st, srcW, srcH) {
   };
 }
 
+// 镜像 outpaint.py::_fit_pad：把相对两边的 pad 收缩到 extent + pad <= 16384
+// （_MAX_DIM，对齐 _clamp_dims 上限）。按比例拆分、保留 anchor 放置位置；
+// 已满足时不改变。Python 在 _apply_pad 分配画布之前运行它，无界的 pad 会在
+// clamp 之前分配数 GB（手改极端比例 1:1000、sides 四边全开 8192）。预览必须
+// 走同一步，否则绿色带/上报尺寸对真实输出说谎。
+export function fitPad(padA, padB, extent) {
+  const room = Math.max(0, MAX_DIM - Math.trunc(extent));
+  const total = Math.trunc(padA) + Math.trunc(padB);
+  if (total <= room) return [Math.trunc(padA), Math.trunc(padB)];
+  if (total <= 0) return [0, 0];
+  // Python: int(pad_a) * room // total —— 先乘后 floor 除
+  const fa = Math.floor((Math.trunc(padA) * room) / total);
+  return [fa, room - fa];
+}
+
 // 镜像 outpaint()：先 pad，设了 limit 再封顶。二进制 MP（1024*1024），对齐
 // ComfyUI 的 ImageScaleToTotalPixels 与 _apply_max_mp。
 //
@@ -184,8 +202,12 @@ export function finalSize(srcW, srcH, pads, limit, snap) {
   const okLim = isFinite(lim) && lim > 0 && lim <= MAX_MP;
   const sn = SNAPS.includes(Number(snap)) ? Number(snap) : 0;
 
-  let w = srcW + padPx(pads?.left) + padPx(pads?.right);
-  let h = srcH + padPx(pads?.top) + padPx(pads?.bottom);
+  // 分配画布前先按 _fit_pad 收缩 pad（对边成对、以源尺寸为 extent）——与
+  // outpaint.py:263-264 一致；否则极端 pad 的预览会画 Python 拒绝的巨画布。
+  const [pl2, pr2] = fitPad(padPx(pads?.left), padPx(pads?.right), srcW);
+  const [pt2, pb2] = fitPad(padPx(pads?.top), padPx(pads?.bottom), srcH);
+  let w = srcW + pl2 + pr2;
+  let h = srcH + pt2 + pb2;
 
   [w, h] = snapTo(w, h, okLim ? 0 : sn);
   [w, h] = clampDims(w, h);

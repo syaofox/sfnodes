@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { escapeHtml } from "./sf_common.js";
 
 const PAGE_SIZE = 50;
 const SORT_KEY = "sfnodes_image_browser_sort";
@@ -364,10 +365,12 @@ function showImageBrowser(node) {
             accumulated += (i > 0 ? "/" : "") + parts[i];
             const isLast = i === parts.length - 1;
             html += '<span class="sep">&rsaquo;</span>';
+            // 目录名来自用户可写文件系统：文本与 data-folder 属性都必须转义
+            // （含 < 或 " 的目录名会注入 HTML / 破坏属性）。
             if (isLast) {
-                html += `<span class="current">${parts[i]}</span>`;
+                html += `<span class="current">${escapeHtml(parts[i])}</span>`;
             } else {
-                html += `<span data-folder="${accumulated}">${parts[i]}</span>`;
+                html += `<span data-folder="${escapeHtml(accumulated)}">${escapeHtml(parts[i])}</span>`;
             }
         }
         crumbsEl.innerHTML = html;
@@ -432,7 +435,7 @@ function showImageBrowser(node) {
         div.className = "sf-imgbrowser-item folder";
         div.innerHTML = `
             <div class="sf-imgbrowser-folder-icon">&#128193;</div>
-            <div class="sf-imgbrowser-item-label">${folderName}</div>
+            <div class="sf-imgbrowser-item-label">${escapeHtml(folderName)}</div>
         `;
         div.addEventListener("click", () => {
             currentFolder = currentFolder ? currentFolder + "/" + folderName : folderName;

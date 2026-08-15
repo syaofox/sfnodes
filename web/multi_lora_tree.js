@@ -17,6 +17,7 @@
 
 import { app } from "/scripts/app.js";
 import { $el } from "/scripts/ui.js";
+import { escapeHtml } from "./sf_common.js";
 
 const DISPLAY_MODE = {
     LIST: 0,
@@ -177,7 +178,9 @@ app.registerExtension({
 
             const createFolderElement = (name) => {
                 return $el("div.litemenu-entry.sfnodes-combo-folder", {
-                    innerHTML: `<span class="sfnodes-combo-folder-arrow">&#9658;</span> ${name}`,
+                    // 文件夹名来自用户可写文件系统：必须转义，含 < 或 " 的名字
+                    // 会注入 HTML。
+                    innerHTML: `<span class="sfnodes-combo-folder-arrow">&#9658;</span> ${escapeHtml(name)}`,
                     style: { paddingLeft: "5px" },
                 });
             };

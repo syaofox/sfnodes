@@ -85,7 +85,9 @@ class SFTextReplace:
     @classmethod
     def IS_CHANGED(cls, template, refresh=False, **kwargs):
         if refresh:
-            return float("NaN")
+            # 用户点 Refresh 强制重跑：返回变化的时间戳而非 NaN（NaN 恒不等于
+            # 自身会让缓存键折叠所有祖先、下游每次 Run 全量重跑）。
+            return str(time.time_ns())
         return None
 
     def execute(self, template, refresh=False, **kwargs):

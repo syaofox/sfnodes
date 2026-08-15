@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 import folder_paths
 from aiohttp import web
@@ -31,6 +32,13 @@ def _resolve_folder(folder: str, new_folder: str = "") -> str:
     target = os.path.normpath(os.path.join(base, name))
     if not (target == base or target.startswith(base + os.sep)):
         target = os.path.join(base, "default")
+    # realpath 二次校验：normpath+startswith 挡不住 base 下 symlink 子目录指向
+    # 外部（os.listdir/open 会跟随链接到 base 之外）。无条件执行——target 自身
+    # 是 symlink 指向外部时同样必须拒绝（islink 守卫会让逃逸面漏过）。
+    real_target = os.path.realpath(target)
+    real_base = os.path.realpath(base)
+    if not (real_target == real_base or real_target.startswith(real_base + os.sep)):
+        target = os.path.join(base, "default")
     os.makedirs(target, exist_ok=True)
     return target
 
@@ -61,15 +69,38 @@ class SFLoadPromptsFromFolder:
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         if kwargs.get("load_always", False):
-            return float("NaN")
-        return hash(frozenset(kwargs.items()))
+            # 每次强制重载：返回变化的时间戳而非 NaN（NaN 恒不等于自身会让缓存
+            # 键折叠所有祖先、下游每次 Run 全量重跑）。
+            return str(time.time_ns())
+        # 输入值 + 目录内 txt 文件 (name, mtime) 聚合：目录新增/修改文件也能
+        # 触发重跑（只哈希输入值时新增文件不会被感知，输出陈旧）。
+        try:
+            directory = _resolve_folder(kwargs.get("folder", "default"))
+            files = []
+            if os.path.isdir(directory):
+                for fn in sorted(os.listdir(directory)):
+                    if fn.lower().endswith(".txt"):
+                        p = os.path.join(directory, fn)
+                        try:
+                            files.append((fn, os.path.getmtime(p)))
+                        except OSError:
+                            pass
+        except Exception:
+            files = []
+        return hash((frozenset(kwargs.items()), tuple(files)))
 
     def load_prompts(self, folder, file_prefix="", file_load_cap=0, start_index=0, load_always=False):
         directory = _resolve_folder(folder)
 
-        dir_files = os.listdir(directory)
-        if len(dir_files) == 0:
-            raise FileNotFoundError(f"No files in directory '{directory}'.")
+        try:
+            dir_files = os.listdir(directory)
+        except OSError:
+            dir_files = []
+        if not dir_files:
+            # 空目录：返回空列表而非抛错（工作流继续跑，与 load_images_path 的
+            # 空目录降级一致）。
+            print(f"[SFLoadPromptsFromFolder] 目录为空: {directory}")
+            return ([], [])
 
         if file_prefix:
             txt_files = [f for f in dir_files if f.lower().startswith(file_prefix.lower()) and f.lower().endswith('.txt')]
@@ -77,7 +108,8 @@ class SFLoadPromptsFromFolder:
             txt_files = [f for f in dir_files if f.lower().endswith('.txt')]
 
         if not txt_files:
-            raise FileNotFoundError(f"No matching .txt files found in directory '{directory}' with prefix '{file_prefix}'.")
+            print(f"[SFLoadPromptsFromFolder] 目录中无匹配 .txt: {directory} prefix={file_prefix!r}")
+            return ([], [])
 
         def sort_key(filename):
             match = re.search(r'\d+', filename)

@@ -51,7 +51,7 @@ sfnodes/
 │   ├── color_match_points.py # 三点色彩匹配纯逻辑（亮度分位三点提取/逐通道分段线性 LUT/查表，SFImageColorMatchByPoints 用，无 ComfyUI 依赖）
 │   ├── regional_engine.py # 区域 LoRA 纯逻辑（键归一化/矩阵解析/regions JSON/层规划+每区域匹配诊断/token 网格 mask 数学/彩虹预览，SFRegionalLoRA 用，无 ComfyUI 依赖）
 │   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
-│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/decode_image，crop 与 inpaint 共用）
+│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化）
 │   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
@@ -172,7 +172,7 @@ class SFMyNode:
 - 使用 `_CATEGORY` 模块级常量定义分类前缀
 - 工具函数放在 `sf_utils/` 下对应模块（无状态纯函数）
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
-- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_popup.js`（浮动弹层三件套：attachPopupDismiss 外部点击/Esc/滚轮三关闭 + clampToViewport 钳位，**新弹层优先使用**，见 experience.md §26）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**。**纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`）——这类模块的通用纯函数共享应放无依赖模块（如 sf_popup.js 即无 app 依赖）；DOM 层模块可自由用 sf_common。**注册规范**：`app.registerExtension` 文件必须直接 `import { app } from "/scripts/app.js"`（禁用相对路径 `../../scripts/`——依赖挂载路径）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在——以上由 `tests/check_web_imports.py` 固化校验（新增 web 模块时若报 MISSING MODULE 需把模块名加入该脚本 MODS 列表）。
+- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_popup.js`（浮动弹层三件套：attachPopupDismiss 外部点击/Esc/滚轮三关闭 + clampToViewport 钳位，**新弹层优先使用**，见 experience.md §26）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / sanitize_filename / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**。**纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`）——这类模块的通用纯函数共享应放无依赖模块（如 sf_popup.js 即无 app 依赖）；DOM 层模块可自由用 sf_common。**注册规范**：`app.registerExtension` 文件必须直接 `import { app } from "/scripts/app.js"`（禁用相对路径 `../../scripts/`——依赖挂载路径）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在——以上由 `tests/check_web_imports.py` 固化校验（新增 web 模块时若报 MISSING MODULE 需把模块名加入该脚本 MODS 列表）。
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
 
 ## Development Rules
@@ -272,7 +272,7 @@ class SFMyNode:
 
 **前后端：文本查找替换双端镜像（`nodes/text/find_replace.py`、`web/sf_find_replace*.js`，SFTextFindReplace）→ experience.md §14**
 - 替换逻辑 Python 权威 + JS 预览镜像（`applyRulesJS` ≡ `_apply_rules`），测试同用例同期望值。**literal 模式**：替换文本反斜杠必须双写（`\1` 是字面量不是 backref），JS 端 `$` 转义；**regex 模式**：backref `\1`（Python）vs `$1`（JS）靠 pyTemplateToJs 翻译、`(?P<n>)`→`(?<n>)`、`/u` flag 匹配 Python Unicode 大小写折叠；`\w` 类在 JS 预览仅 ASCII——预览可能比实际窄，Python 是权威。
-- **ReDoS 防护**：嵌套无界量词启发式（`(a+)+` `(a*)*`）双端 1:1 镜像——Python 服务端无超时执行，命中即跳过规则 + 警告；预览每次按键重算，同模式会冻结浏览器。
+- **ReDoS 防护**：嵌套无界量词启发式（`(a+)+` `(a*)*`）**+ 交替型指数回溯（`(a|aa)+` 家族，分支首字符重叠判定，`(a|b)+` 不误报）**双端 1:1 镜像（find_replace.py ≡ sf_find_replace_lib.js；regex_extract 复用，内置预设跳过）——Python 服务端无超时执行，命中即跳过规则 + 警告；预览每次按键重算，同模式会冻结浏览器。
 - **预览样本上限 4000 存 `node.properties.findReplacePreview`（不注入 prompt）**：预览 = 上次运行输入 × 当前规则实时重算；规则状态 `findReplaceState` 经 graphToPrompt 注入隐藏 FindReplaceState（Pattern #9，随 workflow 保存）。
 
 **前端：值下拉与输出点对齐（`web/sf_dropdown*.js`、`nodes/text/dropdown_value.py`，SFValueDropdown）→ experience.md §15**
@@ -352,6 +352,11 @@ class SFMyNode:
 
 **静态检查脚本（AST）→ experience.md §3**
 - `ast.unparse` 输出单引号、`ast.literal_eval` 遇变量引用抛错——检查脚本出错时先怀疑脚本，再怀疑被检查代码。
+
+**Python 版本陷阱（2026-08，simple_math.py 修复批次）→ experience.md §27**
+- `ast.Constant.n` 是 `value` 旧别名：**3.13 deprecated、3.14 移除**（实测 3.14.7 AttributeError），一律写 `node.value`。
+- **`__pycache__` 的 cpython-3xx 是本机解释器版本，不代表运行容器**（本机 3.14.7、comfyui-docker 容器 3.12.3）：涉及 ast/语法 API 的改动以容器版本为行为基准写测试。
+- 表达式求值节点（SimpleMath）必须包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError）——语法错误/除零/未注册运算符/字符串常量（`math.isnan(str)` TypeError）都是用户一眼踩的崩溃面。
 
 **复刻节点去重（sf_common.js / disk_state.py，2026-08）→ experience.md §17**
 - 公共小工具单一实现收敛于 `web/sf_common.js`（小工具/强调色/LoRA 行名三族，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。

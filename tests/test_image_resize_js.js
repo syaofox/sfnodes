@@ -165,6 +165,12 @@ function makeNode(graph) {
     check("readWiredInt 多数值 widget -> null", readWiredInt(node, "height") === null);
     wireNode(node, "longest_side", makeUpstream([{ value: "combo" }]));
     check("readWiredInt 字符串 widget -> null", readWiredInt(node, "longest_side") === null);
+    // H14: 小数截断（镜像 Python int()，Math.round 会报 3 而执行是 2）
+    wireNode(node, "width", makeUpstream([{ value: 2.7 }]));
+    check("readWiredInt 2.7 -> 2（截断）", readWiredInt(node, "width") === 2);
+    wireNode(node, "width", makeUpstream([{ value: -2.7 }]));
+    check("readWiredInt -2.7 -> -2（截断）", readWiredInt(node, "width") === -2);
+    wireNode(node, "width", makeUpstream([{ value: 512 }]));
 
     // wireInfo
     const info = wireInfo(node);

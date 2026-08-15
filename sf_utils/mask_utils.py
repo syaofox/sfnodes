@@ -422,10 +422,26 @@ def _process_global(mask, mask_params):
     return mask
 
 
+def _mask_to_wh1(mask):
+    """归一为尾维 1 的遮罩形状（原 squeeze(0).unsqueeze(-1) 的显式分派）。
+
+    [H,W] -> [H,W,1]；[1,H,W] -> [H,W,1]（单帧丢 batch，历史契约）；
+    [B,H,W]（B>1）-> [B,H,W,1]（保留 batch——原 squeeze(0) 在 B>1 时不动
+    的隐式行为，显式化避免歧义）；[H,W,1] / [B,H,W,1] 原样。
+    修复了原实现 2D 且 H==1 时被 squeeze 成 1D 的隐藏 bug。"""
+    if mask.dim() == 2:
+        return mask.unsqueeze(-1)
+    if mask.dim() == 3:
+        if mask.shape[0] == 1:
+            return mask.squeeze(0).unsqueeze(-1)
+        return mask.unsqueeze(-1)
+    return mask
+
+
 def mask_process(mask, mask_params=None, unqueeze=True):
     if mask_params is None:
         if unqueeze:
-            mask = mask.squeeze(0).unsqueeze(-1)
+            mask = _mask_to_wh1(mask)
         return mask
 
     pre_invert = mask_params["pre_invert"]
@@ -446,7 +462,7 @@ def mask_process(mask, mask_params=None, unqueeze=True):
     if invert:
         mask = 1 - mask
     if unqueeze:
-        mask = mask.squeeze(0).unsqueeze(-1)
+        mask = _mask_to_wh1(mask)
     return mask
 
 

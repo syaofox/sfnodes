@@ -59,6 +59,43 @@ def sanitize_id(raw, fallback: str) -> str:
     return s[:64] or fallback
 
 
+_ILLEGAL_FN_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+_FN_MAX_LEN = 128
+_WIN_RESERVED_NAMES = frozenset((
+    "CON", "PRN", "AUX", "NUL",
+    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+))
+
+
+def sanitize_filename(raw, fallback: str = "file") -> str:
+    """把任意用户输入净化成安全的单段文件名（保留 Unicode，拒绝路径逃逸）。
+
+    先检查 leading '/' 与 '..'/'.' 段（在任何清洗之前——清洗会把 '..' 吃掉，
+    让路径穿越检查失效）；再把路径分隔符与 Windows 非法字符替换为 '_'、
+    剥离边沿空白/点、拒绝隐藏文件、保留设备名加 '_' 后缀、截断限长。
+    不可恢复时返回 fallback（调用方兜底默认名）。"""
+    if not isinstance(raw, str):
+        return fallback
+    s = raw.strip().replace("\\", "/")
+    if not s or s.startswith("/"):
+        return fallback
+    parts = s.split("/")
+    if any(p in ("", ".", "..") for p in parts):
+        return fallback
+    cleaned = _ILLEGAL_FN_CHARS.sub("_", s)
+    # 循环到稳定：边沿空白、边沿下划线、尾点会互相遮蔽
+    prev = None
+    while prev != cleaned:
+        prev = cleaned
+        cleaned = cleaned.strip().strip("_").rstrip(". ")
+    if not cleaned or cleaned.startswith("."):
+        return fallback
+    if cleaned.split(".", 1)[0].upper() in _WIN_RESERVED_NAMES:
+        cleaned += "_"
+    return cleaned[:_FN_MAX_LEN]
+
+
 def decode_image(b64: str):
     """把 dataURL（或裸 base64）解码为 PIL Image，失败返回 None。"""
     if not isinstance(b64, str) or not b64:

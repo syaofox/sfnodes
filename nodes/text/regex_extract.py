@@ -2,6 +2,8 @@ import re
 
 from comfy.comfy_types.node_typing import IO
 
+from .find_replace import _is_catastrophic_regex
+
 _CATEGORY = "sfnodes/text"
 
 _PRESET_CUSTOM = "自定义"
@@ -122,6 +124,16 @@ class SFTextRegexExtract:
             if entry is None:
                 return ("", 0)
             regex = entry[0]
+
+        # ReDoS 防护（镜像 find_replace 的启发式：嵌套无界量词 + 交替型指数
+        # 回溯）。服务端 re 无超时，命中即跳过 + 警告，避免卡死 worker。
+        # 内置预设是项目自维护的正则（启发式对固定前缀组如 (?:\.\w+)+ 有
+        # 保守误报），仅当用户改动过预设或使用自定义模式时才检查。
+        preset_pattern = _PRESET_BY_NAME.get(preset, (None,))[0]
+        is_preset_untouched = preset_pattern is not None and regex == preset_pattern
+        if not is_preset_untouched and _is_catastrophic_regex(regex):
+            print(f"[SFTextRegexExtract] 正则可能灾难性回溯，已跳过: {regex!r}")
+            return ("", 0)
 
         try:
             compiled = re.compile(regex, re.IGNORECASE if ignore_case else 0)

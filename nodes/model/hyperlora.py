@@ -7,7 +7,9 @@ import torch
 import numpy as np
 from typing import List
 
+import comfy.utils
 from ...sf_utils.image_convert import images2tensor
+from ...sf_utils.disk_state import sanitize_filename
 from safetensors.torch import load_file, save_file
 from ...sf_utils.logger import get_logger
 
@@ -136,6 +138,9 @@ class HyperLoRASaveCharacter:
     DESCRIPTION = "保存角色 LoRA 和关联图片到 HyperLoRA 角色库"
 
     def execute(self, char_name, lora, images=None):
+        # char_name 是自由 STRING：先净化成安全的单段文件名（拒绝 ../、绝对
+        # 路径、路径分隔符等），否则可越过 hyper_lora/chars 目录任意写文件。
+        char_name = sanitize_filename(char_name, "char1")
         filename = os.path.join(
             folder_paths.models_dir, "hyper_lora/chars", f"{char_name}.safetensors"
         )

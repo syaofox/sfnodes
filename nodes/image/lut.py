@@ -11,6 +11,8 @@ from colour import LUT3D
 from colour.algebra import table_interpolation_tetrahedral
 from colour.io import write_LUT
 
+from ...sf_utils.disk_state import sanitize_filename
+
 _CATEGORY = "sfnodes/image"
 
 
@@ -163,7 +165,9 @@ class SFLoadLUT:
             with open(file_path, "rb") as f:
                 m.update(f.read())
             return m.hexdigest()
-        return float("NaN")
+        # 文件缺失/未选择：返回稳定字符串而非 NaN（NaN 恒不等于自身，
+        # 会让节点缓存键折叠所有祖先、下游每次 Run 全量重跑）。
+        return f"missing:{file_name}"
 
     def load(self, file_name):
         if file_name == "(no LUT files)" or not file_name:
@@ -339,6 +343,11 @@ class SFExtractLUT:
 
         lut_table = np.clip(lut_table, 0, 1).astype(np.float32)
 
+        # filename 是自由 STRING：净化成安全的单段文件名（拒绝 ../、绝对路径），
+        # 并强制 .cube 后缀，否则可越过 user/sfnodes/lut/ 目录任意写文件。
+        filename = sanitize_filename(filename, "extracted_lut")
+        if not filename.lower().endswith(".cube"):
+            filename += ".cube"
         name = os.path.splitext(filename)[0]
         lut = LUT3D(table=lut_table, name=name)
 

@@ -13,6 +13,8 @@ aiohttp
 safetensors
 tqdm
 psutil
+requests
+typing_extensions
 sageattention
 diffusers
 einops

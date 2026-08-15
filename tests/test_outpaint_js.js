@@ -99,6 +99,25 @@ function check(name, cond) {
     const broken = { properties: { outpaintState: "not json" } };
     check("readState 坏 JSON 回退默认", C.readState(broken).mode === "ratio");
 
+    // ── fitPad（镜像 outpaint.py::_fit_pad：extent + pad <= 16384）──
+    check("fitPad 不超限原样", JSON.stringify(C.fitPad(100, 200, 1000)) === JSON.stringify([100, 200]));
+    check("fitPad 超限按比例收缩", JSON.stringify(C.fitPad(8000, 8000, 1024)) === JSON.stringify([7680, 7680]));
+    check("fitPad 单边超限", JSON.stringify(C.fitPad(20000, 0, 100)) === JSON.stringify([16284, 0]));
+    check("fitPad 零总pad", JSON.stringify(C.fitPad(0, 0, 100)) === JSON.stringify([0, 0]));
+    // 约束与比例保留（与 Python tests/test_outpaint.py 同用例）
+    const pyCases = [[20000, 0, 100], [8000, 8000, 1024], [100, 200, 1000], [0, 0, 50], [16384, 0, 0]];
+    for (const [a, b, ext] of pyCases) {
+        const rp = C.fitPad(a, b, ext);
+        check("fitPad 约束 extent+pad<=16384 " + [a, b, ext].join(","), (ext + rp[0] + rp[1]) <= 16384 + 1);
+        if (a + b > 0) {
+            const tot = rp[0] + rp[1];
+            check("fitPad 比例保留 " + [a, b, ext].join(","), tot > 0 && (Math.abs((rp[0] / tot) - (a / (a + b))) < 0.01 || a === 0));
+        }
+    }
+    // finalSize 走 fitPad：极端 pad 预览尺寸被压到 16384
+    const f7 = C.finalSize(100, 100, { top: 0, bottom: 0, left: 20000, right: 0 }, 0, 0);
+    check("finalSize 极端 pad 压缩到 16384", f7.w <= 16384 && f7.w >= 100);
+
     console.log();
     if (failures.length) { console.log(failures.length + " FAILURES:", failures); process.exit(1); }
     console.log("ALL PASS");

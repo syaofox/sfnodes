@@ -3,8 +3,11 @@ import math
 import operator as op
 
 from ...sf_utils.common import AnyType
+from ...sf_utils.logger import get_logger
 
 _CATEGORY = "sfnodes/utils"
+
+logger = get_logger(__name__)
 
 any = AnyType("*")
 
@@ -249,7 +252,8 @@ class SimpleMath:
 
         def eval_(node):
             if isinstance(node, ast.Constant):
-                return node.n
+                # node.n 是 value 的旧别名：3.13 起 deprecated、3.14 移除。
+                return node.value
             if isinstance(node, ast.Name):
                 return vars.get(node.id, 0.0)
             if isinstance(node, ast.BinOp):
@@ -276,7 +280,14 @@ class SimpleMath:
                 return 0
             return 0
 
-        result = eval_(ast.parse(value, mode="eval").body)
+        try:
+            result = eval_(ast.parse(value, mode="eval").body)
+        except (SyntaxError, ZeroDivisionError, KeyError, TypeError, AttributeError) as e:
+            logger.warning(f"[SimpleMath] 表达式求值失败: {value!r} -> {type(e).__name__}: {e}")
+            return (0, 0.0)
+        if not isinstance(result, (int, float)):
+            # 字符串常量/字符串变量等非数值结果（如 "abc"）不能进 isnan/round
+            return (0, 0.0)
         if math.isnan(result):
             result = 0.0
         return (round(result), result)

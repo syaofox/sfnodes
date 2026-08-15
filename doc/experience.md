@@ -31,6 +31,7 @@
 - [24. SFPromptStack：动态 Prompt 列表与行高拖拽](#24-sfpromptstack动态-prompt-列表与行高拖拽)
 - [25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）](#25-sfregionallora多区域角色-loratoken-网格注入与匹配诊断)
 - [26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界](#26-前端架构治理2026-08工具收敛--弹层三件套--纯模块边界)
+- [27. 2026-08 健壮性修复批次：表达式防御 / ReDoS 交替型 / 路径净化 / 双端镜像补缺](#27-2026-08-健壮性修复批次表达式防御--redos-交替型--路径净化--双端镜像补缺)
 
 ---
 
@@ -1121,3 +1122,63 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **双渲染器（Classic/Vue）不抽象**：34 处 `isVueNodes()` 分支语义各异（槽位替换 / shallowReactive / DOM nudge 各不同），强行抽象收益不确定；新增分支受控、常见适配优先入 sf_common。
 - **超大文件不强制拆分**（13 个 >1000 行）：纯搬移改 import 图，收益低于风险；新代码优先进已有拆分模块或新建模块。
 - **旧文件不重命名**：27 个无 `sf_` 前缀文件 + `DisplayText.js`/`SFLogicSwitch.js` PascalCase 为历史遗留（git 历史/用户记忆成本），保持现状。
+
+---
+
+## 27. 2026-08 健壮性修复批次：表达式防御 / ReDoS 交替型 / 路径净化 / 双端镜像补缺
+
+> 背景：全量代码审查（4 子代理 + 主代理逐条复核）后的一轮修复批次。涉及 `nodes/`、`sf_utils/`、`web/` 共 20 余个文件，全部为 bug 修复、无新节点、无注册字典改动。配套测试：`tests/test_simple_math.py` / `test_logic.py` / `test_downloader.py` / `test_seed.py` / `test_disk_state.py`（新建），`test_find_replace.py` / `test_outpaint_js.js` / `test_image_resize_js.js`（追加用例）。
+
+### 1. `ast.Constant.n` 版本陷阱（Python 3.13 deprecated / 3.14 removed）——simple_math.py
+
+- `ast.Constant.n` 是 `value` 的旧别名：**3.13 起访问抛 DeprecationWarning，3.14 起属性移除**（`_fields = ('value', 'kind')`，实测 3.14.7 `node.n` AttributeError）。修复一律写 `node.value`（3.8+ 全版本存在）。
+- **开发环境与容器的版本差**：本机 python3 是 3.14（`__pycache__` 的 cpython-314 是**本机**产物，不代表容器）；comfyui-docker 容器实测 Python 3.12.3。同一段代码在两个版本可能行为不同（3.14 上 `ast.parse('1+2*3')` 直接 AttributeError，3.12 正常）——涉及 ast/语法 API 的改动要以**容器版本**为行为基准写测试断言。
+- SimpleMath 表达式求值的完整崩溃面（修复前）：语法错误 SyntaxError、`1/0` ZeroDivisionError、未注册运算符（`^`/`@`）KeyError、**字符串常量 `"abc"` 与字符串变量 → `math.isnan(str)` TypeError**、`0**-1` ZeroDivisionError。修复：整段 eval_ 包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError/AttributeError）回退 `(0, 0.0)` + warning；`isnan` 前 `isinstance(result, (int, float))` 校验。
+- 教训：`__pycache__` 的 `cpython-3xx` 目录是**本机解释器**版本而非运行环境；判断运行版本必须问用户/查容器。
+
+### 2. ReDoS 启发式补交替型（(a|aa)+ 家族）——find_replace.py + sf_find_replace_lib.js + regex_extract.py
+
+- 原 `_is_catastrophic_regex` 只覆盖嵌套无界量词 `(a+)+ (a*)* (.*)*`——**漏掉交替型指数回溯**：`(a|aa)+`、`(a|a?)+`、`(a|)+`（无嵌套量词，同样指数级）。
+- 新增 `_alternation_overlap_risk`：组内顶层 `|` 分出 ≥2 分支、任意两分支**首字符集合重叠**、且组后紧跟无界量词（`*`/`+`/`{n,}`，lazy 变体 `+?`/`*?` 以 `+`/`*` 开头天然命中）→ 危险。首字符集合解析：字面字符 / 字符类（含否定与转义类 → ANY）/ `.` → ANY / 空分支 → EMPTY（与任何分支重叠）/ 断言（`^` `$` `\b`）跳过 / 嵌套组 → 保守跳过该组。
+- **判别精度**：`(a|b)+` 与 `(x|aa|b)+`（分支首字符互斥）**不命中**——线性安全；`(a|a|a)+`、`(a[0-9]|aa)+` 命中。测试 13 例双端（Python + JS）同用例。
+- **JS 镜像必须 1:1 同步**（`sf_find_replace_lib.js` 的 `alternationOverlapRisk`）：预览每次按键重算，与 Python 服务端行为不一致时预览对运行说谎。
+- **内置预设跳过检查**：regex_extract 的 12 个内置预设是项目自维护正则，其中"提取邮箱" `[\w.+-]+@[\w-]+(?:\.[\w-]+)+` 会被**嵌套量词检测**保守误报（`(?:\.\w+)+` 组体以固定前缀开头其实线性安全）——接入 ReDoS 检查时预设原样跳过（`is_preset_untouched`），只检查用户改动/自定义的模式。
+
+### 3. 文件名净化收敛：`disk_state.sanitize_filename`（H3/H5 共用）
+
+- 新公共函数 `sanitize_filename(raw, fallback)`：保留 Unicode/空格，拒绝绝对路径/`..`/`.`/空段（**在任何清洗之前检查**——清洗会把 `..` 吃掉）、路径分隔符拍平为 `_`、Windows 非法字符替换、边沿剥离、隐藏文件拒绝、保留设备名加 `_` 后缀、截断 128。hyperlora 的 `char_name`（自由 STRING → 路径穿越写 `models/hyper_lora/chars/`）与 SFExtractLUT 的 `filename`（→ `user/sfnodes/lut/`）共用。
+- 教训：**节点里"自由 STRING → 文件路径"是路径穿越高危点**（hyperlora/lut 两处原实现都直接 `os.path.join`）；新写这类节点必须净化。
+
+### 4. cropstitch 多帧必崩 + 设备不匹配（cropstitch.py）
+
+- 顶部/底部镜像填充用了**整批 `image`** 写进单帧 `new_image`（batch>1 形状失配 RuntimeError）——必须用 `one_image`。
+- `torch.zeros`/`torch.ones` 画布**未指定 device**（默认 CPU），CUDA 输入在赋值点设备不匹配崩——一律 `device=one_image.device`。
+- 教训：局部新建张量必须继承输入张量的 device；镜像填充/拼接只允许单帧语义时明确用单帧。
+
+### 5. outpaint 双端镜像补缺：`fitPad`（sf_outpaint_core.js ≡ outpaint.py::_fit_pad）
+
+- Python `_fit_pad` 在分配画布**之前**把相对两边 pad 收缩到 `extent + pad <= 16384`（防极端比例 1:1000 / sides 四边全开 8192 先分配数 GB 再 clamp）；JS `finalSize` 此前只对最终像素 clamp——极端 pad 下预览/上报尺寸对真实输出说谎。
+- JS 新增 `fitPad(padA, padB, extent)`（`room = max(0, 16384-extent)`、按比例拆分、`Math.floor(padA*room/total)` 镜像 Python `//`），`finalSize` 在 pad 应用前对 (left,right)/(top,bottom) 各调一次。`MAX_DIM = 16384` 常量导出、`clampDims` 复用。
+- **误报确认（防未来误修）**：曾有报告称 cover 模式预览绕过 8× 上限（JS `nw=tw` vs Python `factor=min(factor,8)`）——复核 Python `_apply_cover`：8× cap 只限制**内容放大倍数**（`scaled = orig×min(factor,8)` 后仍 **crop 到目标 `(tw,th)`**，输出尺寸恒为 tw/th），JS 报 tw/th 与真实输出一致，**不是 bug**。修复反而会引入不一致。修"镜像不一致"必须先确认 Python 的**最终输出尺寸**而非中间量。
+
+### 6. innerHTML 注入面：image_browser.js / multi_lora_tree.js
+
+- 目录/文件夹名来自**用户可写文件系统**，此前直接拼 `innerHTML`（面包屑 `data-folder="${accumulated}"` 双引号未转义 + 文本未转义；multi_lora_tree 文件夹项同款）——含 `<` 或 `"` 的名字可注入 HTML/破坏属性。统一改 `escapeHtml`（`sf_common.js`，转五字符含引号）。
+- 教训：文件系统名（目录/文件名/路径）是不可信输入，任何拼进 HTML 的位置都要转义，属性值上下文必须转引号。
+
+### 7. `mask_process` 的 `squeeze(0).unsqueeze(-1)`（mask_utils.py）
+
+- 原实现 `squeeze(0)` 在 **2D 且 H==1** 时把 `[1,W]` 错 squeeze 成 1D；B>1 时 squeeze 不动、输出 `[B,H,W,1]`（与单帧 `[H,W,1]` 维度数不一致）。改为 `_mask_to_wh1` 按 `dim()` 显式分派（2D→`[H,W,1]`、`[1,H,W]`→`[H,W,1]`、`[B,H,W]`B>1→`[B,H,W,1]`），调用方形状契约不变。
+
+### 8. 其它一批修复（摘要）
+
+- **downloader.py**：`requests.get` 移入 try + `timeout=(10,120)` + `raise_for_status`；写 `.part` 临时文件 + `os.replace` 原子替换；失败 `finally` 删除半成品（否则下次 `is_file()` 误判"已下载"用坏文件加载）。
+- **logic.py**：SFMathInt divide/modulo 除零回退 0 + 告警（b 默认 0）；power 负指数/`0**-1` 兜底。SFBatchAnything 张量分支改 `and` 双端判断（None 直通由末尾兜底），末尾 `try: any_1+any_2 except TypeError: return ([any_1,any_2],)`。
+- **lut.py**：SFLoadLUT.IS_CHANGED 文件缺失 `float("NaN")` → `f"missing:{file_name}"`；SFExtractLUT 文件名净化 + 强制 `.cube`。
+- **replace.py / prompt_batcher.py**：`refresh`/`load_always` 的 `float("NaN")` → `str(time.time_ns())`（NaN 折叠祖先缓存反模式）；prompt_batcher 的 IS_CHANGED 聚合目录 txt `(name, mtime)`（修"新增文件不感知"陈旧）；空目录/无匹配 `raise` → 空列表降级；`_resolve_folder` 加 realpath 二次校验（防 symlink 逃逸）。
+- **analysis.py**：两处 `torch.where(mask)` 判空兜底（mask_process 腐蚀/裁剪清空遮罩时 `x.min()` 崩）——照抄 `landmarks is None` 的全零占位模式保持 batch 对齐。
+- **seed.py**：-2/-3 继承语义实现（实例属性 `_sf_last_seed` 跨 run 保留，首次随机起点；IS_CHANGED 每次随机保证重跑）。
+- **image_convert.py**：CAS 补 `_min_tensors`/`_max_tensors`（原 `min_`/`max_` 未定义，开锐化必 NameError）。
+- **lora_routes.py / lora_presets.py / workflow_routes.py**：`asyncio.get_event_loop()` → `get_running_loop()`（3.12 弃用告警、3.14 移除），闭包内冗余 `import asyncio` 删除；`.tmp` 临时名带 `threading.get_ident()`（并发写同文件互覆盖）；预设 POST/DELETE 加 `asyncio.Lock`。
+- **requirements.txt**：补 `requests`、`typing_extensions`（代码已在用但未声明）。
+

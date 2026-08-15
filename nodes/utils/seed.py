@@ -58,8 +58,16 @@ class SFSeed:
         if seed in (-1, -2, -3):
             logger.info(f'Got "{seed}" as passed seed.')
             original_seed = seed
-            seed = _new_random_seed()
-            logger.info(f"Server-generated random seed {seed}.")
+            if seed == -2:
+                # 继承上次输出 +1；无上次（首次运行/新实例）时随机起点
+                prev = getattr(self, "_sf_last_seed", None)
+                seed = (prev + 1) if prev is not None else _new_random_seed()
+            elif seed == -3:
+                prev = getattr(self, "_sf_last_seed", None)
+                seed = (prev - 1) if prev is not None else _new_random_seed()
+            else:
+                seed = _new_random_seed()
+            logger.info(f"Server-generated seed {seed}.")
             if unique_id is not None and prompt is not None:
                 prompt_node = prompt.get(str(unique_id))
                 if prompt_node is not None and "inputs" in prompt_node and "seed" in prompt_node["inputs"]:
@@ -74,4 +82,6 @@ class SFSeed:
                             for i, v in enumerate(widgets_values):
                                 if v == original_seed:
                                     widgets_values[i] = seed
+        # 记录实际输出种子供 -2/-3 继承（实例属性跨 run 保留，ComfyUI 缓存节点实例）
+        self._sf_last_seed = seed
         return {"ui": {"SEED": (seed,)}, "result": (seed,)}

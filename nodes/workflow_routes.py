@@ -148,7 +148,9 @@ def _wf_read_meta(path):
 
 
 def _wf_write_meta(path, data):
-    tmp = path + ".tmp"
+    # 临时名带线程 id：并发写同一 sidecar 时抢同一个 .tmp 会写出混杂内容
+    # （lora_reader.write_custom_store 同款做法）。
+    tmp = f"{path}.{threading.get_ident()}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f)

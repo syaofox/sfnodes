@@ -145,13 +145,28 @@ class SFMathInt:
     DESCRIPTION = "整数运算：按 operation 对 a、b 执行加减乘除模幂，输出整数结果。循环节点内部依赖此节点"
 
     def execute(self, a, b, operation):
+        # b 默认 0（不接线时）：divide/modulo 除零直接崩会拖垮整个 run（循环
+        # 节点内部依赖本节点），回退 0 并告警。power 负指数产出 float、0**-1
+        # 抛 ZeroDivisionError，统一 int() 化并兜底。
+        if operation == "divide":
+            if b == 0:
+                print("[SFMathInt] divide by zero - returning 0")
+                return (0,)
+            return (a // b,)
+        if operation == "modulo":
+            if b == 0:
+                print("[SFMathInt] modulo by zero - returning 0")
+                return (0,)
+            return (a % b,)
+        if operation == "power":
+            try:
+                return (int(a ** b),)
+            except (ZeroDivisionError, ValueError, OverflowError):
+                return (0,)
         ops = {
             "add": lambda: a + b,
             "subtract": lambda: a - b,
             "multiply": lambda: a * b,
-            "divide": lambda: a // b,
-            "modulo": lambda: a % b,
-            "power": lambda: a ** b,
         }
         return (ops[operation](),)
 
@@ -447,11 +462,10 @@ class SFBatchAnything:
         return samples_out
 
     def execute(self, any_1, any_2):
-        if isinstance(any_1, torch.Tensor) or isinstance(any_2, torch.Tensor):
-            if any_1 is None:
-                return (any_2,)
-            if any_2 is None:
-                return (any_1,)
+        if isinstance(any_1, torch.Tensor) and isinstance(any_2, torch.Tensor):
+            # 两端都是 Tensor 才走张量分支；一端为 None 时由末尾的 None 直通
+            # 处理（None 不是 Tensor，原 or 条件会让 str+Tensor 误入本分支，
+            # 对 str 调 .shape 抛 AttributeError）。
             if any_1.shape[1:] != any_2.shape[1:]:
                 any_2 = comfy.utils.common_upscale(any_2.movedim(-1, 1), any_1.shape[2], any_1.shape[1],
                                                    "bilinear", "center").movedim(1, -1)
@@ -486,7 +500,12 @@ class SFBatchAnything:
             return (any_2,)
         if any_2 is None:
             return (any_1,)
-        return (any_1 + any_2,)
+        try:
+            return (any_1 + any_2,)
+        except TypeError:
+            # 非同型（tensor+list、两个无 samples 的 dict 等）不能直接相加，
+            # 兜底包成列表而不是崩溃。
+            return ([any_1, any_2],)
 
 
 class ComboSelector:

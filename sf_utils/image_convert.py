@@ -122,14 +122,20 @@ def contrast_adaptive_sharpening(image, amount):
     h = img[..., 2:, 1:-1]
     i = img[..., 2:, 2:]
 
+    def _min_tensors(tensors):
+        return torch.min(torch.stack(list(tensors)), dim=0).values
+
+    def _max_tensors(tensors):
+        return torch.max(torch.stack(list(tensors)), dim=0).values
+
     # Computing contrast
     cross = (b, d, e, f, h)
-    mn = min_(cross)
-    mx = max_(cross)
+    mn = _min_tensors(cross)
+    mx = _max_tensors(cross)
 
     diag = (a, c, g, i)
-    mn2 = min_(diag)
-    mx2 = max_(diag)
+    mn2 = _min_tensors(diag)
+    mx2 = _max_tensors(diag)
     mx = mx + mx2
     mn = mn + mn2
 

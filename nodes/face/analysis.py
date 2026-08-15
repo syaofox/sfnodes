@@ -397,6 +397,19 @@ class FaceSegmentation:
             )
 
             _, y, x = torch.where(mask)
+            if x.numel() == 0:
+                # 遮罩被腐蚀/裁剪清空（空 mask 的 .min() 会抛 RuntimeError 中断
+                # 整批）：输出全零占位保持 batch 对齐（与 landmarks None 分支同款）。
+                logger.warning(f"No mask pixels at frame {len(out_image)}")
+                img = torch.zeros_like(img)
+                mask = img.clone()[:, :, :1]
+                out_mask.append(mask)
+                out_image.append(img)
+                out_seg_mask.append(mask[:8, :8, :])
+                out_seg_image.append(img[:8, :8, :])
+                out_x.append(0)
+                out_y.append(0)
+                continue
             x1, x2 = x.min().item(), x.max().item()
             y1, y2 = y.min().item(), y.max().item()
             smooth = int(min(max((x2 - x1), (y2 - y1)) * 0.2, 99))
@@ -414,6 +427,18 @@ class FaceSegmentation:
 
             # extract segment from image
             y, x, _ = torch.where(mask)
+            if x.numel() == 0:
+                # mask_process（腐蚀/裁剪等参数）可能把非空遮罩清空，同上兜底。
+                logger.warning(f"No mask pixels after mask_process at frame {len(out_image)}")
+                img = torch.zeros_like(img)
+                mask = img.clone()[:, :, :1]
+                out_mask.append(mask)
+                out_image.append(img)
+                out_seg_mask.append(mask[:8, :8, :])
+                out_seg_image.append(img[:8, :8, :])
+                out_x.append(0)
+                out_y.append(0)
+                continue
             x1, x2 = x.min().item(), x.max().item()
             y1, y2 = y.min().item(), y.max().item()
             segment_mask = mask[y1:y2, x1:x2, :]

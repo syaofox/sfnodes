@@ -152,6 +152,7 @@ class InpaintExtendOutpaint:
             new_image = torch.zeros(
                 (one_image.shape[0], new_height, new_width, one_image.shape[3]),
                 dtype=one_image.dtype,
+                device=one_image.device,
             )
             new_image[
                 :,
@@ -179,7 +180,7 @@ class InpaintExtendOutpaint:
                     start_y - available_top : start_y,
                     start_x : start_x + initial_width,
                     :,
-                ] = torch.flip(image[:, :available_top, :, :], [1])
+                ] = torch.flip(one_image[:, :available_top, :, :], [1])
             # Bottom
             if available_bottom:
                 new_image[
@@ -189,7 +190,7 @@ class InpaintExtendOutpaint:
                     + available_bottom,
                     start_x : start_x + initial_width,
                     :,
-                ] = torch.flip(image[:, -available_bottom:, :, :], [1])
+                ] = torch.flip(one_image[:, -available_bottom:, :, :], [1])
             # Left
             if available_left:
                 new_image[
@@ -298,7 +299,9 @@ class InpaintExtendOutpaint:
 
             # Expand mask
             new_mask = torch.ones(
-                (one_mask.shape[0], new_height, new_width), dtype=one_mask.dtype
+                (one_mask.shape[0], new_height, new_width),
+                dtype=one_mask.dtype,
+                device=one_mask.device,
             )
             new_mask[
                 :,
@@ -311,6 +314,7 @@ class InpaintExtendOutpaint:
                 new_context_mask = torch.zeros(
                     (one_context_mask.shape[0], new_height, new_width),
                     dtype=one_context_mask.dtype,
+                    device=one_context_mask.device,
                 )
                 new_context_mask[
                     :,
