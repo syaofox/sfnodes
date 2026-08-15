@@ -1172,7 +1172,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 8. 其它一批修复（摘要）
 
-- **downloader.py**：`requests.get` 移入 try + `timeout=(10,120)` + `raise_for_status`；写 `.part` 临时文件 + `os.replace` 原子替换；失败 `finally` 删除半成品（否则下次 `is_file()` 误判"已下载"用坏文件加载）。
+- **downloader.py**：`requests.get` 移入 try + `timeout=(10,120)` + `raise_for_status`；写 `.part` 临时文件 + `os.replace` 原子替换；失败 `finally` 删除半成品（否则下次 `is_file()` 误判"已下载"用坏文件加载）。**模型下载统一到 huggingface_hub（2026-08 方案 A）**：HF resolve URL（`https://huggingface.co/<repo>/resolve/<rev>/<path>`，含子目录如 `antelopev2/1k3d68.onnx`）→ `parse_hf_url` 解析 → `hf_hub_download`（官方缓存/etag 校验/断点续传）→ `shutil.copy2` 到约定路径 `save_loc/model_name`（落盘契约不变，调用方零改动）；`requests` 仅兜底非 HF URL（当前无使用方）。**不用 local_dir**：保留子目录结构会破坏 `save_loc/filename` 拼接（`antelopev2/xxx.onnx` → `save_loc/antelopev2/`），且 `local_dir_use_symlinks` 新旧 huggingface_hub 签名不同（rfmsr 踩过）——缓存+复制多占一份磁盘（HF 缓存 `~/.cache/huggingface/hub/`，可安全清理，不影响已落盘的项目文件）。**HF 失败不回退 requests**（同一网络下 requests 也大概率失败，静默回退难排查）。rfmsr 保持自身 `hf_hub_download`/`snapshot_download`（repo 子目录快照语义 + local_dir，测试锁定不动）。
 - **logic.py**：SFMathInt divide/modulo 除零回退 0 + 告警（b 默认 0）；power 负指数/`0**-1` 兜底。SFBatchAnything 张量分支改 `and` 双端判断（None 直通由末尾兜底），末尾 `try: any_1+any_2 except TypeError: return ([any_1,any_2],)`。
 - **lut.py**：SFLoadLUT.IS_CHANGED 文件缺失 `float("NaN")` → `f"missing:{file_name}"`；SFExtractLUT 文件名净化 + 强制 `.cube`。
 - **replace.py / prompt_batcher.py**：`refresh`/`load_always` 的 `float("NaN")` → `str(time.time_ns())`（NaN 折叠祖先缓存反模式）；prompt_batcher 的 IS_CHANGED 聚合目录 txt `(name, mtime)`（修"新增文件不感知"陈旧）；空目录/无匹配 `raise` → 空列表降级；`_resolve_folder` 加 realpath 二次校验（防 symlink 逃逸）。

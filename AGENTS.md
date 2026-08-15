@@ -30,7 +30,7 @@ sfnodes/
 │   ├── adv_encode.py    # 高级编码工具
 │   ├── string.py        # 字符串工具
 │   ├── translation.py   # 翻译封装
-│   ├── downloader.py    # 下载工具
+│   ├── downloader.py    # 模型下载工具（HF resolve URL → huggingface_hub.hf_hub_download 缓存+复制到约定路径；requests 兜底非 HF URL；timeout/.part 原子替换）
 │   ├── model_manager.py # 模型管理
 │   ├── cutpaste.py      # 剪切/拼接工具
 │   ├── blend.py         # 混合工具
@@ -357,6 +357,10 @@ class SFMyNode:
 - `ast.Constant.n` 是 `value` 旧别名：**3.13 deprecated、3.14 移除**（实测 3.14.7 AttributeError），一律写 `node.value`。
 - **`__pycache__` 的 cpython-3xx 是本机解释器版本，不代表运行容器**（本机 3.14.7、comfyui-docker 容器 3.12.3）：涉及 ast/语法 API 的改动以容器版本为行为基准写测试。
 - 表达式求值节点（SimpleMath）必须包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError）——语法错误/除零/未注册运算符/字符串常量（`math.isnan(str)` TypeError）都是用户一眼踩的崩溃面。
+
+**模型下载统一（2026-08，downloader.py）→ experience.md §27**
+- HF resolve URL → `huggingface_hub.hf_hub_download`（官方缓存/校验/断点续传）→ `copy2` 到约定路径 `save_loc/model_name`（落盘契约不变，调用方零改动）；`requests` 仅兜底非 HF URL。
+- **不用 local_dir**：保留子目录结构破坏 `save_loc/filename` 拼接（`antelopev2/xxx.onnx` → `save_loc/antelopev2/`），且 `local_dir_use_symlinks` 新旧签名不同（rfmsr 踩过）。缓存+复制多占一份磁盘（`~/.cache/huggingface/hub/`，可安全清理）。HF 失败不回退 requests。
 
 **复刻节点去重（sf_common.js / disk_state.py，2026-08）→ experience.md §17**
 - 公共小工具单一实现收敛于 `web/sf_common.js`（小工具/强调色/LoRA 行名三族，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。
