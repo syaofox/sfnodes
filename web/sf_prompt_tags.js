@@ -598,6 +598,7 @@ function buildRoot(node) {
 
     const expand = document.createElement("div");
     expand.className = "sf-ptg-expand";
+    installWheelZoomPassthrough(expand); // prompt 预览区滚轮透传(可滚动时滚动文本, 否则缩放画布; Ctrl+滚轮总缩放)
 
     const bar = document.createElement("div");
     bar.className = "sf-ptg-bar";
