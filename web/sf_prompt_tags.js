@@ -53,6 +53,7 @@ import {
     closeLibraryEditorFor,
 } from "./sf_prompt_tags_editor.js";
 import { pinyinMatch } from "./sf_prompt_tags_pinyin.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 const STATE_KEY = "promptState";
 const DEFAULT_STATE = { text: "", order: "mine", sep: ", ", showExpanded: true };
@@ -593,6 +594,7 @@ function buildRoot(node) {
     ta.title = "输入你的提示词。@name 插入标签，*category 每次 run 随机选一个标签，#name 从列表随机选一行。Ctrl+Enter 运行工作流。";
     ta.spellcheck = false;
     tawrap.append(backdrop, ta);
+    installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
 
     const expand = document.createElement("div");
     expand.className = "sf-ptg-expand";

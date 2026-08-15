@@ -14,6 +14,7 @@
 // ==========================================================================
 
 import { getState, isEdited } from "./sf_pause_text_lib.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 
 // 非填充行的固定垂直预算 -> getMinHeight 是常量（不随内容抖动）
@@ -143,6 +144,7 @@ export function buildPauseTextWidget(node, callbacks) {
     ta.spellcheck = false;
     ta.placeholder = "The model's text will appear here on Run";
     box.append(hdr, ta);
+    installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
 
     // 底部行：计数 + Regenerate / Continue
     const bot = document.createElement("div");

@@ -56,7 +56,7 @@ sfnodes/
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget
-│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Power/Stack/Plot 共享）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
+│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / installWheelZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Power/Stack/Plot 共享）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
 │   ├── sf_dynamic_slots.js # 动态槽位公共库
 │   ├── sf_popup.js      # 浮动弹层公共三件套（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免；clampToViewport 四向钳位 + scale 边距折算；无 app 依赖可 .mjs 冒烟测试）——新弹层优先使用（见 experience.md §26）
 │   ├── sf_crop*.js      # 可视化裁剪九模块（SFImageCrop/Uncrop：framework 编辑器框架 + core/panel/interaction/render/preview/undo_guard/alignments + 主扩展）
@@ -361,6 +361,10 @@ class SFMyNode:
 **模型下载统一（2026-08，downloader.py）→ experience.md §27**
 - HF resolve URL → `huggingface_hub.hf_hub_download`（官方缓存/校验/断点续传）→ `copy2` 到约定路径 `save_loc/model_name`（落盘契约不变，调用方零改动）；`requests` 仅兜底非 HF URL。
 - **不用 local_dir**：保留子目录结构破坏 `save_loc/filename` 拼接（`antelopev2/xxx.onnx` → `save_loc/antelopev2/`），且 `local_dir_use_symlinks` 新旧签名不同（rfmsr 踩过）。缓存+复制多占一份磁盘（`~/.cache/huggingface/hub/`，可安全清理）。HF 失败不回退 requests。
+
+**自定义输入框键盘/滚轮（2026-08，快捷键拦截修复）→ experience.md §27**
+- 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键——否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"（所有 sf 自定义输入框统一修复）。
+- **sf DOM widget 输入框不在 Vue TransformPane 的 wheel 转发路径内**（挂 canvas DOM 层）——编辑框上画布缩放完全失效。用 `sf_common.installWheelZoomPassthrough(el)`：Ctrl/⌘+滚轮总转发缩放；普通滚轮可滚动时滚动文本、否则转发（对齐原生输入框）。
 
 **复刻节点去重（sf_common.js / disk_state.py，2026-08）→ experience.md §17**
 - 公共小工具单一实现收敛于 `web/sf_common.js`（小工具/强调色/LoRA 行名三族，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。

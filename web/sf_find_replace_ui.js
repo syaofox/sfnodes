@@ -20,6 +20,7 @@ import {
     setFind,
     setReplace,
 } from "./sf_find_replace_lib.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 const CSS_ID = "sf-find-replace-css";
 
@@ -399,6 +400,7 @@ function buildRuleRow(node, state, rule, handlers) {
     findTa.placeholder = "find...";
     findTa.title = "要查找的文本" + (state.regex ? "（正则表达式）" : "");
     rowEl.appendChild(findTa);
+    installWheelZoomPassthrough(findTa); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     attachFieldEditor(node, findTa, rule.id, "find");
 
     const arrow = document.createElement("span");
@@ -413,6 +415,7 @@ function buildRuleRow(node, state, rule, handlers) {
     replaceTa.placeholder = "replace…";
     replaceTa.title = "替换成的文本。留空 = 删除查找到的文本。";
     rowEl.appendChild(replaceTa);
+    installWheelZoomPassthrough(replaceTa); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     attachFieldEditor(node, replaceTa, rule.id, "replace");
 
     const del = document.createElement("button");

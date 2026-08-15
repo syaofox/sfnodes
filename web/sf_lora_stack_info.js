@@ -11,7 +11,7 @@ import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveC
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { copyText } from "./sf_workflows_ui.js";
-import { escapeHtml } from "./sf_common.js";
+import { escapeHtml, installWheelZoomPassthrough } from "./sf_common.js";
 
 let _panel = null;
 let _cleanup = null;
@@ -1217,7 +1217,9 @@ export async function openInfoPanel(node, id, refresh) {
             ta.value = _descDraft;
             ta.rows = 6;
             ta.placeholder = "write your own description…\nMarkdown supported - upload a sample image and it is inserted as ![alt](sample/xxx.png)";
+            installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
             ta.addEventListener("keydown", (ev) => {
+                if (ev.ctrlKey || ev.metaKey || ev.altKey) return; // 放行修饰键组合(保存/复制等)
                 ev.stopPropagation();
                 if (ev.key === "Escape") {
                     ev.preventDefault();

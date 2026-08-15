@@ -22,7 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, isVueNodes } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, isVueNodes, installWheelZoomPassthrough } from "./sf_common.js";
 
 const CLASS = "SFPromptList";
 const WIDGET_TYPE = "sf_prompt_list_editor";
@@ -134,6 +134,9 @@ function buildEditor(node, textWidget) {
   ta.spellcheck = false;
   taWrap.append(hl, ta);
   editor.append(gutter, taWrap);
+  // 输入框滚轮透传：Ctrl+滚轮总缩放画布；普通滚轮在文本可滚动时滚动文本、
+  // 否则缩放画布（对齐 ComfyUI 原生输入框；sf DOM widget 不在 Vue 转发路径内）
+  installWheelZoomPassthrough(ta);
 
   root.append(hdr, editor);
 

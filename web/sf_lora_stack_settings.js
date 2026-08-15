@@ -7,6 +7,7 @@ import {
     readState, writeState, accentOf, saveDefaults, roundStrength,
 } from "./sf_lora_stack_core.js";
 import { getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 let _panel = null;
 let _panelNode = null;
@@ -253,6 +254,7 @@ export function openLoraPanel(node, refresh) {
         inp.type = "text";
         inp.value = String(readState(node)[key]);
         inp.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
+        installWheelZoomPassthrough(inp); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
         inp.addEventListener("change", () => {
             let v = parseFloat(inp.value);
             if (!Number.isFinite(v)) v = readState(node)[key];
@@ -279,6 +281,7 @@ export function openLoraPanel(node, refresh) {
     sepIn.value = readState(node).sep;
     sepIn.title = "Text placed between trigger words in the output (e.g. \", \")";
     sepIn.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
+    installWheelZoomPassthrough(sepIn); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     sepIn.addEventListener("change", () => { set({ sep: sepIn.value }); fire(); });
     sepRow.appendChild(sepIn);
     body.appendChild(sepRow);

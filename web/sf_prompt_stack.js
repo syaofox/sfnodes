@@ -10,7 +10,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, isVueNodes } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, isVueNodes, installWheelZoomPassthrough } from "./sf_common.js";
 import { buildIndex, findNode } from "./sf_lora_stack.js";
 import {
     HIDDEN_INPUT, readState, writeState, promptState, activeRows, newId,
@@ -115,6 +115,7 @@ function buildRow(row, index, callbacks) {
     ta.rows = 2;
     ta.placeholder = "Type your prompt...";
     ta.value = row.text;
+    installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     const grip = document.createElement("div");
     grip.className = "sf-ps-grip";
     grip.title = "拖拽调节本行高度";

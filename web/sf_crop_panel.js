@@ -11,6 +11,7 @@
 
 import { RATIOS } from "./sf_crop_core.js";
 import { ALIGNMENTS, computeAlignedXY, defaultAlignForMeta } from "./sf_crop_alignments.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 // Build the ratio combo label. The "Free" entry becomes "Free Ratio" so it's
 // distinguishable from the alignment dropdown's Free; other entries get a
@@ -421,5 +422,6 @@ function makeTextInput(label, defaultVal) {
   input.spellcheck = false;
   if (defaultVal != null) input.value = String(defaultVal);
   cell.append(lbl, input);
+  installWheelZoomPassthrough(input); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
   return { cell, input };
 }

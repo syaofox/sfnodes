@@ -6,7 +6,8 @@ const path = require("path");
 const code = fs
     .readFileSync(path.join(__dirname, "..", "web", "prompt_preset.js"), "utf8")
     .replace('import { app } from "/scripts/app.js";', "")
-    .replace('import { api } from "/scripts/api.js";', "");
+    .replace('import { api } from "/scripts/api.js";', "")
+    .replace('import { installWheelZoomPassthrough } from "./sf_common.js";', "const installWheelZoomPassthrough = () => () => {};");
 
 const failures = [];
 function check(name, cond) {

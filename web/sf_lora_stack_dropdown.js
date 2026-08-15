@@ -5,6 +5,7 @@
 // ==========================================================================
 import { BRAND } from "./sf_lora_stack_core.js";
 import { listLoras } from "./sf_lora_stack_api.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 let _pop = null;
 let _cleanup = null;
@@ -87,6 +88,7 @@ export async function openLoraDropdown(anchorEl, opts) {
     input.type = "text";
     input.placeholder = "Search LoRAs…";
     input.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); }); // 不触发画布快捷键(放行修饰键组合)
+    installWheelZoomPassthrough(input); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     srch.append(ic, input);
 
     const crumb = document.createElement("div");

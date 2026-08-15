@@ -13,6 +13,7 @@ import { app } from "/scripts/app.js";
 import {
     applyAdaptiveCanvasOnly,
     installCanvasZoomPassthrough,
+    installWheelZoomPassthrough,
     isGraphLoading,
     isVueNodes,
 } from "./sf_common.js";
@@ -254,9 +255,11 @@ function buildRow(node, e, st) {
     });
     w.querySelector("input").addEventListener("focusin", (ev) => ev.target.select?.());
     w.querySelector("input").addEventListener("keydown", (ev) => {
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return; // 放行修饰键组合
         ev.stopPropagation();
         if (ev.key === "Enter") { ev.preventDefault(); ev.target.blur(); }
     });
+    installWheelZoomPassthrough(w.querySelector("input")); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     const btns = w.querySelectorAll(".sf-ls-wbtn");
     btns[0].addEventListener("click", () => { patchLora(node, e.id, { sm: e.sm + st.step }); refreshNode(node, false); });
     btns[1].addEventListener("click", () => { patchLora(node, e.id, { sm: e.sm - st.step }); refreshNode(node, false); });

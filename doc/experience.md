@@ -1181,4 +1181,5 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **image_convert.py**：CAS 补 `_min_tensors`/`_max_tensors`（原 `min_`/`max_` 未定义，开锐化必 NameError）。
 - **lora_routes.py / lora_presets.py / workflow_routes.py**：`asyncio.get_event_loop()` → `get_running_loop()`（3.12 弃用告警、3.14 移除），闭包内冗余 `import asyncio` 删除；`.tmp` 临时名带 `threading.get_ident()`（并发写同文件互覆盖）；预设 POST/DELETE 加 `asyncio.Lock`。
 - **requirements.txt**：补 `requests`、`typing_extensions`（代码已在用但未声明）。
+- **自定义输入框键盘/滚轮（2026-08 快捷键拦截修复批次）**：① 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键（否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"——sf_prompt_list/prompt_stack/pause_text/prompt_tags/find_replace/crop_panel/lora_stack_*/load_image_ui/workflows_ui/prompt_tags_editor 等 11+ 处统一修复）；② **sf 的 DOM widget 输入框挂载在 canvas DOM 层，不在 Vue 新版 TransformPane 的 @wheel.capture 转发路径内——ComfyUI 画布缩放/滚动在编辑框上完全失效（连 Ctrl+滚轮都不缩放）**。修复：`sf_common.installWheelZoomPassthrough(el)` 挂输入框——Ctrl/⌘+滚轮总转发 canvas 缩放；普通滚轮在输入框可滚动（scrollHeight>clientHeight）时滚动文本、否则转发缩放（对齐 ComfyUI 原生输入框行为）。
 

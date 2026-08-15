@@ -13,7 +13,7 @@ import { api } from "/scripts/api.js";
 import {
     ancestorsOf, hasChildren, openSet, folderColor,
 } from "./sf_workflows_lib.js";
-import { sfApiUrl, copyText } from "./sf_common.js";
+import { sfApiUrl, copyText, installWheelZoomPassthrough } from "./sf_common.js";
 
 /** 微型 DOM 助手。每个面板都恰好想要这个。 */
 export const el = (tag, cls, text) => {
@@ -1178,6 +1178,7 @@ export function renderDetail(pane, state, H) {
     note.placeholder = "What is this one for? Searchable.";
     note.value = state.meta?.notes?.[entry.rel] || "";
     note.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });   // Escape 不能关窗口(放行修饰键组合)
+    installWheelZoomPassthrough(note); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     let t = null;
     let sent = note.value;
     const flush = () => {

@@ -216,6 +216,38 @@ export function installCanvasZoomPassthrough(root) {
   return () => root.removeEventListener("wheel", onWheel);
 }
 
+// ── 输入框滚轮透传（画布缩放/滚动）───────────────────────────────────────
+// sf 的 DOM widget 输入框（textarea/input）挂载在 canvas 的 DOM 层，不在
+// Vue 新版 TransformPane 的 @wheel.capture 转发路径内——ComfyUI 的画布缩放
+// 在编辑框上完全失效（连 Ctrl+滚轮都不缩放）。这个工具把 ComfyUI 原生输入框
+// 的滚轮行为搬到 sf 输入框上（与 installCanvasZoomPassthrough 同思路，但挂在
+// 输入框元素、且不因 isVueNodes() 早退）：
+//   Ctrl/⌘+滚轮 → 总是转发 canvas 缩放
+//   普通滚轮     → 输入框可滚动（scrollHeight>clientHeight）时滚动文本；
+//                  否则转发 canvas 缩放
+export function installWheelZoomPassthrough(el) {
+  if (!el || typeof el.addEventListener !== "function") return () => {};
+  const onWheel = (e) => {
+    const canvasEl = app?.canvas?.canvas;
+    if (!canvasEl) return;
+    const isGesture = e.ctrlKey || e.metaKey;
+    if (!isGesture) {
+      // 输入框自身可滚动 → 滚动文本（与 ComfyUI 原生输入框一致）
+      if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    canvasEl.dispatchEvent(new WheelEvent("wheel", {
+      clientX: e.clientX, clientY: e.clientY,
+      deltaX: e.deltaX, deltaY: e.deltaY,
+      ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey,
+      bubbles: true, cancelable: true,
+    }));
+  };
+  el.addEventListener("wheel", onWheel, { passive: false });
+  return () => el.removeEventListener("wheel", onWheel);
+}
+
 // ── 通用 DOM 工具（HTML 转义 / 下载 / 剪贴板）───────────────────────────
 // 收敛自各节点内联副本（sf_crop_framework.downloadDataURL、
 // sf_workflows_ui.copyText、sf_lora_stack_info.escapeHtml——复制后语义分叉

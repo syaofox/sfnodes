@@ -5,7 +5,7 @@
 
 import { app } from "/scripts/app.js";
 import { setSelectedImage, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
-import { sfApiUrl } from "./sf_common.js";
+import { sfApiUrl, installWheelZoomPassthrough } from "./sf_common.js";
 
 // 图标内联 data URI（本项目无资产服务路由，惯例见 sf_workflows_ui.js）
 const ICON_UPLOAD = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M58.115,1.482H5.885C3.239,1.482,1.094,3.627,1.094,6.273v51.453c0,2.646,2.145,4.791,4.791,4.791h52.23c2.646,0,4.791-2.145,4.791-4.791V6.273c0-2.646-2.145-4.791-4.791-4.791ZM49.641,28.696h-11.702v24.054c0,1.147-.93,2.077-2.077,2.077h-7.726c-1.147,0-2.077-.93-2.077-2.077v-24.054h-11.702c-2.409,0-3.487-3.024-1.62-4.547l17.641-14.398c.472-.384,1.046-.577,1.62-.577s1.149.193,1.62.577l17.641,14.398c1.867,1.523.789,4.547-1.62,4.547Z"/></svg>');
@@ -929,6 +929,7 @@ export function openImageDropdown(node, anchorEl, onPick) {
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = "筛选图片…";
+  installWheelZoomPassthrough(input); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
   const sizeToggle = document.createElement("div");
   sizeToggle.className = "sf-li-pop-sizetoggle";
   const segS = document.createElement("span"); segS.textContent = "S"; segS.title = "小缩略图";

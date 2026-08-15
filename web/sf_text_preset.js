@@ -4,6 +4,7 @@
 
 import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 let mgrEl = null;
 let mgrStyleInjected = false;
@@ -169,11 +170,13 @@ function openMgr(node) {
     nameInput.className = "sf-preset-mgr-input";
     nameInput.type = "text";
     nameInput.placeholder = "预设名称（下拉框显示）";
+    installWheelZoomPassthrough(nameInput); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     const textLabel = document.createElement("label");
     textLabel.textContent = "文本内容";
     const textArea = document.createElement("textarea");
     textArea.className = "sf-preset-mgr-textarea";
     textArea.placeholder = "预设输出的文本";
+    installWheelZoomPassthrough(textArea); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     const btns = document.createElement("div");
     btns.className = "sf-preset-mgr-btns";
 

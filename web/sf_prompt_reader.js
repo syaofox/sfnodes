@@ -11,7 +11,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { sfApiUrl, isGraphLoading } from "./sf_common.js";
+import { sfApiUrl, isGraphLoading, installWheelZoomPassthrough } from "./sf_common.js";
 
 const STATE_PROP = "promptReaderState";
 
@@ -418,6 +418,7 @@ function buildRoot() {
   readout.readOnly = true;
   readout.value = "";
   readout.placeholder = "The positive prompt will appear here.";
+  installWheelZoomPassthrough(readout); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
   readout.dataset.role = "readout";
   root.appendChild(readout);
 

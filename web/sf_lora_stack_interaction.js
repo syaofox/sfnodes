@@ -9,6 +9,7 @@ import {
 } from "./sf_lora_stack_core.js";
 import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 import { openLoraPanel } from "./sf_lora_stack_settings.js";
 import { loadPresets, savePreset, deletePreset } from "./sf_lora_stack_api.js";
 
@@ -193,6 +194,7 @@ async function openPresetsMenu(node, x, y, refresh) {
         inp.type = "text";
         inp.placeholder = "Preset name…";
         inp.maxLength = 64;
+        installWheelZoomPassthrough(inp); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
         const ok = document.createElement("span");
         ok.className = "ok pri";
         ok.textContent = "Save";
@@ -350,6 +352,7 @@ export function attachInteractions(node, widgetEl, refresh) {
     widgetEl.addEventListener("keydown", (ev) => {
         const act = ev.target?.dataset?.act;
         if (act !== "wval" && act !== "wcval") return;
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return; // 放行修饰键组合
         ev.stopPropagation();
         if (ev.key === "Enter") { ev.preventDefault(); ev.target.blur(); }
     });

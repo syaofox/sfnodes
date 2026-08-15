@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { installWheelZoomPassthrough } from "./sf_common.js";
 
 const DISABLED = "禁用";
 
@@ -278,6 +279,7 @@ function openGroupPicker() {
     search.className = "sf-preset-picker-search";
     search.type = "text";
     search.placeholder = "搜索...";
+    installWheelZoomPassthrough(search); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
     search.addEventListener("input", () => {
         pickerSearch = search.value.trim().toLowerCase();
         renderPickerList();
