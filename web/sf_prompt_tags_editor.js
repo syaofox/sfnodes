@@ -558,7 +558,7 @@ function makeCard(tag) {
         }
         commit();
     });
-    nm.addEventListener("keydown", (e) => e.stopPropagation());
+    nm.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
     const cc = catOf(tag);
     const pill = document.createElement("button");
     pill.className = "sf-ptge-pill";
@@ -572,7 +572,7 @@ function makeCard(tag) {
     tx.spellcheck = false;
     tx.rows = 3;
     tx.addEventListener("input", () => { tag.text = tx.value; commit(); paintKind(); });
-    tx.addEventListener("keydown", (e) => e.stopPropagation());
+    tx.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
     const foot = document.createElement("div");
     foot.className = "cfoot";
     // 在 paintKind 之前声明，让 tooltip 挂在正确的名词上（List 卡片的删除按钮
@@ -874,7 +874,7 @@ function startRenameCat(row, cat) {
     // 暴露一个它可以直接调的取消句柄——没有它，onKey 的通用 `active.blur()` 会跑
     // 下面的 blur 监听器，把"放弃改名"变成"提交改名"，再无回头路。
     inp._sfCancel = cancelRename;
-    inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") commitRename(); if (e.key === "Escape") cancelRename(); });
+    inp.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); if (e.key === "Enter") commitRename(); if (e.key === "Escape") cancelRename(); });
     inp.addEventListener("blur", commitRename);
 }
 
@@ -1287,10 +1287,13 @@ function buildCreateForm() {
         toast("success", "Created tag " + (isList ? "#" : "@") + uniq);
     };
     btn.addEventListener("click", doCreate);
-    nm.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); doCreate(); } });
+    nm.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); doCreate(); } });
     // List 模式下 Enter 必须开始下一个选项（打列表就是全部意义），所以只有
     // Ctrl/Cmd+Enter 创建。Text 模式 Enter 创建、Shift+Enter 换行。
     tx.addEventListener("keydown", (e) => {
+        // 放行除 Ctrl/Cmd+Enter（创建）外的修饰键组合（Ctrl+S 保存工作流等）
+        if ((e.ctrlKey || e.metaKey) && e.key !== "Enter") return;
+        if (e.altKey) return;
         e.stopPropagation();
         if (e.key !== "Enter") return;
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); doCreate(); return; }

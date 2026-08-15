@@ -1177,7 +1177,7 @@ export function renderDetail(pane, state, H) {
     const note = el("textarea", "sf-wb-note");
     note.placeholder = "What is this one for? Searchable.";
     note.value = state.meta?.notes?.[entry.rel] || "";
-    note.addEventListener("keydown", (e) => e.stopPropagation());   // Escape 不能关窗口
+    note.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });   // Escape 不能关窗口(放行修饰键组合)
     let t = null;
     let sent = note.value;
     const flush = () => {

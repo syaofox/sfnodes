@@ -830,7 +830,7 @@ function wireEvents(node, root) {
             if ((e.key === "Enter" || e.key === "Tab") && _ac.items.length) { e.preventDefault(); e.stopPropagation(); pickAC(_ac.items[_ac.sel]); return; }
             if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeAC(); return; }
         }
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return; // 放行所有修饰键组合(保存/复制/运行等)
         e.stopPropagation();
     });
     els.ta.addEventListener("mousedown", (e) => e.stopPropagation());

@@ -1125,6 +1125,7 @@ export function openImageDropdown(node, anchorEl, onPick) {
   // the node is selected whenever this popup is open. Mirrors makeNumericInput
   // (Load Image Pattern #6). Enter picks the first listed match.
   input.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // 放行应用/系统级组合键(保存/复制等)
     if (e.key === "Enter") {
       e.preventDefault();
       pane.querySelector(".sf-li-imgrow")?.click();

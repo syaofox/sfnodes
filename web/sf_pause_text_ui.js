@@ -164,7 +164,7 @@ export function buildPauseTextWidget(node, callbacks) {
     // 事件。stopPropagation 防止 canvas 拖拽/取消选中/快捷键触发
     ta.addEventListener("input", () => callbacks.onInput(ta.value));
     ta.addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") return;  // 放行 run-workflow
+        if (e.ctrlKey || e.metaKey || e.altKey) return;  // 放行所有修饰键组合(保存/复制/运行等)
         e.stopPropagation();
     });
     ta.addEventListener("pointerdown", (e) => e.stopPropagation());

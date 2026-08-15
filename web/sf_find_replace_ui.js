@@ -545,8 +545,9 @@ export function attachFieldEditor(node, taEl, ruleId, which) {
     });
 
     taEl.addEventListener("keydown", (e) => {
-        // 放行 Ctrl/Cmd+Enter 到 ComfyUI 的 "run workflow" 快捷键。
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") return;
+        // 放行所有修饰键组合（Ctrl+S 保存工作流、Ctrl/Cmd+Enter 运行等）——
+        // 否则焦点在输入框时 Ctrl+S 会漏成浏览器"保存网页"。
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         e.stopImmediatePropagation();
     });
 

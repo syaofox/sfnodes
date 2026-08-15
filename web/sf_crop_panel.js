@@ -365,9 +365,14 @@ export function createCropPanel(callbacks) {
     attachArrowSpinner(el);
   }
 
-  // Block keyboard from bubbling to ComfyUI canvas (would otherwise pan/zoom).
+  // Block keyboard from bubbling to ComfyUI canvas (would otherwise pan/zoom),
+  // but let modifier-key combos through (Ctrl+S save workflow etc. — otherwise
+  // the browser's default "save page" fires while focused here).
   for (const el of [wInput.input, hInput.input, xInput.input, yInput.input, ratioSelect, alignSelect]) {
-    el.addEventListener("keydown", (e) => e.stopImmediatePropagation());
+    el.addEventListener("keydown", (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      e.stopImmediatePropagation();
+    });
   }
 
   // ── Refresh: read cropJson + image dims, populate inputs ──

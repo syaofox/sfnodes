@@ -86,7 +86,7 @@ export async function openLoraDropdown(anchorEl, opts) {
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = "Search LoRAs…";
-    input.addEventListener("keydown", (e) => e.stopPropagation()); // 不触发画布快捷键
+    input.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); }); // 不触发画布快捷键(放行修饰键组合)
     srch.append(ic, input);
 
     const crumb = document.createElement("div");

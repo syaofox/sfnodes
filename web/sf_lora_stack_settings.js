@@ -252,7 +252,7 @@ export function openLoraPanel(node, refresh) {
         const inp = el("input", "sf-lsp-num");
         inp.type = "text";
         inp.value = String(readState(node)[key]);
-        inp.addEventListener("keydown", (e) => e.stopPropagation());
+        inp.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
         inp.addEventListener("change", () => {
             let v = parseFloat(inp.value);
             if (!Number.isFinite(v)) v = readState(node)[key];
@@ -278,7 +278,7 @@ export function openLoraPanel(node, refresh) {
     sepIn.type = "text";
     sepIn.value = readState(node).sep;
     sepIn.title = "Text placed between trigger words in the output (e.g. \", \")";
-    sepIn.addEventListener("keydown", (e) => e.stopPropagation());
+    sepIn.addEventListener("keydown", (e) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); });
     sepIn.addEventListener("change", () => { set({ sep: sepIn.value }); fire(); });
     sepRow.appendChild(sepIn);
     body.appendChild(sepRow);

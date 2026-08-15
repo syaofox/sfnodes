@@ -362,9 +362,11 @@ function buildEditor(node, textWidget) {
     }).observe(ta);
   }
 
-  // 事件防护：防 canvas 拖拽/取消选中/快捷键；Ctrl+Enter 放行 run-workflow
+  // 事件防护：防 canvas 拖拽/取消选中/快捷键；放行所有修饰键组合（Ctrl+S
+  // 保存工作流、Ctrl+C/V 复制粘贴、Ctrl+Enter 运行等——否则焦点在输入框时
+  // Ctrl+S 会漏成浏览器"保存网页"）
   ta.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     e.stopPropagation();
   });
   ta.addEventListener("pointerdown", (e) => e.stopPropagation());

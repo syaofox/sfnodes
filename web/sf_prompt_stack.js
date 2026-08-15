@@ -145,7 +145,7 @@ function buildRow(row, index, callbacks) {
     // 可能因非空/为空变化，轻量更新本行 index 显示（activeRows 语义）
     ta.addEventListener("input", () => callbacks.text(ta.value));
     ta.addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") return; // 放行 run-workflow
+        if (e.ctrlKey || e.metaKey || e.altKey) return; // 放行所有修饰键组合(保存/复制/运行等)
         e.stopPropagation();
     });
     ta.addEventListener("pointerdown", (e) => e.stopPropagation());
