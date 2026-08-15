@@ -30,6 +30,7 @@
 - [23. SFPromptList：行号编辑器与 wrap 镜像测量](#23-sfpromptlist行号编辑器与-wrap-镜像测量)
 - [24. SFPromptStack：动态 Prompt 列表与行高拖拽](#24-sfpromptstack动态-prompt-列表与行高拖拽)
 - [25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）](#25-sfregionallora多区域角色-loratoken-网格注入与匹配诊断)
+- [26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界](#26-前端架构治理2026-08工具收敛--弹层三件套--纯模块边界)
 
 ---
 
@@ -1082,3 +1083,41 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **纯逻辑在 `sf_utils/regional_engine.py`**（键归一化/矩阵解析/regions JSON/层规划 + 每区域匹配诊断/token 网格 mask 数学/彩虹预览，无 ComfyUI 依赖可独立测试）；节点层 forward hook 稀疏注入。
 - **前端 DOM canvas 多 box 编辑**：拖拽/8 向 resize/画新框/背景图对齐；隐藏 `SFRegionsJson` widget 为真源（值随工作流保存），行控件 enable/lora/strength/remove。
 - 测试：`tests/test_regional_engine.py`（纯逻辑）+ `test_regional_lora_node.py`（节点 mock）+ `test_regional_lora_js.js`（前端）。
+
+---
+
+## 26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界
+
+> 背景：对 `web/` 全量架构评审（102 文件/4.3 万行）后的治理改动。评审结论：架构总体合理（枢纽-辐射依赖、全局钩子组合式补丁、复用纪律、测试覆盖均为优），本次只治理发现的低/中危问题，不重构双渲染器与超大文件（见 AGENTS.md「经验摘要」末尾的规范条目）。
+
+### 1. 通用工具收敛到 sf_common.js（消除跨家族依赖与副本分叉）
+
+- **`escapeHtml` / `downloadDataURL` / `copyText` 单一实现入 `sf_common.js`**：
+  - `downloadDataURL` 从 `sf_crop_framework.js` 迁入（showSaveFilePicker 优先 + `<a download>` 回退，AbortError 豁免）；`copyText` 从 `sf_workflows_ui.js` 迁入（clipboard + execCommand 双回退）；`escapeHtml` 取 `sf_lora_stack_info.js` 的五字符全集（`& < > " '`，innerHTML 注入最安全）。
+  - **迁移模式用 re-export 保持调用方零改动**：`sf_crop_framework.js` / `sf_workflows_ui.js` 改为 `export { x } from "./sf_common.js";`（项目已有先例：`sf_dropdown_ui.js` re-export `isVueNodes`/`applyAdaptiveCanvasOnly`）。调用方（sf_crop.js / sf_inpaint.js / sf_workflows.js / sf_lora_stack_info.js）一行不改。
+- **刻意保留的两处本地 `escapeHtml`（不是重复，是边界）**：
+  - `sf_find_replace_lib.js`：纯模块公共 API，**`tests/test_find_replace_js.js:176` 断言锁定转义集合**（引号不转义）——删了测试就红。
+  - `sf_markdown.js`：无 app 依赖的纯渲染模块，markdown 前置转义语义独立。
+- **纯模块边界（新规范）**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`，会破坏 Node 测试拷贝能力）；这类模块的公共函数共享应放无依赖模块或独立小模块。DOM 层模块（直接依赖 app 的）可自由用 sf_common。
+
+### 2. 公共弹层三件套 `web/sf_popup.js`（新弹层优先使用）
+
+- 13+ 个浮动弹层各自重复"外部点击/Esc/滚轮三关闭 + 定位钳位"，且踩坑记录在 §15.6（canvas 缩放定位）与 §19（确认框豁免宿主面板捕获监听）。收敛为：
+  - `attachPopupDismiss(overlay, { onClose, exempt })`：外部 pointerdown / Esc / wheel 三关闭，capture 阶段 document 监听，`exempt(e)` 豁免（面板风确认框场景），返回幂等 detach。
+  - `clampToViewport(el, { margin, scale })`：viewport 四向钳位，`scale` 折算边距（position:fixed 弹层在 canvas 缩放下 root font-size 已缩放）。
+- **验证迁移**：`text_replace.js` 的 marker 菜单（原手写三关闭 + Math.min/max 钳位）改为调用 sf_popup，行为等价。**存量 12 个弹层不强制迁移**（dropdown 弹层与分类弹层耦合深、lora 面板含 dirty 语义），新弹层优先用 sf_popup。
+- 测试：`tests/test_popup_smoke.js`（mock document：三关闭 / 内部点击豁免 / exempt / detach 幂等 / 四向钳位 / scale 折算）。
+
+### 3. 注册规范固化（check_web_imports.py 扩展）
+
+- `tests/check_web_imports.py` 从 17 模块扩到全部 ~46 个多模块/共享文件，并新增三条文件级规则：
+  1. 相对导入（含副作用 `import "./x.js"`）目标文件必须存在；
+  2. 含 `app.registerExtension(` 的文件必须**直接** import `/scripts/app.js`（不允许依赖传递；`sf_regional_lora.js` 曾用 `../../scripts/app.js` 相对路径——碰巧在 `/extensions/<name>/` 挂载下能解析，是脆弱依赖，已统一为绝对路径）；
+  3. 扩展注册名必须 `sfnodes.*` 前缀（顺带修复三处既有不一致：`Sfnodes.PromptReader` 首字母笔误、`SFRegionalLoRA.editor` → `sfnodes.RegionalLoRA.editor`、`inpaint-cropandstitch.showcontrol` → `sfnodes.showcontrol` 历史命名空间）。
+- 扩展名仅作调试标识，不进工作流文件，改名无行为影响。
+
+### 4. 明确不做的治理项（规范替代重构）
+
+- **双渲染器（Classic/Vue）不抽象**：34 处 `isVueNodes()` 分支语义各异（槽位替换 / shallowReactive / DOM nudge 各不同），强行抽象收益不确定；新增分支受控、常见适配优先入 sf_common。
+- **超大文件不强制拆分**（13 个 >1000 行）：纯搬移改 import 图，收益低于风险；新代码优先进已有拆分模块或新建模块。
+- **旧文件不重命名**：27 个无 `sf_` 前缀文件 + `DisplayText.js`/`SFLogicSwitch.js` PascalCase 为历史遗留（git 历史/用户记忆成本），保持现状。

@@ -11,6 +11,7 @@ import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveC
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { copyText } from "./sf_workflows_ui.js";
+import { escapeHtml } from "./sf_common.js";
 
 let _panel = null;
 let _cleanup = null;
@@ -1604,10 +1605,4 @@ function dragBy(panel) {
         handle.addEventListener("pointercancel", up, true);
         handle.addEventListener("lostpointercapture", up, true);
     });
-}
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => (
-        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-    ));
 }

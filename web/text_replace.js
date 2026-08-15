@@ -1,4 +1,5 @@
 import { app } from "/scripts/app.js";
+import { attachPopupDismiss, clampToViewport } from "./sf_popup.js";
 
 const MAX_SLOTS = 20;
 
@@ -45,20 +46,11 @@ function showMarkerMenu(x, y, onSelect) {
         "user-select:none",
     ].join(";");
 
-    const cleanup = () => {
-        document.removeEventListener("mousedown", onDocMouseDown, true);
-        document.removeEventListener("keydown", onKeyDown, true);
-        document.removeEventListener("wheel", onDocMouseDown, true);
-        menuEl.remove();
-    };
-
-    const onDocMouseDown = (e) => {
-        if (!menuEl.contains(e.target)) cleanup();
-    };
-
-    const onKeyDown = (e) => {
-        if (e.key === "Escape") cleanup();
-    };
+    // 三关闭（外部 pointerdown / Esc / wheel）走公共三件套 sf_popup.js——
+    // 等价于旧的手写 onDocMouseDown/onKeyDown 双监听 + wheel 关闭。
+    const detach = attachPopupDismiss(menuEl, {
+        onClose: () => menuEl.remove(),
+    });
 
     for (const item of MARKER_MENU_ITEMS) {
         if (item === null) {
@@ -77,23 +69,19 @@ function showMarkerMenu(x, y, onSelect) {
             row.style.background = "transparent";
         });
         row.addEventListener("click", () => {
-            cleanup();
+            detach();
+            menuEl.remove();
             onSelect(item.token);
         });
         menuEl.appendChild(row);
     }
 
-    document.addEventListener("mousedown", onDocMouseDown, true);
-    document.addEventListener("keydown", onKeyDown, true);
-    document.addEventListener("wheel", onDocMouseDown, true);
-
     document.body.appendChild(menuEl);
 
-    const rect = menuEl.getBoundingClientRect();
-    const px = Math.min(x, window.innerWidth - rect.width - 8);
-    const py = Math.min(y, window.innerHeight - rect.height - 8);
-    menuEl.style.left = `${Math.max(8, px)}px`;
-    menuEl.style.top = `${Math.max(8, py)}px`;
+    // viewport 钳位（8px 边距，等价于旧的手写 Math.min/Math.max 双钳）
+    menuEl.style.left = `${x}px`;
+    menuEl.style.top = `${y}px`;
+    clampToViewport(menuEl);
 }
 
 app.registerExtension({

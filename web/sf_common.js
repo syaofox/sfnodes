@@ -216,6 +216,70 @@ export function installCanvasZoomPassthrough(root) {
   return () => root.removeEventListener("wheel", onWheel);
 }
 
+// ── 通用 DOM 工具（HTML 转义 / 下载 / 剪贴板）───────────────────────────
+// 收敛自各节点内联副本（sf_crop_framework.downloadDataURL、
+// sf_workflows_ui.copyText、sf_lora_stack_info.escapeHtml——复制后语义分叉
+// 是 bug 温床）。注意：本文件依赖 /scripts/app.js，纯逻辑模块（*_lib.js /
+// *_core.js / sf_markdown.js）不得 import 本文件（会破坏其 Node 测试拷贝
+// 能力）；sf_find_replace_lib.js 与 sf_markdown.js 因纯模块独立性与测试
+// 锁定保留各自的本地转义实现（转义集合更小）。
+// HTML 转义（五字符全集，DOM innerHTML 注入用）。转义集合刻意大于
+// find_replace/markdown 的本地版（& < >）：引号一并转义对属性上下文安全。
+export function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// 下载 dataURL 为文件：showSaveFilePicker 优先（AbortError 豁免），
+// <a download> 回退。扩展名按 MIME 推导（jpeg→jpg，其余 png）。
+export async function downloadDataURL(dataURL, suggestedName = "sf_crop.png") {
+  if (!dataURL) return;
+  const mimeMatch = dataURL.match(/^data:([^;]+);/);
+  const mime = mimeMatch ? mimeMatch[1] : "image/png";
+  const ext = mime === "image/jpeg" ? "jpg" : "png";
+  const name = suggestedName.endsWith(`.${ext}`)
+    ? suggestedName
+    : `${suggestedName}.${ext}`;
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: "Image", accept: { [mime]: [`.${ext}`] } }],
+      });
+      const writable = await handle.createWritable();
+      const blob = await (await fetch(dataURL)).blob();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e) { if (e?.name !== "AbortError") console.warn("[sfnodes] save picker failed:", e); }
+  }
+  const a = document.createElement("a");
+  a.href = dataURL;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 1000);
+}
+
+// 复制文本到剪贴板（返回是否成功）：navigator.clipboard 优先（LAN 明文
+// http 无安全上下文时不可用），execCommand 回退。
+export async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch { /* 无安全上下文或权限被拒 */ }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;";
+  document.body.append(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  ta.remove();
+  return ok;
+}
+
 // ── 图片值解析（LoadImage widget 值 → {filename, subfolder, type}）────
 // 支持 "subfolder/name.png [output]" 注解与反斜杠路径。
 export function parseAnnotatedImageValue(value) {

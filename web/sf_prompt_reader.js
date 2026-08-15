@@ -1158,7 +1158,7 @@ function initReadout(node, imageWidget) {
 // ── Extension registration ─────────────────────────────────────────────────
 
 app.registerExtension({
-  name: "Sfnodes.PromptReader",
+  name: "sfnodes.PromptReader",
 
   beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== "SFPromptReader") return;

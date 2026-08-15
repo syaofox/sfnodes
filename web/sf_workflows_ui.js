@@ -13,7 +13,7 @@ import { api } from "/scripts/api.js";
 import {
     ancestorsOf, hasChildren, openSet, folderColor,
 } from "./sf_workflows_lib.js";
-import { sfApiUrl } from "./sf_common.js";
+import { sfApiUrl, copyText } from "./sf_common.js";
 
 /** 微型 DOM 助手。每个面板都恰好想要这个。 */
 export const el = (tag, cls, text) => {
@@ -41,25 +41,13 @@ export function markRendering(fn) {
 export const isRendering = () => renderDepth > 0;
 
 /**
- * 复制文本到剪贴板，成功返回 true。
+ * 复制文本到剪贴板，成功返回 true。实现收敛于 sf_common.js（clipboard +
+ * textarea 兜底双回退，只有一个副本）；此处 import 绑定后 re-export 透传，
+ * 本模块内部（copyList）也直接使用。
  * navigator.clipboard 需要安全上下文，ComfyUI 常在 LAN 明文 http 上访问，
- * 整个 API 缺席——所以旧 textarea 技巧是兜底而非事后想。只有一个副本。
+ * 整个 API 缺席——所以旧 textarea 技巧是兜底而非事后想。
  */
-export async function copyText(text) {
-    try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch { /* 无安全上下文或权限被拒 */ }
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;";
-    document.body.append(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand("copy"); } catch { ok = false; }
-    ta.remove();
-    return ok;
-}
+export { copyText };
 
 // ── 拖拽与 rect（shared/floating_window 内联）────────────────────────────
 

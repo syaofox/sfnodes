@@ -141,7 +141,7 @@ let _fakeType = null;
     }
     await import(path.join(tmpDir, "sf_prompt_reader.mjs"));
 
-    check("扩展已注册", app._ext?.name === "Sfnodes.PromptReader");
+    check("扩展已注册", app._ext?.name === "sfnodes.PromptReader");
 
     // beforeRegisterNodeDef 包装
     const FakeType = function () {};

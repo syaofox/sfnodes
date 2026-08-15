@@ -1641,34 +1641,10 @@ export function installFocusTrap(overlay) {
   return trap;
 }
 
-export async function downloadDataURL(dataURL, suggestedName = "sf_crop.png") {
-  if (!dataURL) return;
-  const mimeMatch = dataURL.match(/^data:([^;]+);/);
-  const mime = mimeMatch ? mimeMatch[1] : "image/png";
-  const ext = mime === "image/jpeg" ? "jpg" : "png";
-  const name = suggestedName.endsWith(`.${ext}`)
-    ? suggestedName
-    : `${suggestedName}.${ext}`;
-  if (window.showSaveFilePicker) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: name,
-        types: [{ description: "Image", accept: { [mime]: [`.${ext}`] } }],
-      });
-      const writable = await handle.createWritable();
-      const blob = await (await fetch(dataURL)).blob();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (e) { if (e?.name !== "AbortError") console.warn("[SFImageCrop] save picker failed:", e); }
-  }
-  const a = document.createElement("a");
-  a.href = dataURL;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => a.remove(), 1000);
-}
+// 下载 dataURL 为文件：实现收敛于 sf_common.js（showSaveFilePicker 优先 +
+// <a download> 回退）。此处 re-export 保持调用方（sf_crop.js / sf_inpaint.js）
+// 零改动。
+export { downloadDataURL } from "./sf_common.js";
 
 export function createDummyWidget(titleText, subtitleText, instructionText) {
   const container = document.createElement("div");

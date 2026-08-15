@@ -56,8 +56,9 @@ sfnodes/
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget
-│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Power/Stack/Plot 共享）
+│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Power/Stack/Plot 共享）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
 │   ├── sf_dynamic_slots.js # 动态槽位公共库
+│   ├── sf_popup.js      # 浮动弹层公共三件套（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免；clampToViewport 四向钳位 + scale 边距折算；无 app 依赖可 .mjs 冒烟测试）——新弹层优先使用（见 experience.md §26）
 │   ├── sf_crop*.js      # 可视化裁剪九模块（SFImageCrop/Uncrop：framework 编辑器框架 + core/panel/interaction/render/preview/undo_guard/alignments + 主扩展）
 │   ├── sf_inpaint*.js   # 局部修复编辑器五模块（SFInpaintCrop/Stitch：core/paint/geometry/render + 主扩展）
 │   ├── sf_pause_text*.js  # 文本闸门三模块（lib：state + applyGateMode prune 纯函数，text/image/mask/latent 四闸门共用）
@@ -171,7 +172,7 @@ class SFMyNode:
 - 使用 `_CATEGORY` 模块级常量定义分类前缀
 - 工具函数放在 `sf_utils/` 下对应模块（无状态纯函数）
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
-- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**
+- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_popup.js`（浮动弹层三件套：attachPopupDismiss 外部点击/Esc/滚轮三关闭 + clampToViewport 钳位，**新弹层优先使用**，见 experience.md §26）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**。**纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`）——这类模块的通用纯函数共享应放无依赖模块（如 sf_popup.js 即无 app 依赖）；DOM 层模块可自由用 sf_common。**注册规范**：`app.registerExtension` 文件必须直接 `import { app } from "/scripts/app.js"`（禁用相对路径 `../../scripts/`——依赖挂载路径）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在——以上由 `tests/check_web_imports.py` 固化校验（新增 web 模块时若报 MISSING MODULE 需把模块名加入该脚本 MODS 列表）。
 - `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
 
 ## Development Rules
@@ -356,3 +357,9 @@ class SFMyNode:
 - 公共小工具单一实现收敛于 `web/sf_common.js`（小工具/强调色/LoRA 行名三族，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。
 - 磁盘源（粘贴/编辑器 Load Image）执行**必须输出源帧 ui_payload**（sf_crop_source/sf_inpaint_source），否则前端 executed 事件收不到、节点预览停留旧图；前端 jsonSync 检测 src_path 变化立即同步缓存（inpaint 无轮询需主动刷新）。
 - 编辑器工具栏 **Reset ≠ Clear**：Reset 委托 `_resetCrop()` 保留源图，勿清 img。
+
+**前端架构治理（2026-08，工具收敛 / 弹层三件套 / 纯模块边界）→ experience.md §26**
+- **通用 DOM 工具单一实现**：`escapeHtml`（五字符）/ `downloadDataURL` / `copyText` 收敛于 `web/sf_common.js`（从 sf_crop_framework / sf_workflows_ui / sf_lora_stack_info 迁入，源文件 re-export 保持调用方零改动）；`sf_find_replace_lib.js` 与 `sf_markdown.js` 因纯模块独立性 + 测试锁定保留各自本地转义实现。
+- **纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` **不得 import sf_common.js**（依赖 /scripts/app.js，破坏 Node 测试拷贝）；这类模块的通用纯函数共享应放无依赖模块（sf_popup.js 即无 app 依赖）。
+- **浮动弹层三件套 `web/sf_popup.js`**（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免 + clampToViewport 钳位）：**新弹层优先使用**，存量 12 个弹层按需迁移不强制。
+- **注册规范固化**（`tests/check_web_imports.py` 校验）：registerExtension 文件必须直接 import `/scripts/app.js`（禁用 `../../scripts/` 相对路径——依赖挂载路径，sf_regional_lora.js 曾踩）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在；新增 web 模块时若脚本报 MISSING MODULE 需把模块名加入 MODS 列表。

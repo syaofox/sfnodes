@@ -87,7 +87,7 @@ function toggleWidget(node, widget, show = false, suffix = "") {
 }   
 
 app.registerExtension({
-    name: "inpaint-cropandstitch.showcontrol",
+    name: "sfnodes.showcontrol",
     nodeCreated(node) {
         if (!node.comfyClass.startsWith("SFInpaint") && !NODE_WIDGETS_CONFIG[node.comfyClass]) {
             return;

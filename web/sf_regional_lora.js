@@ -12,8 +12,8 @@
 // ZIT-Ideogram pattern verified by RegioCraft: mousedown stopPropagation +
 // document-level move/up listeners.
 
-import { app } from "../../scripts/app.js";
-import { api } from "../../scripts/api.js";
+import { app } from "/scripts/app.js";
+import { api } from "/scripts/api.js";
 import { isGraphLoading } from "./sf_common.js";
 import * as lib from "./sf_regional_lora_lib.js";
 
@@ -457,7 +457,7 @@ function startRestorePoll(node) {
 // extension registration
 // ---------------------------------------------------------------------------
 app.registerExtension({
-  name: "SFRegionalLoRA.editor",
+  name: "sfnodes.RegionalLoRA.editor",
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== NODE_TYPE) return;
     await lib.ensureLoraList(loraListLoader);
