@@ -96,6 +96,7 @@ from .nodes.image.compare import ImageCompare
 from .nodes.image.pause_image import SFPauseImage
 from .nodes.image.pause_latent import SFPauseLatent
 from .nodes.mask.pause_mask import SFPauseMask
+from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
 from .nodes import workflow_routes  # noqa: F401  # 副作用注册 /api/sfnodes/workflows/* 路由
 from .nodes.text.text import (
@@ -275,6 +276,8 @@ NODE_CLASS_MAPPINGS = {
     "SFPauseImage": SFPauseImage,
     "SFPauseMask": SFPauseMask,
     "SFPauseLatent": SFPauseLatent,
+    # 分块采样节点
+    "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
     "SFTextTranslation": TextTranslation,
     "SFTextCombine": TextCombine,
@@ -457,6 +460,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPauseImage": "SF Pause Image",
     "SFPauseMask": "SF Pause Mask",
     "SFPauseLatent": "SF Pause Latent",
+    # 分块采样节点
+    "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点
     "SFTextTranslation": "SF Text Translation",
     "SFTextCombine": "SF Text Combine",
