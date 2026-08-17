@@ -446,6 +446,58 @@ function pathEl(win) {
     check("行已预置 LoRA", st.loras?.[0]?.name === "a.safetensors");
     check("双击不打开信息面板", ![...bodyChildren].some((c) => hasClass(c, "sf-ls-info-p")));
 
+    // ── 已有 1 个 Stack → 双击直接插入（不新建）──
+    const beforeSingle = app.graph._nodes.length;
+    const singleNode = app.graph._nodes[beforeSingle - 1];
+    fileCard.emit("dblclick");
+    await sleep(300);
+    check("单节点时不新建", app.graph._nodes.length === beforeSingle);
+    const st1 = JSON.parse(singleNode?.properties?.loraStackState || "{}");
+    check("单节点直接插入行（2 行）", st1.loras?.length === 2 && st1.loras[1]?.name === "a.safetensors");
+
+    // ── 多个 Stack → 双击弹出选择器 ──
+    const fake2 = fakeLiteNode("SFLoraStack");
+    fake2.title = "My Test Stack";                        // 用户改过的节点标题
+    app.graph._nodes.push(fake2);                          // 第 2 个 Stack
+    const multiBefore = app.graph._nodes.length;
+    fileCard.emit("dblclick");
+    await sleep(300);
+    const pickMask = [...bodyChildren].reverse().find((c) => hasClass(c, "sf-lb-pick-mask"));
+    check("多节点弹出选择器", !!pickMask);
+    check("选择器列出 2 个节点", (() => {
+        let n = 0; (function walk(r){ if(!r) return; if(hasClass(r,"sf-lb-pick-row")) n++; for(const c of r.children||[]) walk(c); })(pickMask); return n === 2;
+    })());
+    check("选择器显示自定义 title", !!findByText(pickMask, "My Test Stack"));
+    check("选择器显示类名回退 title", !!findByText(pickMask, "SFLoraStack"));
+    check("选择器显示 LoRA 数量", (() => {
+        let n = 0; (function walk(r){
+            if (!r) return;
+            if (hasClass(r, "sf-lb-pick-meta")
+                && r.children.some((c) => String(c._text || c.textContent || "").includes("LoRA"))) n++;
+            for (const c of r.children || []) walk(c);
+        })(pickMask);
+        return n >= 2;
+    })());
+    // 选第一行（新建的节点）→ 行 +1
+    const pickRow = findByClass(pickMask, "sf-lb-pick-row");
+    pickRow.emit("click");
+    await tick();
+    check("选择后不新建节点", app.graph._nodes.length === multiBefore);
+    const stPick = JSON.parse(singleNode?.properties?.loraStackState || "{}");
+    check("选中节点插入第 3 行", stPick.loras?.length === 3);
+    check("选择器已关闭", pickMask.removed === true);
+    // 再次双击 → 选择器 → Cancel 不添加
+    fileCard.emit("dblclick");
+    await sleep(300);
+    const pickMask2 = [...bodyChildren].reverse().find((c) => hasClass(c, "sf-lb-pick-mask"));
+    check("再次弹出选择器", !!pickMask2);
+    const rowsBefore = JSON.parse(singleNode?.properties?.loraStackState || "{}").loras.length;
+    findByText(pickMask2, "Cancel").emit("click");
+    await tick();
+    check("Cancel 后选择器关闭", pickMask2.removed === true);
+    const rowsAfter = JSON.parse(singleNode?.properties?.loraStackState || "{}").loras.length;
+    check("Cancel 不添加行", rowsAfter === rowsBefore);
+
     // ── 单击文件卡片 -> 250ms 延迟后打开信息面板（等双击判定）──
     fileCard.emit("click");
     await tick();
@@ -456,7 +508,8 @@ function pathEl(win) {
     check("面板标题 = LoRA 名", findByClass(panel, "sf-ls-info-h")?.children?.[0]?._text === "a.safetensors");
     check("面板内 chips 存在（aa/bb）", (() => { let n = 0; (function walk(r){ if(!r) return; if(hasClass(r,"sf-ls-chip")) n++; for(const c of r.children||[]) walk(c); })(panel); return n >= 2; })());
 
-    // ── 平面模式双击也可添加（batch/b00）──
+    // ── 平面模式双击也可添加（batch/b00；先清空 graph 验证无节点→新建）──
+    app.graph._nodes.length = 0;
     segButton(win, "flat").emit("click");
     await tick();
     const flatFile = (win.querySelectorAll(".sf-lb-card") || []).find((c) => !hasClass(c, "folder"));

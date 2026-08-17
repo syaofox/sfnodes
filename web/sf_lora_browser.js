@@ -20,7 +20,7 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { listLoras, thumbUrl } from "./sf_lora_stack_api.js";
-import { accentOf, addLora } from "./sf_lora_stack_core.js";
+import { accentOf, addLora, readState } from "./sf_lora_stack_core.js";
 import { openInfoPanelFor, closeInfoPanel } from "./sf_lora_stack_info.js";
 import {
     createLoraBrowserWindow, renderFolder, renderFlat, renderCrumbs,
@@ -123,6 +123,21 @@ async function openInfoFor(name, card) {
 // 状态机写 node.properties.loraStackState；node._sfLsRefresh 由 stack 扩展的
 // setupNode 挂上——renderNode + fitToContent 重渲染，是复用的公共入口）。
 // 返回新建的节点；失败抛错由调用方 toast。
+// 画布上所有 SFLoraStack 节点（type 或 comfyClass 匹配）。
+function stackNodes() {
+    return (app.graph?._nodes || []).filter((n) => n && (n.comfyClass === "SFLoraStack" || n.type === "SFLoraStack"));
+}
+
+// 向一个 Stack 节点插入 LoRA 行并重渲染（公共入口：新建/单节点插入/选择器共用）。
+function addLoraRow(node, name) {
+    const res = addLora(node, name);  // core 状态机写 node.properties.loraStackState
+    if (!res?.ok) throw new Error(res?.reason === "max" ? "Stack is full." : "Could not add the LoRA.");
+    node._sfLsRefresh?.(true);        // 重渲染 + 高度贴合
+    try { app.canvas?.selectNode?.(node); } catch { /* Vue 无此 API，忽略 */ }
+    return node;
+}
+
+// 无 Stack 节点时新建一个（画布可视中心 + 随机偏移防重叠）并插入该 LoRA。
 async function createStackNode(name) {
     let node = null;
     // 1) 官方命令（Vue 新版前端自己的节点创建流程：类型注册/初始化/widget
@@ -148,11 +163,51 @@ async function createStackNode(name) {
     const [x, y] = canvasCenterPos();
     // 轻微随机偏移：连续双击两个 LoRA 不会严丝合缝叠在同一位置
     node.pos = [x + Math.round((Math.random() - 0.5) * 60), y + Math.round((Math.random() - 0.5) * 40)];
-    const res = addLora(node, name);  // 预置该 LoRA 行
-    if (!res?.ok) throw new Error(res?.reason === "max" ? "Stack is full." : "Could not add the LoRA.");
-    node._sfLsRefresh?.(true);        // 重渲染 + 高度贴合
-    try { app.canvas?.selectNode?.(node); } catch { /* Vue 无此 API，忽略 */ }
+    addLoraRow(node, name);
     return node;
+}
+
+// 多个 Stack 节点时弹出选择器：列出每个节点（id + 已有 LoRA 数 + 首行名），
+// 点行选择 / 点遮罩或 Esc 或 Cancel 取消。返回 Promise<node|null>。
+function pickStackNode(nodes) {
+    closeInfoPanel();   // 选择器盖住画布前收掉可能开着的信息面板
+    return new Promise((resolve) => {
+        const mask = el("div", "sf-lb-pick-mask");
+        const box = el("div", "sf-lb-pick");
+        box.append(el("div", "sf-lb-pick-t", "Choose a SF LoRA Stack"),
+                   el("div", "sf-lb-pick-sub", nodes.length + " SF LoRA Stack nodes on the canvas."));
+        const list = el("div", "sf-lb-pick-list");
+        for (const n of nodes) {
+            const st = readState(n);
+            const count = st?.loras?.length || 0;
+            const first = st?.loras?.[0]?.name ? " · " + st.loras[0].name : "";
+            const meta = el("span", "sf-lb-pick-meta");
+            meta.append(el("span", "n", count + " LoRA" + (count !== 1 ? "s" : "")), document.createTextNode(first));
+            const row = el("div", "sf-lb-pick-row");
+            row.dataset.nodeId = String(n.id);
+            // title 优先显示用户改过的节点标题，缺省回退类名
+            row.append(el("span", "sf-lb-pick-id", "#" + n.id),
+                       el("span", "sf-lb-pick-title", n.title || "SFLoraStack"),
+                       meta);
+            row.title = "SF LoRA Stack #" + n.id;
+            row.addEventListener("click", () => done(n));
+            list.appendChild(row);
+        }
+        box.append(list);
+        const cancel = el("div", "sf-lb-pick-cancel", "Cancel");
+        cancel.addEventListener("click", () => done(null));
+        box.append(cancel);
+        mask.appendChild(box);
+        document.body.appendChild(mask);
+        function done(node) {
+            document.removeEventListener("keydown", onKey, true);
+            if (mask.isConnected) mask.remove();
+            resolve(node);
+        }
+        const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
+        document.addEventListener("keydown", onKey, true);
+        mask.addEventListener("pointerdown", (e) => { if (e.target === mask) done(null); });
+    });
 }
 
 // 画布可视中心（图坐标）。ds 缺失（极端环境）回退到左上角附近。
@@ -167,8 +222,22 @@ function canvasCenterPos() {
 async function addToWorkflow(name) {
     if (!name) return;
     try {
-        await createStackNode(name);
-        S.win?.toast("Added \"" + name + "\" to a new SF LoRA Stack node.");
+        const existing = stackNodes();
+        if (!existing.length) {
+            // 无 Stack 节点 → 新建并插入
+            await createStackNode(name);
+            S.win?.toast("Added \"" + name + "\" to a new SF LoRA Stack node.");
+        } else if (existing.length === 1) {
+            // 恰一个 → 直接插入
+            addLoraRow(existing[0], name);
+            S.win?.toast("Added \"" + name + "\" to the SF LoRA Stack node.");
+        } else {
+            // 多个 → 弹出选择器
+            const picked = await pickStackNode(existing);
+            if (!picked) { S.win?.toast("Cancelled."); return; }
+            addLoraRow(picked, name);
+            S.win?.toast("Added \"" + name + "\" to SF LoRA Stack #" + picked.id + ".");
+        }
     } catch (e) {
         S.win?.toast("Could not add LoRA: " + String(e?.message || e));
     }

@@ -70,6 +70,28 @@ export function injectBrowserCSS() {
 .sf-lb-segb.flat .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E"); }
 .sf-lb-loadmore { text-align:center; color:#8a8581; font-size:11px; padding:10px; }
+/* 多 Stack 节点选择弹窗（双击添加时选择目标节点） */
+.sf-lb-pick-mask { position:fixed; inset:0; z-index:10040; background:rgba(0,0,0,0.55);
+  display:flex; align-items:center; justify-content:center; }
+.sf-lb-pick { width:360px; max-width:90vw; background:#2b2b2b; border:1px solid var(--sf-lb-acc, #f66744);
+  border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6); color:#ddd;
+  font:12px 'Segoe UI',sans-serif; overflow:hidden; }
+.sf-lb-pick-t { padding:12px 14px; border-bottom:1px solid #1c1c1c; color:#fff;
+  font-size:13px; font-weight:600; }
+.sf-lb-pick-sub { padding:4px 14px 8px; font-size:11px; color:#8a8581; }
+.sf-lb-pick-list { padding:6px; max-height:50vh; overflow-y:auto; }
+.sf-lb-pick-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px;
+  cursor:pointer; }
+.sf-lb-pick-row:hover { background:rgba(255,255,255,0.07); }
+.sf-lb-pick-id { color:var(--sf-lb-acc, #f66744); font:11px monospace; flex:none; }
+.sf-lb-pick-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#e6e6e6; font-size:12px; }
+.sf-lb-pick-meta { flex:none; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#8a8581; font-size:11px; }
+.sf-lb-pick-meta .n { color:var(--sf-lb-acc, #f66744); font-weight:600; }
+.sf-lb-pick-cancel { text-align:center; padding:9px; border-top:1px solid #1c1c1c;
+  color:#9a9a9a; cursor:pointer; font-size:12px; }
+.sf-lb-pick-cancel:hover { color:#fff; }
 /* 面包屑行（当前目录路径；搜索时仍显示当前层 context，列表转扁平匹配） */
 .sf-lb-path { display:flex; align-items:center; flex-wrap:wrap; gap:2px;
   padding:5px 12px; border-bottom:1px solid #2c2a28; background:#1e1d1c; flex:0 0 auto;

@@ -1315,10 +1315,13 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
 - **浏览位置记忆**：设置键 `sfnodes.LoraBrowser.Folder` 记住所在目录——打开窗口时恢复，列表到达后按目录存在性校正（`validFolder`：目录被删/改名回根）；搜索时面包屑仍显示当前层 context。
 - **性能**：卡片 `content-visibility:auto` + `img.loading="lazy"`——数百上千 LoRA 不一次性拉图，浏览器按视口渲染与解码；缩略图 404 → onerror **替换为内联 SVG 占位图**（深色圆角底 + 层叠图标，data URI 无网络请求必成功渲染；`removeAttribute("src")` 在实测中某些渲染路径仍残留浏览器破损图，有 src 的占位才彻底），守卫防二次 error 循环。
 - **封面跨端刷新**：缩略图路由发 `max-age=3600` 且 URL 不变——任一端（浏览器/Stack/Power）改了数据经 `sfnodes.lora-data-changed`（detail.name）事件刷新可见卡片封面，URL 带 `&t=Date.now()` bust。
-- **双击加载到工作流（2026-08）**：文件卡片双击 → 用 SF LoRA Stack 加载该 LoRA 并添加节点：**优先官方命令 `app.extensionManager.command.execute("Comfy.AddNode", { type: "SFLoraStack" })`**，执行后从 `app.graph._nodes` 按「新增集合差」找回节点（不依赖命令返回值形状）；命令缺失/失败兜底 `LiteGraph.createNode` + `graph.add`。然后 `addLora(node, name)` 预置行（core 状态机写 `properties.loraStackState`）→ `node._sfLsRefresh(true)`（renderNode + fitToContent，setupNode 在 nodeCreated 时挂）；位置 = 画布视口中心换算（`(p - ds.offset)/ds.scale`，ds 缺失回退左上）+ 随机 ±30px 防连续双击重叠；尝试 `app.canvas.selectNode` 选中（Vue 无此 API，try/catch 忽略）。
+- **双击加载到工作流（2026-08）**：文件卡片双击 → 用 SF LoRA Stack 加载该 LoRA 并添加节点，**三分支**：
+  - **无 Stack 节点** → 新建：**优先官方命令 `app.extensionManager.command.execute("Comfy.AddNode", { type: "SFLoraStack" })`**，执行后从 `app.graph._nodes` 按「新增集合差」找回节点（不依赖命令返回值形状）；命令缺失/失败兜底 `LiteGraph.createNode` + `graph.add`。位置 = 画布视口中心换算（`(p - ds.offset)/ds.scale`，ds 缺失回退左上）+ 随机 ±30px 防连续双击重叠；尝试 `app.canvas.selectNode` 选中（Vue 无此 API，try/catch 忽略）。
+  - **恰一个 Stack 节点** → 直接向它插入（不新建）。
+  - **多个 Stack 节点** → 弹出选择器（`sf-lb-pick-mask` 面板风模态：每行 `#id · title（用户改过的节点标题，缺省回退类名 SFLoraStack）· N LoRA(s) · 首行名`（readState 读行数）；点行选择，遮罩/Esc/Cancel 取消；打开前 closeInfoPanel 收掉可能开着的面板）。
+  - 插入统一走 `addLoraRow(node, name)`：`addLora`（core 状态机写 `properties.loraStackState`）→ `node._sfLsRefresh(true)`（renderNode + fitToContent，setupNode 在 nodeCreated 时挂）→ selectNode。
+  - **单击/双击防抖**：浏览器双击先派发两次 click 再 dblclick——单击延迟 250ms、dblclick 时 clearTimeout 取消在途单击（第二次 click 覆盖第一次 timer，dblclick 再清一次），双击不误开信息面板。
   - **Vue 新版实测大坑（2026-08 实测）**：裸 `LiteGraph.createNode` + `app.graph.add` **只弹成功 toast 却不渲染节点**——Vue 前端的节点创建/类型注册/widget store 同步必须走官方 AddNode 命令；Classic 前端（及命令缺失兜底）下 createNode + graph.add 仍可用。测试 mock `extensionManager.command.execute` 覆盖命令路径 + 断言命令被调用。
-  - **单击/双击防抖（关键交互）**：浏览器双击会先派发两次 click 再 dblclick——若单击直接开信息面板，双击会误开又关。实现：click 延迟 250ms 才触发 onPick，dblclick 时 `clearTimeout` 取消在途单击（事件序 click1→设 timer1，click2→清 timer1 设 timer2，dblclick→清 timer2 触发 onAdd，天然无残留）。代价：单击打开面板延迟 250ms（可接受）。
-  - **Vue 新版无 `graph.createNode`**：`LiteGraph.createNode` + `app.graph.add` 是 Classic/Vue 全版本通用路径（本项目 addLora/_sfLsRefresh 先例支持）；测试 mock `LiteGraph.createNode` + `app.graph.add`（极简：不触发扩展 nodeCreated，`_sfLsRefresh?.()` 可选跳过），断言 properties 行注入。
 - **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/列表——mask-image data URI，无文字，title 承载说明，与工具栏按钮图标同风格），模式记忆设置键 `sfnodes.LoraBrowser.Mode`（与 Folder 位置记忆同机制，打开窗口恢复）。**平面模式 = 全量列表分批渲染 + 滚动动态加载**（防 LoRA 上千时一次性建 DOM/拉图卡死）：
   - `renderFlat(main, {names, shown})` 一次只建 `shown` 项卡片（`FLAT_STEP=60`，主扩展 `S.flat.page` 批次游标），未载完时 main 底部挂 `sf-lb-loadmore` 哨兵（显示「已载 / 总数」）；
   - `attachFlatScroll(main, onNeedMore)` 幂等绑定 scroll 监听，距底 300px 回调续批（主扩展判断还有更多才推进 page）；
