@@ -32,6 +32,7 @@
 - [25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）](#25-sfregionallora多区域角色-loratoken-网格注入与匹配诊断)
 - [26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界](#26-前端架构治理2026-08工具收敛--弹层三件套--纯模块边界)
 - [27. 2026-08 健壮性修复批次：表达式防御 / ReDoS 交替型 / 路径净化 / 双端镜像补缺](#27-2026-08-健壮性修复批次表达式防御--redos-交替型--路径净化--双端镜像补缺)
+- [28. SFStylesSelector：风格选择器复刻（Easy-Use stylesSelector）](#28-sfstylesselector风格选择器复刻easy-use-stylesselector)
 
 ---
 
@@ -1183,3 +1184,61 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **requirements.txt**：补 `requests`、`typing_extensions`（代码已在用但未声明）。
 - **自定义输入框键盘/滚轮（2026-08 快捷键拦截修复批次）**：① 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键（否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"——sf_prompt_list/prompt_stack/pause_text/prompt_tags/find_replace/crop_panel/lora_stack_*/load_image_ui/workflows_ui/prompt_tags_editor 等 11+ 处统一修复）；② **sf 的 DOM widget 输入框挂载在 canvas DOM 层，不在 Vue 新版 TransformPane 的 @wheel.capture 转发路径内——ComfyUI 画布缩放/滚动在编辑框上完全失效（连 Ctrl+滚轮都不缩放）**。修复：`sf_common.installWheelZoomPassthrough(el)` 挂输入框——Ctrl/⌘+滚轮总转发 canvas 缩放；普通滚轮在输入框可滚动（scrollHeight>clientHeight）时滚动文本、否则转发缩放（对齐 ComfyUI 原生输入框行为）。
 
+
+---
+
+## 28. SFStylesSelector：风格选择器复刻（Easy-Use stylesSelector）
+
+> 背景：复刻 Easy-Use 的 `easy stylesSelector`（2026-08），落地为 `nodes/text/styles_selector.py`（节点 + 路由同文件注册）+ `web/sf_styles_selector.js`（主扩展）+ `web/sf_styles_selector_lib.js`（纯逻辑）+ `data/styles/fooocus_styles.json`（275 条内置数据）。复刻范围 1:1 拼接语义，UI 交互对齐原版（搜索/清空/选中置顶/hover 缩略图），但工程上按 sfnodes 惯例重做。
+
+### 1. 数据三通道与优先级
+
+- **内置只读**：`data/styles/*.json`（随包分发，如 fooocus_styles.json 119KB/275 样式，全含 name/prompt/negative_prompt/name_cn/thumbnail）。
+- **用户自定义**：`<user>/sfnodes/styles/*.json`（复用 lora_routes `_sf_user_dir` 惯例，docker bind mount 存活），**同名文件覆盖内置**；`styles/samples/` 放本地缩略图 `<name>.jpg`。
+- **远程兜底**：`fooocus_styles` 库无本地 samples 图时，image 路由返回 Fooocus GitHub raw URL 文本，前端按 http 前缀直用（原版 `FOOOCUS_STYLES_SAMPLES` 语义）。
+- 库名枚举 = 内置 + 用户 json 去扩展名去重（先用户后内置稳定顺序）；文件加载 mtime+size 缓存（prompt_preset `_load_presets` 同款）。
+
+### 2. 值通道：隐藏真源 + DOM widget 纯交互（同 regional_lora 模式）
+
+- Python `hidden` 声明 `SFStylesState`（STRING default "[]"）→ 标准 widget 收集进 prompt、随 workflow 保存；前端 `find` 该 widget（缺则 addWidget 补建），标记 `hidden + computeSize 归零 + options.canvasOnly`。
+- DOM widget `sf_styles_panel` `getValue: () => null` 不承担值传输（规避 Vue DOMWidget value setter 链，见 §11）；点击标签 → `writeState(node, names)` 写隐藏真源 `.value`（普通 STRING widget 可安全写）→ 重渲染。
+- **加载/尾窗点击门控**：`isGraphLoading()` 为真时忽略标签点击（连接恢复/值恢复晚于 onNodeCreated，误点会覆盖刚恢复的选择）。
+- 工作流加载后 `onConfigure` 触发 `ensureLoaded` 重渲染（读恢复后的真源值）；库切换（styles combo callback 包装）强制重拉列表。
+
+### 3. 拼接语义 1:1 复刻（含原版怪癖，测试锁定）
+
+- `{prompt}` 占位消费：**第一个**含占位的样式用用户输入替换（即使输入为空也替换）；后续含占位的样式剥离 `", {prompt}"` 片段尾接；无占位样式直接尾接。
+- 用户输入未被任何样式消费 → `positive + positive_prompt + ', '`——**原版怪癖 1：无分隔逗号**（"a girl" + "masterpiece" = "a girlmasterpiece"）；**怪癖 2：末尾尾逗号**。行为一致复刻，注释标明。
+- negative：样式负面提示词尾接在用户 negative 之后（空时直接取样式负面）。
+- 原版 bug 修复（记录在案）：`select_styles.split(',')` 不去空格 → 接线带空格（`" Fooocus Sharp"`）匹配不到样式名；本实现 strip 后匹配。
+- 空 values（无选择/全未知）→ execute 提前透传 `(positive, negative)`；未知样式名跳过不影响其余。
+
+### 4. 路由（/api/sfnodes/styles）
+
+- **列表** `?name=`：返回 `[{name, name_cn?, thumbnail, prompt?, negative_prompt?}]`——prompt/negative_prompt 供 hover 信息浮窗展示（对齐 v2 previewer；空串条目不携带该键）。thumbnail 归一化：http(s) 原样（远程直链）/ 本地路径转 image 路由 URL / 缺省兜底 `?name=&styles_name=` 查询。
+- **图片** `?path=`：用户 + 内置双目录 ×（根 + samples/）四路查找；**穿越防护**：`os.path.normpath(join(base, rel))` 后 `os.path.commonpath == base` 才放行（未 normpath 前 join 的 `../` 不会折叠，commonpath 检查会漏）。
+- **图片** `?name=&styles_name=`：本地 samples 优先 → `fooocus_styles` 库返回远程 URL 文本（`web.Response(text=...)`，前端 `resp.text()` 后按 http 前缀直用）→ 404。
+
+### 5. 前端要点
+
+- **hover 预览图修复原版全局 id 冲突**：Easy-Use 用 `document.getElementById('show_image_id')` 全局 img，多节点并存时 id 重复、互相覆盖。本实现预览 img 挂**每个 DOM widget 内部**（absolute + pointer-events:none），坐标相对 widget 容器换算（÷画布 scale 对齐 DOM widget 内容坐标系），clamp 在容器内防溢出裁剪。
+- 搜索/清空/选中置顶（稳定排序，选中项永不隐藏）逻辑在 `sf_styles_selector_lib.js`（纯逻辑，拷 .mjs 可测）；搜索匹配原始 name 与语言化 label。
+- 中文环境（`navigator.language` zh 前缀）显示 `name_cn`（值键恒为原始 name）。
+- 样式列表 fetch 走 promise 级缓存（加载期重复调用复用同一请求；失败缓存空列表会话内不重试，对齐 prompt_tags `fetchDefaultLibrary` 语义）。
+- 搜索框挂 `installWheelZoomPassthrough`（DOM widget 不在 Vue 滚轮转发路径，见 §27）；不拦截任何 keydown（ctrl 组合天然放行）。
+- 选中状态变化走隐藏真源 widget 值 → 缓存键自然包含选择（无需 IS_CHANGED 抖动）；`IS_CHANGED` 只返回样式库文件 (mtime, size)。
+
+### 6. 测试
+
+- `tests/test_styles_selector.py`：mock aiohttp/server（canvas_size 先例）——拼接全分支（占位消费/剥离/未消费前置怪癖/negative/未知跳过）、目录 monkeypatch 覆盖优先级（**务必 finally 恢复模块函数**，否则泄漏污染后续用例）、归一化、IS_CHANGED、路由 handler 形状与穿越防护。
+- `tests/test_styles_selector_lib.mjs`：lib 纯逻辑（parse/serialize/label/thumbnail/filterAndSort 全分支）。
+
+### 7. v2 差异：Grid/List 显示模式与 Reset（对齐 v2 stylesSelectorDisplay）
+
+- v2 的视图切换是**全局设置** `EasyUse.StylesSelector.DisplayType`（combo Grid/List，默认 Grid）+ 节点内下拉选择器，切换时 `ke()` 写回设置；本实现改为 `node.properties.sfStylesView` 随 workflow 保存（显示偏好按工作流区分，不做全局设置、不注入 prompt——与执行无关的 UI 状态）。切换按钮为工具条右侧两键分段控件（▦/☰）。
+- v2 的 **Reset** = 清空选择（trash 图标 + "Reset" 文本）；v2 在 styles 库切换时**自动清空选择**（callback 里调 g()），本实现保留选择（旧库选中项在新库不存在时被 filterAndSort 忽略，不自动清空更友好）。
+- **Grid 卡片**：缩略图 + 名字（ellipsis，title 全名），选中边框高亮（`--sf-acc`）；`img.loading="lazy"` 防 275 张远程图一次性拉取，onerror 占位；搜索过滤/选中置顶两种视图共用 `lib.filterAndSort`（hidden 项 display:none）。
+- **grid 行高 min-content 塌缩（真 bug，headless Chromium 复现）**：grid 容器高度确定（calc/内联高度）时，`auto` 行在内容总高超出容器时**收缩到 min-content**——flex 卡片内 img（可替换元素 min-content=0）+ ellipsis span（min-content=0）→ 卡片 min-content ≈ 10px（仅 padding+border）→ 每行塌缩、img 溢出被卡片 `overflow:hidden` 裁成细条（诊断特征：cardH≈10 而 imgH=72、scrollHeight 极小）。修复：**`grid-auto-rows:max-content`** 强制按内容撑开（行高 10px→97px）+ img `min-height` 双保险。此前多次"高度声称"修复无效的原因：root/list 高度都正常，坏的是 grid track sizing。
+- **List 行 label 点击双重触发（v2 样式选择器第二轮）**：List 行是 `<label>` 包裹 checkbox——点击 label 的**默认激活行为**（合成 input.click()）产生的新 click 事件**冒泡回 label** 再次触发 onclick → toggleSelect 两次、状态复原（"点不动"）。修复 `e.preventDefault()`（checkbox 显示由 renderList 重建控制，不需要默认激活）。Grid 卡片是 div 无默认激活行为不受影响——两种行控件事件模型不同，症状不对称时先查元素类型。
+- **hover 信息浮窗（对齐 v2 previewer）**：图 + 名称 + Positive/Negative（3 行 clamp）挂 widget 内部，Grid/List 两视图共用 showPop；列表 API 因此补发 prompt/negative_prompt（空串条目不携带）。强调色全部走 `color-mix(in srgb, var(--sf-acc, #f66744) N%, transparent)`（项目标准，sf_load_image_ui 等同款）——**禁止硬编码 rgba(246,103,68)**（不跟随 sfnodes.Accent 设置）。
+- List 模式保留 checkbox 行；Grid 模式卡片自带缩略图，hover 浮窗两视图一致。
