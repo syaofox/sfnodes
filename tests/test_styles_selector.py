@@ -231,9 +231,11 @@ check("列表路由缺 name 400", resp400.status == 400)
 resp404 = asyncio.run(_run(handlers["/api/sfnodes/styles"], _FakeRequest({"name": "nope"})))
 check("列表路由未知库空数组", resp404 == [])
 
-# 图片路由：fooocus 库无本地样例 → 返回远程 URL 文本
+# 图片路由：fooocus 库本地 samples 优先（缩略图已本地化）；本地无文件时返回远程 URL 文本
 resp = asyncio.run(_run(handlers["/api/sfnodes/styles/image"], _FakeRequest({"name": "fooocus_enhance", "styles_name": "fooocus_styles"})))
-check("图片路由远程 URL 文本", isinstance(resp.text, str) and resp.text.startswith("https://raw.githubusercontent.com/lllyasviel/Fooocus"))
+check("本地 samples 优先（fooocus 已本地化）", resp.status == 200 and not hasattr(resp, "text"))
+resp = asyncio.run(_run(handlers["/api/sfnodes/styles/image"], _FakeRequest({"name": "nonexistent_style_xyz", "styles_name": "fooocus_styles"})))
+check("图片路由远程 URL 文本兜底", isinstance(resp.text, str) and resp.text.startswith("https://raw.githubusercontent.com/lllyasviel/Fooocus"))
 resp404 = asyncio.run(_run(handlers["/api/sfnodes/styles/image"], _FakeRequest({"name": "x", "styles_name": "other"})))
 check("图片路由非 fooocus 无本地图 404", resp404.status == 404)
 resp400 = asyncio.run(_run(handlers["/api/sfnodes/styles/image"], _FakeRequest({})))

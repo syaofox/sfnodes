@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import urllib.parse
 
 from aiohttp import web
 
@@ -125,7 +126,8 @@ def _thumbnail_url(thumb):
     if isinstance(thumb, str) and thumb.startswith(("http://", "https://")):
         return thumb
     if isinstance(thumb, str) and thumb:
-        return f"/api/sfnodes/styles/image?path={thumb}"
+        # path 含空格/特殊字符时前端直用需编码（后端 query 解析自动解码）
+        return f"/api/sfnodes/styles/image?path={urllib.parse.quote(thumb, safe='/')}"
     return None
 
 
