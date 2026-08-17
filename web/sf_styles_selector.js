@@ -33,8 +33,8 @@ function injectCSS() {
 .sf-ss-root{display:flex;flex-direction:column;gap:6px;height:100%;box-sizing:border-box;padding:4px 6px;position:relative;overflow:visible;}
 .sf-ss-tools{display:flex;gap:6px;flex:0 0 auto;}
 .sf-ss-search{flex:1;min-width:0;resize:none;font:12px sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:4px 6px;height:28px;box-sizing:border-box;outline:none;}
-.sf-ss-reset{flex:0 0 auto;font:11px sans-serif;color:#e0b3a8;background:#2a1f1c;border:1px solid #5a3a30;border-radius:5px;padding:0 10px;cursor:pointer;height:28px;}
-.sf-ss-reset:hover{background:#3a2a24;}
+.sf-ss-reset{flex:0 0 auto;font:11px sans-serif;color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);border:1px solid color-mix(in srgb, var(--sf-acc, #f66744) 45%, transparent);border-radius:5px;padding:0 10px;cursor:pointer;height:28px;}
+.sf-ss-reset:hover{background:color-mix(in srgb, var(--sf-acc, #f66744) 22%, transparent);}
 .sf-ss-viewseg{flex:0 0 auto;display:flex;border:1px solid #444;border-radius:5px;overflow:hidden;height:28px;}
 .sf-ss-viewseg button{font:11px sans-serif;color:#c8c8c8;background:#2a2a2a;border:none;padding:0 8px;cursor:pointer;}
 .sf-ss-viewseg button:hover{background:#3a3a3a;}
@@ -303,15 +303,22 @@ function setupNode(node) {
   const zh = isZh();
   const viewSeg = document.createElement("div");
   viewSeg.className = "sf-ss-viewseg";
+  // 统一遍历同步全部按钮：单按钮闭包 sync 只更新自身，切换后另一按钮的
+  // 高亮类残留 → 双高亮（"切换后不恢复不高亮"）
+  const syncViewBtns = () => {
+    const cur = viewMode(node);
+    for (const btn of viewSeg.children) {
+      btn.classList.toggle("sf-ss-viewon", btn.dataset.mode === cur);
+    }
+  };
   const viewBtn = (mode, icon, label) => {
     const b = document.createElement("button");
+    b.dataset.mode = mode;
     b.textContent = icon;
     b.title = label;
-    const sync = () => b.classList.toggle("sf-ss-viewon", viewMode(node) === mode);
-    sync();
     b.onclick = () => {
       setViewMode(node, mode);
-      sync();
+      syncViewBtns();
       renderList(ctx);
     };
     viewSeg.append(b);
@@ -319,6 +326,7 @@ function setupNode(node) {
   };
   viewBtn("grid", "▦", zh ? "网格视图" : "Grid view");
   viewBtn("list", "☰", zh ? "列表视图" : "List view");
+  syncViewBtns();
 
   tools.append(resetBtn, searchEl, viewSeg);
 
