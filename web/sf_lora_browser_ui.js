@@ -378,7 +378,7 @@ function folderCard(folderName, onEnterFolder) {
     return c;
 }
 
-function fileCard(name, { selectedName = null, onPick, thumbBust = 0 } = {}) {
+function fileCard(name, { selectedName = null, onPick, onAdd, thumbBust = 0 } = {}) {
     const { base, folder } = splitName(name);
     const c = el("div", "sf-lb-card" + (name === selectedName ? " sel" : ""));
     c.dataset.name = name;
@@ -402,7 +402,19 @@ function fileCard(name, { selectedName = null, onPick, thumbBust = 0 } = {}) {
     const pt = el("div", "sf-lb-cardmeta", (folder ? folder + " / " : "") + (ext ? ext.toUpperCase() : "LORA"));
     pt.title = name;
     c.append(th, nm, pt);
-    c.addEventListener("click", () => onPick?.(name, c));
+    // 单击 = 打开信息面板，双击 = 用 SF LoRA Stack 加载到工作流。浏览器对
+    // 双击会先派发两次 click 再派发 dblclick：单击延迟 250ms，dblclick 时
+    // 取消在途的单击（第二次 click 已覆盖第一次的 timer，dblclick 再清一次）。
+    let pickTimer = null;
+    c.addEventListener("click", () => {
+        clearTimeout(pickTimer);
+        pickTimer = setTimeout(() => onPick?.(name, c), 250);
+    });
+    c.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        clearTimeout(pickTimer);
+        onAdd?.(name, c);
+    });
     return c;
 }
 
@@ -411,7 +423,7 @@ function fileCard(name, { selectedName = null, onPick, thumbBust = 0 } = {}) {
 // 有查询：跨全部层级扁平过滤（对齐 image_browser 的搜索语义，忽略目录）。
 // 卡片点击回调 onPick(name, cardEl)；文件夹点击回调 onEnterFolder(folderName)。
 export function renderFolder(main, { list = [], folder = "", query = "", selectedName = null,
-    onPick, onEnterFolder, thumbBust = 0 } = {}) {
+    onPick, onAdd, onEnterFolder, thumbBust = 0 } = {}) {
     main.innerHTML = "";
     if (!list.length) {
         main.appendChild(el("div", "sf-lb-empty", "No LoRAs on this machine yet. Add some to the models/loras folder."));
@@ -428,7 +440,7 @@ export function renderFolder(main, { list = [], folder = "", query = "", selecte
             main.appendChild(el("div", "sf-lb-empty", "No LoRAs match your search."));
             return;
         }
-        for (const name of hits) grid.appendChild(fileCard(name, { selectedName, onPick, thumbBust }));
+        for (const name of hits) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
     } else {
         const { folders, files } = folderContents(list, folder);
         if (!folders.length && !files.length) {
@@ -437,7 +449,7 @@ export function renderFolder(main, { list = [], folder = "", query = "", selecte
             return;
         }
         for (const fd of folders) grid.appendChild(folderCard(fd, onEnterFolder));
-        for (const name of files) grid.appendChild(fileCard(name, { selectedName, onPick, thumbBust }));
+        for (const name of files) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
     }
     main.appendChild(grid);
 }
@@ -446,7 +458,7 @@ export function renderFolder(main, { list = [], folder = "", query = "", selecte
 // 一次只渲染 `shown` 项（分批），剩余部分在滚动接近底部时经 attachFlatScroll
 // 通知主扩展续载——列表上千条也不一次性建 DOM/拉图。
 export function renderFlat(main, { names = [], shown = names.length, selectedName = null,
-    onPick, thumbBust = 0 } = {}) {
+    onPick, onAdd, thumbBust = 0 } = {}) {
     main.innerHTML = "";
     if (!names.length) {
         main.appendChild(el("div", "sf-lb-empty", "No LoRAs on this machine yet. Add some to the models/loras folder."));
@@ -454,7 +466,7 @@ export function renderFlat(main, { names = [], shown = names.length, selectedNam
     }
     const grid = el("div", "sf-lb-grid");
     const slice = names.slice(0, Math.max(1, shown));
-    for (const name of slice) grid.appendChild(fileCard(name, { selectedName, onPick, thumbBust }));
+    for (const name of slice) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
     main.appendChild(grid);
     if (slice.length < names.length) {
         main.appendChild(el("div", "sf-lb-loadmore", "Loading more… (" + slice.length + " / " + names.length + ")"));

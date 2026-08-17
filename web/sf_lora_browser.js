@@ -20,7 +20,7 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { listLoras, thumbUrl } from "./sf_lora_stack_api.js";
-import { accentOf } from "./sf_lora_stack_core.js";
+import { accentOf, addLora } from "./sf_lora_stack_core.js";
 import { openInfoPanelFor, closeInfoPanel } from "./sf_lora_stack_info.js";
 import {
     createLoraBrowserWindow, renderFolder, renderFlat, renderCrumbs,
@@ -118,6 +118,62 @@ async function openInfoFor(name, card) {
     if (S.sel !== name) { S.sel = name; render(); }
 }
 
+// ── 双击：用 SF LoRA Stack 加载该 LoRA 并添加到当前工作流 ────────────────
+// 在画布可视中心新建一个 SFLoraStack 节点并预置这一行（addLora 走 core 的
+// 状态机写 node.properties.loraStackState；node._sfLsRefresh 由 stack 扩展的
+// setupNode 挂上——renderNode + fitToContent 重渲染，是复用的公共入口）。
+// 返回新建的节点；失败抛错由调用方 toast。
+async function createStackNode(name) {
+    let node = null;
+    // 1) 官方命令（Vue 新版前端自己的节点创建流程：类型注册/初始化/widget
+    //    store 同步都走官方路径——实测裸 createNode + graph.add 在 Vue 下
+    //    只弹成功 toast 却不渲染节点）。命令参数 {type}，创建后从 graph 里
+    //    按新增找回来（不依赖命令返回值形状）。
+    try {
+        const cmd = app.extensionManager?.command;
+        if (cmd && typeof cmd.execute === "function" && app?.graph) {
+            const before = new Set(app.graph._nodes || []);
+            await cmd.execute("Comfy.AddNode", { type: "SFLoraStack" });
+            node = (app.graph._nodes || []).find((n) => !before.has(n)) || null;
+        }
+    } catch { node = null; }
+    // 2) 兜底：LiteGraph.createNode + graph.add（Classic 前端/命令缺失）
+    if (!node) {
+        const LG = window.LiteGraph;
+        if (!LG || !app?.graph) throw new Error("No canvas available.");
+        node = LG.createNode("SFLoraStack");
+        if (!node) throw new Error("SFLoraStack node type is not registered.");
+        app.graph.add(node);   // 触发扩展 nodeCreated（setupNode 同步挂 _sfLsRefresh）
+    }
+    const [x, y] = canvasCenterPos();
+    // 轻微随机偏移：连续双击两个 LoRA 不会严丝合缝叠在同一位置
+    node.pos = [x + Math.round((Math.random() - 0.5) * 60), y + Math.round((Math.random() - 0.5) * 40)];
+    const res = addLora(node, name);  // 预置该 LoRA 行
+    if (!res?.ok) throw new Error(res?.reason === "max" ? "Stack is full." : "Could not add the LoRA.");
+    node._sfLsRefresh?.(true);        // 重渲染 + 高度贴合
+    try { app.canvas?.selectNode?.(node); } catch { /* Vue 无此 API，忽略 */ }
+    return node;
+}
+
+// 画布可视中心（图坐标）。ds 缺失（极端环境）回退到左上角附近。
+function canvasCenterPos() {
+    const ds = app.canvas?.ds;
+    if (!ds || !ds.scale) return [80, 80];
+    const cx = (window.innerWidth / 2 - (ds.offset?.[0] ?? 0)) / ds.scale;
+    const cy = (window.innerHeight / 2 - (ds.offset?.[1] ?? 0)) / ds.scale;
+    return [Math.max(0, Math.round(cx - 168)), Math.max(0, Math.round(cy - 60))];
+}
+
+async function addToWorkflow(name) {
+    if (!name) return;
+    try {
+        await createStackNode(name);
+        S.win?.toast("Added \"" + name + "\" to a new SF LoRA Stack node.");
+    } catch (e) {
+        S.win?.toast("Could not add LoRA: " + String(e?.message || e));
+    }
+}
+
 // ── 数据与渲染 ──────────────────────────────────────────────────────────────
 async function loadData(force = false) {
     S.loading = true;
@@ -157,6 +213,7 @@ function render() {
             shown: shownCount,
             selectedName: S.sel,
             onPick: (name, card) => openInfoFor(name, card),
+            onAdd: (name) => addToWorkflow(name),
         });
         // 视口还没被当前批填满（高窗口/小步长）-> 自动续批直到填满或到底
         // （有限步，列表为空即停）。
@@ -183,6 +240,7 @@ function render() {
             query: S.query,
             selectedName: S.sel,
             onPick: (name, card) => openInfoFor(name, card),
+            onAdd: (name) => addToWorkflow(name),
             onEnterFolder: (name) => {
                 S.folder = S.folder ? S.folder + "/" + name : name;
                 saveFolder(S.folder);

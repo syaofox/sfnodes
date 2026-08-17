@@ -158,8 +158,25 @@ globalThis.Event = class { constructor(type, opts) { this.type = type; this.bubb
 globalThis.CustomEvent = globalThis.Event;
 
 const registered = [];
+const cmdCalls = [];
+function fakeLiteNode(type) {
+    return {
+        id: 900 + Math.floor(Math.random() * 1000),
+        type, comfyClass: type,
+        pos: [0, 0], size: [336, 60],
+        properties: {}, widgets: [], inputs: [], outputs: [], flags: {},
+        setDirtyCanvas() {}, setSize(s) { this.size = s; }, computeSize() { return [336, 100]; },
+        addDOMWidget() { return { element: makeEl("div"), options: {}, computeLayoutSize() { return { minHeight: 60, minWidth: 1 }; } }; },
+    };
+}
 globalThis.app = {
-    graph: { _nodes: [], setDirtyCanvas() {} },
+    graph: {
+        _nodes: [],
+        setDirtyCanvas() {},
+        add(node) { this._nodes.push(node); },   // 极简 mock：不触发扩展 nodeCreated
+        remove(node) { const i = this._nodes.indexOf(node); if (i >= 0) this._nodes.splice(i, 1); },
+    },
+    canvas: { ds: { scale: 1, offset: [0, 0] }, selected_nodes: {}, current_node: null, node_over: null, selectNode() {} },
     api: { fetchApi: async () => ({ ok: false, json: async () => ({}) }) },
     menu: { settingsGroup: { element: settingsGroupEl } },
     ui: {
@@ -170,7 +187,25 @@ globalThis.app = {
         },
     },
     registerExtension(ext) { registered.push(ext); },
+    extensionManager: {
+        command: {
+            execute: async (id, args) => {
+                cmdCalls.push({ id, args });
+                if (id === "Comfy.AddNode") {
+                    const n = fakeLiteNode(args?.type || "SFLoraStack");
+                    n.pos = [0, 0];
+                    app.graph.add(n);
+                    return n;
+                }
+                return null;
+            },
+        },
+    },
     _sfLoraBrowserRegistered: false,
+};
+globalThis.window.LiteGraph = {
+    createNode(type) { return fakeLiteNode(type); },
+    ds: null, vueNodesMode: false,
 };
 globalThis.api = { apiURL: (r) => r };
 
@@ -397,14 +432,43 @@ function pathEl(win) {
         check("二次 error 占位不变", String(th.src).startsWith("data:image/svg+xml"));
     }
 
-    // ── 点击文件卡片 -> 信息面板（浏览器 ctx 路径）──
+    // ── 双击文件卡片 -> 用 SF LoRA Stack 加载到当前工作流 ──
     const fileCard = (win.querySelectorAll(".sf-lb-card") || []).find((c) => !hasClass(c, "folder"));
+    const nodesBefore = app.graph._nodes.length;
+    fileCard.emit("dblclick");
+    await sleep(300);   // 给双击判定留足时间（单击已被取消）
+    check("双击创建节点", app.graph._nodes.length === nodesBefore + 1);
+    check("走官方 AddNode 命令", cmdCalls.some((c) => c.id === "Comfy.AddNode" && c.args?.type === "SFLoraStack"));
+    const addedNode = app.graph._nodes[nodesBefore];
+    check("节点类型 SFLoraStack", addedNode?.comfyClass === "SFLoraStack");
+    check("节点位置在视口中心附近", addedNode?.pos?.[0] > 0 && addedNode?.pos?.[1] > 0);
+    const st = JSON.parse(addedNode?.properties?.loraStackState || "{}");
+    check("行已预置 LoRA", st.loras?.[0]?.name === "a.safetensors");
+    check("双击不打开信息面板", ![...bodyChildren].some((c) => hasClass(c, "sf-ls-info-p")));
+
+    // ── 单击文件卡片 -> 250ms 延迟后打开信息面板（等双击判定）──
     fileCard.emit("click");
-    await tick(); await tick(); await tick(); await tick();
-    const panel = [...bodyChildren].reverse().find((c) => hasClass(c, "sf-ls-info-p"));
+    await tick();
+    check("单击 250ms 内不开面板（等待双击判定）", ![...bodyChildren].some((c) => hasClass(c, "sf-ls-info-p")));
+    await sleep(300);
+    let panel = [...bodyChildren].reverse().find((c) => hasClass(c, "sf-ls-info-p"));
     check("信息面板已打开", !!panel);
     check("面板标题 = LoRA 名", findByClass(panel, "sf-ls-info-h")?.children?.[0]?._text === "a.safetensors");
     check("面板内 chips 存在（aa/bb）", (() => { let n = 0; (function walk(r){ if(!r) return; if(hasClass(r,"sf-ls-chip")) n++; for(const c of r.children||[]) walk(c); })(panel); return n >= 2; })());
+
+    // ── 平面模式双击也可添加（batch/b00）──
+    segButton(win, "flat").emit("click");
+    await tick();
+    const flatFile = (win.querySelectorAll(".sf-lb-card") || []).find((c) => !hasClass(c, "folder"));
+    const flatName = flatFile?.dataset?.name;
+    const n2 = app.graph._nodes.length;
+    flatFile.emit("dblclick");
+    await sleep(300);
+    check("平面模式双击也创建节点", app.graph._nodes.length === n2 + 1);
+    const st2 = JSON.parse(app.graph._nodes[n2]?.properties?.loraStackState || "{}");
+    check("平面双击行名匹配卡片", !!flatName && st2.loras?.[0]?.name === flatName);
+    segButton(win, "folder").emit("click");
+    await tick();
 
     // ── 关闭窗口 ──
     const closeBtn = findByText(win, "✕");
