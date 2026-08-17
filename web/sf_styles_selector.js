@@ -21,8 +21,27 @@ const ROOT_PAD = 8; // root padding 上下各 4
 const WIDGET_H = LIST_H + TOOLS_H + ROOT_PAD + 4;
 const MIN_W = 260;
 const VIEW_PROP = "sfStylesView"; // Grid/List 显示模式（随 workflow 保存，不注入 prompt）
+const GRID_COLS_SETTING = "sfnodes.StylesSelector.GridColumns"; // 网格固定列数（全局设置）
 const EMPTY_IMG =
   "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+// 网格固定列数：设置 combo 值 Auto/4/5/6/8/10/12 → 0 = Auto（CSS 自适应）
+function gridCols() {
+  try {
+    const v = app.ui.settings.getSettingValue(GRID_COLS_SETTING);
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 2 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// 设置变化/异步加载完成后：重渲染全图 SFStylesSelector 节点（网格列数变化）
+function refreshAll() {
+  for (const n of app.graph?._nodes || []) {
+    if (n.type === NODE_TYPE && n._sfStylesCtx?.reRender) n._sfStylesCtx.reRender();
+  }
+}
 
 function injectCSS() {
   const id = "sf-styles-selector-css";
@@ -235,6 +254,10 @@ function renderList(ctx) {
   const { node, listEl, searchEl, styles } = ctx;
   if (!listEl) return;
   listEl.className = "sf-ss-list" + (viewMode(node) === "grid" ? " sf-ss-grid" : "");
+  // 网格固定列数（全局设置）：内联 repeat(N, 1fr) 覆盖 CSS 自适应；
+  // Auto（0）时清空内联回落到 auto-fill minmax(80px, 1fr)
+  const cols = gridCols();
+  listEl.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : "";
   const names = readState(node);
   const items = lib.filterAndSort(styles, searchEl.value, names, isZh());
   listEl.innerHTML = "";
@@ -380,6 +403,7 @@ function setupNode(node) {
     styles: null,
     name: null,
     pending: null,
+    reRender: () => renderList(ctx),
   };
 
   // 内容高度测量（对齐 sf_load_image.js 的 measureH 模式）：工具条实测 +
@@ -426,6 +450,33 @@ function setupNode(node) {
 
 app.registerExtension({
   name: "sfnodes.StylesSelector",
+
+  // 网格固定列数设置（sfnodes.StylesSelector.GridColumns）：ComfyUI 设置
+  // 面板修改后重渲染全图节点。注册写法对齐 SFLoraStack 的 accent 设置
+  // （onChange 在 store 更新前触发 → setTimeout(0)；设置值异步加载晚于
+  // init → 轮询重试补刷新）。
+  init() {
+    try {
+      app.ui.settings.addSetting({
+        id: GRID_COLS_SETTING,
+        name: "SF Styles Selector: grid columns",
+        tooltip: "Grid 视图固定列数（少列=大缩略图，多列=小缩略图）；Auto 按节点宽度自适应",
+        defaultValue: "Auto",
+        type: "combo",
+        options: ["Auto", "4", "5", "6", "8", "10", "12"],
+        onChange: () => setTimeout(refreshAll, 0),
+      });
+      let tries = 12;
+      const retry = () => {
+        if (tries-- <= 0) return;
+        setTimeout(() => {
+          refreshAll();
+          retry();
+        }, 500);
+      };
+      retry();
+    } catch (_e) { /* 设置系统不可用则保持 Auto */ }
+  },
 
   beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== NODE_TYPE) return;
