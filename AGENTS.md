@@ -13,13 +13,14 @@ sfnodes/
 ├── __init__.py          # 节点注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS
 ├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
 ├── nodes/               # 所有节点实现，按功能分子目录
-│   ├── face/            # 人脸：分析、对齐、扭曲、裁剪粘贴、区域、遮挡
+│   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
 │   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸）、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
-│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；Power 系 power_lora_loader.py/power_lora_preset.py：SFPowerLoraLoader 对话框 + merge_method linear/ortho_gs（正交堆叠见 sf_utils/lora_ortho*.py），与 Stack 共用 lora_notes 网关；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码、人像分割
-│   ├── text/            # 文本：翻译、拼接、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、角色选择、提示词列表（prompt_list.py：SFPromptList 行拆分/切片/空白行过滤 skip_empty，行号编辑器 sf_prompt_list.js）、动态 Prompt 列表（prompt_stack.py：SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高（state.rows[i].h，随工作流保存），状态对齐 Pixaroma PromptStack 形状 rows/enabled/text，prompt_reader 恢复共享，sf_prompt_stack_core.js 纯逻辑 + sf_prompt_stack.js 行 UI）、提示词预设（prompt_preset.py）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、风格选择器（styles_selector.py：SFStylesSelector 复刻 Easy-Use stylesSelector——Fooocus 275 风格多选/搜索/悬停缩略图，内置 data/styles/*.json + 用户 user/sfnodes/styles/*.json 同名覆盖，{prompt} 占位拼接 1:1，隐藏 SFStylesState 真源，同文件注册路由 /api/sfnodes/styles*）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、替换模板（replace.py）、正则提取（regex_extract.py）、任意转字符串（any_to_string.py）、提示词批处理（prompt_batcher.py）、随机编辑（random_edit_prompt.py）、多机位相机（multiangle_camera.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
+│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；Power 系 power_lora_loader.py/power_lora_preset.py：SFPowerLoraLoader 对话框 + merge_method linear/ortho_gs（正交堆叠见 sf_utils/lora_ortho*.py），与 Stack 共用 lora_notes 网关；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
+│   ├── text/            # 文本：翻译/拼接/角色选择（text.py：TextTranslation/TextCombine/AnimeCharSelect；另 concatenate.py：SFTextConcatenate）、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、提示词列表（prompt_list.py：SFPromptList 行拆分/切片/空白行过滤 skip_empty，行号编辑器 sf_prompt_list.js）、动态 Prompt 列表（prompt_stack.py：SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高（state.rows[i].h，随工作流保存），状态对齐 Pixaroma PromptStack 形状 rows/enabled/text，prompt_reader 恢复共享，sf_prompt_stack_core.js 纯逻辑 + sf_prompt_stack.js 行 UI）、提示词预设（prompt_preset.py：SFPromptPreset 十一分类组合/加权随机/[A,B] 括号随机/LLM 优化链路 optimize_request + SFUnpackPromptPreset 解包，数据 data/prompt_presets.json 热加载）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、风格选择器（styles_selector.py：SFStylesSelector 复刻 Easy-Use stylesSelector——Fooocus 275 风格多选/搜索/悬停缩略图，内置 data/styles/*.json + 用户 user/sfnodes/styles/*.json 同名覆盖，{prompt} 占位拼接 1:1，隐藏 SFStylesState 真源，同文件注册路由 /api/sfnodes/styles*）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、替换模板（replace.py）、正则提取（regex_extract.py）、任意转字符串（any_to_string.py）、提示词批处理（prompt_batcher.py）、随机编辑（random_edit_prompt.py）、多机位相机（multiangle_camera.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
+│   ├── latent/          # latent 分块采样（klein_tiled_ksampler.py：SFKleinTiledKSampler 复刻 Comfy-SZ-KleinKSampler，FLUX.2 Klein 放大修复/细节增强——latent_blend 全局引导、整图连续全局噪声、同尺寸 tile 两两 batch=2 并行采样约 40-50% 加速、overlap 羽化写回、色彩统计量对齐）
 │   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
 │   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
 ├── sf_utils/            # 共享工具库
@@ -132,6 +133,7 @@ class SFMyNode:
 - `sfnodes/utils` — 工具相关
 - `sfnodes/logic` — 逻辑相关
 - `sfnodes/inpaint` — 局部修复相关
+- `sfnodes/latent` — latent 分块采样相关
 
 ## Key Dependencies (runtime only, do NOT install)
 
@@ -302,7 +304,7 @@ class SFMyNode:
 - 模块化：纯函数 lib（无 app/DOM，测试 copy .mjs 直跑）/ store / cursors / guard / editor / 主扩展，跨文件 import 契约即模块边界。
 - 冒烟测试（mock DOM）：惰性元素（任何 querySelector 返回新元素）、`/scripts/app.js` → `globalThis.app`、相对 import 改 `.mjs` 同 tmp 目录；可抓纯语法检查漏掉的运行时错误（如缺 `getComputedStyle` mock）。
 
- **前端：Vue 新版（comfyui_frontend_package 1.x）→ experience.md §2.8**
+**前端：Vue 新版（comfyui_frontend_package 1.x）→ experience.md §2.8**
 - 先确认前端版本再选方案（容器内 `pip show comfyui-frontend-package`，Version 1.x = Vue）。
 - 槽位数组为 shallowReactive：直接改元素属性不触发渲染，**替换数组元素**才触发。
 - 动态 tooltip：写 `widget.tooltip`（nodeDef 兜底存在，清不掉）；canvas 事件/坐标方案在 Vue 下失效。
@@ -315,6 +317,13 @@ class SFMyNode:
 - **DOM widget 高度必须 ≥ 内容实际高度**：element 高度内容自适应、节点边框按 widget 声称高度（getMinHeight/getMaxHeight）绘制——声称 < 内容时底部行（如刷新按钮）溢出边框，节点未拖小时被边框遮住、初始/拖小即暴露。**别硬编码高度**：动态测量可见子行 offsetHeight + padding/gap，last-good 缓存防首帧/组折叠隐藏塌缩；Nodes 2.0 另配 `computeLayoutSize({minHeight, minWidth})`；宽度用 MIN_W（初始只抬升 + onResize 钳制）+ CSS（按钮 `min-width:0`+ellipsis、root `overflow:hidden`）。见 `doc/experience.md` §18.6。
 - **上传路径 MIME 过滤必须与 accept 同步放宽**：`accept="image/*,video/*"` 但 drop handler 仍 `startsWith("image/")` → mp4 拖入静默无反应；type 为空（.mkv 未知扩展）放行交后端。
 - IS_CHANGED 用 (mtime, size) 而非全文件哈希；VALIDATE_INPUTS 恒 True（缺文件/无元数据走输出文本不阻塞图）；`node.imgs` 抑制（defineProperty 前置探测 configurable）；extract 请求 reqId 单调防乱序。
+
+**前后端：SFPromptPreset 十一分类组合预设（`nodes/text/prompt_preset.py`、`web/prompt_preset.js`、`data/prompt_presets.json`）→ experience.md §29**
+- **正交原则**：各分类 prompt 不得内嵌其他分类职责（动作内嵌场景/灯光、服装内嵌灯光、名人内嵌风格、动作内嵌裸体）——组合互相污染；允许例外（动作要素/场景固有照明/风格光效特征/服装场合属性）。NSFW 动作组只描述动作，裸体由服装"全裸"控制。
+- **可复现随机**：`IS_CHANGED = seed`；全分类/组内（`随机·组名`）/`[A, B]` 括号随机三种机制；**seed 偏移 +1..+11** 防同 seed 各分类同值；pose/couple 互斥前端联动 + 后端兜底（保留 pose）。
+- **Krea2 grounded phrasing**：环境片段自动加 `in the`/`on the` 空间介词（表面类环境 on the），主体明确"身处"场景。
+- **LLM 优化链路**：optimize_request 含创作声明 + 11 条指令（保持衣着水平不强制穿衣、防拒条款、防思考条款）+ 续写锚定，喂官方 TextGenerate；Qwen3 thinking 参数见 §5。
+- 数据 `data/prompt_presets.json` 热加载（mtime + 线程锁）；删改预设的旧工作流值经 VALIDATE_INPUTS 降级空串（§4 模式）；破坏性变更：旧 12 条 STRING → 3 输出 + SFUnpackPromptPreset 还原。
 
 **前后端：SFLoraStack 多行 LoRA 栈（`sf_utils/lora_reader.py` + `lora_routes.py`、`nodes/model/lora_stack.py`、`web/sf_lora_stack*.js` 模块系列）→ experience.md §19**
 - **Civitai API 字段位置必须实测**：model-versions 响应里 `model` 对象只有 name/nsfw/poi/type——**说明文字在 version 顶层 `description`**（HTML，需剥标签/实体解码/空白折叠）；thumbnail 取 `images[]` 第一张非成人图。
@@ -348,7 +357,7 @@ class SFMyNode:
 - **拼接结果写入侧车 `data["description"]`**（覆盖 API 空值）：读取端（lora_notes/Power 系走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
 - **描述统一走 `_html_to_markdown`**（markdownify 转换，缺库/异常回退 `_clean_description` 纯文本，测试双环境全绿）：API/页面/文件内嵌/侧车描述同一入口。**幂等保护**：无 `<` 的输入（纯文本/已 markdown 化的侧车描述）只走轻清洗原样放行——markdownify 对非 HTML 输入不幂等（`*` 会转义成 `\*`），而侧车读取路径会二次处理，不保护则"首次查询正常、下次打开面板变转义文本"。**`_MAX_DESCRIPTION_LEN` 已删除**——不截断（来源有流量守卫：API 4MB/页面 2MB/文件本地；前端面板滚动展示）。
 
-**实际环境调试 → experience.md §9**
+**实际环境调试 → experience.md §2.9**
 - 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。
 
 **静态检查脚本（AST）→ experience.md §3**

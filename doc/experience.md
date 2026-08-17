@@ -24,7 +24,7 @@
 - [17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑](#17-复刻节点去重sf_commonjs--disk_statepy-公共模块收敛与踩坑)
 - [18. SFLoadImagesPath 目录切换：三源 + 渐进式浏览 + popup 下拉](#18-sfloadimagespath-目录切换三源--渐进式浏览--popup-下拉)
 - [19. SFLoraStack：多行 LoRA 栈复刻（触发词/描述/封面/Civitai 查询/孤儿数据迁移）](#19-sflorastack多行-lora-栈复刻触发词描述封面civitai-查询孤儿数据迁移)
-- [20. SFLoraStack/SFPowerLoraLoader：正交堆叠 ortho_gs（2026-08）](#20-sflorastacksfpowerloraloader正交堆叠-orthogs2026-08)
+- [20. SFLoraStack/SFPowerLoraLoader：正交堆叠 ortho_gs（2026-08）](#20-sflorastacksfpowerloraloader正交堆叠-ortho_gs2026-08)
 - [21. Civitai 页面主体描述补充（curl_cffi / __NEXT_DATA__ 与 Cloudflare 拦截）](#21-civitai-页面主体描述补充curl_cffi--__next_data__-与-cloudflare-拦截)
 - [22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）](#22-sfpauselatentlatent-快照闸门分段采样中间暂停)
 - [23. SFPromptList：行号编辑器与 wrap 镜像测量](#23-sfpromptlist行号编辑器与-wrap-镜像测量)
@@ -33,6 +33,7 @@
 - [26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界](#26-前端架构治理2026-08工具收敛--弹层三件套--纯模块边界)
 - [27. 2026-08 健壮性修复批次：表达式防御 / ReDoS 交替型 / 路径净化 / 双端镜像补缺](#27-2026-08-健壮性修复批次表达式防御--redos-交替型--路径净化--双端镜像补缺)
 - [28. SFStylesSelector：风格选择器复刻（Easy-Use stylesSelector）](#28-sfstylesselector风格选择器复刻easy-use-stylesselector)
+- [29. SFPromptPreset：十一分类组合预设（正交原则 / 随机机制 / LLM 优化链路）](#29-sfpromptpreset十一分类组合预设正交原则--随机机制--llm-优化链路)
 
 ---
 
@@ -1244,3 +1245,38 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **网格列数设置（sfnodes.StylesSelector.GridColumns，第四轮）**：全局 combo 设置（Auto/4/5/6/8/10/12，默认 Auto 保持 CSS 自适应）——固定列数时 renderList 内联 `gridTemplateColumns: repeat(N, 1fr)`、Auto 清空内联回落 CSS。注册写法对齐 SFLoraStack accent 设置：扩展 `init()` 钩子 `addSetting`（id `sfnodes.*` 前缀）+ `onChange` 里 `setTimeout(refreshAll, 0)`（store 更新时序）+ **异步加载轮询**（设置值晚于 init 到达时补全局刷新，否则保存的列数不生效）；全局刷新遍历 `app.graph._nodes` 调 `ctx.reRender()`。
 - **hover 信息浮窗（对齐 v2 previewer）**：图 + 名称 + Positive/Negative（3 行 clamp）挂 widget 内部，Grid/List 两视图共用 showPop；列表 API 因此补发 prompt/negative_prompt（空串条目不携带）。强调色全部走 `color-mix(in srgb, var(--sf-acc, #f66744) N%, transparent)`（项目标准，sf_load_image_ui 等同款）——**禁止硬编码 rgba(246,103,68)**（不跟随 sfnodes.Accent 设置）。
 - List 模式保留 checkbox 行；Grid 模式卡片自带缩略图，hover 浮窗两视图一致。
+
+---
+
+## 29. SFPromptPreset：十一分类组合预设（正交原则 / 随机机制 / LLM 优化链路）
+
+> 背景：`nodes/text/prompt_preset.py` + `web/prompt_preset.js` + `data/prompt_presets.json`（2026-08）。11 分类 949 预设（分类内分组 58 组次、跨分类去重 56 组）组合提示词的预设选择器，针对 Krea2 Turbo 优化（自然语言、无 SD 质量标签、分类正交），兼容 SD/Flux。原 `doc/prompt_preset.md` 使用指南已随本归档移除（输入/输出、分组明细以节点 DESCRIPTION、输入 tooltip、弹窗 UI 与数据文件为准），经验沉淀如下。
+
+### 1. 正交原则（数据设计核心，防组合污染）
+
+- 各分类 prompt **不得内嵌其他分类职责**，否则组合互相污染（动作内嵌场景/灯光、服装内嵌灯光、风格内嵌镜头参数、名人内嵌风格、动作内嵌裸体都是反例）；允许例外：动作要素（靠墙必须有墙、坐床边必须有床）、场景固有照明（停车场荧光灯）、风格光效特征（巴洛克戏剧光）、服装场合属性（通勤装/沙滩装）。
+- **NSFW 动作正交**：Pose/Couple Pose 的 NSFW 组只描述动作（姿态/情绪），不内嵌裸体词——裸体由服装分类"全裸"（或 NSFW 服装）控制，配合任意动作。曾有的"全裸站立"预设因去裸体词后与"站立肖像"重复已删除；旧工作流该值经 `VALIDATE_INPUTS` 降级为空串。
+
+### 2. 随机机制与可复现性
+
+- 三类随机：全分类随机（`随机`）、组内随机（`随机·组名`）、`[选项A, 选项B]` 括号随机（input_text 内也支持，由种子决定选取）。
+- **`IS_CHANGED = seed`**（固定 seed 可复现，seed 变化自动重跑）；**seed 偏移 +1..+11**（名人 +1 … 镜头 +11）——同 seed 下各分类取不同伪随机序列，避免所有分类同值同步。
+- **pose/couple 互斥**：前端联动（启用一个禁用另一个）+ 后端兜底（同时启用保留 pose，防旧工作流/手写 API）。
+
+### 3. Krea2 grounded phrasing：空间介词引导
+
+- 环境片段自动加 `in the` / `on the` 前缀：`_ENV_ON_PREFIX` 正则匹配表面类环境（rooftop/beach/street/ground/bridge 等）用 `on the`，其余用 `in the`——让主体明确"身处"场景之中，避免人物与环境贴图感、比例互动失调（对 Krea2 这类自然语言模型尤其重要）。
+
+### 4. LLM 优化链路（optimize_request → 官方 TextGenerate）
+
+- optimize_request = 创作声明（虚构艺术任务、中立事实化描述）+ 11 条指令（第 11 条为 few-shot 示例）+ `{}` 占位拼接原文 + 末尾 `Optimized prompt:` 续写锚定（LLM 从锚定处直接生成单段提示词，杜绝解释/前言/后缀）。指令含：短语流顺序、主体-环境 grounded、简洁去重、禁质量标签、忠实原文、**保持衣着水平（不添加/不纠正衣着，即不采用强制穿衣策略）**、单段纯净输出、轻量润色、**防拒条款**（宁可直接回显 draft 也不输出拒绝文本）、**防思考条款**。
+- 强对齐模型（Gemma 官方版）即使有防拒条款也可能仍拒绝（安全拒绝发生在训练层，措辞无解）→ 换无审查本地 LLM；**Qwen3 系 thinking 参数选择见 §5**（instruct 版 off、总是自发推理的无审查微调版实测 on 反而正常；`use_default_template` 保持 True；CLIPLoader 类型选 `qwen3vl_4b/8b`）。
+
+### 5. 数据与兼容性
+
+- `data/prompt_presets.json` **热加载**：`_load_presets` 按 mtime 检测 + 线程锁，编辑后无需重启容器。自定义预设字段：`name_zh`（下拉显示名，同分类唯一）/ `prompt`（英文自然语言、遵守正交原则）/ `description`（悬浮说明）/ `tags` / `weight`（加权随机权重）/ `group`（弹窗筛选分组，任意字符串按出现顺序展示）。
+- **破坏性变更**：旧版输出 12 条 STRING → 现 3 条（combined_prompt / prompt_pack / optimize_request）；还原 11 条分类文本需接 **SFUnpackPromptPreset**（顺序与旧版一致）。prompt_pack 是运行时对象（SF_PROMPT_PACK），**不可**接入 Primitive/保存类节点。
+- 预设被删除/改名的旧工作流 combo 值超出静态选项列表 → `VALIDATE_INPUTS` 恒 True + `_resolve_preset` 安全降级为空串（动态 combo 校验通用模式，见 §4）。
+- **伦理**：数据含 NSFW 预设（仓库分发注意许可与政策）；名人 + NSFW 组合存在肖像权/伦理风险；亚洲名人（22 个）无社区实测依据。
+- 测试：`tests/test_prompt_preset.py`（后端 200+ 断言）+ `test_prompt_preset_js.js`（前端 40+ 断言）。
+
