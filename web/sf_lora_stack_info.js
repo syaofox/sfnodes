@@ -15,7 +15,9 @@ import { escapeHtml, installWheelZoomPassthrough } from "./sf_common.js";
 
 let _panel = null;
 let _cleanup = null;
-let _ownerNode = null;
+// 面板归属键（Stack：节点对象；LoRA 浏览器：字符串 key）。closeInfoPanelFor
+// 用它在节点删除时只关自己拥有的面板。
+let _ownerKey = null;
 let _followRaf = null;   // 让面板跟随其节点，见 startFollowing()
 let _userMoved = false;  // 用户拖过它，停止跟随
 // 用户手动调整过的面板大小（会话级记忆：关闭重开保持，刷新页面回默认）。
@@ -354,12 +356,12 @@ function doCloseInfoPanel() {
     _userMoved = false;
     if (_panel) { try { _panel.remove(); } catch { /* 忽略 */ } }
     _panel = null;
-    _ownerNode = null;
+    _ownerKey = null;
 }
 
 // 只在本节点拥有打开的面板时关闭（删除无关的 LoRA Stack 节点不能扯走
 // 另一个节点开着的面板）。节点删除路径不弹未保存确认——删除不能被阻塞。
-export function closeInfoPanelFor(node) { if (_ownerNode === node) doCloseInfoPanel(); }
+export function closeInfoPanelFor(node) { if (_ownerKey === node) doCloseInfoPanel(); }
 
 function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -372,8 +374,11 @@ function el(tag, cls, text) {
 // 视口左上角：`.sf-ls-info-p` 是 position:fixed 无 left/top，直到这里运行
 // 它都坐在 0,0。缓存命中时 await 在微任务里解决、无帧画出，这就是闪光只
 // 在选新 LoRA 后出现的原因。与下拉同款（先放再等，从未闪）。
-function place(panel, node) {
-    const r = getNodeRect(node);   // 与设置面板共享：含 Classic 回退
+function place(panel, ctx) {
+    // Stack：锚定节点矩形；浏览器类宿主：锚定 anchorRect() 的结果。两者都
+    // 是屏幕坐标矩形（节点矩形经 getNodeRect 折算画布 transform）。
+    const r = ctx?.node ? getNodeRect(ctx.node)
+        : (typeof ctx?.anchorRect === "function" ? ctx.anchorRect() : null);
     const pad = 8, gap = 12;
     const pw = panel.offsetWidth, ph = panel.offsetHeight;
     let left = r ? r.right + gap : (window.innerWidth - pw) / 2;
@@ -401,14 +406,46 @@ function clampIntoView(panel) {
 }
 
 export async function openInfoPanel(node, id, refresh) {
+    // Stack 行 UI 入口（兼容旧签名）：构造宿主上下文后委托 openInfoPanelFor，
+    // 行为与旧版逐字节一致——行读写仍是节点状态。
+    if (!node) return;
+    return openInfoPanelFor({
+        key: node,
+        node,
+        getRow: () => readState(node).loras.find((e) => e.id === id) || null,
+        patchRow: (patch) => patchLora(node, id, patch),
+        accent: accentOf(node),
+        prefs: () => {
+            const st = readState(node);
+            return { civitai: st.civitai !== false, thumbs: st.thumbs !== false };
+        },
+        refresh,
+    }, id);
+}
+
+/**
+ * 打开信息面板（宿主上下文入口，LoRA 浏览器等非节点宿主用）。ctx:
+ *   key        归属键（closeInfoPanelFor 在节点删除时只关自己的面板）
+ *   node       可选。Stack 用它锚定节点并让面板跟随画布
+ *   anchorRect 可选函数。浏览器类宿主锚定被点击卡片/元素的矩形
+ *   getRow     返回当前行对象 {id,name,triggers,custom}，可 null
+ *   patchRow   以局部 patch 更新行（{triggers,custom}）
+ *   accent     强调色
+ *   prefs      可选函数，返回 {civitai, thumbs}（缺省全开）
+ *   refresh    可选，行变更后回调
+ */
+export async function openInfoPanelFor(ctx, id) {
+    if (!ctx || typeof ctx.getRow !== "function" || typeof ctx.patchRow !== "function") return;
+    const refresh = ctx.refresh;
+    const prefsOf = () => (typeof ctx.prefs === "function" ? ctx.prefs() : {});
     // 切换行/重开：上一面板有未保存 Description 修改时先确认——取消则
     // 保留草稿、不打开新面板（await 返回 false）。
     if (!(await closeInfoPanel())) return;
     injectCSS();
-    const entry0 = readState(node).loras.find((e) => e.id === id);
+    const entry0 = ctx.getRow();
     if (!entry0) return;
     const name = entry0.name;
-    const accent = accentOf(node);
+    const accent = ctx.accent;
     _panelAccent = accent;
 
     const panel = el("div", "sf-ls-info-p");
@@ -421,9 +458,9 @@ export async function openInfoPanel(node, id, refresh) {
     }
     document.body.appendChild(panel);
     _panel = panel;
-    _ownerNode = node;
+    _ownerKey = ctx.key;
     // _panel 赋值之后：循环的第一件事是检查它拥有该面板。
-    startFollowing(panel, node);
+    if (ctx.node) startFollowing(panel, ctx.node);
 
     // 本面板会话的视图数据
     let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", custom_description: "", orphan_key: "" };
@@ -441,7 +478,7 @@ export async function openInfoPanel(node, id, refresh) {
     // 图片编码上传期间为 true，第二次拖放/点击不能对同一文件名发起竞争保存。
     let _busy = false;
 
-    const selected = () => new Set((readState(node).loras.find((e) => e.id === id)?.triggers || []).map((w) => w.toLowerCase()));
+    const selected = () => new Set((ctx.getRow()?.triggers || []).map((w) => w.toLowerCase()));
 
     // 图片问题是关于用户最后一次尝试的，任何其它有意动作清掉它。没有这个
     // 条会粘住：误拖 .txt 后警告坐在标题下，经历每次 chip 点击和每次 Civitai
@@ -450,19 +487,18 @@ export async function openInfoPanel(node, id, refresh) {
 
     function toggleWord(word) {
         clearMsg();
-        const st = readState(node);
-        const e = st.loras.find((x) => x.id === id);
+        const e = ctx.getRow();
         if (!e) return;
         const key = word.toLowerCase();
         const has = e.triggers.some((w) => w.toLowerCase() === key);
         const next = has ? e.triggers.filter((w) => w.toLowerCase() !== key) : [...e.triggers, word];
-        patchLora(node, id, { triggers: next });
+        ctx.patchRow({ triggers: next });
         refresh?.(false);
         renderBody();
     }
     function setWords(words) {
         clearMsg();
-        patchLora(node, id, { triggers: words.slice() });
+        ctx.patchRow({ triggers: words.slice() });
         refresh?.(false);
         renderBody();
     }
@@ -492,7 +528,7 @@ export async function openInfoPanel(node, id, refresh) {
     // 也成为源词（如 Civitai 查询后）仍带可移除 ✕。
     function chipList() {
         const src = sourceWords();
-        const row = readState(node).loras.find((e) => e.id === id);
+        const row = ctx.getRow();
         const custom = row?.custom || [];
         const customSet = new Set(custom.map((w) => w.toLowerCase()));
         const out = []; const seen = new Set();
@@ -518,7 +554,7 @@ export async function openInfoPanel(node, id, refresh) {
         clearMsg();
         const w = (word || "").trim();
         if (!w) return;
-        const e = readState(node).loras.find((x) => x.id === id);
+        const e = ctx.getRow();
         if (!e) return;
         const key = w.toLowerCase();
         // 文件/Civitai 已提供该词就只选中它——别再把它塞进 `custom`
@@ -527,7 +563,7 @@ export async function openInfoPanel(node, id, refresh) {
         const custom = (inSrc || (e.custom || []).some((x) => x.toLowerCase() === key))
             ? (e.custom || []) : [...(e.custom || []), w];
         const trig = (e.triggers || []).some((x) => x.toLowerCase() === key) ? e.triggers : [...(e.triggers || []), w];
-        patchLora(node, id, { custom, triggers: trig }); // 添加即选中，到达输出
+        ctx.patchRow({ custom, triggers: trig }); // 添加即选中，到达输出
         persistCustom(custom);
         refresh?.(false);
         renderBody();
@@ -537,10 +573,10 @@ export async function openInfoPanel(node, id, refresh) {
     function removeCustom(word) {
         clearMsg();
         const key = (word || "").toLowerCase();
-        const e = readState(node).loras.find((x) => x.id === id);
+        const e = ctx.getRow();
         if (!e) return;
         const custom = (e.custom || []).filter((x) => x.toLowerCase() !== key);
-        patchLora(node, id, {
+        ctx.patchRow({
             custom,
             triggers: (e.triggers || []).filter((x) => x.toLowerCase() !== key),
         });
@@ -685,7 +721,7 @@ export async function openInfoPanel(node, id, refresh) {
     // 已有的词都不会因这次改动丢失。
     function hydrateCustom() {
         const stored = Array.isArray(info?.custom_triggers) ? info.custom_triggers : [];
-        const e = readState(node).loras.find((x) => x.id === id);
+        const e = ctx.getRow();
         if (!e) return;
         const rowWords = e.custom || [];
         const seen = new Set();
@@ -699,7 +735,7 @@ export async function openInfoPanel(node, id, refresh) {
         // 只有真变了才碰状态——空操作写会在每次打开面板时弄脏干净的工作流。
         const same = merged.length === rowWords.length
             && merged.every((w, i) => w === rowWords[i]);
-        if (!same) { patchLora(node, id, { custom: merged }); refresh?.(false); }
+        if (!same) { ctx.patchRow({ custom: merged }); refresh?.(false); }
         // 行带着存储缺的词时才写回。
         if (merged.length > stored.length) persistCustom(merged);
     }
@@ -731,7 +767,7 @@ export async function openInfoPanel(node, id, refresh) {
      *  习惯）让齿轮切换永不过期。关闭时图片框完全不建——Civitai 预览在点
      *  i 的瞬间出现，这正是录制时能关掉它的意义，留个空方框（或活拖放
      *  目标）就错过了。因此下面一切都要容忍框缺席。 */
-    function thumbsOn() { return readState(node).thumbs !== false; }
+    function thumbsOn() { return prefsOf().thumbs !== false; }
 
     /** 浏览器端降采样成小 jpeg，上传只有几十 KB，服务端无需图片库。服务端
      *  仍查大小和 magic bytes——这是为重量，不是为信任。 */
@@ -1002,7 +1038,7 @@ export async function openInfoPanel(node, id, refresh) {
     function renderBody() {
         panel.innerHTML = "";
         const sel = selected();
-        const civitaiOn = readState(node).civitai; // 重读，齿轮切换不陈旧
+        const civitaiOn = prefsOf().civitai !== false; // 重读，齿轮切换不陈旧
 
         // ── 头部 ───────────────────────────────────────────────────────────
         const top = el("div", "sf-ls-info-top");
@@ -1329,7 +1365,7 @@ export async function openInfoPanel(node, id, refresh) {
         copyBtn.title = "Copy the selected trigger words to the clipboard";
         copyBtn.addEventListener("click", async () => {
             clearMsg();
-            const row = readState(node).loras.find((e) => e.id === id);
+            const row = ctx.getRow();
             const words = (row?.triggers || []).filter((w) => w);
             if (!words.length) {
                 showMsg("Nothing selected - tap the words you want first.");
@@ -1465,7 +1501,7 @@ export async function openInfoPanel(node, id, refresh) {
     // 初始画布：先画缓存，再读真实离线信息。放两次：一次现在（fetch 在飞
     // 时面板绝不显示在 0,0），一次内容定稿后（对照真实高度摆正）。
     renderBody();
-    place(panel, node);
+    place(panel, ctx);
     // 在 await 前接线。面板在下面整个加载期间都在屏上可交互，加载完再接
     // drop 拦截会留下一个窗口：掉在它上面的文件逃到 ComfyUI 变成画布上的
     // Load Image 节点——正是这个东西要阻止的。place() 同理。
@@ -1475,7 +1511,7 @@ export async function openInfoPanel(node, id, refresh) {
     await loadInfo();
     if (!panel.isConnected) return;
     renderBody();
-    place(panel, node);
+    place(panel, ctx);
 
     // 点击面板外部 = 离开意图：查看态点击工作流其他位置关闭面板；编辑态
     // （有未保存修改）不关——误关会丢草稿，与 Esc/✕ 的确认保护同对象。

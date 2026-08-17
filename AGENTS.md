@@ -71,6 +71,7 @@ sfnodes/
 │   ├── sf_find_replace*.js # 查找替换三模块（双端镜像 applyRulesJS ≡ Python _apply_rules）
 │   ├── sf_dropdown*.js  # 值下拉四模块（lib/ui/settings/主扩展；输出点对齐双渲染器）
 │   ├── sf_workflows*.js # 工作流面板三模块（主扩展/lib/UI，无节点设计）
+│   ├── sf_lora_browser*.js # LoRA 浏览器三模块（主扩展/UI/lib，无节点设计：工具栏按钮紧贴 Workflows 按钮 + Alt+Shift+L + canvas 菜单；**文件夹/平面双模式**（seg 切换、模式记忆 sfnodes.LoraBrowser.Mode）——文件夹模式：面包屑 + 下钻 + 当前层文件（对齐 SF Load Image Browser）；平面模式：全部 LoRA 分批渲染 + 滚动动态加载（FLAT_STEP=60，attachFlatScroll 距底 300px 续批）防千级列表卡死；搜索两模式均跨层级扁平匹配；浏览位置记忆（sfnodes.LoraBrowser.Folder）；点击文件卡片打开 LoRA Stack 同款信息编辑——复用 sf_lora_stack_info 宿主 ctx 入口 openInfoPanelFor；后端零新增全复用 /api/sfnodes/lora_*）
 │   ├── sf_prompt_reader.js # 提示词恢复单模块（IN/OUT 目录切换）
 │   ├── sf_prompt_list.js  # 行号编辑器单模块（SFPromptList：隐藏原生 multiline_text widget 作值真源 + DOM widget 行号栏从 0 起/跳过空白行对齐输出 index/超 500 行虚拟化，值恢复三通道；wrap 开启走镜像测量（mirror 与 textarea 同几何块级 div，行高按行缓存/宽度变化清空，渲染后强制重同步 scrollTop 防浏览器钳制错位）；start_index/max_rows 切片范围高亮跟随——仅裁剪时文本背景块+行号联动，wrap 开时高亮随测量行高展开（与行号同源））
 │   ├── sf_prompt_stack*.js # 动态 Prompt 列表两模块（core 纯逻辑 + 行 UI，SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高 state.rows[i].h 随工作流保存）
@@ -78,7 +79,7 @@ sfnodes/
 │   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
 │   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
-│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展）
+│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
 │   ├── sf_lora_info.js    # Power 系 LoRA 信息对话框（sf_markdown.js 渲染描述）
 │   ├── power_lora_loader.js / power_lora_preset.js # Power 系节点前端
@@ -295,6 +296,14 @@ class SFMyNode:
 - sidecar 三件套（user/default/ 下，bind mount 存活）：`sf_workflows_meta.json`（notes/covers/folderColors + folderOrder/folderExpanded）、`sf_workflows_cache.json`（索引缓存，条目形状变化递增 version 丢弃）、`sf_covers/`（手选封面以真实 jpg 文件保存，sidecar 只存文件名）。
 - **收藏走 pinia（Vue 新版）**：ComfyUI 启动时不读收藏文件，书签 store 直到有人调 `loadBookmarks()` 才加载 → toggle 收藏前必须先 `await loadBookmarks()`，否则覆盖空列表。
 - 设置键 `sfnodes.Workflows.{Rect,View,Sort,Density}`（comfy.settings.json 持久化）；**密度系统 `z(n)=calc(npx*var(--sfwb-k,1))`**：视觉尺寸全走 CSS 变量缩放（s/m/l 三档），窗口像素尺寸刻意不缩放保拖拽数学自洽；滚动容器 `overflow-y` 放**持久 main**（面板重建不重置滚动位置）；加载带票号 guard 防两次加载重叠。
+
+**前端：SF LoRA 浏览器（`web/sf_lora_browser*.js`，无节点设计）→ experience.md §30**
+- 与 Workflows 同类"应用"面板：工具栏按钮紧贴 Workflows 按钮（已挂载则插其 group 后，否则兜底插 settingsGroup 前 + 25 次重试），Alt+Shift+L 热键 + canvas 菜单；**后端零新增**——列表/信息/缩略图/自定义词/描述全复用 `/api/sfnodes/lora_*` 路由与 `sf_lora_stack_api.js` 封装。
+- **信息编辑直接复用 SFLoraStack 面板**：`sf_lora_stack_info.js` 改为**宿主 ctx 适配**——`openInfoPanel(node,id,refresh)` 兼容入口保留（内部构造 node ctx：getRow=readState 行、patchRow=patchLora、prefs 由 readState 读 thumbs/civitai），新增 `openInfoPanelFor(ctx,id)` 供非节点宿主（key=字符串、getRow/patchRow/内存行、anchorRect=卡片矩形、无 ctx.node 时不起 startFollowing）——Stack 路径逐字节不变（冒烟测试锁回归）。
+- 浏览器行宿主只是面板的会话内可读写副本（triggers/custom）——**真源在服务器统一存储**（saveCustomTriggers/saveCustomDescription 按名写回），行副本不持久化。
+- **文件夹层级浏览（对齐 SF Load Image Browser 的浏览器）**：`sf_lora_browser_lib.js::folderContents(list, folder)` 返回「立即子目录 + 当前层文件」（镜像 image_browser 的 getFolderContents，文件夹只取第一段、文件只收当前层直接文件）；面包屑（根 All LoRAs + 逐级、点击跳转、当前级 .cur）**用 DOM API 构建**（textContent/dataset 赋值——目录名来自用户文件系统，不用 innerHTML 注入面）；**搜索激活时忽略层级、跨全部分层扁平匹配**（与 image_browser 同语义）；浏览位置记忆设置键 `sfnodes.LoraBrowser.Folder`（打开窗口恢复，列表到达后按目录存在性校正——目录被删回根）。
+- **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/列表，无文字——mask-image data URI 同工具栏按钮风格，title 承载说明），模式记忆 `sfnodes.LoraBrowser.Mode`；**平面模式** = 全量列表**分批渲染 + 滚动动态加载**——`renderFlat(main,{names,shown})` 一次只建 `shown` 项卡片，`attachFlatScroll(main, onNeedMore)` 距底 300px 回调续批（幂等绑定），渲染前自动判断「视口未满则续批」防高窗口/小步长空转；面包屑行在平面模式隐藏（`.sf-lb-path` display:none）；计数：未载完显示「已载 / 总数」，载完显示总数；切换/搜索重置批次游标。
+- 列表性能：卡片 content-visibility:auto + img.loading="lazy"（数百上千 LoRA 不一次性拉图）；缩略图路由 max-age=3600——任一端改数据后经 `sfnodes.lora-data-changed` 事件刷新可见卡片封面（URL 带 `&t=Date.now()` bust）。
 
 **后端：自定义 API 路由（`sf_utils/lora_notes.py`/`lora_routes.py`、`nodes/image/preview_routes.py`、`nodes/workflow_routes.py`、`nodes/text/prompt_reader_routes.py`、`nodes/utils/canvas_size.py`）→ experience.md §8.4/§10.3/§11.4/§16.4**
 - 注册先例：`from server import PromptServer` → `ins.routes` 装饰器注册，try/except 包裹（环境异常降级不注册），模块导入时副作用执行（`__init__.py` import）；前缀统一 `/api/sfnodes/...`。**改动路由后必须重启容器**，否则前端 404 静默降级。

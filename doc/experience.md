@@ -34,6 +34,7 @@
 - [27. 2026-08 健壮性修复批次：表达式防御 / ReDoS 交替型 / 路径净化 / 双端镜像补缺](#27-2026-08-健壮性修复批次表达式防御--redos-交替型--路径净化--双端镜像补缺)
 - [28. SFStylesSelector：风格选择器复刻（Easy-Use stylesSelector）](#28-sfstylesselector风格选择器复刻easy-use-stylesselector)
 - [29. SFPromptPreset：十一分类组合预设（正交原则 / 随机机制 / LLM 优化链路）](#29-sfpromptpreset十一分类组合预设正交原则--随机机制--llm-优化链路)
+- [30. SF LoRA 浏览器：工具栏应用 + 信息面板宿主 ctx 适配（浏览全部 LoRA 并编辑信息）](#30-sf-lora-浏览器工具栏应用--信息面板宿主-ctx-适配浏览全部-lora-并编辑信息)
 
 ---
 
@@ -1279,4 +1280,56 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - 预设被删除/改名的旧工作流 combo 值超出静态选项列表 → `VALIDATE_INPUTS` 恒 True + `_resolve_preset` 安全降级为空串（动态 combo 校验通用模式，见 §4）。
 - **伦理**：数据含 NSFW 预设（仓库分发注意许可与政策）；名人 + NSFW 组合存在肖像权/伦理风险；亚洲名人（22 个）无社区实测依据。
 - 测试：`tests/test_prompt_preset.py`（后端 200+ 断言）+ `test_prompt_preset_js.js`（前端 40+ 断言）。
+
+---
+
+## 30. SF LoRA 浏览器：工具栏应用 + 信息面板宿主 ctx 适配（浏览全部 LoRA 并编辑信息）
+
+> 2026-08。需求：工作流界面顶部 sf workflows 按钮旁加按钮，打开界面浏览全部 LoRA、并编辑 LoRA 信息（触发词/描述/封面/Civitai），编辑体验对齐 SFLoraStack 信息面板。
+
+### 1. 设计：无节点应用 + 后端零新增
+
+- **无节点设计**（同 §10 Workflows）：浏览器是"应用"不是节点——节点会被存进工作流文件，分享污染他人。打开方式：工具栏按钮（紧贴 Workflows 按钮）+ `Alt+Shift+L` + canvas 右键菜单 + 命令面板。
+- **后端零新增**：列表 `/api/sfnodes/lora_list`、信息 `/api/sfnodes/lora_info`、封面 `/api/sfnodes/lora_thumb`、自定义词/描述/封面/Civitai 全部复用 SFLoraStack 既有路由与 `sf_lora_stack_api.js` 封装（`listLoras/loraInfo/thumbUrl/saveCustomTriggers/saveCustomDescription/saveLoraPreview/...`）。改动纯前端，无需重启容器，硬刷新即生效。
+- 分层（对齐项目模块惯例）：`sf_lora_browser.js`（状态+数据+信息面板宿主 ctx+扩展注册）/ `sf_lora_browser_ui.js`（窗口/网格/CSS）/ `sf_lora_browser_lib.js`（纯函数：splitName/filterLoras/groupLoras/sortWithinGroup，可 .mjs 直测）。
+
+### 2. 关键机制：信息面板宿主 ctx 适配（sf_lora_stack_info.js）
+
+SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)` 读行（triggers/custom）、② `patchLora(node,id,patch)` 写行、③ `accentOf(node)` 强调色、④ `place()/startFollowing()` 锚定节点。其余全部按 LoRA 名走服务器 API，与节点无关——这是可解耦复用的边界。
+
+- **`openInfoPanel(node, id, refresh)` 兼容入口保留**（Stack 行 UI 与冒烟测试零改动）：内部构造 node ctx（`getRow=readState(node).loras.find(id)`、`patchRow=patchLora(node,id,…)`、`prefs` 由 readState 读 thumbs/civitai、key=node 对象）后委托 `openInfoPanelFor(ctx, id)`。
+- **新增 `openInfoPanelFor(ctx, id)`**：ctx = `{ key, node?, anchorRect?, getRow, patchRow, accent, prefs?, refresh? }`。浏览器宿主：key=字符串 `"sfnodes.lora-browser"`（`closeInfoPanelFor(node)` 只关自己 key 的面板，互不干扰）、getRow/patchRow 走会话内内存行、`anchorRect` 返回被点击卡片的 `getBoundingClientRect()`、**无 `ctx.node` 时跳过 `startFollowing`**（不跟随画布）、`place()` 按 `ctx.node ? getNodeRect(ctx.node) : ctx.anchorRect()` 选锚。
+- 替换点清单（约 15 处）：`readState(node).loras.find(id)` → `ctx.getRow()`；`patchLora(node,id,…)` → `ctx.patchRow(…)`；`readState(node).thumbs/civitai` → `ctx.prefs().thumbs/civitai`；`place(panel, node)` → `place(panel, ctx)`；模块级 `_ownerNode` → `_ownerKey`。
+- **注意 startFollowing 内部自己的 `place(panel, node)` 不能跟着 replace_all 改**——它的参数是 node 不是 ctx，误改会 ReferenceError。
+
+### 3. 浏览器行宿主：会话内存副本，真源在服务器
+
+- 浏览器行只是面板的可读写对象 `{id,name,triggers,custom}`：勾选/自定义词显示在面板内，随会话存活。**真源始终在统一存储**（`saveCustomTriggers/saveCustomDescription` 按 LoRA 名写回 `user/sfnodes/lora_triggers.json`，Power/Stack/浏览器三端互通）；行副本不持久化、不进任何工作流文件。
+- `hydrateCustom` 把服务器 `info.custom_triggers` 合入行副本，`persistCustom` 在改动时写回——两端行为与 Stack 面板 1:1。
+
+### 4. 列表与封面
+
+- `listLoras(true)` 打开/刷新按钮时强制重取（no-store 路由 + 模块内会话缓存共享自 Stack——force 绕过缓存防改名/增删后过期）。
+- **文件夹层级浏览（2026-08 改进，对齐 SF Load Image Browser 的浏览器）**：`sf_lora_browser_lib.js::folderContents(list, folder)` 返回「立即子目录 + 当前层文件」（镜像 image_browser 的 getFolderContents：文件夹只取第一段去重、文件只收当前层直接文件，均已排序）——**不再平铺分组**。面包屑（根 All LoRAs + 逐级、非当前级可点击跳转、当前级 .cur 样式）**用 DOM API 构建**（`textContent`/`dataset` 赋值——目录名来自用户文件系统，不经过 innerHTML 注入面，`<`/`"` 目录名天然安全；image_browser 的面包屑是 innerHTML 字符串 + escapeHtml，此处在 mock 测试中暴露后改 DOM 构建更稳）。
+- **搜索语义**：搜索激活时忽略目录层级、跨全部分层扁平匹配（与 image_browser 同语义）；计数显示「命中 / 总数」。
+- **浏览位置记忆**：设置键 `sfnodes.LoraBrowser.Folder` 记住所在目录——打开窗口时恢复，列表到达后按目录存在性校正（`validFolder`：目录被删/改名回根）；搜索时面包屑仍显示当前层 context。
+- **性能**：卡片 `content-visibility:auto` + `img.loading="lazy"`——数百上千 LoRA 不一次性拉图，浏览器按视口渲染与解码；缩略图 404 → onerror **替换为内联 SVG 占位图**（深色圆角底 + 层叠图标，data URI 无网络请求必成功渲染；`removeAttribute("src")` 在实测中某些渲染路径仍残留浏览器破损图，有 src 的占位才彻底），守卫防二次 error 循环。
+- **封面跨端刷新**：缩略图路由发 `max-age=3600` 且 URL 不变——任一端（浏览器/Stack/Power）改了数据经 `sfnodes.lora-data-changed`（detail.name）事件刷新可见卡片封面，URL 带 `&t=Date.now()` bust。
+- **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/列表——mask-image data URI，无文字，title 承载说明，与工具栏按钮图标同风格），模式记忆设置键 `sfnodes.LoraBrowser.Mode`（与 Folder 位置记忆同机制，打开窗口恢复）。**平面模式 = 全量列表分批渲染 + 滚动动态加载**（防 LoRA 上千时一次性建 DOM/拉图卡死）：
+  - `renderFlat(main, {names, shown})` 一次只建 `shown` 项卡片（`FLAT_STEP=60`，主扩展 `S.flat.page` 批次游标），未载完时 main 底部挂 `sf-lb-loadmore` 哨兵（显示「已载 / 总数」）；
+  - `attachFlatScroll(main, onNeedMore)` 幂等绑定 scroll 监听，距底 300px 回调续批（主扩展判断还有更多才推进 page）；
+  - **视口未满自动续批**：render 后若 `scrollHeight <= clientHeight + 8` 且还有更多，立即 page++ 再 render（有限步，防高窗口/小步长空转）——注意必须带「还有更多」守卫，否则空列表死循环；
+  - 面包屑行平面模式隐藏（`.sf-lb-path` display:none）；计数未载完显示「已载 / 总数」、载完显示总数；切换模式/搜索均重置批次游标；两种模式搜索都跨层级扁平匹配；
+  - 卡片函数（`folderCard`/`fileCard`）提取为模块级供两个渲染器复用，避免内联副本。
+
+### 5. 工具栏按钮定位
+
+- 复刻 Workflows 的 `app.menu.settingsGroup.element` 前插模式：**已挂载 Workflows 按钮时插其 group 之后（实现"sf workflows 按钮边"）**，否则兜底插 settingsGroup 前 + 25 次×250ms 重试。两种顺序下两按钮都相邻（谁后挂载谁贴近 settings 组）。
+- 热键 `Alt+Shift+L`：包内唯一冲突面是 workflows 的 Alt+Shift+W；ComfyUI 按 combo 全局去重，若第三方占用注册会抛错——诊断脚本会暴露，换修饰键即可。
+
+### 6. 测试与验证
+
+- `tests/test_lora_browser_lib.mjs`：lib 纯函数（路径拆分/过滤/分组/排序）。
+- `tests/test_lora_browser_smoke.js`：mock DOM 真实加载全依赖链——扩展注册（name/command/keybinding/canvas 菜单）→ 按钮挂载 → 点击开窗 → lora_list 数据层 → 网格渲染/计数 → 搜索过滤 → 点击卡片真实打开信息面板（浏览器 ctx 路径）→ 关闭。**同时锁定重构回归**：`test_lora_stack_info_desc_smoke.js` 25 断言全绿证明 Stack 路径逐字节不变。
+- 诊断脚本（交付用户）：版本检查 → 扩展注册状态 → 按钮挂载 DOM 检查 → 打开窗口 → 数据层（lora_list 计数）→ 网格渲染 → 信息面板编辑往返（勾词/存描述）→ 热键。部署：`web/` 同步 docker 目录 + 浏览器硬刷新。
 

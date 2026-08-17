@@ -25,6 +25,8 @@ MODS = [
     "sf_lora_stack_dropdown", "sf_lora_stack_info", "sf_lora_stack_settings",
     # Workflows 家族
     "sf_workflows", "sf_workflows_ui", "sf_workflows_lib",
+    # LoRA 浏览器家族
+    "sf_lora_browser", "sf_lora_browser_ui", "sf_lora_browser_lib",
     # Crop 家族
     "sf_crop", "sf_crop_core", "sf_crop_framework", "sf_crop_panel",
     "sf_crop_preview", "sf_crop_render", "sf_crop_interaction",
