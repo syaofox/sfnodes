@@ -36,6 +36,8 @@ const BROWSER_KEY = "sfnodes.lora-browser";
 const FOLDER_KEY = "sfnodes.LoraBrowser.Folder";
 // 展示模式持久化设置键（folder 层级浏览 / flat 平面列表）
 const MODE_KEY = "sfnodes.LoraBrowser.Mode";
+// 视图持久化设置键（grid 卡片网格 / list 列表行）
+const VIEW_KEY = "sfnodes.LoraBrowser.View";
 // 平面模式分批渲染步长：一次最多建这么多卡片，滚动接近底部再续一批
 const FLAT_STEP = 60;
 
@@ -66,6 +68,7 @@ const S = {
     loading: false, // 列表加载中（首帧显示加载态）
     rows: new Map(),// 信息面板行宿主：name -> {id,name,triggers,custom}（会话内存）
     mode: "folder", // 展示模式：folder（层级浏览）| flat（平面列表+滚动加载）
+    view: "grid",    // 视图：grid（卡片网格）| list（列表行）
     flat: { page: 0 }, // 平面模式批次游标
 };
 
@@ -85,6 +88,14 @@ function readMode() {
 }
 function saveMode(m) {
     try { window.sfnodesSetSetting?.(MODE_KEY, m === "flat" ? "flat" : "folder"); } catch { /* 忽略 */ }
+}
+function readView() {
+    try {
+        return window.sfnodesGetSetting?.(VIEW_KEY, "") === "list" ? "list" : "grid";
+    } catch { return "grid"; }
+}
+function saveView(v) {
+    try { window.sfnodesSetSetting?.(VIEW_KEY, v === "list" ? "list" : "grid"); } catch { /* 忽略 */ }
 }
 // 目录有效性：目录被删除/改名后回根（有列表时才校得准；列表空时原样保留，
 // 数据到达后再校一次——loadData 里）。
@@ -267,8 +278,9 @@ function onSearchInput() {
 
 function render() {
     if (!S.win) return;
-    // 展示模式切换控件高亮
+    // 展示模式/视图切换控件高亮
     for (const b of S.win.segButtons || []) b.classList.toggle("on", b.dataset.mode === S.mode);
+    for (const b of S.win.viewButtons || []) b.classList.toggle("on", b.dataset.view === S.view);
 
     if (S.mode === "flat") {
         // 平面模式：全部 LoRA 一次性列出（搜索时 = 扁平命中），分批渲染，
@@ -281,6 +293,7 @@ function render() {
             names: all,
             shown: shownCount,
             selectedName: S.sel,
+            view: S.view,
             onPick: (name, card) => openInfoFor(name, card),
             onAdd: (name) => addToWorkflow(name),
         });
@@ -308,6 +321,7 @@ function render() {
             folder: S.folder,
             query: S.query,
             selectedName: S.sel,
+            view: S.view,
             onPick: (name, card) => openInfoFor(name, card),
             onAdd: (name) => addToWorkflow(name),
             onEnterFolder: (name) => {
@@ -327,6 +341,15 @@ function render() {
         const empty = S.win.main.querySelector(".sf-lb-empty");
         if (empty) empty.textContent = "Loading LoRAs…";
     }
+}
+
+// 切换视图（grid 卡片 / list 列表行）：记忆
+function switchView(view) {
+    const v = view === "list" ? "list" : "grid";
+    if (S.view === v) return;
+    S.view = v;
+    saveView(v);
+    render();
 }
 
 // 切换展示模式（folder 层级 / flat 平面）：重置平面批次游标并记忆
@@ -366,6 +389,9 @@ function ensureWindow() {
     for (const b of S.win.segButtons || []) {
         b.addEventListener("click", () => switchMode(b.dataset.mode));
     }
+    for (const b of S.win.viewButtons || []) {
+        b.addEventListener("click", () => switchView(b.dataset.view));
+    }
     // 平面模式滚动续载：接近底部推进一批（render 会判断是否还有更多）
     attachFlatScroll(S.win.main, () => {
         if (S.mode !== "flat") return;
@@ -393,6 +419,7 @@ function toggle() {
         // 下，loadData 到达后再做目录有效性校正）。
         S.folder = readFolder();
         S.mode = readMode();
+        S.view = readView();
         S.flat.page = 0;
         win.open();
         loadData(true);     // 打开即强制刷新（文件夹/改名可能已变化）

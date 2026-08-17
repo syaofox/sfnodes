@@ -419,6 +419,40 @@ function pathEl(win) {
     check("切回后 3 文件夹 1 文件", cards.folders === 3 && cards.files === 1);
     check("模式已记忆 folder", settingStore["sfnodes.LoraBrowser.Mode"] === "folder");
 
+    // ── 视图切换：网格 / 列表 ──
+    const gridBtn = (win.querySelectorAll(".sf-lb-segb") || []).find((b) => b.dataset?.view === "grid");
+    const listBtn = (win.querySelectorAll(".sf-lb-segb") || []).find((b) => b.dataset?.view === "list");
+    check("视图切换控件存在", !!gridBtn && !!listBtn);
+    check("默认网格高亮", hasClass(gridBtn, "on") && !hasClass(listBtn, "on"));
+    listBtn.emit("click");
+    await tick();
+    check("列表高亮", hasClass(listBtn, "on"));
+    check("列表视图无网格卡片", countCards(win).files === 0);
+    let rows = win.querySelectorAll(".sf-lb-row");
+    check("列表行 4（3 文件夹 + 1 文件）", rows.length === 4);
+    check("列表文件夹行", rows.some((x) => hasClass(x, "folder") && x.dataset.folderName === "characters"));
+    check("列表文件行", rows.some((x) => !hasClass(x, "folder") && x.dataset.name === "a.safetensors"));
+    check("列表行绑定双击（attachPickAdd 共用）", (rows.find((x) => !hasClass(x, "folder"))?.listeners?.dblclick?.length || 0) === 1);
+    check("视图已记忆 list", settingStore["sfnodes.LoraBrowser.View"] === "list");
+    // 平面 + 列表：分批渲染 + 滚动加载
+    segButton(win, "flat").emit("click");
+    await tick();
+    check("平面列表行 60（分批）", win.querySelectorAll(".sf-lb-row").length === 60);
+    check("平面列表 loadmore", !!findByClass(win, "sf-lb-loadmore"));
+    const mainEl2 = findByClass(win, "sf-lb-main");
+    mainEl2.scrollTop = 5000;
+    mainEl2.scrollHeight = 5000;
+    mainEl2.emit("scroll");
+    await tick(); await tick();
+    check("平面列表滚动后 66 行", win.querySelectorAll(".sf-lb-row").length === 66);
+    // 切回 网格 + 文件夹
+    gridBtn.emit("click");
+    await tick();
+    segButton(win, "folder").emit("click");
+    await tick();
+    check("切回网格卡片 1", countCards(win).files === 1);
+    check("视图记忆 grid", settingStore["sfnodes.LoraBrowser.View"] === "grid");
+
     // ── 无缩略图占位 ──
     const rootFile = (win.querySelectorAll(".sf-lb-card") || []).find((c) => !hasClass(c, "folder"));
     const th = rootFile?.querySelector(".sf-lb-thumb");

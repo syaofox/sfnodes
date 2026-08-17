@@ -67,8 +67,29 @@ export function injectBrowserCSS() {
   -webkit-mask-size:contain; mask-size:contain; }
 .sf-lb-segb.folder .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E"); }
-.sf-lb-segb.flat .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
+/* 平面模式（全部层级）：层叠图标，与列表视图的三横线区分 */
+.sf-lb-segb.flat .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 2 7l10 5 10-5-10-5zM2 12l10 5 10-5M2 17l10 5 10-5'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 2 7l10 5 10-5-10-5zM2 12l10 5 10-5M2 17l10 5 10-5'/%3E%3C/svg%3E"); }
+/* 视图切换：网格（九宫格）/ 列表（三横线） */
+.sf-lb-segb.grid .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z'/%3E%3C/svg%3E"); }
+.sf-lb-segb.list .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E"); }
+/* 列表视图 */
+.sf-lb-list { display:flex; flex-direction:column; gap:2px; }
+.sf-lb-row { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:6px;
+  cursor:pointer; min-width:0; }
+.sf-lb-row:hover { background:rgba(255,255,255,0.05); }
+.sf-lb-row.sel { background:color-mix(in srgb, var(--sf-lb-acc) 16%, transparent); }
+.sf-lb-thumb-sm { width:40px; height:40px; border-radius:5px; object-fit:cover; flex:none;
+  background:radial-gradient(circle at 60% 35%, #3a3238, #1d1a1e 72%); display:block; }
+.sf-lb-thumb-sm.noimg { background:none; }
+.sf-lb-rowicon { flex:none; width:40px; height:40px; display:flex; align-items:center;
+  justify-content:center; font-size:20px; background:rgba(255,255,255,0.03); border-radius:5px; }
+.sf-lb-rowname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#e6e6e6; font-size:12px; }
+.sf-lb-rowmeta { flex:none; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#8a8581; font-size:10.5px; }
 .sf-lb-loadmore { text-align:center; color:#8a8581; font-size:11px; padding:10px; }
 /* 多 Stack 节点选择弹窗（双击添加时选择目标节点） */
 .sf-lb-pick-mask { position:fixed; inset:0; z-index:10040; background:rgba(0,0,0,0.55);
@@ -254,13 +275,25 @@ export function createLoraBrowserWindow({ onRender, onClose } = {}) {
     const flatBtn = el("button", "sf-lb-segb flat");
     flatBtn.type = "button";
     flatBtn.dataset.mode = "flat";
-    flatBtn.title = "Flat list of every LoRA (scroll to load more)";
+    flatBtn.title = "All LoRAs across every folder (scroll to load more)";
     flatBtn.append(el("span", "ic"));
     seg.append(folderBtn, flatBtn);
+    const viewSeg = el("div", "sf-lb-seg");
+    const gridBtn = el("button", "sf-lb-segb on grid");
+    gridBtn.type = "button";
+    gridBtn.dataset.view = "grid";
+    gridBtn.title = "Grid view";
+    gridBtn.append(el("span", "ic"));
+    const listBtn = el("button", "sf-lb-segb list");
+    listBtn.type = "button";
+    listBtn.dataset.view = "list";
+    listBtn.title = "List view";
+    listBtn.append(el("span", "ic"));
+    viewSeg.append(gridBtn, listBtn);
     const refreshBtn = el("button", "sf-lb-tbtn", "↻");
     refreshBtn.type = "button";
     refreshBtn.title = "Refresh the list from disk";
-    bar.append(search, seg, refreshBtn);
+    bar.append(search, seg, viewSeg, refreshBtn);
 
     const path = el("div", "sf-lb-path");
     const main = el("div", "sf-lb-main");
@@ -326,7 +359,8 @@ export function createLoraBrowserWindow({ onRender, onClose } = {}) {
     }
 
     const api = {
-        el: win, main, bar, path, count, searchInput: input, refreshBtn, segButtons: [folderBtn, flatBtn],
+        el: win, main, bar, path, count, searchInput: input, refreshBtn,
+        segButtons: [folderBtn, flatBtn], viewButtons: [gridBtn, listBtn],
         isOpen: () => win.style.display !== "none",
         toast,
         setCount: (text) => { count.textContent = text; },
@@ -390,7 +424,37 @@ export function renderCrumbs(elPath, folder, onCrumb) {
     }
 }
 
-// ── 卡片（模块级，供层级/平面两个渲染器复用）──────────────────────────────
+// ── 单击/双击（卡片与列表行共用）────────────────────────────────────────────
+// 单击 = 打开信息面板（延迟 250ms 等双击判定），双击 = 用 SF LoRA Stack 加载到
+// 工作流。浏览器对双击先派发两次 click 再 dblclick：第二次 click 覆盖第一次的
+// timer，dblclick 再清一次——无残留。
+function attachPickAdd(el2, name, onPick, onAdd) {
+    let pickTimer = null;
+    el2.addEventListener("click", () => {
+        clearTimeout(pickTimer);
+        pickTimer = setTimeout(() => onPick?.(name, el2), 250);
+    });
+    el2.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        clearTimeout(pickTimer);
+        onAdd?.(name, el2);
+    });
+}
+
+// 缩略图 error -> 内联 SVG 占位（卡片 108px 与列表行 40px 共用；有 src 才不会被
+// 浏览器画成破损图；守卫防占位自身 error 循环）。
+function wireThumb(th, bust) {
+    th.loading = "lazy";
+    th.alt = "";
+    th.addEventListener("error", () => {
+        if (th.src === THUMB_PLACEHOLDER) return;
+        th.classList.add("noimg");
+        th.src = THUMB_PLACEHOLDER;
+    });
+    th.src = thumbUrl(String(th.dataset.name || ""), bust);
+}
+
+// ── 网格卡片（视图 grid）────────────────────────────────────────────────────
 function folderCard(folderName, onEnterFolder) {
     const c = el("div", "sf-lb-card folder");
     c.dataset.folderName = folderName;
@@ -406,17 +470,8 @@ function fileCard(name, { selectedName = null, onPick, onAdd, thumbBust = 0 } = 
     c.dataset.name = name;
     const th = document.createElement("img");
     th.className = "sf-lb-thumb";
-    th.loading = "lazy";
-    th.alt = "";
-    th.title = name;
-    th.addEventListener("error", () => {
-        // 换成内联 SVG 占位：有 src 才不会被浏览器画成破损图；守卫防
-        // 占位自身（理论上不会 error）再次触发循环替换。
-        if (th.src === THUMB_PLACEHOLDER) return;
-        th.classList.add("noimg");
-        th.src = THUMB_PLACEHOLDER;
-    });
-    th.src = thumbUrl(name, thumbBust);
+    th.dataset.name = name;
+    wireThumb(th, thumbBust);
     const nm = el("div", "sf-lb-cardname", base);
     nm.title = base;
     // 层级浏览下当前层文件同目录：副行显示扩展名（有信息量且不冗余）
@@ -424,37 +479,60 @@ function fileCard(name, { selectedName = null, onPick, onAdd, thumbBust = 0 } = 
     const pt = el("div", "sf-lb-cardmeta", (folder ? folder + " / " : "") + (ext ? ext.toUpperCase() : "LORA"));
     pt.title = name;
     c.append(th, nm, pt);
-    // 单击 = 打开信息面板，双击 = 用 SF LoRA Stack 加载到工作流。浏览器对
-    // 双击会先派发两次 click 再派发 dblclick：单击延迟 250ms，dblclick 时
-    // 取消在途的单击（第二次 click 已覆盖第一次的 timer，dblclick 再清一次）。
-    let pickTimer = null;
-    c.addEventListener("click", () => {
-        clearTimeout(pickTimer);
-        pickTimer = setTimeout(() => onPick?.(name, c), 250);
-    });
-    c.addEventListener("dblclick", (e) => {
-        e.preventDefault();
-        clearTimeout(pickTimer);
-        onAdd?.(name, c);
-    });
+    attachPickAdd(c, name, onPick, onAdd);
     return c;
 }
 
-// ── 层级网格渲染（文件夹模式）───────────────────────────────────────────────
-// 无查询：当前目录 = 立即子文件夹卡片 + 当前层文件卡片（文件夹下钻模型）。
+// ── 列表行（视图 list）──────────────────────────────────────────────────────
+function folderRow(folderName, onEnterFolder) {
+    const r = el("div", "sf-lb-row folder");
+    r.dataset.folderName = folderName;
+    r.append(el("span", "sf-lb-rowicon", "📁"), el("div", "sf-lb-rowname", folderName));
+    r.title = folderName;
+    r.addEventListener("click", () => onEnterFolder?.(folderName));
+    return r;
+}
+
+function fileRow(name, { selectedName = null, onPick, onAdd, thumbBust = 0 } = {}) {
+    const { base, folder } = splitName(name);
+    const r = el("div", "sf-lb-row" + (name === selectedName ? " sel" : ""));
+    r.dataset.name = name;
+    const th = document.createElement("img");
+    th.className = "sf-lb-thumb-sm";
+    th.dataset.name = name;
+    wireThumb(th, thumbBust);
+    const nm = el("div", "sf-lb-rowname", base);
+    nm.title = name;
+    const ext = base.includes(".") ? base.slice(base.lastIndexOf(".") + 1) : "";
+    const meta = el("div", "sf-lb-rowmeta", (folder ? folder + " / " : "") + (ext ? ext.toUpperCase() : "LORA"));
+    meta.title = name;
+    r.append(th, nm, meta);
+    attachPickAdd(r, name, onPick, onAdd);
+    return r;
+}
+
+// 容器：网格（.sf-lb-grid）或列表（.sf-lb-list）
+function container(view) {
+    return el("div", view === "list" ? "sf-lb-list" : "sf-lb-grid");
+}
+
+// ── 层级渲染（文件夹模式）───────────────────────────────────────────────────
+// 无查询：当前目录 = 立即子文件夹 + 当前层文件（文件夹下钻模型）。
 // 有查询：跨全部层级扁平过滤（对齐 image_browser 的搜索语义，忽略目录）。
-// 卡片点击回调 onPick(name, cardEl)；文件夹点击回调 onEnterFolder(folderName)。
+// `view`：grid（卡片）| list（行）。文件项点击 onPick/onAdd；文件夹点击 onEnterFolder。
 export function renderFolder(main, { list = [], folder = "", query = "", selectedName = null,
-    onPick, onAdd, onEnterFolder, thumbBust = 0 } = {}) {
+    view = "grid", onPick, onAdd, onEnterFolder, thumbBust = 0 } = {}) {
     main.innerHTML = "";
     if (!list.length) {
         main.appendChild(el("div", "sf-lb-empty", "No LoRAs on this machine yet. Add some to the models/loras folder."));
         return;
     }
-
+    const listView = view === "list";
     const q = String(query || "").trim();
-    const grid = el("div", "sf-lb-grid");
-
+    const box = container(view);
+    const addFile = (name) => box.appendChild(listView
+        ? fileRow(name, { selectedName, onPick, onAdd, thumbBust })
+        : fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
     if (q) {
         // 搜索：扁平匹配（镜像 image_browser：搜索时忽略目录层级）
         const hits = filterLoras(list, q);
@@ -462,7 +540,7 @@ export function renderFolder(main, { list = [], folder = "", query = "", selecte
             main.appendChild(el("div", "sf-lb-empty", "No LoRAs match your search."));
             return;
         }
-        for (const name of hits) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
+        for (const name of hits) addFile(name);
     } else {
         const { folders, files } = folderContents(list, folder);
         if (!folders.length && !files.length) {
@@ -470,31 +548,33 @@ export function renderFolder(main, { list = [], folder = "", query = "", selecte
                 folder ? "This folder is empty." : "No LoRAs here."));
             return;
         }
-        for (const fd of folders) grid.appendChild(folderCard(fd, onEnterFolder));
-        for (const name of files) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
+        for (const fd of folders) box.appendChild(listView ? folderRow(fd, onEnterFolder) : folderCard(fd, onEnterFolder));
+        for (const name of files) addFile(name);
     }
-    main.appendChild(grid);
+    main.appendChild(box);
 }
 
-// ── 平面列表渲染（所有 LoRA 模式）───────────────────────────────────────────
+// ── 平面渲染（所有 LoRA 模式）───────────────────────────────────────────────
 // 一次只渲染 `shown` 项（分批），剩余部分在滚动接近底部时经 attachFlatScroll
 // 通知主扩展续载——列表上千条也不一次性建 DOM/拉图。
 export function renderFlat(main, { names = [], shown = names.length, selectedName = null,
-    onPick, onAdd, thumbBust = 0 } = {}) {
+    view = "grid", onPick, onAdd, thumbBust = 0 } = {}) {
     main.innerHTML = "";
     if (!names.length) {
         main.appendChild(el("div", "sf-lb-empty", "No LoRAs on this machine yet. Add some to the models/loras folder."));
         return;
     }
-    const grid = el("div", "sf-lb-grid");
+    const listView = view === "list";
+    const box = container(view);
     const slice = names.slice(0, Math.max(1, shown));
-    for (const name of slice) grid.appendChild(fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
-    main.appendChild(grid);
+    for (const name of slice) box.appendChild(listView
+        ? fileRow(name, { selectedName, onPick, onAdd, thumbBust })
+        : fileCard(name, { selectedName, onPick, onAdd, thumbBust }));
+    main.appendChild(box);
     if (slice.length < names.length) {
         main.appendChild(el("div", "sf-lb-loadmore", "Loading more… (" + slice.length + " / " + names.length + ")"));
     }
 }
-
 // ── 滚动动态加载（平面模式用）───────────────────────────────────────────────
 // 幂等绑定：接近底部 300px 时回调 onNeedMore()。主扩展负责判断是否还有更多
 // 并推进批次。
