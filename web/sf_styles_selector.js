@@ -66,11 +66,11 @@ function injectCSS() {
    高度 ≈ 0 → 行高 10px、缩略图溢出被裁成细条），max-content 强制按内容撑开 */
 .sf-ss-list.sf-ss-grid{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;padding:4px 0;}
 .sf-ss-card{display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:6px;cursor:pointer;background:#222;border:1px solid #3a3a3a;overflow:hidden;flex:0 0 auto;}
-/* 完整展示缩略图（不裁切）：contain 整图可见；aspect-ratio 4/3（Fooocus
-   样例图原生比例，contain 恰好满幅）让图区高度随列宽联动——列少卡片宽则
-   图高、列多卡片窄则图矮，避免固定高度造成的左右留白。行高由
-   grid-auto-rows:max-content 按内容撑开（见 .sf-ss-list.sf-ss-grid 注释） */
-.sf-ss-card img{width:100%;height:auto;aspect-ratio:4/3;object-fit:contain;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
+/* 完整展示缩略图（不裁切）：contain 整图可见；aspect-ratio 1/1（实测
+   672 张缩略图全部为正方形）让图区高度随列宽联动且零留白——列少卡片宽
+   则图高、列多卡片窄则图矮。行高由 grid-auto-rows:max-content 按内容
+   撑开（见 .sf-ss-list.sf-ss-grid 注释） */
+.sf-ss-card img{width:100%;height:auto;aspect-ratio:1/1;object-fit:contain;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
 .sf-ss-card span{font:11px sans-serif;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;user-select:none;}
 .sf-ss-card:hover{border-color:#555;}
 .sf-ss-cardsel{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
