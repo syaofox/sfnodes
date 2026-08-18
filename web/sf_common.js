@@ -62,14 +62,16 @@ export function sfAccent() {
 
 // ── LoRA 名称显示（全局设置 sfnodes.PowerLoraLoader.DisplayName）───────
 // 供 SFPowerLoraLoader / SFLoraStack / SFLoraPlot 统一读取（单一真源，
-// 禁止各节点内联副本——复制后语义分叉会让行显示与设置不一致）。四档：
+// 禁止各节点内联副本——复制后语义分叉会让行显示与设置不一致）。五档：
 // full 完整相对路径（默认）/ filename 文件名含扩展名 / basename 文件名
-// 去扩展名 / folder 所在文件夹名（根目录文件降级文件名）。
+// 去扩展名 / folder 所在文件夹名（根目录文件降级文件名）/ parent_basename
+// 上级目录名 + 文件名去扩展名（根目录文件降级 basename）。
 export const LORA_DISPLAY_MODES = {
   FULL: "full",
   FILENAME: "filename",
   BASENAME: "basename",
   FOLDER: "folder",
+  PARENT_BASENAME: "parent_basename",
 };
 export const LORA_DISPLAY_SETTING = "sfnodes.PowerLoraLoader.DisplayName";
 
@@ -88,6 +90,11 @@ export function loraDisplayName(path, mode) {
     case LORA_DISPLAY_MODES.FOLDER:
       // 根目录文件（无文件夹）降级显示文件名
       return parts.length ? parts[parts.length - 1] : file;
+    case LORA_DISPLAY_MODES.PARENT_BASENAME: {
+      // 上级目录名 + 文件名去扩展名；根目录文件降级仅显示 basename
+      const base = loraDisplayName(file, LORA_DISPLAY_MODES.BASENAME);
+      return parts.length ? `${parts[parts.length - 1]}/${base}` : base;
+    }
     default:
       return path;
   }

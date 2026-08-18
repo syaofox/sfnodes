@@ -910,10 +910,11 @@ app.registerExtension({
             "File name": DISPLAY_MODES.FILENAME,
             "File name without extension": DISPLAY_MODES.BASENAME,
             "Parent folder name": DISPLAY_MODES.FOLDER,
+            "Parent folder + name without ext": DISPLAY_MODES.PARENT_BASENAME,
         };
         app.ui?.settings?.addSetting({
             id: DISPLAY_MODE_SETTING,
-            name: "SF Power Lora Loader: lora display name (full path / file name / no extension / parent folder)",
+            name: "SF Power Lora Loader: lora display name (full path / file name / no extension / parent folder / folder + name)",
             defaultValue: DISPLAY_MODES.FULL,
             type: "combo",
             options: () => {

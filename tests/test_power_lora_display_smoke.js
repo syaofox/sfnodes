@@ -1,7 +1,7 @@
 // SF Power Lora Loader lora 项显示方式（sfnodes.PowerLoraLoader.DisplayName）
 // 冒烟测试（Node 直接运行：node tests/test_power_lora_display_smoke.js）
 // mock app 后真实加载 web/power_lora_loader.js，验证：
-//   - displayLoraName 四模式转换（full/filename/basename/folder）+ 边界
+//   - displayLoraName 五模式转换（full/filename/basename/folder/parent_basename）+ 边界
 //   - 扩展 init 注册设置（id/选项/默认值）
 const fs = require("fs");
 const os = require("os");
@@ -64,6 +64,13 @@ fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
     check("folder：最近一层文件夹名", displayLoraName(L, DISPLAY_MODES.FOLDER) === "style");
     check("folder 多层取最近层", displayLoraName("a/b/c/x.safetensors", DISPLAY_MODES.FOLDER) === "c");
     check("folder 根目录文件降级为文件名", displayLoraName("model.safetensors", DISPLAY_MODES.FOLDER) === "model.safetensors");
+    check("parent_basename：上级目录+去扩展名文件名", displayLoraName(L, DISPLAY_MODES.PARENT_BASENAME) === "style/beauty");
+    check("parent_basename 多层取最近层目录", displayLoraName("a/b/c/x.safetensors", DISPLAY_MODES.PARENT_BASENAME) === "c/x");
+    check("parent_basename 根目录文件降级 basename", displayLoraName("model.safetensors", DISPLAY_MODES.PARENT_BASENAME) === "model");
+    check("parent_basename 反斜杠路径", displayLoraName("sub\\dir\\x.safetensors", DISPLAY_MODES.PARENT_BASENAME) === "dir/x");
+    check("parent_basename 版本化名剥 .0 保留", displayLoraName("sdxl/MoXin_v1.0.safetensors", DISPLAY_MODES.PARENT_BASENAME) === "sdxl/MoXin_v1.0");
+    check("parent_basename 无扩展名原样", displayLoraName("a/b/noext", DISPLAY_MODES.PARENT_BASENAME) === "b/noext");
+    check("parent_basename 点开头文件", displayLoraName("a/.hidden", DISPLAY_MODES.PARENT_BASENAME) === "a/.hidden");
     check("None 原样", displayLoraName("None", DISPLAY_MODES.FILENAME) === "None");
     check("空值兜底", displayLoraName("", DISPLAY_MODES.FOLDER) === "None");
     check("basename 无扩展名原样", displayLoraName("noext", DISPLAY_MODES.BASENAME) === "noext");
@@ -79,8 +86,8 @@ fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
     const st = addedSettings.find((s) => s.id === DISPLAY_MODE_SETTING);
     check("设置已注册", !!st && st.type === "combo");
     check("设置默认值 = full", st.defaultValue === DISPLAY_MODES.FULL);
-    check("四选项齐全", Array.isArray(st.options()) && st.options().length === 4);
-    check("选项值集合", ["full", "filename", "basename", "folder"]
+    check("五选项齐全", Array.isArray(st.options()) && st.options().length === 5);
+    check("选项值集合", ["full", "filename", "basename", "folder", "parent_basename"]
         .every((v) => st.options().some((o) => o.value === v)));
 
     // ── getDisplayMode 读取当前设置 ──
@@ -109,6 +116,11 @@ fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
     set("folder");
     check("row folder 最近文件夹名", loraRowLabel("sdxl/style/beauty.safetensors", true) === "style");
     check("row folder 根目录文件降级文件名", loraRowLabel("beauty.safetensors", true) === "beauty.safetensors");
+    set("parent_basename");
+    check("row parent_basename 上级目录+去扩展名", loraRowLabel("sdxl/style/beauty.safetensors", true) === "style/beauty");
+    check("row parent_basename 根目录文件降级 basename", loraRowLabel("beauty.safetensors", true) === "beauty");
+    check("row parent_basename 版本化名剥 .0 保留", loraRowLabel("sdxl/MoXin_v1.0.safetensors", true) === "sdxl/MoXin_v1.0");
+    check("row parent_basename 反斜杠路径", loraRowLabel("sub\\dir\\x.safetensors", true) === "dir/x");
     set("full");
     check("row 反斜杠路径", loraRowLabel("sub\\dir\\x.safetensors", true) === "x");
     set(null);
