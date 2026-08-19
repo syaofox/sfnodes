@@ -282,6 +282,17 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - 自定义优化指令含防拒条款（"宁可直接回显 draft 也不输出拒绝文本"，解决对齐模型拒绝断管线）与防思考条款（"Do NOT think step by step, generate directly in a single pass"，对自发 COT 兜底）。
 - 防拒/防思考条款对强对齐模型（Gemma 官方版）无效——安全拒绝发生在训练层，措辞无解，只能换无审查模型。
 
+### 4. SFImageInterrogator：thinking 透传 + 输出剥离思考块（2026-08）
+
+> 背景：`nodes/model/krea2.py` 的 SFImageInterrogator 用 Krea2 的 CLIP 做图像反推（`clip.tokenize` + `clip.generate` + `clip.decode`）。用户反馈 Think 模型会把思考过程内容输出到结果。
+
+- **根因**：Krea2 tokenizer（`comfy/text_encoders/krea2.py::Krea2Tokenizer`）默认 `thinking=True`（为 conditioning 设计，不注入空 think 块）——生成路径若不显式传 `thinking`，Think/无审查变体自由推理，`clip.decode` 原样返回 ` thinking...\n response\n\n最终答案`，思考内容混入结果。
+- **修复（对齐原生 Generate Text）**：① 新增 `thinking` BOOLEAN 输入（默认 False）显式传入 `clip.tokenize`——False 时 qwen3vl 注入空 think 块抑制推理（仅对遵守约定的 instruct 模型有效）；② 输出剥离思考块 `re.sub(r"^\s*thinking.*?(?:\n\s*response(?:\n|$)|$)", "", out, flags=re.DOTALL)`。
+- **锚定加固（优于原生）**：原生 `TextGenerateLTX2Prompt` 的 `r" thinking.*?(?: response|$)"` 未锚定，会把正文里的 "thinking" 一词当成思考块起点截断（如 "A person thinking about the sunset" → 剩 "A person"）；本节点用 `^\s*thinking` 行首锚定。**闭合标签必须位于行首（`\n\s*response(?:\n|$)`）**——推理正文里的 "response" 一词（如 "no response tag"）若不要求行首会被误判为闭合而残留尾部推理（实测踩坑）。
+- **空输出兜底（修正）**：`(?: response|$)` 覆盖 max_length 截断、未及 ` response` 就中断的思考块。**剥离后为空（整段都是被截断的推理，无最终回答）时直接返回空串**——曾误做"回退保留原始文本"，结果把整段推理又还了回去（正是"输出仍带思考过程"的根因，实测复现：中文长推理占满 max_length=256 即触发）。空串即"无最终回答"信号，用户应增大 max_length。
+- **widget 位置**：`thinking` 追加到 optional 末尾（`user_prompt` 之后），遵守"新增 widget 一律追加到末尾"约定，旧工作流 widgets_values 不错位；纯 BOOLEAN widget 无需前端 JS 改动。
+- **不触及其他路径**：TextEncodeKrea2 的 conditioning 编码不传 thinking，保持 Krea2 默认（无空 think 块），条件编码不受影响。
+
 ---
 
 ## 6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）

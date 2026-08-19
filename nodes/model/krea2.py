@@ -504,7 +504,9 @@ class SFImageInterrogator:
                 }),
                 "max_length": ("INT", {
                     "default": 256, "min": 8, "max": 4096,
-                    "tooltip": "生成文本的最大 token 数上限",
+                    "tooltip": "生成文本的最大 token 数上限。开启 thinking 时模型先用一部分 token"
+                               "推理（思考内容会自动剥离、不计入结果），因此思考块会占用预算："
+                               "若结果被截断为空，请调大此值（如 512~2048）",
                 }),
                 "do_sample": ("BOOLEAN", {
                     "default": True,
@@ -541,16 +543,23 @@ class SFImageInterrogator:
                     "tooltip": "图片送入视觉编码器前的最大尺寸（百万像素）。超过上限会缩小，"
                                "较小的保持原始大小，不会被放大",
                 }),
-                # 注意：user_prompt 必须保持在 optional 的最后一个 widget 位置——ComfyUI
-                # 前端按 widget 数组索引恢复旧工作流的值（widgets_values 位置敏感），新增
-                # widget 若插在中间会导致旧工作流值错位（如 vision_megapixels 的 1 落入
-                # 本字段）。新增 widget 一律追加到末尾。
+                # 注意：ComfyUI 前端按 widget 数组索引恢复旧工作流的值（widgets_values
+                # 位置敏感），新增 widget 若插在中间会导致旧工作流值错位（如 vision_megapixels
+                # 的 1 落入 user_prompt）。新增 widget 一律追加到末尾（当前末尾即
+                # user_prompt 之后的 thinking），不得插入中间位置。
                 "user_prompt": ("STRING", {
                     "multiline": True,
                     "default": "",
                     "tooltip": "可选用户提示词（兼容 Impact Pack Interrogator 的 user_prompt）："
                                "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
                                "保留特定内容）。留空则只使用指令文本",
+                }),
+                "thinking": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "思考模式：模型先推理再回答（如果模型支持）。默认关闭（Qwen3 "
+                               "空 think 块约定抑制推理）；总是推理的 Think/无审查变体会无视该"
+                               "约定，可开启本项让推理走规范的 thinking 块通道。无论开关，推理"
+                               "内容都会在输出时自动剥离，只保留最终回答",
                 }),
             },
         }
@@ -561,7 +570,8 @@ class SFImageInterrogator:
     CATEGORY = _CATEGORY
     DESCRIPTION = ("图像反推：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本，"
                    "可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用。"
-                   "支持预设（含不描述人物相貌/身材等特征控制指令）")
+                   "支持预设（含不描述人物相貌/身材等特征控制指令）与 thinking 模式"
+                   "（思考内容自动剥离，仅返回最终回答）")
 
     @staticmethod
     def _scale_image(image, megapixels):
@@ -576,7 +586,7 @@ class SFImageInterrogator:
 
     def interrogate(self, clip, image, preset, prompt, max_length, do_sample, temperature, top_k,
                     top_p, repetition_penalty, seed, user_prompt=None, system_prompt=None,
-                    vision_megapixels=1.0):
+                    vision_megapixels=1.0, thinking=False):
         images_vl = self._scale_image(image, vision_megapixels)
         prompt = (prompt or "").strip() or INTERROGATOR_PRESETS.get(preset, INTERROGATOR_DEFAULT_PROMPT)
         user_prompt = (user_prompt or "").strip()
@@ -590,7 +600,11 @@ class SFImageInterrogator:
         # 模型生成时看不到图片，只会产生与图无关的幻觉描述。
         text = "<|vision_start|><|image_pad|><|vision_end|>" + prompt
 
-        tokens = clip.tokenize(text, images=images_vl, llama_template=template)
+        # thinking 必须显式传递：Krea2 的 tokenizer 默认 thinking=True（为 conditioning
+        # 设计，不注入空 think 块），生成路径若沿用该默认会让 Think 变体自由推理并输出
+        # 思考内容。False 时 qwen3vl 注入空 think 块（` thinking\n\n response\n\n`）抑制
+        # 推理（Qwen3 官方约定，仅对遵守它的 instruct 模型有效，见 doc/experience.md §5）。
+        tokens = clip.tokenize(text, images=images_vl, llama_template=template, thinking=thinking)
         generated_ids = clip.generate(
             tokens,
             do_sample=do_sample,
@@ -601,4 +615,14 @@ class SFImageInterrogator:
             repetition_penalty=repetition_penalty,
             seed=seed,
         )
-        return (clip.decode(generated_ids),)
+        out = clip.decode(generated_ids)
+        # 剥离 Qwen3 思考块（` thinking ... response`）：开启 thinking 或 Think 变体
+        # （无视空 think 块约定）时输出以思考块开头，锚定行首避免误伤正文里的
+        # "thinking" 字样（原生 TextGenerateLTX2Prompt 未锚定，会截断
+        # "A person thinking about the sunset" 这类正常文本）。闭合标签要求位于行首
+        # （`\n response\n`），避免推理正文里的 "response" 一词（如 "no response tag"）
+        # 被误判为闭合而残留尾部推理。`|$` 覆盖 max_length 截断、未及闭合标签就中断
+        # 的思考块。剥离后若为空（整段输出都是被截断的推理，无最终回答）直接返回空串
+        # ——绝不能把思考过程泄漏进结果；此时应增大 max_length 以让模型生成最终回答。
+        return (re.sub(r"^\s*thinking.*?(?:\n\s*response(?:\n|$)|$)", "", out,
+                       flags=re.DOTALL).strip(),)
