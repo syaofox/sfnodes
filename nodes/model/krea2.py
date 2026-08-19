@@ -22,7 +22,23 @@ import re
 import torch
 
 import comfy.utils
-from aiohttp import web
+
+# 预设管理纯逻辑（用户覆盖 + 墓碑删除 + 复位）。导入本身无副作用（路由由模块末尾
+# _register_krea2_routes() 注册）；失败时降级为仅内置预设。
+try:
+    from ...sf_utils import krea2_presets as _krea2_presets
+except Exception:  # pragma: no cover - 移植性兜底
+    _krea2_presets = None
+
+
+def _merged_presets(kind, builtin):
+    """当前生效的合并预设 {name: text}（内置 + 用户覆盖/墓碑）。失败回退内置。"""
+    if _krea2_presets is not None:
+        try:
+            return _krea2_presets.merged(kind)
+        except Exception:
+            pass
+    return builtin
 
 # 与模型自身模板保持一致；非 Krea2 版本的 ComfyUI 上回退为字面量副本。
 try:
@@ -372,11 +388,14 @@ class Krea2SystemPrompt:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                # combo 只列内置选项（INPUT_TYPES 在 import 时求值，无法预知运行时新增的
+                # 用户预设）；用户预设由前端加载后动态重建 options（VALIDATE_INPUTS 兜底）。
                 "preset": (list(KREA2_PRESETS.keys()), {
                     "default": "default",
                     "tooltip": "预设系统指令：'none' = 自定义；'default' = 默认 instruct 编辑"
                                "风格指令；其他预设为风格转换或特征控制指令。选择预设会自动"
-                               "填充下方文本，之后仍可手动编辑",
+                               "填充下方文本，之后仍可手动编辑。可在节点管理预设按钮中新增/"
+                               "修改/删除/复位",
                 }),
                 "text": ("STRING", {
                     "multiline": True,
@@ -388,43 +407,39 @@ class Krea2SystemPrompt:
             },
         }
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, **kwargs):
+        # combo 选项由前端按用户预设动态重建，值可能超出 INPUT_TYPES 静态列表。
+        return True
+
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("system_prompt",)
     FUNCTION = "run"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("预置 instruct 风格系统提示词的文本节点，输出接入 Text Encode (Krea2) "
-                   "的 system_prompt 输入。支持预设下拉（风格转换、特征控制）与自定义")
+                   "的 system_prompt 输入。支持预设下拉（风格转换、特征控制）与自定义，"
+                   "可在节点上管理预设（新增/修改/删除/复位）")
 
     def run(self, preset, text):
         text = (text or "").strip()
         if not text:
-            text = KREA2_PRESETS.get(preset, "")
+            text = _merged_presets("krea2", KREA2_PRESETS).get(preset, "")
         return (text,)
 
 
 def _register_krea2_routes():
-    """提供预设数据 API，供前端 web/krea2_system_prompt.js 获取（唯一数据源）。"""
+    """注册两类预设的管理路由（内置 dict 此刻已定义齐全）。
+
+    路由实现在 sf_utils/krea2_presets.py（用户覆盖 + 墓碑删除 + 复位），这里只需
+    传入各自的内置默认源。前端经 GET 获取合并预设、POST/DELETE/reset 管理。
+    """
     try:
-        from server import PromptServer
+        from ...sf_utils import krea2_presets
 
-        ins = getattr(PromptServer, "instance", None)
-        if ins is None or not hasattr(ins, "routes"):
-            return
-        routes = ins.routes
-
-        @routes.get("/api/sfnodes/krea2_presets")
-        async def _krea2_presets(request: web.Request) -> web.Response:
-            return web.json_response(KREA2_PRESETS)
-
-        @routes.get("/api/sfnodes/interrogator_presets")
-        async def _interrogator_presets(request: web.Request) -> web.Response:
-            return web.json_response(INTERROGATOR_PRESETS)
-
+        krea2_presets.register("krea2", KREA2_PRESETS, protected=("none",))
+        krea2_presets.register("interrogator", INTERROGATOR_PRESETS)
     except Exception:
         pass
-
-
-_register_krea2_routes()
 
 
 # 图像反推的默认指令（用户提示词会替换模板占位符）。
@@ -491,10 +506,13 @@ class SFImageInterrogator:
                 "image": ("IMAGE", {
                     "tooltip": "待反推的图片，由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述文本",
                 }),
+                # combo 只列内置选项（INPUT_TYPES 在 import 时求值，无法预知运行时新增的
+                # 用户预设）；用户预设由前端加载后动态重建 options（VALIDATE_INPUTS 兜底）。
                 "preset": (list(INTERROGATOR_PRESETS.keys()), {
                     "default": "default",
                     "tooltip": "反推指令预设（含不描述人物相貌等特征控制指令）。选择后自动填充"
-                               "下方文本，之后仍可手动编辑；留空文本时回退到所选预设",
+                               "下方文本，之后仍可手动编辑；留空文本时回退到所选预设。可在节点"
+                               "管理预设按钮中新增/修改/删除/复位",
                 }),
                 "prompt": ("STRING", {
                     "multiline": True,
@@ -570,8 +588,13 @@ class SFImageInterrogator:
     CATEGORY = _CATEGORY
     DESCRIPTION = ("图像反推：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本，"
                    "可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用。"
-                   "支持预设（含不描述人物相貌/身材等特征控制指令）与 thinking 模式"
-                   "（思考内容自动剥离，仅返回最终回答）")
+                   "支持预设（含不描述人物相貌/身材等特征控制指令，可在节点上管理："
+                   "新增/修改/删除/复位）与 thinking 模式（思考内容自动剥离，仅返回最终回答）")
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, **kwargs):
+        # combo 选项由前端按用户预设动态重建，值可能超出 INPUT_TYPES 静态列表。
+        return True
 
     @staticmethod
     def _scale_image(image, megapixels):
@@ -588,7 +611,8 @@ class SFImageInterrogator:
                     top_p, repetition_penalty, seed, user_prompt=None, system_prompt=None,
                     vision_megapixels=1.0, thinking=False):
         images_vl = self._scale_image(image, vision_megapixels)
-        prompt = (prompt or "").strip() or INTERROGATOR_PRESETS.get(preset, INTERROGATOR_DEFAULT_PROMPT)
+        prompt = ((prompt or "").strip()
+                  or _merged_presets("interrogator", INTERROGATOR_PRESETS).get(preset, INTERROGATOR_DEFAULT_PROMPT))
         user_prompt = (user_prompt or "").strip()
         if user_prompt:
             prompt = prompt + "\n" + user_prompt
@@ -626,3 +650,7 @@ class SFImageInterrogator:
         # ——绝不能把思考过程泄漏进结果；此时应增大 max_length 以让模型生成最终回答。
         return (re.sub(r"^\s*thinking.*?(?:\n\s*response(?:\n|$)|$)", "", out,
                        flags=re.DOTALL).strip(),)
+
+
+# 模块末尾注册（INTERROGATOR_PRESETS 已在上面定义，注册需捕获内置 dict 作默认源）。
+_register_krea2_routes()

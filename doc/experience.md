@@ -35,6 +35,7 @@
 - [28. SFStylesSelector：风格选择器复刻（Easy-Use stylesSelector）](#28-sfstylesselector风格选择器复刻easy-use-stylesselector)
 - [29. SFPromptPreset：十一分类组合预设（正交原则 / 随机机制 / LLM 优化链路）](#29-sfpromptpreset十一分类组合预设正交原则--随机机制--llm-优化链路)
 - [30. SF LoRA 浏览器：工具栏应用 + 信息面板宿主 ctx 适配（浏览全部 LoRA 并编辑信息）](#30-sf-lora-浏览器工具栏应用--信息面板宿主-ctx-适配浏览全部-lora-并编辑信息)
+- [31. Krea2 预设管理：SFImageInterrogator / SFKrea2SystemPrompt（内置 + 用户覆盖 + 墓碑复位）](#31-krea2-预设管理sfimageinterrogator--sfkrea2systemprompt内置--用户覆盖--墓碑复位)
 
 ---
 
@@ -1352,3 +1353,48 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
 - `tests/test_lora_browser_smoke.js`：mock DOM 真实加载全依赖链——扩展注册（name/command/keybinding/canvas 菜单）→ 按钮挂载 → 点击开窗 → lora_list 数据层 → 网格渲染/计数 → 搜索过滤 → 点击卡片真实打开信息面板（浏览器 ctx 路径）→ 关闭。**同时锁定重构回归**：`test_lora_stack_info_desc_smoke.js` 25 断言全绿证明 Stack 路径逐字节不变。
 - 诊断脚本（交付用户）：版本检查 → 扩展注册状态 → 按钮挂载 DOM 检查 → 打开窗口 → 数据层（lora_list 计数）→ 网格渲染 → 信息面板编辑往返（勾词/存描述）→ 热键。部署：`web/` 同步 docker 目录 + 浏览器硬刷新。
 
+
+---
+
+## 31. Krea2 预设管理：SFImageInterrogator / SFKrea2SystemPrompt（内置 + 用户覆盖 + 墓碑复位）
+
+> 背景：两类预设（反推指令 `INTERROGATOR_PRESETS` + 系统指令 `KREA2_PRESETS`）原为 krea2.py 硬编码 dict、仅 GET 返回，无法管理。用户要求"添加/删除/修改/复位"。落地为 `sf_utils/krea2_presets.py`（纯逻辑）+ `web/sf_krea2_presets.js`（共享管理 popup）。
+
+### 1. 数据模型：内置 + 用户覆盖 + 墓碑
+
+- **内置默认**：krea2.py 硬编码 dict 作默认源（不迁 data JSON，改动最小）。
+- **用户存储**：`<user>/sfnodes/{interrogator,krea2}_presets.json`，结构 `{"overrides": {"名": "文本"}, "deleted": ["内置名"]}`：
+  - `overrides` 兼两职：修改内置（按名覆盖、保持内置位置）+ 新增（内置没有的名字追加到末尾）；
+  - `deleted` 是墓碑，标记被删的内置（复位=清除墓碑还原）。
+- **merge(builtin, store) 纯函数**（确定性）：以内置顺序为基准 → 跳过墓碑 → overrides 覆盖文本 → 追加新增。**墓碑胜出**：同名既覆盖又删除时以删为准（API 路径不会产生该状态——POST 存会清墓碑、DELETE 删内置会清 override，仅直接编辑文件可能并存，取删优先安全）。
+- **受保护名**：`register(kind, builtin, protected=("none",))` —— Krea2SystemPrompt 的 `"none"` 虚拟项不可删除/复位（DELETE/reset 返回 400）。
+- **语义映射**：修改/新增=写 overrides；删除内置=记墓碑、删用户新增=移除 override；复位单个=清该名 override+墓碑；复位全部=清空整个 store 文件。
+
+### 2. 后端：sf_utils/krea2_presets.py
+
+- `_sf_user_dir()`：本地镜像（styles_selector 同款，避免拉入 lora_routes 重依赖）；`folder_paths.get_user_directory()` 兜底 `<pkg>/user`。
+- `load_store/save_store`：mtime+size 缓存热加载（prompt_preset 范式）+ tmp 带线程 id + `os.replace` 原子替换（lora_presets 同款）。
+- `asyncio.Lock` 每 kind 一把：并发读-改-写防互擦。
+- 路由（`register(kind, builtin, protected)` 注册，由 krea2.py 模块末尾 `_register_krea2_routes()` 调用——**必须在内置 dict 定义之后**，注册捕获 builtin 引用）：
+  - `GET /api/sfnodes/{kind}_presets` → `{presets(合并), builtin, user, deleted}`（前端需区分内置/用户以显示复位与徽标）；
+  - `POST` `{name,text}` 新增/修改（存时清墓碑=复活）；`DELETE ?name=` 删除（内置墓碑/用户移除）；`POST /reset` `{name}` 或 `{all:true}`。
+- **旧 GET 路由迁移**：原 krea2.py `_register_krea2_routes()` 里直接返回 dict 的两个 GET 迁到本模块（返回结构变更需同步前端）。
+
+### 3. 节点改动（动态 combo，见 §4）
+
+- `preset` combo 静态只列内置（INPUT_TYPES 在 import 时求值，无法预知运行时新增用户预设）→ 两节点加 `VALIDATE_INPUTS=True`（值超出静态列表不拦截），**前端加载后重建 combo options**。
+- 执行回退改用合并预设：`prompt or _merged_presets(kind, builtin).get(preset, ...)`——`_merged_presets` 调用 `krea2_presets.merged(kind)`（`merge(_builtin[kind], load_store(kind))`），失败降级内置。
+- 注意：krea2_presets.py 顶层 import **无副作用**（不自动注册路由），路由只在 `register()` 触发；krea2.py 顶层 `try: from ...sf_utils import krea2_presets` 失败降级 `None` → `_merged_presets` 回退内置，功能不崩。
+
+### 4. 前端：web/sf_krea2_presets.js（共享）
+
+- **combo 动态重建**：`setPresetOptions(node, presets)` 把 `preset` widget 的 `options` 设为合并名（保留当前值，VALIDATE_INPUTS 兜底）；`refreshAllNodes(kind, comfyClass)` 改动后重拉 → 重建所有同 class 节点 → 派发 `sfnodes.<kind>-presets-changed` 事件（跨节点/跨窗口兜底同步）。
+- **管理按钮**：`addManageButton(node, kind)` 用 `addDOMWidget` 加纯按钮（`serialize:false`、`getValue→null`，**不写 .value → 无 §2.7 值写入递归风险**）；DOM widget 追加在 INPUT_TYPES 各 widget 之后，不移动它们的索引（旧工作流 widgets_values 不错位）。
+- **管理 popup**（`openPresetManager`）：复用 `sf_popup.js` 三件套（attachPopupDismiss + clampToViewport + exempt 豁免）；列表每行 名称+内置/用户徽标+文本预览+编辑/复位/删除；顶部 新增/复位全部；编辑=名称 input + 多行 textarea。破坏性操作 `confirm()` 确认；复位仅对"内置被改或用户新增"显示。
+- 两节点 JS（krea2_interrogator.js / krea2_system_prompt.js）各自 import 共享模块，仅传 `kind`/`comfyClass`；原预设→文本填充逻辑（含 Krea2SystemPrompt 的 `krea2PresetName` 派生标记、configure 同步）保留不变，`presets` 缓存改为合并视图。
+
+### 5. 测试与部署
+
+- `tests/test_krea2_presets.py`：merge 纯函数（覆盖/墓碑/新增/并存/非法兜底）、校验、store 读写缓存、路由 CRUD（含 404/400/保护名/复活/复位全部）。**坑**：路由测试前必须清空用户存储（上面 store 读写测试写入了数据，污染 GET 断言）；改/删并存语义定为墓碑胜出。
+- `tests/test_krea2_presets_smoke.mjs`：mock fetch/app/document 真实加载模块（拷 .mjs + 替换 `/scripts/app.js` 绝对导入为本地 stub）验证 API 封装、setPresetOptions、refreshAllNodes 重建+广播。**坑**：stub app 的 `_nodes` 在 import 时按值捕获 global → 必须在 import 前设数组、之后只 push 不重赋值。
+- 部署：后端需重启容器（新增模块/路由），`web/` 同步 docker 目录 + 浏览器硬刷新；`tests/check_web_imports.py` MODS 已加 `sf_krea2_presets`。

@@ -16,7 +16,7 @@ sfnodes/
 │   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
 │   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸）、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
-│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；Power 系 power_lora_loader.py/power_lora_preset.py：SFPowerLoraLoader 对话框 + merge_method linear/ortho_gs（正交堆叠见 sf_utils/lora_ortho*.py），与 Stack 共用 lora_notes 网关；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 experience.md §5.4）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
+│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；Power 系 power_lora_loader.py/power_lora_preset.py：SFPowerLoraLoader 对话框 + merge_method linear/ortho_gs（正交堆叠见 sf_utils/lora_ortho*.py），与 Stack 共用 lora_notes 网关；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 experience.md §5.4；Interrogator/SystemPrompt 预设可管理——内置+用户覆盖，见 experience.md §31）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
 │   ├── text/            # 文本：翻译/拼接/角色选择（text.py：TextTranslation/TextCombine/AnimeCharSelect；另 concatenate.py：SFTextConcatenate）、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、提示词列表（prompt_list.py：SFPromptList 行拆分/切片/空白行过滤 skip_empty，行号编辑器 sf_prompt_list.js）、动态 Prompt 列表（prompt_stack.py：SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高（state.rows[i].h，随工作流保存），状态对齐 Pixaroma PromptStack 形状 rows/enabled/text，prompt_reader 恢复共享，sf_prompt_stack_core.js 纯逻辑 + sf_prompt_stack.js 行 UI）、提示词预设（prompt_preset.py：SFPromptPreset 十一分类组合/加权随机/[A,B] 括号随机/LLM 优化链路 optimize_request + SFUnpackPromptPreset 解包，数据 data/prompt_presets.json 热加载）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、风格选择器（styles_selector.py：SFStylesSelector 复刻 Easy-Use stylesSelector——Fooocus 275 风格多选/搜索/悬停缩略图，内置 data/styles/*.json + 用户 user/sfnodes/styles/*.json 同名覆盖，{prompt} 占位拼接 1:1，隐藏 SFStylesState 真源，同文件注册路由 /api/sfnodes/styles*）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、替换模板（replace.py）、正则提取（regex_extract.py）、任意转字符串（any_to_string.py）、提示词批处理（prompt_batcher.py）、随机编辑（random_edit_prompt.py）、多机位相机（multiangle_camera.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
@@ -52,6 +52,7 @@ sfnodes/
 │   ├── color_match_points.py # 三点色彩匹配纯逻辑（亮度分位三点提取/逐通道分段线性 LUT/查表，SFImageColorMatchByPoints 用，无 ComfyUI 依赖）
 │   ├── regional_engine.py # 区域 LoRA 纯逻辑（键归一化/矩阵解析/regions JSON/层规划+每区域匹配诊断/token 网格 mask 数学/彩虹预览，SFRegionalLoRA 用，无 ComfyUI 依赖）
 │   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
+│   ├── krea2_presets.py # Krea2 预设管理纯逻辑（内置+用户覆盖+墓碑删除+复位，merge/校验/读写，register(kind,builtin,protected) 注册路由，SFImageInterrogator 反推预设 + SFKrea2SystemPrompt 系统指令预设共用，见 experience.md §31）
 │   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化）
 │   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
@@ -83,6 +84,7 @@ sfnodes/
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
 │   ├── sf_lora_info.js    # Power 系 LoRA 信息对话框（sf_markdown.js 渲染描述）
 │   ├── power_lora_loader.js / power_lora_preset.js # Power 系节点前端
+│   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
 │   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
 │   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）
 │   └── 其余单节点 JS（text_replace/text_concatenate/simple_math/loop_flow/any_pack/image_browser/lora_loader*/lora_loader_model_only/multi_lora_tree/image_compare/image_concatenate/regex_extract/prompt_batcher/empty_latent_ratio/krea2_*/seed/canvas_size/workflow_name/sf_combo_selector/sf_color_picker/showcontrol/DisplayText/SFLogicSwitch/...）
@@ -336,6 +338,11 @@ class SFMyNode:
 - **Krea2 grounded phrasing**：环境片段自动加 `in the`/`on the` 空间介词（表面类环境 on the），主体明确"身处"场景。
 - **LLM 优化链路**：optimize_request 含创作声明 + 11 条指令（保持衣着水平不强制穿衣、防拒条款、防思考条款）+ 续写锚定，喂官方 TextGenerate；Qwen3 thinking 参数见 §5。
 - 数据 `data/prompt_presets.json` 热加载（mtime + 线程锁）；删改预设的旧工作流值经 VALIDATE_INPUTS 降级空串（§4 模式）；破坏性变更：旧 12 条 STRING → 3 输出 + SFUnpackPromptPreset 还原。
+
+**前后端：Krea2 预设管理（`sf_utils/krea2_presets.py` + `web/sf_krea2_presets.js`，SFImageInterrogator/SFKrea2SystemPrompt 共用）→ experience.md §31**
+- 数据模型：内置 dict 为默认源 + 用户存储 `<user>/sfnodes/{kind}_presets.json`（`overrides` 兼修改/新增、`deleted` 墓碑删除）；`merge()` 墓碑胜出；`"none"` 受保护不可删。
+- 动态 combo：INPUT_TYPES 静态只列内置 → 前端加载后重建 options + 两节点 `VALIDATE_INPUTS=True`（§4 模式）；执行回退用合并预设 `_merged_presets(kind, builtin)`，失败降级内置。
+- 管理 popup：复用 `sf_popup.js` 三件套；改动后 `refreshAllNodes` 重建所有同 class 节点 + 派发 `sfnodes.<kind>-presets-changed`；管理按钮用 `addDOMWidget` 纯按钮（不写 .value 无递归风险）。
 
 **前后端：SFLoraStack 多行 LoRA 栈（`sf_utils/lora_reader.py` + `lora_routes.py`、`nodes/model/lora_stack.py`、`web/sf_lora_stack*.js` 模块系列）→ experience.md §19**
 - **Civitai API 字段位置必须实测**：model-versions 响应里 `model` 对象只有 name/nsfw/poi/type——**说明文字在 version 顶层 `description`**（HTML，需剥标签/实体解码/空白折叠）；thumbnail 取 `images[]` 第一张非成人图。

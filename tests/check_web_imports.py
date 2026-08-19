@@ -59,6 +59,8 @@ MODS = [
     "sf_prompt_stack", "sf_prompt_stack_core",
     # 公共弹层三件套
     "sf_popup",
+    # Krea2 预设管理（Interrogator + SystemPrompt 共用）
+    "sf_krea2_presets",
     # 单文件多依赖节点
     "load_images_path", "sf_prompt_reader", "sf_prompt_list",
 ]

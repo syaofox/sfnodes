@@ -1,7 +1,7 @@
 // SF Krea2 System Prompt 预设联动：切换 preset 时自动把对应预设文本填入 text widget，
-// 之后仍可手动编辑；选 "none" 不覆盖当前内容。
-// 预设数据唯一来源为后端 nodes/model/krea2.py 的 KREA2_PRESETS（经 API 获取），
-// 前端不内嵌副本，避免双份维护。
+// 之后仍可手动编辑；选 "none" 不覆盖当前内容。提供"管理预设"入口（新增/修改/删除/复位）。
+// 预设数据唯一来源为后端（sf_utils/krea2_presets.py，合并内置+用户覆盖，经 API 获取），
+// 前端不内嵌副本，避免双份维护。combo 选项由用户预设动态重建（VALIDATE_INPUTS 兜底）。
 //
 // 预设文本以字面量随工作流保存（数据载体模式），后端改进预设措辞后旧工作流不生效。
 // 对策：选择预设时在 node.properties.krea2PresetName 记下"文本由哪个预设派生"；
@@ -9,12 +9,21 @@
 // 编辑过即清除标记，绝不覆盖手动内容（旧工作流无标记，保持原样）。
 
 import { app } from "/scripts/app.js";
+import {
+  fetchPresets,
+  addManageButton,
+  setPresetOptions,
+  reloadNodes,
+  presetsChangedEvent,
+  nodesOfClass,
+} from "./sf_krea2_presets.js";
 
-const PRESETS_API = "/api/sfnodes/krea2_presets";
+const KIND = "krea2";
+const COMIFY_CLASS = "SFKrea2SystemPrompt";
 const PRESET_PROP = "krea2PresetName";
-const MAX_ATTEMPTS = 10; // 加载失败重试上限（10 × 3s = 30s），路由缺失时避免永久空转
+const MAX_ATTEMPTS = 10;
 
-let presets = null;          // 预设缓存：{key: text}
+let presets = null;          // 合并预设缓存：{key: text}
 let failedAttempts = 0;
 let gaveUp = false;
 const pendingNodes = [];     // 缓存就绪前创建的节点挂载队列
@@ -23,13 +32,9 @@ async function loadPresets() {
     if (presets || gaveUp) return;
     failedAttempts += 1;
     try {
-        const resp = await fetch(PRESETS_API);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
-            throw new Error("empty presets");
-        }
-        presets = data;
+        const data = await fetchPresets(KIND);
+        presets = data.presets;
+        for (const n of nodesOfClass(COMIFY_CLASS)) setPresetOptions(n, presets);
         attachPending();
         return;
     } catch (e) {
@@ -39,7 +44,7 @@ async function loadPresets() {
     }
     if (failedAttempts >= MAX_ATTEMPTS) {
         gaveUp = true;
-        console.error("[SFKrea2SystemPrompt] 预设加载已放弃（后端路由未生效，请重启容器）。预设联动不可用，可手动编辑文本");
+        console.error("[SFKrea2SystemPrompt] 预设加载已放弃（后端路由未生效，请重启容器）。预设联动与管理不可用，可手动编辑文本");
     } else {
         setTimeout(loadPresets, 3000);
     }
@@ -69,15 +74,22 @@ app.registerExtension({
     name: "sfnodes.krea2_system_prompt",
     setup() {
         loadPresets();
+        document.addEventListener(presetsChangedEvent(KIND), async () => {
+            const data = await reloadNodes(KIND, COMIFY_CLASS);
+            if (data && data.presets) presets = data.presets;
+        });
     },
     nodeCreated(node) {
-        if (node?.comfyClass !== "SFKrea2SystemPrompt") return;
+        if (node?.comfyClass !== COMIFY_CLASS) return;
+
+        addManageButton(node, KIND);
 
         const presetWidget = node.widgets?.find((w) => w.name === "preset");
         const textWidget = node.widgets?.find((w) => w.name === "text");
         if (!presetWidget || !textWidget) return;
 
         const init = (data) => {
+            setPresetOptions(node, data);
             const origPresetCallback = presetWidget.callback;
             presetWidget.callback = function (value) {
                 const r = origPresetCallback ? origPresetCallback.call(this, value) : undefined;
