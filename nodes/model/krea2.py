@@ -581,15 +581,13 @@ class SFImageInterrogator:
                                "较小的保持原始大小，不会被放大",
                 }),
                 # 注意：ComfyUI 前端按 widget 数组索引恢复旧工作流的值（widgets_values
-                # 位置敏感），新增 widget 若插在中间会导致旧工作流值错位（如 vision_megapixels
-                # 的 1 落入 user_prompt）。新增 widget 一律追加到末尾（当前末尾即
-                # user_prompt 之后的 thinking），不得插入中间位置。
+                # 位置敏感），新增 widget 若插在中间会导致旧工作流值错位。新增 widget
+                # 一律追加到末尾（当前末尾即 thinking），不得插入中间位置。
                 "user_prompt": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "可选用户提示词（兼容 Impact Pack Interrogator 的 user_prompt）："
+                    "forceInput": True,
+                    "tooltip": "可选用户提示词输入（兼容 Impact Pack Interrogator 的 user_prompt）："
                                "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
-                               "保留特定内容）。留空则只使用指令文本",
+                               "保留特定内容）。不连接则只使用指令文本",
                 }),
                 "thinking": ("BOOLEAN", {
                     "default": False,
