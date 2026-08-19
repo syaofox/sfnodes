@@ -37,8 +37,8 @@ def run():
         "<think>用户思考 no response tag</think>答案。"
     ) == "答案。"
 
-    # max_length 截断、未及 </think>：整段剥光（绝不泄漏思考）
-    assert _strip_qwen3_thinking("<think>用户思考没写完") == ""
+    # max_length 截断、未及 </think>：返回原始文本（兜底，不返回空）
+    assert _strip_qwen3_thinking("<think>用户思考没写完") == "<think>用户思考没写完"
 
     # 无思考块：原样返回
     assert _strip_qwen3_thinking("A normal description.") == "A normal description."

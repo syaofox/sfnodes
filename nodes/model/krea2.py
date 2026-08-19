@@ -501,10 +501,11 @@ _THINKING_STRIP_RE = re.compile(
 def _strip_qwen3_thinking(out):
     """剥离 Qwen3 思考块（<think>...</think>），只保留最终回答。
 
-    剥离后若为空（整段输出都是被截断的思考，无最终回答）直接返回空串——绝不能把思考
-    过程泄漏进结果；此时应增大 max_length 以让模型生成最终回答。
+    剥离后若为空（整段输出都是被截断的思考，无最终回答），返回原始文本作为兜底，
+    避免用户看到空结果（此时可增大 max_length 或关闭 thinking 重试）。
     """
-    return _THINKING_STRIP_RE.sub("", out).strip()
+    stripped = _THINKING_STRIP_RE.sub("", out).strip()
+    return stripped if stripped else out
 
 
 class SFImageInterrogator:
