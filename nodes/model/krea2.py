@@ -488,6 +488,25 @@ INTERROGATOR_PRESETS = {
 }
 
 
+_THINKING_STRIP_RE = re.compile(
+    # 剥离 Qwen3 思考块：开启 thinking 或 Think 变体（无视空 think 块约定）时输出以思考块
+    # 开头。标记为 `<think>`...`</think>`（实测 Think/无审查变体运行时格式）。整段思考块
+    # 剥离后只保留 `</think>` 之后的最终回答。`|\Z` 覆盖 max_length 截断、未及
+    # `</think>` 就中断的思考块。
+    r"^\s*<think>.*?(</think>|\Z)",
+    flags=re.DOTALL,
+)
+
+
+def _strip_qwen3_thinking(out):
+    """剥离 Qwen3 思考块（<think>...</think>），只保留最终回答。
+
+    剥离后若为空（整段输出都是被截断的思考，无最终回答）直接返回空串——绝不能把思考
+    过程泄漏进结果；此时应增大 max_length 以让模型生成最终回答。
+    """
+    return _THINKING_STRIP_RE.sub("", out).strip()
+
+
 class SFImageInterrogator:
     """图像反推节点：用 Krea2 的 CLIP（Qwen3-VL-4B）将输入图片生成为描述文本。
 
@@ -640,16 +659,7 @@ class SFImageInterrogator:
             seed=seed,
         )
         out = clip.decode(generated_ids)
-        # 剥离 Qwen3 思考块（` thinking ... response`）：开启 thinking 或 Think 变体
-        # （无视空 think 块约定）时输出以思考块开头，锚定行首避免误伤正文里的
-        # "thinking" 字样（原生 TextGenerateLTX2Prompt 未锚定，会截断
-        # "A person thinking about the sunset" 这类正常文本）。闭合标签要求位于行首
-        # （`\n response\n`），避免推理正文里的 "response" 一词（如 "no response tag"）
-        # 被误判为闭合而残留尾部推理。`|$` 覆盖 max_length 截断、未及闭合标签就中断
-        # 的思考块。剥离后若为空（整段输出都是被截断的推理，无最终回答）直接返回空串
-        # ——绝不能把思考过程泄漏进结果；此时应增大 max_length 以让模型生成最终回答。
-        return (re.sub(r"^\s*thinking.*?(?:\n\s*response(?:\n|$)|$)", "", out,
-                       flags=re.DOTALL).strip(),)
+        return (_strip_qwen3_thinking(out),)
 
 
 # 模块末尾注册（INTERROGATOR_PRESETS 已在上面定义，注册需捕获内置 dict 作默认源）。
