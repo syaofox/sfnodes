@@ -114,6 +114,7 @@ export async function refreshAllNodes(kind, comfyClass, onError) {
 // ── 节点"管理预设"按钮（DOM widget，不存值 → 无值写入递归风险）────────
 export function addManageButton(node, kind) {
   if (!node || node._sfK2PManageAdded) return;
+  injectCSS();
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "sf-k2p-manage";

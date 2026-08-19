@@ -91,17 +91,22 @@ app.registerExtension({
         const promptWidget = node.widgets?.find((w) => w.name === "prompt");
         if (!presetWidget || !promptWidget) return;
 
+        // 立即包装 callback（在 Vue 首次渲染前），确保 combo 值变化时能正确联动。
+        // 预设数据通过 node.properties 间接引用，不受 widget 重建影响。
+        const origCallback = presetWidget.callback;
+        presetWidget.callback = function (value) {
+            const r = origCallback ? origCallback.call(this, value) : undefined;
+            const data = node.properties._krea2PresetData;
+            if (data && data[value] !== undefined) {
+                promptWidget.value = data[value];
+                node.setDirtyCanvas(true, true);
+            }
+            return r;
+        };
+
         const init = (data) => {
+            node.properties._krea2PresetData = data;
             setPresetOptions(node, data);
-            const origCallback = presetWidget.callback;
-            presetWidget.callback = function (value) {
-                const r = origCallback ? origCallback.call(this, value) : undefined;
-                if (data[value] !== undefined) {
-                    promptWidget.value = data[value];
-                    node.setDirtyCanvas(true, true);
-                }
-                return r;
-            };
         };
 
         if (presets) {

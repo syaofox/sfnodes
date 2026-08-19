@@ -88,34 +88,38 @@ app.registerExtension({
         const textWidget = node.widgets?.find((w) => w.name === "text");
         if (!presetWidget || !textWidget) return;
 
+        // 立即包装所有 callback（在 Vue 首次渲染前），确保 combo/text 值变化时能正确联动。
+        // 预设数据通过 node.properties 间接引用，不受 widget 重建影响。
+        const origPresetCallback = presetWidget.callback;
+        presetWidget.callback = function (value) {
+            const r = origPresetCallback ? origPresetCallback.call(this, value) : undefined;
+            const data = node.properties._krea2PresetData;
+            if (value !== "none" && data && data[value] !== undefined) {
+                textWidget.value = data[value];
+                node.properties[PRESET_PROP] = value;
+                node.setDirtyCanvas(true, true);
+            }
+            return r;
+        };
+
+        const origTextCallback = textWidget.callback;
+        textWidget.callback = function (value) {
+            const r = origTextCallback ? origTextCallback.call(this, value) : undefined;
+            delete node.properties[PRESET_PROP];
+            return r;
+        };
+
+        const origConfigure = node.configure;
+        node.configure = function (info) {
+            const r = origConfigure ? origConfigure.call(this, info) : undefined;
+            syncFromPreset(node, node.properties._krea2PresetData || {});
+            return r;
+        };
+        syncFromPreset(node, node.properties._krea2PresetData || {});
+
         const init = (data) => {
+            node.properties._krea2PresetData = data;
             setPresetOptions(node, data);
-            const origPresetCallback = presetWidget.callback;
-            presetWidget.callback = function (value) {
-                const r = origPresetCallback ? origPresetCallback.call(this, value) : undefined;
-                if (value !== "none" && data[value] !== undefined) {
-                    textWidget.value = data[value];
-                    node.properties[PRESET_PROP] = value; // 标记预设派生，加载时可自动同步最新措辞
-                    node.setDirtyCanvas(true, true);
-                }
-                return r;
-            };
-
-            // 用户手动编辑 = 接管文本控制权：清除派生标记，防止加载时被自动覆盖。
-            const origTextCallback = textWidget.callback;
-            textWidget.callback = function (value) {
-                const r = origTextCallback ? origTextCallback.call(this, value) : undefined;
-                delete node.properties[PRESET_PROP];
-                return r;
-            };
-
-            // widget 值在 configure 时才恢复（工作流加载/复制路径），包装后在值恢复处同步。
-            const origConfigure = node.configure;
-            node.configure = function (info) {
-                const r = origConfigure ? origConfigure.call(this, info) : undefined;
-                syncFromPreset(node, data);
-                return r;
-            };
             syncFromPreset(node, data);
         };
 
