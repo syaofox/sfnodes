@@ -1,7 +1,7 @@
 # 历史经验归档（experience）
 
 > 本文件归档 AGENTS.md 精简（2026-08）时删除的具体机制与踩坑经验；主文档只保留通用约束与每类机制的结论摘要（见 AGENTS.md「经验摘要」）。
-> 内容基于当时代码/前端版本（comfyui_frontend_package 1.47.x~1.48.x，各节另有标注），可能随版本升级过时，使用时结合代码核实。
+> 内容基于当时代码/前端版本（comfyui_frontend_package 1.x，Vue 重构后，版本号会随升级变化，以容器内 `pip show comfyui-frontend-package` 为准，各节另有标注），可能随版本升级过时，使用时结合代码核实。
 
 ## 目录
 
@@ -132,7 +132,7 @@ Object.defineProperty(app, 'dragOverNode', {
 });
 ```
 
-**部署注意**：用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致），修改 `web/` 下 JS 后需**同步该目录**，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效；后端改动需重启容器。
+**部署注意**：用户运行实例为 docker 部署（以实际挂载路径为准，与本地仓库内容一致），修改 `web/` 下 JS 后需**同步该目录**，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效；后端改动需重启容器。
 
 ### 6. 文本 widget 自定义右键菜单（做"右键插入"类功能必知）
 
@@ -158,7 +158,7 @@ Object.defineProperty(app, 'dragOverNode', {
 
 ### 8. ComfyUI 新版 Vue 前端机制（做"悬停提示/DOM 交互"必知）
 
-> 背景：SFPromptPreset 预设说明展示两次翻车（2026-08）。先做 canvas mousemove + 固定 DOM 卡片 → 完全不生效；清除 `widget.tooltip` 抑制原生提示 → 依然显示。最终发现用户跑的是 ComfyUI 新版 Vue 前端（comfyui_frontend_package 1.47.10），旧 LiteGraph canvas 机制已废弃。最终方案：动态写入 `widget.tooltip`，见 `web/prompt_preset.js`。
+> 背景：SFPromptPreset 预设说明展示两次翻车（2026-08）。先做 canvas mousemove + 固定 DOM 卡片 → 完全不生效；清除 `widget.tooltip` 抑制原生提示 → 依然显示。最终发现用户跑的是 ComfyUI 新版 Vue 前端（comfyui_frontend_package 1.47.10，当时版本，当前以 `pip show comfyui-frontend-package` 为准），旧 LiteGraph canvas 机制已废弃。最终方案：动态写入 `widget.tooltip`，见 `web/prompt_preset.js`。
 
 - **先确认前端版本再选方案**：ComfyUI 前端自 2025 年起从仓库 `web/` 目录改为独立 pip 包 `comfyui-frontend-package`（新版 Vue 重构）。判断方法：容器内 `pip show comfyui-frontend-package`（Version 1.x = Vue 前端）；**后端版本号 ≠ 前端版本号**；仓库源码副本（`../..`）无前端代码，需查 `Comfy-Org/ComfyUI_frontend` GitHub 仓库或容器内 pip 包 static 目录。
 - **Vue 前端下 canvas 事件/坐标方案全部失效**：widget 是 Vue 渲染的 DOM 元素（覆盖在 canvas 上方），`app.canvas` 的 mousemove 监听收不到悬停 widget 的事件（DOM 遮挡）；`node.pos + widget.pos/size` 几何命中同样失去意义。做"悬停 widget 显示信息"类功能**不要走 canvas 事件路线**。
@@ -214,7 +214,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 11. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
 
-> 背景：SFComboSelector 通用下拉选择器（2026-08，前端 1.48.6）：输出连到目标节点 combo 输入（Convert to input 后）→ 下拉选项自动同步为目标选项列表。踩坑链：连线后选项不动 → 事件没触发? → 数据层取不到列表 → 目标节点解析失败。
+> 背景：SFComboSelector 通用下拉选择器（2026-08，前端 1.48.6，当时版本）：输出连到目标节点 combo 输入（Convert to input 后）→ 下拉选项自动同步为目标选项列表。踩坑链：连线后选项不动 → 事件没触发? → 数据层取不到列表 → 目标节点解析失败。
 
 - **坑 1（根因）：Vue 新版 LLink 字段名变了**。旧版 `link.target_node`/`origin_node`，新版为 **`target_id`/`origin_id`**（`target_slot`/`origin_slot` 未变），且**节点 id 为字符串**。按旧字段取 → `undefined` → 目标解析失败 → 选项同步静默失效（无任何报错）。取目标必须 `link.target_node ?? link.target_id`，节点查找用 `String(n.id) === String(id)` 比较。
 - **坑 2：combo 输入槽 `slot.type` 在新版是字符串 `"COMBO"`**（不是旧版的选项数组/逗号串）→ 从槽类型取不到列表。**Convert to input 后原 combo widget 仍保留在 `node.widgets`（含动态重建的 `options.values`）**——这是动态选项（如 SFPromptPreset 的 441 项）唯一可靠来源，nodeDef 兜底只有静态列表。三级兜底：槽类型（数组/JSON/逗号串归一化）→ 同名残留 widget 的 `options.values` → nodeDef。
@@ -1146,8 +1146,8 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 1. `ast.Constant.n` 版本陷阱（Python 3.13 deprecated / 3.14 removed）——simple_math.py
 
-- `ast.Constant.n` 是 `value` 的旧别名：**3.13 起访问抛 DeprecationWarning，3.14 起属性移除**（`_fields = ('value', 'kind')`，实测 3.14.7 `node.n` AttributeError）。修复一律写 `node.value`（3.8+ 全版本存在）。
-- **开发环境与容器的版本差**：本机 python3 是 3.14（`__pycache__` 的 cpython-314 是**本机**产物，不代表容器）；comfyui-docker 容器实测 Python 3.12.3。同一段代码在两个版本可能行为不同（3.14 上 `ast.parse('1+2*3')` 直接 AttributeError，3.12 正常）——涉及 ast/语法 API 的改动要以**容器版本**为行为基准写测试断言。
+- `ast.Constant.n` 是 `value` 的旧别名：**3.13 起访问抛 DeprecationWarning，3.14 起属性移除**（`_fields = ('value', 'kind')`，实测 3.14.x `node.n` AttributeError，当时版本）。修复一律写 `node.value`（3.8+ 全版本存在）。
+- **开发环境与容器的版本差**：本机 python3 是 3.14.x（`__pycache__` 的 cpython-314 是**本机**产物，不代表容器，版本号会随升级变化）；comfyui-docker 容器实测 Python 3.12.x（当时版本，以容器内 `python3 --version` 为准）。同一段代码在两个版本可能行为不同（3.14 上 `ast.parse('1+2*3')` 直接 AttributeError，3.12 正常）——涉及 ast/语法 API 的改动要以**容器版本**为行为基准写测试断言。
 - SimpleMath 表达式求值的完整崩溃面（修复前）：语法错误 SyntaxError、`1/0` ZeroDivisionError、未注册运算符（`^`/`@`）KeyError、**字符串常量 `"abc"` 与字符串变量 → `math.isnan(str)` TypeError**、`0**-1` ZeroDivisionError。修复：整段 eval_ 包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError/AttributeError）回退 `(0, 0.0)` + warning；`isnan` 前 `isinstance(result, (int, float))` 校验。
 - 教训：`__pycache__` 的 `cpython-3xx` 目录是**本机解释器**版本而非运行环境；判断运行版本必须问用户/查容器。
 

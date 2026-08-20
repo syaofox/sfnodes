@@ -57,6 +57,8 @@ MODS = [
     "sf_outpaint", "sf_outpaint_core",
     # 动态 Prompt 列表家族
     "sf_prompt_stack", "sf_prompt_stack_core",
+    # 风格选择器家族（Easy-Use stylesSelector 复刻）
+    "sf_styles_selector", "sf_styles_selector_lib",
     # 公共弹层三件套
     "sf_popup",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）

@@ -4,7 +4,7 @@
 
 sfnodes 是一个 ComfyUI 自定义节点包，提供图像处理、人脸操作、遮罩编辑、文本处理、模型管理等增强功能。
 
-ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，本机为 `/home/syaofox/Projects/ComfyUI/`，含 `comfy/`、`nodes.py` 等，**仅为源码副本**，实际运行实例为 docker 部署），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
+ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，含 `comfy/`、`nodes.py` 等，**仅为源码副本**，实际运行实例为 docker 部署——以实际挂载路径为准），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
 
 ## Architecture
 
@@ -88,7 +88,7 @@ sfnodes/
 │   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
 │   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）
 │   └── 其余单节点 JS（text_replace/text_concatenate/simple_math/loop_flow/any_pack/image_browser/lora_loader*/lora_loader_model_only/multi_lora_tree/image_compare/image_concatenate/regex_extract/prompt_batcher/empty_latent_ratio/krea2_*/seed/canvas_size/workflow_name/sf_combo_selector/sf_color_picker/showcontrol/DisplayText/SFLogicSwitch/...）
-├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设、styles/fooocus_styles.json 内置风格库等）
+├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设、styles/fooocus_styles.json 内置风格库 + samples/ 缩略图等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
 ```
@@ -97,7 +97,7 @@ sfnodes/
 
 每个节点必须在根 `__init__.py` 的两个字典中注册：
 
-- `NODE_CLASS_MAPPINGS`: 键为 `"SF<ClassName>"`，值为类本身
+- `NODE_CLASS_MAPPINGS`: 键为 `"SF<ClassName>"`，值为类本身（历史节点类名可能无 `SF` 前缀如 `LoadImages`，但注册键仍以 `SF` 前缀为准）
 - `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，值为显示名 `"SF <Display Name>"`
 
 新增节点后，务必在两个字典中同步添加。
@@ -148,7 +148,7 @@ class SFMyNode:
 - `color_matcher` — 色彩匹配
 - `colour-science` — 色彩科学/LUT 处理
 - `translators` — 文本翻译
-- `scipy`, `aiohttp`, `safetensors`, `tqdm`
+- `scipy`, `aiohttp`, `safetensors`, `tqdm`, `requests`, `typing_extensions`
 - `curl_cffi`, `markdownify` — Civitai 页面抓取（TLS 指纹过 Cloudflare）与 HTML 描述清洗（lora_routes/lora_reader）
 - `psutil` — 系统资源监控（内存清理节点使用）
 - `sageattention` — 注意力优化
@@ -179,7 +179,7 @@ class SFMyNode:
 - 工具函数放在 `sf_utils/` 下对应模块（无状态纯函数）
 - 节点实现放在 `nodes/<功能组>/` 下对应文件
 - JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_popup.js`（浮动弹层三件套：attachPopupDismiss 外部点击/Esc/滚轮三关闭 + clampToViewport 钳位，**新弹层优先使用**，见 experience.md §26）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / sanitize_filename / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**。**纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`）——这类模块的通用纯函数共享应放无依赖模块（如 sf_popup.js 即无 app 依赖）；DOM 层模块可自由用 sf_common。**注册规范**：`app.registerExtension` 文件必须直接 `import { app } from "/scripts/app.js"`（禁用相对路径 `../../scripts/`——依赖挂载路径）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在——以上由 `tests/check_web_imports.py` 固化校验（新增 web 模块时若报 MISSING MODULE 需把模块名加入该脚本 MODS 列表）。
-- `__init__.py` 文件在子目录中为空，仅根目录 `__init__.py` 负责注册（注意：`nodes/utils/` 目前无 `__init__.py`，依赖 namespace package 机制）
+- `__init__.py` 文件在子目录中为空（`nodes/utils/` 除外——该目录无 `__init__.py`，依赖 namespace package 机制），仅根目录 `__init__.py` 负责注册
 
 ## Development Rules
 
@@ -194,7 +194,7 @@ class SFMyNode:
 9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API；纯工具模块（无扩展行为，如 `sf_dynamic_slots.js`）仅 export 函数即可，由使用者 import
 10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
 11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现
-12. 部署：用户运行实例为 docker 部署（`/mnt/github/comfyui-docker/custom_nodes/sfnodes/`，与本地仓库内容一致）。后端改动需重启容器；`web/` JS 改动需同步该目录，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效
+12. 部署：用户运行实例为 docker 部署（以实际挂载路径为准，与本地仓库内容一致）。后端改动需重启容器；`web/` JS 改动需同步该目录，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效
 13. **实际环境调试禁止自行浏览器访问 ComfyUI**（会 404 且可能干扰用户运行中的工作流）：一律用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈；节点请用户用 UI 添加（新版前端无 `graph.createNode`）
 14. **新增节点/功能前先查复用**（见 Code Style）：前端 `web/sf_common.js` 等公共模块、后端 `sf_utils/` 纯逻辑模块。**禁止再次内联副本**——复制后语义分叉是 bug 温床（crop 的 `_safe_join` 双重拼接曾导致粘贴上传输出白图）。去重/重构注意：① 独立语句的包装块（如 `if (app && app.loadGraphData...)`）不在函数体内，按函数名删除会漏，需手动清理；② 文件已有某模块 import 时，脚本补 import 可能跳过导致缺符号（运行时 ReferenceError 被 try/catch 吞掉极难排查）；③ `node --check` 默认 CJS 解析查不出 ESM 结构错误，用 `node --input-type=module --check < file` 验证
 
@@ -212,7 +212,7 @@ class SFMyNode:
 - 前端模拟测试：无 DOM 依赖的公共库复制为 `.mjs` 后用 Node 直接跑（FakeNode + 事件序列，`tests/` 有先例，如 `test_any_pack_js.js`）
 - 快速回归命令（无测试框架，文件自含断言，任一失败非零退出即停）：
   - 后端：`for f in tests/test_*.py; do python3 "$f" || break; done`
-  - 前端：`for f in tests/test_*_js.js tests/test_*_smoke.js tests/test_*_core.mjs; do node "$f" || break; done`
+  - 前端：`for f in tests/test_*.js tests/test_*.mjs; do node "$f" || break; done`
   - 静态一致性：`python3 tests/check_web_imports.py`
 
 ## 经验摘要
@@ -383,8 +383,8 @@ class SFMyNode:
 - `ast.unparse` 输出单引号、`ast.literal_eval` 遇变量引用抛错——检查脚本出错时先怀疑脚本，再怀疑被检查代码。
 
 **Python 版本陷阱（2026-08，simple_math.py 修复批次）→ experience.md §27**
-- `ast.Constant.n` 是 `value` 旧别名：**3.13 deprecated、3.14 移除**（实测 3.14.7 AttributeError），一律写 `node.value`。
-- **`__pycache__` 的 cpython-3xx 是本机解释器版本，不代表运行容器**（本机 3.14.7、comfyui-docker 容器 3.12.3）：涉及 ast/语法 API 的改动以容器版本为行为基准写测试。
+- `ast.Constant.n` 是 `value` 旧别名：**3.13 deprecated、3.14 移除**（实测 3.14.x AttributeError），一律写 `node.value`。
+- **`__pycache__` 的 cpython-3xx 是本机解释器版本，不代表运行容器**（版本号会随升级变化，以容器内 `python3 --version` 与 `pip show` 为准）：涉及 ast/语法 API 的改动以容器版本为行为基准写测试。
 - 表达式求值节点（SimpleMath）必须包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError）——语法错误/除零/未注册运算符/字符串常量（`math.isnan(str)` TypeError）都是用户一眼踩的崩溃面。
 
 **模型下载统一（2026-08，downloader.py）→ experience.md §27**
