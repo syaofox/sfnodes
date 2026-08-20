@@ -138,6 +138,10 @@ function injectCSS() {
     .sf-ls-desc-grid .cell .load .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z' fill='black'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z' fill='black'/%3E%3C/svg%3E"); }
     .sf-ls-desc-grid .cell .prompt .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); }
     .sf-ls-desc-grid .none { font-size:10px; color:#777; }
+    .sf-ls-sample-sec { padding:11px 12px; border-top:1px solid #1c1c1c; }
+    .sf-ls-sample-sec h4 { margin:0 0 8px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px; color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-sample-preview { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .sf-ls-sample-preview img, .sf-ls-sample-preview video { max-width:90vw; max-height:90vh; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,0.6); }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
     .sf-ls-info-sec h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -237,6 +241,33 @@ function insertAtCursor(textarea, text) {
     textarea.focus();
     const pos = start + text.length;
     textarea.selectionStart = textarea.selectionEnd = pos;
+}
+
+function openSamplePreview(path) {
+    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+    const overlay = el("div", "sf-ls-sample-preview");
+    let media;
+    if (isVideo) {
+        media = document.createElement("video");
+        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+        media.controls = true;
+        media.autoplay = true;
+    } else {
+        media = document.createElement("img");
+        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+        media.alt = path.split("/").pop();
+    }
+    // 点击图片/视频本身不关闭（避免误触），点击遮罩关闭
+    media.addEventListener("click", (e) => e.stopPropagation());
+    overlay.appendChild(media);
+    const close = () => {
+        overlay.remove();
+        document.removeEventListener("keydown", onKey);
+    };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    overlay.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
 }
 
 // 描述里 `sample/xxx.png` 相对路径 -> 图片 URL（基于当前 lora 的目录）。
@@ -713,7 +744,7 @@ export async function openInfoPanelFor(ctx, id) {
                             `/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`,
                             { method: "DELETE" });
                         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                        refreshSampleGrid(grid, onInsert);
+                        renderBody();
                     } catch (err) {
                         showMsg("Could not delete that picture: " + (err.message || err));
                     }
@@ -1374,7 +1405,7 @@ export async function openInfoPanelFor(ctx, id) {
                 inp.addEventListener("change", () => {
                     const f = inp.files && inp.files[0];
                     inp.remove();
-                    if (f) uploadSample(f, insertInto).then(() => refreshSampleGrid(grid, insertInto));
+                    if (f) uploadSample(f, insertInto).then(() => renderBody());
                 });
                 // 取消对话框不发 change——窗口重获焦点时清掉孤儿 input。
                 window.addEventListener("focus", () => setTimeout(() => inp.remove(), 800), { once: true });
@@ -1419,6 +1450,109 @@ export async function openInfoPanelFor(ctx, id) {
         // 拉高面板时它弹性占满剩余高度（查看态正文/编辑态 textarea 同步
         // 长高），拉矮时与 bodyWrap 按比例收缩、各自滚动。
         panel.appendChild(dsec);
+
+        // ── Sample images 浏览区（常驻底部，空则隐藏，预览大图）──────────────
+        const browseSec = el("div", "sf-ls-sample-sec");
+        const browseHead = el("h4");
+        browseHead.appendChild(el("span", null, "Sample images"));
+        browseSec.appendChild(browseHead);
+        const browseGrid = el("div", "sf-ls-desc-grid");
+        browseSec.appendChild(browseGrid);
+        browseSec.style.display = "none";
+        panel.appendChild(browseSec);
+        // 异步加载浏览区样例（与编辑区网格独立，空则保持隐藏）
+        (async () => {
+            if (!name || !browseGrid.isConnected) return;
+            try {
+                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const imgs = Array.isArray(data.images) ? data.images : [];
+                if (!imgs.length) return;
+                browseSec.style.display = "";
+                browseGrid.innerHTML = "";
+                for (const p of imgs) {
+                    const cell = el("div", "cell");
+                    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+                    let thumb;
+                    if (isVideo) {
+                        thumb = el("div");
+                        thumb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
+                        thumb.textContent = p.split("/").pop().slice(0, 12);
+                        thumb.title = p.split("/").pop() + " (video) — 点击预览";
+                    } else {
+                        thumb = document.createElement("img");
+                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                        thumb.title = p.split("/").pop() + " — 点击预览";
+                        thumb.loading = "lazy";
+                    }
+                    thumb.style.cursor = "pointer";
+                    thumb.addEventListener("click", () => openSamplePreview(p));
+                    const del = el("button", "x");
+                    del.title = "Delete this sample image from disk";
+                    const delIc = el("span", "ic");
+                    del.appendChild(delIc);
+                    del.addEventListener("click", async (ev) => {
+                        ev.stopPropagation();
+                        const fileName = p.split("/").pop();
+                        const ok = await confirmDialog({
+                            title: "Delete sample image?",
+                            message: `Delete "${fileName}" from this LoRA's sample/ folder? This cannot be undone.`,
+                            okLabel: "Delete",
+                            cancelLabel: "Cancel",
+                            accent,
+                        });
+                        if (!ok || !panel.isConnected) return;
+                        try {
+                            const r = await app.api.fetchApi(`/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`, { method: "DELETE" });
+                            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                            // 刷新浏览区与编辑区（若存在）
+                            browseGrid.remove();
+                            // 重建整个面板以同步两处网格
+                            renderBody();
+                        } catch (err) {
+                            showMsg("Could not delete that picture: " + (err.message || err));
+                        }
+                    });
+                    const load = el("button", "load");
+                    load.title = "Load this picture as a workflow (needs embedded workflow data)";
+                    const loadIc = el("span", "ic");
+                    load.appendChild(loadIc);
+                    load.addEventListener("click", async (ev) => {
+                        ev.stopPropagation();
+                        await loadImageAsWorkflow(p, (msg) => showMsg(msg));
+                    });
+                    const promptBtn = el("button", "prompt");
+                    promptBtn.title = "Copy prompt from this image to clipboard";
+                    const promptIc = el("span", "ic");
+                    promptBtn.appendChild(promptIc);
+                    promptBtn.addEventListener("click", async (ev) => {
+                        ev.stopPropagation();
+                        promptBtn.style.opacity = "0.5";
+                        promptBtn.style.pointerEvents = "none";
+                        try {
+                            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}`);
+                            const data = await resp.json().catch(() => ({}));
+                            if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+                            if (!data.found || !data.text) {
+                                showMsg(data.message || "No prompt found in this image.");
+                                return;
+                            }
+                            const ok = await copyText(data.text);
+                            if (ok) showMsg("Prompt copied to clipboard.");
+                            else showMsg("Could not copy to clipboard.");
+                        } catch (err) {
+                            showMsg("Could not read prompt: " + (err.message || err));
+                        } finally {
+                            promptBtn.style.opacity = "";
+                            promptBtn.style.pointerEvents = "";
+                        }
+                    });
+                    cell.append(thumb, del, load, promptBtn);
+                    browseGrid.appendChild(cell);
+                }
+            } catch {}
+        })();
 
         // ── footer ──────────────────────────────────────────────────────────
         const foot = el("div", "sf-ls-info-foot");

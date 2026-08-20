@@ -23,6 +23,35 @@ function _makeSampleIcon(url) {
     return s;
 }
 
+function _openSamplePreview(path) {
+    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;cursor:pointer;";
+    let media;
+    if (isVideo) {
+        media = document.createElement("video");
+        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+        media.controls = true;
+        media.autoplay = true;
+        media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
+    } else {
+        media = document.createElement("img");
+        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+        media.alt = path.split("/").pop();
+        media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
+    }
+    media.addEventListener("click", (e) => e.stopPropagation());
+    overlay.appendChild(media);
+    const close = () => {
+        overlay.remove();
+        document.removeEventListener("keydown", onKey);
+    };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    overlay.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+}
+
 // ---------------------------------------------------------------------------
 // PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
 // 返回 { chunk: "workflow" | "prompt", data: string } 或 null
@@ -640,6 +669,102 @@ export function showLoraInfoDialog(event, name, meta) {
     samplePanel.appendChild(sampleHint);
     body.appendChild(samplePanel);
 
+    // ---------- sample images 浏览区（常驻底部，空则隐藏，预览大图） ----------
+    const browsePanel = document.createElement("div");
+    browsePanel.style.cssText = "display:none; padding:10px 18px; border-top:1px solid #3a3a3e;";
+    const browseHead = document.createElement("div");
+    browseHead.style.cssText = "font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px; color:var(--sf-acc, #f66744); margin-bottom:8px;";
+    browseHead.textContent = "Sample images";
+    const browseGrid = document.createElement("div");
+    browseGrid.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto;";
+    const browseHint = document.createElement("div");
+    browseHint.style.cssText = "font-size:12px;color:#888;margin-top:8px;line-height:1.5;";
+    browsePanel.appendChild(browseHead);
+    browsePanel.appendChild(browseGrid);
+    browsePanel.appendChild(browseHint);
+    body.appendChild(browsePanel);
+
+    async function refreshBrowseSamplePanel() {
+        browseGrid.innerHTML = "";
+        browseHint.textContent = "";
+        if (!name || name === "None") { browsePanel.style.display = "none"; return; }
+        try {
+            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const imgs = Array.isArray(data.images) ? data.images : [];
+            if (!imgs.length) { browsePanel.style.display = "none"; return; }
+            browsePanel.style.display = "";
+            for (const path of imgs) {
+                const wrap = document.createElement("div");
+                wrap.style.cssText = "position:relative;width:96px;height:96px;";
+                const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+                let thumb;
+                if (isVideo) {
+                    thumb = document.createElement("div");
+                    thumb.textContent = path.split("/").pop().slice(0, 14);
+                    thumb.title = path.split("/").pop() + " (video) — 点击预览";
+                    thumb.style.cssText = "width:96px;height:96px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;text-align:center;background:#1c1c1e;color:#888;font-size:9px;word-break:break-all;cursor:pointer;padding:4px;box-sizing:border-box;";
+                } else {
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
+                    thumb.title = path.split("/").pop() + " — 点击预览";
+                    thumb.loading = "lazy";
+                    thumb.style.cssText = "width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
+                    thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
+                    thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
+                }
+                thumb.addEventListener("click", () => _openSamplePreview(path));
+                const delBtn = document.createElement("button");
+                delBtn.title = "删除该示例图";
+                delBtn.style.cssText = "position:absolute;top:0;right:0;display:none;align-items:center;justify-content:center;width:18px;height:18px;padding:0;line-height:1;background:rgba(224,108,108,0.9);color:#fff;border:none;border-radius:0 6px 0 6px;cursor:pointer;";
+                delBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_TRASH));
+                const loadBtn = document.createElement("button");
+                loadBtn.title = "将该图片载入为工作流（需内嵌工作流数据）";
+                loadBtn.style.cssText = "position:absolute;bottom:0;right:0;display:none;align-items:center;justify-content:center;width:18px;height:18px;padding:0;line-height:1;background:rgba(79,124,255,0.9);color:#fff;border:none;border-radius:6px 0 6px 0;cursor:pointer;";
+                loadBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_LOAD));
+                const promptBtn = document.createElement("button");
+                promptBtn.title = "复制该图片的 prompt 到剪贴板";
+                promptBtn.style.cssText = "position:absolute;bottom:0;left:0;display:none;align-items:center;justify-content:center;width:18px;height:18px;padding:0;line-height:1;background:rgba(46,160,90,0.92);color:#fff;border:none;border-radius:0 6px 0 5px;cursor:pointer;";
+                promptBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_PROMPT));
+                wrap.addEventListener("mouseenter", () => { delBtn.style.display = "flex"; loadBtn.style.display = "flex"; promptBtn.style.display = "flex"; });
+                wrap.addEventListener("mouseleave", () => { delBtn.style.display = "none"; loadBtn.style.display = "none"; promptBtn.style.display = "none"; });
+                loadBtn.addEventListener("click", async (e) => { e.stopPropagation(); await loadImageAsWorkflow(path, (msg) => { browseHint.textContent = msg; }); });
+                promptBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    promptBtn.style.opacity = "0.5"; promptBtn.style.pointerEvents = "none";
+                    try {
+                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(path)}`);
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+                        if (!data.found || !data.text) { browseHint.textContent = data.message || "该图片未包含 prompt。"; return; }
+                        const ok = await copyText(data.text);
+                        browseHint.textContent = ok ? "已复制 prompt 到剪贴板。" : "复制失败。";
+                        if (ok) setTimeout(() => { if (browseHint.textContent === "已复制 prompt 到剪贴板。") browseHint.textContent = ""; }, 2000);
+                    } catch (err) { browseHint.textContent = "读取失败：" + (err.message || err); } finally { promptBtn.style.opacity = ""; promptBtn.style.pointerEvents = ""; }
+                });
+                delBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const fileName = path.split("/").pop();
+                    if (!confirm(`删除示例图「${fileName}」？此操作不可恢复。`)) return;
+                    try {
+                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?path=${encodeURIComponent(path)}`, { method: "DELETE" });
+                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                        refreshSamplePanel();
+                        refreshBrowseSamplePanel();
+                    } catch (err) { browseHint.textContent = "删除失败：" + (err.message || err); }
+                });
+                wrap.appendChild(thumb);
+                wrap.appendChild(delBtn);
+                wrap.appendChild(loadBtn);
+                wrap.appendChild(promptBtn);
+                browseGrid.appendChild(wrap);
+            }
+        } catch (e) { browseHint.textContent = "获取示例图失败：" + (e.message || e); }
+    }
+    // 初次打开即加载浏览区
+    refreshBrowseSamplePanel();
+
     let sampleOpen = false;
     let activeTextarea = null;
 
@@ -802,6 +927,7 @@ export function showLoraInfoDialog(event, name, meta) {
                         );
                         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                         refreshSamplePanel();
+                        refreshBrowseSamplePanel();
                     } catch (err) {
                         console.warn("[SF Model Info] sample delete failed:", err);
                         sampleHint.textContent = "删除失败：" + (err.message || err);
@@ -849,6 +975,7 @@ export function showLoraInfoDialog(event, name, meta) {
             if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
             if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(data.path));
             if (sampleOpen) refreshSamplePanel();
+            refreshBrowseSamplePanel();
         } catch (e) {
             console.warn("[SF Model Info] sample upload failed:", e);
             sampleHint.textContent = "上传失败：" + (e.message || e);
@@ -1092,8 +1219,9 @@ export function showLoraInfoDialog(event, name, meta) {
             }
             hasSidecar = true;
             refreshCivStrip();
-            // 若样例面板正打开，刷新以显示新下载的图
+            // 若样例面板正打开，刷新以显示新下载的图；浏览区常驻，始终刷新
             try { if (typeof refreshSamplePanel === "function" && samplePanel.style.display !== "none") refreshSamplePanel(); } catch {}
+            try { if (typeof refreshBrowseSamplePanel === "function") refreshBrowseSamplePanel(); } catch {}
             // 侧车已写入：force 重取合并元数据刷新展示（编辑中的行跳过）
             const meta2 = await getLoraMetadata(name, true);
             if (!dialog.isConnected) return;
