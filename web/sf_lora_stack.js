@@ -169,6 +169,15 @@ app.registerExtension({
                     setTimeout(repaintAll, 0);
                 },
             });
+            // Civitai 批量下载原图样例开关（默认关，不压缩）
+            try {
+                app.ui.settings.addSetting({
+                    id: "sfnodes.Civitai.DownloadSamples",
+                    name: "SF: Civitai - download all sample images (original) to sample folder when fetching",
+                    type: "boolean",
+                    defaultValue: false,
+                });
+            } catch (_e2) { /* 设置系统不可用则忽略 */ }
             // 全局 LoRA 显示名设置（sfnodes.PowerLoraLoader.DisplayName，
             // 由 power_lora_loader.js 注册）变化时经事件桥通知——Stack/Plot
             // 行名随设置重渲染（DOM 重绘，setDirtyCanvas 管不到 widget DOM）。

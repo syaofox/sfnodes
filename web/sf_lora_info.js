@@ -1081,8 +1081,19 @@ export function showLoraInfoDialog(event, name, meta) {
             if (res.thumb_v) _thumbBust = res.thumb_v;
             else if (res.thumb_skipped) civ.note = "Your own preview picture was kept.";
             else if (res.thumb_error) civ.note = "Couldn't save the preview: " + res.thumb_error;
+            // 样例原图批量结果（开关 sfnodes.Civitai.DownloadSamples）
+            if (res.samples_downloaded) {
+                const n = res.samples_downloaded;
+                civ.note = (civ.note ? civ.note + " " : "") + `Downloaded ${n} sample image${n > 1 ? "s" : ""} to sample/.`;
+            } else if (res.samples_note) {
+                civ.note = (civ.note ? civ.note + " " : "") + res.samples_note;
+            } else if (res.samples_error) {
+                civ.note = (civ.note ? civ.note + " " : "") + res.samples_error;
+            }
             hasSidecar = true;
             refreshCivStrip();
+            // 若样例面板正打开，刷新以显示新下载的图
+            try { if (typeof refreshSamplePanel === "function" && samplePanel.style.display !== "none") refreshSamplePanel(); } catch {}
             // 侧车已写入：force 重取合并元数据刷新展示（编辑中的行跳过）
             const meta2 = await getLoraMetadata(name, true);
             if (!dialog.isConnected) return;

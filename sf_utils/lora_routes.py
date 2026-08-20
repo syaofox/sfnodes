@@ -603,6 +603,109 @@ def _register_routes():
                                 resp["thumb_v"] = R.custom_preview_version(folder, name)
                 except Exception as exc:
                     resp["thumb_error"] = "Could not save the picture: {}".format(exc)
+            # 批量下载全部原图样例到 sample/（开关 sfnodes.Civitai.DownloadSamples，默认关；不压缩、不做 NSFW 过滤）
+            download_flag = request.query.get("downloadSamples") == "1" or request.query.get("download_samples") == "1"
+            original_images = parsed.get("original_images") or []
+            if download_flag and original_images:
+                try:
+                    sample_dir = os.path.join(os.path.dirname(path), "sample")
+                    await loop.run_in_executor(None, lambda: os.makedirs(sample_dir, exist_ok=True))
+                    # 并发 3，总量 80MB，单张 8MB
+                    import hashlib as _hashlib
+                    import urllib.parse as _urlparse
+
+                    sem = asyncio.Semaphore(3)
+                    total_downloaded = 0
+                    downloaded = 0
+                    skipped = 0
+                    failed = 0
+                    total_bytes = 0
+                    BATCH_MAX = 80 * 1024 * 1024
+                    SINGLE_MAX = 8 * 1024 * 1024
+
+                    async def _dl_one(idx, url):
+                        nonlocal total_bytes, downloaded, skipped, failed
+                        if not isinstance(url, str) or not url.startswith("https://"):
+                            failed += 1
+                            return
+                        # 已有文件跳过：按 URL hash 命名避免重复下载
+                        try:
+                            parsed_u = _urlparse.urlparse(url)
+                            ext = os.path.splitext(parsed_u.path)[1].lower() or ".jpg"
+                            if ext not in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
+                                ext = ".jpg"
+                            h = _hashlib.sha1(url.encode("utf-8")).hexdigest()[:8]
+                            fname = f"civitai_{idx:02d}_{h}{ext}"
+                            fpath = os.path.join(sample_dir, fname)
+                        except Exception:
+                            failed += 1
+                            return
+                        if os.path.isfile(fpath):
+                            skipped += 1
+                            return
+                        if total_bytes >= BATCH_MAX:
+                            skipped += 1
+                            return
+                        async with sem:
+                            try:
+                                import aiohttp as _aio
+                                tout = _aio.ClientTimeout(total=20, connect=10)
+                                async with _aio.ClientSession(timeout=tout) as sess:
+                                    async with sess.get(url, headers={"User-Agent": "ComfyUI-sfnodes", "Accept": "image/*"}) as r:
+                                        if r.status != 200:
+                                            failed += 1
+                                            return
+                                        chunks = []
+                                        cur = 0
+                                        async for chunk in r.content.iter_chunked(65536):
+                                            cur += len(chunk)
+                                            if cur > SINGLE_MAX:
+                                                failed += 1
+                                                return
+                                            if total_bytes + cur > BATCH_MAX:
+                                                failed += 1
+                                                return
+                                            chunks.append(chunk)
+                                        raw = b"".join(chunks)
+                                        if not _looks_like_image(raw):
+                                            failed += 1
+                                            return
+                                        # 原图直存，不压缩
+                                        def _write():
+                                            tmp = fpath + f".{os.getpid()}.{hash(fname) & 0xffff}.tmp"
+                                            try:
+                                                with open(tmp, "wb") as f:
+                                                    f.write(raw)
+                                                os.replace(tmp, fpath)
+                                                return True
+                                            except Exception:
+                                                try:
+                                                    os.remove(tmp)
+                                                except Exception:
+                                                    pass
+                                                return False
+                                        ok = await loop.run_in_executor(None, _write)
+                                        if ok:
+                                            total_bytes += len(raw)
+                                            downloaded += 1
+                                        else:
+                                            failed += 1
+                            except Exception:
+                                failed += 1
+                                return
+
+                    # 依次调度（受 sem 限流）
+                    await asyncio.gather(*[_dl_one(i, u) for i, u in enumerate(original_images)])
+                    if downloaded:
+                        resp["samples_downloaded"] = downloaded
+                    if skipped:
+                        resp["samples_skipped"] = skipped
+                    if failed:
+                        resp["samples_failed"] = failed
+                except Exception as exc:
+                    resp["samples_error"] = "Could not download samples: {}".format(exc)
+            elif not download_flag and original_images:
+                resp["samples_note"] = "Sample images not downloaded — enable sfnodes.Civitai.DownloadSamples in settings."
             return web.json_response(resp)
 
         @routes.get("/api/sfnodes/civitai/account")

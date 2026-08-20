@@ -526,6 +526,14 @@ def parse_civitai_modelversion(obj, allow_adult=False):
     if isinstance(imgs, list):
         fallback = None
         any_img = None
+        # 保留全部原图 URL（供批量下载样例图，不压缩、不做 NSFW 过滤，由调用方决定是否下载）
+        original_images = []
+        for im in imgs:
+            if not isinstance(im, dict) or not im.get("url"):
+                continue
+            original_images.append(im["url"])
+        if original_images:
+            out["original_images"] = original_images
         for im in imgs:
             if not isinstance(im, dict) or not im.get("url"):
                 continue

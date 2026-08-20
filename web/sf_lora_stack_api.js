@@ -126,7 +126,13 @@ export function thumbUrl(name, bust) {
 export async function civitaiLookup(name, overwrite) {
     try {
         const q = overwrite ? "&overwrite=1" : "";
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q));
+        // sfnodes.Civitai.DownloadSamples 开关：开时附加 &downloadSamples=1 让后端批量下载原图至 sample/
+        let dl = "";
+        try {
+            const v = globalThis.app?.ui?.settings?.getSettingValue?.("sfnodes.Civitai.DownloadSamples");
+            if (v) dl = "&downloadSamples=1";
+        } catch {}
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q + dl));
         const j = await r.json();
         // 查询可能写入 .civitai.info 侧车（Power 系读 lora_notes 时合并它的
         // 词/描述）——广播让另一端缓存失效，打开即新数据。

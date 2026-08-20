@@ -1498,6 +1498,15 @@ export async function openInfoPanelFor(ctx, id) {
             if (res.thumb_v) _thumbBust = res.thumb_v;
             else if (res.thumb_skipped) civ.note = "Your own preview picture was kept.";
             else if (res.thumb_error) civ.note = "Couldn't save the preview: " + res.thumb_error;
+            // 样例原图批量下载结果（开关 sfnodes.Civitai.DownloadSamples）
+            if (res.samples_downloaded) {
+                const n = res.samples_downloaded;
+                civ.note = (civ.note ? civ.note + " " : "") + `Downloaded ${n} sample image${n > 1 ? "s" : ""} to sample/.`;
+            } else if (res.samples_note) {
+                civ.note = (civ.note ? civ.note + " " : "") + res.samples_note;
+            } else if (res.samples_error) {
+                civ.note = (civ.note ? civ.note + " " : "") + res.samples_error;
+            }
             invalidateInfo(name);
             // 刷新离线 info 让源徽章/缓存 id 反映新侧车，再重绘。走 loadInfo，
             // 慢答案不能覆盖用户在查询进行中设的图。
