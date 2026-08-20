@@ -1398,3 +1398,10 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
 - `tests/test_krea2_presets.py`：merge 纯函数（覆盖/墓碑/新增/并存/非法兜底）、校验、store 读写缓存、路由 CRUD（含 404/400/保护名/复活/复位全部）。**坑**：路由测试前必须清空用户存储（上面 store 读写测试写入了数据，污染 GET 断言）；改/删并存语义定为墓碑胜出。
 - `tests/test_krea2_presets_smoke.mjs`：mock fetch/app/document 真实加载模块（拷 .mjs + 替换 `/scripts/app.js` 绝对导入为本地 stub）验证 API 封装、setPresetOptions、refreshAllNodes 重建+广播。**坑**：stub app 的 `_nodes` 在 import 时按值捕获 global → 必须在 import 前设数组、之后只 push 不重赋值。
 - 部署：后端需重启容器（新增模块/路由），`web/` 同步 docker 目录 + 浏览器硬刷新；`tests/check_web_imports.py` MODS 已加 `sf_krea2_presets`。
+
+### 6. 快照陈旧导致新预设切换不填充（2026-08 修复）
+
+- **现象**：`SFImageInterrogator` 管理预设新增「通用测试」「通用(可多人nsfw)」后，下拉可见新项但切换不填文本框。
+- **根因**：预设→文本联动的唯一数据源是 `node.properties._krea2PresetData` 快照（`nodeCreated` 时 `init(data)` 写入，随 workflow 保存）。管理 popup 的 `refreshAllNodes` / 跨窗口 `presetsChanged` 监听的 `reloadNodes` 原只调 `setPresetOptions` 重建下拉选项，**未同步快照** → 快照仍是节点创建时的旧合并视图，新键 `data[value]===undefined` 分支不执行。
+- **修复**：① `sf_krea2_presets.js:reloadNodes` 遍历 `nodesOfClass(comfyClass)` 时同步 `n.properties._krea2PresetData = data.presets` 再 `setPresetOptions`；② 两节点 `loadPresets` 首载分支同布快照；③ 回调 `presetWidget.callback` 双源容错 `const cur = presets || node.properties._krea2PresetData`（全局最新优先，快照兜底），后续新增无需再等快照同步也能填充。`SFKrea2SystemPrompt` 同构修复（其 `syncFromPreset` 亦受益）。
+- **教训**：动态 combo 的“选项列表”与“选项→值映射”是两份状态，必须同更新；只更选项不更映射是“下拉可见但联动失效”的典型症状。

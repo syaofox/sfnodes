@@ -90,11 +90,16 @@ export function broadcastPresetsChanged(kind) {
   document.dispatchEvent(new CustomEvent(presetsChangedEvent(kind), { detail: { kind } }));
 }
 
-// 重拉并重建所有同 class 节点 options（不广播——供事件监听回调使用，避免
-// 监听到自身广播后再次广播造成无限循环）。
+// 重拉并重建所有同 class 节点 options + 快照（不广播——供事件监听回调使用，避免
+// 监听到自身广播后再次广播造成无限循环）。快照 node.properties._krea2PresetData
+// 是 preset→文本联动的唯一数据源，更新后新预设才能在下拉切换时填充文本框。
 export async function reloadNodes(kind, comfyClass) {
   const data = await fetchPresets(kind);
-  for (const n of nodesOfClass(comfyClass)) setPresetOptions(n, data.presets);
+  for (const n of nodesOfClass(comfyClass)) {
+    n.properties = n.properties || {};
+    n.properties._krea2PresetData = data.presets;
+    setPresetOptions(n, data.presets);
+  }
   return data;
 }
 

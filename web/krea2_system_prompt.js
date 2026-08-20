@@ -34,7 +34,11 @@ async function loadPresets() {
     try {
         const data = await fetchPresets(KIND);
         presets = data.presets;
-        for (const n of nodesOfClass(COMIFY_CLASS)) setPresetOptions(n, presets);
+        for (const n of nodesOfClass(COMIFY_CLASS)) {
+            n.properties = n.properties || {};
+            n.properties._krea2PresetData = presets;
+            setPresetOptions(n, presets);
+        }
         attachPending();
         return;
     } catch (e) {
@@ -93,9 +97,9 @@ app.registerExtension({
         const origPresetCallback = presetWidget.callback;
         presetWidget.callback = function (value) {
             const r = origPresetCallback ? origPresetCallback.call(this, value) : undefined;
-            const data = node.properties._krea2PresetData;
-            if (value !== "none" && data && data[value] !== undefined) {
-                textWidget.value = data[value];
+            const cur = presets || node.properties._krea2PresetData;
+            if (value !== "none" && cur && cur[value] !== undefined) {
+                textWidget.value = cur[value];
                 node.properties[PRESET_PROP] = value;
                 node.setDirtyCanvas(true, true);
             }

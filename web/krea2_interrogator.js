@@ -28,8 +28,12 @@ async function loadPresets() {
     try {
         const data = await fetchPresets(KIND);
         presets = data.presets;
-        // 重建所有已存在节点的 combo options（用户新增的预设要出现在下拉里）
-        for (const n of nodesOfClass(COMIFY_CLASS)) setPresetOptions(n, presets);
+        // 重建所有已存在节点的 combo options + 快照（用户新增的预设要出现在下拉里，且切换时能填充）
+        for (const n of nodesOfClass(COMIFY_CLASS)) {
+            n.properties = n.properties || {};
+            n.properties._krea2PresetData = presets;
+            setPresetOptions(n, presets);
+        }
         attachPending();
         return;
     } catch (e) {
@@ -96,9 +100,10 @@ app.registerExtension({
         const origCallback = presetWidget.callback;
         presetWidget.callback = function (value) {
             const r = origCallback ? origCallback.call(this, value) : undefined;
-            const data = node.properties._krea2PresetData;
-            if (data && data[value] !== undefined) {
-                promptWidget.value = data[value];
+            // 优先用模块级最新缓存（已通过 reloadNodes/loadPresets 同步），快照兜底
+            const cur = presets || node.properties._krea2PresetData;
+            if (cur && cur[value] !== undefined) {
+                promptWidget.value = cur[value];
                 node.setDirtyCanvas(true, true);
             }
             return r;
