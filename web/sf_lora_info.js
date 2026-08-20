@@ -389,15 +389,53 @@ export function showLoraInfoDialog(event, name, meta) {
 
         function renderActions() {
             actionEl.innerHTML = "";
+            // 触发词行增加复制按钮（SVG，与样例图按钮统一）
+            if (key === "trigger_words") {
+                const cbtn = document.createElement("button");
+                cbtn.title = "复制全部触发词到剪贴板";
+                cbtn.style.cssText = `
+                    background: none; border: 1px solid #555; border-radius: 4px;
+                    cursor: pointer; color: #bbb; padding: 3px 6px; display: flex; align-items: center; justify-content: center;
+                `;
+                const cic = _makeSampleIcon(_SAMPLE_ICON_PROMPT);
+                cic.style.backgroundColor = "#bbb";
+                cbtn.appendChild(cic);
+                cbtn.addEventListener("mouseenter", () => { cbtn.style.background = "#3a3a3e"; cic.style.backgroundColor = "#fff"; cbtn.style.borderColor = "#6af"; });
+                cbtn.addEventListener("mouseleave", () => { cbtn.style.background = ""; cic.style.backgroundColor = "#bbb"; cbtn.style.borderColor = "#555"; });
+                cbtn.addEventListener("click", async () => {
+                    const v = state[key];
+                    if (!v || !String(v).trim()) {
+                        // 空状态给提示（复用 sampleHint 区域或临时标题）
+                        const hint = document.createElement("div");
+                        hint.textContent = "没有可复制的触发词。";
+                        hint.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#2a2a2e;color:#ddd;border:1px solid #555;border-radius:6px;padding:6px 10px;font-size:12px;z-index:99999;";
+                        document.body.appendChild(hint);
+                        setTimeout(() => hint.remove(), 1500);
+                        return;
+                    }
+                    const ok = await copyText(String(v));
+                    const hint = document.createElement("div");
+                    hint.textContent = ok ? "已复制触发词到剪贴板。" : "复制失败。";
+                    hint.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#2a2a2e;color:#ddd;border:1px solid #555;border-radius:6px;padding:6px 10px;font-size:12px;z-index:99999;";
+                    document.body.appendChild(hint);
+                    setTimeout(() => hint.remove(), 1500);
+                });
+                actionEl.appendChild(cbtn);
+            }
             const btn = document.createElement("button");
-            btn.textContent = "✏️";
             btn.title = "Edit " + displayLabel;
             btn.style.cssText = `
                 background: none; border: 1px solid #555; border-radius: 4px;
-                cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 6px;
+                cursor: pointer; color: #bbb; padding: 3px 6px; display: flex; align-items: center; justify-content: center;
             `;
-            btn.addEventListener("mouseenter", () => { btn.style.background = "#3a3a3e"; });
-            btn.addEventListener("mouseleave", () => { btn.style.background = ""; });
+            const _editIconUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 4H4a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5M18 2l3 3-9 9H9v-3l9-9z' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+            const eic = document.createElement("span");
+            eic.style.cssText = "width:12px;height:12px;background-color:#bbb;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
+            eic.style.webkitMaskImage = `url("${_editIconUrl}")`;
+            eic.style.maskImage = `url("${_editIconUrl}")`;
+            btn.appendChild(eic);
+            btn.addEventListener("mouseenter", () => { btn.style.background = "#3a3a3e"; eic.style.backgroundColor = "#fff"; btn.style.borderColor = "#6af"; });
+            btn.addEventListener("mouseleave", () => { btn.style.background = ""; eic.style.backgroundColor = "#bbb"; btn.style.borderColor = "#555"; });
             btn.addEventListener("click", () => startEdit());
             actionEl.appendChild(btn);
         }

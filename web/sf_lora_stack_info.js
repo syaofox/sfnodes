@@ -1204,7 +1204,24 @@ export async function openInfoPanelFor(ctx, id) {
         const none = el("span", "qa", "none");
         none.title = "Clear selection";
         none.addEventListener("click", () => setWords([]));
-        head.append(all, none);
+        // 复制全部触发词到剪贴板（SVG，与样例图按钮统一）
+        const copyAll = el("span", "qa");
+        copyAll.title = "Copy all trigger words to clipboard";
+        copyAll.style.cssText = "display:inline-flex;align-items:center;gap:3px;";
+        const copyIc = el("span");
+        copyIc.style.cssText = "width:10px;height:10px;background-color:currentColor;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
+        const _clipSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+        copyIc.style.webkitMaskImage = `url("${_clipSvg}")`;
+        copyIc.style.maskImage = `url("${_clipSvg}")`;
+        copyAll.appendChild(copyIc);
+        copyAll.appendChild(document.createTextNode("copy"));
+        copyAll.addEventListener("click", async () => {
+            const words = chipList().map((c) => c.w).filter((w) => w);
+            if (!words.length) { showMsg("No trigger words to copy."); return; }
+            const ok = await copyText(words.join(", "));
+            showMsg(ok ? "Trigger words copied to clipboard." : "Could not copy to clipboard.");
+        });
+        head.append(all, none, copyAll);
         // 源：仅当文件有自己的词且 Civitai 词存在时显示 File / Civitai 切换
         // （以 file_triggers 而非 fileWords() 为门槛——后者回退到合并的侧车
         // 列表，纯侧车 LoRA 会显示一个装着 Civitai 词的假 "File" 标签）。
