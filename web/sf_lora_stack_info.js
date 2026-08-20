@@ -148,9 +148,7 @@ function injectCSS() {
       color:#9a9a9a; cursor:pointer; }
     .sf-ls-info-sec h4 .qa:hover { color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-info-note { font-size:10px; color:#7a7a7a; margin:0 0 8px; }
-    .sf-ls-chips { display:flex; flex-wrap:wrap; gap:5px; max-height:36vh; overflow-y:auto; padding-right:2px; }
-    .sf-ls-chips::-webkit-scrollbar { width:7px; }
-    .sf-ls-chips::-webkit-scrollbar-thumb { background:#555; border-radius:3px; }
+    .sf-ls-chips { display:flex; flex-wrap:wrap; gap:5px; }
     .sf-ls-chip { font:10.5px 'Segoe UI'; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14);
       color:#b8b8b8; border-radius:99px; padding:3px 9px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:4px; max-width:100%; }
     .sf-ls-chip:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
