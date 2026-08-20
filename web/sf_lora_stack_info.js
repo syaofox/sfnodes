@@ -122,13 +122,22 @@ function injectCSS() {
     .sf-ls-desc-grid img { width:56px; height:56px; object-fit:cover; border-radius:6px;
       border:1px solid #3a3a3e; cursor:pointer; display:block; }
     .sf-ls-desc-grid img:hover { border-color:var(--acc, var(--sf-acc, #f66744)); }
-    /* 悬停显示的角标按钮：右上角删除 ✕、右下角载入工作流 📂 */
-    .sf-ls-desc-grid .cell .x, .sf-ls-desc-grid .cell .load { position:absolute; width:16px;
-      height:16px; padding:0; border:none; color:#fff; font-size:10px; line-height:1;
+    /* 悬停显示的角标按钮：右上角删除、右下角载入工作流、左下角复制 prompt（SVG 统一样式） */
+    .sf-ls-desc-grid .cell .x, .sf-ls-desc-grid .cell .load, .sf-ls-desc-grid .cell .prompt {
+      position:absolute; width:16px; height:16px; padding:0; border:none;
       display:none; align-items:center; justify-content:center; cursor:pointer; }
-    .sf-ls-desc-grid .cell:hover .x, .sf-ls-desc-grid .cell:hover .load { display:flex; }
+    .sf-ls-desc-grid .cell:hover .x, .sf-ls-desc-grid .cell:hover .load, .sf-ls-desc-grid .cell:hover .prompt { display:flex; }
     .sf-ls-desc-grid .cell .x { top:0; right:0; background:rgba(224,96,74,0.92); border-radius:0 5px 0 5px; }
     .sf-ls-desc-grid .cell .load { bottom:0; right:0; background:rgba(79,124,255,0.92); border-radius:5px 0 5px 0; }
+    .sf-ls-desc-grid .cell .prompt { bottom:0; left:0; background:rgba(46,160,90,0.92); border-radius:0 5px 0 5px; }
+    .sf-ls-desc-grid .cell .x .ic, .sf-ls-desc-grid .cell .load .ic, .sf-ls-desc-grid .cell .prompt .ic {
+      width:10px; height:10px; background-color:#fff;
+      -webkit-mask-size:contain; mask-size:contain;
+      -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+      -webkit-mask-position:center; mask-position:center; display:block; }
+    .sf-ls-desc-grid .cell .x .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 3h6l1 2h4v2H4V5h5l1-2zm-2 6h10l-1 9a1 1 0 01-1 1H8a1 1 0 01-1-1L6 9zM10 11v6M14 11v6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 3h6l1 2h4v2H4V5h5l1-2zm-2 6h10l-1 9a1 1 0 01-1 1H8a1 1 0 01-1-1L6 9zM10 11v6M14 11v6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); }
+    .sf-ls-desc-grid .cell .load .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z' fill='black'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z' fill='black'/%3E%3C/svg%3E"); }
+    .sf-ls-desc-grid .cell .prompt .ic { -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"); }
     .sf-ls-desc-grid .none { font-size:10px; color:#777; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
@@ -635,8 +644,9 @@ export async function openInfoPanelFor(ctx, id) {
     // ── 示例图：上传到 sample/ 目录 + 图库网格点击插入 markdown ──────────
     async function uploadSample(file, onInsert) {
         if (!file || !name) return;
-        if (!/^image\//.test(file.type || "")) {
-            showMsg("That is not a picture. Use a jpg, png or webp.");
+        const _t = file.type || "";
+        if (_t && !/^image\//.test(_t) && !/^video\//.test(_t)) {
+            showMsg("That is not a picture. Use a jpg, png, webp or mp4.");
             return;
         }
         const fd = new FormData();
@@ -670,14 +680,26 @@ export async function openInfoPanelFor(ctx, id) {
             }
             for (const p of imgs) {
                 const cell = el("div", "cell");
-                const img = document.createElement("img");
-                img.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
-                img.title = p.split("/").pop();
-                img.loading = "lazy";
-                img.addEventListener("click", () => onInsert(p));
-                // 删除：悬停显示右上角 ✕，确认后删磁盘文件并刷新网格。
-                const del = el("button", "x", "✕");
+                const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+                let thumb;
+                if (isVideo) {
+                    thumb = el("div");
+                    thumb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
+                    thumb.textContent = p.split("/").pop().slice(0, 12);
+                    thumb.title = p.split("/").pop() + " (video)";
+                    thumb.addEventListener("click", () => onInsert(p));
+                } else {
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                    thumb.title = p.split("/").pop();
+                    thumb.loading = "lazy";
+                    thumb.addEventListener("click", () => onInsert(p));
+                }
+                // 删除：悬停显示右上角（SVG）
+                const del = el("button", "x");
                 del.title = "Delete this sample image from disk";
+                const delIc = el("span", "ic");
+                del.appendChild(delIc);
                 del.addEventListener("click", async (ev) => {
                     ev.stopPropagation();
                     const fileName = p.split("/").pop();
@@ -699,15 +721,43 @@ export async function openInfoPanelFor(ctx, id) {
                         showMsg("Could not delete that picture: " + (err.message || err));
                     }
                 });
-                // 载入为工作流：悬停显示右下角 📂，解析 PNG 内嵌 workflow 数据，
-                // 新建标签页载入（不替换当前画布）。
-                const load = el("button", "load", "📂");
+                // 载入为工作流：悬停显示右下角（SVG）
+                const load = el("button", "load");
                 load.title = "Load this picture as a workflow (needs embedded workflow data)";
+                const loadIc = el("span", "ic");
+                load.appendChild(loadIc);
                 load.addEventListener("click", async (ev) => {
                     ev.stopPropagation();
                     await loadImageAsWorkflow(p, (msg) => showMsg(msg));
                 });
-                cell.append(img, del, load);
+                // 读取 prompt 并复制到剪贴板：悬停显示左下角（SVG）
+                const promptBtn = el("button", "prompt");
+                promptBtn.title = "Copy prompt from this image to clipboard";
+                const promptIc = el("span", "ic");
+                promptBtn.appendChild(promptIc);
+                promptBtn.addEventListener("click", async (ev) => {
+                    ev.stopPropagation();
+                    promptBtn.style.opacity = "0.5";
+                    promptBtn.style.pointerEvents = "none";
+                    try {
+                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}`);
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+                        if (!data.found || !data.text) {
+                            showMsg(data.message || "No prompt found in this image.");
+                            return;
+                        }
+                        const ok = await copyText(data.text);
+                        if (ok) showMsg("Prompt copied to clipboard.");
+                        else showMsg("Could not copy to clipboard.");
+                    } catch (err) {
+                        showMsg("Could not read prompt: " + (err.message || err));
+                    } finally {
+                        promptBtn.style.opacity = "";
+                        promptBtn.style.pointerEvents = "";
+                    }
+                });
+                cell.append(thumb, del, load, promptBtn);
                 grid.appendChild(cell);
             }
         } catch (e) {
@@ -1298,13 +1348,13 @@ export async function openInfoPanelFor(ctx, id) {
                 }
             };
             const upRow = el("div", "sf-ls-desc-upload");
-            const upBtn = el("button", null, "📤 Upload sample image");
+            const upBtn = el("button", null, "Upload sample image");
             upBtn.title = "Upload a picture next to this LoRA (sample/ folder) and insert it at the cursor";
             upBtn.addEventListener("click", () => {
                 if (!name) { showMsg("Pick a LoRA first."); return; }
                 const inp = document.createElement("input");
                 inp.type = "file";
-                inp.accept = "image/*";
+                inp.accept = "image/*,video/*";
                 inp.style.display = "none";
                 document.body.appendChild(inp);
                 inp.addEventListener("change", () => {

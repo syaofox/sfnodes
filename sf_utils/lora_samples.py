@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 
@@ -16,6 +17,8 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}
+_VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
+_MEDIA_EXTS = _IMAGE_EXTS | _VIDEO_EXTS
 _LORA_EXTS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft"}
 _THUMB_SIZE = 256
 
@@ -66,7 +69,7 @@ def _list_sample_images(lora_name: str) -> tuple[list[str], str | None]:
     images = []
     if os.path.isdir(sample_dir):
         for f in sorted(os.listdir(sample_dir)):
-            if f.startswith(".") or os.path.splitext(f)[1].lower() not in _IMAGE_EXTS:
+            if f.startswith(".") or os.path.splitext(f)[1].lower() not in _MEDIA_EXTS:
                 continue
             full = os.path.join(sample_dir, f)
             if not os.path.isfile(full):
@@ -124,6 +127,9 @@ def _register_routes():
 
                 w = request.rel_url.query.get("w")
                 if w:
+                    # 视频无法用 PIL 缩略，直接返回原文件（前端显示首帧由浏览器处理或失败回退）
+                    if os.path.splitext(full)[1].lower() in _VIDEO_EXTS:
+                        return web.FileResponse(full)
                     try:
                         size = min(max(int(w), 16), 1024)
                     except Exception:
@@ -137,7 +143,10 @@ def _register_routes():
                     ).hexdigest()
                     cache_path = os.path.join(cache_dir, f"{key}.webp")
                     if not os.path.isfile(cache_path):
-                        img = Image.open(full)
+                        try:
+                            img = Image.open(full)
+                        except Exception:
+                            return web.FileResponse(full)
                         img = ImageOps.exif_transpose(img)
                         img.thumbnail((size, size), Image.LANCZOS)
                         if img.mode not in ("RGB", "L"):
@@ -151,6 +160,30 @@ def _register_routes():
             except Exception as e:
                 logger.error(f"GET /api/sfnodes/lora_samples/image failed: {e}")
                 return web.Response(status=500)
+
+        @routes.get("/api/sfnodes/lora_samples/prompt")
+        async def _sample_prompt(request: web.Request) -> web.Response:
+            """读取 sample 目录下图片/视频的 prompt（复用 sf_utils.prompt_reader）。"""
+            try:
+                path = request.rel_url.query.get("path", "")
+                full = _resolve_sample_image(path)
+                if full is None:
+                    return web.json_response({"found": False, "message": "Sample not found."})
+                try:
+                    from .prompt_reader import read_prompt_from_image
+                except Exception as e:
+                    logger.error(f"prompt_reader import failed: {e}")
+                    return web.json_response({"found": False, "message": "Prompt reader unavailable."})
+                loop = asyncio.get_running_loop()
+                try:
+                    result = await loop.run_in_executor(None, read_prompt_from_image, full)
+                except Exception as e:
+                    logger.error(f"GET /api/sfnodes/lora_samples/prompt failed: {e}")
+                    return web.json_response({"found": False, "message": f"Could not read prompt: {e}"})
+                return web.json_response(result)
+            except Exception as e:
+                logger.error(f"GET /api/sfnodes/lora_samples/prompt failed: {e}")
+                return web.json_response({"found": False, "message": "internal error"})
 
         @routes.post("/api/sfnodes/lora_samples/upload")
         async def _upload_sample(request: web.Request) -> web.Response:
@@ -168,7 +201,7 @@ def _register_routes():
                 if image is None or not image.file:
                     return web.Response(status=400)
                 ext = os.path.splitext(image.filename or "")[1].lower()
-                if ext not in _IMAGE_EXTS:
+                if ext not in _MEDIA_EXTS:
                     return web.json_response({"error": "unsupported image type"}, status=400)
 
                 sample_dir = os.path.join(lora_dir, "sample")

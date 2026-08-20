@@ -4,10 +4,24 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { renderMarkdown } from "./sf_markdown.js";
+import { copyText } from "./sf_common.js";
 // Civitai 查询/账户封装复用 SFLoraStack 同一套（同一 civitai.json 配置，
 // 机器级共享）。该模块只依赖 sf_common.js，无 Stack 节点依赖。
 import { loraInfo, civitaiLookup, deleteCivitai, saveCivitaiThumb,
     getCivitaiAccount, setCivitaiAccount, migrateLoraData } from "./sf_lora_stack_api.js";
+
+// 样例图悬浮按钮 SVG（mask-image，与 Stack 面板统一样式）
+const _SAMPLE_ICON_TRASH = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 3h6l1 2h4v2H4V5h5l1-2zm-2 6h10l-1 9a1 1 0 01-1 1H8a1 1 0 01-1-1L6 9zM10 11v6M14 11v6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+const _SAMPLE_ICON_LOAD = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z' fill='black'/%3E%3C/svg%3E";
+const _SAMPLE_ICON_PROMPT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+
+function _makeSampleIcon(url) {
+    const s = document.createElement("span");
+    s.style.cssText = "width:10px;height:10px;background-color:#fff;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
+    s.style.webkitMaskImage = `url("${url}")`;
+    s.style.maskImage = `url("${url}")`;
+    return s;
+}
 
 // ---------------------------------------------------------------------------
 // PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
@@ -417,12 +431,19 @@ export function showLoraInfoDialog(event, name, meta) {
                 actionEl.style.flexDirection = "column";
                 if (name && name !== "None") {
                     const uploadBtn = document.createElement("button");
-                    uploadBtn.textContent = "📤";
                     uploadBtn.title = "上传图片到该 LoRA 的 sample 目录并插入";
                     uploadBtn.style.cssText = `
                         background: none; border: 1px solid #555; border-radius: 4px;
-                        cursor: pointer; font-size: 12px; color: #bbb; padding: 2px 5px;
+                        cursor: pointer; color: #bbb; padding: 3px 6px; display: flex; align-items: center; justify-content: center;
                     `;
+                    const _upIconUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 16V3M8 7l4-4 4 4M3 17v4a2 2 0 002 2h14a2 2 0 002-2v-4' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+                    const _upIc = document.createElement("span");
+                    _upIc.style.cssText = "width:12px;height:12px;background-color:#bbb;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
+                    _upIc.style.webkitMaskImage = `url("${_upIconUrl}")`;
+                    _upIc.style.maskImage = `url("${_upIconUrl}")`;
+                    uploadBtn.appendChild(_upIc);
+                    uploadBtn.addEventListener("mouseenter", () => { _upIc.style.backgroundColor = "#fff"; uploadBtn.style.borderColor = "#6af"; });
+                    uploadBtn.addEventListener("mouseleave", () => { _upIc.style.backgroundColor = "#bbb"; uploadBtn.style.borderColor = "#555"; });
                     uploadBtn.addEventListener("click", () => uploadInput.click());
                     actionEl.appendChild(uploadBtn);
                     openSamplePanel(input);
@@ -586,7 +607,7 @@ export function showLoraInfoDialog(event, name, meta) {
 
     const uploadInput = document.createElement("input");
     uploadInput.type = "file";
-    uploadInput.accept = "image/*";
+    uploadInput.accept = "image/*,video/*";
     uploadInput.style.display = "none";
     dialog.appendChild(uploadInput);
 
@@ -629,59 +650,108 @@ export function showLoraInfoDialog(event, name, meta) {
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
             if (!Array.isArray(data.images) || !data.images.length) {
-                sampleHint.textContent = `该 LoRA 没有示例图。请将图片放入 models/loras/${data.sample_dir || ""} 目录，或点击「📤 上传」。`;
+                sampleHint.textContent = `该 LoRA 没有示例图。请将图片放入 models/loras/${data.sample_dir || ""} 目录，或点击“上传”。`;
                 return;
             }
             for (const path of data.images) {
                 const wrap = document.createElement("div");
                 wrap.style.cssText = "position:relative;width:96px;height:96px;";
-                const thumb = document.createElement("img");
-                thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
-                thumb.title = path.split("/").pop();
-                thumb.loading = "lazy";
-                thumb.style.cssText = `
-                    width: 96px; height: 96px; object-fit: cover;
-                    border-radius: 6px; border: 1px solid #3a3a3e; cursor: pointer;
-                    display: block;
-                `;
-                thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
-                thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
-                thumb.addEventListener("click", () => {
-                    if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
-                });
-                // 删除按钮：悬停显示，右上角 ✕
+                const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+                let thumb;
+                if (isVideo) {
+                    thumb = document.createElement("div");
+                    thumb.textContent = path.split("/").pop().slice(0, 14);
+                    thumb.title = path.split("/").pop() + " (video) — 点击插入引用";
+                    thumb.style.cssText = `
+                        width: 96px; height: 96px; border-radius: 6px; border: 1px solid #3a3a3e;
+                        display: flex; align-items: center; justify-content: center; text-align: center;
+                        background: #1c1c1e; color: #888; font-size: 9px; word-break: break-all;
+                        cursor: pointer; padding: 4px; box-sizing: border-box;
+                    `;
+                    thumb.addEventListener("click", () => {
+                        if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
+                    });
+                } else {
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
+                    thumb.title = path.split("/").pop();
+                    thumb.loading = "lazy";
+                    thumb.style.cssText = `
+                        width: 96px; height: 96px; object-fit: cover;
+                        border-radius: 6px; border: 1px solid #3a3a3e; cursor: pointer;
+                        display: block;
+                    `;
+                    thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
+                    thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
+                    thumb.addEventListener("click", () => {
+                        if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
+                    });
+                }
+                // 删除按钮：悬停显示，右上角（SVG）
                 const delBtn = document.createElement("button");
-                delBtn.textContent = "✕";
                 delBtn.title = "删除该示例图";
                 delBtn.style.cssText = `
-                    position: absolute; top: 0; right: 0; display: none;
+                    position: absolute; top: 0; right: 0; display: none; align-items: center; justify-content: center;
                     width: 18px; height: 18px; padding: 0; line-height: 1;
                     background: rgba(224, 108, 108, 0.9); color: #fff;
                     border: none; border-radius: 0 6px 0 6px; cursor: pointer;
-                    font-size: 11px;
                 `;
+                delBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_TRASH));
+                // 载入工作流按钮：悬停显示，右下角（SVG）
+                const loadBtn = document.createElement("button");
+                loadBtn.title = "将该图片载入为工作流（需内嵌工作流数据）";
+                loadBtn.style.cssText = `
+                    position: absolute; bottom: 0; right: 0; display: none; align-items: center; justify-content: center;
+                    width: 18px; height: 18px; padding: 0; line-height: 1;
+                    background: rgba(79, 124, 255, 0.9); color: #fff;
+                    border: none; border-radius: 6px 0 6px 0; cursor: pointer;
+                `;
+                loadBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_LOAD));
+                // 复制 prompt 按钮：悬停显示，左下角（SVG）
+                const promptBtn = document.createElement("button");
+                promptBtn.title = "复制该图片的 prompt 到剪贴板";
+                promptBtn.style.cssText = `
+                    position: absolute; bottom: 0; left: 0; display: none; align-items: center; justify-content: center;
+                    width: 18px; height: 18px; padding: 0; line-height: 1;
+                    background: rgba(46,160,90,0.92); color: #fff;
+                    border: none; border-radius: 0 6px 0 5px; cursor: pointer;
+                `;
+                promptBtn.appendChild(_makeSampleIcon(_SAMPLE_ICON_PROMPT));
                 wrap.addEventListener("mouseenter", () => {
-                    delBtn.style.display = "block";
-                    loadBtn.style.display = "block";
+                    delBtn.style.display = "flex";
+                    loadBtn.style.display = "flex";
+                    promptBtn.style.display = "flex";
                 });
                 wrap.addEventListener("mouseleave", () => {
                     delBtn.style.display = "none";
                     loadBtn.style.display = "none";
+                    promptBtn.style.display = "none";
                 });
-                // 载入工作流按钮：悬停显示，右下角 📂（解析 PNG 内嵌 workflow 数据）
-                const loadBtn = document.createElement("button");
-                loadBtn.textContent = "📂";
-                loadBtn.title = "将该图片载入为工作流（需内嵌工作流数据）";
-                loadBtn.style.cssText = `
-                    position: absolute; bottom: 0; right: 0; display: none;
-                    width: 18px; height: 18px; padding: 0; line-height: 1;
-                    background: rgba(79, 124, 255, 0.9); color: #fff;
-                    border: none; border-radius: 6px 0 6px 0; cursor: pointer;
-                    font-size: 11px;
-                `;
                 loadBtn.addEventListener("click", async (e) => {
                     e.stopPropagation();
                     await loadImageAsWorkflow(path, (msg) => { sampleHint.textContent = msg; });
+                });
+                promptBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    promptBtn.style.opacity = "0.5";
+                    promptBtn.style.pointerEvents = "none";
+                    try {
+                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(path)}`);
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+                        if (!data.found || !data.text) {
+                            sampleHint.textContent = data.message || "该图片未包含 prompt。";
+                            return;
+                        }
+                        const ok = await copyText(data.text);
+                        sampleHint.textContent = ok ? "已复制 prompt 到剪贴板。" : "复制失败。";
+                        if (ok) setTimeout(() => { if (sampleHint.textContent === "已复制 prompt 到剪贴板。") sampleHint.textContent = ""; }, 2000);
+                    } catch (err) {
+                        sampleHint.textContent = "读取失败：" + (err.message || err);
+                    } finally {
+                        promptBtn.style.opacity = "";
+                        promptBtn.style.pointerEvents = "";
+                    }
                 });
                 delBtn.addEventListener("click", async (e) => {
                     e.stopPropagation();
@@ -702,6 +772,7 @@ export function showLoraInfoDialog(event, name, meta) {
                 wrap.appendChild(thumb);
                 wrap.appendChild(delBtn);
                 wrap.appendChild(loadBtn);
+                wrap.appendChild(promptBtn);
                 sampleGrid.appendChild(wrap);
             }
         } catch (e) {
