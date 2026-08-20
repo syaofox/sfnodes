@@ -154,6 +154,57 @@ def _looks_like_image(raw):
     return False
 
 
+def _ext_from_image(raw, headers=None, url=""):
+    """从 magic / 响应头推断图片扩展名（Civitai 原图 URL 的扩展名不可信，如
+    .../original=true/xxx.jpeg 实际为 PNG，见 modelVersionId=3103403）。
+    优先级：magic > Content-Type > Content-Disposition > URL。永不抛错。"""
+    try:
+        if raw:
+            if raw[:8] == b"\x89PNG\r\n\x1a\n":
+                return ".png"
+            if raw[:3] == b"\xff\xd8\xff":
+                return ".jpg"
+            if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+                return ".webp"
+            if raw[:4] == b"GIF8":
+                return ".gif"
+            if raw[:2] == b"BM":
+                return ".bmp"
+        if headers:
+            ct = (headers.get("Content-Type") or headers.get("content-type") or "").split(";")[0].strip().lower()
+            if ct == "image/png":
+                return ".png"
+            if ct in ("image/jpeg", "image/jpg"):
+                return ".jpg"
+            if ct == "image/webp":
+                return ".webp"
+            if ct == "image/gif":
+                return ".gif"
+            if ct == "image/bmp":
+                return ".bmp"
+            cd = headers.get("Content-Disposition") or headers.get("content-disposition") or ""
+            import re as _re
+            m = _re.search(r'filename="([^"]+)"', cd)
+            if m:
+                import os as _os
+                e = _os.path.splitext(m.group(1))[1].lower()
+                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
+                    return ".jpg" if e == ".jpeg" else e
+                    # 归一 jpeg → jpg
+        if url:
+            import os as _os
+            import urllib.parse as _up
+            try:
+                e = _os.path.splitext(_up.urlparse(url).path)[1].lower()
+                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
+                    return ".jpg" if e == ".jpeg" else e
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ".jpg"
+
+
 # 预览图上限：浏览器先降采样到 512px 再上传，接近这个值的都是没走我们代码的。
 # Civitai 缩略图（width=256）远小于此，但流量守卫统一走它。
 _PREVIEW_MAX_BYTES = 4 * 1024 * 1024
@@ -628,20 +679,11 @@ def _register_routes():
                         if not isinstance(url, str) or not url.startswith("https://"):
                             failed += 1
                             return
-                        # 已有文件跳过：按 URL hash 命名避免重复下载
+                        # 按 URL hash 命名，扩展名由实际内容推断（URL 的 .jpeg 不可信，见 3103403 仅为 PNG）
                         try:
-                            parsed_u = _urlparse.urlparse(url)
-                            ext = os.path.splitext(parsed_u.path)[1].lower() or ".jpg"
-                            if ext not in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
-                                ext = ".jpg"
                             h = _hashlib.sha1(url.encode("utf-8")).hexdigest()[:8]
-                            fname = f"civitai_{idx:02d}_{h}{ext}"
-                            fpath = os.path.join(sample_dir, fname)
                         except Exception:
                             failed += 1
-                            return
-                        if os.path.isfile(fpath):
-                            skipped += 1
                             return
                         if total_bytes >= BATCH_MAX:
                             skipped += 1
@@ -655,6 +697,8 @@ def _register_routes():
                                         if r.status != 200:
                                             failed += 1
                                             return
+                                        # 响应头用于扩展名推断（重定向后 B2 的 content-type/content-disposition 才是真值）
+                                        hdrs = r.headers
                                         chunks = []
                                         cur = 0
                                         async for chunk in r.content.iter_chunked(65536):
@@ -670,6 +714,25 @@ def _register_routes():
                                         if not _looks_like_image(raw):
                                             failed += 1
                                             return
+                                        ext = _ext_from_image(raw, hdrs, url)
+                                        fname = f"civitai_{idx:02d}_{h}{ext}"
+                                        fpath = os.path.join(sample_dir, fname)
+                                        # 已有同 hash+扩展名文件跳过；若已存旧扩展名（如 .jpeg 误标的 PNG）则保留旧文件，跳过以免重复
+                                        if os.path.isfile(fpath):
+                                            skipped += 1
+                                            return
+                                        # 兼容旧误标：检查同 hash 不同扩展名的已存文件
+                                        try:
+                                            for _e in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
+                                                if _e == ext:
+                                                    continue
+                                                alt = os.path.join(sample_dir, f"civitai_{idx:02d}_{h}{_e}")
+                                                if os.path.isfile(alt):
+                                                    # 已有同 hash 任意扩展名，视为已下载
+                                                    skipped += 1
+                                                    return
+                                        except Exception:
+                                            pass
                                         # 原图直存，不压缩
                                         def _write():
                                             tmp = fpath + f".{os.getpid()}.{hash(fname) & 0xffff}.tmp"
