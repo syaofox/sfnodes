@@ -44,10 +44,9 @@ function injectCSS() {
       border:1px solid var(--acc, var(--sf-acc, #f66744)); border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
       display:flex; flex-direction:column; max-height:92vh; }
-    /* 中间滚动容器：面板被用户拉高/拉矮后，头部与 footer 固定，内容滚动。
-       flex:0 1 auto——拉高增量只给 Description，触发词区保持内容高度；
-       拉矮时按内容比例收缩、内部滚动。 */
-    .sf-ls-info-body { flex:0 1 auto; min-height:0; overflow-y:auto; }
+    /* 中间区域：触发词等内容完全展示、自身不滚动（避免描述很长时挤压触发词出现滚动条）；
+       拉高增量全给 Description，拉矮时也仅 Description 收缩滚动。 */
+    .sf-ls-info-body { flex:0 0 auto; min-height:0; overflow:visible; }
     /* 右下角拖拽调大小手柄 */
     .sf-ls-resize { position:absolute; right:0; bottom:0; width:16px; height:16px;
       cursor:se-resize; z-index:3; }
