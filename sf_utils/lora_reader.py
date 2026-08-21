@@ -620,8 +620,11 @@ def _format_sample_prompts(images):
         w = im.get("width")
         hgt = im.get("height")
         size = f" ({w}x{hgt})" if isinstance(w, int) and isinstance(hgt, int) else ""
-        id_part = f" — {image_id}" if image_id else ""
-        header = f"### {fname_base}{id_part}{size}"
+        if image_id:
+            link = f"https://civitai.com/images/{image_id}"
+            header = f"### [{fname_base} — {image_id}]({link}){size}"
+        else:
+            header = f"### {fname_base}{size}"
         # prompt 原样保留（含 // 资源的注释行与换行）
         prompt_block = "```\n" + prompt.strip() + "\n```"
         # 其余 meta 键（除 prompt 外）拼成一行
