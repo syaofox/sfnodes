@@ -245,28 +245,44 @@ function insertAtCursor(textarea, text) {
     textarea.selectionStart = textarea.selectionEnd = pos;
 }
 
-function openSamplePreview(path) {
-    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+function openSamplePreview(path, allPaths) {
+    const list = Array.isArray(allPaths) && allPaths.length ? allPaths : [path];
+    let idx = list.indexOf(path);
+    if (idx < 0) idx = 0;
     const overlay = el("div", "sf-ls-sample-preview");
-    let media;
-    if (isVideo) {
-        media = document.createElement("video");
-        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
-        media.controls = true;
-        media.autoplay = true;
-    } else {
-        media = document.createElement("img");
-        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
-        media.alt = path.split("/").pop();
-    }
-    // 点击图片/视频本身不关闭（避免误触），点击遮罩关闭
-    media.addEventListener("click", (e) => e.stopPropagation());
-    overlay.appendChild(media);
+    let media = null;
+    const render = (i) => {
+        if (i < 0 || i >= list.length) return;
+        idx = i;
+        const p = list[idx];
+        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+        if (media) media.remove();
+        if (isVideo) {
+            media = document.createElement("video");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.controls = true;
+            media.autoplay = true;
+        } else {
+            media = document.createElement("img");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.alt = p.split("/").pop();
+        }
+        media.addEventListener("click", close);
+        overlay.appendChild(media);
+    };
     const close = () => {
         overlay.remove();
         document.removeEventListener("keydown", onKey);
     };
-    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const onKey = (e) => {
+        if (e.key === "Escape") close();
+        else if (e.key === "ArrowLeft") {
+            if (idx > 0) { e.preventDefault(); render(idx - 1); }
+        } else if (e.key === "ArrowRight") {
+            if (idx < list.length - 1) { e.preventDefault(); render(idx + 1); }
+        }
+    };
+    render(idx);
     overlay.addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     document.body.appendChild(overlay);
@@ -1559,7 +1575,7 @@ export async function openInfoPanelFor(ctx, id) {
                         thumb.loading = "lazy";
                     }
                     thumb.style.cursor = "pointer";
-                    thumb.addEventListener("click", () => openSamplePreview(p));
+                    thumb.addEventListener("click", () => openSamplePreview(p, imgs));
                     const del = el("button", "x");
                     del.title = "Delete this sample image from disk";
                     const delIc = el("span", "ic");

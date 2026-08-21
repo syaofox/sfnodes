@@ -23,30 +23,44 @@ function _makeSampleIcon(url) {
     return s;
 }
 
-function _openSamplePreview(path) {
-    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
+function _openSamplePreview(path, allPaths) {
+    const list = Array.isArray(allPaths) && allPaths.length ? allPaths : [path];
+    let idx = list.indexOf(path);
+    if (idx < 0) idx = 0;
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;cursor:pointer;";
-    let media;
-    if (isVideo) {
-        media = document.createElement("video");
-        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
-        media.controls = true;
-        media.autoplay = true;
-        media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
-    } else {
-        media = document.createElement("img");
-        media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
-        media.alt = path.split("/").pop();
-        media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
-    }
-    media.addEventListener("click", (e) => e.stopPropagation());
-    overlay.appendChild(media);
+    let media = null;
+    const render = (i) => {
+        if (i < 0 || i >= list.length) return;
+        idx = i;
+        const p = list[idx];
+        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+        if (media) media.remove();
+        if (isVideo) {
+            media = document.createElement("video");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.controls = true;
+            media.autoplay = true;
+            media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
+        } else {
+            media = document.createElement("img");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.alt = p.split("/").pop();
+            media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
+        }
+        media.addEventListener("click", close);
+        overlay.appendChild(media);
+    };
     const close = () => {
         overlay.remove();
         document.removeEventListener("keydown", onKey);
     };
-    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const onKey = (e) => {
+        if (e.key === "Escape") close();
+        else if (e.key === "ArrowLeft") { if (idx > 0) { e.preventDefault(); render(idx - 1); } }
+        else if (e.key === "ArrowRight") { if (idx < list.length - 1) { e.preventDefault(); render(idx + 1); } }
+    };
+    render(idx);
     overlay.addEventListener("click", close);
     document.addEventListener("keydown", onKey);
     document.body.appendChild(overlay);
@@ -783,7 +797,7 @@ export function showLoraInfoDialog(event, name, meta) {
                     thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
                     thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
                 }
-                thumb.addEventListener("click", () => _openSamplePreview(path));
+                thumb.addEventListener("click", () => _openSamplePreview(path, imgs));
                 const delBtn = document.createElement("button");
                 delBtn.title = "删除该示例图";
                 delBtn.style.cssText = "position:absolute;top:0;right:0;display:none;align-items:center;justify-content:center;width:18px;height:18px;padding:0;line-height:1;background:rgba(224,108,108,0.9);color:#fff;border:none;border-radius:0 6px 0 6px;cursor:pointer;";
