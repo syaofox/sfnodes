@@ -565,14 +565,17 @@ def parse_civitai_modelversion(obj, allow_adult=False):
 def _format_sample_prompts(images):
     """把 `images[].meta` 按固定 markdown 格式拼接（全部图片，原样保留）。
 
-    格式：
+    标题直接使用 sample 落盘文件名（与下方网格 1:1 对应）并追加 imageId：
+
       ## Sample Images
-      ### Sample 1 (WxH)
+      ### civitai_00_1a2b3c4d — 140313761 (1056x1344)
       ```
       <prompt>
       ```
       *Steps: 12, CFG: 1, Sampler: euler, Seed: 0, Model: ...*
 
+    文件名 `civitai_{idx:02d}_{hash}` 与下载侧 `hash=SHA1(url)[:8]` 同源（不含扩展名，避免 URL 扩展名与 magic 误判导致的 .jpeg/.png 差异）；
+    imageId 从 URL 末段解析（即 https://civitai.red/images/{id}），便于回跳。
     包含 prompt 与其余 meta 键（steps/cfgScale/sampler/seed/Model/resources 等），
     全部图片依次拼接。空 prompt 的图跳过。永不抛错。"""
     if not isinstance(images, list) or not images:
@@ -588,11 +591,37 @@ def _format_sample_prompts(images):
         if not isinstance(prompt, str) or not prompt.strip():
             # 无 prompt 的图在该模型下无生成信息，跳过
             continue
-        # 尺寸来自 image 顶层 width/height
+        # 标题：落盘文件名（不含扩展名，避免 .jpeg/.png 误判）— imageId — 尺寸
+        url = im.get("url") if isinstance(im.get("url"), str) else ""
+        try:
+            h = hashlib.sha1(url.encode("utf-8")).hexdigest()[:8] if url else "00000000"
+        except Exception:
+            h = "00000000"
+        fname_base = f"civitai_{idx:02d}_{h}"
+        # imageId 从 URL 末段解析（如 .../140313761.jpeg → 140313761）
+        image_id = ""
+        try:
+            import urllib.parse as _up
+            import os as _os
+            seg = _up.urlparse(url).path.rsplit("/", 1)[-1] if url else ""
+            seg = seg.split("?")[0]
+            base = _os.path.splitext(seg)[0]
+            # 末段通常为数字 ID，若含非数字（如 hash），则取纯数字部分
+            if base.isdigit():
+                image_id = base
+            else:
+                # 尝试在路径中找数字段
+                import re as _re2
+                m = _re2.search(r"(\d{5,})", url or "")
+                if m:
+                    image_id = m.group(1)
+        except Exception:
+            image_id = ""
         w = im.get("width")
-        h = im.get("height")
-        size = f" ({w}x{h})" if isinstance(w, int) and isinstance(h, int) else ""
-        header = f"### Sample {idx + 1}{size}"
+        hgt = im.get("height")
+        size = f" ({w}x{hgt})" if isinstance(w, int) and isinstance(hgt, int) else ""
+        id_part = f" — {image_id}" if image_id else ""
+        header = f"### {fname_base}{id_part}{size}"
         # prompt 原样保留（含 // 资源的注释行与换行）
         prompt_block = "```\n" + prompt.strip() + "\n```"
         # 其余 meta 键（除 prompt 外）拼成一行
