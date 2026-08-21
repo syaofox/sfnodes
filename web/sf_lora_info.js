@@ -52,6 +52,70 @@ function _openSamplePreview(path) {
     document.body.appendChild(overlay);
 }
 
+function _attachSampleTitleHover(container, loraName) {
+    if (!container || !loraName) return;
+    const links = container.querySelectorAll("h3 a");
+    if (!links.length) return;
+    let sampleMap = null;
+    let hoverEl = null;
+    let hoverTimer = null;
+    const show = async (a) => {
+        const text = a.textContent || "";
+        const m = text.match(/civitai_\d+_([0-9a-f]{8})/i);
+        const hash = m ? m[1] : "";
+        if (!hash) return;
+        if (!sampleMap) {
+            try {
+                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const imgs = Array.isArray(data.images) ? data.images : [];
+                sampleMap = new Map();
+                for (const p of imgs) {
+                    const hm = p.match(/_([0-9a-f]{8})\./i);
+                    if (hm) sampleMap.set(hm[1].toLowerCase(), p);
+                }
+            } catch { return; }
+        }
+        const rel = sampleMap.get(hash.toLowerCase());
+        if (!rel) return;
+        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(rel);
+        hoverEl = document.createElement("div");
+        hoverEl.className = "sf-li-desc-hover";
+        let media;
+        if (isVideo) {
+            media = document.createElement("video");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}`;
+            media.autoplay = true;
+            media.muted = true;
+            media.loop = true;
+        } else {
+            media = document.createElement("img");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}&w=512`;
+        }
+        hoverEl.appendChild(media);
+        document.body.appendChild(hoverEl);
+        const rect = a.getBoundingClientRect();
+        const vw = window.innerWidth, vh = window.innerHeight;
+        let left = rect.right + 12;
+        let top = rect.top;
+        const hr = hoverEl.getBoundingClientRect();
+        if (left + hr.width > vw - 8) left = Math.max(8, rect.left - hr.width - 12);
+        if (top + hr.height > vh - 8) top = Math.max(8, vh - hr.height - 8);
+        hoverEl.style.left = left + "px";
+        hoverEl.style.top = top + "px";
+    };
+    const hide = () => {
+        if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+        if (hoverEl) { hoverEl.remove(); hoverEl = null; }
+    };
+    for (const a of links) {
+        a.addEventListener("mouseenter", () => { hoverTimer = setTimeout(() => show(a), 220); });
+        a.addEventListener("mouseleave", hide);
+        a.addEventListener("click", hide);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // PNG 内嵌工作流解析（ComfyUI SaveImage 写入的 workflow/prompt chunk）
 // 返回 { chunk: "workflow" | "prompt", data: string } 或 null
@@ -235,6 +299,8 @@ export function showLoraInfoDialog(event, name, meta) {
             .sf-li-acc-sw.on::after { left:16px; background:#fff; }
             .sf-li-acc-msg { font-size:10.5px; margin-top:6px; display:none; }
             .sf-li-acc-msg.ok { color:#3ec371; }
+            .sf-li-desc-hover { position:fixed; z-index:10060; background:#1e1e1e; border:1px solid #444; border-radius:8px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,0.6); pointer-events:none; }
+            .sf-li-desc-hover img, .sf-li-desc-hover video { max-width:320px; max-height:320px; border-radius:6px; display:block; }
         `;
         document.head.appendChild(style);
     }
@@ -409,6 +475,8 @@ export function showLoraInfoDialog(event, name, meta) {
                 // 相对路径（sample/xxx.png）按当前 lora 目录解析，目录改名后自动跟随
                 valueEl.style.whiteSpace = "normal";
                 valueEl.innerHTML = renderMarkdown(v, { resolveRelative: resolveNoteRelativeUrl });
+                // 标题悬停预览对应 sample 图（与下方网格同源）
+                queueMicrotask(() => _attachSampleTitleHover(valueEl, name));
             } else {
                 valueEl.style.whiteSpace = "pre-wrap";
                 valueEl.textContent = v;

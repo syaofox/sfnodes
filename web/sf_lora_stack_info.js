@@ -142,6 +142,8 @@ function injectCSS() {
     .sf-ls-sample-sec h4 { margin:0 0 8px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px; color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-sample-preview { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; cursor:pointer; }
     .sf-ls-sample-preview img, .sf-ls-sample-preview video { max-width:90vw; max-height:90vh; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,0.6); }
+    .sf-ls-desc-hover { position:fixed; z-index:10060; background:#1e1e1e; border:1px solid #444; border-radius:8px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,0.6); pointer-events:none; }
+    .sf-ls-desc-hover img, .sf-ls-desc-hover video { max-width:320px; max-height:320px; border-radius:6px; display:block; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
     .sf-ls-info-sec h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -277,6 +279,75 @@ function resolveSampleUrl(rel, loraName) {
     const idx = loraName.lastIndexOf("/");
     const dir = idx === -1 ? "" : loraName.slice(0, idx + 1);
     return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
+}
+
+function attachSampleTitleHover(container, loraName) {
+    if (!container || !loraName) return;
+    // 标题形如 ### [civitai_00_1a2b3c4d — 140313761](https://civitai.com/images/140313761)
+    // 悬停时显示对应 sample 文件预览（本地 sample/ 原图）
+    const links = container.querySelectorAll("h3 a");
+    if (!links.length) return;
+    let sampleMap = null; // hash -> rel path
+    let hoverEl = null;
+    let hoverTimer = null;
+    const show = async (a, ev) => {
+        const text = a.textContent || "";
+        const m = text.match(/civitai_\d+_([0-9a-f]{8})/i);
+        const hash = m ? m[1] : "";
+        if (!hash) return;
+        if (!sampleMap) {
+            try {
+                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const imgs = Array.isArray(data.images) ? data.images : [];
+                sampleMap = new Map();
+                for (const p of imgs) {
+                    const hm = p.match(/_([0-9a-f]{8})\./i);
+                    if (hm) sampleMap.set(hm[1].toLowerCase(), p);
+                }
+            } catch { return; }
+        }
+        const rel = sampleMap.get(hash.toLowerCase());
+        if (!rel) return;
+        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(rel);
+        hoverEl = document.createElement("div");
+        hoverEl.className = "sf-ls-desc-hover";
+        let media;
+        if (isVideo) {
+            media = document.createElement("video");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}`;
+            media.autoplay = true;
+            media.muted = true;
+            media.loop = true;
+        } else {
+            media = document.createElement("img");
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}&w=512`;
+        }
+        hoverEl.appendChild(media);
+        document.body.appendChild(hoverEl);
+        const rect = a.getBoundingClientRect();
+        const vw = window.innerWidth, vh = window.innerHeight;
+        // 优先显示在标题右侧，超界则翻转
+        let left = rect.right + 12;
+        let top = rect.top;
+        const hr = hoverEl.getBoundingClientRect();
+        if (left + hr.width > vw - 8) left = Math.max(8, rect.left - hr.width - 12);
+        if (top + hr.height > vh - 8) top = Math.max(8, vh - hr.height - 8);
+        hoverEl.style.left = left + "px";
+        hoverEl.style.top = top + "px";
+    };
+    const hide = () => {
+        if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+        if (hoverEl) { hoverEl.remove(); hoverEl = null; }
+    };
+    for (const a of links) {
+        a.addEventListener("mouseenter", (ev) => {
+            hoverTimer = setTimeout(() => show(a, ev), 220);
+        });
+        a.addEventListener("mouseleave", hide);
+        a.addEventListener("click", hide);
+    }
 }
 
 // ── 右下角拖拽调大小手柄 ───────────────────────────────────────────────────
@@ -1440,6 +1511,8 @@ export async function openInfoPanelFor(ctx, id) {
                 db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name) });
                 db.title = shown;
                 dsec.appendChild(db);
+                // 标题悬停预览对应 sample 图（与下方网格同源）
+                queueMicrotask(() => attachSampleTitleHover(db, name));
             } else {
                 dsec.appendChild(el("div", "sf-ls-desc-none",
                     "No description in this file - write your own, or try the Civitai lookup."));
