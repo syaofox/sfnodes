@@ -117,8 +117,6 @@ function patchRowFor(name, patch) { Object.assign(getRowFor(name), patch); }
 // ── 信息面板（复用 LoRA Stack 编辑能力）──────────────────────────────────
 async function openInfoFor(name, card) {
     if (!name) return;
-    // 保留列表滚动位置：render() 会重建 main（innerHTML=""），否则点开信息会回顶
-    const savedScroll = S.win?.main?.scrollTop ?? null;
     await openInfoPanelFor({
         key: BROWSER_KEY,
         getRow: () => getRowFor(name),
@@ -130,11 +128,7 @@ async function openInfoFor(name, card) {
     }, name);
     if (S.sel !== name) {
         S.sel = name;
-        render();
-        // 恢复滚动（选中态仅高亮，不该回顶）
-        if (savedScroll != null && S.win?.main) {
-            try { S.win.main.scrollTop = savedScroll; } catch {}
-        }
+        render({ preserveScroll: true });
     }
 }
 
@@ -285,8 +279,10 @@ function onSearchInput() {
     }, 180);
 }
 
-function render() {
+function render(opts = {}) {
     if (!S.win) return;
+    const preserveScroll = !!opts.preserveScroll;
+    const savedScroll = preserveScroll ? (S.win.main?.scrollTop ?? 0) : null;
     // 展示模式/视图切换控件高亮
     for (const b of S.win.segButtons || []) b.classList.toggle("on", b.dataset.mode === S.mode);
     for (const b of S.win.viewButtons || []) b.classList.toggle("on", b.dataset.view === S.view);
@@ -311,7 +307,7 @@ function render() {
         if (shownCount < all.length
             && (S.win.main.scrollHeight || 0) <= (S.win.main.clientHeight || 0) + 8) {
             S.flat.page++;
-            render();
+            render({ preserveScroll: true });
             return;
         }
         S.win.setCount(all.length
@@ -349,6 +345,9 @@ function render() {
         // 首帧仍在拉列表：占位提示
         const empty = S.win.main.querySelector(".sf-lb-empty");
         if (empty) empty.textContent = "Loading LoRAs…";
+    }
+    if (preserveScroll && savedScroll != null) {
+        try { S.win.main.scrollTop = savedScroll; } catch {}
     }
 }
 
@@ -408,7 +407,7 @@ function ensureWindow() {
         const all = q ? filterLoras(S.list, q) : S.list;
         if ((S.flat.page + 1) * FLAT_STEP >= all.length) return;   // 已全部渲染
         S.flat.page++;
-        render();
+        render({ preserveScroll: true });
     });
     return S.win;
 }
