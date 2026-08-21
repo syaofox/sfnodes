@@ -456,7 +456,7 @@ function attachDragSort(node, widgetEl, refresh) {
 
 export { closeRowMenu };
 
-// ── preset 输入（SF_LORA_PRESET，来自 SF Power Lora Preset）───────────────
+// ── preset 输入（SF_LORA_PRESET，来自 SFLoraPreset）───────────────
 // 连接后自动把预设加载到行（"连接即刷新"）；上游切换预设名时跟随重载。
 // 加载路径（工作流恢复连接）只 watch 不写状态——writeState 会把干净的工作流
 // 标成 modified（Vue Compat #18）。断开保留已加载的行（用户可继续编辑）。
@@ -470,8 +470,7 @@ export function presetUpstream(node) {
     const link = node.graph?.links?.[slot.link];
     if (!link) return null;
     const up = node.graph?.getNodeById?.(link.origin_id);
-    return up && (up.comfyClass === "SFLoraPreset" || up.type === "SFLoraPreset"
-        || up.comfyClass === "SFPowerLoraPreset" || up.type === "SFPowerLoraPreset") ? up : null;
+    return up && (up.comfyClass === "SFLoraPreset" || up.type === "SFLoraPreset") ? up : null;
 }
 
 // 读上游 combo 名 -> fetch 预设 -> 加载到行并刷新。加载路径不执行。

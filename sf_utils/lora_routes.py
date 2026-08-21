@@ -454,7 +454,7 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not read: {}".format(exc)})
             # 用户自己的词随文件词和 Civitai 词一起返回，面板打开瞬间三源齐备。
-            # 统一存储真源（2026-08 起 Power 系 lora_notes 也写这里）。旧
+            # 统一存储真源。旧
             # lora_notes 侧车（<base>.sf.json）在任一读取入口首次惰性迁移
             # 并入后删除（幂等：store 已有该 LoRA 数据则跳过）。
             try:
@@ -795,7 +795,7 @@ def _register_routes():
                     merged = "\n\n".join([s for s in (merged, sp) if isinstance(s, str) and s.strip()])
             if merged:
                 parsed["description"] = merged
-                # 侧车同步存拼接版：未来读取/其他节点（lora_notes、Power 系）
+                # 侧车同步存拼接版：未来读取/其他节点（lora_notes）
                 # 从侧车解析即拿到完整描述，无需重新抓取。
                 data["description"] = merged
             await loop.run_in_executor(None, R.save_sidecar_cache, path, data)

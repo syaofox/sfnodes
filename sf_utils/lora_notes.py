@@ -2,7 +2,7 @@
 
 2026-08 起与 SFLoraStack 统一存储：用户自定义触发词/描述的单一真源为
 <user>/sfnodes/lora_triggers.json（路径见 lora_routes._custom_triggers_file），
-本模块只是 Power 系（旧信息对话框 + loader 节点 execute 输出）的读写网关：
+本模块是 LoRA 触发词/描述的读写网关：
 
   - 读（get_merged_metadata）：文件内嵌元数据（safetensors 头部）+ Civitai
     侧车（<base>.civitai.info）+ 统一存储（优先）三源合并，返回形状与旧

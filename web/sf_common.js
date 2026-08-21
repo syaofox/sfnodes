@@ -61,9 +61,7 @@ export function sfAccent() {
 }
 
 // ── LoRA 名称显示（全局设置 sfnodes.Lora.DisplayName）────────────────────
-// 供 SFLoraStack / SFLoraPlot 统一读取（单一真源，禁止各节点内联副本）。
-// 2026-08 彻底迁移：旧键 sfnodes.PowerLoraLoader.DisplayName 已移除，
-// 首次读取时自动将旧值搬运至新键（一次性，不再回读旧键）。五档：
+// 供 SFLoraStack / SFLoraPlot 统一读取（单一真源，禁止各节点内联副本）。五档：
 // full 完整相对路径（默认）/ filename 文件名含扩展名 / basename 文件名
 // 去扩展名 / folder 所在文件夹名（根目录文件降级文件名）/ parent_basename
 // 上级目录名 + 文件名去扩展名（根目录文件降级 basename）。
@@ -75,7 +73,6 @@ export const LORA_DISPLAY_MODES = {
   PARENT_BASENAME: "parent_basename",
 };
 export const LORA_DISPLAY_SETTING = "sfnodes.Lora.DisplayName";
-const LORA_DISPLAY_SETTING_LEGACY = "sfnodes.PowerLoraLoader.DisplayName";
 
 // 单一路径 → 显示名（纯函数，不读设置；mode 由调用方传入）
 export function loraDisplayName(path, mode) {
@@ -103,18 +100,11 @@ export function loraDisplayName(path, mode) {
 }
 
 // 每渲染直读（getSettingValue 是轻量 map 查找）；未设置/异常回退 full
-// 彻底迁移：若新键无值但旧键有值，一次性搬运（fire-and-forget）后返回旧值
 export function getLoraDisplayMode() {
   try {
-    const cur = app.ui?.settings?.getSettingValue?.(LORA_DISPLAY_SETTING);
-    if (cur) return cur;
-    const legacy = app.ui?.settings?.getSettingValue?.(LORA_DISPLAY_SETTING_LEGACY);
-    if (legacy) {
-      // fire-and-forget 搬运：新键写入后旧键无需清理（设置页已移除旧键注册，值残留无害）
-      try { app.ui.settings.setSettingValue(LORA_DISPLAY_SETTING, legacy); } catch {}
-      return legacy;
-    }
-    return LORA_DISPLAY_MODES.FULL;
+    return (
+      app.ui?.settings?.getSettingValue?.(LORA_DISPLAY_SETTING) || LORA_DISPLAY_MODES.FULL
+    );
   } catch {
     return LORA_DISPLAY_MODES.FULL;
   }

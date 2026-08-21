@@ -392,7 +392,7 @@ def parse_state(state_str):
 
 
 def preset_override(state, preset):
-    """预设（Power 形状 {loras: [{lora, on, strength, strengthTwo}]}）优先覆盖行。
+    """预设（SFLoraPreset 形状 {loras: [{lora, on, strength, strengthTwo}]}）优先覆盖行。
 
     与 SFLoraPreset 的 preset 输入同语义（连接后预设优先）：name/on/sm/sc
     全取预设（strength -> sm，strengthTwo 缺省取 strength）；行状态仅用于继承

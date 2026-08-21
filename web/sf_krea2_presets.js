@@ -67,7 +67,7 @@ export async function resetAllPresets(kind) {
 // 把某节点的 preset combo options 设为合并预设名列表（保留当前值——后端
 // VALIDATE_INPUTS=True 兜底，值不在列表也不拦截）。
 // 注意：ComfyUI combo 的 options 是对象 `{values: [...]}`（不是数组），须写
-// `w.options.values`（对齐 sf_combo_selector / power_lora_preset 先例），直接
+// `w.options.values`，直接
 // 赋数组会破坏 combo 渲染。
 export function setPresetOptions(node, presets) {
   const w = node?.widgets?.find((x) => x.name === "preset");

@@ -148,7 +148,7 @@ export async function civitaiLookup(name, overwriteOrOpts) {
         if (civitaiUrl) extra += "&civitaiUrl=" + encodeURIComponent(String(civitaiUrl));
         const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q + dl + extra));
         const j = await r.json();
-        // 查询可能写入 .civitai.info 侧车（Power 系读 lora_notes 时合并它的
+        // 查询可能写入 .civitai.info 侧车（读 lora_notes 时合并它的
         // 词/描述）——广播让另一端缓存失效，打开即新数据。
         if (j?.ok) broadcastDataChanged(name);
         return j;
@@ -312,7 +312,7 @@ export async function migrateLoraData(name, oldKey) {
 }
 
 // ── 跨节点缓存失效（2026-08 统一存储）──────────────────────────────────────
-// Power 系（sf_lora_info.js 对话框 / SFLoraLoader 节点）与本面板共享
+// SFLoraLoader 对话框与本面板共享
 // lora_triggers.json 真源：任何一端保存后广播 "sfnodes.lora-data-changed"
 // （detail.name），两端各自清自己的缓存，另一端打开即新数据。本模块：
 //   监听 -> invalidateInfo（下方）；自身保存成功 -> broadcast（各函数内）。
@@ -327,7 +327,7 @@ if (typeof document !== "undefined") {
 }
 
 // ── 预设（与 SFLoraPreset 共享 user/sfnodes/lora_presets.json）──────────
-// 存 Power 的行形状 {lora, on, strength, strengthTwo}，两节点互通。机器级
+// 存 SFLoraPreset 行形状 {lora, on, strength, strengthTwo}。机器级
 // 存储（user/ 目录），不进工作流。
 
 export async function loadPresets() {

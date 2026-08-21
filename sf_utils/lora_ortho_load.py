@@ -25,7 +25,7 @@ def ortho_apply(model, clip, entries, load_sd):
       最终应用强度（调用方归一化后）；sm=0 的行跳过 model 侧、sc=0 跳过
       clip 侧。零强度行应在调用方预处理（本函数不处理）。
     load_sd: callable(path) -> (sd, meta) —— 调用方决定缓存策略
-      （SFLoraStack 传 self._get_lora 复用缓存；Power 传直接读盘）。
+      （SFLoraStack 复用缓存）。
     返回 (new_model, new_clip, ok_paths, (ortho_keys, pass_keys))：
       ok_paths = 成功应用的行 path 集合（加载/解析失败的行不计入）；
       stats 供日志展示。返回 None = key map 构建失败（整体 fallback 顺序）。

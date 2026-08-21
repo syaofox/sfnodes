@@ -178,7 +178,7 @@ export function injectCSS() {
       cursor:pointer; display:flex; align-items:center; justify-content:center;
       font:italic 12px Georgia,serif; }
     .sf-ls-info:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
-    /* 高亮：该 LoRA 有用户编辑过的信息（_has_custom——与 Power 系 i 图标
+    /* 高亮：该 LoRA 有用户编辑过的信息（_has_custom）
        同语义同蓝色系：统一存储有词/描述或 .civitai.info 侧车有词/描述） */
     .sf-ls-info.net { border-color:rgba(79,195,247,0.7); color:#79c3f7;
       background:rgba(79,195,247,0.15); }
@@ -320,7 +320,7 @@ export function renderNode(node) {
         info.textContent = "i";
         info.title = "Info + pick trigger words";
         // 高亮 = 该 LoRA 有用户编辑过的信息（_has_custom：统一存储有词/描述，
-        // 或 .civitai.info 侧车有词/描述——与 Power 系对话框 i 图标同一判定
+        // 或 .civitai.info 侧车有词/描述
         // 源，见 lora_notes 网关）。缓存命中即时；未命中 fetch 落地后碰活
         // 元素（renderNode 重建会重跑）。行已重建（isConnected=false）时
         // 丢弃——新行自己会查。

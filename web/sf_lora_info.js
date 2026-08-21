@@ -279,7 +279,7 @@ export function invalidateLoraMetadata(name) {
     }
 }
 
-// ── 跨节点缓存失效：任一节点（Power 系对话框 / SFLoraStack 面板）保存
+// ── 跨节点缓存失效：任一节点（SFLoraLoader / SFLoraStack 面板）保存
 // LoRA 用户数据后广播，两端各自清自己模块的缓存，下次打开即新数据。────
 if (typeof document !== "undefined") {
     document.addEventListener("sfnodes.lora-data-changed", (e) => {
@@ -605,6 +605,8 @@ export function showLoraInfoDialog(event, name, meta) {
             }
             if (key === "description") {
                 input.placeholder = "支持 Markdown：**加粗**、[链接](url)、列表、代码块；下方示例图点击即可插入";
+            } else if (key === "trigger_words") {
+                input.placeholder = "逗号/换行批量添加，如：tag1, tag2";
             }
             input.style.cssText = `
                 width: 100%; box-sizing: border-box;

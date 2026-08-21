@@ -203,14 +203,6 @@ app.registerExtension({
                         document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"));
                     },
                 });
-                // 旧键一次性迁移（彻底迁移语义：读旧值后写入新键）
-                try {
-                    const legacy = app.ui.settings.getSettingValue("sfnodes.PowerLoraLoader.DisplayName");
-                    const cur = app.ui.settings.getSettingValue(LORA_DISPLAY_SETTING);
-                    if (legacy && !cur) {
-                        app.ui.settings.setSettingValue(LORA_DISPLAY_SETTING, legacy);
-                    }
-                } catch {}
             } catch (_e3) { /* 设置系统不可用则忽略 */ }
             // 全局 LoRA 显示名设置变化时经事件桥通知——Stack/Plot
             // 行名随设置重渲染（DOM 重绘，setDirtyCanvas 管不到 widget DOM）。
@@ -252,7 +244,7 @@ app.registerExtension({
         injectCSS();
 
         // ComfyUI 按 R 时会对每个图节点调 node.refreshComboInNode(defs)——
-        // 把它接进缓存失效与重渲染（power_lora_loader 同款先例）。
+        // 缓存失效与重渲染。
         const _origRefresh = nodeType.prototype.refreshComboInNode;
         nodeType.prototype.refreshComboInNode = function () {
             invalidateList();

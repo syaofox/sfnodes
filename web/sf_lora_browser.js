@@ -362,7 +362,7 @@ function switchMode(mode) {
     render();
 }
 
-// 任一入口（本浏览器/Stack/Power）改了某个 LoRA 的数据 -> 刷新它的封面
+// 任一入口（本浏览器/Stack）改了某个 LoRA 的数据 -> 刷新它的封面
 // （缩略图路由 max-age=3600，加时间戳 bust 越过浏览器缓存）。
 function refreshCardThumb(name) {
     if (!name || !S.win?.isOpen()) return;

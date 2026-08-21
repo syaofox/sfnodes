@@ -37,7 +37,7 @@ class SFLoraStack:
         "以纯文本给出，可直接接入提示词。触发词直接读自文件，离线可用；"
         "可选按 LoRA 的 Civitai 查询（仅在你点击时才联网）。Add LoRA 添加行，"
         "全部开/关与齿轮设置位于节点中部；右键行可上移/下移/复制/删除。"
-        "可选 preset 输入（SF Power Lora Preset 输出）：连接后自动把预设的"
+        "可选 preset 输入（SFLoraPreset 输出）：连接后自动把预设的"
         "顺序与强度加载到行上，执行时预设优先（行上勾选的触发词仍保留）。"
         "齿轮里的 Stacking method 可切换叠加方式：Sequential（标准，逐行相加）"
         "或 Orthogonal（Gram-Schmidt 输入空间正交化，减少相似 LoRA 之间的干扰；"
@@ -53,7 +53,7 @@ class SFLoraStack:
             },
             "optional": {
                 "clip": ("CLIP", {"tooltip": "LoRA 应用到的 CLIP（文本编码器）。可选但建议连接（checkpoint CLIP 进这里，CLIP 输出再去你的文本编码），这样 LoRA 也能调整触发词如何被读取。仅模型设置时可留空。"}),
-                "preset": ("SF_LORA_PRESET", {"tooltip": "SF Power Lora Preset 的选择输出。连接后自动把预设的顺序与强度加载到行上；执行时预设优先（行状态仅保留同名行的触发词勾选）。"}),
+                "preset": ("SF_LORA_PRESET", {"tooltip": "SFLoraPreset 的选择输出。连接后自动把预设的顺序与强度加载到行上；执行时预设优先（行状态仅保留同名行的触发词勾选）。"}),
             },
             "hidden": {"LoraLoaderState": ("STRING", {"default": "{}"})},
         }
@@ -95,7 +95,7 @@ class SFLoraStack:
     def apply(self, model, clip=None, preset=None, LoraLoaderState="{}"):
         state = R.parse_state(LoraLoaderState)
         if isinstance(preset, dict):
-            # 预设优先（Power 同语义）：preset 覆盖行，触发词继承自行状态。
+            # 预设优先：preset 覆盖行，触发词继承自行状态。
             state = R.preset_override(state, preset)
         cache_mode = state.get("cacheMode", "last")
         # 行解析（文件存在性/强度/override/零强度语义）两路径共用同一过滤。
