@@ -620,6 +620,12 @@ def _register_routes():
                     logger.warning("[SFLoraStack] page description fetch failed for {}: {}".format(
                         name, exc))
             merged = R.merge_descriptions(parsed.get("description"), page_desc)
+            # 若开启批量下载开关，追加全部样例的生成信息（原样保留，全部图片）
+            download_flag = request.query.get("downloadSamples") == "1" or request.query.get("download_samples") == "1"
+            if download_flag:
+                sp = parsed.get("sample_prompts")
+                if isinstance(sp, str) and sp.strip():
+                    merged = "\n\n".join([s for s in (merged, sp) if isinstance(s, str) and s.strip()])
             if merged:
                 parsed["description"] = merged
                 # 侧车同步存拼接版：未来读取/其他节点（lora_notes、Power 系）

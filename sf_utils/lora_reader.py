@@ -552,7 +552,73 @@ def parse_civitai_modelversion(obj, allow_adult=False):
         # 最后手段，仅当用户主动要求：全显式画廊。
         if "thumbnail" not in out and allow_adult and any_img:
             out["thumbnail"] = _thumb_url(any_img)
+        # 保留全部样例的生成信息（供描述末尾拼接，原样保留，不做 NSFW 过滤）
+        try:
+            sp = _format_sample_prompts(imgs)
+            if sp:
+                out["sample_prompts"] = sp
+        except Exception:
+            pass
     return out
+
+
+def _format_sample_prompts(images):
+    """把 `images[].meta` 按固定 markdown 格式拼接（全部图片，原样保留）。
+
+    格式：
+      ## Sample Images
+      ### Sample 1 (WxH)
+      ```
+      <prompt>
+      ```
+      *Steps: 12, CFG: 1, Sampler: euler, Seed: 0, Model: ...*
+
+    包含 prompt 与其余 meta 键（steps/cfgScale/sampler/seed/Model/resources 等），
+    全部图片依次拼接。空 prompt 的图跳过。永不抛错。"""
+    if not isinstance(images, list) or not images:
+        return ""
+    blocks = []
+    for idx, im in enumerate(images):
+        if not isinstance(im, dict):
+            continue
+        meta = im.get("meta")
+        if not isinstance(meta, dict):
+            continue
+        prompt = meta.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            # 无 prompt 的图在该模型下无生成信息，跳过
+            continue
+        # 尺寸来自 image 顶层 width/height
+        w = im.get("width")
+        h = im.get("height")
+        size = f" ({w}x{h})" if isinstance(w, int) and isinstance(h, int) else ""
+        header = f"### Sample {idx + 1}{size}"
+        # prompt 原样保留（含 // 资源的注释行与换行）
+        prompt_block = "```\n" + prompt.strip() + "\n```"
+        # 其余 meta 键（除 prompt 外）拼成一行
+        extra = []
+        for k in ("steps", "sampler", "cfgScale", "cfg_scale", "seed", "Model", "model", "resources", "negativePrompt", "Negative prompt"):
+            v = meta.get(k)
+            if v is None:
+                continue
+            if isinstance(v, list):
+                # resources: [{name, weight}, ...]
+                try:
+                    v = ", ".join(f"{x.get('name','')} : {x.get('weight','')}" if isinstance(x, dict) else str(x) for x in v)
+                except Exception:
+                    v = str(v)
+            v = str(v).strip()
+            if not v:
+                continue
+            # 键名美化
+            nk = {"cfgScale": "CFG", "cfg_scale": "CFG", "sampler": "Sampler", "steps": "Steps", "seed": "Seed", "Model": "Model", "model": "Model"}.get(k, k)
+            extra.append(f"{nk}: {v}")
+        extra_line = f"*{', '.join(extra)}*" if extra else ""
+        block = "\n\n".join([header, prompt_block] + ([extra_line] if extra_line else []))
+        blocks.append(block)
+    if not blocks:
+        return ""
+    return "## Sample Images\n\n" + "\n\n".join(blocks)
 
 
 def extract_page_description(html):
