@@ -57,6 +57,8 @@ const HEADING_STYLES = [H1_STYLE, H2_STYLE, H3_STYLE, H4_STYLE, H5_STYLE, H6_STY
 // whitelisted HTML fragment built from that escaped text.
 function inline(src, resolveRelative) {
     let s = src;
+    // Escaped markdown chars \*, \_, \`  -> keep literal (avoid \ display)
+    s = s.replace(/\\([*_`])/g, "$1");
 
     // Code spans (content kept verbatim)
     s = s.replace(/`([^`\n]+)`/g, (m, code) => `<code style="${CODE_STYLE}">${code}</code>`);
