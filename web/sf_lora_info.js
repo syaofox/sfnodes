@@ -1526,8 +1526,15 @@ export function getLastCanvasEvent() {
 }
 
 // ---------------------------------------------------------------------------
+// Shared sample kernel re-export (for Stack panel direct import)
+// ---------------------------------------------------------------------------
+import { openInfoPanelFor } from "./sf_lora_stack_info.js";
+import { saveCustomTriggers } from "./sf_lora_stack_api.js";
+import { getNodeRect } from "./sf_lora_stack_settings.js";
+
+// ---------------------------------------------------------------------------
 // Standard-combo + info-icon mounting (shared by SFLoraLoader /
-// SFLoraLoaderModelOnly and future loader nodes)
+// SFLoraLoaderModelOnly and future loader nodes) - now uses floating panel
 // ---------------------------------------------------------------------------
 const INVALID_BOUNDS = [0, -1];
 
@@ -1594,13 +1601,12 @@ function createInfoWidget(comboName) {
             if (pos[0] >= b[0] && pos[0] <= b[0] + b[1]) {
                 const loraName = getComboValue(n, comboName);
                 if (loraName && loraName !== "None") {
-                    // 延迟到 pointerup 由 canvas 处理完成后再打开对话框，
-                    // 避免 DOM 遮罩在点击过程中出现导致 LiteGraph widget 交互状态残留
-                    // force：打开必新（SFLoraStack 面板等另一端可能刚保存过）
-                    getLoraMetadata(loraName, true).then((meta) => {
-                        requestAnimationFrame(() => {
-                            setTimeout(() => showLoraInfoDialog(event, loraName, meta), 0);
-                        });
+                    // 统一为 Stack 同款浮动面板（chip 形态，近节点），不再使用 dialog
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            const ctx = loaderPanelCtx(n, loraName);
+                            openInfoPanelFor(ctx, loraName);
+                        }, 0);
                     });
                 }
                 return true;
@@ -1609,6 +1615,42 @@ function createInfoWidget(comboName) {
         },
     };
     return w;
+}
+
+// Loader 专用浮动面板宿主（复用 Stack 面板 chip 形态）
+const _loaderRows = new Map();
+function loaderPanelCtx(node, loraName) {
+    if (!_loaderRows.has(loraName)) {
+        _loaderRows.set(loraName, { id: loraName, name: loraName, triggers: [], custom: [] });
+    }
+    return {
+        key: "loader:" + node.id + ":" + loraName,
+        node,
+        anchorRect: () => {
+            try {
+                const w = node.widgets?.find((x) => x.name === "_info");
+                const el = w?.element;
+                if (el && el.getBoundingClientRect) {
+                    const r = el.getBoundingClientRect();
+                    if (r && r.width && r.height) return r;
+                }
+            } catch {}
+            return getNodeRect(node);
+        },
+        getRow: () => _loaderRows.get(loraName) || { id: loraName, name: loraName, triggers: [], custom: [] },
+        patchRow: (patch) => {
+            const cur = _loaderRows.get(loraName) || { id: loraName, name: loraName, triggers: [], custom: [] };
+            Object.assign(cur, patch);
+            cur.id = loraName;
+            cur.name = loraName;
+            _loaderRows.set(loraName, cur);
+            // 触发重绘以更新 i 图标高亮（_has_custom 来自 loraMetadataCache，由 panel 的 saveCustom 触发的全局事件已清缓存，下次 draw 即新）
+            try { node.setDirtyCanvas?.(true, true); app.graph?.setDirtyCanvas?.(true, true); } catch {}
+        },
+        accent: (() => { try { return app.ui.settings.getSettingValue("sfnodes.Accent") || "#f66744"; } catch { return "#f66744"; } })(),
+        prefs: () => ({ civitai: true, thumbs: true }),
+        refresh: () => { try { node.setDirtyCanvas?.(true, true); } catch {} },
+    };
 }
 
 // Mounts a standard combo + info-icon widget pair onto a loader node:

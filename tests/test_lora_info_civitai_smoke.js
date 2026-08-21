@@ -129,9 +129,14 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_li_"));
 for (const n of ["sf_lora_shared_info.js"]) {
     const c = fs.readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
+        .replaceAll('import { api } from "/scripts/api.js";', "const api = globalThis.api;")
         .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
     fs.writeFileSync(path.join(tmpDir, n.replace(/\.js$/, ".mjs")), c);
 }
+// 桩 sf_lora_stack_info / settings / core - 仅为让 import 成功，test 直接调 dialog 不依赖面板
+fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_info.mjs"), "export function openInfoPanelFor(){}; export function closeInfoPanel(){}; export function closeInfoPanelFor(){};");
+fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_settings.mjs"), "export function getNodeRect(){return {left:0,top:0,right:100,bottom:100,width:100,height:100}};");
+fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_core.mjs"), "export const BRAND='#f66744'; export function readState(){return {loras:[]}}; export function patchLora(){}; export function accentOf(){return '#f66744'};");
 const code = fs
     .readFileSync(path.join(__dirname, "..", "web", "sf_lora_info.js"), "utf8")
     .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
@@ -148,7 +153,9 @@ fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_api.mjs"),
     "export const loraInfo = m.loraInfo;\nexport const civitaiLookup = m.civitaiLookup;\n" +
     "export const deleteCivitai = m.deleteCivitai;\nexport const saveCivitaiThumb = m.saveCivitaiThumb;\n" +
     "export const getCivitaiAccount = m.getCivitaiAccount;\nexport const setCivitaiAccount = m.setCivitaiAccount;\n" +
-    "export const migrateLoraData = m.migrateLoraData;\n");
+    "export const migrateLoraData = m.migrateLoraData;\n" +
+    "export const saveCustomTriggers = async ()=>({ok:true});\nexport const saveCustomDescription = async ()=>({ok:true});\n" +
+    "export const thumbUrl = (n)=>'/thumb'; export const invalidateInfo = ()=>{}; export const deleteCivitai2 = async ()=>({});\n");
 
 function findEl(root, pred) {
     if (!root || !root.children) return null;
