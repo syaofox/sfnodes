@@ -117,6 +117,8 @@ function patchRowFor(name, patch) { Object.assign(getRowFor(name), patch); }
 // ── 信息面板（复用 LoRA Stack 编辑能力）──────────────────────────────────
 async function openInfoFor(name, card) {
     if (!name) return;
+    // 保留列表滚动位置：render() 会重建 main（innerHTML=""），否则点开信息会回顶
+    const savedScroll = S.win?.main?.scrollTop ?? null;
     await openInfoPanelFor({
         key: BROWSER_KEY,
         getRow: () => getRowFor(name),
@@ -126,7 +128,14 @@ async function openInfoFor(name, card) {
         prefs: () => ({ civitai: true, thumbs: true }),
         refresh: () => {},
     }, name);
-    if (S.sel !== name) { S.sel = name; render(); }
+    if (S.sel !== name) {
+        S.sel = name;
+        render();
+        // 恢复滚动（选中态仅高亮，不该回顶）
+        if (savedScroll != null && S.win?.main) {
+            try { S.win.main.scrollTop = savedScroll; } catch {}
+        }
+    }
 }
 
 // ── 双击：用 SF LoRA Stack 加载该 LoRA 并添加到当前工作流 ────────────────
