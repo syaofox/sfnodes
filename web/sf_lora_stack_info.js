@@ -6,7 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
-import { loadImageAsWorkflow } from "./sf_lora_info.js";
+import { loadImageAsWorkflow, fetchSamplesCached } from "./sf_lora_shared_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
@@ -34,22 +34,6 @@ let _descDirty = false;
 
 const _PANEL_MIN_W = 280;
 const _PANEL_MIN_H = 240;
-
-// 样例列表去重：同一会话内多次请求同一 LoRA 的 sample 列表共享 Promise（避免
-// renderBody + 标题悬停 + 编辑网格三处并发各发一次）。短期缓存 2s。
-const _samplePromiseCache = new Map();
-function fetchSamplesCached(loraName) {
-    if (!loraName) return Promise.resolve({ images: [], sample_dir: "" });
-    if (_samplePromiseCache.has(loraName)) return _samplePromiseCache.get(loraName);
-    const p = app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`)
-        .then((r) => r.ok ? r.json() : { images: [] })
-        .catch(() => ({ images: [] }))
-        .finally(() => {
-            setTimeout(() => _samplePromiseCache.delete(loraName), 2000);
-        });
-    _samplePromiseCache.set(loraName, p);
-    return p;
-}
 
 function injectCSS() {
     if (document.getElementById("sf-ls-info-css")) return;

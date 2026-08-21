@@ -159,7 +159,7 @@ globalThis.fetch = async (url) => {
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_lsid_"));
 for (const n of ["sf_lora_stack_core.js", "sf_lora_stack_api.js",
     "sf_lora_stack_settings.js", "sf_common.js", "sf_markdown.js",
-    "sf_lora_info.js", "sf_lora_stack_info.js", "sf_workflows_ui.js",
+    "sf_lora_shared_info.js", "sf_lora_info.js", "sf_lora_stack_info.js", "sf_workflows_ui.js",
     "sf_workflows_lib.js", "sf_lora_stack_dropdown.js",
     "sf_lora_stack_render.js", "sf_lora_stack_interaction.js"]) {
     const code = fs

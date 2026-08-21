@@ -251,7 +251,7 @@ const MODS = [
     "sf_lora_browser.js", "sf_lora_browser_ui.js", "sf_lora_browser_lib.js",
     "sf_lora_stack_core.js", "sf_lora_stack_api.js",
     "sf_lora_stack_settings.js", "sf_lora_stack_info.js",
-    "sf_common.js", "sf_markdown.js", "sf_lora_info.js",
+    "sf_common.js", "sf_markdown.js", "sf_lora_shared_info.js", "sf_lora_info.js",
     "sf_workflows_ui.js", "sf_workflows_lib.js",
 ];
 for (const n of MODS) {

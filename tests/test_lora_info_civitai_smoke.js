@@ -126,6 +126,12 @@ globalThis.__apiMock = {
 
 // ── 加载模块（改 import 为 mock）──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_li_"));
+for (const n of ["sf_lora_shared_info.js"]) {
+    const c = fs.readFileSync(path.join(__dirname, "..", "web", n), "utf8")
+        .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
+        .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
+    fs.writeFileSync(path.join(tmpDir, n.replace(/\.js$/, ".mjs")), c);
+}
 const code = fs
     .readFileSync(path.join(__dirname, "..", "web", "sf_lora_info.js"), "utf8")
     .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
