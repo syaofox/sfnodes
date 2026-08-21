@@ -180,8 +180,7 @@ app.registerExtension({
                     defaultValue: false,
                 });
             } catch (_e2) { /* 设置系统不可用则忽略 */ }
-            // 全局 LoRA 显示名设置（已从 power_lora_loader 彻底迁移至此，
-            // 新键 sfnodes.Lora.DisplayName，旧键一次性搬运见 sf_common.js）
+            // 全局 LoRA 显示名设置
             try {
                 const displayOptions = {
                     "Full path": LORA_DISPLAY_MODES.FULL,

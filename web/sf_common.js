@@ -112,7 +112,7 @@ export function getLoraDisplayMode() {
 
 // 只剥尾部已知模型扩展名（白名单，不是"最后一个点后的一切"），版本化名字
 // 如 "MoXin_v1.0" 保留 ".0"。仅用于显示——行 title 保留真实文件名。
-const LORA_EXT_RE = /\.(safetensors|safetensor|ckpt|pt|pth|bin|sft)$/i;
+const LORA_EXT_RE = /\.(safetensors|safetensor|ckpt|pt|pth|bin|sft|gguf)$/i;
 function loraBaseName(name) {
   if (!name) return "";
   const i = name.replace(/\\/g, "/").lastIndexOf("/");

@@ -8,6 +8,10 @@ from aiohttp import web
 from PIL import Image, ImageOps
 
 from .disk_state import sanitize_filename
+try:
+    from .lora_constants import LORA_EXT_SET as _LORA_EXTS
+except ImportError:
+    _LORA_EXTS = {".safetensors", ".safetensor", ".ckpt", ".pt", ".pth", ".bin", ".sft", ".gguf"}
 from .logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +25,6 @@ logger = get_logger(__name__)
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}
 _VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
 _MEDIA_EXTS = _IMAGE_EXTS | _VIDEO_EXTS
-_LORA_EXTS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft"}
 _THUMB_SIZE = 256
 _THUMB_CACHE_MAX_FILES = 500
 _THUMB_CACHE_MAX_AGE_DAYS = 7
@@ -40,6 +43,7 @@ def _prune_thumb_cache(cache_dir: str) -> None:
         now = time.time()
         cutoff = now - _THUMB_CACHE_MAX_AGE_DAYS * 86400
         entries: list[tuple[float, str]] = []
+        pruned = 0
         for name in os.listdir(cache_dir):
             if not name.endswith(".webp"):
                 continue
@@ -52,6 +56,7 @@ def _prune_thumb_cache(cache_dir: str) -> None:
                 if mtime < cutoff:
                     try:
                         os.remove(fp)
+                        pruned += 1
                     except Exception:
                         pass
                     continue
@@ -64,8 +69,11 @@ def _prune_thumb_cache(cache_dir: str) -> None:
             for _, fp in entries[: len(entries) - _THUMB_CACHE_MAX_FILES]:
                 try:
                     os.remove(fp)
+                    pruned += 1
                 except Exception:
                     pass
+        if pruned:
+            logger.info(f"Pruned {pruned} thumb cache files in {cache_dir}")
     except Exception:
         pass
 

@@ -269,6 +269,7 @@ def _thumb_url_safe(url):
         for allowed in _THUMB_ALLOWED_HOSTS:
             if host == allowed or host.endswith("." + allowed):
                 return True
+        logger.debug(f"Blocked thumb URL host not in whitelist: {host} ({url[:80]})")
         return False
     except Exception:
         return False
@@ -408,7 +409,24 @@ def _register_routes():
                 # 扫描失败不是空文件夹：前端把干净 [] 当真相，会把每行都标
                 # "missing"（网络盘/锁文件的瞬时故障引发全网误报）。说清楚。
                 return web.json_response({"loras": [], "error": True}, headers=hdrs)
-            return web.json_response({"loras": files}, headers=hdrs)
+            # 分页与搜索（Phase D2）：q/limit/offset 均为可选，缺省全量以兼容旧前端
+            q = request.query.get("q", "") or request.query.get("query", "")
+            if q:
+                ql = q.lower()
+                files = [f for f in files if ql in f.lower()]
+            total = len(files)
+            try:
+                limit = request.query.get("limit")
+                offset = request.query.get("offset")
+                if limit is not None:
+                    lim = int(limit)
+                    off = int(offset or 0)
+                    if lim >= 0 and off >= 0:
+                        files = files[off: off + lim]
+            except Exception:
+                pass
+            # total 供新前端分页，旧前端忽略
+            return web.json_response({"loras": files, "total": total}, headers=hdrs)
 
         @routes.get("/api/sfnodes/lora_info")
         async def api_lora_info(request):

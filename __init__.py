@@ -98,7 +98,7 @@ from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
 from .nodes import workflow_routes  # noqa: F401  # 副作用注册 /api/sfnodes/workflows/* 路由
-from .sf_utils import lora_notes  # noqa: F401  # 副作用注册 /api/sfnodes/lora_notes 路由（原由 power_lora_loader 触发）
+from .sf_utils import lora_notes  # noqa: F401  # 副作用注册 /api/sfnodes/lora_notes 路由
 from .nodes.text.text import (
     TextTranslation,
 

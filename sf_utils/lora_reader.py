@@ -1192,7 +1192,10 @@ def set_custom_description(path, name, desc, fp=None):
 # 当前文件相同。唯一才匹配：同名多目录会歧义，宁可放弃也不冒误配。迁移
 # 由前端提示 + 用户确认触发，不自动执行。
 
-_LORA_KEY_EXTS = (".safetensors", ".safetensor", ".ckpt", ".pt", ".pth", ".bin", ".sft")
+try:
+    from .lora_constants import LORA_EXTS as _LORA_KEY_EXTS
+except ImportError:
+    _LORA_KEY_EXTS = (".safetensors", ".safetensor", ".ckpt", ".pt", ".pth", ".bin", ".sft", ".gguf")
 
 
 def base_key(key):
