@@ -115,6 +115,22 @@ function getRowFor(name) {
 function patchRowFor(name, patch) { Object.assign(getRowFor(name), patch); }
 
 // ── 信息面板（复用 LoRA Stack 编辑能力）──────────────────────────────────
+function updateSelection(name) {
+    // 仅更新选中高亮，避免整列表重建导致滚动回顶（平面模式尤为明显）
+    try {
+        const prev = S.win.main.querySelector(".sf-lb-card.sel, .sf-lb-row.sel");
+        if (prev) prev.classList.remove("sel");
+        // data-name 可能含特殊字符，用 CSS.escape
+        const esc = (typeof CSS !== "undefined" && CSS.escape) ? CSS.escape(name) : String(name).replace(/["\\]/g, "\\$&");
+        const next = S.win.main.querySelector(`[data-name="${esc}"]`);
+        if (next) next.classList.add("sel");
+        else throw new Error("not found");
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function openInfoFor(name, card) {
     if (!name) return;
     await openInfoPanelFor({
@@ -128,7 +144,7 @@ async function openInfoFor(name, card) {
     }, name);
     if (S.sel !== name) {
         S.sel = name;
-        render({ preserveScroll: true });
+        if (!updateSelection(name)) render({ preserveScroll: true });
     }
 }
 
@@ -347,7 +363,10 @@ function render(opts = {}) {
         if (empty) empty.textContent = "Loading LoRAs…";
     }
     if (preserveScroll && savedScroll != null) {
-        try { S.win.main.scrollTop = savedScroll; } catch {}
+        const restore = () => { try { S.win.main.scrollTop = savedScroll; } catch {} };
+        restore();
+        // content-visibility:auto 会使 scrollHeight 延迟计算，下一帧再试一次
+        try { requestAnimationFrame(restore); } catch { setTimeout(restore, 16); }
     }
 }
 
