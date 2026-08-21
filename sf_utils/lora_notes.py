@@ -181,6 +181,18 @@ def get_merged_metadata(filename):
             orphan_triggers = list(entry.get("words") or [])
             orphan_description = entry.get("description") or ""
             orphan_preview = bool(R.find_custom_preview(_previews_dir(), orphan_key))
+    else:
+        # 有数据时仍检测孤儿用于合并提示（不覆盖当前词/描述，仅附孤儿明细供前端展示 Merge 按钮）
+        try:
+            found2 = _find_orphan_entry(store, filename, path)
+            if found2:
+                o_entry, o_key = found2
+                orphan_key = o_key
+                orphan_triggers = list(o_entry.get("words") or [])
+                orphan_description = o_entry.get("description") or ""
+                orphan_preview = bool(R.find_custom_preview(_previews_dir(), o_key))
+        except Exception:
+            pass
     desc = entry_desc
     if words:
         trigger_words = ", ".join(words)

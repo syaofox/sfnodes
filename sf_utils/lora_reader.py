@@ -1261,6 +1261,52 @@ def migrate_custom_data(path, name, fp=None, old_key=None):
     return {"ok": True, "old_key": old}
 
 
+def merge_custom_data(path, name, fp=None, old_key=None):
+    """把旧路径键下的自定义词/描述合并到当前 name 键（旧键有数据且新键已有数据时用）。
+
+    词：新旧并集去重（保持新键原有顺序，旧键新增词追加，受 64 词上限约束）；
+    描述：新键已有则保留，空则取旧键；两者皆有且不同则拼接（新在前、旧在后，空行分隔）；
+    指纹：取新文件指纹或旧指纹。
+    成功后删除旧键。返回 {"ok": True, "old_key": ..., "merged": True}。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return {"ok": False, "reason": "bad name"}
+    with _STORE_LOCK:
+        store = read_custom_store(path)
+        cur = store.get(key) or {"words": [], "description": "", "fp": None}
+        if old_key:
+            old = custom_trigger_key(old_key)
+            if not old or old == key or old not in store:
+                return {"ok": False, "reason": "bad old key"}
+        else:
+            # 指纹优先（需调用方另行计算传入 fp），此处仅基名回退
+            old = find_orphan_key(store, name)
+            if old is None:
+                return {"ok": False, "reason": "no unique match"}
+        entry = store.get(old)
+        if not entry or not (entry["words"] or entry["description"]):
+            return {"ok": False, "reason": "old entry empty"}
+        # 合并词
+        merged_words = sanitize_custom_words((cur.get("words") or []) + (entry.get("words") or []))
+        # 合并描述
+        cur_desc = sanitize_custom_description(cur.get("description") or "")
+        old_desc = sanitize_custom_description(entry.get("description") or "")
+        if cur_desc and old_desc and cur_desc.strip() != old_desc.strip():
+            merged_desc = (cur_desc.rstrip() + "\n\n" + old_desc.lstrip()).strip()
+        elif cur_desc:
+            merged_desc = cur_desc
+        else:
+            merged_desc = old_desc
+        store[key] = {
+            "words": merged_words,
+            "description": merged_desc,
+            "fp": _norm_fp(fp) or _norm_fp(cur.get("fp")) or _norm_fp(entry.get("fp")),
+        }
+        del store[old]
+        write_custom_store(path, store)
+    return {"ok": True, "old_key": old, "merged": True}
+
+
 def migrate_custom_preview(folder, name, old_key):
     """把旧键的预览图文件迁移到当前 name 的 hash 名下（同目录 rename）。
 

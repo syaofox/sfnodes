@@ -507,21 +507,20 @@ def _register_routes():
             # 级证据，文件改名也匹配），基名兜底（存量无指纹数据）。附字段
             # 让前端显示迁移提示条；迁移由用户确认后执行（不自动，防误配）。
             try:
-                has_custom = bool(info.get("custom_triggers")) or bool(info.get("custom_description"))
-                if not has_custom:
-                    store = R.read_custom_store(_custom_triggers_file())
-                    orphan = None
-                    fp = await loop.run_in_executor(None, R.file_fingerprint, path)
-                    if fp:
-                        orphan = R.find_orphan_by_fingerprint(store, fp, exclude=R.custom_trigger_key(name))
-                    if orphan is None:
-                        orphan = R.find_orphan_key(store, name)
-                    if orphan:
-                        entry = store.get(orphan, {})
-                        info["orphan_key"] = orphan
-                        info["orphan_triggers"] = entry.get("words", [])
-                        info["orphan_description"] = entry.get("description", "")
-                        info["orphan_preview"] = bool(R.find_custom_preview(_previews_dir(), orphan))
+                # 无论新键是否有数据都检测孤儿：无数据时为迁移，有数据时为合并提示
+                store = R.read_custom_store(_custom_triggers_file())
+                orphan = None
+                fp = await loop.run_in_executor(None, R.file_fingerprint, path)
+                if fp:
+                    orphan = R.find_orphan_by_fingerprint(store, fp, exclude=R.custom_trigger_key(name))
+                if orphan is None:
+                    orphan = R.find_orphan_key(store, name)
+                if orphan:
+                    entry = store.get(orphan, {})
+                    info["orphan_key"] = orphan
+                    info["orphan_triggers"] = entry.get("words", [])
+                    info["orphan_description"] = entry.get("description", "")
+                    info["orphan_preview"] = bool(R.find_custom_preview(_previews_dir(), orphan))
             except Exception:
                 pass
             # ...以及他们自己的预览图。custom_preview 驱动面板的 "remove"
@@ -1103,6 +1102,46 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not migrate: {}".format(exc)})
             return web.json_response({"ok": True, "old_key": old,
+                                      "preview_moved": bool(moved_pv)})
+
+        @routes.post("/api/sfnodes/lora/merge")
+        async def api_lora_merge(request):
+            """把旧路径键下的自定义数据合并到当前 LoRA 名（新键已有数据时用）。
+
+            词并集去重、描述拼接（新在前旧在后）、预览图按需迁移。POST {name, old_key}。恒 200。"""
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            name = data.get("name", "") or request.query.get("name", "")
+            old_key = data.get("old_key", "") or None
+            path = _resolve_lora_path(name)
+            roots = _lora_dirs()
+            if not path or not roots or not _is_path_under(path, *roots):
+                return web.json_response({"ok": False, "message": "LoRA not found."})
+            loop = asyncio.get_running_loop()
+            try:
+                async with _notes_async_lock:
+                    def _merge_with_fp():
+                        fp = R.file_fingerprint(path)
+                        return R.merge_custom_data(_custom_triggers_file(), name, fp, old_key)
+                    res = await loop.run_in_executor(None, _merge_with_fp)
+                    if not res.get("ok"):
+                        return web.json_response({"ok": False, "message": "Nothing to merge."})
+                    old = res["old_key"]
+                    # 预览图：旧有新无时迁移，旧有新有则保留新
+                    folder = _previews_dir()
+                    has_new = bool(R.find_custom_preview(folder, name))
+                    moved_pv = False
+                    if not has_new:
+                        moved_pv = await loop.run_in_executor(
+                            None, R.migrate_custom_preview, folder, name, old
+                        )
+            except Exception as exc:
+                return web.json_response({"ok": False, "message": "Could not merge: {}".format(exc)})
+            return web.json_response({"ok": True, "old_key": old, "merged": True,
                                       "preview_moved": bool(moved_pv)})
 
         @routes.post("/api/sfnodes/lora/civitai_thumb_save")

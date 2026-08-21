@@ -311,6 +311,22 @@ export async function migrateLoraData(name, oldKey) {
     }
 }
 
+/** 旧键有数据且新键已有数据时，把旧数据合并到新键（词并集、描述拼接）。 */
+export async function mergeLoraData(name, oldKey) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/merge"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, old_key: oldKey || "" }),
+        });
+        const j = await r.json();
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
+        return j;
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
 // ── 跨节点缓存失效（2026-08 统一存储）──────────────────────────────────────
 // SFLoraLoader 对话框与本面板共享
 // lora_triggers.json 真源：任何一端保存后广播 "sfnodes.lora-data-changed"

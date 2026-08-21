@@ -6,9 +6,9 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
-import { loadImageAsWorkflow, fetchSamplesCached } from "./sf_lora_shared_info.js";
+import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath } from "./sf_lora_shared_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
-    saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData } from "./sf_lora_stack_api.js";
+    saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData, mergeLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { copyText } from "./sf_workflows_ui.js";
 import { escapeHtml, installWheelZoomPassthrough } from "./sf_common.js";
@@ -24,13 +24,19 @@ let _userMoved = false;  // 用户拖过它，停止跟随
 let _panelSize = null;
 let _panelAccent = BRAND; // 当前面板 accent（关闭确认框同主题用）
 
-// ── Description 编辑态（模块级：closeInfoPanel 需要读 dirty 判定确认框）──
-// 关闭面板时重置（doCloseInfoPanel）——残留会让下一行面板带着旧行草稿
-// 直接进编辑态（泄漏 bug）。
-let _descEditing = false;
-let _descDraft = "";
-let _descBase = "";
-let _descDirty = false;
+// ── Description 编辑态（附着于 _panel._sfDesc，单例面板但按实例隔离）──
+// 旧实现曾为模块级全局，跨面板切换/异步保存时草稿会泄漏到新面板。
+// 现改为挂在面板元素上，closeInfoPanel/doCloseInfoPanel 通过 _panel._sfDesc 读写。
+function getDesc(panel) {
+    const p = panel || _panel;
+    if (!p) return { editing: false, draft: "", base: "", dirty: false };
+    if (!p._sfDesc) p._sfDesc = { editing: false, draft: "", base: "", dirty: false };
+    return p._sfDesc;
+}
+function resetDesc(panel) {
+    const d = getDesc(panel);
+    d.editing = false; d.draft = ""; d.base = ""; d.dirty = false;
+}
 
 const _PANEL_MIN_W = 280;
 const _PANEL_MIN_H = 240;
@@ -260,7 +266,7 @@ function openSamplePreview(path, allPaths) {
         if (i < 0 || i >= list.length) return;
         idx = i;
         const p = list[idx];
-        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+        const isVideo = isVideoPath(p);
         if (media) media.remove();
         if (isVideo) {
             media = document.createElement("video");
@@ -329,7 +335,7 @@ function attachSampleTitleHover(container, loraName) {
         }
         const rel = sampleMap.get(hash.toLowerCase());
         if (!rel) return;
-        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(rel);
+        const isVideo = isVideoPath(rel);
         hoverEl = document.createElement("div");
         hoverEl.className = "sf-ls-desc-hover";
         let media;
@@ -453,7 +459,8 @@ export function confirmDialog(opts) {
 // 切换行时 await 它，取消则不切换。节点删除路径走 doCloseInfoPanel
 // （closeInfoPanelFor）——删除不能弹框阻塞，且面板随节点消失。
 export function closeInfoPanel() {
-    if (_panel && _descEditing && _descDirty) {
+    const d = getDesc(_panel);
+    if (_panel && d.editing && d.dirty) {
         return confirmDialog({
             title: "Discard description changes?",
             message: "You have unsaved changes to this description. Close and discard them?",
@@ -472,10 +479,7 @@ export function closeInfoPanel() {
 function doCloseInfoPanel() {
     // 关闭即丢弃草稿：残留的编辑态/基准会让下一次打开带着上一行的旧草稿
     // 直接进编辑态（泄漏 bug），必须重置。
-    _descEditing = false;
-    _descDraft = "";
-    _descBase = "";
-    _descDirty = false;
+    if (_panel) resetDesc(_panel);
     if (_cleanup) { try { _cleanup(); } catch { /* 忽略 */ } }
     _cleanup = null;
     stopFollowing();
@@ -586,6 +590,8 @@ export async function openInfoPanelFor(ctx, id) {
     document.body.appendChild(panel);
     _panel = panel;
     _ownerKey = ctx.key;
+    // Description 草稿绑定面板实例（按面板隔离，避免跨面板泄漏）
+    const desc = getDesc(panel);
     // _panel 赋值之后：循环的第一件事是检查它拥有该面板。
     if (ctx.node) startFollowing(panel, ctx.node);
 
@@ -704,6 +710,18 @@ export async function openInfoPanelFor(ctx, id) {
         if (!added && parts.length === custom.length - (e.custom || []).length) {
             // 全部已存在，无变化仍刷新以清空输入框
         }
+        // 前端上限与后端 sanitize_custom_words 对齐：64 词 / 200 字符
+        const MAX_WORDS = 64, MAX_LEN = 200;
+        let truncated = false;
+        let longWord = false;
+        if (custom.length > MAX_WORDS) { custom = custom.slice(0, MAX_WORDS); truncated = true; }
+        for (let k = 0; k < custom.length; k++) {
+            if (custom[k].length > MAX_LEN) { custom[k] = custom[k].slice(0, MAX_LEN); longWord = true; }
+        }
+        // trig 可能因 custom 截断而需同步裁剪（custom 即持久词）
+        // 超限提示（任一命中即提示，不阻断保存）
+        if (truncated) showMsg(`已达 ${MAX_WORDS} 词上限，超出部分未保存。`);
+        else if (longWord) showMsg(`部分触发词过长已截断至 ${MAX_LEN} 字符。`);
         ctx.patchRow({ custom, triggers: trig }); // 添加即选中，到达输出
         persistCustom(custom);
         refresh?.(false);
@@ -733,8 +751,7 @@ export async function openInfoPanelFor(ctx, id) {
     // 自定义描述与自定义触发词同存储（user 目录单一文件，按 LoRA 名键控）。
     // 展示优先级：custom > 当次查询（Civitai live）> 侧车/文件说明。
     // 编辑态草稿独立于 renderBody 生命周期——勾词等重渲染不丢已打文字。
-    // 状态（_descEditing/_descDraft/_descBase/_descDirty）是模块级：关闭
-    // 面板的确认判定在模块级 closeInfoPanel，闭包需共享同一份。
+    // 状态挂在 panel._sfDesc（按面板实例隔离），closeInfoPanel 通过 getDesc(_panel) 读取。
     const shownDesc = () => info.custom_description
         || (civ?.state === "found" && civ.info?.description)
         || info.description || "";
@@ -744,17 +761,17 @@ export async function openInfoPanelFor(ctx, id) {
         return info.description ? "file" : "";
     };
 
-    function saveDesc(desc) {
+    function saveDesc(text) {
         clearMsg();
         if (!name) { showMsg("Pick a LoRA first."); return; }   // 无名行没有可设对象
-        saveCustomDescription(name, desc).then((res) => {
+        saveCustomDescription(name, text).then((res) => {
             if (!panel.isConnected) return;
             if (!res?.ok) { showMsg(res?.message || "Could not save that description."); return; }
             _msg = null;
-            _descEditing = false;
-            _descDraft = "";
-            _descBase = "";
-            _descDirty = false;
+            desc.editing = false;
+            desc.draft = "";
+            desc.base = "";
+            desc.dirty = false;
             info.custom_description = res.description || "";   // 本地即画，不等 loadInfo
             // 使任何在途 loadInfo 作废：它的响应是保存前的旧快照，落地会把
             // 刚保存的自定义描述覆盖回 Civitai/文件原文（"保存后仍显示来自
@@ -766,10 +783,10 @@ export async function openInfoPanelFor(ctx, id) {
 
     // 放弃编辑：恢复浏览态并重置 dirty 状态（基准/草稿都清，防泄漏）
     function cancelDescEdit() {
-        _descEditing = false;
-        _descDraft = "";
-        _descBase = "";
-        _descDirty = false;
+        desc.editing = false;
+        desc.draft = "";
+        desc.base = "";
+        desc.dirty = false;
     }
 
     function clearDesc() {
@@ -777,8 +794,24 @@ export async function openInfoPanelFor(ctx, id) {
     }
 
     // ── 示例图：上传到 sample/ 目录 + 图库网格点击插入 markdown ──────────
+    // 前端大小预检：与后端 _PREVIEW_MAX_BYTES/_PREVIEW_VIDEO_MAX_BYTES 对齐
+    const SAMPLE_IMAGE_MAX = 4 * 1024 * 1024;
+    const SAMPLE_VIDEO_MAX = 50 * 1024 * 1024;
+    function checkSampleSize(file) {
+        if (!file || !file.size) return true;
+        const isV = file.type ? /^video\//.test(file.type) : isVideoPath(file.name || "");
+        const limit = isV ? SAMPLE_VIDEO_MAX : SAMPLE_IMAGE_MAX;
+        if (file.size > limit) {
+            const mb = (limit / (1024 * 1024)).toFixed(0);
+            showMsg(isV ? `Video too large (>${mb}MB).` : `Image too large (>${mb}MB).`);
+            return false;
+        }
+        return true;
+    }
+
     async function uploadSample(file, onInsert) {
         if (!file || !name) return;
+        if (!checkSampleSize(file)) return;
         const _t = file.type || "";
         if (_t && !/^image\//.test(_t) && !/^video\//.test(_t)) {
             showMsg("That is not a picture. Use a jpg, png, webp or mp4.");
@@ -794,6 +827,7 @@ export async function openInfoPanelFor(ctx, id) {
             });
             const data = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+            invalidateSamplesCache(name);
             if (onInsert) onInsert(data.path);
         } catch (e) {
             showMsg("Upload failed: " + (e.message || e));
@@ -815,7 +849,7 @@ export async function openInfoPanelFor(ctx, id) {
             }
             for (const p of imgs) {
                 const cell = el("div", "cell");
-                const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+                const isVideo = isVideoPath(p);
                 let thumb;
                 if (isVideo) {
                     thumb = document.createElement("img");
@@ -864,6 +898,7 @@ export async function openInfoPanelFor(ctx, id) {
                             `/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`,
                             { method: "DELETE" });
                         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        invalidateSamplesCache(name);
                         renderBody();
                     } catch (err) {
                         showMsg("Could not delete that picture: " + (err.message || err));
@@ -1234,6 +1269,25 @@ export async function openInfoPanelFor(ctx, id) {
     }
 
     function renderBody() {
+        // 保留焦点/选区/滚动：renderBody 全量重建会丢焦点，手动保存后恢复
+        const _active = document.activeElement;
+        let _focusSel = null;
+        if (_active && panel.contains(_active) && (_active.tagName === "INPUT" || _active.tagName === "TEXTAREA")) {
+            _focusSel = {
+                isAddTrig: !!_active.closest?.(".sf-ls-addtrig"),
+                isDesc: !!_active.closest?.(".sf-ls-desc"),
+                val: _active.value,
+                start: _active.selectionStart,
+                end: _active.selectionEnd,
+            };
+        }
+        const _scrollTops = new Map();
+        try {
+            panel.querySelectorAll("*").forEach((el) => {
+                if (el.scrollTop) _scrollTops.set(el, el.scrollTop);
+            });
+        } catch {}
+        const _panelScroll = panel.scrollTop;
         panel.innerHTML = "";
         const sel = selected();
         const civitaiOn = prefsOf().civitai !== false; // 重读，齿轮切换不陈旧
@@ -1317,7 +1371,7 @@ export async function openInfoPanelFor(ctx, id) {
             bodyWrap.appendChild(strip);
         }
 
-        // ── 孤儿数据迁移提示（文件移动/改名后旧键数据仍在）────────────────
+        // ── 孤儿数据迁移/合并提示（文件移动/改名后旧键数据仍在）────────────
         if (info.orphan_key && !info._file_missing && !_orphanDismissed && name) {
             const parts = [];
             if ((info.orphan_triggers?.length || 0) > 0) {
@@ -1325,19 +1379,33 @@ export async function openInfoPanelFor(ctx, id) {
             }
             if (info.orphan_description) parts.push("a description");
             if (info.orphan_preview) parts.push("a preview picture");
+            const hasCustom = (info.custom_triggers?.length || 0) > 0 || !!info.custom_description;
             const strip = el("div", "sf-ls-strip nofind");
             strip.append(el("span", "st-ic", "↻"));
             const body = el("div");
-            body.textContent = "Found saved data under the old path ("
-                + (parts.join(", ") || "saved data") + "). Migrate it to this file?";
+            if (hasCustom) {
+                body.textContent = "Found saved data under the old path ("
+                    + (parts.join(", ") || "saved data") + "). This file already has data — merge the old into this file? (words combined, descriptions concatenated)";
+            } else {
+                body.textContent = "Found saved data under the old path ("
+                    + (parts.join(", ") || "saved data") + "). Migrate it to this file?";
+            }
             const acts = el("div", "sf-ls-strip-acts");
-            const mig = el("button", "pri", "Migrate");
-            mig.title = "Move the words, description and preview from the old path to this file";
-            mig.addEventListener("click", () => runMigrate());
+            if (hasCustom) {
+                const mg = el("button", "pri", "Merge");
+                mg.title = "Combine old words/description/preview into this file (old will be removed)";
+                mg.addEventListener("click", () => runMerge());
+                acts.append(mg);
+            } else {
+                const mig = el("button", "pri", "Migrate");
+                mig.title = "Move the words, description and preview from the old path to this file";
+                mig.addEventListener("click", () => runMigrate());
+                acts.append(mig);
+            }
             const dis = el("button", null, "Dismiss");
             dis.title = "Leave the old data where it is";
             dis.addEventListener("click", () => { _orphanDismissed = true; renderBody(); });
-            acts.append(mig, dis);
+            acts.append(dis);
             strip.append(body, acts);
             bodyWrap.appendChild(strip);
         }
@@ -1451,10 +1519,10 @@ export async function openInfoPanelFor(ctx, id) {
             dhead.appendChild(el("span", "src" + (dsrc === "civitai" ? " net" : ""),
                 dsrc === "custom" ? "custom" : dsrc === "civitai" ? "from Civitai" : "from file"));
         }
-        if (_descEditing) {
-            const save = el("span", "qa" + (_descDirty ? " dirty" : ""), "Save");
+        if (desc.editing) {
+            const save = el("span", "qa" + (desc.dirty ? " dirty" : ""), "Save");
             save.title = "Save my description";
-            save.addEventListener("click", () => saveDesc(_descDraft));
+            save.addEventListener("click", () => saveDesc(desc.draft));
             const cancel = el("span", "qa", "Cancel");
             cancel.title = "Discard changes";
             cancel.addEventListener("click", () => { cancelDescEdit(); renderBody(); });
@@ -1468,10 +1536,10 @@ export async function openInfoPanelFor(ctx, id) {
             } else {
                 edit.title = "Write your own description (overrides Civitai / file)";
                 edit.addEventListener("click", () => {
-                    _descBase = shownDesc();
-                    _descDraft = _descBase;
-                    _descDirty = false;
-                    _descEditing = true;
+                    desc.base = shownDesc();
+                    desc.draft = desc.base;
+                    desc.dirty = false;
+                    desc.editing = true;
                     renderBody();
                     setTimeout(() => panel.querySelector(".sf-ls-desc textarea")?.focus(), 0);
                 });
@@ -1479,9 +1547,9 @@ export async function openInfoPanelFor(ctx, id) {
             dhead.appendChild(edit);
         }
         dsec.appendChild(dhead);
-        if (_descEditing) {
+        if (desc.editing) {
             const ta = document.createElement("textarea");
-            ta.value = _descDraft;
+            ta.value = desc.draft;
             ta.rows = 6;
             ta.placeholder = "write your own description…\nMarkdown supported - upload a sample image and it is inserted as ![alt](sample/xxx.png)";
             installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
@@ -1490,7 +1558,7 @@ export async function openInfoPanelFor(ctx, id) {
                 ev.stopPropagation();
                 if (ev.key === "Escape") {
                     ev.preventDefault();
-                    if (_descDirty) {
+                    if (desc.dirty) {
                         // 有未保存修改：误按保护——确认后才丢弃
                         confirmDialog({
                             title: "Discard description changes?",
@@ -1510,11 +1578,11 @@ export async function openInfoPanelFor(ctx, id) {
                 }
             });
             ta.addEventListener("input", () => {
-                _descDraft = ta.value;
-                const dirty = _descDraft !== _descBase;
-                if (dirty === _descDirty) return;
-                _descDirty = dirty;
-                // 碰活元素更新 Save 按钮高亮（renderBody 重建时按 _descDirty 重画）
+                desc.draft = ta.value;
+                const dirty = desc.draft !== desc.base;
+                if (dirty === desc.dirty) return;
+                desc.dirty = dirty;
+                // 碰活元素更新 Save 按钮高亮（renderBody 重建时按 desc.dirty 重画）
                 const save = panel.querySelector(".sf-ls-desc h4 .qa");
                 if (save) save.classList.toggle("dirty", dirty);
             });
@@ -1525,7 +1593,7 @@ export async function openInfoPanelFor(ctx, id) {
                 const cur = panel.querySelector(".sf-ls-desc textarea");
                 if (cur) {
                     insertAtCursor(cur, buildSampleMarkdown(path));
-                    _descDraft = cur.value;   // 同步草稿（插入后 input 事件也会触发）
+                    desc.draft = cur.value;   // 同步草稿（插入后 input 事件也会触发）
                 }
             };
             const upRow = el("div", "sf-ls-desc-upload");
@@ -1608,7 +1676,7 @@ export async function openInfoPanelFor(ctx, id) {
                 browseGrid.innerHTML = "";
                 for (const p of imgs) {
                     const cell = el("div", "cell");
-                    const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+                    const isVideo = isVideoPath(p);
                     let thumb;
                     if (isVideo) {
                         thumb = document.createElement("img");
@@ -1654,6 +1722,7 @@ export async function openInfoPanelFor(ctx, id) {
                         try {
                             const r = await app.api.fetchApi(`/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`, { method: "DELETE" });
                             if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                            invalidateSamplesCache(name);
                             // 刷新浏览区与编辑区（若存在）
                             browseGrid.remove();
                             // 重建整个面板以同步两处网格
@@ -1742,6 +1811,38 @@ export async function openInfoPanelFor(ctx, id) {
         }
         panel.appendChild(foot);
         attachResize(panel);
+        // 恢复滚动/焦点：renderBody 前保存的输入框焦点在重建后找回
+        try {
+            if (_focusSel) {
+                const sel = _focusSel.isDesc
+                    ? panel.querySelector(".sf-ls-desc textarea")
+                    : _focusSel.isAddTrig
+                        ? panel.querySelector(".sf-ls-addtrig input")
+                        : null;
+                if (sel) {
+                    // addTrig 输入框的值不进 desc 模型，需手动回填
+                    if (_focusSel.isAddTrig && typeof _focusSel.val === "string") {
+                        try { sel.value = _focusSel.val; } catch {}
+                    }
+                    sel.focus();
+                    try {
+                        if (typeof _focusSel.start === "number" && typeof sel.setSelectionRange === "function") {
+                            sel.setSelectionRange(_focusSel.start, _focusSel.end);
+                        }
+                    } catch {}
+                }
+            }
+            // 恢复滚动（面板及内部可滚动容器）
+            if (_panelScroll) panel.scrollTop = _panelScroll;
+            _scrollTops.forEach((top, el) => {
+                // el 已被移除，找同类替代：按 className 找新元素
+                try {
+                    const cls = el.className ? "." + String(el.className).split(" ").filter(Boolean).join(".") : null;
+                    const ne = cls ? panel.querySelector(cls) : null;
+                    if (ne) ne.scrollTop = top;
+                } catch {}
+            });
+        } catch {}
         // 每次重渲染都可能改变面板高度（勾词、加自定义词、切 File/Civitai
         // 视图、查询落地）。在这里统一钳制覆盖所有调用点，footer 永不会被
         // 推出屏幕底部。
@@ -1805,6 +1906,7 @@ export async function openInfoPanelFor(ctx, id) {
             if (res.samples_downloaded) {
                 const n = res.samples_downloaded;
                 civ.note = (civ.note ? civ.note + " " : "") + `Downloaded ${n} sample image${n > 1 ? "s" : ""} to sample/.`;
+                invalidateSamplesCache(name);
             } else if (res.samples_note) {
                 civ.note = (civ.note ? civ.note + " " : "") + res.samples_note;
             } else if (res.samples_error) {
@@ -1876,6 +1978,18 @@ export async function openInfoPanelFor(ctx, id) {
         renderBody();
     }
 
+    async function runMerge() {
+        clearMsg();
+        const res = await mergeLoraData(name, info.orphan_key);
+        if (!panel.isConnected) return;
+        if (!res?.ok) { showMsg((res && res.message) || "Nothing to merge."); return; }
+        _msg = null;
+        _orphanDismissed = true;
+        await loadInfo({ force: true });
+        if (!panel.isConnected) return;
+        renderBody();
+    }
+
     // 初始画布：先画缓存，再读真实离线信息。放两次：一次现在（fetch 在飞
     // 时面板绝不显示在 0,0），一次内容定稿后（对照真实高度摆正）。
     renderBody();
@@ -1937,7 +2051,7 @@ export async function openInfoPanelFor(ctx, id) {
         if (document.querySelector(".sf-ls-sample-preview")) return;
         if (panel.contains(e.target)) return;                    // 面板内不关
         if (Math.hypot((e.clientX ?? 0) - _downX, (e.clientY ?? 0) - _downY) > 6) return; // 拖动
-        if (_descDirty) return;                                  // 编辑态保留草稿
+        if (desc.dirty) return;                                  // 编辑态保留草稿
         doCloseInfoPanel();
     };
     setTimeout(() => {

@@ -45,6 +45,12 @@ export function resolveSampleUrl(rel, loraName) {
     return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
 }
 
+// 统一视频扩展判定：与 sf_lora_stack_info / lora_routes 保持一致
+const _VIDEO_RE = /\.(mp4|m4v|mov|webm|mkv)$/i;
+export function isVideoPath(p) {
+    return typeof p === "string" && _VIDEO_RE.test(p);
+}
+
 // ── 样例列表短期缓存（2s 去重，避免同面板三处并发各发一次）────────────────
 const _sampleCache = new Map();
 export function fetchSamplesCached(loraName) {
@@ -56,6 +62,10 @@ export function fetchSamplesCached(loraName) {
         .finally(() => setTimeout(() => _sampleCache.delete(loraName), 2000));
     _sampleCache.set(loraName, p);
     return p;
+}
+
+export function invalidateSamplesCache(loraName) {
+    if (loraName) _sampleCache.delete(loraName);
 }
 
 // ── 大图预览（图片/视频，支持方向键切换）──────────────────────────────────
@@ -71,7 +81,7 @@ export function openSamplePreview(path, allPaths) {
         if (i < 0 || i >= list.length) return;
         idx = i;
         const p = list[idx];
-        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
+        const isVideo = isVideoPath(p);
         if (media) media.remove();
         if (isVideo) {
             media = document.createElement("video");
@@ -196,7 +206,7 @@ export function attachSampleTitleHover(container, loraName) {
         }
         const rel = sampleMap.get(hash.toLowerCase());
         if (!rel) return;
-        const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(rel);
+        const isVideo = isVideoPath(rel);
         hoverEl = document.createElement("div");
         hoverEl.className = "sf-lora-sample-hover";
         hoverEl.style.cssText = "position:fixed;z-index:10060;background:#1e1e1e;border:1px solid #444;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.6);pointer-events:none;";
