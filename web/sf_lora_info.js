@@ -481,7 +481,8 @@ export function showLoraInfoDialog(event, name, meta) {
                 valueEl.style.whiteSpace = "pre-wrap";
                 valueEl.textContent = v;
             }
-            valueEl.title = v;
+            if (key === "description") valueEl.removeAttribute("title");
+            else valueEl.title = v;
         }
 
         function renderActions() {

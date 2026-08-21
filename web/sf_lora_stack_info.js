@@ -1509,7 +1509,6 @@ export async function openInfoPanelFor(ctx, id) {
                 // 编辑态仍编辑源码（textarea），保存原文。
                 const db = el("div", "sf-ls-desc-body");
                 db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name) });
-                db.title = shown;
                 dsec.appendChild(db);
                 // 标题悬停预览对应 sample 图（与下方网格同源）
                 queueMicrotask(() => attachSampleTitleHover(db, name));
