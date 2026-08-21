@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import os
+import time
 
 import folder_paths
 from aiohttp import web
@@ -22,6 +23,51 @@ _VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
 _MEDIA_EXTS = _IMAGE_EXTS | _VIDEO_EXTS
 _LORA_EXTS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft"}
 _THUMB_SIZE = 256
+_THUMB_CACHE_MAX_FILES = 500
+_THUMB_CACHE_MAX_AGE_DAYS = 7
+
+
+def _prune_thumb_cache(cache_dir: str) -> None:
+    """清理派生缩略图缓存（可再生，无需联网）。
+
+    策略：7 天 TTL + 500 文件 LRU。上限与 TTL 均在此处硬编码，
+    与 Phase C 提案一致，派生文件删后下次请求即时重建。
+    永不抛错。
+    """
+    try:
+        if not os.path.isdir(cache_dir):
+            return
+        now = time.time()
+        cutoff = now - _THUMB_CACHE_MAX_AGE_DAYS * 86400
+        entries: list[tuple[float, str]] = []
+        for name in os.listdir(cache_dir):
+            if not name.endswith(".webp"):
+                continue
+            fp = os.path.join(cache_dir, name)
+            try:
+                if not os.path.isfile(fp):
+                    continue
+                mtime = os.path.getmtime(fp)
+                # TTL 优先
+                if mtime < cutoff:
+                    try:
+                        os.remove(fp)
+                    except Exception:
+                        pass
+                    continue
+                entries.append((mtime, fp))
+            except Exception:
+                continue
+        # LRU：超量删最旧
+        if len(entries) > _THUMB_CACHE_MAX_FILES:
+            entries.sort(key=lambda x: x[0])  # mtime 升序，最旧在前
+            for _, fp in entries[: len(entries) - _THUMB_CACHE_MAX_FILES]:
+                try:
+                    os.remove(fp)
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 
 def _get_loras_roots() -> list[str]:
@@ -207,6 +253,11 @@ def _register_routes():
                             ok = await loop.run_in_executor(None, _make_vthumb)
                             if not ok:
                                 return web.FileResponse(full)
+                            # 清理可再生派生缓存（TTL/LRU，无联网）
+                            try:
+                                _prune_thumb_cache(cache_dir)
+                            except Exception:
+                                pass
                         return web.FileResponse(cache_path)
                     try:
                         size = min(max(int(w), 16), 1024)
@@ -232,6 +283,10 @@ def _register_routes():
                         else:
                             img = img.convert("RGB")
                         img.save(cache_path, format="WEBP", quality=85)
+                        try:
+                            _prune_thumb_cache(cache_dir)
+                        except Exception:
+                            pass
                     return web.FileResponse(cache_path)
 
                 return web.FileResponse(full)

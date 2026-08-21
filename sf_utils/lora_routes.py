@@ -18,6 +18,11 @@ import os
 import folder_paths
 from aiohttp import web
 
+# LoRA 自定义存储（lora_triggers.json）协程级互斥：保证 fp+write 单事务
+# 线程级 RLock 已在 lora_reader 内保证 read→write 原子，此处再串行化
+# 协程的 run_in_executor 调度，避免两协程在 await 间交错
+_notes_async_lock = asyncio.Lock()
+
 from .logger import get_logger
 from . import lora_reader as R
 
@@ -1004,11 +1009,12 @@ def _register_routes():
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             loop = asyncio.get_running_loop()
             try:
-                # 内容指纹随条目记录：文件日后改名/移动，孤儿匹配靠它找回。
-                def _set_with_fp():
-                    fp = R.file_fingerprint(path)
-                    return R.set_custom_triggers(_custom_triggers_file(), name, words, fp)
-                stored = await loop.run_in_executor(None, _set_with_fp)
+                async with _notes_async_lock:
+                    # 内容指纹随条目记录：文件日后改名/移动，孤儿匹配靠它找回。
+                    def _set_with_fp():
+                        fp = R.file_fingerprint(path)
+                        return R.set_custom_triggers(_custom_triggers_file(), name, words, fp)
+                    stored = await loop.run_in_executor(None, _set_with_fp)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "words": stored})
@@ -1035,11 +1041,12 @@ def _register_routes():
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             loop = asyncio.get_running_loop()
             try:
-                # 内容指纹随条目记录（同 custom_triggers）。
-                def _set_with_fp():
-                    fp = R.file_fingerprint(path)
-                    return R.set_custom_description(_custom_triggers_file(), name, description, fp)
-                stored = await loop.run_in_executor(None, _set_with_fp)
+                async with _notes_async_lock:
+                    # 内容指纹随条目记录（同 custom_triggers）。
+                    def _set_with_fp():
+                        fp = R.file_fingerprint(path)
+                        return R.set_custom_description(_custom_triggers_file(), name, description, fp)
+                    stored = await loop.run_in_executor(None, _set_with_fp)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "description": stored})
@@ -1063,19 +1070,20 @@ def _register_routes():
                 return web.json_response({"ok": False, "message": "LoRA not found."})
             loop = asyncio.get_running_loop()
             try:
-                # old_key 来自孤儿检测（指纹或基名命中）；fp 随迁移写入新键。
-                def _migrate_with_fp():
-                    fp = R.file_fingerprint(path)
-                    return R.migrate_custom_data(_custom_triggers_file(), name, fp, old_key)
-                res = await loop.run_in_executor(None, _migrate_with_fp)
+                async with _notes_async_lock:
+                    # old_key 来自孤儿检测（指纹或基名命中）；fp 随迁移写入新键。
+                    def _migrate_with_fp():
+                        fp = R.file_fingerprint(path)
+                        return R.migrate_custom_data(_custom_triggers_file(), name, fp, old_key)
+                    res = await loop.run_in_executor(None, _migrate_with_fp)
+                    if not res.get("ok"):
+                        return web.json_response({"ok": False, "message": "Nothing to migrate."})
+                    old = res["old_key"]
+                    moved_pv = await loop.run_in_executor(
+                        None, R.migrate_custom_preview, _previews_dir(), name, old
+                    )
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not migrate: {}".format(exc)})
-            if not res.get("ok"):
-                return web.json_response({"ok": False, "message": "Nothing to migrate."})
-            old = res["old_key"]
-            moved_pv = await loop.run_in_executor(
-                None, R.migrate_custom_preview, _previews_dir(), name, old
-            )
             return web.json_response({"ok": True, "old_key": old,
                                       "preview_moved": bool(moved_pv)})
 
