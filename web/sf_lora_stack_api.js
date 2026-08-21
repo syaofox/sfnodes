@@ -123,8 +123,18 @@ export function thumbUrl(name, bust) {
 // `overwrite` 仅手写请求用（前端 UI 已改走独立确认保存端点）：=1 时已有
 // 用户自定义预览仍用 Civitai 图片覆盖。缺省不传 = 后端跳过保存、返回
 // thumb_skipped，前端随后用面板风确认框询问。
-export async function civitaiLookup(name, overwrite) {
+// 2026-08 Archive 回退：支持 {overwrite, modelId, versionId, civitaiUrl} 对象形式
+export async function civitaiLookup(name, overwriteOrOpts) {
     try {
+        let overwrite = false, modelId = null, versionId = null, civitaiUrl = null;
+        if (overwriteOrOpts && typeof overwriteOrOpts === "object") {
+            overwrite = !!overwriteOrOpts.overwrite;
+            modelId = overwriteOrOpts.modelId ?? overwriteOrOpts.model_id ?? null;
+            versionId = overwriteOrOpts.versionId ?? overwriteOrOpts.version_id ?? null;
+            civitaiUrl = overwriteOrOpts.civitaiUrl ?? overwriteOrOpts.url ?? overwriteOrOpts.link ?? null;
+        } else {
+            overwrite = !!overwriteOrOpts;
+        }
         const q = overwrite ? "&overwrite=1" : "";
         // sfnodes.Civitai.DownloadSamples 开关：开时附加 &downloadSamples=1 让后端批量下载原图至 sample/
         let dl = "";
@@ -132,7 +142,11 @@ export async function civitaiLookup(name, overwrite) {
             const v = globalThis.app?.ui?.settings?.getSettingValue?.("sfnodes.Civitai.DownloadSamples");
             if (v) dl = "&downloadSamples=1";
         } catch {}
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q + dl));
+        let extra = "";
+        if (modelId) extra += "&modelId=" + encodeURIComponent(String(modelId));
+        if (versionId) extra += "&versionId=" + encodeURIComponent(String(versionId));
+        if (civitaiUrl) extra += "&civitaiUrl=" + encodeURIComponent(String(civitaiUrl));
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai?name=" + encodeURIComponent(name) + q + dl + extra));
         const j = await r.json();
         // 查询可能写入 .civitai.info 侧车（Power 系读 lora_notes 时合并它的
         // 词/描述）——广播让另一端缓存失效，打开即新数据。

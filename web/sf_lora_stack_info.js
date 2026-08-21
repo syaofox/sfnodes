@@ -183,7 +183,12 @@ function injectCSS() {
     .sf-ls-strip.searching { background:rgba(90,160,230,0.12); } .sf-ls-strip.searching .st-ic { background:#5aa0e6; }
     .sf-ls-strip.found { background:rgba(62,195,113,0.12); } .sf-ls-strip.found .st-ic { background:#3ec371; }
     .sf-ls-strip.nofind { background:rgba(255,255,255,0.05); } .sf-ls-strip.nofind .st-ic { background:#6f6f6f; }
+    .sf-ls-strip.archive { background:rgba(255,193,7,0.10); } .sf-ls-strip.archive .st-ic { background:#c9a227; }
     .sf-ls-strip.offline { background:rgba(233,165,61,0.12); } .sf-ls-strip.offline .st-ic { background:#e9a53d; }
+    .sf-ls-archive-row { display:flex; gap:6px; margin-top:8px; align-items:center; }
+    .sf-ls-archive-row input { flex:1; min-width:0; background:#161616; border:1px solid #444; border-radius:5px; color:#ddd; font:11px 'Segoe UI'; padding:5px 8px; outline:none; }
+    .sf-ls-archive-row input:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-archive-row button { background:var(--acc, var(--sf-acc, #f66744)); border:1px solid var(--acc, var(--sf-acc, #f66744)); color:#fff; border-radius:5px; padding:5px 10px; font:11px 'Segoe UI'; cursor:pointer; font-weight:600; }
     .sf-ls-strip-acts { display:flex; gap:5px; margin-left:auto; flex:none; align-items:center; }
     .sf-ls-strip-acts button { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18);
       color:#ccc; border-radius:6px; padding:4px 10px; font:11px 'Segoe UI',sans-serif; cursor:pointer; }
@@ -1717,25 +1722,46 @@ export async function openInfoPanelFor(ctx, id) {
     function civStrip() {
         const strip = el("div", "sf-ls-strip " +
             (civ.state === "searching" ? "searching" : civ.state === "found" ? "found"
-                : civ.state === "offline" ? "offline" : "nofind"));
+                : civ.state === "archive" ? "archive" : civ.state === "offline" ? "offline" : "nofind"));
         const ic = el("span", "st-ic");
         if (civ.state === "searching") ic.appendChild(el("span", "sf-ls-spin"));
-        else ic.textContent = civ.state === "found" ? "✓" : civ.state === "offline" ? "!" : "?";
+        else ic.textContent = civ.state === "found" ? "✓" : civ.state === "archive" ? "📦" : civ.state === "offline" ? "!" : "?";
         const body = el("div");
         if (civ.state === "searching") body.textContent = "Looking up on Civitai… matching this file's fingerprint.";
         else if (civ.state === "found") body.innerHTML = "Found on Civitai. Saved next to the file, so it's instant and offline next time."
             + (civ.note ? " " + escapeHtml(civ.note) : "");
+        else if (civ.state === "archive") {
+            body.innerHTML = escapeHtml(civ.hint || "This version is a .zip archive containing multiple files — the local file's fingerprint doesn't match the archive.") + "<br><span style='color:#9a9a9a;font-size:10px'>Paste Civitai link or Version ID:</span>";
+            const row = el("div", "sf-ls-archive-row");
+            const inp = document.createElement("input");
+            inp.type = "text";
+            inp.placeholder = "https://civitai.com/models/1874153?modelVersionId=2121297  or  2121297";
+            inp.value = civ.prefill || "";
+            const btn = el("button", null, "Fetch");
+            btn.addEventListener("click", () => {
+                const v = inp.value.trim();
+                if (!v) { showMsg("Paste a Civitai link or Version ID first."); return; }
+                runCivitai({ civitaiUrl: v });
+            });
+            inp.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); btn.click(); }
+                else e.stopPropagation();
+            });
+            inp.addEventListener("mousedown", (e) => e.stopPropagation());
+            row.append(inp, btn);
+            body.appendChild(row);
+        }
         else if (civ.state === "nofind") body.innerHTML = "Not on Civitai. This exact file isn't in their database (it may be private, renamed, or custom-trained). The words read from the file are still shown.";
         else body.textContent = civ.message || "Couldn't reach Civitai. No connection, or it's busy. Use the file's own words, or try again.";
         strip.append(ic, body);
         return strip;
     }
 
-    async function runCivitai() {
+    async function runCivitai(opts) {
         clearMsg();
         civ = { state: "searching" };
         renderBody();
-        const res = await civitaiLookup(name);
+        const res = await civitaiLookup(name, opts);
         if (!panel.isConnected) return;
         if (res.ok && res.found) {
             civ = { state: "found", info: res.info || {} };
@@ -1759,6 +1785,8 @@ export async function openInfoPanelFor(ctx, id) {
             // 刷新离线 info 让源徽章/缓存 id 反映新侧车，再重绘。走 loadInfo，
             // 慢答案不能覆盖用户在查询进行中设的图。
             loadInfo({ force: true }).then((ok) => { if (ok) renderBody(); });
+        } else if (res.reason === "archive") {
+            civ = { state: "archive", hint: res.hint || res.message, prefill: opts?.civitaiUrl || "" };
         } else if (res.reason === "notfound") {
             civ = { state: "nofind" };
         } else {

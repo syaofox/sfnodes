@@ -72,6 +72,54 @@ def _clean_id(v):
     return None
 
 
+def extract_civitai_ids(text):
+    """从任意文本（URL、air、文件名、用户粘贴）提取 Civitai modelId/versionId。
+
+    支持：
+      - https://civitai.com/models/1874153 / https://civitai.red/models/1874153
+      - ?modelVersionId=2121297 / &versionId=2121297
+      - urn:air:wanvideo-22-i2v-a14b:lora:civitai:1874153@2121297
+      - 纯数字（视为 versionId）
+    返回 {\"model_id\": int|None, \"version_id\": int|None}，永不抛错。"""
+    out = {"model_id": None, "version_id": None}
+    if not isinstance(text, str) or not text:
+        return out
+    s = text.strip()
+    # air 优先：同时拿到两个 id
+    try:
+        m = re.search(r"civitai:(\d+)@(\d+)", s)
+        if m:
+            mid = _clean_id(m.group(1))
+            vid = _clean_id(m.group(2))
+            if mid is not None:
+                out["model_id"] = mid
+            if vid is not None:
+                out["version_id"] = vid
+            return out
+    except Exception:
+        pass
+    # URL 提取
+    try:
+        m = re.search(r"/models/(\d+)", s)
+        if m:
+            mid = _clean_id(m.group(1))
+            if mid is not None:
+                out["model_id"] = mid
+        m = re.search(r"modelVersionId=(\d+)", s)
+        if m:
+            vid = _clean_id(m.group(1))
+            if vid is not None:
+                out["version_id"] = vid
+        # 纯数字视为 versionId（当作 modelVersionId 单值输入）
+        if out["model_id"] is None and out["version_id"] is None and s.isdigit():
+            vid = _clean_id(s)
+            if vid is not None:
+                out["version_id"] = vid
+    except Exception:
+        pass
+    return out
+
+
 def _as_json(val):
     """safetensors 元数据值总是字符串；结构化的是需要二次解析的 JSON 字符串。
     返回解析后的对象，或 None。"""

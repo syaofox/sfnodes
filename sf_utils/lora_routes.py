@@ -569,6 +569,7 @@ def _register_routes():
             # 针对 key 的拒绝是最可操作的报告，单独留着，不被第二个主机随后
             # 的话（那里的超时会埋掉它）覆盖。
             key_note = None
+            by_hash_notfound = False
             for i, host in enumerate(hosts):
                 last = i == len(hosts) - 1
                 url = "https://{}/api/v1/model-versions/by-hash/{}".format(host, sha)
@@ -583,7 +584,9 @@ def _register_routes():
                                 if not last:
                                     last_note = "Not found on {}.".format(host)
                                     continue
-                                return web.json_response({"ok": True, "found": False, "reason": "notfound"})
+                                by_hash_notfound = True
+                                last_note = "Not found on Civitai (by hash)."
+                                break
                             if resp.status in (401, 403):
                                 # 绝不在循环内返回：401/403 是最主机特有的失败
                                 # （一个域名的 Cloudflare/公司/ISP 屏蔽页，另一
@@ -638,6 +641,102 @@ def _register_routes():
                     else:
                         last_note = "Could not reach Civitai ({}).".format(kind)
                     continue
+            # by-hash 未命中或网络失败后的回退：Archive 模型（zip）本地解压后指纹与归档不一致，
+            # 需通过用户粘贴的 Civitai 链接/ID 二次查询
+            if by_hash_notfound or data is None:
+                ids = {"model_id": None, "version_id": None}
+                for k in ["modelId", "model_id"]:
+                    v = request.query.get(k)
+                    cid = R._clean_id(v) if v else None
+                    if cid is not None:
+                        ids["model_id"] = cid
+                for k in ["versionId", "version_id"]:
+                    v = request.query.get(k)
+                    cid = R._clean_id(v) if v else None
+                    if cid is not None:
+                        ids["version_id"] = cid
+                for k in ["civitaiUrl", "url", "link", "civitai_url"]:
+                    v = request.query.get(k)
+                    if v:
+                        ex = R.extract_civitai_ids(v)
+                        if ex.get("model_id") and not ids["model_id"]:
+                            ids["model_id"] = ex["model_id"]
+                        if ex.get("version_id") and not ids["version_id"]:
+                            ids["version_id"] = ex["version_id"]
+                if ids["version_id"] or ids["model_id"]:
+                    fallback_data = None
+                    fallback_host = hosts[0] if hosts else "civitai.com"
+                    if ids["version_id"]:
+                        for h in hosts:
+                            try:
+                                f_url = "https://{}/api/v1/model-versions/{}".format(h, ids["version_id"])
+                                async with aiohttp.ClientSession(timeout=timeout) as session:
+                                    async with session.get(f_url, headers=headers) as resp:
+                                        if resp.status != 200:
+                                            continue
+                                        chunks = []
+                                        total = 0
+                                        async for chunk in resp.content.iter_chunked(65536):
+                                            total += len(chunk)
+                                            if total > 4 * 1024 * 1024:
+                                                break
+                                            chunks.append(chunk)
+                                        body = b"".join(chunks)
+                                        try:
+                                            fallback_data = json.loads(body)
+                                        except Exception:
+                                            continue
+                                        fallback_host = h
+                                        break
+                            except Exception:
+                                continue
+                    if fallback_data is None and ids["model_id"]:
+                        for h in hosts:
+                            try:
+                                f_url = "https://{}/api/v1/models/{}".format(h, ids["model_id"])
+                                async with aiohttp.ClientSession(timeout=timeout) as session:
+                                    async with session.get(f_url, headers=headers) as resp:
+                                        if resp.status != 200:
+                                            continue
+                                        chunks = []
+                                        total = 0
+                                        async for chunk in resp.content.iter_chunked(65536):
+                                            total += len(chunk)
+                                            if total > 4 * 1024 * 1024:
+                                                break
+                                            chunks.append(chunk)
+                                        body = b"".join(chunks)
+                                        try:
+                                            m_data = json.loads(body)
+                                        except Exception:
+                                            continue
+                                        vers = m_data.get("modelVersions") or []
+                                        target = None
+                                        if ids["version_id"]:
+                                            for v in vers:
+                                                if str(v.get("id")) == str(ids["version_id"]):
+                                                    target = v
+                                                    break
+                                        if target is None and vers:
+                                            target = vers[0]
+                                        if target:
+                                            if not isinstance(target.get("model"), dict):
+                                                target["model"] = {"name": m_data.get("name"), "type": m_data.get("type")}
+                                            fallback_data = target
+                                            fallback_host = h
+                                            break
+                            except Exception:
+                                continue
+                    if fallback_data is not None:
+                        data = fallback_data
+                        host = fallback_host
+                        by_hash_notfound = False
+                    else:
+                        if by_hash_notfound:
+                            return web.json_response({"ok": True, "found": False, "reason": "notfound", "hint": "未找到对应的 Civitai 版本，请检查链接或 ID 是否正确。"})
+                        return web.json_response({"ok": False, "reason": "offline", "message": key_note or last_note})
+                if by_hash_notfound:
+                    return web.json_response({"ok": True, "found": False, "reason": "archive", "hint": "该版本为 .zip 归档（含多个文件），本地文件的指纹与归档不一致。请粘贴 Civitai 链接或 Version ID 后重试。"})
             if data is None:
                 # key 拒绝优于后面的主机说的话："检查你的 key"是用户能行动的，
                 # 尾随超时不是。
