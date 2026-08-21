@@ -272,19 +272,19 @@ function openSamplePreview(path, allPaths) {
     };
     const close = () => {
         overlay.remove();
-        document.removeEventListener("keydown", onKey);
+        document.removeEventListener("keydown", onKey, true);
     };
     const onKey = (e) => {
-        if (e.key === "Escape") close();
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); close(); }
         else if (e.key === "ArrowLeft") {
-            if (idx > 0) { e.preventDefault(); render(idx - 1); }
+            if (idx > 0) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx - 1); }
         } else if (e.key === "ArrowRight") {
-            if (idx < list.length - 1) { e.preventDefault(); render(idx + 1); }
+            if (idx < list.length - 1) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx + 1); }
         }
     };
     render(idx);
     overlay.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     document.body.appendChild(overlay);
 }
 
@@ -1815,6 +1815,8 @@ export async function openInfoPanelFor(ctx, id) {
     // 确认框（.sf-ls-confirm-mask）挂在 body 上，onKey/onPaste 需豁免。
     const onKey = (e) => {
         if (e.target.closest?.(".sf-ls-confirm-mask")) return;
+        if (e.target.closest?.(".sf-ls-sample-preview")) return;
+        if (document.querySelector(".sf-ls-sample-preview")) return;
         if (e.key === "Escape") { e.stopPropagation(); closeInfoPanel(); }
     };
     // Ctrl+V 从剪贴板设置 LoRA 的图。CAPTURE 且 stopPropagation：ComfyUI 把
@@ -1848,6 +1850,8 @@ export async function openInfoPanelFor(ctx, id) {
     const onDocClick = (e) => {
         if (!panel.isConnected || _panel !== panel) return;
         if (e.target.closest?.(".sf-ls-confirm-mask")) return;   // 确认框豁免
+        if (e.target.closest?.(".sf-ls-sample-preview")) return; // 预览豁免
+        if (document.querySelector(".sf-ls-sample-preview")) return;
         if (panel.contains(e.target)) return;                    // 面板内不关
         if (Math.hypot((e.clientX ?? 0) - _downX, (e.clientY ?? 0) - _downY) > 6) return; // 拖动
         if (_descDirty) return;                                  // 编辑态保留草稿

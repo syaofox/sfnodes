@@ -53,16 +53,21 @@ function _openSamplePreview(path, allPaths) {
     };
     const close = () => {
         overlay.remove();
-        document.removeEventListener("keydown", onKey);
+        document.removeEventListener("keydown", onKey, true);
     };
     const onKey = (e) => {
-        if (e.key === "Escape") close();
-        else if (e.key === "ArrowLeft") { if (idx > 0) { e.preventDefault(); render(idx - 1); } }
-        else if (e.key === "ArrowRight") { if (idx < list.length - 1) { e.preventDefault(); render(idx + 1); } }
+        if (e.key === "Escape") {
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+            // 标记由预览消费了 Esc，避免随后 dialog 的 cancel 关闭对话框
+            try { document.body.dataset.sfPreviewEsc = "1"; setTimeout(() => { try { delete document.body.dataset.sfPreviewEsc; } catch {} }, 50); } catch {}
+            close();
+        }
+        else if (e.key === "ArrowLeft") { if (idx > 0) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx - 1); } }
+        else if (e.key === "ArrowRight") { if (idx < list.length - 1) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx + 1); } }
     };
     render(idx);
     overlay.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     document.body.appendChild(overlay);
 }
 
@@ -1522,6 +1527,18 @@ export function showLoraInfoDialog(event, name, meta) {
     // Native <dialog> modal: Esc triggers "cancel" (unless an input is being
     // edited, whose keydown handler stopPropagation's Escape first).
     dialog.addEventListener("cancel", (e) => {
+        if (document.body.dataset.sfPreviewEsc === "1" || document.querySelector(".sf-lora-sample-preview, .sf-li-sample-preview, .sf-li-desc-hover, .sf-ls-sample-preview, .sf-ls-desc-hover")) {
+            e.preventDefault();
+            try { delete document.body.dataset.sfPreviewEsc; } catch {}
+            // 若预览仍在（keydown 未消费），则关闭预览而非对话框
+            const preview = document.querySelector(".sf-lora-sample-preview, .sf-li-sample-preview");
+            if (preview) {
+                try { preview.remove(); } catch {}
+                // 移除预览的 keydown 监听（由预览自身 close 清理，此处兜底）
+                try { document.body.dataset.sfPreviewEsc = "1"; setTimeout(() => { try { delete document.body.dataset.sfPreviewEsc; } catch {} }, 50); } catch {}
+            }
+            return;
+        }
         e.preventDefault();
         closeDialog();
     });
