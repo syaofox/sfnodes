@@ -8,11 +8,11 @@ _CATEGORY = "sfnodes/model"
 PRESET_TYPE = "SF_LORA_PRESET"
 
 
-class PowerLoraPreset:
-    """选择已保存的 LoRA 预设并输出，供 SF Power Lora Loader 使用"""
+class SFLoraPreset:
+    """选择已保存的 LoRA 预设并输出，供 SFLoraStack 使用"""
     DESCRIPTION = (
         "选择已保存的 LoRA 预设（含顺序与强度），输出到 "
-        "SF Power Lora Loader 的 preset 输入（连接后预设优先）"
+        "SFLoraStack 的 preset 输入（连接后预设优先）"
     )
 
     @classmethod

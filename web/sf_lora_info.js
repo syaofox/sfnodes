@@ -1,6 +1,6 @@
 // ==========================================================================
 // SF Model Info - Shared LoRA/model metadata dialog & fetch utilities
-// Used by SFPowerLoraLoader and SFLoraLoaderModelOnly (and future nodes).
+// Used by SFLoraPreset and SFLoraLoaderModelOnly (and future nodes).
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import { renderMarkdown } from "./sf_markdown.js";
@@ -71,6 +71,19 @@ function _openSamplePreview(path, allPaths) {
     document.body.appendChild(overlay);
 }
 
+// 样例列表短期缓存（2s 去重，与 Stack 面板同策略）
+const _sampleCache = new Map();
+function fetchSamplesCachedInfo(loraName) {
+    if (!loraName || loraName === "None") return Promise.resolve({ images: [], sample_dir: "" });
+    if (_sampleCache.has(loraName)) return _sampleCache.get(loraName);
+    const p = app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`)
+        .then((r) => r.ok ? r.json() : { images: [] })
+        .catch(() => ({ images: [] }))
+        .finally(() => setTimeout(() => _sampleCache.delete(loraName), 2000));
+    _sampleCache.set(loraName, p);
+    return p;
+}
+
 function _attachSampleTitleHover(container, loraName) {
     if (!container || !loraName) return;
     const links = container.querySelectorAll("h3 a");
@@ -85,9 +98,7 @@ function _attachSampleTitleHover(container, loraName) {
         if (!hash) return;
         if (!sampleMap) {
             try {
-                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`);
-                if (!resp.ok) return;
-                const data = await resp.json();
+                const data = await fetchSamplesCachedInfo(loraName);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 sampleMap = new Map();
                 for (const p of imgs) {
@@ -214,6 +225,9 @@ export async function loadImageAsWorkflow(path, onError) {
 
 export const loraMetadataCache = new Map();
 const _loraMetadataPending = new Map();
+// 世代号：invalidate 后在途旧响应不得写回缓存（与 sf_lora_stack_api 的 _infoGen 同理）
+const _metaGen = new Map();
+const _genOf = (n) => _metaGen.get(n) || 0;
 
 // 2026-08 统一存储：元数据读写走 /api/sfnodes/lora_notes（后端网关，与
 // SFLoraStack 同一 lora_triggers.json 真源）。`force` 跳过缓存与在途去重，
@@ -223,29 +237,46 @@ export async function getLoraMetadata(name, force = false) {
     if (!force && loraMetadataCache.has(name)) return loraMetadataCache.get(name);
     // Join an in-flight request instead of firing a duplicate
     if (!force && _loraMetadataPending.has(name)) return _loraMetadataPending.get(name);
-
-    const promise = (async () => {
+    const gen = _genOf(name);
+    let p;
+    p = (async () => {
         try {
             // force（打开对话框）= 必新：no-store 越过浏览器启发式缓存
             // （后端响应无 Cache-Control，默认模式可能命中陈旧副本）。
             const resp = await fetch(`/api/sfnodes/lora_notes?filename=${encodeURIComponent(name)}`,
                 { cache: force ? "no-store" : "default" });
-            if (!resp.ok) { loraMetadataCache.set(name, null); return null; }
+            if (!resp.ok) {
+                if (_genOf(name) === gen) loraMetadataCache.set(name, null);
+                return null;
+            }
             const meta = await resp.json();
-            loraMetadataCache.set(name, meta);
+            // 仅当世代未变才写入缓存，否则该响应已 stale（期间有 invalidate）
+            if (_genOf(name) === gen) loraMetadataCache.set(name, meta);
+            else if (meta && typeof meta === "object") meta._stale = true;
+            // stale 响应仍返回给调用方，由调用方决定是否丢弃（对话框已关闭则忽略）
+            if (_genOf(name) !== gen && meta && typeof meta === "object") meta._stale = true;
             return meta;
         } catch {
-            loraMetadataCache.set(name, null);
+            if (_genOf(name) === gen) loraMetadataCache.set(name, null);
             return null;
+        } finally {
+            if (_loraMetadataPending.get(name) === p) _loraMetadataPending.delete(name);
         }
     })();
 
     if (!force) {
-        _loraMetadataPending.set(name, promise);
-        try { return await promise; }
-        finally { _loraMetadataPending.delete(name); }
+        _loraMetadataPending.set(name, p);
+        try { return await p; }
+        finally { if (_loraMetadataPending.get(name) === p) _loraMetadataPending.delete(name); }
     }
-    return promise;
+    return p;
+}
+
+export function invalidateLoraMetadata(name) {
+    if (name) {
+        loraMetadataCache.delete(name);
+        _metaGen.set(name, _genOf(name) + 1);
+    }
 }
 
 // ── 跨节点缓存失效：任一节点（Power 系对话框 / SFLoraStack 面板）保存
@@ -253,7 +284,10 @@ export async function getLoraMetadata(name, force = false) {
 if (typeof document !== "undefined") {
     document.addEventListener("sfnodes.lora-data-changed", (e) => {
         const name = e?.detail?.name;
-        if (name) loraMetadataCache.delete(name);
+        if (name) {
+            loraMetadataCache.delete(name);
+            _metaGen.set(name, _genOf(name) + 1);
+        }
     });
 }
 
@@ -723,6 +757,7 @@ export function showLoraInfoDialog(event, name, meta) {
     }
 
     // ---------- build rows ----------
+    const _isMissing = !!meta._file_missing;
     const twRow = createEditRow("Trigger Words", "trigger_words", false);
     const descRow = createEditRow(
         "Description",
@@ -730,6 +765,14 @@ export function showLoraInfoDialog(event, name, meta) {
         true,
         "支持 Markdown 格式：![图片](url)、[链接](url)、**加粗**、列表、代码块等"
     );
+    if (_isMissing) {
+        // 文件不存在时禁用编辑（后端会拒，仅提示）
+        [twRow, descRow].forEach((r) => {
+            r.style.opacity = "0.55";
+            r.style.pointerEvents = "none";
+            r.title = "LoRA 文件不存在，无法编辑（请重新选择路径）";
+        });
+    }
     // Civitai 查询后 base_model/source_url 可能变化（侧车信息）：保存行引用供刷新
     let bmRow = null, urlRow = null;
     body.appendChild(twRow);
@@ -780,11 +823,9 @@ export function showLoraInfoDialog(event, name, meta) {
     async function refreshBrowseSamplePanel() {
         browseGrid.innerHTML = "";
         browseHint.textContent = "";
-        if (!name || name === "None") { browsePanel.style.display = "none"; return; }
+        if (!name || name === "None" || _isMissing) { browsePanel.style.display = "none"; return; }
         try {
-            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
+            const data = await fetchSamplesCachedInfo(name);
             const imgs = Array.isArray(data.images) ? data.images : [];
             if (!imgs.length) { browsePanel.style.display = "none"; return; }
             browsePanel.style.display = "";
@@ -911,14 +952,13 @@ export function showLoraInfoDialog(event, name, meta) {
     async function refreshSamplePanel() {
         sampleGrid.innerHTML = "";
         sampleHint.textContent = "";
-        if (!name || name === "None") {
-            sampleHint.textContent = "当前未选择 LoRA。";
+        if (!name || name === "None" || _isMissing) {
+            if (_isMissing) sampleHint.textContent = "LoRA 文件不存在，无法加载示例图。";
+            else sampleHint.textContent = "当前未选择 LoRA。";
             return;
         }
         try {
-            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
+            const data = await fetchSamplesCachedInfo(name);
             if (!Array.isArray(data.images) || !data.images.length) {
                 sampleHint.textContent = `该 LoRA 没有示例图。请将图片放入 models/loras/${data.sample_dir || ""} 目录，或点击“上传”。`;
                 return;

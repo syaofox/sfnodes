@@ -132,7 +132,7 @@ function openRowMenu(node, id, x, y, refresh) {
     showMenu(menu, x, y);
 }
 
-// ── 预设菜单（参考 SFPowerLoraLoader：存/取整个栈，机器级存储）────────────
+// ── 预设菜单（参考 SFLoraPreset：存/取整个栈，机器级存储）────────────
 // 与行菜单同 DOM 骨架（.sf-ls-menu），共享 closeRowMenu/showMenu。列表异步
 // 加载（GET 预设），失败显示占位消息。保存命名在菜单内联输入（无
 // app.canvas.prompt 依赖，Vue/Classic 双环境可用）。
@@ -470,7 +470,8 @@ export function presetUpstream(node) {
     const link = node.graph?.links?.[slot.link];
     if (!link) return null;
     const up = node.graph?.getNodeById?.(link.origin_id);
-    return up && (up.comfyClass === "SFPowerLoraPreset" || up.type === "SFPowerLoraPreset") ? up : null;
+    return up && (up.comfyClass === "SFLoraPreset" || up.type === "SFLoraPreset"
+        || up.comfyClass === "SFPowerLoraPreset" || up.type === "SFPowerLoraPreset") ? up : null;
 }
 
 // 读上游 combo 名 -> fetch 预设 -> 加载到行并刷新。加载路径不执行。

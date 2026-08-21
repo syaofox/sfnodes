@@ -14,6 +14,8 @@ import {
     installCanvasZoomPassthrough,
     isGraphLoading,
     isVueNodes,
+    LORA_DISPLAY_MODES,
+    LORA_DISPLAY_SETTING,
 } from "./sf_common.js";
 import { listLoras, invalidateList, invalidateAllInfo } from "./sf_lora_stack_api.js";
 import {
@@ -178,8 +180,39 @@ app.registerExtension({
                     defaultValue: false,
                 });
             } catch (_e2) { /* 设置系统不可用则忽略 */ }
-            // 全局 LoRA 显示名设置（sfnodes.PowerLoraLoader.DisplayName，
-            // 由 power_lora_loader.js 注册）变化时经事件桥通知——Stack/Plot
+            // 全局 LoRA 显示名设置（已从 power_lora_loader 彻底迁移至此，
+            // 新键 sfnodes.Lora.DisplayName，旧键一次性搬运见 sf_common.js）
+            try {
+                const displayOptions = {
+                    "Full path": LORA_DISPLAY_MODES.FULL,
+                    "File name": LORA_DISPLAY_MODES.FILENAME,
+                    "File name without extension": LORA_DISPLAY_MODES.BASENAME,
+                    "Parent folder name": LORA_DISPLAY_MODES.FOLDER,
+                    "Parent folder + name without ext": LORA_DISPLAY_MODES.PARENT_BASENAME,
+                };
+                app.ui.settings.addSetting({
+                    id: LORA_DISPLAY_SETTING,
+                    name: "SF LoRA: display name (full path / file name / no extension / parent folder / folder + name)",
+                    defaultValue: LORA_DISPLAY_MODES.FULL,
+                    type: "combo",
+                    options: () => Object.entries(displayOptions).map(([text, value]) => ({
+                        value, text, selected: app.ui.settings.getSettingValue(LORA_DISPLAY_SETTING) === value,
+                    })),
+                    onChange: () => {
+                        app.graph.setDirtyCanvas(true);
+                        document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"));
+                    },
+                });
+                // 旧键一次性迁移（彻底迁移语义：读旧值后写入新键）
+                try {
+                    const legacy = app.ui.settings.getSettingValue("sfnodes.PowerLoraLoader.DisplayName");
+                    const cur = app.ui.settings.getSettingValue(LORA_DISPLAY_SETTING);
+                    if (legacy && !cur) {
+                        app.ui.settings.setSettingValue(LORA_DISPLAY_SETTING, legacy);
+                    }
+                } catch {}
+            } catch (_e3) { /* 设置系统不可用则忽略 */ }
+            // 全局 LoRA 显示名设置变化时经事件桥通知——Stack/Plot
             // 行名随设置重渲染（DOM 重绘，setDirtyCanvas 管不到 widget DOM）。
             // setTimeout(0) 推迟到设置 store 更新后（同 Accent 时序教训）。
             document.addEventListener("sfnodes.lora-display-mode-changed", () => {

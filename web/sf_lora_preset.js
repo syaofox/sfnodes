@@ -1,7 +1,7 @@
-// SF Power Lora Preset - 预设选择节点：combo 刷新按钮
+// SF LoRA Preset - 预设选择节点：combo 刷新按钮（原 SF Power Lora Preset 改名）
 import { app } from "/scripts/app.js";
 
-const NODE_TYPE = "SFPowerLoraPreset";
+const NODE_TYPE = "SFLoraPreset";
 const API = "/api/sfnodes/lora_presets";
 
 async function fetchPresetNames() {
@@ -11,7 +11,7 @@ async function fetchPresetNames() {
         const res = await r.json();
         return ["None", ...Object.keys(res?.presets || {}).sort()];
     } catch (e) {
-        console.error("[SFPowerLoraPreset]", e);
+        console.error("[SFLoraPreset]", e);
         return null;
     }
 }
@@ -31,7 +31,7 @@ function refreshCombo(node, widget) {
 }
 
 app.registerExtension({
-    name: "sfnodes.SFPowerLoraPreset",
+    name: "sfnodes.SFLoraPreset",
     nodeCreated(node) {
         if (node.comfyClass !== NODE_TYPE) return;
 

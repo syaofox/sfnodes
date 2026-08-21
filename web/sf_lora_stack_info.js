@@ -35,6 +35,22 @@ let _descDirty = false;
 const _PANEL_MIN_W = 280;
 const _PANEL_MIN_H = 240;
 
+// 样例列表去重：同一会话内多次请求同一 LoRA 的 sample 列表共享 Promise（避免
+// renderBody + 标题悬停 + 编辑网格三处并发各发一次）。短期缓存 2s。
+const _samplePromiseCache = new Map();
+function fetchSamplesCached(loraName) {
+    if (!loraName) return Promise.resolve({ images: [], sample_dir: "" });
+    if (_samplePromiseCache.has(loraName)) return _samplePromiseCache.get(loraName);
+    const p = app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`)
+        .then((r) => r.ok ? r.json() : { images: [] })
+        .catch(() => ({ images: [] }))
+        .finally(() => {
+            setTimeout(() => _samplePromiseCache.delete(loraName), 2000);
+        });
+    _samplePromiseCache.set(loraName, p);
+    return p;
+}
+
 function injectCSS() {
     if (document.getElementById("sf-ls-info-css")) return;
     const s = document.createElement("style");
@@ -318,9 +334,7 @@ function attachSampleTitleHover(container, loraName) {
         if (!hash) return;
         if (!sampleMap) {
             try {
-                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`);
-                if (!resp.ok) return;
-                const data = await resp.json();
+                const data = await fetchSamplesCached(loraName);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 sampleMap = new Map();
                 for (const p of imgs) {
@@ -681,22 +695,39 @@ export async function openInfoPanelFor(ctx, id) {
 
     function addCustom(word) {
         clearMsg();
-        const w = (word || "").trim();
-        if (!w) return;
+        const raw = (word || "").trim();
+        if (!raw) return;
         const e = ctx.getRow();
         if (!e) return;
-        const key = w.toLowerCase();
-        // 文件/Civitai 已提供该词就只选中它——别再把它塞进 `custom`
-        // （那会是源词的隐藏重复）。
-        const inSrc = sourceWords().some((x) => x.toLowerCase() === key);
-        const custom = (inSrc || (e.custom || []).some((x) => x.toLowerCase() === key))
-            ? (e.custom || []) : [...(e.custom || []), w];
-        const trig = (e.triggers || []).some((x) => x.toLowerCase() === key) ? e.triggers : [...(e.triggers || []), w];
+        // 支持批量粘贴：按逗号/中文逗号/换行拆分（与后端 split_trigger_text 同语义）
+        const parts = raw.split(/[,，\n]+/).map((s) => s.trim()).filter(Boolean);
+        if (!parts.length) return;
+        const existingCustom = new Set((e.custom || []).map((x) => x.toLowerCase()));
+        const existingTrig = new Set((e.triggers || []).map((x) => x.toLowerCase()));
+        const srcSet = new Set(sourceWords().map((x) => x.toLowerCase()));
+        let custom = [...(e.custom || [])];
+        let trig = [...(e.triggers || [])];
+        let added = 0;
+        for (const w of parts) {
+            const key = w.toLowerCase();
+            if (srcSet.has(key)) {
+                if (!existingTrig.has(key)) { trig.push(w); existingTrig.add(key); added++; }
+                continue;
+            }
+            if (!existingCustom.has(key)) { custom.push(w); existingCustom.add(key); }
+            if (!existingTrig.has(key)) { trig.push(w); existingTrig.add(key); added++; }
+        }
+        if (!added && parts.length === custom.length - (e.custom || []).length) {
+            // 全部已存在，无变化仍刷新以清空输入框
+        }
         ctx.patchRow({ custom, triggers: trig }); // 添加即选中，到达输出
         persistCustom(custom);
         refresh?.(false);
         renderBody();
-        setTimeout(() => panel.querySelector(".sf-ls-addtrig input")?.focus(), 0);
+        // 清空输入框并聚焦，支持连续批量粘贴
+        const inpEl = panel.querySelector(".sf-ls-addtrig input");
+        if (inpEl) { inpEl.value = ""; inpEl.focus(); }
+        else setTimeout(() => panel.querySelector(".sf-ls-addtrig input")?.focus(), 0);
     }
 
     function removeCustom(word) {
@@ -788,9 +819,9 @@ export async function openInfoPanelFor(ctx, id) {
     async function refreshSampleGrid(grid, onInsert) {
         if (!name || !grid.isConnected) return;
         try {
-            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
+            const data = await fetchSamplesCached(name);
+            // fetchSamplesCached 已处理 !ok -> {images:[]},此处若为真实错误则 data 可能无 images
+            if (!data || typeof data !== "object") throw new Error("Could not load sample images.");
             grid.innerHTML = "";
             const imgs = Array.isArray(data.images) ? data.images : [];
             if (!imgs.length) {
@@ -1405,13 +1436,23 @@ export async function openInfoPanelFor(ctx, id) {
         const addRow = el("div", "sf-ls-addtrig");
         const inp = el("input");
         inp.type = "text";
-        inp.placeholder = "add your own trigger word…";
+        const isMissing = !name || !!info._file_missing;
+        inp.placeholder = isMissing ? "LoRA file not found — cannot add words" : "add your own trigger word… (comma or Enter for batch)";
+        inp.disabled = isMissing;
+        inp.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
         inp.addEventListener("keydown", (ev) => {
             ev.stopPropagation();
             if (ev.key === "Enter") { ev.preventDefault(); addCustom(inp.value); }
         });
         const addBtn = el("button", null, "Add");
+        addBtn.disabled = isMissing;
+        addBtn.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
         addBtn.addEventListener("click", () => addCustom(inp.value));
+        // missing 时 chips 亦禁用点击（视觉 + 行为）
+        if (isMissing) {
+            chips.style.opacity = "0.55";
+            chips.style.pointerEvents = "none";
+        }
         addRow.append(inp, addBtn);
         sec.appendChild(addRow);
 
@@ -1436,15 +1477,21 @@ export async function openInfoPanelFor(ctx, id) {
             dhead.append(save, cancel);
         } else {
             const edit = el("span", "qa", "✏️");
-            edit.title = "Write your own description (overrides Civitai / file)";
-            edit.addEventListener("click", () => {
-                _descBase = shownDesc();
-                _descDraft = _descBase;
-                _descDirty = false;
-                _descEditing = true;
-                renderBody();
-                setTimeout(() => panel.querySelector(".sf-ls-desc textarea")?.focus(), 0);
-            });
+            if (isMissing) {
+                edit.style.opacity = "0.4";
+                edit.style.pointerEvents = "none";
+                edit.title = "LoRA file not found — cannot edit description";
+            } else {
+                edit.title = "Write your own description (overrides Civitai / file)";
+                edit.addEventListener("click", () => {
+                    _descBase = shownDesc();
+                    _descDraft = _descBase;
+                    _descDirty = false;
+                    _descEditing = true;
+                    renderBody();
+                    setTimeout(() => panel.querySelector(".sf-ls-desc textarea")?.focus(), 0);
+                });
+            }
             dhead.appendChild(edit);
         }
         dsec.appendChild(dhead);
@@ -1568,11 +1615,9 @@ export async function openInfoPanelFor(ctx, id) {
         panel.appendChild(browseSec);
         // 异步加载浏览区样例（与编辑区网格独立，空则保持隐藏）
         (async () => {
-            if (!name || !browseGrid.isConnected) return;
+            if (!name || info._file_missing || !browseGrid.isConnected) return;
             try {
-                const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(name)}`);
-                if (!resp.ok) return;
-                const data = await resp.json();
+                const data = await fetchSamplesCached(name);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 if (!imgs.length) return;
                 browseSec.style.display = "";
@@ -1698,7 +1743,7 @@ export async function openInfoPanelFor(ctx, id) {
         const done = el("div", "b pri", "Done");
         done.addEventListener("click", closeInfoPanel);
         foot.appendChild(done);
-        if (civitaiOn && name) {
+        if (civitaiOn && name && !info._file_missing) {
             const searching = civ?.state === "searching";
             const cbtn = el("div", "b gh" + (searching ? " dis" : ""), searching ? "Looking up…" : "↻ Civitai");
             if (!searching) cbtn.addEventListener("click", runCivitai);

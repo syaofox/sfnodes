@@ -274,7 +274,7 @@ export function accentOf(node) {
     return BRAND;
 }
 
-// ── 预设（与 SFPowerLoraLoader 共享 user/sfnodes/lora_presets.json）──────────
+// ── 预设（与 SFLoraPreset 共享 user/sfnodes/lora_presets.json）──────────
 // 预设存 Power 的形状 {lora, on, strength, strengthTwo}（后端校验该形状），
 // 两个节点互通：Stack 存的 Power 能载，Power 存的 Stack 能载。SF 行里
 // 的 triggers/custom 词不入预设（词属文件级存储，不随栈走）。

@@ -52,6 +52,7 @@ function makeEl(tag) {
         },
         contains() { return false; }, closest() { return null; },
         querySelector() { return makeEl(); }, querySelectorAll() { return []; },
+        removeAttribute() {}, setAttribute() {}, getAttribute() { return null; },
         focus() {}, blur() {}, select() {}, click() {},
         getBoundingClientRect() { return { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }; },
         scrollIntoView() {}, setPointerCapture() {}, releasePointerCapture() {}, setSelectionRange() {},
@@ -132,6 +133,10 @@ const code = fs
 fs.writeFileSync(path.join(tmpDir, "sf_lora_info.mjs"), code);
 fs.writeFileSync(path.join(tmpDir, "sf_markdown.mjs"),
     "export function renderMarkdown(s) { return String(s || ''); }\n");
+fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
+    "export async function copyText(t){ try{ await navigator.clipboard.writeText(t); return true;}catch{return false;}}\n" +
+    "export function escapeHtml(s){ return String(s); }\n" +
+    "export function installWheelZoomPassthrough(){ return ()=>{}; }\n");
 fs.writeFileSync(path.join(tmpDir, "sf_lora_stack_api.mjs"),
     "const m = globalThis.__apiMock;\n" +
     "export const loraInfo = m.loraInfo;\nexport const civitaiLookup = m.civitaiLookup;\n" +
@@ -177,7 +182,7 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
     check("对话框已挂载", !!dialog && dialog.open === true);
     check("↻ Civitai 按钮存在", !!findBtn(dialog, "↻ Civitai"));
     check("Account 按钮存在", !!findBtn(dialog, "Account"));
-    check("🖍 编辑按钮存在（Trigger Words 行）", !!findBtn(dialog, "✏️"));
+    check("🖍 编辑按钮存在（Trigger Words 行）", !!findEl(dialog, (e) => String(e.title||"").includes("Edit")));
     await tick(); // 预取（getCivitaiAccount/loraInfo）落地
 
     // ── T2 found：状态条 + 行刷新 + 🗑 + 链接 + 封面 ──
@@ -254,7 +259,7 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
     check("移除后回到 No key", !!findEl(dialog, (e) => String(e.textContent || "").includes("No key")));
 
     // ── T8 编辑态守卫：查询不覆盖草稿 ──
-    const editBtns = findAll(dialog, (e) => String(e.textContent || "").includes("✏️") && !!e._listeners?.click);
+    const editBtns = findAll(dialog, (e) => String(e.title||"").includes("Edit") && !!e._listeners?.click);
     check("两个编辑按钮（Trigger Words + Description）", editBtns.length === 2);
     editBtns[1].click(); // Description 行
     const ta = findEl(dialog, (e) => e.tagName === "TEXTAREA");
@@ -277,7 +282,7 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
     loraMetadataCache.set("test/lora_a.safetensors", { _has_custom: false }); // 模拟陈旧缓存
     notesMeta = { trigger_words: "my-words", description: "my-desc", base_model: "sd15",
         source_url: "", _has_custom: true };
-    const editBtns9 = findAll(dialog, (e) => String(e.textContent || "").includes("✏️") && !!e._listeners?.click);
+    const editBtns9 = findAll(dialog, (e) => String(e.title||"").includes("Edit") && !!e._listeners?.click);
     editBtns9[0].click(); // Trigger Words 行进入编辑
     const inp9 = findEl(dialog, (e) => e.tagName === "INPUT" && e.type !== "password");
     check("Trigger Words 编辑输入框", !!inp9);

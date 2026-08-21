@@ -1,4 +1,4 @@
-"""LoRA 正交堆叠加载路径（SFLoraStack 与 SFPowerLoraLoader 共用，规则 14）。
+"""LoRA 正交堆叠加载路径（SFLoraStack SFLoraStack 专用，规则 14）。
 
 与 comfy.sd.load_lora_for_models 对齐的加载路径：model_lora_keys_unet /
 model_lora_keys_clip 建 key map、convert_lora 转换、load_lora 解析；UNet 侧

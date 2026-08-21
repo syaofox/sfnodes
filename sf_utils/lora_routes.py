@@ -241,10 +241,32 @@ _PREVIEW_MAX_BYTES = 4 * 1024 * 1024
 _PREVIEW_VIDEO_MAX_BYTES = 50 * 1024 * 1024
 
 
+_THUMB_ALLOWED_HOSTS = (
+    "image.civitai.com",
+    "image-cache.civitai.com",
+    "cdn.civitai.com",
+    "civitai.com",
+    "civitai.red",
+    "image.civitai.red",
+    "orchestration.civitai.com",
+)
+
 def _thumb_url_safe(url):
     """Civitai 缩略图 URL 是否值得下载。URL 来自 Civitai API 响应——只信
-    https（http 明文、ftp 之类畸形 scheme 一律拒绝）。纯函数，可单测。"""
-    return isinstance(url, str) and url.startswith("https://")
+    https 且域名在白名单（防侧车投毒 SSRF 到内网 https 服务）。纯函数，可单测。"""
+    if not isinstance(url, str) or not url.startswith("https://"):
+        return False
+    try:
+        import urllib.parse as _up
+        host = (_up.urlparse(url).hostname or "").lower()
+        if not host:
+            return False
+        for allowed in _THUMB_ALLOWED_HOSTS:
+            if host == allowed or host.endswith("." + allowed):
+                return True
+        return False
+    except Exception:
+        return False
 
 
 async def _download_thumb(url):

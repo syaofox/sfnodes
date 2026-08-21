@@ -85,8 +85,7 @@ from .nodes.model.hyperlora import HyperLoRALoadCharacter, HyperLoRASaveCharacte
 from .nodes.model.lora_loader import LoraLoader
 from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.lora_selector import LoraSelector
-from .nodes.model.power_lora_loader import PowerLoraLoader
-from .nodes.model.power_lora_preset import PowerLoraPreset
+from .nodes.model.lora_preset import SFLoraPreset
 from .nodes.model.lora_stack import SFLoraStack
 from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
@@ -99,6 +98,7 @@ from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
 from .nodes import workflow_routes  # noqa: F401  # 副作用注册 /api/sfnodes/workflows/* 路由
+from .sf_utils import lora_notes  # noqa: F401  # 副作用注册 /api/sfnodes/lora_notes 路由（原由 power_lora_loader 触发）
 from .nodes.text.text import (
     TextTranslation,
 
@@ -263,8 +263,7 @@ NODE_CLASS_MAPPINGS = {
     "SFHyperLoRALoadCharacter": HyperLoRALoadCharacter,
     "SFHyperLoRASaveCharacter": HyperLoRASaveCharacter,
     # 多LoRA节点
-    "SFPowerLoraLoader": PowerLoraLoader,
-    "SFPowerLoraPreset": PowerLoraPreset,
+    "SFLoraPreset": SFLoraPreset,
     "SFLoraStack": SFLoraStack,
     "SFRegionalLoRA": SFRegionalLoRA,
     "SFLoraPlot": SFLoraPlot,
@@ -448,8 +447,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFHyperLoRALoadCharacter": "SF HyperLoRA Load Character",
     "SFHyperLoRASaveCharacter": "SF HyperLoRA Save Character",
     # 多LoRA节点
-    "SFPowerLoraLoader": "SF Power Lora Loader",
-    "SFPowerLoraPreset": "SF Power Lora Preset",
+    "SFLoraPreset": "SF LoRA Preset",
     "SFLoraStack": "SF LoRA Stack",
     "SFRegionalLoRA": "SF Regional LoRA (Multi-Character)",
     "SFLoraPlot": "SF LoRA Plot",

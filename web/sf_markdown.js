@@ -65,17 +65,21 @@ function inline(src, resolveRelative) {
 
     // Images: ![alt](url)
     // URL 可含平衡括号（如文件名 "a (1).png"），支持一层嵌套
+    // alt 已为 escapeHtml 后的文本，需二次转义引号以安全填入属性
     s = s.replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, alt, src) => {
         const raw = resolveSrcUrl(src, resolveRelative);
         const url = resolveImgSrc(raw);
         if (!url) return "";
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${alt}" loading="lazy" style="${IMG_STYLE}"></a>`;
+        const escAlt = String(alt).replace(/"/g, "&quot;");
+        const escUrl = String(url).replace(/"/g, "&quot;");
+        return `<a href="${escUrl}" target="_blank" rel="noopener noreferrer"><img src="${escUrl}" alt="${escAlt}" loading="lazy" style="${IMG_STYLE}"></a>`;
     });
 
-    // Links: [text](url)
+    // Links: [text](url) — href 需防 javascript:，文本走 inline 递归（已转义）
     s = s.replace(/(?<!!)\[([^\]]+)\]\(((?:[^()\s]|\([^()]*\))+)(?:\s+[^)]*)?\)/g, (m, text, href) => {
         const raw = resolveSrcUrl(href, resolveRelative);
-        return `<a href="${resolveHref(raw)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text, resolveRelative)}</a>`;
+        const safeHref = resolveHref(raw).replace(/"/g, "&quot;");
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text, resolveRelative)}</a>`;
     });
 
     // &lt;https://...&gt; autolink (from escaped <https://...>)

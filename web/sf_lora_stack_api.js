@@ -326,7 +326,7 @@ if (typeof document !== "undefined") {
     });
 }
 
-// ── 预设（与 SFPowerLoraLoader 共享 user/sfnodes/lora_presets.json）──────────
+// ── 预设（与 SFLoraPreset 共享 user/sfnodes/lora_presets.json）──────────
 // 存 Power 的行形状 {lora, on, strength, strengthTwo}，两节点互通。机器级
 // 存储（user/ 目录），不进工作流。
 

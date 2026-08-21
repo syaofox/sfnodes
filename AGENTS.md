@@ -16,7 +16,7 @@ sfnodes/
 │   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
 │   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸）、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、预览保存路由（preview_routes.py）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
-│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；Power 系 power_lora_loader.py/power_lora_preset.py：SFPowerLoraLoader 对话框 + merge_method linear/ortho_gs（正交堆叠见 sf_utils/lora_ortho*.py），与 Stack 共用 lora_notes 网关；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 experience.md §5.4；Interrogator/SystemPrompt 预设可管理——内置+用户覆盖，见 experience.md §31）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
+│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；预设 lora_preset.py：SFLoraPreset（原 Power 预设改名，供 Stack 的 preset 输入复用）；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 experience.md §5.4；Interrogator/SystemPrompt 预设可管理——内置+用户覆盖，见 experience.md §31）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
 │   ├── text/            # 文本：翻译/拼接/角色选择（text.py：TextTranslation/TextCombine/AnimeCharSelect；另 concatenate.py：SFTextConcatenate）、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、提示词列表（prompt_list.py：SFPromptList 行拆分/切片/空白行过滤 skip_empty，行号编辑器 sf_prompt_list.js）、动态 Prompt 列表（prompt_stack.py：SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高（state.rows[i].h，随工作流保存），状态对齐 Pixaroma PromptStack 形状 rows/enabled/text，prompt_reader 恢复共享，sf_prompt_stack_core.js 纯逻辑 + sf_prompt_stack.js 行 UI）、提示词预设（prompt_preset.py：SFPromptPreset 十一分类组合/加权随机/[A,B] 括号随机/LLM 优化链路 optimize_request + SFUnpackPromptPreset 解包，数据 data/prompt_presets.json 热加载）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、风格选择器（styles_selector.py：SFStylesSelector 复刻 Easy-Use stylesSelector——Fooocus 275 风格多选/搜索/悬停缩略图，内置 data/styles/*.json + 用户 user/sfnodes/styles/*.json 同名覆盖，{prompt} 占位拼接 1:1，隐藏 SFStylesState 真源，同文件注册路由 /api/sfnodes/styles*）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、替换模板（replace.py）、正则提取（regex_extract.py）、任意转字符串（any_to_string.py）、提示词批处理（prompt_batcher.py）、随机编辑（random_edit_prompt.py）、多机位相机（multiangle_camera.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
 │   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
 │   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
@@ -37,7 +37,7 @@ sfnodes/
 │   ├── blend.py         # 混合工具
 │   ├── insightface_utils.py # InsightFace 封装
 │   ├── face_detector.py  # 人脸检测
-│   ├── lora_notes.py     # LoRA 用户数据统一存储网关（Power 系对话框/loader 节点与 SFLoraStack 共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见经验摘要 §LoRA 信息数据统一）
+│   ├── lora_notes.py     # LoRA 用户数据统一存储网关（SFLoraStack 与 SFLoraLoader 系共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见经验摘要 §LoRA 信息数据统一）
 │   ├── lora_presets.py   # LoRA 预设
 │   ├── lora_samples.py   # LoRA 样例图处理
 │   ├── lora_reader.py    # LoRA 元数据/触发词/内容指纹纯逻辑（SFLoraStack 用，无 ComfyUI 依赖）
@@ -45,7 +45,7 @@ sfnodes/
 │   ├── lora_cache.py     # LoRA 文件缓存 + 内存模式修剪（last/all/none，与 SFLoraStack 同语义，SFLoraPlot 用）
 │   ├── lora_routes.py    # SFLoraStack 路由（/api/sfnodes/lora_*、civitai/account 等，见文件内注册清单）
 │   ├── lora_ortho.py     # 正交堆叠纯数学（GS 投影，仅 torch；ortho_gs 用）
-│   ├── lora_ortho_load.py # ortho_gs 独立加载+应用路径（ortho_apply(model, clip, entries, load_sd)，Stack/Power 共用，禁止各写一份）
+│   ├── lora_ortho_load.py # ortho_gs 独立加载+应用路径（ortho_apply(model, clip, entries, load_sd)，SFLoraStack 专用，禁止各写一份）
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
 │   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
 │   ├── tiling.py         # 图片切块纯逻辑（行/列/重叠 → 块矩形，SFImageTile/Untile 共用，无 ComfyUI 依赖）
@@ -59,7 +59,7 @@ sfnodes/
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget
-│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / installWheelZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Power/Stack/Plot 共享）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
+│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / installWheelZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Stack/Plot 共享，原 sfnodes.PowerLoraLoader.DisplayName 已彻底迁移至 sfnodes.Lora.DisplayName）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
 │   ├── sf_dynamic_slots.js # 动态槽位公共库
 │   ├── sf_popup.js      # 浮动弹层公共三件套（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免；clampToViewport 四向钳位 + scale 边距折算；无 app 依赖可 .mjs 冒烟测试）——新弹层优先使用（见 experience.md §26）
 │   ├── sf_crop*.js      # 可视化裁剪九模块（SFImageCrop/Uncrop：framework 编辑器框架 + core/panel/interaction/render/preview/undo_guard/alignments + 主扩展）
@@ -83,8 +83,8 @@ sfnodes/
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
 │   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
-│   ├── sf_lora_info.js    # Power 系 LoRA 信息对话框（sf_markdown.js 渲染描述）
-│   ├── power_lora_loader.js / power_lora_preset.js # Power 系节点前端
+│   ├── sf_lora_info.js    # LoRA 信息对话框（sf_markdown.js 渲染描述）
+│   ├── sf_lora_preset.js # 预设选择节点前端（原 power_lora_preset.js 改名，SFLoraPreset）
 │   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
 │   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
 │   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）
@@ -352,9 +352,9 @@ class SFMyNode:
 - **全局强调色统一走 `--sf-acc` CSS 变量**（`sf_common.js` getSfAccent/applySfAccentVar/sfAccent，注册在 SFLoraStack 扩展 init）：CSS 部分 `var(--sf-acc, #f66744)` 响应式自动生效；canvas 每帧 `sfAccent()`（inline 变量读取轻量）；**无节点级自定义**（旧 state 的 accent 字段被忽略），面板/下拉/菜单的局部 `--acc`/`--sf-acc` 只是把全局色带到局部作用域。**三个时序坑**：① ComfyUI 设置 onChange 在 store 更新前触发、参数是 (newValue, oldValue)——回调里读 getSettingValue 拿到旧值（"设了 red 显示 teal"），必须用传入参数；② 由此连带：**onChange 里的节点重绘也要 setTimeout(0) 推迟**——同步执行时 accentOf 读 store 仍是旧值（"SFLoraStack 设置后不立即生效"）；③ 初始 applySfAccentVar 必须在 addSetting 之后（未注册读不到用户值），且**设置值从服务器异步加载、晚于扩展 init**——需轮询重试几次（幂等），否则 --sf-acc 被钉死在默认色、CSS 变量类节点（Load Image Resize 等）硬刷新后不跟随（accentOf 直读 store 的节点不受影响，症状不一致易误判）。
 - **保存成功后 `_infoSeq++` 作废在途旧响应**：面板打开时 loadInfo 在飞，用户保存描述后迟到响应落地会覆盖回旧值（"保存了仍显示来自 Civitai"）；设置面板同理用 `_accDirty` 挡 GET 迟到应答覆盖刚保存的 host。
 - 存储形状升级必须兼容旧数据（`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一）；`promptState` 只注入执行字段（cosmetic 剥掉避免改缓存签名），`cacheMode` 例外（Python 需要它决定内存策略）。完整踩坑见 `doc/experience.md` §19。
-- **行名显示全局设置共享**：Power 系设置 `sfnodes.PowerLoraLoader.DisplayName`（full/filename/basename/folder/parent_basename，后者=上级目录名+去扩展名文件名，根目录文件降级 basename）不只管 Power 行——Stack/Plot 行名同一真源 `sf_common.js::loraRowLabel`（模式 ≠ full 设置优先，basename 剥任意扩展名；full 默认回退每节点 hideExt 白名单，向后兼容）；onChange 经 `sfnodes.lora-display-mode-changed` 事件桥 → Stack/Plot 各自 `setTimeout(repaintAll/renderAllPlots, 0)`（DOM 行重绘；Power 不 import 节点模块防耦合）。细节见 `doc/experience.md` §19.7。
+- **行名显示全局设置共享**：设置 `sfnodes.Lora.DisplayName`（full/filename/basename/folder/parent_basename，后者=上级目录名+去扩展名文件名，根目录文件降级 basename，原 sfnodes.PowerLoraLoader.DisplayName 已一次性迁移至此）Stack/Plot 行名同一真源 `sf_common.js::loraRowLabel`（模式 ≠ full 设置优先，basename 剥任意扩展名；full 默认回退每节点 hideExt 白名单，向后兼容）；onChange 经 `sfnodes.lora-display-mode-changed` 事件桥 → Stack/Plot 各自 `setTimeout(repaintAll/renderAllPlots, 0)`（DOM 行重绘；Stack/Plot 各自监听事件，不跨节点 import 节点模块防耦合）。细节见 `doc/experience.md` §19.7。
 
-**前后端：SFLoraStack / SFPowerLoraLoader 正交堆叠 ortho_gs（2026-08，`sf_utils/lora_ortho.py` + `lora_ortho_load.py`）→ experience.md §20**
+**前后端：SFLoraStack 正交堆叠 ortho_gs（2026-08，`sf_utils/lora_ortho.py` + `lora_ortho_load.py`）→ experience.md §20**
 - **数学**：ΔW = Σ s·(α/r)·(A_i·B_i)，多个 LoRA 的 down 矩阵行空间重叠 = 干扰源（相似 LoRA 叠糊）。ortho_gs 把每个 down 的行投影到前序 down 行空间的正交补（`d' = d - (d@Qᵀ)@Q`，Q 用 SVD 右奇异向量扩基 + QR 去线性相关）——**第一个 LoRA 不动、后续让位**，up/alpha/strength 全不动；行空间被完全覆盖时投影归零（幅度损失是 tradeoff 非 bug）。
 - **必须走独立加载路径**（链式 `load_lora_for_models` 拿不回 up/down）：自己 `model_lora_keys_unet`(+clip) 建 key map + `convert_lora` + `load_lora` + clone + add_patches + `set_attachments("lora_metadata")`，**按模型 key 分组**（同 key 多 LoRA 才 GS，单条直通）；加载+应用收敛在 **`lora_ortho_load.ortho_apply(model, clip, entries, load_sd)`**（Stack 传 `self._get_lora`、Power 传 `_load_sd_direct`，禁止两节点各写一份）；patch 结构注意 **up 是 [0]、down 是 [1]**、`("diff", (w,))` 1 元素内部元组必须原样返回。
 - **契约**：Stack `mergeMethod` 与 cacheMode 同模式（默认 `"sequential"`）；Power 是**节点面 combo**（`["linear","ortho_gs"]` 默认 `"linear"`）；**ortho 模式 run 内全栈 sd 驻留**（峰值=栈大小）。**Power 的应用计划第一项必须存 `get_lora_by_filename` 的规范化结果**（短名/无扩展名会失败）。

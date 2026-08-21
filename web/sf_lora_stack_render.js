@@ -57,7 +57,7 @@ export function contentHeight(state) {
 
 const NO_LORAS = "(put LoRAs in models/loras)";
 // 行名显示收敛于 sf_common.js::loraRowLabel（单一真源）：全局设置
-// sfnodes.PowerLoraLoader.DisplayName ≠ full 时设置语义优先，full（默认）
+// sfnodes.Lora.DisplayName ≠ full 时设置语义优先，full（默认）
 // 回退每节点 hideExt（basename + 白名单剥模型扩展名）。SFLoraPlot 复用。
 // 仅用于显示——行 title 保留真实文件名。
 export function displayName(name, hideExt) {

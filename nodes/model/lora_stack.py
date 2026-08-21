@@ -193,7 +193,7 @@ class SFLoraStack:
     def _apply_ortho(self, model, clip, plan):
         """ortho_gs 模式：UNet 侧同 key 多 LoRA 先做 Gram-Schmidt 正交化。
 
-        委托 sf_utils/lora_ortho_load.ortho_apply（与 SFPowerLoraLoader 共用
+        委托 sf_utils/lora_ortho_load.ortho_apply（SFLoraStack 专用
         同一条加载路径，规则 14 不内联副本）：
           - UNet 侧：同一模型 key 的多个 LoRA down 矩阵提取后正交化再替换
             （首行不动，后续让位），一次 clone 全栈应用；非 LoRA patch

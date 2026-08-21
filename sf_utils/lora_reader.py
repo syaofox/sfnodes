@@ -23,6 +23,13 @@ import re
 import struct
 import threading
 
+# ── 自定义存储并发锁（进程内线程级，防 RMW 丢失）─────────────────────────────
+# 所有 read+write 组合（set_custom_triggers / set_custom_description /
+# migrate_custom_data）在此锁内完成；write_custom_store 本身也受锁保护。
+# 路由层另有 asyncio.Lock 防协程间并发，双层防护。
+_STORE_LOCK = threading.RLock()
+_CIVITAI_ACCOUNT_LOCK = threading.RLock()
+
 # 真实 LoRA 头部几十 KB；上限远高于此，坏的长度字段永远无法让我们分配 GB 级内存。
 _MAX_HEADER_BYTES = 200 * 1024 * 1024
 # 频率推导出的候选触发词数量上限。
@@ -387,7 +394,7 @@ def parse_state(state_str):
 def preset_override(state, preset):
     """预设（Power 形状 {loras: [{lora, on, strength, strengthTwo}]}）优先覆盖行。
 
-    与 SFPowerLoraLoader 的 preset 输入同语义（连接后预设优先）：name/on/sm/sc
+    与 SFLoraPreset 的 preset 输入同语义（连接后预设优先）：name/on/sm/sc
     全取预设（strength -> sm，strengthTwo 缺省取 strength）；行状态仅用于继承
     同名行的勾选触发词——预设本身无触发词概念，用户勾选仍到达 triggers 输出。
     预设缺失/形状不对 -> 原样返回。永不抛错（手写 API 工作流也可能传进来）。
@@ -843,18 +850,19 @@ def read_civitai_account(path):
     """读账户文件。恒返回完整形状、永不抛错：缺失/损坏文件必须让查询像
     完全没有 key 一样工作，而不是弄坏节点。"""
     out = {"key": "", "host": "com", "adult_thumbs": False}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-    except Exception:
+    with _CIVITAI_ACCOUNT_LOCK:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            return out
+        if not isinstance(obj, dict):
+            return out
+        out["key"] = sanitize_civitai_key(obj.get("key"))
+        if obj.get("host") in _CIVITAI_HOST_PREFS:
+            out["host"] = obj["host"]
+        out["adult_thumbs"] = bool(obj.get("adult_thumbs"))
         return out
-    if not isinstance(obj, dict):
-        return out
-    out["key"] = sanitize_civitai_key(obj.get("key"))
-    if obj.get("host") in _CIVITAI_HOST_PREFS:
-        out["host"] = obj["host"]
-    out["adult_thumbs"] = bool(obj.get("adult_thumbs"))
-    return out
 
 
 def write_civitai_account(path, account):
@@ -867,21 +875,22 @@ def write_civitai_account(path, account):
         "host": account.get("host") if account.get("host") in _CIVITAI_HOST_PREFS else "com",
         "adult_thumbs": bool(account.get("adult_thumbs")),
     }
-    try:
-        # 创建时即受限，而非先建后修：open(path,"w") 在常规 umask 下是 0644，
-        # 随后的 chmod 是另一个系统调用——共享机器上首次写入的窗口期 key
-        # 世界可读。窗口很短且只在首次写（后续重写复用已有 mode）。
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        # 仍要 chmod：修复旧构建留下的 0644 文件（os.open 的 mode 只在创建时生效）。
+    with _CIVITAI_ACCOUNT_LOCK:
         try:
-            os.chmod(path, 0o600)
+            # 创建时即受限，而非先建后修：open(path,"w") 在常规 umask 下是 0644，
+            # 随后的 chmod 是另一个系统调用——共享机器上首次写入的窗口期 key
+            # 世界可读。窗口很短且只在首次写（后续重写复用已有 mode）。
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            # 仍要 chmod：修复旧构建留下的 0644 文件（os.open 的 mode 只在创建时生效）。
+            try:
+                os.chmod(path, 0o600)
+            except Exception:
+                pass
+            return True
         except Exception:
-            pass
-        return True
-    except Exception:
-        return False
+            return False
 
 
 # ── 用户自定义触发词（按 LoRA 存储）───────────────────────────────────────
@@ -1031,24 +1040,25 @@ def read_custom_store(path):
     """整个存储为 {key: {"words": [...], "description": str}}。旧形状
     （{key: [words]}）自动升级读取。永不抛错——缺失/损坏文件必须读作空，
     绝不能弄坏面板。"""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-    except Exception:
-        return {}
-    if not isinstance(obj, dict):
-        return {}
-    out = {}
-    for name, v in obj.items():
-        key = custom_trigger_key(name)
-        if not key:
-            continue
-        entry = _norm_store_entry(v)
-        if entry["words"] or entry["description"]:
-            out[key] = entry
-        if len(out) >= _MAX_CUSTOM_LORAS:
-            break
-    return out
+    with _STORE_LOCK:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            return {}
+        if not isinstance(obj, dict):
+            return {}
+        out = {}
+        for name, v in obj.items():
+            key = custom_trigger_key(name)
+            if not key:
+                continue
+            entry = _norm_store_entry(v)
+            if entry["words"] or entry["description"]:
+                out[key] = entry
+            if len(out) >= _MAX_CUSTOM_LORAS:
+                break
+        return out
 
 
 def write_custom_store(path, store):
@@ -1057,30 +1067,33 @@ def write_custom_store(path, store):
 
     临时文件 + os.replace：这单个文件装着每个 LoRA 的词与描述，半路崩溃/
     磁盘满会毁掉全部而非刚编辑的那个。临时名带 pid 和线程 id——路由把它
-    交给 run_in_executor，两次保存落在共享同一 pid 的两个池线程上。"""
-    data = {}
-    if isinstance(store, dict):
-        for name, entry in store.items():
-            key = custom_trigger_key(name)
-            if not key:
-                continue
-            e = _norm_store_entry(entry)
-            if e["words"] or e["description"]:
-                data[key] = e
-            if len(data) >= _MAX_CUSTOM_LORAS:
-                break
-    tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, path)
-        return True
-    except Exception:
+    交给 run_in_executor，两次保存落在共享同一 pid 的两个池线程上。
+
+    内部持 _STORE_LOCK，保证并发 write 不交错。"""
+    with _STORE_LOCK:
+        data = {}
+        if isinstance(store, dict):
+            for name, entry in store.items():
+                key = custom_trigger_key(name)
+                if not key:
+                    continue
+                e = _norm_store_entry(entry)
+                if e["words"] or e["description"]:
+                    data[key] = e
+                if len(data) >= _MAX_CUSTOM_LORAS:
+                    break
+        tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
         try:
-            os.remove(tmp)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, path)
+            return True
         except Exception:
-            pass
-        return False
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            return False
 
 
 def read_custom_triggers(path):
@@ -1121,19 +1134,20 @@ def set_custom_triggers(path, name, words, fp=None):
     key = custom_trigger_key(name)
     if not key:
         return []
-    store = read_custom_store(path)
-    clean = sanitize_custom_words(words)
-    entry = store.get(key)
-    desc = (entry or {}).get("description", "")
-    if clean or desc:
-        store[key] = {
-            "words": clean,
-            "description": desc,
-            "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
-        }
-    else:
-        store.pop(key, None)
-    write_custom_store(path, store)
+    with _STORE_LOCK:
+        store = read_custom_store(path)
+        clean = sanitize_custom_words(words)
+        entry = store.get(key)
+        desc = (entry or {}).get("description", "")
+        if clean or desc:
+            store[key] = {
+                "words": clean,
+                "description": desc,
+                "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
+            }
+        else:
+            store.pop(key, None)
+        write_custom_store(path, store)
     return clean
 
 
@@ -1151,19 +1165,20 @@ def set_custom_description(path, name, desc, fp=None):
     key = custom_trigger_key(name)
     if not key:
         return ""
-    store = read_custom_store(path)
-    clean = sanitize_custom_description(desc)
-    entry = store.get(key)
-    words = (entry or {}).get("words", [])
-    if clean or words:
-        store[key] = {
-            "words": words,
-            "description": clean,
-            "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
-        }
-    else:
-        store.pop(key, None)
-    write_custom_store(path, store)
+    with _STORE_LOCK:
+        store = read_custom_store(path)
+        clean = sanitize_custom_description(desc)
+        entry = store.get(key)
+        words = (entry or {}).get("words", [])
+        if clean or words:
+            store[key] = {
+                "words": words,
+                "description": clean,
+                "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
+            }
+        else:
+            store.pop(key, None)
+        write_custom_store(path, store)
     return clean
 
 
@@ -1215,30 +1230,31 @@ def migrate_custom_data(path, name, fp=None, old_key=None):
     key = custom_trigger_key(name)
     if not key:
         return {"ok": False, "reason": "bad name"}
-    store = read_custom_store(path)
-    cur = store.get(key)
-    if cur and (cur["words"] or cur["description"]):
-        return {"ok": False, "reason": "already has data"}
-    if old_key:
-        # 调用方已确证（指纹或基名）——直接用指定旧键。防御：必须是存储
-        # 里的真实键且不是新键自身（手写请求传错也不能拿新键的数据覆盖）。
-        old = custom_trigger_key(old_key)
-        if not old or old == key or old not in store:
-            return {"ok": False, "reason": "bad old key"}
-    else:
-        old = find_orphan_key(store, name)
-        if old is None:
-            return {"ok": False, "reason": "no unique match"}
-    entry = store.get(old)
-    if not entry or not (entry["words"] or entry["description"]):
-        return {"ok": False, "reason": "old entry empty"}
-    store[key] = {
-        "words": entry["words"],
-        "description": entry["description"],
-        "fp": _norm_fp(fp) or _norm_fp(entry.get("fp")),
-    }
-    del store[old]
-    write_custom_store(path, store)
+    with _STORE_LOCK:
+        store = read_custom_store(path)
+        cur = store.get(key)
+        if cur and (cur["words"] or cur["description"]):
+            return {"ok": False, "reason": "already has data"}
+        if old_key:
+            # 调用方已确证（指纹或基名）——直接用指定旧键。防御：必须是存储
+            # 里的真实键且不是新键自身（手写请求传错也不能拿新键的数据覆盖）。
+            old = custom_trigger_key(old_key)
+            if not old or old == key or old not in store:
+                return {"ok": False, "reason": "bad old key"}
+        else:
+            old = find_orphan_key(store, name)
+            if old is None:
+                return {"ok": False, "reason": "no unique match"}
+        entry = store.get(old)
+        if not entry or not (entry["words"] or entry["description"]):
+            return {"ok": False, "reason": "old entry empty"}
+        store[key] = {
+            "words": entry["words"],
+            "description": entry["description"],
+            "fp": _norm_fp(fp) or _norm_fp(entry.get("fp")),
+        }
+        del store[old]
+        write_custom_store(path, store)
     return {"ok": True, "old_key": old}
 
 
@@ -1261,7 +1277,7 @@ def migrate_custom_preview(folder, name, old_key):
 
 
 # ── 旧 lora_notes 侧车（<base>.sf.json）一次性迁移 ─────────────────────────
-# 2026-08 统一用户数据存储：SFPowerLoraLoader/SFLoraLoader 系的 lora_notes
+# 2026-08 统一用户数据存储：SFLoraStack/SFLoraLoader 系的 lora_notes
 # 曾把自定义词/描述写在模型旁的 <base>.sf.json（随文件走但改名即失配、无
 # 孤儿迁移），现统一到 user/sfnodes/lora_triggers.json（与 SFLoraStack 同
 # 存储）。存量侧车在任一读取入口首次读到该 LoRA 时惰性迁移（并入后删除），

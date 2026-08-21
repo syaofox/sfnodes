@@ -1,4 +1,4 @@
-"""LoRA 用户数据网关（SFPowerLoraLoader / SFLoraLoader / SFLoraLoaderModelOnly 共用）。
+"""LoRA 用户数据网关（SFLoraStack / SFLoraLoader / SFLoraLoaderModelOnly 共用）。
 
 2026-08 起与 SFLoraStack 统一存储：用户自定义触发词/描述的单一真源为
 <user>/sfnodes/lora_triggers.json（路径见 lora_routes._custom_triggers_file），
@@ -25,7 +25,7 @@ from aiohttp import web
 
 from . import lora_reader as R
 from .logger import get_logger
-from .lora_routes import _custom_triggers_file, _previews_dir  # 统一存储/预览路径（单一实现，杜绝双真源）
+from .lora_routes import _custom_triggers_file, _is_path_under, _previews_dir  # 统一存储/预览路径（单一实现，杜绝双真源）
 
 logger = get_logger(__name__)
 
@@ -40,11 +40,17 @@ def _resolve_lora_path(filename):
         return None
     if not full or not os.path.isfile(full):
         return None
-    # 防御：确认落在 loras 已注册的根目录内
-    for root in folder_paths.get_folder_paths("loras"):
-        if full.startswith(os.path.normpath(root) + os.sep):
-            return full
-    return None
+    # 防御：确认落在 loras 已注册的根目录内（realpath + 跨盘 lexical 回退，见 lora_routes._is_path_under）
+    try:
+        roots = folder_paths.get_folder_paths("loras")
+    except Exception:
+        roots = []
+    if roots and not _is_path_under(full, *roots):
+        return None
+    if not roots:
+        # 无根目录配置时 fail-closed
+        return None
+    return full
 
 
 def _embedded_trigger_words(meta):

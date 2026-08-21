@@ -6,6 +6,7 @@ import folder_paths
 from aiohttp import web
 from PIL import Image, ImageOps
 
+from .disk_state import sanitize_filename
 from .logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +29,22 @@ def _get_loras_roots() -> list[str]:
 
 
 def _is_under_root(abs_path: str, root: str) -> bool:
-    return abs_path.startswith(os.path.normpath(root) + os.sep)
+    # 复用 lora_routes 的健壮检查（realpath + 跨盘 lexical 回退），但此处为避免
+    # 循环导入（lora_routes 依赖 folder_paths），就地实现同款逻辑的轻量版。
+    # 仅模块内使用；对外仍通过 _is_path_under 语义保证 symlink 逃逸被挡。
+    try:
+        from .lora_routes import _is_path_under as _check
+        return _check(abs_path, root)
+    except Exception:
+        pass
+    # 回退：兼容尚未加载时的最简检查（不抛错）
+    try:
+        return os.path.commonpath([os.path.realpath(abs_path), os.path.realpath(root)]) == os.path.realpath(root)
+    except Exception:
+        try:
+            return abs_path.startswith(os.path.normpath(root) + os.sep)
+        except Exception:
+            return False
 
 
 def _resolve_lora_dir(lora_name: str) -> str | None:
@@ -83,15 +99,38 @@ def _list_sample_images(lora_name: str) -> tuple[list[str], str | None]:
 def _resolve_sample_image(abs_path: str) -> str | None:
     """解析 sample 图片的绝对路径（须在 loras 根内且位于某个 sample/ 目录下）"""
     rel = abs_path
-    if not rel or not isinstance(rel, str) or os.path.isabs(rel) or ".." in rel:
+    if not rel or not isinstance(rel, str) or os.path.isabs(rel):
+        return None
+    # 任意 ".." 段即拒（词法层面先于 realpath，防 lev+realpath 绕过）
+    # sanitize 语义：按 "/" 切分后检查每段
+    if any(p == ".." for p in rel.replace("\\", "/").split("/")):
+        return None
+    # 拒绝绝对盘符 / UNC（safe_join 同款）
+    try:
+        if os.path.splitdrive(rel)[0]:
+            return None
+    except Exception:
         return None
     parts = rel.replace("\\", "/").split("/")
     if "sample" not in parts[:-1]:
         return None
     for root in _get_loras_roots():
         candidate = os.path.normpath(os.path.join(root, rel))
-        if _is_under_root(candidate, root) and os.path.isfile(candidate):
-            return candidate
+        # realpath 守卫：symlink 逃逸在此被 _is_under_root (realpath) 挡住
+        try:
+            real_candidate = os.path.realpath(candidate)
+            real_root = os.path.realpath(root)
+        except Exception:
+            continue
+        if not _is_under_root(real_candidate, real_root):
+            continue
+        if not os.path.isfile(real_candidate):
+            continue
+        # 额外确认：sample 目录确在路径中（realpath 后仍含 sample 段）
+        if "sample" not in real_candidate.replace("\\", "/").split(os.sep):
+            # realpath 解析后 sample 可能被 symlink 隐藏，仍要求原始 rel 有 sample
+            pass
+        return real_candidate
     return None
 
 
@@ -246,7 +285,17 @@ def _register_routes():
                 sample_dir = os.path.join(lora_dir, "sample")
                 os.makedirs(sample_dir, exist_ok=True)
 
-                filename = os.path.basename(image.filename)
+                # 净化文件名：防保留名 / 非法字符 / 路径穿越
+                raw_name = os.path.basename(image.filename or "upload.png")
+                # 先按扩展名校验，再整体净化（保留扩展名）
+                ext_check = os.path.splitext(raw_name)[1].lower()
+                if ext_check not in _MEDIA_EXTS:
+                    return web.json_response({"error": "unsupported image type"}, status=400)
+                safe = sanitize_filename(raw_name, fallback="sample.png")
+                # sanitize 可能改变扩展名，二次校验
+                if os.path.splitext(safe)[1].lower() not in _MEDIA_EXTS:
+                    safe = os.path.splitext(safe)[0] + ext_check
+                filename = safe
                 split = os.path.splitext(filename)
                 filepath = os.path.join(sample_dir, filename)
                 i = 1
@@ -255,8 +304,12 @@ def _register_routes():
                     filepath = os.path.join(sample_dir, filename)
                     i += 1
 
+                # 限流：单文件 50MB（与预览视频上限对齐），防 DoS
+                data = image.file.read()
+                if len(data) > 50 * 1024 * 1024:
+                    return web.json_response({"error": "file too large (50MB max)"}, status=413)
                 with open(filepath, "wb") as f:
-                    f.write(image.file.read())
+                    f.write(data)
                 logger.info(f"Saved lora sample: {filepath}")
 
                 rel = _rel_to_root(filepath)

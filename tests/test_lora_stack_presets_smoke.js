@@ -331,7 +331,7 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
 
     // ── preset 输入连接（SF_LORA_PRESET）：自动加载预设到行 ──
     const upstream = {
-        id: 99, comfyClass: "SFPowerLoraPreset", type: "SFPowerLoraPreset",
+        id: 99, comfyClass: "SFLoraPreset", type: "SFLoraPreset",
         widgets: [{ name: "preset", value: "power-style", callback: null }],
     };
     const stack2 = {
