@@ -76,10 +76,12 @@ function inline(src, resolveRelative) {
         return `<a href="${resolveHref(raw)}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${inline(text, resolveRelative)}</a>`;
     });
 
-    // Bold / strikethrough / italic
-    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+    // &lt;https://...&gt; autolink (from escaped <https://...>)
+    s = s.replace(/&lt;(https?:\/\/[^&\s]+)&gt;/g, (m, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" style="${LINK_STYLE}">${url}</a>`);
+    // Bold / strikethrough / italic (with boundaries to avoid * ** overlap)
+    s = s.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
+    s = s.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, "<em>$1</em>");
 
     // Bare http(s) URLs（括号需配对才保留，避免句末标点误吞）
     s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, (m, pre, url) => {
