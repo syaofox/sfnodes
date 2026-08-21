@@ -184,11 +184,15 @@ def read_sidecar_info(lora_path):
         if isinstance(model, dict) and model.get("name"):
             info["name"] = str(model["name"])
         # description 在 version 顶层（API 实测）；兼容旧侧车的 model.description。
+        # 若已是 markdown（含 Sample Images / civitai_ 前缀且无 < 标签），直接透传，避免 _html_to_markdown 对 \_/\*/\` 二次转义固化
         desc = obj.get("description")
         if not desc and isinstance(model, dict):
             desc = model.get("description")
         if desc:
-            info["description"] = _html_to_markdown(desc)
+            if isinstance(desc, str) and "<" not in desc and ("civitai_" in desc or "Sample Images" in desc):
+                info["description"] = _decode_entities(desc).strip()
+            else:
+                info["description"] = _html_to_markdown(desc)
         if obj.get("baseModel"):
             info["base_model"] = str(obj["baseModel"])
         # modelId / version id 让前端可链接到 Civitai 模型页。
