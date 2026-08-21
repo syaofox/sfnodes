@@ -154,9 +154,24 @@ def _looks_like_image(raw):
     return False
 
 
+def _looks_like_video(raw):
+    """magic bytes 判定视频（mp4/mov/webm/mkv）。mp4/mov 为 ftyp，webm/mkv 为 EBML。"""
+    if not raw or len(raw) < 12:
+        return False
+    if raw[4:8] == b"ftyp":
+        return True
+    if raw[:4] == b"\x1a\x45\xdf\xa3":
+        return True
+    return False
+
+
+def _looks_like_media(raw):
+    return _looks_like_image(raw) or _looks_like_video(raw)
+
+
 def _ext_from_image(raw, headers=None, url=""):
-    """从 magic / 响应头推断图片扩展名（Civitai 原图 URL 的扩展名不可信，如
-    .../original=true/xxx.jpeg 实际为 PNG，见 modelVersionId=3103403）。
+    """从 magic / 响应头推断媒体扩展名（Civitai 原图 URL 的扩展名不可信，如
+    .../original=true/xxx.jpeg 实际为 PNG，见 modelVersionId=3103403；视频同理）。
     优先级：magic > Content-Type > Content-Disposition > URL。永不抛错。"""
     try:
         if raw:
@@ -170,6 +185,11 @@ def _ext_from_image(raw, headers=None, url=""):
                 return ".gif"
             if raw[:2] == b"BM":
                 return ".bmp"
+            if len(raw) >= 12 and raw[4:8] == b"ftyp":
+                # mp4/mov，细分：若含 isom/mp42 则 mp4，否则 mov 亦存为 mp4
+                return ".mp4"
+            if raw[:4] == b"\x1a\x45\xdf\xa3":
+                return ".webm"
         if headers:
             ct = (headers.get("Content-Type") or headers.get("content-type") or "").split(";")[0].strip().lower()
             if ct == "image/png":
@@ -182,22 +202,31 @@ def _ext_from_image(raw, headers=None, url=""):
                 return ".gif"
             if ct == "image/bmp":
                 return ".bmp"
+            if ct in ("video/mp4", "video/quicktime"):
+                return ".mp4"
+            if ct in ("video/webm",):
+                return ".webm"
+            if ct in ("video/x-matroska",):
+                return ".mkv"
             cd = headers.get("Content-Disposition") or headers.get("content-disposition") or ""
             import re as _re
             m = _re.search(r'filename="([^"]+)"', cd)
             if m:
                 import os as _os
                 e = _os.path.splitext(m.group(1))[1].lower()
-                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
-                    return ".jpg" if e == ".jpeg" else e
-                    # 归一 jpeg → jpg
+                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".mp4", ".mov", ".webm", ".mkv"):
+                    return ".jpg" if e == ".jpeg" else (".mp4" if e == ".mov" else e)
         if url:
             import os as _os
             import urllib.parse as _up
             try:
                 e = _os.path.splitext(_up.urlparse(url).path)[1].lower()
-                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"):
-                    return ".jpg" if e == ".jpeg" else e
+                if e in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".mp4", ".mov", ".webm", ".mkv"):
+                    if e == ".jpeg":
+                        return ".jpg"
+                    if e == ".mov":
+                        return ".mp4"
+                    return e
             except Exception:
                 pass
     except Exception:
@@ -667,7 +696,7 @@ def _register_routes():
                 try:
                     sample_dir = os.path.join(os.path.dirname(path), "sample")
                     await loop.run_in_executor(None, lambda: os.makedirs(sample_dir, exist_ok=True))
-                    # 并发 3，总量 80MB，单张 8MB
+                    # 并发 3，总量 500MB，单张 100MB（视频原图可达数十 MB，用户要求不限制/加大限制）
                     import hashlib as _hashlib
                     import urllib.parse as _urlparse
 
@@ -677,8 +706,8 @@ def _register_routes():
                     skipped = 0
                     failed = 0
                     total_bytes = 0
-                    BATCH_MAX = 80 * 1024 * 1024
-                    SINGLE_MAX = 8 * 1024 * 1024
+                    BATCH_MAX = 500 * 1024 * 1024
+                    SINGLE_MAX = 100 * 1024 * 1024
 
                     async def _dl_one(idx, url):
                         nonlocal total_bytes, downloaded, skipped, failed
@@ -699,7 +728,7 @@ def _register_routes():
                                 import aiohttp as _aio
                                 tout = _aio.ClientTimeout(total=20, connect=10)
                                 async with _aio.ClientSession(timeout=tout) as sess:
-                                    async with sess.get(url, headers={"User-Agent": "ComfyUI-sfnodes", "Accept": "image/*"}) as r:
+                                    async with sess.get(url, headers={"User-Agent": "ComfyUI-sfnodes", "Accept": "image/*,video/*"}) as r:
                                         if r.status != 200:
                                             failed += 1
                                             return
@@ -717,7 +746,7 @@ def _register_routes():
                                                 return
                                             chunks.append(chunk)
                                         raw = b"".join(chunks)
-                                        if not _looks_like_image(raw):
+                                        if not _looks_like_media(raw):
                                             failed += 1
                                             return
                                         ext = _ext_from_image(raw, hdrs, url)
@@ -729,7 +758,7 @@ def _register_routes():
                                             return
                                         # 兼容旧误标：检查同 hash 不同扩展名的已存文件
                                         try:
-                                            for _e in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
+                                            for _e in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".mp4", ".webm", ".mkv", ".mov"):
                                                 if _e == ext:
                                                     continue
                                                 alt = os.path.join(sample_dir, f"civitai_{idx:02d}_{h}{_e}")

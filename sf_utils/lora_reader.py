@@ -620,15 +620,25 @@ def _format_sample_prompts(images):
         w = im.get("width")
         hgt = im.get("height")
         size = f" ({w}x{hgt})" if isinstance(w, int) and isinstance(hgt, int) else ""
+        # 标注视频类型（与下载侧一致，sample 详情需区分）
+        is_video = str(im.get("type") or "").lower() == "video"
+        if not is_video:
+            # 兜底：URL 扩展名或 magic  hint 亦可判视频
+            _url_l = str(url).lower()
+            if any(_url_l.endswith(ext) for ext in (".mp4", ".webm", ".mov", ".mkv")) or "video" in _url_l:
+                is_video = True
+        type_suffix = " [video]" if is_video else ""
         if image_id:
             link = f"https://civitai.com/images/{image_id}"
-            header = f"### [{fname_base} — {image_id}]({link}){size}"
+            header = f"### [{fname_base} — {image_id}]({link}){size}{type_suffix}"
         else:
-            header = f"### {fname_base}{size}"
+            header = f"### {fname_base}{size}{type_suffix}"
         # prompt 原样保留（含 // 资源的注释行与换行）
         prompt_block = "```\n" + prompt.strip() + "\n```"
-        # 其余 meta 键（除 prompt 外）拼成一行
+        # 其余 meta 键（除 prompt 外）拼成一行；视频额外标注 Type
         extra = []
+        if is_video:
+            extra.append("Type: video")
         for k in ("steps", "sampler", "cfgScale", "cfg_scale", "seed", "Model", "model", "resources", "negativePrompt", "Negative prompt"):
             v = meta.get(k)
             if v is None:
