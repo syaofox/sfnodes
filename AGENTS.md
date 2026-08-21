@@ -53,6 +53,7 @@ sfnodes/
 │   ├── regional_engine.py # 区域 LoRA 纯逻辑（键归一化/矩阵解析/regions JSON/层规划+每区域匹配诊断/token 网格 mask 数学/彩虹预览，SFRegionalLoRA 用，无 ComfyUI 依赖）
 │   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
 │   ├── krea2_presets.py # Krea2 预设管理纯逻辑（内置+用户覆盖+墓碑删除+复位，merge/校验/读写，register(kind,builtin,protected) 注册路由，SFImageInterrogator 反推预设 + SFKrea2SystemPrompt 系统指令预设共用，见 experience.md §31）
+│   ├── video_thumb.py   # 视频首帧提取纯逻辑（cv2 首帧→jpeg，Civitai 视频缩略与 Sample 视频缩略共用，无 ComfyUI 依赖）
 │   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化）
 │   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）

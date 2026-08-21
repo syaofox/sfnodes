@@ -184,12 +184,13 @@ def read_sidecar_info(lora_path):
         if isinstance(model, dict) and model.get("name"):
             info["name"] = str(model["name"])
         # description 在 version 顶层（API 实测）；兼容旧侧车的 model.description。
-        # 若已是 markdown（含 Sample Images / civitai_ 前缀且无 < 标签），直接透传，避免 _html_to_markdown 对 \_/\*/\` 二次转义固化
+        # 若已是 markdown（含 Sample Images / civitai_ 前缀），直接透传，避免 _html_to_markdown 对 \_/\*/\` 二次转义固化
+        # （markdown 侧车可能含 <https://...> 自动链接，其中的 '<' 不是 HTML 标签，不能作为 HTML 判定）。
         desc = obj.get("description")
         if not desc and isinstance(model, dict):
             desc = model.get("description")
         if desc:
-            if isinstance(desc, str) and "<" not in desc and ("civitai_" in desc or "Sample Images" in desc):
+            if isinstance(desc, str) and ("civitai_" in desc or "Sample Images" in desc):
                 info["description"] = _decode_entities(desc).strip()
             else:
                 info["description"] = _html_to_markdown(desc)
@@ -416,9 +417,25 @@ def _is_adult_image(nsfw, level):
     return False
 
 
+def _is_video_image(im):
+    """Civitai images[] 条目是否为视频。type 字段优先，URL 后缀兜底。永不抛错。"""
+    if not isinstance(im, dict):
+        return False
+    t = str(im.get("type") or "").lower()
+    if t == "video":
+        return True
+    url = im.get("url")
+    if isinstance(url, str):
+        low = url.lower().split("?")[0]
+        if low.endswith((".mp4", ".webm", ".mov", ".mkv")) or "video" in low:
+            return True
+    return False
+
+
 def _thumb_url(url):
     """Civitai 图片 URL 带 transform 段；API 给的是 `/original=true/`，即全分辨率
-    原图。缩略图只需要 256px——换上 width transform（可带逗号参数，按整段匹配）。"""
+    原图。缩略图只需要 256px——换上 width transform（可带逗号参数，按整段匹配）。
+    视频 URL 无此段则原样返回（下载端按视频抽帧）。"""
     if not isinstance(url, str):
         return url
     return _ORIGINAL_SEG_RE.sub("/width=256/", url, count=1)
@@ -538,24 +555,35 @@ def parse_civitai_modelversion(obj, allow_adult=False):
             original_images.append(im["url"])
         if original_images:
             out["original_images"] = original_images
-        for im in imgs:
-            if not isinstance(im, dict) or not im.get("url"):
-                continue
-            nsfw = im.get("nsfw")
-            level = im.get("nsfwLevel")
-            if any_img is None:
-                any_img = im["url"]
-            if nsfw in (None, False, "None", "Soft") and level in (None, 0, 1, 2):
-                out["thumbnail"] = _thumb_url(im["url"])
-                break
-            # 回退候选：第一张未被标成成人的图。全显式画廊 -> 干脆无缩略图。
-            if fallback is None and not _is_adult_image(nsfw, level):
-                fallback = im["url"]
-        if "thumbnail" not in out and fallback:
-            out["thumbnail"] = _thumb_url(fallback)
-        # 最后手段，仅当用户主动要求：全显式画廊。
-        if "thumbnail" not in out and allow_adult and any_img:
-            out["thumbnail"] = _thumb_url(any_img)
+        # 缩略图优先取图片，视频仅在无图片时兜底（视频需下载后抽首帧，开销更大）。
+        # 三档按 NSFW 过滤：clean -> 非成人回退 -> 全量（含显式，仅 allow_adult）。
+        def _find_thumb_for_video_flag(want_video):
+            fb = None
+            any_url = None
+            for im in imgs:
+                if not isinstance(im, dict) or not im.get("url"):
+                    continue
+                if _is_video_image(im) != want_video:
+                    continue
+                nsfw = im.get("nsfw")
+                level = im.get("nsfwLevel")
+                if any_url is None:
+                    any_url = im["url"]
+                if nsfw in (None, False, "None", "Soft") and level in (None, 0, 1, 2):
+                    return _thumb_url(im["url"])
+                if fb is None and not _is_adult_image(nsfw, level):
+                    fb = im["url"]
+            if fb is not None:
+                return _thumb_url(fb)
+            if allow_adult and any_url is not None:
+                return _thumb_url(any_url)
+            return None
+
+        thumb = _find_thumb_for_video_flag(False)
+        if thumb is None:
+            thumb = _find_thumb_for_video_flag(True)
+        if thumb:
+            out["thumbnail"] = thumb
         # 保留全部样例的生成信息（供描述末尾拼接，原样保留，不做 NSFW 过滤）
         try:
             sp = _format_sample_prompts(imgs)

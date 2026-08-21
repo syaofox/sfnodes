@@ -798,11 +798,24 @@ export async function openInfoPanelFor(ctx, id) {
                 const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
                 let thumb;
                 if (isVideo) {
-                    thumb = el("div");
-                    thumb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
-                    thumb.textContent = p.split("/").pop().slice(0, 12);
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
                     thumb.title = p.split("/").pop() + " (video)";
+                    thumb.loading = "lazy";
+                    thumb.style.cssText = "width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
                     thumb.addEventListener("click", () => onInsert(p));
+                    thumb.addEventListener("error", () => {
+                        // 抽帧失败或缺解码器：回退文字占位
+                        if (thumb.dataset.fallback) return;
+                        thumb.dataset.fallback = "1";
+                        const fb = el("div");
+                        fb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
+                        fb.textContent = p.split("/").pop().slice(0, 12);
+                        fb.title = p.split("/").pop() + " (video)";
+                        fb.addEventListener("click", () => onInsert(p));
+                        thumb.replaceWith(fb);
+                        thumb = fb;
+                    });
                 } else {
                     thumb = document.createElement("img");
                     thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
@@ -1564,18 +1577,31 @@ export async function openInfoPanelFor(ctx, id) {
                     const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(p);
                     let thumb;
                     if (isVideo) {
-                        thumb = el("div");
-                        thumb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
-                        thumb.textContent = p.split("/").pop().slice(0, 12);
+                        thumb = document.createElement("img");
+                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
                         thumb.title = p.split("/").pop() + " (video) — 点击预览";
+                        thumb.loading = "lazy";
+                        thumb.style.cssText = "width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
+                        thumb.addEventListener("error", () => {
+                            if (thumb.dataset.fallback) return;
+                            thumb.dataset.fallback = "1";
+                            const fb = el("div");
+                            fb.style.cssText = "width:56px;height:56px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;background:#1c1c1e;color:#777;font:9px 'Segoe UI';cursor:pointer;";
+                            fb.textContent = p.split("/").pop().slice(0, 12);
+                            fb.title = p.split("/").pop() + " (video) — 点击预览";
+                            fb.style.cursor = "pointer";
+                            fb.addEventListener("click", () => openSamplePreview(p, imgs));
+                            thumb.replaceWith(fb);
+                            thumb = fb;
+                        });
                     } else {
                         thumb = document.createElement("img");
                         thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
                         thumb.title = p.split("/").pop() + " — 点击预览";
                         thumb.loading = "lazy";
+                        thumb.style.cursor = "pointer";
                     }
-                    thumb.style.cursor = "pointer";
-                    thumb.addEventListener("click", () => openSamplePreview(p, imgs));
+                    if (!thumb.dataset.fallback) thumb.addEventListener("click", () => openSamplePreview(p, imgs));
                     const del = el("button", "x");
                     del.title = "Delete this sample image from disk";
                     const delIc = el("span", "ic");

@@ -127,9 +127,48 @@ def _register_routes():
 
                 w = request.rel_url.query.get("w")
                 if w:
-                    # 视频无法用 PIL 缩略，直接返回原文件（前端显示首帧由浏览器处理或失败回退）
+                    # 视频缩略：抽首帧为图片（与 Civitai 缩略同源 video_thumb），失败回退原视频
                     if os.path.splitext(full)[1].lower() in _VIDEO_EXTS:
-                        return web.FileResponse(full)
+                        try:
+                            size = min(max(int(w), 16), 1024)
+                        except Exception:
+                            size = _THUMB_SIZE
+                        cache_dir = os.path.join(
+                            folder_paths.get_temp_directory(), ".sf_lora_samples"
+                        )
+                        os.makedirs(cache_dir, exist_ok=True)
+                        key = hashlib.md5(
+                            f"{path}:{os.path.getmtime(full)}:{size}:vthumb".encode()
+                        ).hexdigest()
+                        cache_path = os.path.join(cache_dir, f"{key}.webp")
+                        if not os.path.isfile(cache_path):
+                            loop = asyncio.get_running_loop()
+
+                            def _make_vthumb():
+                                try:
+                                    from .video_thumb import extract_first_frame_from_path
+                                    jpeg = extract_first_frame_from_path(full)
+                                    if not jpeg:
+                                        return False
+                                    # jpeg -> PIL -> webp thumb
+                                    import io
+                                    img = Image.open(io.BytesIO(jpeg))
+                                    img = ImageOps.exif_transpose(img)
+                                    img.thumbnail((size, size), Image.LANCZOS)
+                                    if img.mode not in ("RGB", "L"):
+                                        img = img.convert("RGBA")
+                                    else:
+                                        img = img.convert("RGB")
+                                    img.save(cache_path, format="WEBP", quality=85)
+                                    return True
+                                except Exception as e:
+                                    logger.warning(f"video thumb failed for {path}: {e}")
+                                    return False
+
+                            ok = await loop.run_in_executor(None, _make_vthumb)
+                            if not ok:
+                                return web.FileResponse(full)
+                        return web.FileResponse(cache_path)
                     try:
                         size = min(max(int(w), 16), 1024)
                     except Exception:

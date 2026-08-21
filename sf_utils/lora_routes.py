@@ -237,6 +237,8 @@ def _ext_from_image(raw, headers=None, url=""):
 # 预览图上限：浏览器先降采样到 512px 再上传，接近这个值的都是没走我们代码的。
 # Civitai 缩略图（width=256）远小于此，但流量守卫统一走它。
 _PREVIEW_MAX_BYTES = 4 * 1024 * 1024
+# 视频缩略图上限：视频首帧提取需下载完整视频前段，阈值放宽至 50MB（与 sample 单张上限对齐）。
+_PREVIEW_VIDEO_MAX_BYTES = 50 * 1024 * 1024
 
 
 def _thumb_url_safe(url):
@@ -248,33 +250,48 @@ def _thumb_url_safe(url):
 async def _download_thumb(url):
     """下载一张缩略图到 bytes，任何问题返回 None。
 
-    流式读、4MB 上限（与 civitai body 下载同模式）、magic bytes 校验——
-    写出的文件会以图片身份直接回浏览器，不是图的就必须在入口拦住。永不抛错。
+    支持图片与视频：图片直返，视频抽首帧为 jpeg（50MB 上限）。
+    流式读、magic bytes 校验——写出的文件会以图片身份直接回浏览器，
+    不是图/视频的就是坏功能。永不抛错。
     """
     try:
         import aiohttp
     except Exception:
         return None
-    timeout = aiohttp.ClientTimeout(total=15, connect=10)
+    timeout = aiohttp.ClientTimeout(total=30, connect=10)
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url, headers={"User-Agent": "ComfyUI-sfnodes",
-                                                 "Accept": "image/*"}) as resp:
+                                                 "Accept": "image/*,video/*"}) as resp:
                 if resp.status != 200:
                     return None
                 chunks = []
                 total = 0
+                # 先按视频上限读，图片超 4MB 后续再拒（避免视频被 4MB 截断无法解码）
                 async for chunk in resp.content.iter_chunked(65536):
                     total += len(chunk)
-                    if total > _PREVIEW_MAX_BYTES:
+                    if total > _PREVIEW_VIDEO_MAX_BYTES:
                         return None
                     chunks.append(chunk)
     except Exception:
         return None
     raw = b"".join(chunks)
-    if not _looks_like_image(raw):
+    if _looks_like_image(raw):
+        if len(raw) > _PREVIEW_MAX_BYTES:
+            return None
+        return raw
+    if _looks_like_video(raw):
+        # 视频抽首帧为 jpeg，耗时操作放线程池
+        try:
+            loop = asyncio.get_running_loop()
+            from .video_thumb import extract_first_frame_from_bytes
+            jpeg = await loop.run_in_executor(None, extract_first_frame_from_bytes, raw)
+            if jpeg and _looks_like_image(jpeg):
+                return jpeg
+        except Exception:
+            pass
         return None
-    return raw
+    return None
 
 
 # 模型页 HTML 上限：页面（SSR + __NEXT_DATA__）实测约 130KB，2MB 只挡

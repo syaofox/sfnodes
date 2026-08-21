@@ -789,10 +789,24 @@ export function showLoraInfoDialog(event, name, meta) {
                 const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
                 let thumb;
                 if (isVideo) {
-                    thumb = document.createElement("div");
-                    thumb.textContent = path.split("/").pop().slice(0, 14);
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
                     thumb.title = path.split("/").pop() + " (video) — 点击预览";
-                    thumb.style.cssText = "width:96px;height:96px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;text-align:center;background:#1c1c1e;color:#888;font-size:9px;word-break:break-all;cursor:pointer;padding:4px;box-sizing:border-box;";
+                    thumb.loading = "lazy";
+                    thumb.style.cssText = "width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
+                    thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
+                    thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
+                    thumb.addEventListener("error", () => {
+                        if (thumb.dataset.fallback) return;
+                        thumb.dataset.fallback = "1";
+                        const fb = document.createElement("div");
+                        fb.textContent = path.split("/").pop().slice(0, 14);
+                        fb.title = path.split("/").pop() + " (video) — 点击预览";
+                        fb.style.cssText = "width:96px;height:96px;border-radius:6px;border:1px solid #3a3a3e;display:flex;align-items:center;justify-content:center;text-align:center;background:#1c1c1e;color:#888;font-size:9px;word-break:break-all;cursor:pointer;padding:4px;box-sizing:border-box;";
+                        fb.addEventListener("click", () => _openSamplePreview(path, imgs));
+                        thumb.replaceWith(fb);
+                        thumb = fb;
+                    });
                 } else {
                     thumb = document.createElement("img");
                     thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
@@ -802,7 +816,7 @@ export function showLoraInfoDialog(event, name, meta) {
                     thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
                     thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
                 }
-                thumb.addEventListener("click", () => _openSamplePreview(path, imgs));
+                if (!thumb.dataset.fallback) thumb.addEventListener("click", () => _openSamplePreview(path, imgs));
                 const delBtn = document.createElement("button");
                 delBtn.title = "删除该示例图";
                 delBtn.style.cssText = "position:absolute;top:0;right:0;display:none;align-items:center;justify-content:center;width:18px;height:18px;padding:0;line-height:1;background:rgba(224,108,108,0.9);color:#fff;border:none;border-radius:0 6px 0 6px;cursor:pointer;";
@@ -910,15 +924,35 @@ export function showLoraInfoDialog(event, name, meta) {
                 const isVideo = /\.(mp4|m4v|mov|webm|mkv)$/i.test(path);
                 let thumb;
                 if (isVideo) {
-                    thumb = document.createElement("div");
-                    thumb.textContent = path.split("/").pop().slice(0, 14);
+                    thumb = document.createElement("img");
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}&w=256`;
                     thumb.title = path.split("/").pop() + " (video) — 点击插入引用";
+                    thumb.loading = "lazy";
                     thumb.style.cssText = `
-                        width: 96px; height: 96px; border-radius: 6px; border: 1px solid #3a3a3e;
-                        display: flex; align-items: center; justify-content: center; text-align: center;
-                        background: #1c1c1e; color: #888; font-size: 9px; word-break: break-all;
-                        cursor: pointer; padding: 4px; box-sizing: border-box;
+                        width: 96px; height: 96px; object-fit: cover;
+                        border-radius: 6px; border: 1px solid #3a3a3e; cursor: pointer;
+                        display: block;
                     `;
+                    thumb.addEventListener("mouseenter", () => { thumb.style.borderColor = "#6af"; });
+                    thumb.addEventListener("mouseleave", () => { thumb.style.borderColor = "#3a3a3e"; });
+                    thumb.addEventListener("error", () => {
+                        if (thumb.dataset.fallback) return;
+                        thumb.dataset.fallback = "1";
+                        const fb = document.createElement("div");
+                        fb.textContent = path.split("/").pop().slice(0, 14);
+                        fb.title = path.split("/").pop() + " (video) — 点击插入引用";
+                        fb.style.cssText = `
+                            width: 96px; height: 96px; border-radius: 6px; border: 1px solid #3a3a3e;
+                            display: flex; align-items: center; justify-content: center; text-align: center;
+                            background: #1c1c1e; color: #888; font-size: 9px; word-break: break-all;
+                            cursor: pointer; padding: 4px; box-sizing: border-box;
+                        `;
+                        fb.addEventListener("click", () => {
+                            if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
+                        });
+                        thumb.replaceWith(fb);
+                        thumb = fb;
+                    });
                     thumb.addEventListener("click", () => {
                         if (activeTextarea) insertAtCursor(activeTextarea, buildSampleMarkdown(path));
                     });
