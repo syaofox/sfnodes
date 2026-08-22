@@ -1,18 +1,13 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { escapeHtml } from "./sf_common.js";
+import { escapeHtml, injectCSSOnce } from "./sf_common.js";
 
 const PAGE_SIZE = 50;
 const SORT_KEY = "sfnodes_image_browser_sort";
 const LOCATION_KEY = "sfnodes_image_browser_location";
 
-let modalStyleInjected = false;
-
 function injectModalStyles() {
-    if (modalStyleInjected) return;
-    modalStyleInjected = true;
-    const style = document.createElement("style");
-    style.textContent = `
+    injectCSSOnce("sf-imgbrowser-css", `
         .sf-imgbrowser-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.7); z-index: 99999;
@@ -164,8 +159,7 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-typebtn:hover { color: #ddd; background: #333; }
         .sf-imgbrowser-typebtn.active { background: #89B; color: #fff; }
-    `;
-    document.head.appendChild(style);
+    `);
 }
 
 function getThumbUrl(item, type) {

@@ -10,7 +10,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, isVueNodes, installWheelZoomPassthrough } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installWheelZoomPassthrough, isVueNodes } from "./sf_common.js";
 import { buildIndex, findNode } from "./sf_lora_stack.js";
 import {
     HIDDEN_INPUT, readState, writeState, promptState, activeRows, newId,
@@ -43,10 +43,7 @@ function contentHeight(st) {
 }
 
 function injectCSS() {
-    if (document.getElementById("sf-ps-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ps-css";
-    s.textContent = `
+    injectCSSOnce("sf-ps-css", `
 .sf-ps-root { box-sizing:border-box; width:100%; padding:${PAD}px;
   background:#1d1d1d; border-radius:4px; color:#ddd;
   font:12px sans-serif; position:relative; }
@@ -87,8 +84,7 @@ function injectCSS() {
 .sf-ps-btn:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .sf-ps-btn:disabled { opacity:0.35; cursor:default; }
 .sf-ps-del:hover { border-color:#d65; color:#f88; }
-`;
-    document.head.appendChild(s);
+`);
 }
 
 function buildRow(row, index, callbacks) {

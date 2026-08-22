@@ -13,35 +13,13 @@ import {
 } from "./sf_load_image_ui.js";
 import { pickAndUploadFile, pasteFromClipboard, uploadImageToInput, setSelectedImage, updateNativePreview, previewMatches, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
 import { buildModePanel, previewResize } from "./sf_load_image_resize.js";
-import { sfApiUrl, isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough, sfAccent } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, canvasBackingScale, hideJsonWidget, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading, isVueNodes, sfAccent, sfApiUrl } from "./sf_common.js";
 
 // 品牌主色（原版 var(--pix-acc)，本项目固定）
 
 // 隐藏内部序列化 widget（Vue 节点体也会渲染 STRING widget，需 canvasOnly +
 // 隐藏 + 隐藏 DOM 元素，两个渲染器都生效）
-function hideJsonWidget(widgets, widgetName) {
-  const w = (widgets || []).find((x) => x.name === widgetName);
-  if (w) {
-    w.hidden = true;
-    w.computeSize = () => [0, -4];
-    if (!w.options) w.options = {};
-    w.options.canvasOnly = true;
-    const hideEl = () => { const el = w.element || w.inputEl; if (el) el.style.display = "none"; };
-    hideEl();
-    requestAnimationFrame(hideEl);
-  }
-  return w;
-}
 
-const CANVAS_BACKING_CAP = 6000;
-function canvasBackingScale(cssW, cssH) {
-  const dpr = window.devicePixelRatio || 1;
-  const zoom = Math.max(1, app.canvas?.ds?.scale || 1);
-  let s = dpr * zoom;
-  const longCss = Math.max(cssW || 0, cssH || 0);
-  if (longCss > 0 && longCss * s > CANVAS_BACKING_CAP) s = CANVAS_BACKING_CAP / longCss;
-  return s;
-}
 // 图缩放（zoom）变化时重绘 DOM canvas（ResizeObserver 不感知 CSS transform）
 function installZoomRepaint(node, getSize, render, rafKey) {
   void getSize;
@@ -689,10 +667,7 @@ export function writeState(node, state) {
 // instead (createLoadImagePreviewCanvas). Scoped to our node via :has(.sf-li-root)
 // so it's a no-op for every other node and in the legacy renderer.
 function injectLoadImageNodes2CSS() {
-  if (document.getElementById("sf-li-nodes2-css")) return;
-  const s = document.createElement("style");
-  s.id = "sf-li-nodes2-css";
-  s.textContent =
+  injectCSSOnce("sf-li-nodes2-css",
     // Hide ComfyUI's native input image-preview for this node (we draw our own).
     ".lg-node:has(.sf-li-root) .image-preview{display:none !important;}" +
     // CRITICAL (issue #1 Nodes 2.0 fill): the Vue node ALSO renders a native
@@ -703,8 +678,7 @@ function injectLoadImageNodes2CSS() {
     // Collapse that container so our widget area is the SOLE grower and fills the
     // node, like native Load Image. It is the only `flex:1` div immediately after
     // the widget grid; we render our own preview, so hiding it loses nothing.
-    ".lg-node:has(.sf-li-root) .lg-node-widgets + div.flex-1{display:none !important;}";
-  document.head.appendChild(s);
+    ".lg-node:has(.sf-li-root) .lg-node-widgets + div.flex-1{display:none !important;}");
 }
 
 // Cards strip height for the Nodes 2.0 preview.

@@ -24,8 +24,9 @@ import { accentOf, addLora, readState } from "./sf_lora_stack_core.js";
 import { openInfoPanelFor, closeInfoPanel } from "./sf_lora_stack_info.js";
 import {
     createLoraBrowserWindow, renderFolder, renderFlat, renderCrumbs,
-    attachFlatScroll, injectBrowserCSS, el,
+    attachFlatScroll, injectBrowserCSS,
 } from "./sf_lora_browser_ui.js";
+import { el } from "./sf_common.js";
 import { filterLoras } from "./sf_lora_browser_lib.js";
 
 const CMD_ID = "sfnodes.OpenLoraBrowser";

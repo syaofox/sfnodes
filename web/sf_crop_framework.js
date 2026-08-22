@@ -1,6 +1,8 @@
 // SF Image Crop — 精简版编辑器框架（移植自 comfyui-pixaroma js/framework/，
 // 仅包含 Crop 编辑器用到的部分；图标 data URI 内联，无 pixaroma 品牌/资产依赖）。
 
+import { injectCSSOnce } from "./sf_common.js";
+
 // ── 图标（内联 data URI，项目惯例见 sf_workflows_ui.js） ──────────────────
 const ICONS = {
   save: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M50.871,1.325c1.347.603,2.188,1.758,3.202,2.776l5.076,5.096c1.076,1.08,1.9,2.084,2.19,3.718v44.323c-.563,3.105-2.648,5.31-5.757,5.907H8.405c-3.019-.684-5.706-3.082-5.71-6.362V7.372C3.088,3.654,5.967.876,9.684.886h8.216v17.49c.003,1.979,1.835,3.595,3.788,3.595h20.629c1.979,0,3.779-1.547,3.782-3.606V1.495c0-.133.071-.497.184-.529.732-.204,3.428-.161,4.587.358ZM52.257,54.993v-19.669c.004-1.973-1.219-3.574-3.072-4.095h-31.677c-.886,0-1.546-.184-2.484.002-1.776.352-3.216,1.992-3.213,3.988v19.621c.002,1.777,1.491,3.811,3.321,3.813h33.335c1.905.002,3.787-1.596,3.791-3.66ZM40.759,18.21h-4.118c-.958-.003-1.565-.768-1.766-1.678V6.446c.001-.845.758-1.406,1.467-1.55h4.506c.718.181,1.298.862,1.299,1.679v9.846c0,.85-.546,1.554-1.388,1.79Z"/></svg>'),
@@ -39,10 +41,7 @@ const STYLE_ID = "sf-crop-framework-css";
 // ═════════════════════════════════════════════════════════════════
 
 export function injectFrameworkStyles() {
-  if (document.getElementById(STYLE_ID)) return;
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `
+  injectCSSOnce(STYLE_ID, `
 /* ═══════════════════════════════════════════════════════
    Pixaroma Editor Framework — Shared Stylesheet
    ═══════════════════════════════════════════════════════ */
@@ -668,8 +667,7 @@ export function injectFrameworkStyles() {
   border-radius: 4px; cursor: pointer; transition: all .12s; font-family: inherit;
 }
 .sf-px-swap-btn:hover { background: var(--sf-px-accent); border-color: var(--sf-px-accent); color: #fff; }
-  `;
-  document.head.appendChild(s);
+  `);
 
   // ── Slider Fill System ──────────────────────────────────────
   if (!window._sfPxSliderFillInit) {

@@ -20,7 +20,7 @@ import {
     setFind,
     setReplace,
 } from "./sf_find_replace_lib.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 const CSS_ID = "sf-find-replace-css";
 
@@ -262,11 +262,7 @@ const CSS = `
 `;
 
 export function injectCSS() {
-    if (document.getElementById(CSS_ID)) return;
-    const el = document.createElement("style");
-    el.id = CSS_ID;
-    el.textContent = CSS;
-    document.head.appendChild(el);
+    injectCSSOnce(CSS_ID, CSS);
 }
 
 export function buildRoot() {

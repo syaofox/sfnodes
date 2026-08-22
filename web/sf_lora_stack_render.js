@@ -4,8 +4,8 @@
 // 属性分发。主扩展拥有尺寸计算并调用 renderNode()。
 // ==========================================================================
 import { app } from "/scripts/app.js";
-import { isVueNodes, loraRowLabel } from "./sf_common.js";
-import { BRAND, readState, accentOf, countOn, MAX_LORAS } from "./sf_lora_stack_core.js";
+import { injectCSSOnce, isVueNodes, loraRowLabel } from "./sf_common.js";
+import { MAX_LORAS, accentOf, countOn, readState } from "./sf_lora_stack_core.js";;
 import { hasLora } from "./sf_lora_stack_api.js";
 import { getLoraMetadata } from "./sf_lora_info.js";
 
@@ -92,10 +92,7 @@ const GEAR_SVG = "data:image/svg+xml," + encodeURIComponent(
 );
 
 export function injectCSS() {
-    if (document.getElementById("sf-ls-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ls-css";
-    s.textContent = `
+    injectCSSOnce("sf-ls-css", `
     .sf-ls-root { width:100%; box-sizing:border-box; background:#1d1d1d; border-radius:4px;
       color:#ddd; font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; position:relative; }
     /* 普通块流（非 flex、非 absolute），列表永不被压扁。每个子元素自然高度。 */
@@ -193,8 +190,7 @@ export function injectCSS() {
     .sf-ls-empty { box-sizing:border-box; height:${EMPTY_H}px;
       display:flex; align-items:center; justify-content:center; text-align:center; color:#777;
       font-size:11px; background:rgba(0,0,0,0.2); border:1px dashed #3a3a3a; border-radius:6px; padding:0 10px; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 export function ensureRoot(node) {

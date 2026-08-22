@@ -53,7 +53,7 @@ import {
     closeLibraryEditorFor,
 } from "./sf_prompt_tags_editor.js";
 import { pinyinMatch } from "./sf_prompt_tags_pinyin.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough, sfToast } from "./sf_common.js";
 
 const STATE_KEY = "promptState";
 const DEFAULT_STATE = { text: "", order: "mine", sep: ", ", showExpanded: true };
@@ -154,12 +154,9 @@ function expandWith(text, resolvers) {
 }
 
 // ── CSS ──────────────────────────────────────────────────────────────────
-let _cssInjected = false;
 function injectCSS() {
-    if (_cssInjected) return;
-    _cssInjected = true;
-    const style = document.createElement("style");
-    style.textContent = `
+    // 原 _cssInjected 标志守卫收敛为 id 守卫（style 元素原先无 id，此处补上）
+    injectCSSOnce("sf-ptg-css", `
 .sf-ptg-root { --acc:var(--sf-acc, #f66744); position:relative; display:flex; flex-direction:column; gap:6px; padding:6px;
   width:100%; height:100%; box-sizing:border-box; color:#e0e0e0; font:12px 'Segoe UI',sans-serif; }
 .sf-ptg-portrow { position:absolute; top:-26px; left:0; right:0; margin:0; z-index:3; pointer-events:none;
@@ -235,15 +232,12 @@ function injectCSS() {
 .sf-ptg-ac-i.wild .sf-ptg-ac-n, .sf-ptg-ac-i.list .sf-ptg-ac-n { color:#b98cff; }
 .sf-ptg-ac-d { font-size:10.5px; color:#767676; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:320px; }
 .sf-ptg-ac-empty { padding:9px 11px; color:#767676; font-size:11.5px; }
-`;
-    document.head.appendChild(style);
+`);
 }
 
 // ── 小工具 ────────────────────────────────────────────────────────────────
 function toast(severity, msg) {
-    const t = app?.extensionManager?.toast;
-    if (t?.add) t.add({ severity, summary: "SF Prompt Tags", detail: msg, life: 2200 });
-    else console.warn("[sfnodes.PromptTags]", msg);
+    sfToast({ summary: "SF Prompt Tags", detail: msg, severity, life: 2200, fallbackTag: "sfnodes.PromptTags" });
 }
 function flashBtnText(btn, label) {
     if (btn._sfFlashTimer) clearTimeout(btn._sfFlashTimer);

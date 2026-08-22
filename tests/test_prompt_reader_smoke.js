@@ -53,6 +53,7 @@ function makeEl() {
 }
 globalThis.document = {
     createElement() { return makeEl(); },
+    getElementById() { return null; },
     body: { appendChild() {} },
     head: { appendChild() {} },
     addEventListener() {}, removeEventListener() {},

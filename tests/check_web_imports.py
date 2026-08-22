@@ -34,11 +34,10 @@ MODS = [
     # Inpaint 家族
     "sf_inpaint", "sf_inpaint_core", "sf_inpaint_geometry",
     "sf_inpaint_paint", "sf_inpaint_render",
-    # 闸门家族（text/image/mask/latent）
+    # 闸门家族（text/image/mask/latent；image/mask/latent 三闸门共享引擎收敛于 sf_pause_kit）
+    "sf_pause_kit",
     "sf_pause_text", "sf_pause_text_lib", "sf_pause_text_ui",
-    "sf_pause_image", "sf_pause_image_lib", "sf_pause_image_ui",
-    "sf_pause_mask", "sf_pause_mask_lib", "sf_pause_mask_ui",
-    "sf_pause_latent", "sf_pause_latent_lib", "sf_pause_latent_ui",
+    "sf_pause_image", "sf_pause_mask", "sf_pause_latent",
     # 值下拉家族
     "sf_dropdown", "sf_dropdown_lib", "sf_dropdown_ui", "sf_dropdown_settings",
     # 查找替换家族

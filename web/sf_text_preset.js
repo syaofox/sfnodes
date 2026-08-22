@@ -4,11 +4,9 @@
 
 import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 let mgrEl = null;
-let mgrStyleInjected = false;
-
 const MGR_CSS = `
 .sf-preset-mgr-overlay{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;}
 .sf-preset-mgr{background:#232323;border:1px solid #555;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);width:min(600px,92vw);max-height:82vh;display:flex;flex-direction:column;font-size:12px;color:#ddd;}
@@ -37,11 +35,7 @@ const MGR_CSS = `
 `;
 
 function injectMgrStyle() {
-    if (mgrStyleInjected) return;
-    mgrStyleInjected = true;
-    const style = document.createElement("style");
-    style.textContent = MGR_CSS;
-    document.head.appendChild(style);
+    injectCSSOnce("sf-tp-mgr-css", MGR_CSS);
 }
 
 // ---------------- 数据解析 ----------------

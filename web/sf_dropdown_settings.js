@@ -15,7 +15,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { isGraphLoading } from "./sf_common.js";
+import { el, injectCSSOnce, isGraphLoading, sfToast } from "./sf_common.js";
 import { isVueNodes } from "./sf_dropdown_ui.js";
 import {
     readState, writeState, syncOutput, slotAccepts,
@@ -74,13 +74,6 @@ let _onChange = null;
 let _followRaf = null;  // canvas 跟随循环，见 startFollowing()
 let _userMoved = false; // 用户是否故意拖走了面板？
 
-function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-}
-
 // 所选类型的真实合法输入示例，而非复述列头。一眼说明节点的用途：短名代表
 // 更长的、你不想重打的东西。按类型不同，因为"warm light"放在步数列表上方
 // 是胡话。
@@ -92,16 +85,11 @@ const PLACEHOLDERS = {
 };
 
 function toast(msg, severity = "info") {
-    const t = app?.extensionManager?.toast;
-    if (t?.add) t.add({ severity, summary: "SF Value Dropdown", detail: msg, life: 3200 });
-    else console.warn("[SF Value Dropdown]", msg);
+    sfToast({ summary: "SF Value Dropdown", detail: msg, severity, life: 3200 });
 }
 
 function injectCSS() {
-    if (document.getElementById("sf-ddp-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ddp-css";
-    s.textContent = `
+    injectCSSOnce("sf-ddp-css", `
     .sf-ddp { position:fixed; z-index:10010; width:430px; max-width:94vw; background:#1a1a1a;
       border:1px solid #4a4a4a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
       color:#d8d8d8; font:12px 'Segoe UI',-apple-system,sans-serif; overflow:hidden; }
@@ -215,8 +203,7 @@ function injectCSS() {
     .sf-ddp-asktitle { color:${"var(--sf-acc, #f66744)"}; font-size:12px; }
     .sf-ddp-askmsg { color:#bbb; font-size:11.5px; line-height:1.5; }
     .sf-ddp-askrow { display:flex; gap:8px; justify-content:flex-end; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 function getNodeScreenRect(node) {

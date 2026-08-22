@@ -15,7 +15,7 @@ import {
   applyInlineLabel, applyWHLayout, applyCoverControls,
   renderGlobalControls, injectCSS as injectLoadImageChromeCSS,
 } from "./sf_load_image_ui.js";
-import { sfAccent } from "./sf_common.js";
+import { injectCSSOnce, sfAccent } from "./sf_common.js";
 import {
   readState, writeState, wireInfo, effectiveWiredState, getReadoutInfo,
   ratioLabel, aspectRectDims, roundRectPath,
@@ -46,11 +46,8 @@ export const DEFAULT_STATE = {
 // Modes that consume an explicit W x H target. Wired width/height feed these.
 const WH_MODES = new Set(["fit_inside", "cover"]);
 
-let _cssInjected = false;
 export function injectCSS() {
-  if (_cssInjected) return;
-  _cssInjected = true;
-  const css = `
+  injectCSSOnce("sf-image-resize-css", `
     .sf-ir-root{width:100%;box-sizing:border-box;padding:2px 8px 8px;background:#2a2a2a;
       border-radius:4px;color:#ddd;font-family:ui-sans-serif,system-ui,sans-serif;
       font-size:11px;display:flex;flex-direction:column;gap:8px;}
@@ -77,11 +74,7 @@ export function injectCSS() {
     /* Locked (wire-driven) numeric fields dim to read as disabled. */
     .sf-ir-root .sf-li-numinput{opacity:.55;transition:opacity .1s;}
     .sf-ir-cards-canvas{display:block;width:100%;}
-  `;
-  const s = document.createElement("style");
-  s.id = "sf-image-resize-css";
-  s.textContent = css;
-  document.head.appendChild(s);
+`);
   // The per-mode panel chrome (sf-li-*) + the global controls row styles.
   injectLoadImageChromeCSS();
 }

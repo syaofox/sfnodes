@@ -11,7 +11,7 @@
 
 import { RATIOS } from "./sf_crop_core.js";
 import { ALIGNMENTS, computeAlignedXY, defaultAlignForMeta } from "./sf_crop_alignments.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 // Build the ratio combo label. The "Free" entry becomes "Free Ratio" so it's
 // distinguishable from the alignment dropdown's Free; other entries get a
@@ -113,14 +113,8 @@ const PANEL_CSS = `
 .sf-cropp-combo:hover { border-color: #888; }
 `;
 
-let _cssInjected = false;
 function injectCSS() {
-  if (_cssInjected) return;
-  const style = document.createElement("style");
-  style.id = "pix-crop-panel-css";
-  style.textContent = PANEL_CSS;
-  document.head.appendChild(style);
-  _cssInjected = true;
+  injectCSSOnce("pix-crop-panel-css", PANEL_CSS);
 }
 
 // Returns { el, refresh } where el is the container DOM element (mount it

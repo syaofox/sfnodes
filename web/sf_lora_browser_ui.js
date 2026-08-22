@@ -12,8 +12,7 @@ import { thumbUrl } from "./sf_lora_stack_api.js";
 import {
     splitName, filterLoras, folderContents, breadcrumbParts,
 } from "./sf_lora_browser_lib.js";
-
-let _cssInjected = false;
+import { el, injectCSSOnce } from "./sf_common.js";
 
 // 无缩略图时的占位图（内联 SVG：深色圆角底 + 层叠图标，与工具栏按钮图标
 // 同语义；data URI 无网络请求、必成功渲染——替代浏览器默认的破损图）。
@@ -25,11 +24,7 @@ const THUMB_PLACEHOLDER =
     + "%3Cpath d='M15 30l17 9 17-9'/%3E%3Cpath d='M15 40l17 9 17-9'/%3E%3C/g%3E%3C/svg%3E";
 
 export function injectBrowserCSS() {
-    if (_cssInjected) return;
-    _cssInjected = true;
-    const s = document.createElement("style");
-    s.id = "sf-lb-css";
-    s.textContent = `
+    injectCSSOnce("sf-lb-css", `
 :root { --sf-lb-acc:var(--sf-acc, #f66744); }
 .sf-lb-win { position:fixed; z-index:9960; background:#1b1a1a; border:1px solid #3d3936;
   border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.6); flex-direction:column;
@@ -167,15 +162,7 @@ export function injectBrowserCSS() {
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 2 7l10 5 10-5-10-5zM2 12l10 5 10-5M2 17l10 5 10-5'/%3E%3C/svg%3E");
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;
   -webkit-mask-size:contain; mask-size:contain; }
-`;
-    document.head.appendChild(s);
-}
-
-export function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
+`);
 }
 
 // ── 窗口几何持久化 ──────────────────────────────────────────────────────────

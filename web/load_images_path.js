@@ -8,7 +8,7 @@
 // ============================================================
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { applyAdaptiveCanvasOnly, sfApiUrl } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, sfApiUrl } from "./sf_common.js";
 
 const SOURCES = ["input", "output", "images"];
 const WIDGET_TYPE = "sf_lip_ui";
@@ -41,10 +41,7 @@ function pathParts(value) {
 
 // ── 样式 ─────────────────────────────────────────────────────────────────
 function injectCSS() {
-    if (document.getElementById("sf-lip-css")) return;
-    const style = document.createElement("style");
-    style.id = "sf-lip-css";
-    style.textContent = `
+    injectCSSOnce("sf-lip-css", `
     .sf-lip-root { width:100%; box-sizing:border-box; padding:8px; display:flex;
       flex-direction:column; gap:6px; background:#1e1e1e; border-radius:4px; font-size:12px;
       overflow:hidden; }
@@ -84,8 +81,7 @@ function injectCSS() {
     .sf-lip-crumb { padding:2px 5px; border-radius:3px; cursor:pointer; color:#ccc; }
     .sf-lip-crumb:hover { background:#333; color:#fff; }
     .sf-lip-crumb-sep { color:#666; flex:none; }
-    `;
-    document.head.appendChild(style);
+    `);
 }
 
 // ── 主扩展 ───────────────────────────────────────────────────────────────

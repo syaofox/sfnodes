@@ -12,14 +12,10 @@
 // 纯数学镜像在 sf_outpaint_core.js（可 .mjs 直测），本文件只做 UI。
 
 import { app } from "/scripts/app.js";
-import { isGraphLoading, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { injectResizePanelCSS, makeNumericInput } from "./sf_load_image_resize.js";
-import {
-  DEFAULT_STATE, DEFAULT_RATIOS, LIMITS, MAX_PAD, SNAPS, STATE_PROP,
-  readState, writeState, parseRatio, anchorAxis, remapAnchor,
-  padsForState, finalSize, sidePad,
-} from "./sf_outpaint_core.js";
+import { DEFAULT_RATIOS, DEFAULT_STATE, LIMITS, MAX_PAD, STATE_PROP, anchorAxis, finalSize, padsForState, readState, remapAnchor, sidePad, writeState } from "./sf_outpaint_core.js";;;
 
 const CLASS = "SFImageOutpaint";
 const HIDDEN_INPUT = "SFOutpaintState"; // 必须与 outpaint.py 的隐藏输入一致
@@ -200,8 +196,7 @@ function watchSource(node) {
 // 模板字符串内不能有任何反引号（会提前结束字面量、静默禁用整个扩展），
 // 也不能有 CSS unicode 转义（在模板字面量里是非法的八进制转义）。
 function injectCSS() {
-  if (document.getElementById("sf-outpaint-css")) return;
-  const css = `
+  injectCSSOnce("sf-outpaint-css", `
     .sf-op-root { position:relative; width:100%; height:100%; box-sizing:border-box;
       background:#1d1d1d; border-radius:4px; color:#ddd;
       font-family: ui-sans-serif, system-ui, sans-serif; font-size:11px; }
@@ -282,11 +277,7 @@ function injectCSS() {
     /* 按 inset 填充而非 flex：canvas 不关心宿主给父级什么 display。 */
     .sf-op-prev canvas { position:absolute; inset:0; width:100%; height:100%;
       display:block; }
-  `;
-  const s = document.createElement("style");
-  s.id = "sf-outpaint-css";
-  s.textContent = css;
-  document.head.appendChild(s);
+  `);
 }
 
 // ── row builders ───────────────────────────────────────────────────────────

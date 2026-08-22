@@ -20,7 +20,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { getSfAccent } from "./sf_common.js";
+import { getSfAccent, injectCSSOnce, sfToast } from "./sf_common.js";
 import { installGraphUndoGuard } from "./sf_prompt_tags_guard.js";
 import {
     getLibrary, reloadLibrary, isSameAsStored, commitLibrary, flushLibrary, applyImport,
@@ -123,10 +123,7 @@ function applyChange(mutate) {
 }
 
 function injectCSS() {
-    if (document.getElementById("sf-ptge-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ptge-css";
-    s.textContent = `
+    injectCSSOnce("sf-ptge-css", `
     .sf-ptge { position:fixed; inset:0; z-index:10040; background:#181818; color:#e6e6e6;
       font:14px 'Segoe UI',system-ui,sans-serif; display:flex; flex-direction:column; }
     .sf-ptge * { scrollbar-color:#3d3d3d #181818; scrollbar-width:thin; }
@@ -312,8 +309,7 @@ function injectCSS() {
     .sf-ptge-menu .mi.danger .cnt { color:#d98079; }
     .sf-ptge-btn.danger { border-color:#e2554a; color:#ff8378; background:rgba(226,85,74,.12); }
     .sf-ptge-btn.danger:hover { background:#e2554a; border-color:#e2554a; color:#fff; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 function hideCatMenu() { if (_catMenu) { _catMenu.remove(); _catMenu = null; } }
@@ -1606,9 +1602,7 @@ function confirmDanger({ title, lead, listing, confirmLabel, offerExport, export
 }
 
 function toast(sev, msg) {
-    const t = app?.extensionManager?.toast;
-    if (t?.add) t.add({ severity: sev, summary: "SF Prompt Tags", detail: msg, life: 2600 });
-    else console.warn("[sfnodes.PromptTags]", msg);
+    sfToast({ summary: "SF Prompt Tags", detail: msg, severity: sev, life: 2600, fallbackTag: "sfnodes.PromptTags" });
 }
 
 // 自包含的帮助面板，挂在 overlay 上（复用 modal 外观，X / 点击外部 / Escape 关闭）

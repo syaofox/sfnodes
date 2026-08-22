@@ -318,6 +318,72 @@ export async function copyText(text) {
   return ok;
 }
 
+// ── 微工具（守卫式 CSS 注入 / toast / DOM 快捷创建 / 隐藏 widget / canvas
+//    缩放比）────────────────────────────────────────────────────────────
+// 收敛自各 UI 模块内联副本（injectCSS ×23、toast ×4、el ×5、hideJsonWidget
+// ×3、canvasBackingScale ×2——复制后语义分叉是 bug 温床）。注意：本文件依赖
+// /scripts/app.js，纯逻辑模块不得 import 本文件（同上）。
+
+// 守卫式 style 注入（幂等）：id 已存在则跳过。各模块保留各自的 id/CSS 文本，
+// 注入机制单源。
+export function injectCSSOnce(id, css) {
+  if (document.getElementById(id)) return;
+  const s = document.createElement("style");
+  s.id = id;
+  s.textContent = css;
+  document.head.appendChild(s);
+}
+
+// ComfyUI extensionManager toast 封装：不可用时降级 console。summary 是分组
+// 标识（如 "SF Value Dropdown"）；fallbackTag 是无 toast 环境的 console 前缀。
+export function sfToast({ summary, detail, severity = "info", life = 3000, fallbackTag }) {
+  const t = app?.extensionManager?.toast;
+  if (t?.add) {
+    t.add({ severity, summary, detail, life });
+    return;
+  }
+  const fn = severity === "error" ? console.error : console.warn;
+  fn(`[${fallbackTag || summary}]`, detail);
+}
+
+// DOM 快捷创建：className + 可选 textContent（null/undefined 不设置）
+export function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// 隐藏内部序列化 widget（Vue 节点体也渲染 STRING widget，需 canvasOnly +
+// hidden + 隐藏 DOM 元素，两个渲染器都生效）。优先现代 widget.element；旧构建
+// 只有 widget.inputEl 时回退。
+export function hideJsonWidget(widgets, widgetName) {
+  const w = (widgets || []).find((x) => x.name === widgetName);
+  if (w) {
+    w.hidden = true;
+    w.computeSize = () => [0, -4];
+    if (!w.options) w.options = {};
+    w.options.canvasOnly = true;
+    const hideEl = () => { const el = w.element || w.inputEl; if (el) el.style.display = "none"; };
+    hideEl();
+    requestAnimationFrame(hideEl);
+  }
+  return w;
+}
+
+const CANVAS_BACKING_CAP = 6000;
+
+// CSS px → canvas 物理像素换算比（devicePixelRatio × canvas 缩放，上限封顶
+// 防大图爆显存）。
+export function canvasBackingScale(cssW, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  const zoom = Math.max(1, app.canvas?.ds?.scale || 1);
+  let s = dpr * zoom;
+  const longCss = Math.max(cssW || 0, cssH || 0);
+  if (longCss > 0 && longCss * s > CANVAS_BACKING_CAP) s = CANVAS_BACKING_CAP / longCss;
+  return s;
+}
+
 // ── 图片值解析（LoadImage widget 值 → {filename, subfolder, type}）────
 // 支持 "subfolder/name.png [output]" 注解与反斜杠路径。
 export function parseAnnotatedImageValue(value) {

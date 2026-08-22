@@ -9,7 +9,7 @@ import {
 } from "./sf_lora_stack_core.js";
 import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 import { openLoraPanel } from "./sf_lora_stack_settings.js";
 import { loadPresets, savePreset, deletePreset } from "./sf_lora_stack_api.js";
 
@@ -24,10 +24,7 @@ function closeRowMenu() {
 }
 
 export function injectMenuCSS() {
-    if (document.getElementById("sf-ls-menu-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ls-menu-css";
-    s.textContent = `
+    injectCSSOnce("sf-ls-menu-css", `
     .sf-ls-menu { position:fixed; z-index:10030; min-width:178px; max-width:300px;
       background:#2b2b2b; border:1px solid #4a4a4a; border-radius:8px;
       box-shadow:0 12px 34px rgba(0,0,0,0.65); overflow:hidden;
@@ -55,8 +52,7 @@ export function injectMenuCSS() {
     .sf-ls-menu .in .ok.pri { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; font-weight:600; }
     .sf-ls-menu .in .ok.pri:hover { filter:brightness(1.1); }
     .sf-ls-menu .msg { padding:6px 12px; font-size:11px; color:#c98a6a; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 // 菜单条目（共享：行菜单 + 预设菜单）。点击后先关菜单再回调。

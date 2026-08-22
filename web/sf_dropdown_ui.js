@@ -25,7 +25,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installCanvasZoomPassthrough, isVueNodes } from "./sf_common.js";
 import {
     ROW_H, MIN_W, BODY_PAD, readState, writeState, shownIndex,
     MODE_LETTERS, MODE_LABELS, MODES,
@@ -54,8 +54,6 @@ const GEAR_SVG = "data:image/svg+xml," + encodeURIComponent(
     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
     "</svg>"
 );
-
-let _cssDone = false;
 
 // 12px 匹配原生节点 widget——Pixaroma 行在 100% 缩放下就是这么大。
 const POPUP_BASE_FONT_PX = 12;
@@ -160,9 +158,7 @@ function scrollRegionWantsWheel(target, root, deltaX, deltaY) {
 
 // ── CSS ───────────────────────────────────────────────────────────────────
 export function injectCSS() {
-    if (_cssDone) return;
-    _cssDone = true;
-    const css = `
+    injectCSSOnce("sf-dd-css", `
   .${ROW_CLASS}{
     /* 确定高度，永不用 100%。Nodes 2.0 的 widget 行是 min-content grid track，
        高度不确定的行会塌陷（实测 2px 行）。Legacy 用显式元素高度掩盖了 bug。 */
@@ -280,11 +276,7 @@ export function injectCSS() {
   .lg-node:has(.${ROW_CLASS}) .lg-slot--output{ padding-left:0 !important; pointer-events:none; }
   .lg-node:has(.${ROW_CLASS}) .lg-slot--output > div:first-child{ display:none !important; }
   .lg-node:has(.${ROW_CLASS}) .lg-slot--output [data-testid="slot-connection-dot"]{ pointer-events:auto; }
-  `;
-    const tag = document.createElement("style");
-    tag.id = "sf-dd-css";
-    tag.textContent = css;
-    document.head.appendChild(tag);
+`);
 }
 
 /**

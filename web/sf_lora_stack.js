@@ -8,15 +8,7 @@
 // 齿轮面板、下拉和行菜单在姊妹模块。
 // ==========================================================================
 import { app } from "/scripts/app.js";
-import {
-    applyAdaptiveCanvasOnly,
-    applySfAccentVar,
-    installCanvasZoomPassthrough,
-    isGraphLoading,
-    isVueNodes,
-    LORA_DISPLAY_MODES,
-    LORA_DISPLAY_SETTING,
-} from "./sf_common.js";
+import { LORA_DISPLAY_MODES, LORA_DISPLAY_SETTING, applyAdaptiveCanvasOnly, applySfAccentVar, hideJsonWidget as hideJsonWidgetWidgets, installCanvasZoomPassthrough, isGraphLoading, isVueNodes } from "./sf_common.js";
 import { listLoras, invalidateList, invalidateAllInfo } from "./sf_lora_stack_api.js";
 import {
     HIDDEN_INPUT, DEFAULT_STATE,
@@ -40,17 +32,10 @@ const VUE_CHROME = 96;  // Nodes 2.0 回退（槽带绝对定位，不占 widget
 // widget——它会渲染成显示原始 JSON 的 textarea（Note 上见过）；canvasOnly
 // 把它排除出 Vue 体（shouldRenderAsVue = !canvasOnly）并排除出 legacy
 // Parameters 标签页。这是内部序列化 widget，两个渲染器都必须保持隐藏。
+// 签名兼容包装：本体在 sf_common.hideJsonWidget(widgets, name)（load_image /
+// image_resize 同款）。
 export function hideJsonWidget(node) {
-    const w = node.widgets?.find((x) => x.name === HIDDEN_INPUT);
-    if (!w) return;
-    w.hidden = true;
-    w.computeSize = () => [0, -4];
-    if (!w.options) w.options = {};
-    w.options.canvasOnly = true;
-    // 优先现代 widget.element；旧构建只有 widget.inputEl 时回退。
-    const hideEl = () => { const el = w.element || w.inputEl; if (el) el.style.display = "none"; };
-    hideEl();
-    requestAnimationFrame(hideEl);
+    hideJsonWidgetWidgets(node.widgets, HIDDEN_INPUT);
 }
 
 function widgetH(node) { return contentHeight(readState(node)); }

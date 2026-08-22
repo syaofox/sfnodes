@@ -22,7 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, isVueNodes, installWheelZoomPassthrough } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installWheelZoomPassthrough, isVueNodes } from "./sf_common.js";
 
 const CLASS = "SFPromptList";
 const WIDGET_TYPE = "sf_prompt_list_editor";
@@ -46,10 +46,7 @@ function needsMeasure(text, cw) {
 }
 
 function injectCSS() {
-  if (document.getElementById("sf-pl-css")) return;
-  const s = document.createElement("style");
-  s.id = "sf-pl-css";
-  s.textContent = `
+  injectCSSOnce("sf-pl-css", `
 .sf-pl-root { position:relative; display:flex; flex-direction:column; flex:1 1 0;
   min-height:0; box-sizing:border-box; padding:${PAD}px; gap:${PAD}px;
   font:12px sans-serif; color:#ddd; overflow:hidden; background:transparent; }
@@ -78,8 +75,7 @@ function injectCSS() {
   background:transparent; color:#e0e0e0; border:0; outline:none; resize:none;
   font:12px monospace; line-height:1.4; padding:6px 8px; }
 .sf-pl-ta::placeholder { color:#5c5c5c; font-style:italic; }
-`;
-  document.head.appendChild(s);
+`);
 }
 
 // 隐藏原生 multiline_text widget（保留其 .value 作值真源）。

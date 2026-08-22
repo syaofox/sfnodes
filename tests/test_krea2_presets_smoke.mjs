@@ -23,10 +23,16 @@ fs.writeFileSync(path.join(tmp, "sf_popup.mjs"),
     "export function attachPopupDismiss(){ return () => {}; }\n" +
     "export function clampToViewport(){ return null; }\n");
 
+// ── stub sf_common（el/injectCSSOnce 收敛后的新依赖，本测试不触发其行为）──
+fs.writeFileSync(path.join(tmp, "sf_common.mjs"),
+    "export function el(tag, cls, text) { const e = { tagName: tag }; if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }\n" +
+    "export function injectCSSOnce() {}\n");
+
 // ── 转换并写模块 ──
 let src = fs.readFileSync(path.join(WEB, "sf_krea2_presets.js"), "utf-8");
 src = src.replace('import { app } from "/scripts/app.js";', 'import { app } from "./stub_app.mjs";');
 src = src.replace('from "./sf_popup.js"', 'from "./sf_popup.mjs"');
+src = src.replace('from "./sf_common.js"', 'from "./sf_common.mjs"');
 fs.writeFileSync(path.join(tmp, "sf_krea2_presets.mjs"), src);
 
 // ── mock document / CustomEvent / fetch ──

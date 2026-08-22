@@ -11,7 +11,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { sfApiUrl, isGraphLoading, installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough, isGraphLoading, sfApiUrl } from "./sf_common.js";
 
 const STATE_PROP = "promptReaderState";
 
@@ -132,13 +132,8 @@ async function ensureSourceIsInput(node, saved) {
 
 // ── CSS injection ──────────────────────────────────────────────────────────
 
-let _cssInjected = false;
 function injectCSS() {
-  if (_cssInjected) return;
-  _cssInjected = true;
-  const style = document.createElement("style");
-  style.id = "sf-pr-css";
-  style.textContent = `
+  injectCSSOnce("sf-pr-css", `
     /* Nodes 2.0 renders its own .image-preview panel (fed by ComfyUI's
        internal node-preview state, NOT node.imgs which we lock to []). It
        goes stale on programmatic file changes and we don't want an image
@@ -351,8 +346,7 @@ function injectCSS() {
     .sf-pr-popup-item:hover { background: #2a2a2a; }
     .sf-pr-popup-item.active { color: var(--sf-acc, #f66744); font-weight: 600; }
     .sf-pr-popup-empty { padding: 8px; color: #666; }
-  `;
-  document.head.appendChild(style);
+  `);
 }
 
 // ── DOM build ──────────────────────────────────────────────────────────────

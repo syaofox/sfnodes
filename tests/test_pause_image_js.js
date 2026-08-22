@@ -7,9 +7,21 @@ const os = require("os");
 const path = require("path");
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_pi_js_"));
-for (const n of ["sf_pause_text_lib.js", "sf_pause_image_lib.js"]) {
-    fs.copyFileSync(path.join(__dirname, "..", "web", n), path.join(tmpDir, n.replace(/\.js$/, ".mjs")));
+// text_lib 是纯模块原样拷贝；kit 依赖 /scripts/app.js、/scripts/api.js，
+// 改写为 globalThis 桩后拷贝
+fs.copyFileSync(path.join(__dirname, "..", "web", "sf_pause_text_lib.js"), path.join(tmpDir, "sf_pause_text_lib.mjs"));
+{
+    const code = fs.readFileSync(path.join(__dirname, "..", "web", "sf_pause_kit.js"), "utf8")
+        .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
+        .replaceAll('import { api } from "/scripts/api.js";', "const api = globalThis.api;")
+        .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
+    fs.writeFileSync(path.join(tmpDir, "sf_pause_kit.mjs"), code);
 }
+// kit 依赖的 sf_common 桩（makeGateState 路径不会真正调用）
+fs.writeFileSync(path.join(tmpDir, "sf_common.mjs"),
+    "export function applyAdaptiveCanvasOnly() {}\n"
+    + "export function sfApiUrl(r) { return r; }\n"
+    + "export function injectCSSOnce() {}\n");
 
 const failures = [];
 function check(name, cond) {
@@ -18,8 +30,9 @@ function check(name, cond) {
 }
 
 (async () => {
-    const L = await import(path.join(tmpDir, "sf_pause_image_lib.mjs"));
+    const K = await import(path.join(tmpDir, "sf_pause_kit.mjs"));
     const P = await import(path.join(tmpDir, "sf_pause_text_lib.mjs"));
+    const L = K.makeGateState("pauseImageState");
     const { STATE_PROP, getState, setGate } = L;
     const { applyGateMode } = P;
 

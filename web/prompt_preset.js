@@ -1,6 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 const DISABLED = "禁用";
 
@@ -51,7 +51,6 @@ let pickerGroup = null; // null = 全部
 let pickerSearch = "";
 let lastPickerCategory = null;
 let lastPickerGroup = null;
-let pickerStyleInjected = false;
 
 const PICKER_CSS = `
 .sf-preset-picker-overlay{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;}
@@ -78,11 +77,7 @@ const PICKER_CSS = `
 `;
 
 function injectPickerStyle() {
-    if (pickerStyleInjected) return;
-    pickerStyleInjected = true;
-    const style = document.createElement("style");
-    style.textContent = PICKER_CSS;
-    document.head.appendChild(style);
+    injectCSSOnce("sf-pp-picker-css", PICKER_CSS);
 }
 
 function widgetForCategory(category) {

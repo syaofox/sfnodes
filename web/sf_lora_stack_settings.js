@@ -7,7 +7,7 @@ import {
     readState, writeState, accentOf, saveDefaults, roundStrength,
 } from "./sf_lora_stack_core.js";
 import { getCivitaiAccount, setCivitaiAccount } from "./sf_lora_stack_api.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { el, injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 let _panel = null;
 let _panelNode = null;
@@ -15,18 +15,8 @@ let _refresh = null;
 let _followRaf = null;   // 画布跟随循环，见 startFollowing()
 let _userMoved = false;  // 用户拖过面板，停止跟随
 
-function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-}
-
 function injectCSS() {
-    if (document.getElementById("sf-lsp-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-lsp-css";
-    s.textContent = `
+    injectCSSOnce("sf-lsp-css", `
     .sf-lsp { position:fixed; z-index:10010; width:290px; max-width:94vw; background:#1a1a1a;
       border:1px solid #4a4a4a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
       color:#d8d8d8; font:12px 'Segoe UI',system-ui,sans-serif; overflow:hidden; }
@@ -79,8 +69,7 @@ function injectCSS() {
     .sf-lsp-state { flex:1; font-size:11px; color:#7a7a7a; }
     .sf-lsp-state.set { color:#3ec371; }
     .sf-lsp-msg { font-size:10px; line-height:1.4; color:#c98a6a; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 // 导出供信息面板以相同几何放置（含下面 Classic 回退——

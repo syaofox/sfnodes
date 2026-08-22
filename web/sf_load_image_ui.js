@@ -5,19 +5,15 @@
 
 import { app } from "/scripts/app.js";
 import { setSelectedImage, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
-import { sfApiUrl, installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough, sfApiUrl } from "./sf_common.js";
 
 // 图标内联 data URI（本项目无资产服务路由，惯例见 sf_workflows_ui.js）
 const ICON_UPLOAD = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M58.115,1.482H5.885C3.239,1.482,1.094,3.627,1.094,6.273v51.453c0,2.646,2.145,4.791,4.791,4.791h52.23c2.646,0,4.791-2.145,4.791-4.791V6.273c0-2.646-2.145-4.791-4.791-4.791ZM49.641,28.696h-11.702v24.054c0,1.147-.93,2.077-2.077,2.077h-7.726c-1.147,0-2.077-.93-2.077-2.077v-24.054h-11.702c-2.409,0-3.487-3.024-1.62-4.547l17.641-14.398c.472-.384,1.046-.577,1.62-.577s1.149.193,1.62.577l17.641,14.398c1.867,1.523.789,4.547-1.62,4.547Z"/></svg>');
 const ICON_SWAP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M13.622,36.23L.925,20.673c-.339-.416-.509-.922-.509-1.429s.17-1.013.509-1.429L13.622,2.259c1.344-1.646,4.01-.696,4.01,1.429v10.319h41.824c1.027,0,1.86.833,1.86,1.86v6.756c0,1.027-.833,1.86-1.86,1.86H17.632v10.319c0,2.125-2.666,3.075-4.01,1.429ZM63.491,43.327l-12.697-15.557c-1.344-1.646-4.01-.696-4.01,1.429v10.319H4.96c-1.027,0-1.86.833-1.86,1.86v6.756c0,1.027.833,1.86,1.86,1.86h41.824v10.319c0,2.125,2.667,3.075,4.01,1.429l12.697-15.557c.339-.416.509-.922.509-1.429s-.17-1.013-.509-1.429Z"/></svg>');
 const ICON_MAGNET = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M47.374,44.366v16.382h-17.717c-8.086-.123-15.546-3.579-20.886-9.379C-2.891,38.703-.815,18.774,13.166,8.738c4.612-3.311,10.005-5.282,15.879-5.494h18.329v16.358h-17.768c-3.033.264-5.706,1.331-7.901,3.368-3.232,2.999-4.652,7.339-3.698,11.679,1.183,5.378,5.755,9.212,11.26,9.717h18.107ZM60.934,60.745c1.159-.073,1.924-.914,1.861-2.07v-12.166c.087-1.093-.71-2.148-1.86-2.15h-9.945v16.386h9.944ZM61.252,19.605c.997-.198,1.615-1.05,1.545-2.064V5.265c.026-1.005-.7-2.027-1.785-2.03h-10.021v16.37h10.262Z"/></svg>');
 
-let _cssInjected = false;
-
 export function injectCSS() {
-  if (_cssInjected) return;
-  _cssInjected = true;
-  const css = `
+  injectCSSOnce("sf-load-image-css", `
     .sf-li-root {
       width: 100%;
       box-sizing: border-box;
@@ -646,11 +642,7 @@ export function injectCSS() {
     .sf-li-pop-empty { padding:10px; color:#666; text-align:center; }
     .sf-li-pop-foot { padding:6px 10px; font-size:9px; color:#777; background:#141414;
       border-top:1px solid #333; text-align:center; }
-  `;
-  const el = document.createElement("style");
-  el.id = "sf-load-image-css";
-  el.textContent = css;
-  document.head.appendChild(el);
+  `);
 }
 
 export function buildRoot() {

@@ -14,7 +14,7 @@ sfnodes/
 ├── requirements.txt # Python 依赖（仅声明，不在本机安装）
 ├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
 ├── sf_utils/        # 共享工具库（无状态纯函数为主）：image/mask 转换、lora_* 系列、resize_engine / dropdown / regional_engine / krea2_presets / disk_state / prompt_reader 等纯逻辑模块
-├── web/             # 前端 JS Widget：sf_common.js（公共小工具/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
+├── web/             # 前端 JS Widget：sf_common.js（公共小工具/微工具 injectCSSOnce·sfToast·el·hideJsonWidget/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
 ├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、CSV/字体等）
 ├── tests/           # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 └── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 六主题文件）/ vibecoding.md 任务模板
@@ -55,7 +55,7 @@ class SFMyNode:
 ## Code Style
 
 - Python 3.10+，无类型注解强制；用 `_CATEGORY` 模块级常量定义分类前缀；工具函数放 `sf_utils/`（无状态纯函数），节点放 `nodes/<组>/`
-- JS Widget 放 `web/`；**动手前先查公共模块复用**：前端 `sf_common.js`（小工具/强调色/LoRA 行名）、`sf_dynamic_slots.js`（动态槽位）、`sf_popup.js`（新弹层优先，见 experience/patterns.md §26）、`sf_crop_framework.js`（编辑器框架）；后端 `disk_state.py` 与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止内联副本**
+- JS Widget 放 `web/`；**动手前先查公共模块复用**：前端 `sf_common.js`（小工具/微工具 injectCSSOnce·sfToast·el·hideJsonWidget/强调色/LoRA 行名）、`sf_dynamic_slots.js`（动态槽位）、`sf_popup.js`（新弹层优先，见 experience/patterns.md §26）、`sf_crop_framework.js`（编辑器框架）；后端 `disk_state.py` 与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止内联副本**
 - **纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import sf_common.js**（它依赖 /scripts/app.js）；通用纯函数共享放无依赖模块
 - **注册规范**（由 `tests/check_web_imports.py` 固化校验）：registerExtension 文件必须直接 `import { app } from "/scripts/app.js"`（禁相对路径）、扩展注册名 `sfnodes.*` 前缀、相对导入目标必须存在；新增 web 模块需加入该脚本 MODS 列表
 - 子目录 `__init__.py` 为空（`nodes/utils/` 无此文件走 namespace package），仅根 `__init__.py` 负责注册
@@ -98,7 +98,7 @@ class SFMyNode:
 - **动态槽位**（platform §2.7）：改槽名必须同步 name+localized_name（渲染读 label ?? localized_name ?? name）；configure 直赋 links 不触发 onConnectionsChange。
 - **isGraphLoading / 接线互斥守卫**（image §13 / text §15）：包装 loadGraphData +300ms 尾窗（连接恢复发生在 onConfigure 之后）；互斥断线三重守卫 = onConfigure 窗口 + 尾窗 + 自递归标志。
 - **Vue 新版前端**（platform §2.8 / apps §30）：先容器内 `pip show comfyui-frontend-package` 确认版本（1.x=Vue）；槽位数组 shallowReactive 替换元素才触发渲染；动态 tooltip 写 widget.tooltip（nodeDef 兜底清不掉）；程序化建节点走官方 `Comfy.AddNode` 命令（裸 createNode+graph.add 只弹 toast 不渲染）。
-- **四闸门 prune 共用一份实现**（text §7 / image §8·§9·§22）：text/image/mask/latent 全走 `sf_pause_text_lib.js::applyGateMode`（latent 加 extraInputKeys）；快照文件前缀隔离命名空间（图片 PNG / 遮罩灰度 PNG / latent safetensors 全张量键）；PNG 拖回嵌入前 _json_safe（NaN/Inf→字符串）；_safe_prefix 先查 ".."/绝对路径再清洗。
+- **四闸门 prune 共用一份实现**（text §7 / image §8·§9·§22）：text/image/mask/latent 全走 `sf_pause_text_lib.js::applyGateMode`（latent 加 extraInputKeys）；image/mask/latent 三闸门主扩展/UI/state 克隆已收敛 `sf_pause_kit.js`（definePauseGate/buildPauseBody/makeGateState 工厂，text 结构独立不入 kit）——改闸门行为只动 kit，⚠ frameEventKey 与 `_sfPauseXxx*` 属性前缀逐字保留；快照文件前缀隔离命名空间（图片 PNG / 遮罩灰度 PNG / latent safetensors 全张量键）；PNG 拖回嵌入前 _json_safe（NaN/Inf→字符串）；_safe_prefix 先查 ".."/绝对路径再清洗。
 - **双端镜像**（text §14/§15 / patterns §27）：替换/数字语法逻辑 Python 权威 + JS 预览镜像，两侧测试同用例同期望值锁定；ReDoS 启发式（嵌套量词+交替型）双端 1:1（regex_extract 复用、内置预设跳过）；数字契约 _NUMBER_RE/_JS_WHITESPACE/half-away-from-zero 取整。
 - **lean 注入作缓存键**（text §6/§15）：graphToPrompt 注入只含影响结果的字段（选中值+类型）——改行名/重排/切模式不重跑；游标 pending 在 queue 成功后 commitPick，位置存节点内存或未注册设置按共享范围选，写 properties 会误标 modified。
 - **SF Workflows 面板**（apps §10）：面板是"应用"非节点（分享工作流不携带）；热键避开原版 combo（全局去重报错）；sidecar meta 读写 asyncio.Lock 防读改写互擦；收藏前先 await loadBookmarks()。

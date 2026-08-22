@@ -13,15 +13,11 @@ import { api } from "/scripts/api.js";
 import {
     ancestorsOf, hasChildren, openSet, folderColor,
 } from "./sf_workflows_lib.js";
-import { sfApiUrl, copyText, installWheelZoomPassthrough } from "./sf_common.js";
+import { copyText, el, injectCSSOnce, installWheelZoomPassthrough, sfApiUrl } from "./sf_common.js";
 
 /** 微型 DOM 助手。每个面板都恰好想要这个。 */
-export const el = (tag, cls, text) => {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-};
+// el 收敛于 sf_common（re-export 维持 sf_workflows.js 的既有导入路径）
+export { el } from "./sf_common.js";
 
 // ── "面板正在自我重绘吗？" ──────────────────────────────────────────────
 export { sfApiUrl };
@@ -180,14 +176,8 @@ export function makeRect({
 // 是 <body> 的 fixed 子元素，不会从面板继承）。
 const z = (n) => `calc(${n}px * var(--sfwb-k, 1))`;
 
-let _cssInjected = false;
-
 export function injectWorkflowCSS() {
-    if (_cssInjected) return;
-    _cssInjected = true;
-    const s = document.createElement("style");
-    s.id = "sf-wb-css";
-    s.textContent = `
+    injectCSSOnce("sf-wb-css", `
 :root { --sfwb-k:1; --sfwb-acc:var(--sf-acc, #f66744); }
 .sf-wb-win { position:fixed; z-index:9980; background:#1b1a19; border:1px solid #3d3936;
   border-radius:${z(10)}; box-shadow:0 20px 60px rgba(0,0,0,.6); flex-direction:column;
@@ -353,8 +343,7 @@ export function injectWorkflowCSS() {
 .sf-wb-tdbtn.primary { background:var(--sfwb-acc); border-color:var(--sfwb-acc); color:#fff; }
 .sf-wb-tdbtn.danger { border-color:#a8543f; color:#ff8d7d; background:rgba(168,84,63,.15); }
 .sf-wb-tdgroup { border:1px solid #33302e; border-radius:${z(6)}; padding:${z(4)}; margin-bottom:${z(6)}; }
-`;
-    document.head.appendChild(s);
+`);
 }
 
 // ── 窗口 ──────────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveC
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData, mergeLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { copyText } from "./sf_workflows_ui.js";
-import { escapeHtml, installWheelZoomPassthrough } from "./sf_common.js";
+import { el, escapeHtml, injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 let _panel = null;
 let _cleanup = null;
@@ -42,10 +42,7 @@ const _PANEL_MIN_W = 280;
 const _PANEL_MIN_H = 240;
 
 function injectCSS() {
-    if (document.getElementById("sf-ls-info-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ls-info-css";
-    s.textContent = `
+    injectCSSOnce("sf-ls-info-css", `
     .sf-ls-info-p { position:fixed; z-index:10025; width:420px; max-width:94vw; background:#2b2b2b;
       border:1px solid var(--acc, var(--sf-acc, #f66744)); border-radius:10px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
@@ -230,8 +227,7 @@ function injectCSS() {
     .sf-ls-confirm-f .b.pri:hover { filter:brightness(1.1); }
     .sf-ls-confirm-f .b.gh { border:1px solid rgba(255,255,255,0.18); color:#ccc; }
     .sf-ls-confirm-f .b.gh:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 // ── Description 内嵌示例图（与 sf_lora_info.js 编辑器同款机制）─────────────
@@ -493,13 +489,6 @@ function doCloseInfoPanel() {
 // 只在本节点拥有打开的面板时关闭（删除无关的 LoRA Stack 节点不能扯走
 // 另一个节点开着的面板）。节点删除路径不弹未保存确认——删除不能被阻塞。
 export function closeInfoPanelFor(node) { if (_ownerKey === node) doCloseInfoPanel(); }
-
-function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-}
 
 // 在节点旁放置面板。必须在第一次 await 前调用，否则 fetch 期间面板画在
 // 视口左上角：`.sf-ls-info-p` 是 position:fixed 无 left/top，直到这里运行

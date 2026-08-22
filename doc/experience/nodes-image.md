@@ -51,10 +51,10 @@
 
 - `nodes/image/pause_image.py`：节点（快照/continue 读回/无 IS_CHANGED）+ `_json_safe`。
 - `nodes/image/preview_routes.py`：save/prepare 路由 + `_safe_prefix`/`_sanitize_segment`/`_decode_image`/`_build_pnginfo`/`_metadata_disabled`。
-- `web/sf_pause_image_lib.js`：state（{gate, frame}，30 行）。
-- `web/sf_pause_image_ui.js`：DOM widget（预览/按钮行/尺寸行）+ `frameViewUrl`（/view + 缓存戳）。
-- `web/sf_pause_image.js`：主扩展（双钩子/Save 链路/Copy/Open/executed）。
-- prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（两闸门共用，勿复制）。
+- `web/sf_pause_kit.js::makeGateState`：state 工厂（{gate, frame}，image/mask/latent 共用；原 sf_pause_image_lib.js 已并入 kit 删除）。
+- `web/sf_pause_kit.js::buildPauseBody`：DOM widget 工厂（预览/按钮行/尺寸行 + frameViewUrl /view+缓存戳；原 sf_pause_image_ui.js 已并入 kit 删除）。
+- `web/sf_pause_image.js`：薄配置（调 definePauseGate；双钩子/Save 链路/Copy/Open/executed 全在 kit）。
+- prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（四闸门共用，勿复制）。
 
 ---
 
@@ -68,7 +68,7 @@
 - **tensor 转换防御非标准 `[1,H,W]`**：部分节点输出的 MASK 带单例通道维（`arr.ndim == 3 and arr.shape[0] == 1` → `arr[0]` 压平）——标准帧是 `[H,W]`，不防御会因 3D 数组直接炸。
 - **读回对齐**：`_pil_to_mask` 用 `torch.from_numpy(arr)[None, ...]` 补 batch 维回 `1xHxW`，与 ComfyUI 遮罩张量格式一致。
 - **快照前缀 `sf_pause_mask_`**：与图片闸门的 `sf_pause_` 隔离命名空间（同 node_id 不撞文件；语义也清晰）。
-- **frame 键/state 键**：executed 回填帧键 `sf_pause_mask_frame`；状态存 `node.properties.pauseMaskState`（{gate, frame}）。lib 与 sf_pause_image_lib.js 是 30 行平行实现，仅 STATE_PROP 键名不同。
+- **frame 键/state 键**：executed 回填帧键 `sf_pause_mask_frame`；状态存 `node.properties.pauseMaskState`（{gate, frame}）。三闸门 state 同构，已收敛 sf_pause_kit.js::makeGateState（仅 stateProp 配置不同）。
 
 ### 2. 剪枝共享（三闸门同一份实现）
 
@@ -84,9 +84,8 @@
 ### 4. 模块边界（复用/修改时的快速索引）
 
 - `nodes/mask/pause_mask.py`：节点（快照 L 模式/读回 [1,H,W] 防御/无 IS_CHANGED）+ `_json_safe`。
-- `web/sf_pause_mask_lib.js`：state（{gate, frame}，平行实现仅键名不同）。
-- `web/sf_pause_mask_ui.js`：DOM widget（遮罩灰度预览/按钮行）+ frameViewUrl。
-- `web/sf_pause_mask.js`：主扩展（双钩子/Save/Copy/Open/executed）。
+- `web/sf_pause_kit.js`：state/UI/主扩展引擎（image/mask/latent 共用；原 mask lib/ui 平行副本已并入 kit 删除，仅 stateProp="pauseMaskState" 等配置差异）。
+- `web/sf_pause_mask.js`：薄配置（调 definePauseGate）。
 - prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（**三闸门共用**，勿复制）。
 
 ---
@@ -248,7 +247,6 @@
 ### 3. 模块边界
 
 - `nodes/image/pause_latent.py`：节点（快照/continue 读回/无 IS_CHANGED）。
-- `web/sf_pause_latent_lib.js`：state + prune（复用 `sf_pause_text_lib.js::applyGateMode` + extraInputKeys）。
-- `web/sf_pause_latent_ui.js`：DOM widget（latent/预览）。
-- `web/sf_pause_latent.js`：主扩展（双钩子/Save/Copy/Open/executed）。
+- `web/sf_pause_kit.js`：state/prune/UI/主扩展引擎（prune 仍复用 `sf_pause_text_lib.js::applyGateMode`，extraInputKeys:["image"] 由薄配置传入）。
+- `web/sf_pause_latent.js`：薄配置（调 definePauseGate）。
 - 测试：`tests/test_pause_latent.py` + `test_pause_latent_js.js`（快照 round-trip、extraInputKeys 仅 continue 生效）。

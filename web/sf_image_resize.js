@@ -10,7 +10,7 @@
 // into the prompt by the graphToPrompt hook below (subgraph-safe).
 
 import { app } from "/scripts/app.js";
-import { isGraphLoading, isVueNodes, applyAdaptiveCanvasOnly, installCanvasZoomPassthrough } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, canvasBackingScale, hideJsonWidget, installCanvasZoomPassthrough, isGraphLoading, isVueNodes, sfToast } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { renderUI, injectCSS, measureContentHeight, refreshReadout, paintReadout } from "./sf_image_resize_ui.js";
 import { STATE_PROP, HIDDEN_INPUT, DEFAULT_STATE } from "./sf_image_resize_ui.js";
@@ -22,31 +22,8 @@ const CARDS_CANVAS_H = 100;
 
 // ── 共享小工具（isGraphLoading / canvasZoom / URL 等）收敛于 sf_common.js ─
 
-function hideJsonWidget(widgets, widgetName) {
-  const w = (widgets || []).find((x) => x.name === widgetName);
-  if (w) {
-    w.hidden = true;
-    w.computeSize = () => [0, -4];
-    if (!w.options) w.options = {};
-    w.options.canvasOnly = true;
-    const hideEl = () => { const el = w.element || w.inputEl; if (el) el.style.display = "none"; };
-    hideEl();
-    requestAnimationFrame(hideEl);
-  }
-  return w;
-}
-
 // 工作流加载守卫（wrap app.loadGraphData + 300ms 尾窗）由 sf_common.js
 // 顶层统一安装（幂等单例），此处不再重复包装。
-const CANVAS_BACKING_CAP = 6000;
-function canvasBackingScale(cssW, cssH) {
-  const dpr = window.devicePixelRatio || 1;
-  const zoom = Math.max(1, app.canvas?.ds?.scale || 1);
-  let s = dpr * zoom;
-  const longCss = Math.max(cssW || 0, cssH || 0);
-  if (longCss > 0 && longCss * s > CANVAS_BACKING_CAP) s = CANVAS_BACKING_CAP / longCss;
-  return s;
-}
 
 // ── 节点行为 ─────────────────────────────────────────────────────────────────
 
@@ -67,8 +44,7 @@ function refit(node) {
 
 // Small toast. Silent no-op if the toast API isn't present, so it never throws.
 function toast(msg) {
-  const t = app?.extensionManager?.toast;
-  if (t?.add) t.add({ severity: "info", summary: "SF Image Resize", detail: msg, life: 2500 });
+  sfToast({ summary: "SF Image Resize", detail: msg, life: 2500 });
 }
 
 // Disconnect a named input if it currently has a wire. Returns true if it did.

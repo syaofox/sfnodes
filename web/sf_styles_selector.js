@@ -9,7 +9,7 @@
 // - 纯逻辑（解析/排序/过滤/语言化）在 sf_styles_selector_lib.js
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, installWheelZoomPassthrough, isGraphLoading, isVueNodes, sfApiUrl } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installWheelZoomPassthrough, isGraphLoading, isVueNodes, sfApiUrl } from "./sf_common.js";
 import * as lib from "./sf_styles_selector_lib.js";
 
 const NODE_TYPE = "SFStylesSelector";
@@ -44,11 +44,7 @@ function refreshAll() {
 }
 
 function injectCSS() {
-  const id = "sf-styles-selector-css";
-  if (document.getElementById(id)) return;
-  const style = document.createElement("style");
-  style.id = id;
-  style.textContent = `
+  injectCSSOnce("sf-styles-selector-css", `
 .sf-ss-root{display:flex;flex-direction:column;gap:6px;height:100%;box-sizing:border-box;padding:4px 6px;position:relative;overflow:visible;}
 .sf-ss-tools{display:flex;gap:6px;flex:0 0 auto;}
 .sf-ss-search{flex:1;min-width:0;resize:none;font:12px sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:4px 6px;height:28px;box-sizing:border-box;outline:none;}
@@ -89,8 +85,7 @@ function injectCSS() {
 .sf-ss-poppos b{color:#7bd88f;}
 .sf-ss-poppos span{color:#9ecfa8;}
 .sf-ss-popneg b{color:#e8928a;}
-.sf-ss-popneg span{color:#cfa39e;}`;
-  document.head.appendChild(style);
+.sf-ss-popneg span{color:#cfa39e;}`);
 }
 
 // 样式库列表缓存（promise 级，避免加载期重复请求；失败缓存空列表会话内不重试）

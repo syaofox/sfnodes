@@ -12,6 +12,7 @@
 
 import { app } from "/scripts/app.js";
 import { attachPopupDismiss, clampToViewport } from "./sf_popup.js";
+import { el, injectCSSOnce } from "./sf_common.js";
 
 const KIND_LABEL = {
   interrogator: "反推预设",
@@ -334,18 +335,9 @@ export async function openPresetManager(kind, node, anchor) {
 }
 
 // ── DOM helpers ─────────────────────────────────────────────────────────
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined && text !== null) e.textContent = text;
-  return e;
-}
 
 function injectCSS() {
-  if (document.getElementById("sf-k2p-css")) return;
-  const css = document.createElement("style");
-  css.id = "sf-k2p-css";
-  css.textContent = `
+  injectCSSOnce("sf-k2p-css", `
 .sf-k2p-manage{width:100%;height:auto;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--sf-acc,#f66744);border-radius:4px;padding:2px 6px;font-size:12px;text-align:center;flex-shrink:0}
 .sf-k2p-manage:hover{background:rgba(255,255,255,.12)}
 .sf-k2p{position:fixed;z-index:10000;min-width:320px;max-width:420px;max-height:70vh;overflow:auto;background:#222;border:1px solid #444;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.5);color:#ddd;font-size:13px;display:flex;flex-direction:column}
@@ -374,6 +366,5 @@ function injectCSS() {
 .sf-k2p-input{background:#1b1b1b;border:1px solid #444;color:#eee;border-radius:4px;padding:4px 6px}
 .sf-k2p-textarea{background:#1b1b1b;border:1px solid #444;color:#eee;border-radius:4px;padding:6px;min-height:120px;resize:vertical;font-family:inherit;font-size:12px}
 .sf-k2p-form .sf-k2p-ops{justify-content:flex-end;margin-top:4px}
-`;
-  document.head.appendChild(css);
+`);
 }

@@ -5,16 +5,13 @@
 // ==========================================================================
 import { BRAND } from "./sf_lora_stack_core.js";
 import { listLoras } from "./sf_lora_stack_api.js";
-import { installWheelZoomPassthrough } from "./sf_common.js";
+import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 let _pop = null;
 let _cleanup = null;
 
 function injectCSS() {
-    if (document.getElementById("sf-ls-dd-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-ls-dd-css";
-    s.textContent = `
+    injectCSSOnce("sf-ls-dd-css", `
     .sf-ls-dd { position:fixed; z-index:10020; width:300px; max-width:92vw; background:#242424;
       border:1px solid ${"var(--sf-acc, #f66744)"}; border-radius:9px; box-shadow:0 14px 44px rgba(0,0,0,0.6);
       overflow:hidden; font:12px 'Segoe UI',system-ui,sans-serif; color:#ddd;
@@ -49,8 +46,7 @@ function injectCSS() {
     .sf-ls-dd-back { padding:6px 12px; cursor:pointer; color:#9a9a9a; font:11px 'Segoe UI'; }
     .sf-ls-dd-back:hover { color:${"var(--sf-acc, #f66744)"}; }
     .sf-ls-dd-empty { padding:14px 12px; color:#777; text-align:center; }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 export function closeLoraDropdown() {

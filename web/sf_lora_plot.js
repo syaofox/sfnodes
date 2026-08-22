@@ -10,13 +10,7 @@
 // parse_state 契约。
 // ==========================================================================
 import { app } from "/scripts/app.js";
-import {
-    applyAdaptiveCanvasOnly,
-    installCanvasZoomPassthrough,
-    installWheelZoomPassthrough,
-    isGraphLoading,
-    isVueNodes,
-} from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, injectCSSOnce, installCanvasZoomPassthrough, installWheelZoomPassthrough, isGraphLoading, isVueNodes } from "./sf_common.js";
 import { listLoras, invalidateList, hasLora } from "./sf_lora_stack_api.js";
 import {
     HIDDEN_INPUT, DEFAULT_STATE, MAX_LORAS,
@@ -92,10 +86,7 @@ function renderAllPlots() {
 
 // plot 专用 CSS（行主体全部复用 .sf-ls-*；这里只补 band 布局与 ✕ 删除钮）。
 function injectPlotCSS() {
-    if (document.getElementById("sf-plot-css")) return;
-    const s = document.createElement("style");
-    s.id = "sf-plot-css";
-    s.textContent = `
+    injectCSSOnce("sf-plot-css", `
     .sf-plot-band { display:flex; align-items:stretch; gap:6px; height:${BAND_H}px; }
     .sf-plot-band .sf-ls-add { flex:1; width:auto; }
     .sf-plot-del { flex:0 0 auto; width:22px; height:22px; border-radius:5px;
@@ -103,8 +94,7 @@ function injectPlotCSS() {
       color:#a8a8a8; cursor:pointer; display:flex; align-items:center;
       justify-content:center; font-size:10px; user-select:none; }
     .sf-plot-del:hover { border-color:#e2504a; color:#fff; background:rgba(226,80,74,0.15); }
-  `;
-    document.head.appendChild(s);
+  `);
 }
 
 function ensureRoot(node) {
