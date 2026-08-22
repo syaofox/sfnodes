@@ -596,7 +596,7 @@ export async function openInfoPanelFor(ctx, id) {
     if (ctx.node) startFollowing(panel, ctx.node);
 
     // 本面板会话的视图数据
-    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", custom_description: "", orphan_key: "" };
+    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", file_description: "", civitai_description: "", custom_description: "", orphan_key: "" };
     // 孤儿迁移提示条按面板会话 dismiss（文件没动的话每次打开都值得再看一眼）。
     let _orphanDismissed = false;
     let civ = null; // { state:"searching"|"found"|"nofind"|"offline", info?, message? }
@@ -749,17 +749,52 @@ export async function openInfoPanelFor(ctx, id) {
 
     // ── Description：Civitai/文件说明 + 用户自定义覆盖 ─────────────────────
     // 自定义描述与自定义触发词同存储（user 目录单一文件，按 LoRA 名键控）。
-    // 展示优先级：custom > 当次查询（Civitai live）> 侧车/文件说明。
-    // 编辑态草稿独立于 renderBody 生命周期——勾词等重渲染不丢已打文字。
+    // 三档切换 File / Civitai / Custom：viewDescSource=null 时自动（custom > civitai live/sidecar > file），
+    // 否则锁定所选。始终可点，空时显示占位（选项 a）。编辑态草稿独立于 renderBody 生命周期。
     // 状态挂在 panel._sfDesc（按面板实例隔离），closeInfoPanel 通过 getDesc(_panel) 读取。
-    const shownDesc = () => info.custom_description
-        || (civ?.state === "found" && civ.info?.description)
-        || info.description || "";
-    const descSrc = () => {
+    let viewDescSource = null; // null|"file"|"civitai"|"custom"
+    function civitaiSavedDesc() {
+        return info.civitai_description || (info.source === "sidecar" ? info.description : "") || (info.description && info.description !== (info.file_description || "") ? info.description : "") || "";
+    }
+    function descFor(src) {
+        if (src === "custom") {
+            if (info.custom_description) return info.custom_description;
+            // 空回落：civitai live > civitai saved > file（B 方案）
+            return (civ?.state === "found" && civ.info?.description) || civitaiSavedDesc() || info.file_description || info.description || "";
+        }
+        if (src === "civitai") return (civ?.state === "found" && civ.info?.description) || civitaiSavedDesc() || "";
+        return info.file_description ?? info.description ?? "";
+    }
+    function effectiveDescSource() {
+        if (viewDescSource === "file" || viewDescSource === "civitai" || viewDescSource === "custom") return viewDescSource;
         if (info.custom_description) return "custom";
-        if ((civ?.state === "found" && civ.info?.description) || info.source === "sidecar") return "civitai";
-        return info.description ? "file" : "";
-    };
+        if ((civ?.state === "found" && civ.info?.description) || civitaiSavedDesc()) return "civitai";
+        return (info.file_description || info.description) ? "file" : "custom";
+    }
+    const shownDesc = () => descFor(effectiveDescSource());
+    // 兼容旧调用（徽章已由 seg 高亮替代，此函数仅作语义保留）
+    const descSrc = () => effectiveDescSource();
+    function switchDescSource(target) {
+        if (target === effectiveDescSource()) return;
+        if (desc.editing && desc.dirty) {
+            confirmDialog({
+                title: "Discard description changes?",
+                message: "You have unsaved changes to this description. Discard them?",
+                okLabel: "Discard",
+                cancelLabel: "Keep editing",
+                accent,
+            }).then((ok) => {
+                if (!ok || !panel.isConnected) return;
+                cancelDescEdit();
+                viewDescSource = target;
+                renderBody();
+            });
+            return;
+        }
+        if (desc.editing) cancelDescEdit();
+        viewDescSource = target;
+        renderBody();
+    }
 
     function saveDesc(text) {
         clearMsg();
@@ -773,6 +808,9 @@ export async function openInfoPanelFor(ctx, id) {
             desc.base = "";
             desc.dirty = false;
             info.custom_description = res.description || "";   // 本地即画，不等 loadInfo
+            // 保存后留在 Custom 档；清空后回到自动（落到 civitai/file）
+            if (info.custom_description) viewDescSource = "custom";
+            else viewDescSource = null;
             // 使任何在途 loadInfo 作废：它的响应是保存前的旧快照，落地会把
             // 刚保存的自定义描述覆盖回 Civitai/文件原文（"保存后仍显示来自
             // Civitai"就是这么来的）。
@@ -1510,14 +1548,25 @@ export async function openInfoPanelFor(ctx, id) {
 
         bodyWrap.appendChild(sec);
 
-        // ── Description（Civitai 说明 + 自定义覆盖）───────────────────────
+        // ── Description（Civitai 说明 + 自定义覆盖，三档切换 File/Civitai/Custom）─────
         const dsec = el("div", "sf-ls-desc");
         const dhead = el("h4");
         dhead.appendChild(el("span", null, "Description"));
-        const dsrc = descSrc();
-        if (dsrc) {
-            dhead.appendChild(el("span", "src" + (dsrc === "civitai" ? " net" : ""),
-                dsrc === "custom" ? "custom" : dsrc === "civitai" ? "from Civitai" : "from file"));
+        // 三档切换（始终可点，空时显示占位；高亮替代旧徽章）
+        {
+            const es = effectiveDescSource();
+            const seg = el("div", "sf-ls-srctoggle");
+            const fileBtn = el("span", "sg" + (es === "file" ? " on" : ""), "File");
+            fileBtn.title = "Show description from the file";
+            fileBtn.addEventListener("click", () => switchDescSource("file"));
+            const civBtn = el("span", "sg" + (es === "civitai" ? " on" : ""), civ?.state === "searching" ? "…" : "Civitai");
+            civBtn.title = civ?.state === "searching" ? "Looking up Civitai…" : "Show description from Civitai";
+            civBtn.addEventListener("click", () => switchDescSource("civitai"));
+            const customBtn = el("span", "sg" + (es === "custom" ? " on" : ""), "Custom");
+            customBtn.title = "Show your custom description";
+            customBtn.addEventListener("click", () => switchDescSource("custom"));
+            seg.append(fileBtn, civBtn, customBtn);
+            dhead.appendChild(seg);
         }
         if (desc.editing) {
             const save = el("span", "qa" + (desc.dirty ? " dirty" : ""), "Save");
@@ -1536,7 +1585,9 @@ export async function openInfoPanelFor(ctx, id) {
             } else {
                 edit.title = "Write your own description (overrides Civitai / file)";
                 edit.addEventListener("click", () => {
-                    desc.base = shownDesc();
+                    const prev = shownDesc();
+                    viewDescSource = "custom";
+                    desc.base = info.custom_description || prev;
                     desc.draft = desc.base;
                     desc.dirty = false;
                     desc.editing = true;
@@ -1646,8 +1697,14 @@ export async function openInfoPanelFor(ctx, id) {
                 // 标题悬停预览对应 sample 图（与下方网格同源）
                 queueMicrotask(() => attachSampleTitleHover(db, name));
             } else {
-                dsec.appendChild(el("div", "sf-ls-desc-none",
-                    "No description in this file - write your own, or try the Civitai lookup."));
+                const es = effectiveDescSource();
+                let msg = "No description.";
+                if (es === "file") msg = "No description in this file — this LoRA has no embedded description.";
+                else if (es === "civitai") {
+                    if (civ?.state === "searching") msg = "Looking up Civitai…";
+                    else msg = "No description from Civitai — try ↻ Civitai.";
+                } else if (es === "custom") msg = "No custom description — click ✏️ to write your own. Markdown supported.";
+                dsec.appendChild(el("div", "sf-ls-desc-none", msg));
             }
         }
         panel.appendChild(bodyWrap);
@@ -1896,6 +1953,7 @@ export async function openInfoPanelFor(ctx, id) {
         if (res.ok && res.found) {
             civ = { state: "found", info: res.info || {} };
             viewSource = "civitai";               // 找到 -> 视图切到它的词
+            viewDescSource = "civitai";           // 描述档同步切到 Civitai
             // 封面保存结果附在状态条上：成功静默（本地图经 loadInfo 刷新后
             // 自动显示）；被跳过（已有自定义预览）稍后用面板风确认框询问；
             // 失败则提示。

@@ -289,9 +289,13 @@ def build_lora_info(lora_path):
     触发词分三组返回：`triggers` 是合并默认（侧车胜出），`file_triggers` 恒为
     文件自己的词，`sidecar_triggers` 存已保存的 Civitai 词（信息面板据此做
     File / Civitai 源切换）。description 同理：侧车（Civitai）胜出，文件
-    modelspec.description 兜底；用户自定义覆盖在路由层追加 custom_description。"""
+    modelspec.description 兜底；`file_description` 恒为文件原始描述（供描述区
+    File 档，不被侧车覆盖）；`civitai_description` 恒为侧车原始描述（供
+    描述区 Civitai 档，含 sample prompts，不受触发词有无影响）；用户自定义
+    覆盖在路由层追加 custom_description。"""
     meta = read_safetensors_metadata(lora_path)
     file_triggers = derive_trigger_words(meta)
+    file_desc = _html_to_markdown(meta.get("modelspec.description"))
     info = {
         "title": _title_from_meta(meta, lora_path),
         "base_model": base_model_family(meta),
@@ -299,7 +303,9 @@ def build_lora_info(lora_path):
         "alpha": meta.get("ss_network_alpha", "") or "",
         "num_images": meta.get("ss_num_train_images", "") or "",
         "date": meta.get("modelspec.date", "") or "",
-        "description": _html_to_markdown(meta.get("modelspec.description")),
+        "description": file_desc,
+        "file_description": file_desc,
+        "civitai_description": "",
         "triggers": file_triggers,
         "file_triggers": file_triggers,
         "sidecar_triggers": [],
@@ -317,6 +323,7 @@ def build_lora_info(lora_path):
         info["base_model"] = side["base_model"]
     if side.get("description"):
         info["description"] = side["description"]  # Civitai 说明胜出（更全）
+        info["civitai_description"] = side["description"]
     if side.get("model_id") is not None:
         info["model_id"] = side["model_id"]
     if side.get("version_id") is not None:
