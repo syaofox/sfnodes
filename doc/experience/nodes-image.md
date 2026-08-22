@@ -4,7 +4,7 @@
 
 ## 8. SFPauseImage：快照闸门与预览保存（复刻 Pixaroma Pause Image）
 
-> 背景：复刻 Pixaroma 的 `PixaromaPauseImage`（2026-08），落地为 `nodes/image/pause_image.py` + `nodes/image/preview_routes.py`（新后端路由）+ `web/sf_pause_image*.js` 三模块（lib/ui/主扩展；**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js` 共享引擎，主扩展瘦身为薄配置**）。与 SFPauseText 是兄弟闸门（prune/双钩子/一次性模式/executed 机制完全同构），核心差异是**图片无法像文本一样随隐藏输入携带**——必须走快照文件，并引入 PNG 元数据嵌入与自定义保存路由。
+> 背景：复刻 Pixaroma 的 `PixaromaPauseImage`（2026-08），落地为 `nodes/image/pause_image.py` + `nodes/image/preview_routes.py`（新后端路由）+ `web/sf_pause_kit.js` 共享引擎（image/mask/latent 三闸门共用）+ `web/sf_pause_image.js` 薄配置。与 SFPauseText 是兄弟闸门（prune/双钩子/一次性模式/executed 机制完全同构），核心差异是**图片无法像文本一样随隐藏输入携带**——必须走快照文件，并引入 PNG 元数据嵌入与自定义保存路由。
 
 ### 1. 快照机制（做"跨 run 传递图片"必知）
 
@@ -51,8 +51,8 @@
 
 - `nodes/image/pause_image.py`：节点（快照/continue 读回/无 IS_CHANGED）+ `_json_safe`。
 - `nodes/image/preview_routes.py`：save/prepare 路由 + `_safe_prefix`/`_sanitize_segment`/`_decode_image`/`_build_pnginfo`/`_metadata_disabled`。
-- `web/sf_pause_kit.js::makeGateState`：state 工厂（{gate, frame}，image/mask/latent 共用；原 sf_pause_image_lib.js 已并入 kit 删除）。
-- `web/sf_pause_kit.js::buildPauseBody`：DOM widget 工厂（预览/按钮行/尺寸行 + frameViewUrl /view+缓存戳；原 sf_pause_image_ui.js 已并入 kit 删除）。
+- `web/sf_pause_kit.js::makeGateState`：state 工厂（{gate, frame}，image/mask/latent 共用，仅 stateProp 配置不同）。
+- `web/sf_pause_kit.js::buildPauseBody`：DOM widget 工厂（预览/按钮行/尺寸行 + frameViewUrl /view+缓存戳）。
 - `web/sf_pause_image.js`：薄配置（调 definePauseGate；双钩子/Save 链路/Copy/Open/executed 全在 kit）。
 - prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（四闸门共用，勿复制）。
 
@@ -60,7 +60,7 @@
 
 ## 9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）
 
-> 背景：复刻 Pixaroma 的 Pause Mask 变体（2026-08），落地为 `nodes/mask/pause_mask.py` + `web/sf_pause_mask*.js` 三模块（lib/ui/主扩展；**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js`，主扩展瘦身为薄配置**）。与 SFPauseImage 完全同构（快照/剪枝/一次性模式/executed 回填机制全部复用），仅把输入类型换成 MASK 张量 `[B, H, W]`（ComfyUI 遮罩格式）。本节点是"类型化闸门复用"的最小改造成案例——架构决策：**只加一个类型参数，绝不复制三份**。
+> 背景：复刻 Pixaroma 的 Pause Mask 变体（2026-08），落地为 `nodes/mask/pause_mask.py` + `web/sf_pause_kit.js` 共享引擎（image/mask/latent 三闸门共用）+ `web/sf_pause_mask.js` 薄配置。与 SFPauseImage 完全同构（快照/剪枝/一次性模式/executed 回填机制全部复用），仅把输入类型换成 MASK 张量 `[B, H, W]`（ComfyUI 遮罩格式）。本节点是"类型化闸门复用"的最小改造成案例——架构决策：**只加一个类型参数，绝不复制三份**。
 
 ### 1. 与 SFPauseImage 的差异（都是类型相关的）
 
@@ -68,7 +68,7 @@
 - **tensor 转换防御非标准 `[1,H,W]`**：部分节点输出的 MASK 带单例通道维（`arr.ndim == 3 and arr.shape[0] == 1` → `arr[0]` 压平）——标准帧是 `[H,W]`，不防御会因 3D 数组直接炸。
 - **读回对齐**：`_pil_to_mask` 用 `torch.from_numpy(arr)[None, ...]` 补 batch 维回 `1xHxW`，与 ComfyUI 遮罩张量格式一致。
 - **快照前缀 `sf_pause_mask_`**：与图片闸门的 `sf_pause_` 隔离命名空间（同 node_id 不撞文件；语义也清晰）。
-- **frame 键/state 键**：executed 回填帧键 `sf_pause_mask_frame`；状态存 `node.properties.pauseMaskState`（{gate, frame}）。三闸门 state 同构，已收敛 sf_pause_kit.js::makeGateState（仅 stateProp 配置不同）。
+- **frame 键/state 键**：executed 回填帧键 `sf_pause_mask_frame`；状态存 `node.properties.pauseMaskState`（{gate, frame}）。三闸门 state 同构，共用 sf_pause_kit.js::makeGateState（仅 stateProp 配置不同）。
 
 ### 2. 剪枝共享（三闸门同一份实现）
 
@@ -84,7 +84,7 @@
 ### 4. 模块边界（复用/修改时的快速索引）
 
 - `nodes/mask/pause_mask.py`：节点（快照 L 模式/读回 [1,H,W] 防御/无 IS_CHANGED）+ `_json_safe`。
-- `web/sf_pause_kit.js`：state/UI/主扩展引擎（image/mask/latent 共用；原 mask lib/ui 平行副本已并入 kit 删除，仅 stateProp="pauseMaskState" 等配置差异）。
+- `web/sf_pause_kit.js`：state/UI/主扩展引擎（image/mask/latent 共用，仅 stateProp="pauseMaskState" 等配置差异）。
 - `web/sf_pause_mask.js`：薄配置（调 definePauseGate）。
 - prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（**三闸门共用**，勿复制）。
 
@@ -232,7 +232,7 @@
 
 ## 22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）
 
-> 背景：`nodes/image/pause_latent.py` + `web/sf_pause_latent*.js` 三模块（**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js`，主扩展瘦身为薄配置，extraInputKeys 由配置传入**）。LATENT 闸门，专为"分段采样中间暂停"：KSampler(A) [start=0,end=4] → latent 闸门 → KSampler(B) [start=4,end=8]，image 预览输入接 VAEDecode。
+> 背景：`nodes/image/pause_latent.py` + `web/sf_pause_kit.js` 共享引擎（image/mask/latent 三闸门共用）+ `web/sf_pause_latent.js` 薄配置（extraInputKeys:["image"] 由配置传入）。LATENT 闸门，专为"分段采样中间暂停"：KSampler(A) [start=0,end=4] → latent 闸门 → KSampler(B) [start=4,end=8]，image 预览输入接 VAEDecode。
 
 ### 1. 与 image/mask 闸门的核心差异
 
