@@ -1,6 +1,6 @@
 """Krea2 预设管理（SFImageInterrogator 反推预设 + SFKrea2SystemPrompt 系统指令预设）。
 
-设计（见 doc/experience.md §31）：
+设计（见 doc/experience/nodes-lora.md §31）：
 - 内置默认：krea2.py 硬编码的 INTERROGATOR_PRESETS / KREA2_PRESETS 为默认源；
 - 用户覆盖：<user>/sfnodes/{kind}_presets.json 存用户改动，结构
       {"overrides": {"<名>": "文本"}, "deleted": ["<内置名>"]}

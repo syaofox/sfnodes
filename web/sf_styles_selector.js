@@ -1,7 +1,7 @@
 // SFStylesSelector 前端（复刻 ComfyUI-Easy-Use easy stylesSelector）
 // - 隐藏 SFStylesState STRING widget 为值真源（Python "hidden" 声明，标准 widget
 //   收集进 prompt，随 workflow 保存）；DOM widget 纯交互不承担值传输（规避
-//   Vue DOMWidget value setter 链，见 experience.md §11）
+//   Vue DOMWidget value setter 链，见 experience/nodes-image.md §11）
 // - 标签多选列表：搜索过滤 / Reset 清空 / 选中置顶 / 悬停缩略图预览（预览图
 //   挂在 widget 内部，修复原版全局 id 的多节点冲突）
 // - Grid/List 显示模式切换（对齐 v2 的 stylesSelectorDisplay 设置语义；本实现

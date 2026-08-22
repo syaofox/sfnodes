@@ -645,7 +645,7 @@ class SFImageInterrogator:
         # thinking 必须显式传递：Krea2 的 tokenizer 默认 thinking=True（为 conditioning
         # 设计，不注入空 think 块），生成路径若沿用该默认会让 Think 变体自由推理并输出
         # 思考内容。False 时 qwen3vl 注入空 think 块（` thinking\n\n response\n\n`）抑制
-        # 推理（Qwen3 官方约定，仅对遵守它的 instruct 模型有效，见 doc/experience.md §5）。
+        # 推理（Qwen3 官方约定，仅对遵守它的 instruct 模型有效，见 doc/experience/nodes-lora.md §5）。
         tokens = clip.tokenize(text, images=images_vl, llama_template=template, thinking=thinking)
         generated_ids = clip.generate(
             tokens,
