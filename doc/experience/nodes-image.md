@@ -4,7 +4,7 @@
 
 ## 8. SFPauseImage：快照闸门与预览保存（复刻 Pixaroma Pause Image）
 
-> 背景：复刻 Pixaroma 的 `PixaromaPauseImage`（2026-08），落地为 `nodes/image/pause_image.py` + `nodes/image/preview_routes.py`（新后端路由）+ `web/sf_pause_image*.js` 三模块（lib/ui/主扩展）。与 SFPauseText 是兄弟闸门（prune/双钩子/一次性模式/executed 机制完全同构），核心差异是**图片无法像文本一样随隐藏输入携带**——必须走快照文件，并引入 PNG 元数据嵌入与自定义保存路由。
+> 背景：复刻 Pixaroma 的 `PixaromaPauseImage`（2026-08），落地为 `nodes/image/pause_image.py` + `nodes/image/preview_routes.py`（新后端路由）+ `web/sf_pause_image*.js` 三模块（lib/ui/主扩展；**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js` 共享引擎，主扩展瘦身为薄配置**）。与 SFPauseText 是兄弟闸门（prune/双钩子/一次性模式/executed 机制完全同构），核心差异是**图片无法像文本一样随隐藏输入携带**——必须走快照文件，并引入 PNG 元数据嵌入与自定义保存路由。
 
 ### 1. 快照机制（做"跨 run 传递图片"必知）
 
@@ -37,7 +37,7 @@
 ### 5. 复用与差异（相对 SFPauseText）
 
 - **prune 完全复用 `sf_pause_text_lib.js::applyGateMode`**（单一实现）：PauseImage 传 `{inputKey: "image"}`；`editedText` 参数对图片无意义（传 ""，注入的 PauseState 带空 text 键，后端不读、无害）。PauseText 版就是由 PauseImage 版改的，逐字一致——两节点共用同一 prune 是本次的架构决策。
-- 其余同构：双钩子（graphToPrompt 只注入 {mode} / queuePrompt 剪枝）、`MODE_RANK` continue 先排序、一次性提交模式 finally 清除、executed 回填、`findNode` 子图 id 兜底、解析不到节点默认 pass。
+- 其余同构：双钩子（graphToPrompt 只注入 {mode} / queuePrompt 剪枝）、`MODE_RANK` continue 先排序、一次性提交模式 finally 清除、executed 回填、子图 id 解析（现收敛 kit `findNodeByPromptId`：复合 id 精确匹配 + 冒号尾段兜底）、解析不到节点默认 pass。
 - 差异：gate 只有 pause/pass 两态（无 keep——图片没有"批量复用"语义）；collectGates 注入只带 mode；state 形状最小（{gate, frame}，`hasSnapshot` 运行时推导绝不住 properties）。
 
 ### 6. 测试方法论（延续冒烟 + 新增快照/路由层）
@@ -60,7 +60,7 @@
 
 ## 9. SFPauseMask：遮罩快照闸门（Pixaroma Pause Mask 同构扩展）
 
-> 背景：复刻 Pixaroma 的 Pause Mask 变体（2026-08），落地为 `nodes/mask/pause_mask.py` + `web/sf_pause_mask*.js` 三模块（lib/ui/主扩展）。与 SFPauseImage 完全同构（快照/剪枝/一次性模式/executed 回填机制全部复用），仅把输入类型换成 MASK 张量 `[B, H, W]`（ComfyUI 遮罩格式）。本节点是"类型化闸门复用"的最小改造成案例——架构决策：**只加一个类型参数，绝不复制三份**。
+> 背景：复刻 Pixaroma 的 Pause Mask 变体（2026-08），落地为 `nodes/mask/pause_mask.py` + `web/sf_pause_mask*.js` 三模块（lib/ui/主扩展；**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js`，主扩展瘦身为薄配置**）。与 SFPauseImage 完全同构（快照/剪枝/一次性模式/executed 回填机制全部复用），仅把输入类型换成 MASK 张量 `[B, H, W]`（ComfyUI 遮罩格式）。本节点是"类型化闸门复用"的最小改造成案例——架构决策：**只加一个类型参数，绝不复制三份**。
 
 ### 1. 与 SFPauseImage 的差异（都是类型相关的）
 
@@ -232,7 +232,7 @@
 
 ## 22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）
 
-> 背景：`nodes/image/pause_latent.py` + `web/sf_pause_latent*.js` 三模块。LATENT 闸门，专为"分段采样中间暂停"：KSampler(A) [start=0,end=4] → latent 闸门 → KSampler(B) [start=4,end=8]，image 预览输入接 VAEDecode。
+> 背景：`nodes/image/pause_latent.py` + `web/sf_pause_latent*.js` 三模块（**2026-08 后期重构：lib/ui 并入 `web/sf_pause_kit.js`，主扩展瘦身为薄配置，extraInputKeys 由配置传入**）。LATENT 闸门，专为"分段采样中间暂停"：KSampler(A) [start=0,end=4] → latent 闸门 → KSampler(B) [start=4,end=8]，image 预览输入接 VAEDecode。
 
 ### 1. 与 image/mask 闸门的核心差异
 
