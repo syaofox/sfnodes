@@ -22,7 +22,7 @@
    - 新增/修改函数保持项目代码风格（无类型注解强制、使用 `_CATEGORY` 常量、纯函数工具等）。
    - 新增节点必须添加 `DESCRIPTION` 类属性。
    - 新增依赖必须同步更新 `requirements.txt`。
-   - **新增/修改节点或功能后同步文档**：根 `__init__.py` 两字典、`AGENTS.md` 架构树与经验摘要（或归档至 `doc/experience.md` 并同步其目录锚点）、相关专项文档（如 `doc/experience.md` 对应章节）。
+   - **新增/修改节点或功能后同步文档**：根 `__init__.py` 两字典、`doc/architecture.md` 架构细目、`AGENTS.md` 经验摘要（或归档至 `doc/experience.md` 并同步其目录锚点）、相关专项文档（如 `doc/experience.md` 对应章节）。
    - 发现过时或错误的注释应一并修正。
    - JS Widget 遵循 `app.registerExtension` 注册方式。
    - 子目录 `__init__.py` 为空，仅根 `__init__.py` 负责注册。

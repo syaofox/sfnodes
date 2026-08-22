@@ -10,407 +10,113 @@ ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，含 `comfy/`
 
 ```
 sfnodes/
-├── __init__.py          # 节点注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS
-├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
-├── nodes/               # 所有节点实现，按功能分子目录
-│   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
-│   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸）、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、预览保存路由（preview_routes.py）
-│   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、填充、反转、遮罩闸门（pause_mask.py）
-│   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；预设 lora_preset.py：SFLoraPreset（原 Power 预设改名，供 Stack 的 preset 输入复用）；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 experience.md §5.4；Interrogator/SystemPrompt 预设可管理——内置+用户覆盖，见 experience.md §31）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
-│   ├── text/            # 文本：翻译/拼接/角色选择（text.py：TextTranslation/TextCombine/AnimeCharSelect；另 concatenate.py：SFTextConcatenate）、值下拉（dropdown_value.py：name→value 列表 + 四类型输出 + F/I/R 模式）、提示词列表（prompt_list.py：SFPromptList 行拆分/切片/空白行过滤 skip_empty，行号编辑器 sf_prompt_list.js）、动态 Prompt 列表（prompt_stack.py：SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高（state.rows[i].h，随工作流保存），状态对齐 Pixaroma PromptStack 形状 rows/enabled/text，prompt_reader 恢复共享，sf_prompt_stack_core.js 纯逻辑 + sf_prompt_stack.js 行 UI）、提示词预设（prompt_preset.py：SFPromptPreset 十一分类组合/加权随机/[A,B] 括号随机/LLM 优化链路 optimize_request + SFUnpackPromptPreset 解包，数据 data/prompt_presets.json 热加载）、工作流文本预设（text_preset.py）、@tag 标签库提示词（prompt_tags.py）、风格选择器（styles_selector.py：SFStylesSelector 复刻 Easy-Use stylesSelector——Fooocus 275 风格多选/搜索/悬停缩略图，内置 data/styles/*.json + 用户 user/sfnodes/styles/*.json 同名覆盖，{prompt} 占位拼接 1:1，隐藏 SFStylesState 真源，同文件注册路由 /api/sfnodes/styles*）、内联文本闸门（pause_text.py）、查找替换（find_replace.py）、替换模板（replace.py）、正则提取（regex_extract.py）、任意转字符串（any_to_string.py）、提示词批处理（prompt_batcher.py）、随机编辑（random_edit_prompt.py）、多机位相机（multiangle_camera.py）、PNG/视频元数据提示词恢复（prompt_reader.py：SFPromptReader，含 prompt_reader_routes.py 路由 /api/sfnodes/prompt_reader/{extract,list}）
-│   ├── utils/           # 工具：数学、显示、内存清理、分辨率、图像编辑
-│   ├── inpaint/         # 局部修复：裁剪、拼接、外扩
-│   ├── latent/          # latent 分块采样（klein_tiled_ksampler.py：SFKleinTiledKSampler 复刻 Comfy-SZ-KleinKSampler，FLUX.2 Klein 放大修复/细节增强——latent_blend 全局引导、整图连续全局噪声、同尺寸 tile 两两 batch=2 并行采样约 40-50% 加速、overlap 羽化写回、色彩统计量对齐）
-│   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
-│   └── logic.py         # 逻辑：索引切换、Any 打包/解包、遮罩判空、循环（For/While Loop）
-├── sf_utils/            # 共享工具库
-│   ├── common.py        # AnyType 通用类型
-│   ├── image_convert.py # tensor/pil/numpy/mask 互转
-│   ├── mask_utils.py    # 遮罩工具
-│   ├── inpaint_helpers.py # 局部修复辅助（裁剪/拼接/缩放，无 ComfyUI 依赖）
-│   ├── adv_encode.py    # 高级编码工具
-│   ├── string.py        # 字符串工具
-│   ├── translation.py   # 翻译封装
-│   ├── downloader.py    # 模型下载工具（HF resolve URL → huggingface_hub.hf_hub_download 缓存+复制到约定路径；requests 兜底非 HF URL；timeout/.part 原子替换）
-│   ├── model_manager.py # 模型管理
-│   ├── cutpaste.py      # 剪切/拼接工具
-│   ├── blend.py         # 混合工具
-│   ├── insightface_utils.py # InsightFace 封装
-│   ├── face_detector.py  # 人脸检测
-│   ├── lora_notes.py     # LoRA 用户数据统一存储网关（SFLoraStack 与 SFLoraLoader 系共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见经验摘要 §LoRA 信息数据统一）
-│   ├── lora_presets.py   # LoRA 预设
-│   ├── lora_samples.py   # LoRA 样例图处理
-│   ├── lora_reader.py    # LoRA 元数据/触发词/内容指纹纯逻辑（SFLoraStack 用，无 ComfyUI 依赖）
-│   ├── lora_plot.py      # LoRA 批量对比纯逻辑（文件名净化/元数据双向/字体选择含 CJK/文字覆盖，SFLoraPlot 用，无 ComfyUI 依赖）
-│   ├── lora_cache.py     # LoRA 文件缓存 + 内存模式修剪（last/all/none，与 SFLoraStack 同语义，SFLoraPlot 用）
-│   ├── lora_routes.py    # SFLoraStack 路由（/api/sfnodes/lora_*、civitai/account 等，见文件内注册清单）
-│   ├── lora_ortho.py     # 正交堆叠纯数学（GS 投影，仅 torch；ortho_gs 用）
-│   ├── lora_ortho_load.py # ortho_gs 独立加载+应用路径（ortho_apply(model, clip, entries, load_sd)，SFLoraStack 专用，禁止各写一份）
-│   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
-│   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
-│   ├── tiling.py         # 图片切块纯逻辑（行/列/重叠 → 块矩形，SFImageTile/Untile 共用，无 ComfyUI 依赖）
-│   ├── color_match_points.py # 三点色彩匹配纯逻辑（亮度分位三点提取/逐通道分段线性 LUT/查表，SFImageColorMatchByPoints 用，无 ComfyUI 依赖）
-│   ├── regional_engine.py # 区域 LoRA 纯逻辑（键归一化/矩阵解析/regions JSON/层规划+每区域匹配诊断/token 网格 mask 数学/彩虹预览，SFRegionalLoRA 用，无 ComfyUI 依赖）
-│   ├── dropdown.py      # 值下拉纯逻辑（数字语法双端契约 readable/coerce，无 ComfyUI 依赖）
-│   ├── krea2_presets.py # Krea2 预设管理纯逻辑（内置+用户覆盖+墓碑删除+复位，merge/校验/读写，register(kind,builtin,protected) 注册路由，SFImageInterrogator 反推预设 + SFKrea2SystemPrompt 系统指令预设共用，见 experience.md §31）
-│   ├── video_thumb.py   # 视频首帧提取纯逻辑（cv2 首帧→jpeg，Civitai 视频缩略与 Sample 视频缩略共用，无 ComfyUI 依赖）
-│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化）
-│   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
-│   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
-│   └── logger.py        # 日志
-├── web/                 # 前端 JS Widget
-│   ├── sf_common.js     # 复刻节点公共小工具（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / installWheelZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Stack/Plot 共享，原 sfnodes.PowerLoraLoader.DisplayName 已彻底迁移至 sfnodes.Lora.DisplayName）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**
-│   ├── sf_dynamic_slots.js # 动态槽位公共库
-│   ├── sf_popup.js      # 浮动弹层公共三件套（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免；clampToViewport 四向钳位 + scale 边距折算；无 app 依赖可 .mjs 冒烟测试）——新弹层优先使用（见 experience.md §26）
-│   ├── sf_crop*.js      # 可视化裁剪九模块（SFImageCrop/Uncrop：framework 编辑器框架 + core/panel/interaction/render/preview/undo_guard/alignments + 主扩展）
-│   ├── sf_inpaint*.js   # 局部修复编辑器五模块（SFInpaintCrop/Stitch：core/paint/geometry/render + 主扩展）
-│   ├── sf_pause_text*.js  # 文本闸门三模块（lib：state + applyGateMode prune 纯函数，text/image/mask/latent 四闸门共用）
-│   ├── sf_pause_image*.js # 图片闸门三模块（快照/预览保存）
-│   ├── sf_pause_mask*.js  # 遮罩闸门三模块（灰度快照）
-│   ├── sf_pause_latent*.js # latent 闸门三模块（分段采样中间暂停，safetensors 快照）
-│   ├── sf_outpaint*.js  # 外绘预览两模块（core 纯数学 + 主扩展）
-│   ├── sf_image_resize*.js # wired 尺寸缩放三模块（复用 sf_load_image_resize.js 面板 + sf_load_image_ui.js）
-│   ├── sf_find_replace*.js # 查找替换三模块（双端镜像 applyRulesJS ≡ Python _apply_rules）
-│   ├── sf_dropdown*.js  # 值下拉四模块（lib/ui/settings/主扩展；输出点对齐双渲染器）
-│   ├── sf_workflows*.js # 工作流面板三模块（主扩展/lib/UI，无节点设计）
-│   ├── sf_lora_browser*.js # LoRA 浏览器三模块（主扩展/UI/lib，无节点设计：工具栏按钮紧贴 Workflows 按钮 + Alt+Shift+L + canvas 菜单；**文件夹/平面双模式**（seg 切换、模式记忆 sfnodes.LoraBrowser.Mode）——文件夹模式：面包屑 + 下钻 + 当前层文件（对齐 SF Load Image Browser）；平面模式：全部 LoRA 分批渲染 + 滚动动态加载（FLAT_STEP=60，attachFlatScroll 距底 300px 续批）防千级列表卡死；搜索两模式均跨层级扁平匹配；浏览位置记忆（sfnodes.LoraBrowser.Folder）；**网格/列表双视图**（seg 切换、记忆 sfnodes.LoraBrowser.View；列表行 = 40px 缩略图 + 文件名 + 目录/扩展名，单击/双击与卡片共用 attachPickAdd）；单击卡片打开 LoRA Stack 同款信息编辑（250ms 防抖区分双击）——复用 sf_lora_stack_info 宿主 ctx 入口 openInfoPanelFor；**双击用 SF LoRA Stack 加载到当前工作流**（三分支：无节点新建 / 单节点插入 / 多节点选择器显示 title+数量）；后端零新增全复用 /api/sfnodes/lora_*）
-│   ├── sf_prompt_reader.js # 提示词恢复单模块（IN/OUT 目录切换）
-│   ├── sf_prompt_list.js  # 行号编辑器单模块（SFPromptList：隐藏原生 multiline_text widget 作值真源 + DOM widget 行号栏从 0 起/跳过空白行对齐输出 index/超 500 行虚拟化，值恢复三通道；wrap 开启走镜像测量（mirror 与 textarea 同几何块级 div，行高按行缓存/宽度变化清空，渲染后强制重同步 scrollTop 防浏览器钳制错位）；start_index/max_rows 切片范围高亮跟随——仅裁剪时文本背景块+行号联动，wrap 开时高亮随测量行高展开（与行号同源））
-│   ├── sf_prompt_stack*.js # 动态 Prompt 列表两模块（core 纯逻辑 + 行 UI，SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高 state.rows[i].h 随工作流保存）
-│   ├── sf_text_preset.js  # 工作流绑定文本预设单模块
-│   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
-│   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
-│   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
-│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板）
-│   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
-│   ├── sf_lora_info.js    # LoRA 信息对话框（sf_markdown.js 渲染描述）
-│   ├── sf_lora_preset.js # 预设选择节点前端（原 power_lora_preset.js 改名，SFLoraPreset）
-│   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
-│   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
-│   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）
-│   └── 其余单节点 JS（text_replace/text_concatenate/simple_math/loop_flow/any_pack/image_browser/lora_loader*/lora_loader_model_only/multi_lora_tree/image_compare/image_concatenate/regex_extract/prompt_batcher/empty_latent_ratio/krea2_*/seed/canvas_size/workflow_name/sf_combo_selector/sf_color_picker/showcontrol/DisplayText/SFLogicSwitch/...）
-├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设、styles/fooocus_styles.json 内置风格库 + samples/ 缩略图等）
-├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
-└── doc/                 # 项目文档（vibecoding.md 开发流程、experience.md 历史经验归档等）
+├── __init__.py      # 注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS + WEB_DIRECTORY="web"
+├── requirements.txt # Python 依赖（仅声明，不在本机安装）
+├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
+├── sf_utils/        # 共享工具库（无状态纯函数为主）：image/mask 转换、lora_* 系列、resize_engine / dropdown / regional_engine / krea2_presets / disk_state / prompt_reader 等纯逻辑模块
+├── web/             # 前端 JS Widget：sf_common.js（公共小工具/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
+├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、CSV/字体等）
+├── tests/           # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
+└── doc/             # 文档：architecture.md 逐文件细目 / experience.md 经验归档 §1-31 / vibecoding.md 任务模板
 ```
 
-## Node Registration Convention
+**逐文件职责与机制说明见 `doc/architecture.md`**——新增/删除文件必须同步其条目。
 
-每个节点必须在根 `__init__.py` 的两个字典中注册：
+## Node Registration & Class Convention
 
-- `NODE_CLASS_MAPPINGS`: 键为 `"SF<ClassName>"`，值为类本身（历史节点类名可能无 `SF` 前缀如 `LoadImages`，但注册键仍以 `SF` 前缀为准）
-- `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，值为显示名 `"SF <Display Name>"`
+根 `__init__.py` 两字典同步注册：
 
-新增节点后，务必在两个字典中同步添加。
-
-## Node Class Convention
-
-所有节点类遵循 ComfyUI 标准 API：
+- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（历史键可能无 SF 前缀如 `LoadImages`，新增一律带前缀）
+- `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，显示名 `"SF <Display Name>"`
 
 ```python
 class SFMyNode:
     @classmethod
     def INPUT_TYPES(cls):
-        return {
-            "required": { ... },
-            "optional": { ... },  # 可选
-        }
+        return {"required": {...}, "optional": {...}}
 
     RETURN_TYPES = ("TYPE",)
     RETURN_NAMES = ("name",)
     FUNCTION = "execute"          # 执行方法名
-    CATEGORY = "sfnodes/<group>"  # 统一使用 sfnodes/ 前缀
+    CATEGORY = "sfnodes/<group>"  # 统一 sfnodes/<功能组>：face/image/mask/model/text/utils/logic/inpaint/latent
     DESCRIPTION = "..."           # 必填
 
     def execute(self, ...):
         return (result,)
 ```
 
-### CATEGORY 命名
+## Dependencies & ComfyUI APIs
 
-统一格式：`sfnodes/<功能组>`，例如：
-- `sfnodes/face` — 人脸相关
-- `sfnodes/image` — 图片相关
-- `sfnodes/mask` — 遮罩相关
-- `sfnodes/model` — 模型相关
-- `sfnodes/text` — 文本相关
-- `sfnodes/utils` — 工具相关
-- `sfnodes/logic` — 逻辑相关
-- `sfnodes/inpaint` — 局部修复相关
-- `sfnodes/latent` — latent 分块采样相关
-
-## Key Dependencies (runtime only, do NOT install)
-
-- `torch`, `torchvision` — 张量运算（由 ComfyUI 运行时提供，不在 `requirements.txt` 中声明）
-- `opencv-contrib-python` — 图像处理
-- `insightface`, `onnxruntime` — 人脸分析
-- `mediapipe` — 人像分割
-- `kornia` — 图像变换
-- `color_matcher` — 色彩匹配
-- `colour-science` — 色彩科学/LUT 处理
-- `translators` — 文本翻译
-- `scipy`, `aiohttp`, `safetensors`, `tqdm`, `requests`, `typing_extensions`
-- `curl_cffi`, `markdownify` — Civitai 页面抓取（TLS 指纹过 Cloudflare）与 HTML 描述清洗（lora_routes/lora_reader）
-- `psutil` — 系统资源监控（内存清理节点使用）
-- `sageattention` — 注意力优化
-- `diffusers`, `einops`, `timm`, `huggingface_hub` — 图像模型/扩散相关（RFMSR 等）
-
-## ComfyUI API Imports (for reference only)
-
-以下模块在运行时由 ComfyUI 提供，可通过源码 `../..` 查阅实现：
-
-- `comfy.utils` — 通用工具（缩放、文件加载等）
-- `comfy.utils.common_upscale` — 图片缩放
-- `comfy.utils.ProgressBar` — 进度条
-- `comfy.model_management` — 显存/设备管理
-- `comfy.comfy_types.node_typing.IO` — 类型注解
-- `comfy.sd` — 模型加载（load_lora_for_models 等）
-- `nodes.LoadImage`, `nodes.SaveImage`, `nodes.MAX_RESOLUTION` — 内置节点
-- `nodes.LoraLoader` — LoRA 加载节点
-- `nodes.NODE_CLASS_MAPPINGS` — 全部节点映射（含自定义节点；**运行时才包含全部，函数内 import 最安全**）
-- `folder_paths` — 路径管理
-- `comfy_extras.nodes_post_processing` — 后处理节点
-- `comfy_execution.graph_utils` — `GraphBuilder`（图展开）、`is_link`、`ExecutionBlocker`（官方位置，graph.py 只是 re-export）
-- `comfy_execution.graph` — `DynamicPrompt`（DYNPROMPT 隐藏输入对象：`get_node`/`get_display_node_id`/`get_original_prompt`，支持 ephemeral 前缀 id）
+- 运行时第三方依赖见 `requirements.txt`（带用途注释的完整清单在 `doc/architecture.md`）；`torch/torchvision` 由 ComfyUI 运行时提供，不入 requirements。**新增依赖必须同步 requirements.txt。**
+- ComfyUI 运行时提供的常用 import 清单见 `doc/architecture.md`；易错点：
+  - `nodes.NODE_CLASS_MAPPINGS` **运行时才包含全部自定义节点**——函数内 import 最安全
+  - `ExecutionBlocker` 官方位置 `comfy_execution.graph_utils`（graph.py 只是 re-export）；DYNPROMPT 隐藏输入对象是 `comfy_execution.graph.DynamicPrompt`
 
 ## Code Style
 
-- Python 3.10+，无类型注解强制要求
-- 使用 `_CATEGORY` 模块级常量定义分类前缀
-- 工具函数放在 `sf_utils/` 下对应模块（无状态纯函数）
-- 节点实现放在 `nodes/<功能组>/` 下对应文件
-- JS Widget 放在 `web/` 目录，文件名与节点功能对应；**新增节点/功能前先查公共模块**：`web/sf_common.js`（小工具：sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / escapeHtml / downloadDataURL / copyText；强调色：getSfAccent / applySfAccentVar / sfAccent；LoRA 行名：loraDisplayName / getLoraDisplayMode / loraRowLabel）、`web/sf_dynamic_slots.js`（动态槽位）、`web/sf_popup.js`（浮动弹层三件套：attachPopupDismiss 外部点击/Esc/滚轮三关闭 + clampToViewport 钳位，**新弹层优先使用**，见 experience.md §26）、`web/sf_crop_framework.js`（编辑器框架/预览系统）；后端查 `sf_utils/disk_state.py`（safe_join / sanitize_id / sanitize_filename / decode_image）与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止再写内联副本**。**纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 等纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import `sf_common.js`**（它依赖 `/scripts/app.js`）——这类模块的通用纯函数共享应放无依赖模块（如 sf_popup.js 即无 app 依赖）；DOM 层模块可自由用 sf_common。**注册规范**：`app.registerExtension` 文件必须直接 `import { app } from "/scripts/app.js"`（禁用相对路径 `../../scripts/`——依赖挂载路径）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在——以上由 `tests/check_web_imports.py` 固化校验（新增 web 模块时若报 MISSING MODULE 需把模块名加入该脚本 MODS 列表）。
-- `__init__.py` 文件在子目录中为空（`nodes/utils/` 除外——该目录无 `__init__.py`，依赖 namespace package 机制），仅根目录 `__init__.py` 负责注册
+- Python 3.10+，无类型注解强制；用 `_CATEGORY` 模块级常量定义分类前缀；工具函数放 `sf_utils/`（无状态纯函数），节点放 `nodes/<组>/`
+- JS Widget 放 `web/`；**动手前先查公共模块复用**：前端 `sf_common.js`（小工具/强调色/LoRA 行名）、`sf_dynamic_slots.js`（动态槽位）、`sf_popup.js`（新弹层优先，见 experience.md §26）、`sf_crop_framework.js`（编辑器框架）；后端 `disk_state.py` 与 `sf_utils/` 各纯逻辑模块。有公共实现必须复用，**禁止内联副本**
+- **纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` 纯逻辑模块（无 app 依赖、可拷 .mjs 单测）**不得 import sf_common.js**（它依赖 /scripts/app.js）；通用纯函数共享放无依赖模块
+- **注册规范**（由 `tests/check_web_imports.py` 固化校验）：registerExtension 文件必须直接 `import { app } from "/scripts/app.js"`（禁相对路径）、扩展注册名 `sfnodes.*` 前缀、相对导入目标必须存在；新增 web 模块需加入该脚本 MODS 列表
+- 子目录 `__init__.py` 为空（`nodes/utils/` 无此文件走 namespace package），仅根 `__init__.py` 负责注册
 
 ## Development Rules
 
-1. **不要启动 ComfyUI 或运行 `pip install`** — 本机仅作为代码编辑环境。一次性生成工具（如拼音表用的 pinyin-pro）可装在 `/tmp` 使用，产物内联进 web/ 模块，**不得进入 requirements.txt**
-2. 可以阅读 `../..` 源码以理解 API 和参考实现
-3. 新增节点必须同步更新根 `__init__.py` 的两个注册字典
-4. 新增依赖必须同步更新 `requirements.txt`
-5. 保持节点类命名一致性：实现类 PascalCase，注册键 `"SF"` 前缀
-6. 图像张量格式统一为 `[B, H, W, C]`（ComfyUI 标准）
-7. 遮罩张量格式统一为 `[B, H, W]`
-8. `sf_utils/` 中的工具函数应当是无状态的纯函数
-9. JS Widget 使用 `app.registerExtension` 注册，遵循 ComfyUI LiteGraph API；纯工具模块（无扩展行为，如 `sf_dynamic_slots.js`）仅 export 函数即可，由使用者 import
-10. 根 `__init__.py` 必须声明 `WEB_DIRECTORY = "web"` 以加载前端 JS Widget（新增 JS 文件后直接放入 `web/`，无需额外注册）
-11. 动态槽位类 JS 优先复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现
-12. 部署：用户运行实例为 docker 部署（以实际挂载路径为准，与本地仓库内容一致）。后端改动需重启容器；`web/` JS 改动需同步该目录，且浏览器需**硬刷新**（Ctrl+Shift+R）才生效
-13. **实际环境调试禁止自行浏览器访问 ComfyUI**（会 404 且可能干扰用户运行中的工作流）：一律用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈；节点请用户用 UI 添加（新版前端无 `graph.createNode`）
-14. **新增节点/功能前先查复用**（见 Code Style）：前端 `web/sf_common.js` 等公共模块、后端 `sf_utils/` 纯逻辑模块。**禁止再次内联副本**——复制后语义分叉是 bug 温床（crop 的 `_safe_join` 双重拼接曾导致粘贴上传输出白图）。去重/重构注意：① 独立语句的包装块（如 `if (app && app.loadGraphData...)`）不在函数体内，按函数名删除会漏，需手动清理；② 文件已有某模块 import 时，脚本补 import 可能跳过导致缺符号（运行时 ReferenceError 被 try/catch 吞掉极难排查）；③ `node --check` 默认 CJS 解析查不出 ESM 结构错误，用 `node --input-type=module --check < file` 验证
-
-## Code Discovery
-
-优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。该系统已索引整个项目，支持语义搜索和调用链追踪。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退到 grep/glob。
+1. **不要启动 ComfyUI 或运行 pip install**——本机仅代码编辑环境；一次性生成工具装 `/tmp` 用，产物内联进 web/ 模块，不得进 requirements.txt
+2. 可阅读 `../..` 源码理解 API 与参考实现
+3. 新增节点同步更新根 `__init__.py` 两个注册字典
+4. 新增依赖同步 `requirements.txt`
+5. 实现类 PascalCase，注册键 `"SF"` 前缀
+6. 图像张量 `[B,H,W,C]`；遮罩张量 `[B,H,W]`
+7. JS Widget 用 `app.registerExtension` 注册；纯工具模块仅 export 函数由使用者 import
+8. 动态槽位类 JS 复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现
+9. 部署为 docker：后端改动需重启容器；`web/` JS 改动需同步该目录且浏览器硬刷新（Ctrl+Shift+R）才生效
+10. **实际环境调试禁止自行浏览器访问 ComfyUI**（404 且干扰用户工作流）：一律分段 console 诊断脚本（版本检查→节点状态→事件日志→数据层→UI 层）交用户执行反馈 → experience.md §2.9；节点请用户 UI 添加（新版前端无 graph.createNode）
+11. **新增节点/功能前先查复用**（见 Code Style），禁止内联副本——语义分叉是 bug 温床。去重/重构注意：① 独立语句的包装块不在函数体内按名删除会漏；② 文件已有某模块 import 时脚本补 import 可能跳过致缺符号（被 try/catch 吞掉极难排查）；③ ESM 结构错误用 `node --input-type=module --check < file` 验证
+12. 新增/删除 py/js 文件同步 `doc/architecture.md` 条目；沉淀新经验归档 `doc/experience.md` 并同步其「目录」锚点
 
 ## Testing
 
 本项目无自动化测试框架。验证方式：
-- 静态检查：确认 `NODE_CLASS_MAPPINGS` 和 `NODE_DISPLAY_NAME_MAPPINGS` 键一致
-- 导入检查：确认所有节点类在根 `__init__.py` 中正确导入
-- 依赖检查：确认 `requirements.txt` 包含所有第三方依赖
-- 后端模拟测试（无需 ComfyUI）：mock `torch`/`comfy.utils` 后加载节点模块，用 FakeDynPrompt 断言图结构与返回值（循环节点有先例）
-- 前端模拟测试：无 DOM 依赖的公共库复制为 `.mjs` 后用 Node 直接跑（FakeNode + 事件序列，`tests/` 有先例，如 `test_any_pack_js.js`）
-- 快速回归命令（无测试框架，文件自含断言，任一失败非零退出即停）：
+
+- 静态检查：两注册字典键一致、所有节点类正确导入、requirements.txt 含全部第三方依赖
+- 后端模拟测试：mock torch/comfy.utils 加载节点模块，FakeDynPrompt 断言图结构与返回值（循环节点有先例）
+- 前端模拟测试：无 DOM 依赖的公共库复制 `.mjs` 用 Node 直跑（FakeNode + 事件序列，tests/ 有先例）
+- 快速回归命令（文件自含断言，任一失败非零退出即停）：
   - 后端：`for f in tests/test_*.py; do python3 "$f" || break; done`
   - 前端：`for f in tests/test_*.js tests/test_*.mjs; do node "$f" || break; done`
   - 静态一致性：`python3 tests/check_web_imports.py`
 
-## 经验摘要
+## 经验摘要（不变式索引）
 
-> 具体机制的完整踩坑过程已归档至 `doc/experience.md`（2026-08 精简时从本文件迁出）；此处仅保留高频复用的结论，细节与案例见归档与代码。每组标注 `→ experience.md §N` 指向对应归档章节；未标注的结论仅存于本文。
+> 完整机制与踩坑案例在 `doc/experience.md`；此处每组仅留最易复发的关键不变式（§N 为归档章节号），改动对应功能前先读归档。
 
-**后端：循环/图展开（`nodes/logic.py`）→ experience.md §1**
-- execute 可返回 `{"result": ..., "expand": {...}}` 展开动态子图；result 中的 link 值 `[id, slot]` 会被特殊解析为链接目标值。
-- **ForLoopEnd 必须被下游消费才会被调度执行**（死端节点从不执行）——"循环不跑/只跑一轮"先查其输出有无下游。
-- 隐藏输入（如 `initial_value0`）首轮不在 prompt 中 → kwargs 缺键而非 None，需默认值兜底。
+- **循环/图展开**（`nodes/logic.py`，§1）：execute 可返回 `{"result","expand"}` 展开动态子图，result 中 link 值 `[id,slot]` 被解析为链接目标值；**ForLoopEnd 必须被下游消费才会被调度执行**（死端节点从不执行——"循环不跑"先查其输出有无下游）；隐藏输入首轮不在 prompt 中→kwargs 缺键而非 None，需默认值兜底。
+- **widget 值传后端必须先声明输入**（§4/§11）：前端提交 prompt 前 validatePrompt 删除 schema 外输入——任何"运行时状态"输入须 Python hidden 声明 + 同名隐藏 STRING widget 走标准收集；注入只能作双保险。**勿写 addDOMWidget 的 .value**（Vue setter 回调链无限递归），读取走 getValue。
+- **graphToPrompt ≠ 队列**（§6/§7）：Export/分享/保存也触发——注入可在此做，剪枝/游标 commit 只能在 `api.queuePrompt` 成功后；闸门 continue 先于 pause/pass 处理，解析不到节点默认 pass（fail-safe 不剪）。**Python 禁 IS_CHANGED=float("nan")**（NaN 折叠祖先缓存键→下游每次全量重跑），要重跑用 time_ns 或 (mtime,size)。
+- **数据载体与动态 combo**（§4/§31）：状态存隐藏 STRING widget 值随 workflow 自动保存/复制，新节点=全新默认值；前端动态重建 combo options 必须 `VALIDATE_INPUTS` 返回 True 接管校验，恢复挂 onAfterGraphConfigured（nodeCreated 早于值恢复）。
+- **动态槽位**（§2.7）：改槽名必须同步 name+localized_name（渲染读 label ?? localized_name ?? name）；configure 直赋 links 不触发 onConnectionsChange。
+- **isGraphLoading / 接线互斥守卫**（§13/§15）：包装 loadGraphData +300ms 尾窗（连接恢复发生在 onConfigure 之后）；互斥断线三重守卫 = onConfigure 窗口 + 尾窗 + 自递归标志。
+- **Vue 新版前端**（§2.8/§30）：先容器内 `pip show comfyui-frontend-package` 确认版本（1.x=Vue）；槽位数组 shallowReactive 替换元素才触发渲染；动态 tooltip 写 widget.tooltip（nodeDef 兜底清不掉）；程序化建节点走官方 `Comfy.AddNode` 命令（裸 createNode+graph.add 只弹 toast 不渲染）。
+- **四闸门 prune 共用一份实现**（§7/§8/§9/§22）：text/image/mask/latent 全走 `sf_pause_text_lib.js::applyGateMode`（latent 加 extraInputKeys）；快照文件前缀隔离命名空间（图片 PNG / 遮罩灰度 PNG / latent safetensors 全张量键）；PNG 拖回嵌入前 _json_safe（NaN/Inf→字符串）；_safe_prefix 先查 ".."/绝对路径再清洗。
+- **双端镜像**（§14/§15/§27）：替换/数字语法逻辑 Python 权威 + JS 预览镜像，两侧测试同用例同期望值锁定；ReDoS 启发式（嵌套量词+交替型）双端 1:1（regex_extract 复用、内置预设跳过）；数字契约 _NUMBER_RE/_JS_WHITESPACE/half-away-from-zero 取整。
+- **lean 注入作缓存键**（§6/§15）：graphToPrompt 注入只含影响结果的字段（选中值+类型）——改行名/重排/切模式不重跑；游标 pending 在 queue 成功后 commitPick，位置存节点内存或未注册设置按共享范围选，写 properties 会误标 modified。
+- **SF Workflows 面板**（§10）：面板是"应用"非节点（分享工作流不携带）；热键避开原版 combo（全局去重报错）；sidecar meta 读写 asyncio.Lock 防读改写互擦；收藏前先 await loadBookmarks()。
+- **SF LoRA 浏览器**（§30）：后端零新增全复用 lora_* 路由；信息编辑经 openInfoPanelFor(ctx,id) 宿主适配复用 Stack 面板；平面模式分批渲染防千级列表卡死。
+- **自定义 API 路由**（§8.4 等）：`from server import PromptServer` → ins.routes 装饰器 try/except 包裹、导入时副作用注册；前缀统一 /api/sfnodes/；**改动路由必须重启容器**否则 404 静默降级。
+- **全屏编辑器与冒烟测试**（§6.3/§6.5）：类名前缀与既有插件隔离；Esc 用 window capture 分层处理；危险操作 confirmDanger 无撤销设计；mock DOM 冒烟能抓语法检查漏掉的运行时错误。
+- **中文 token/标签库**（§6）：token 名 `[\p{L}\p{N}_-]` 带 u flag（中文可作 tag）；标签库存未注册设置（机器私有跨工作流）+ 工作副本 isSameAsStored 判定才写回；拼音表一次性生成内联，非运行时 npm 依赖。
+- **提示词恢复 SFPromptReader**（§16）：三种元数据容器纯标准库解析（MP4 ilst 是 1-based INDEX 非 4cc；WebM 键大写归一小写）；目录状态字段避开 applyResult 写入键的撞名（用 folder）；**DOM widget 高度 ≥ 内容实际高度**（动态测量 + computeLayoutSize，别硬编码）。
+- **SFPromptPreset / Krea2 预设**（§29/§31/§5）：分类正交原则防组合污染；IS_CHANGED=seed 可复现随机 + seed 偏移防各分类同值；预设管理内置+用户覆盖+墓碑删除 merge() 墓碑胜出；Qwen3 thinking 参数按模型微调来源选（instruct 版 off、无审查微调版 on 反而正常）。
+- **SFLoraStack**（§19/§19.7/§20）：Civitai API 字段位置必须实测（description 在 version 顶层）；用户数据以路径为键→改名失配两级孤儿匹配（内容指纹优先基名兜底）；强调色 --sf-acc 三时序坑（onChange 参数即新值 / 重绘 setTimeout(0) / 异步加载轮询）；行名设置 sfnodes.Lora.DisplayName 单真源 sf_common.loraRowLabel；ortho_gs 独立加载路径收敛 ortho_apply，ok_paths 是 set 勿直接迭代组装顺序敏感结果。
+- **LoRA 数据统一网关**（§19）：lora_triggers.json 单一真源（lora_notes 只做形状转换）；跨节点缓存失效经 sfnodes.lora-data-changed 事件桥；信息对话框与 Stack 面板同一数据语义。
+- **Civitai 页面抓取**（§21/§27）：页面是 Next.js SSR，数据在 `__NEXT_DATA__` 按 queryKey 定位勿碰 DOM；**TLS 指纹被 Cloudflare 拦截——curl_cffi impersonate="chrome"，Chrome UA 的 aiohttp 也 403**；描述统一 _html_to_markdown 幂等保护（无 `<` 输入只轻清洗原样放行）。
+- **值通道模式**（§25/§28）：hidden STRING 真源随 workflow 保存 + DOM widget 纯交互不承担值传输（regional_lora/styles_selector 同款）；加载期 isGraphLoading 门控点击防覆盖刚恢复的选择。
+- **复刻去重与磁盘链路**（§17）：磁盘源执行必须输出源帧 ui_payload 否则前端预览停留旧图；编辑器 Reset≠Clear 语义一一对应。
+- **模型下载统一**（§27）：HF resolve URL → hf_hub_download 缓存+copy2 到约定路径；不用 local_dir（子目录破坏平铺拼接）；HF 失败不回退 requests。
+- **输入框键盘/滚轮**（§27）：keydown 必须放行 ctrl/meta/alt 组合键（否则 Ctrl+S 漏成浏览器保存）；DOM widget 输入框不在 Vue wheel 转发路径 → installWheelZoomPassthrough。
+- **静态检查与版本陷阱**（§3/§27）：ast.unparse 输出单引号、literal_eval 遇变量引用抛错——先怀疑检查脚本再怀疑代码；ast.Constant.n 已移除一律写 node.value；__pycache__ 的 cpython-3xx 是本机解释器版本，不代表运行容器。
 
-**后端：动态 combo 校验（工作流绑定状态节点，`nodes/text/text_preset.py`）→ experience.md §4**
-- 预设等状态数据存隐藏 STRING widget 值（JSON）→ **随 workflow 自动保存/加载/复制**，新工作流添加节点为全新默认值（数据载体模式，无需后端存储）。
-- combo 选项由前端动态重建时，值会超出 INPUT_TYPES 静态列表 → 旧版 ComfyUI 执行前校验报 `Value not in list` → 必须 `VALIDATE_INPUTS` 返回 True 接管校验（动态选项节点标配）。
-- combo 的 options 不随 workflow 保存（只存 value）；加载时 nodeCreated 早于 widget 值恢复 → 重建选项需挂 `onAfterGraphConfigured`（或 onConfigure）补同步。
+## Code Discovery
 
-**前后端：widget 值传后端必须先声明输入（`nodes/image/crop.py`、`sf_crop*.js`）→ experience.md §11**
-- **前端提交 prompt 前 validatePrompt 会删除不在节点 schema 中的输入**——前端 addWidget/DOM widget 创建的任何"运行时状态"输入，若未在 Python `INPUT_TYPES`（hidden/required/optional）声明，后端 `kwargs` 里**根本没有该键**（表现为"值保存正常但执行时全丢"）。排查先打后端 `sorted(kwargs.keys())`。
-- 正确通道：Python `hidden` 声明 `"SFCropJson": ("STRING", {"default": "{}"})` + 前端**同名隐藏 STRING widget** → 值走标准 widget 收集（graphToPrompt 读 widget.value，最基础机制不可破坏）。graphToPrompt/queuePrompt 注入只能作双保险，注入目标也必须是 schema 内输入名。
-- **不要写 addDOMWidget 创建的 widget 的 `.value`**：Vue 的 DOMWidget value setter 会回调 `setValue` → 若 setValue 回调链里又写 `.value` → 无限递归（`Maximum call stack size exceeded`）。DOM widget 读取走 getValue 闭包，状态同步走独立通道（隐藏 STRING widget 无 setter 链）。
-
-**前端：动态槽位（`web/sf_dynamic_slots.js`、`web/any_pack.js`）→ experience.md §2.7**
-- 槽名渲染读 `label ?? localized_name ?? name`；初始槽自带 `localized_name`（动态槽没有）→ **改槽名必须同步 name + localized_name**，否则"只有第一个槽改名不生效"。
-- `configure` 直赋 links 不触发 `onConnectionsChange` → 恢复场景需挂 `onAfterGraphConfigured` 补逻辑。
-- 输入槽 `.link` / 输出槽 `.links` 判空结构不同（公共库 `isSlotConnected` 两者兼容）。
-
-**前端：@tag 展开注入与 Picks 游标（`web/sf_prompt_tags*.js`，SFPromptTags）→ experience.md §6**
-- 前端 `graphToPrompt` hook 在队列时展开 `@tag`/`*cat`/`#list` 并注入隐藏 PromptState（JSON），后端只做拼接；随机结果改变注入字符串 → 缓存键变化 → 自动重跑（无 nonce 即可）。
-- `*wildcard`/`#list` 的 shuffle/order 游标**只在 queue 被真正接受后推进**：`beginPickBuild` 把 build id 挂 prompt 对象，`queuePrompt` patcher 成功后 `commitPicks`——Export/分享/校验失败的 build 不消耗选择；同 build 内重复 `#fruit` 用 per-use 计数器发新牌。
-- 标签库存 ComfyUI **未注册设置**（机器私有、跨工作流共享、永不进 workflow）；全屏编辑器用工作副本，关闭时 `isSameAsStored` 判定才写回（防覆盖他标签页），`installGraphUndoGuard` 填 `maskeditor_is_opended` 官方槽屏蔽 Ctrl+Z。
-- **内置默认库**（`web/prompt_tags_default.json`，prompt_presets 转换产物随插件分发）：设置缺失时（新环境/被清）首启异步 fetch 并落盘（`fetchDefaultLibrary` promise 缓存，失败会话内不重试；仅当仍为空库才应用，防覆盖用户已建标签）；编辑器页脚 ⋯ 菜单有 **Restore default library**（confirmDanger + 先导出备份 + 游标复位，已默认时不弹框）。
-- **token 语法与中文**：token 名 `[\p{L}\p{N}_-]`（u flag，中文可作 tag/分类）；边界保护用 Latin/希腊/西里尔/数字/组合标记集合（email `user@name`、算式 `2*2` 不误判，`画@水彩` 识别）；拼音检索用内联 GB2312 一级字表（pinyin-pro 一次性生成，非运行时依赖），`pinyinMatch` 原名/全拼/首字母三路子串；中文 token 前后不插空格（`tagSep/tagTrail` 仅拉丁语境加空格）。
-
-**前端：prompt 剪枝闸门（`web/sf_pause_text*.js`，SFPauseText）→ experience.md §7**
-- **双钩子拆分（与 SFPromptTags 同款）**：`graphToPrompt` 只注入 {mode, text} 到隐藏 PauseState——它也会被 Export/分享/保存按钮触发，在那里删节点会把导出静默截断；`api.queuePrompt`（`args[1].output`）提交时才 PRUNE，且**continue 必须先于 pause/pass 处理**（continue 会删掉自己的下游分支，可能连带删掉上游的另一个闸门）。
-- **prune 语义**：pause 删闸门下游（闸门是 OUTPUT_NODE = 分支终点）；continue 跳上游模型链——删 `text` 链接、**菱形重路由**（gate 之后直接读原文本源的链接改指闸门输出）、只删**会拉活被跳过上游的输出节点**（无关输出分支照跑）、非输出节点留作无害孤儿（不校验不运行）；pass 不剪。`isOutput` 从 `LiteGraph.registered_node_types[cls].nodeData.output_node` 读，注册表缺失回退删一切（安全）。
-- 解析不到活节点时默认 **pass（不剪）** 而非破坏性的 pause；一次性提交模式（Continue/Regenerate 按钮）挂 `_sfPauseTextSubmitMode` 后 `app.queuePrompt(0,1)`，finally 清除；`executed` 事件接收 Python `ui` 键回填盒子（setModelText 换文本+基线）。
-- **Python 侧禁设 `IS_CHANGED = float("nan")`**：NaN 恒不等自身 → 节点每次 Run 都"变化" → 缓存键折叠所有祖先 → 闸门下游每次全量重跑。模式与文本在隐藏输入里本就在缓存键中，无需额外失效。
-- 状态存 `node.properties.pauseTextState`（gate: pause|pass|keep / text / original）随工作流保存（保留编辑是设计）；无 widget 状态的 DOM-only restore 在加载路径安全。
-
-**前端：快照闸门与预览保存（`web/sf_pause_image*.js`，SFPauseImage）→ experience.md §8**
-- **图片无法随隐藏输入携带 → 快照机制**：pause 时后端把首帧存 `folder_paths.get_temp_directory()/sf_pause_<id>.png`，continue 时前端把上游剪出 prompt、后端读回同一文件（`UNIQUE_ID` 跨 run 稳定）。快照文件名前缀必须与源插件隔离（同 node_id 会撞文件互相覆盖）。重启后快照过期 → continue 抛清晰错误，需重新 Pause。
-- **PNG 拖回重建（Save Output）**：`PngInfo.add_text("prompt"/"workflow")` 对齐 ComfyUI SaveImage 字节格式；嵌入前必须 `_json_safe`（NaN/Inf → 字符串，否则拖回时 workflow JSON.parse 炸）；尊重 `--disable-metadata`（`comfy.cli_args.args.disable_metadata` 实时读、fails open）。
-- **`_safe_prefix` 段清洗（复查抓到的真 bug）**：leading `/` 与 `".."` 段检查必须在**任何清洗之前**——先删点/斜杠会让检查永远不命中（路径穿越失效）。段内 Windows 非法字符（`<>:"|?*` 与控制字符）替换 `_`、折叠、边沿剥离、保留设备名（CON/NUL…）加 `_` 后缀；非拉丁/空格原样通过。
-- Save 链路：snapshotDataURL → `POST /api/sfnodes/preview/{save,prepare}`（前端 `api.apiURL()` 构建）→ `showSaveFilePicker` 优先 + `<a download>` 回退；executed 捕获的执行期工作流只存运行时（`node._sfPauseImageExecMeta`，绝不进 node.properties）。
-
-**前端：SFPauseMask（`web/sf_pause_mask*.js`，SFPauseMask）→ experience.md §9**
-- 与 SFPauseImage **同构**（MASK 类型闸门）：快照/剪枝/一次性模式/executed 回填机制全部复用，仅 CLASS/输入键（`mask`）/frame 键（`sf_pause_mask_frame`）/state 键（`pauseMaskState`）不同。
-- **剪枝共用一份实现**：text/image/mask/latent 四闸门的 prune 全走 `sf_pause_text_lib.js::applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT, {inputKey})`（latent 加 `opts.extraInputKeys`）——改 prune 语义只改一处。
-- 快照为**灰度 PNG（L 模式，0-255 量化）**：遮罩通常二值/低精度，8bit 足够，与 ComfyUI 存遮罩惯例一致；tensor 转换防御非标准 `[1,H,W]`（部分节点输出带单例通道维，压平后 L 模式才接受 2D）。
-- 快照前缀 `sf_pause_mask_` 与图片闸门的 `sf_pause_` 隔离命名空间；`executed` 回填遮罩 frame 到灰度预览。
-
-**前后端：SFPauseLatent（`nodes/image/pause_latent.py`、`web/sf_pause_latent*.js`，SFPauseLatent）→ experience.md §22**
-- **LATENT 闸门，专为"分段采样中间暂停"**（KSampler(A)[start=0,end=4] → 闸门 → KSampler(B)[start=4,end=8]）：Pause 停在第一段结束显示预览，Continue 从快照 latent 继续第二段（第一段零重跑），Regenerate 重跑第一段，Pass 一次跑完。
-- **快照是 latent 张量（safetensors）而非 PNG**：`latent_tensor` 键 + `latent_format_version_0` 标记（对齐官方 SaveLatent 格式）；**保存 latent dict 中全部张量键**（samples + noise_mask/batch_index）；`.latent` + 预览 `.png` 双快照同前缀 `sf_pause_latent_`。
-- **预览输入（image）必须在 continue 时连同 latent 链接一并剪掉**：`applyGateMode` 的 `opts.extraInputKeys`（仅 continue 生效，不传时与 image/text/mask 旧调用行为完全一致，有回归测试锁定）。无 image 预览输入也可用（无 frame 而已）。
-
-**前后端：wired 尺寸输入节点（`nodes/image/resize_image.py`、`web/sf_image_resize*.js`，SFImageResize）→ experience.md §13**
-- **三输入优先级**：`longest_side` > `width`/`height`；单轴 = 按该维等比缩放（scale_factor 路径）；双轴 = 精确盒（fit_inside 保持，其他强制 cover）；0/负 wired 值 = 直通。JS `effectiveWiredState` 逐分支镜像 Python `_apply_wired_size`（`sf_utils/resize_engine.py`），两侧测试同用例同期望值。
-- **接线互斥自动断开**（longest_side ↔ width/height）必须三重守卫：onConfigure 窗口 + `app.loadGraphData` 包装 300ms 尾窗（**连接恢复发生在 onConfigure 之后**，无此守卫打开工作流会误断已保存的线）+ 自递归标志。显示模式不写 `state.mode`（双线时渲染强制 Crop to fill，断开后恢复用户原模式）。
-- `readWiredInt` 只信任**恰好一个数值 widget** 的上游（多数值/字符串 → null → 显示"由接线输入决定"或上次运行 dims，绝不显示错误数字）；wired 字段锁定 = readOnly + opacity + makeNumericInput 的 readOnly 守卫（步进箭头天然失效）。
-- **PIL NEAREST 缩小是 box 平均**（非点采样）：单像素点缩小会被稀释，放大/同尺寸才像素保真——mask 对齐断言用"同尺寸直通 + 放大角点"两场景。
-
-**前后端：文本查找替换双端镜像（`nodes/text/find_replace.py`、`web/sf_find_replace*.js`，SFTextFindReplace）→ experience.md §14**
-- 替换逻辑 Python 权威 + JS 预览镜像（`applyRulesJS` ≡ `_apply_rules`），测试同用例同期望值。**literal 模式**：替换文本反斜杠必须双写（`\1` 是字面量不是 backref），JS 端 `$` 转义；**regex 模式**：backref `\1`（Python）vs `$1`（JS）靠 pyTemplateToJs 翻译、`(?P<n>)`→`(?<n>)`、`/u` flag 匹配 Python Unicode 大小写折叠；`\w` 类在 JS 预览仅 ASCII——预览可能比实际窄，Python 是权威。
-- **ReDoS 防护**：嵌套无界量词启发式（`(a+)+` `(a*)*`）**+ 交替型指数回溯（`(a|aa)+` 家族，分支首字符重叠判定，`(a|b)+` 不误报）**双端 1:1 镜像（find_replace.py ≡ sf_find_replace_lib.js；regex_extract 复用，内置预设跳过）——Python 服务端无超时执行，命中即跳过规则 + 警告；预览每次按键重算，同模式会冻结浏览器。
-- **预览样本上限 4000 存 `node.properties.findReplacePreview`（不注入 prompt）**：预览 = 上次运行输入 × 当前规则实时重算；规则状态 `findReplaceState` 经 graphToPrompt 注入隐藏 FindReplaceState（Pattern #9，随 workflow 保存）。
-
-**前端：值下拉与输出点对齐（`web/sf_dropdown*.js`、`nodes/text/dropdown_value.py`，SFValueDropdown）→ experience.md §15**
-- **lean 注入形状作缓存键**：graphToPrompt 注入 `{"version", "type", "value"}`（只有选中行的值 + 类型）而非整个列表——注入字符串即缓存键，改行名/重排/改未选中行/切模式都不重跑；Python `selected_value` 接受 lean 与 full 双形状（full 兜底手写 API 文件）。
-- **运行游标存节点内存而非未注册设置**（与 SFPromptTags 不同：列表是每节点的）：`_sfDropdownPending` 持有掷出的牌，`api.queuePrompt` 成功后才 `commitPick` 到 `_sfDropdownCursor`——Export/校验失败的 queue 不推进序列；写 node.properties 会把每次 Run 标 modified（Seed 陷阱）。刷新后从选中条目重新开始（可预测）。
-- **双端数字语法契约（THE PARITY RULE）**：`sf_utils/dropdown.py` 与 lib 的 coerce 1:1 镜像——`_NUMBER_RE` 拒 `0x10`/`1_0`/Infinity（两侧原生解析器各自分歧，正则才是契约）、`_JS_WHITESPACE`（JS trim 集合含 BOM，Python strip 不含）、half-away-from-zero 取整（Python round 银行家舍入 vs Math.round 向 +∞）、1e12 钳制（可读性警告含钳制移动）、readable 坏行警告标记；两侧测试同用例同期望值。
-- **输出点对齐双渲染器（本项目首个对齐节点）**：Classic 硬编码 `output.pos`（getConnectionPos 原样返回 + 自动堆叠跳过 positioned 输出；**注意 margin**：元素画在 node.pos+margin+widget.y 而 widget.y 不带 margin，点要 +margin）；Vue 无官方方式 → DOM nudge（槽位定一行高 → 块拉出文档流 `marginBottom:-offsetHeight` → `translateY` 点上行，**先定尺寸后测块**）；**350ms 自愈 poll**（Vue 重渲染替换节点元素，MutationObserver 被孤立；无变化早退，稳态成本一次 rect）；serialize 剥离 `output.pos`（Legacy 会写进文件，两渲染器文件不一致 → 打开即 modified）。
-- 弹出列表（document.body，position:fixed 不继承画布 transform）：根 font-size 按 canvas scale 缩放（内尺寸全 em 联动）、锚点宽是最小值（内容可增长，先算 maxW 再钳 minW）、left 在宽度已知后钳、下方不足向上翻转；外部点击/Esc/滚轮三关闭（wheel 只豁免列表本身，因为坐标写一次、画布移动即搁浅）。
-- **isGraphLoading**：包装 `app.loadGraphData` + 300ms 尾窗（连接恢复在 onConfigure 之后）——切换类型断线（dropIncompatibleLinks）与加载路径剪线防护；`slotAccepts` 兼容 `"FLOAT,INT,BOOLEAN"` 多类型槽（相等测试会剪掉用户刚画的线）。
-- 写路径 vs 读路径对非对象行处理不同：`writeState` map 归一（null 行变空行），`readState` filter 丢弃——移植时别混。
-- **分类（version 2，随 SFTextDropdown 移除加入，详见 experience.md §15.9）**：`categories`/`category`/行 `category` 随工作流保存，旧 v1 数据自动归 default；index/游标基于 `visibleOptions` 过滤列表——切分类必须 `writeState({category, index:0})` 清游标；lean 注入不变（分类是组织状态不进缓存键）；面板 `commit()` 必须重渲染分类区（Import 会漏）；节点面 cat 按钮文本包 span 才有 ellipsis（flex 容器直接文本只硬截断）+ `flex:0 1 auto` 可收缩防行宽溢出，行尾 padding 16px 给输出点让位（点 X：Classic `size[0]-10` 贴边，Vue 越界最小内移 2px）。
-
-**前端：SF Workflows 工作流面板（`web/sf_workflows*.js`、`nodes/workflow_routes.py`、`sf_utils/workflow_index_helpers.py`）→ experience.md §10**
-- **无节点设计**：面板是"应用"不是节点——节点会被存进工作流文件，分享工作流会把多余节点带给每个打开的人。打开方式：工具栏按钮 + 热键 + canvas 右键菜单。
-- **热键撞车**：原版 Pixaroma Workflows 占用 `Alt+W`，并存时 ComfyUI 按键注册全局去重报 `Keybinding on Alt + w already exists` → 本项目用 `Alt+Shift+W`。
-- 后端分层：`workflow_index_helpers.py` 纯逻辑（无 ComfyUI 依赖可独立测试，mtime+size 增量解析、24MB 文件上限、封面映射 60 框/文本 2KB cap）；`workflow_routes.py` 五资源路径 7 handler（/index 一次返回全部、/meta GET 自愈+POST 按键合并、/folder、/reveal、/cover POST+GET），**meta 读写用 asyncio.Lock 防两面板读-改-写互擦**。
-- sidecar 三件套（user/default/ 下，bind mount 存活）：`sf_workflows_meta.json`（notes/covers/folderColors + folderOrder/folderExpanded）、`sf_workflows_cache.json`（索引缓存，条目形状变化递增 version 丢弃）、`sf_covers/`（手选封面以真实 jpg 文件保存，sidecar 只存文件名）。
-- **收藏走 pinia（Vue 新版）**：ComfyUI 启动时不读收藏文件，书签 store 直到有人调 `loadBookmarks()` 才加载 → toggle 收藏前必须先 `await loadBookmarks()`，否则覆盖空列表。
-- 设置键 `sfnodes.Workflows.{Rect,View,Sort,Density}`（comfy.settings.json 持久化）；**密度系统 `z(n)=calc(npx*var(--sfwb-k,1))`**：视觉尺寸全走 CSS 变量缩放（s/m/l 三档），窗口像素尺寸刻意不缩放保拖拽数学自洽；滚动容器 `overflow-y` 放**持久 main**（面板重建不重置滚动位置）；加载带票号 guard 防两次加载重叠。
-
-**前端：SF LoRA 浏览器（`web/sf_lora_browser*.js`，无节点设计）→ experience.md §30**
-- 与 Workflows 同类"应用"面板：工具栏按钮紧贴 Workflows 按钮（已挂载则插其 group 后，否则兜底插 settingsGroup 前 + 25 次重试），Alt+Shift+L 热键 + canvas 菜单；**后端零新增**——列表/信息/缩略图/自定义词/描述全复用 `/api/sfnodes/lora_*` 路由与 `sf_lora_stack_api.js` 封装。
-- **信息编辑直接复用 SFLoraStack 面板**：`sf_lora_stack_info.js` 改为**宿主 ctx 适配**——`openInfoPanel(node,id,refresh)` 兼容入口保留（内部构造 node ctx：getRow=readState 行、patchRow=patchLora、prefs 由 readState 读 thumbs/civitai），新增 `openInfoPanelFor(ctx,id)` 供非节点宿主（key=字符串、getRow/patchRow/内存行、anchorRect=卡片矩形、无 ctx.node 时不起 startFollowing）——Stack 路径逐字节不变（冒烟测试锁回归）。
-- 浏览器行宿主只是面板的会话内可读写副本（triggers/custom）——**真源在服务器统一存储**（saveCustomTriggers/saveCustomDescription 按名写回），行副本不持久化。
-- **文件夹层级浏览（对齐 SF Load Image Browser 的浏览器）**：`sf_lora_browser_lib.js::folderContents(list, folder)` 返回「立即子目录 + 当前层文件」（镜像 image_browser 的 getFolderContents，文件夹只取第一段、文件只收当前层直接文件）；面包屑（根 All LoRAs + 逐级、点击跳转、当前级 .cur）**用 DOM API 构建**（textContent/dataset 赋值——目录名来自用户文件系统，不用 innerHTML 注入面）；**搜索激活时忽略层级、跨全部分层扁平匹配**（与 image_browser 同语义）；浏览位置记忆设置键 `sfnodes.LoraBrowser.Folder`（打开窗口恢复，列表到达后按目录存在性校正——目录被删回根）。
-- **双击加载到工作流（2026-08）**：文件卡片双击 → **三分支**：无 SFLoraStack 节点 → 新建（**优先官方命令 `app.extensionManager.command.execute("Comfy.AddNode", {type})`**，从 graph 按新增节点找回来；兜底 createNode+graph.add）；恰一个 → 直接 `addLora(node, name)` 插入该节点；多个 → 弹选择器（`sf-lb-pick-mask` 面板风：每行 `#id · title（用户改过的节点标题，缺省回退类名）· N LoRA(s) · 首行名`，readState 读行数，点行选择/遮罩或 Esc 或 Cancel 取消，打开前 closeInfoPanel）→ 插入选中节点。插入统一走 `addLoraRow(node,name)`（addLora + `_sfLsRefresh(true)` 重渲染 + fitToContent + selectNode）；位置 = 画布视口中心换算（`(p - ds.offset)/ds.scale`）+ 随机 ±30px 防重叠；**单击/双击防抖**：浏览器双击先派发两次 click 再 dblclick——单击延迟 250ms、dblclick 时 clearTimeout 取消在途单击（第二次 click 覆盖第一次 timer，dblclick 再清一次），双击不误开信息面板。
-  - **Vue 新版实测大坑（2026-08 实测）**：裸 `LiteGraph.createNode("SFLoraStack")` + `app.graph.add(node)` **只弹成功 toast 却不渲染节点**——Vue 前端的节点创建/类型注册/widget store 同步必须走官方命令（AddNode 缺失时再兜底 createNode + graph.add，Classic 前端仍可用）。
-- **网格/列表双视图（2026-08）**：bar 第二个 seg（九宫格/三横线 SVG 图标，无文字），记忆 `sfnodes.LoraBrowser.View`；列表行 = 40px 缩略图 + 文件名 + 目录/扩展名（`sf-lb-row`，文件夹行 = 📁 图标 + 名称），**单击/双击交互与网格卡片共用 `attachPickAdd`（提取的防抖逻辑）**，缩略图 error 占位共用 `wireThumb`；平面模式的滚动分批对列表视图同样生效（行高小、一批 60 也够）。flat 模式图标从三横线改为**层叠（layers）**——避免与列表视图图标视觉混淆。
-- **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/层叠，无文字——mask-image data URI 同工具栏按钮风格，title 承载说明），模式记忆 `sfnodes.LoraBrowser.Mode`；**平面模式** = 全量列表**分批渲染 + 滚动动态加载**——`renderFlat(main,{names,shown})` 一次只建 `shown` 项卡片，`attachFlatScroll(main, onNeedMore)` 距底 300px 回调续批（幂等绑定），渲染前自动判断「视口未满则续批」防高窗口/小步长空转；面包屑行在平面模式隐藏（`.sf-lb-path` display:none）；计数：未载完显示「已载 / 总数」，载完显示总数；切换/搜索重置批次游标。
-- 列表性能：卡片 content-visibility:auto + img.loading="lazy"（数百上千 LoRA 不一次性拉图）；缩略图路由 max-age=3600——任一端改数据后经 `sfnodes.lora-data-changed` 事件刷新可见卡片封面（URL 带 `&t=Date.now()` bust）。
-
-**后端：自定义 API 路由（`sf_utils/lora_notes.py`/`lora_routes.py`、`nodes/image/preview_routes.py`、`nodes/workflow_routes.py`、`nodes/text/prompt_reader_routes.py`、`nodes/utils/canvas_size.py`）→ experience.md §8.4/§10.3/§11.4/§16.4**
-- 注册先例：`from server import PromptServer` → `ins.routes` 装饰器注册，try/except 包裹（环境异常降级不注册），模块导入时副作用执行（`__init__.py` import）；前缀统一 `/api/sfnodes/...`。**改动路由后必须重启容器**，否则前端 404 静默降级。
-
-**前端：全屏编辑器与冒烟测试 → experience.md §6.3/§6.5**
-- 全屏编辑器（DOM widget 之外的整页 overlay）：类名前缀与既有插件隔离（`sf-ptge-`），图标内联 data URI（无资产服务路由），Esc 用 window capture 分层处理（modal → 菜单 → 字段取消 `_sfCancel` → 关闭），危险操作统一 `confirmDanger`（无撤销）。
-- 模块化：纯函数 lib（无 app/DOM，测试 copy .mjs 直跑）/ store / cursors / guard / editor / 主扩展，跨文件 import 契约即模块边界。
-- 冒烟测试（mock DOM）：惰性元素（任何 querySelector 返回新元素）、`/scripts/app.js` → `globalThis.app`、相对 import 改 `.mjs` 同 tmp 目录；可抓纯语法检查漏掉的运行时错误（如缺 `getComputedStyle` mock）。
-
-**前端：Vue 新版（comfyui_frontend_package 1.x）→ experience.md §2.8**
-- 先确认前端版本再选方案（容器内 `pip show comfyui-frontend-package`，Version 1.x = Vue）。
-- 槽位数组为 shallowReactive：直接改元素属性不触发渲染，**替换数组元素**才触发。
-- 动态 tooltip：写 `widget.tooltip`（nodeDef 兜底存在，清不掉）；canvas 事件/坐标方案在 Vue 下失效。
-
-**前后端：提示词恢复（`sf_utils/prompt_reader.py`、`nodes/text/prompt_reader.py` + `prompt_reader_routes.py`、`web/sf_prompt_reader.js`，SFPromptReader）→ experience.md §16**
-- **三种元数据容器，全纯标准库解析**：PNG tEXt/iTXt（PIL）；MP4/MOV/M4V 的 moov→udta→meta keys+ilst——**ffmpeg 系（VHS `-movflags use_metadata_tags`）ilst item 的 4 字节是 1-based INDEX 而非 iTunes 4cc**，按 `1<=idx<=len(keys)` 判定；WebM/MKV 的 EBML Tags/SimpleTag——**键名按 Matroska 规范大写**，读取归一小写。流式扫描只读入 moov/只进 Tags 容器、seek 跳过 mdat/Cluster（多 GB 视频廉价）。
-- **graph walker 反推 sampler 正向文本链**（visited + 深度 24）：`_TEXT_KEYS`/`text_X` 正则/`_COND_LINK_KEYS` 启发式 + 特判分支——Pixaroma 生态 8 类（Switch/Stack/Multi/Pack/Dropdown/FromList/Prompt/SwitchSource/rgthree Any Switch，读他人 Pixaroma 图仍可恢复）与 sf 自家（SFPromptTags/SFValueDropdown 与 Pixaroma 同构共享分支；SFTextPreset/SFAnythingIndexSwitch/SFPauseText continue/SFPromptList/SFPromptPreset）。PromptReader 自追链最多 5 层（embedded workflow 只存 inputs.image）。
-- **目录切换 IN/OUT（SFPromptReader + SFLoadImageResize 同款）**：output 项拼 `" [output]"` 注解全链贯通（`get_annotated_filepath` 原生解析、`/view` 缩略图按注解选 type、分组/显示剥离）；**output 模式下上传/拖拽/粘贴自动切回 input**（文件落 input/）。目录状态字段必须避开 `applyResult` 写入的提取来源 `source`——**撞名会被覆盖**，用 `folder`。
-- **目录选择三源渐进式（SFLoadImagesPath）**：源切换（input/output/images）+ 面包屑/按需加载（`/api/sfnodes/images_path/subdirs?folder=`）+ popup 下拉（SFLoadImageResize 风格）。**模式状态必须显式存 properties**（值推导不可靠：路径模式下值可能仍是目录格式）；**渲染只读不加 isGraphLoading 门控**（尾窗内恢复渲染会丢）；同值 fetch 缓存防重复请求；空目录返回占位不抛错。完整设计见 `doc/experience.md` §18。
-- **DOM widget 高度必须 ≥ 内容实际高度**：element 高度内容自适应、节点边框按 widget 声称高度（getMinHeight/getMaxHeight）绘制——声称 < 内容时底部行（如刷新按钮）溢出边框，节点未拖小时被边框遮住、初始/拖小即暴露。**别硬编码高度**：动态测量可见子行 offsetHeight + padding/gap，last-good 缓存防首帧/组折叠隐藏塌缩；Nodes 2.0 另配 `computeLayoutSize({minHeight, minWidth})`；宽度用 MIN_W（初始只抬升 + onResize 钳制）+ CSS（按钮 `min-width:0`+ellipsis、root `overflow:hidden`）。见 `doc/experience.md` §18.6。
-- **上传路径 MIME 过滤必须与 accept 同步放宽**：`accept="image/*,video/*"` 但 drop handler 仍 `startsWith("image/")` → mp4 拖入静默无反应；type 为空（.mkv 未知扩展）放行交后端。
-- IS_CHANGED 用 (mtime, size) 而非全文件哈希；VALIDATE_INPUTS 恒 True（缺文件/无元数据走输出文本不阻塞图）；`node.imgs` 抑制（defineProperty 前置探测 configurable）；extract 请求 reqId 单调防乱序。
-
-**前后端：SFPromptPreset 十一分类组合预设（`nodes/text/prompt_preset.py`、`web/prompt_preset.js`、`data/prompt_presets.json`）→ experience.md §29**
-- **正交原则**：各分类 prompt 不得内嵌其他分类职责（动作内嵌场景/灯光、服装内嵌灯光、名人内嵌风格、动作内嵌裸体）——组合互相污染；允许例外（动作要素/场景固有照明/风格光效特征/服装场合属性）。NSFW 动作组只描述动作，裸体由服装"全裸"控制。
-- **可复现随机**：`IS_CHANGED = seed`；全分类/组内（`随机·组名`）/`[A, B]` 括号随机三种机制；**seed 偏移 +1..+11** 防同 seed 各分类同值；pose/couple 互斥前端联动 + 后端兜底（保留 pose）。
-- **Krea2 grounded phrasing**：环境片段自动加 `in the`/`on the` 空间介词（表面类环境 on the），主体明确"身处"场景。
-- **LLM 优化链路**：optimize_request 含创作声明 + 11 条指令（保持衣着水平不强制穿衣、防拒条款、防思考条款）+ 续写锚定，喂官方 TextGenerate；Qwen3 thinking 参数见 §5。
-- 数据 `data/prompt_presets.json` 热加载（mtime + 线程锁）；删改预设的旧工作流值经 VALIDATE_INPUTS 降级空串（§4 模式）；破坏性变更：旧 12 条 STRING → 3 输出 + SFUnpackPromptPreset 还原。
-
-**前后端：Krea2 预设管理（`sf_utils/krea2_presets.py` + `web/sf_krea2_presets.js`，SFImageInterrogator/SFKrea2SystemPrompt 共用）→ experience.md §31**
-- 数据模型：内置 dict 为默认源 + 用户存储 `<user>/sfnodes/{kind}_presets.json`（`overrides` 兼修改/新增、`deleted` 墓碑删除）；`merge()` 墓碑胜出；`"none"` 受保护不可删。
-- 动态 combo：INPUT_TYPES 静态只列内置 → 前端加载后重建 options + 两节点 `VALIDATE_INPUTS=True`（§4 模式）；执行回退用合并预设 `_merged_presets(kind, builtin)`，失败降级内置。
-- 管理 popup：复用 `sf_popup.js` 三件套；改动后 `refreshAllNodes` 重建所有同 class 节点 + 派发 `sfnodes.<kind>-presets-changed`；管理按钮用 `addDOMWidget` 纯按钮（不写 .value 无递归风险）。
-
-**前后端：SFLoraStack 多行 LoRA 栈（`sf_utils/lora_reader.py` + `lora_routes.py`、`nodes/model/lora_stack.py`、`web/sf_lora_stack*.js` 模块系列）→ experience.md §19**
-- **Civitai API 字段位置必须实测**：model-versions 响应里 `model` 对象只有 name/nsfw/poi/type——**说明文字在 version 顶层 `description`**（HTML，需剥标签/实体解码/空白折叠）；thumbnail 取 `images[]` 第一张非成人图。
-- **用户数据以路径名为键 → 文件移动/改名失配**（自定义词/描述存 `user/sfnodes/lora_triggers.json`，预览图按键 hash 命名；侧车 `.civitai.info` 随文件走不受影响）。两级孤儿匹配：**内容指纹优先**（size + 采样哈希，改名不改内容 → 指纹不变）、**基名兜底**（仅覆盖文件夹改名；同名多目录歧义放弃）。匹配后前端提示条 + 用户确认迁移（不自动执行防误配）；迁移端点接收前端回传的 `old_key`（防御自迁移/不存在键）。封面可静默恢复：本地无预览且侧车有缩略图 → 自动重下载到新 hash 名。
-- **面板风确认框必须豁免宿主面板的 document 捕获监听**（onKey/onPaste/onDocClick）：确认框挂在 body、不在面板 DOM 内，不豁免则其事件会穿透到面板监听（Esc 连关面板、外部点击误关）。信息面板外部点击关闭语义（2026-08 修订）：**查看态点击面板外（画布/其他节点）关闭面板；编辑态（`_descDirty`）不关**（防误关丢草稿，与 Esc/✕ 确认保护同对象）；拖动（位移 > 6px，LiteGraph 拖动后 mouseup 也会触发 click，浏览器不查位移）与面板内点击不关；Esc 主动关闭保留。
-- **全局强调色统一走 `--sf-acc` CSS 变量**（`sf_common.js` getSfAccent/applySfAccentVar/sfAccent，注册在 SFLoraStack 扩展 init）：CSS 部分 `var(--sf-acc, #f66744)` 响应式自动生效；canvas 每帧 `sfAccent()`（inline 变量读取轻量）；**无节点级自定义**（旧 state 的 accent 字段被忽略），面板/下拉/菜单的局部 `--acc`/`--sf-acc` 只是把全局色带到局部作用域。**三个时序坑**：① ComfyUI 设置 onChange 在 store 更新前触发、参数是 (newValue, oldValue)——回调里读 getSettingValue 拿到旧值（"设了 red 显示 teal"），必须用传入参数；② 由此连带：**onChange 里的节点重绘也要 setTimeout(0) 推迟**——同步执行时 accentOf 读 store 仍是旧值（"SFLoraStack 设置后不立即生效"）；③ 初始 applySfAccentVar 必须在 addSetting 之后（未注册读不到用户值），且**设置值从服务器异步加载、晚于扩展 init**——需轮询重试几次（幂等），否则 --sf-acc 被钉死在默认色、CSS 变量类节点（Load Image Resize 等）硬刷新后不跟随（accentOf 直读 store 的节点不受影响，症状不一致易误判）。
-- **保存成功后 `_infoSeq++` 作废在途旧响应**：面板打开时 loadInfo 在飞，用户保存描述后迟到响应落地会覆盖回旧值（"保存了仍显示来自 Civitai"）；设置面板同理用 `_accDirty` 挡 GET 迟到应答覆盖刚保存的 host。
-- 存储形状升级必须兼容旧数据（`{key:[words]}` → `{key:{words,description,fp?}}` 读时归一）；`promptState` 只注入执行字段（cosmetic 剥掉避免改缓存签名），`cacheMode` 例外（Python 需要它决定内存策略）。完整踩坑见 `doc/experience.md` §19。
-- **行名显示全局设置共享**：设置 `sfnodes.Lora.DisplayName`（full/filename/basename/folder/parent_basename，后者=上级目录名+去扩展名文件名，根目录文件降级 basename，原 sfnodes.PowerLoraLoader.DisplayName 已一次性迁移至此）Stack/Plot 行名同一真源 `sf_common.js::loraRowLabel`（模式 ≠ full 设置优先，basename 剥任意扩展名；full 默认回退每节点 hideExt 白名单，向后兼容）；onChange 经 `sfnodes.lora-display-mode-changed` 事件桥 → Stack/Plot 各自 `setTimeout(repaintAll/renderAllPlots, 0)`（DOM 行重绘；Stack/Plot 各自监听事件，不跨节点 import 节点模块防耦合）。细节见 `doc/experience.md` §19.7。
-
-**前后端：SFLoraStack 正交堆叠 ortho_gs（2026-08，`sf_utils/lora_ortho.py` + `lora_ortho_load.py`）→ experience.md §20**
-- **数学**：ΔW = Σ s·(α/r)·(A_i·B_i)，多个 LoRA 的 down 矩阵行空间重叠 = 干扰源（相似 LoRA 叠糊）。ortho_gs 把每个 down 的行投影到前序 down 行空间的正交补（`d' = d - (d@Qᵀ)@Q`，Q 用 SVD 右奇异向量扩基 + QR 去线性相关）——**第一个 LoRA 不动、后续让位**，up/alpha/strength 全不动；行空间被完全覆盖时投影归零（幅度损失是 tradeoff 非 bug）。
-- **必须走独立加载路径**（链式 `load_lora_for_models` 拿不回 up/down）：自己 `model_lora_keys_unet`(+clip) 建 key map + `convert_lora` + `load_lora` + clone + add_patches + `set_attachments("lora_metadata")`，**按模型 key 分组**（同 key 多 LoRA 才 GS，单条直通）；加载+应用收敛在 **`lora_ortho_load.ortho_apply(model, clip, entries, load_sd)`**（Stack 传 `self._get_lora`、Power 传 `_load_sd_direct`，禁止两节点各写一份）；patch 结构注意 **up 是 [0]、down 是 [1]**、`("diff", (w,))` 1 元素内部元组必须原样返回。
-- **契约**：Stack `mergeMethod` 与 cacheMode 同模式（默认 `"sequential"`）；Power 是**节点面 combo**（`["linear","ortho_gs"]` 默认 `"linear"`）；**ortho 模式 run 内全栈 sd 驻留**（峰值=栈大小）。**Power 的应用计划第一项必须存 `get_lora_by_filename` 的规范化结果**（短名/无扩展名会失败）。
-- **ok_paths 是 set——绝不能直接迭代它来组装 resolved/触发词/修剪游标**（顺序随机 → 测试偶发 FAIL）；必须按 plan 栈顺序扫描 `if zero or path in ok_paths`。
-- **测试**：GS 数学用 numpy 参考实现验证；节点链路 monkeypatch GS + fake `load_lora` **必须按 key_map 值过滤**（unet 与 clip patch 键空间不同）；Power 测试需 mock `nodes.LoraLoader` 与 `folder_paths.get_user_directory`。
-
-**前后端：LoRA 信息数据统一（2026-08，`sf_utils/lora_notes.py` 网关化）→ experience.md §19 + 代码**
-- **单一真源**：Power 系（SFPowerLoraLoader 对话框 / SFLoraLoader / ModelOnly 的 execute 输出）与 SFLoraStack 面板的用户自定义词/描述统一存 `user/sfnodes/lora_triggers.json`（路径只由 `lora_routes._custom_triggers_file()` 定义，网关 import 它而非复制）。lora_notes 只是形状转换网关：`trigger_words` 字符串 ↔ `words` 数组（`split_trigger_text` 按英文/中文逗号+换行拆，读写同源）。
-- **读优先级三源合并**：统一存储 > `.civitai.info` 侧车（`read_sidecar_info`，去扩展名 `<base>.civitai.info`）> 文件内嵌元数据。Power 系对话框因此也能看到 Stack 面板查过 Civitai 的词。
-- **旧 `.sf.json` 侧车彻底废弃**：约定是**保留扩展名**（`<路径>.safetensors.sf.json`，与 `.civitai.info` 的去扩展名约定不同！）；任一读取入口（lora_notes / lora_info）首次读到该 LoRA 时经 `migrate_legacy_sidecar` 惰性迁移并入新存储后删除（幂等：store 已有数据跳过）。`?type=` 类型泛化移除（key 空间无类型维度，混入 checkpoints 等会撞 key；消费节点本就用 loras）。
-- **改名/移动后孤儿兜底（文件身份找回数据）**：store key 是路径名，文件改名/移动后 key 失配。两个读取入口（`lora_notes.get_merged_metadata` / `lora_routes.api_lora_info`）都做孤儿检测——**文件存在**时指纹优先（`find_orphan_by_fingerprint`，内容级证据）+ 基名兜底（`find_orphan_key`）；**文件不存在**（旧路径行）时仅基名兜底（无文件可算指纹），返回数据 + `orphan_key`/`_file_missing` 标记，前端提示"文件路径已变更，请重新选择"（Stack 面板提示条无迁移按钮——迁移端点需文件存在；Power 对话框顶部提示行）。同名多目录歧义降级 not found。
-- **跨节点缓存失效用事件桥**：任一端保存成功 → `document.dispatchEvent("sfnodes.lora-data-changed", {detail:{name}})` → 另一端清自己的缓存（`loraMetadataCache.delete` / `invalidateInfo`）；对话框打开时 `getLoraMetadata(name, true)` force 重取双保险。
-- **封面跨节点可见（只读）**：Power 系对话框 header 也显示封面（`/api/sfnodes/lora_thumb` 同路由：用户自定义预览 > 模型旁 .preview 图），URL 带 `&t=Date.now()` bust 越过一小时缓存；无图 404 → onerror 隐藏。封面编辑仍只在 SFLoraStack 面板（对话框无编辑入口）。
-- **`_has_custom` 陷阱**：`desc` 变量会被 sidecar/embedded 兜底覆盖，自定义标志必须用独立变量（`entry_desc`）算，否则 embedded 有描述时 `_has_custom` 恒 True（i 图标误判蓝色）。**高亮语义（2026-08 修订）**：`_has_custom` = 统一存储有词/描述 **或** `.civitai.info` 侧车有词/描述（用户主动查过 Civitai）——侧车-only 的 LoRA（如只查过 Civitai 没写过自定义）也应高亮；刻意不含 embedded（文件自带词/描述几乎人人都有，无区分度）。
-
-**前后端：Civitai 页面主体描述补充（2026-08，`lora_reader._html_to_markdown` / `extract_page_description` / `merge_descriptions` + `lora_routes._download_page`）→ experience.md §21**
-- **API 描述常为空、页面有完整描述**：实测 model-versions 的 version 级 `description` 常是空串，而模型页 Description 卡显示**模型级**完整描述（4110 字符实测）。by-hash 找到模型后总是抓页面补充，拼接**API 在前、页面在后**（`"\n\n"` 分隔，不截断）。
-- **页面是 Next.js SSR，别碰 DOM**：数据在 `<script id="__NEXT_DATA__">` JSON 里，描述在 `props.pageProps.trpcState.json.queries[]` 中 `queryKey[0]==["model","getById"]` 的 `state.data.description`。**mantine 随机 id 无关**——按 queryKey 结构定位（`[["model","getById"],...]`），绝不用 CSS 选择器。无 slug URL `/models/{id}?modelVersionId={vid}` 302 后数据完整。
-- **抓页面必须模拟浏览器，不只是 UA——TLS 指纹（JA3）也会被 Cloudflare 拦截**：`ComfyUI-sfnodes` UA 直接 403；**连带 Chrome UA 的 aiohttp 请求也实测 403**（Python 默认 TLS 握手指纹被识别），curl / curl_cffi 的指纹才放行。教训：**用 curl 验证"页面可抓"不代表 aiohttp 能抓**——必须以实际代码路径验证。`_download_page` 因此主路径走 **curl_cffi**（`impersonate="chrome"`，自带 libcurl 轮子，executor 线程运行不阻塞事件循环），aiohttp 兜底，都失败返回 None——**降级语义**：页面抓取失败 = 维持仅有 API 描述，绝不影响查询成功路径。`_PAGE_MAX_BYTES=2MB`、15s 超时。
-- **拼接结果写入侧车 `data["description"]`**（覆盖 API 空值）：读取端（lora_notes/Power 系走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
-- **描述统一走 `_html_to_markdown`**（markdownify 转换，缺库/异常回退 `_clean_description` 纯文本，测试双环境全绿）：API/页面/文件内嵌/侧车描述同一入口。**幂等保护**：无 `<` 的输入（纯文本/已 markdown 化的侧车描述）只走轻清洗原样放行——markdownify 对非 HTML 输入不幂等（`*` 会转义成 `\*`），而侧车读取路径会二次处理，不保护则"首次查询正常、下次打开面板变转义文本"。**`_MAX_DESCRIPTION_LEN` 已删除**——不截断（来源有流量守卫：API 4MB/页面 2MB/文件本地；前端面板滚动展示）。
-
-**实际环境调试 → experience.md §2.9**
-- 禁止自行浏览器访问 ComfyUI；用分段 console 诊断脚本（版本检查 → 节点状态 → 事件日志包装 → 数据层 → UI 层）交用户执行并反馈（见 Development Rules 13）。
-
-**静态检查脚本（AST）→ experience.md §3**
-- `ast.unparse` 输出单引号、`ast.literal_eval` 遇变量引用抛错——检查脚本出错时先怀疑脚本，再怀疑被检查代码。
-
-**Python 版本陷阱（2026-08，simple_math.py 修复批次）→ experience.md §27**
-- `ast.Constant.n` 是 `value` 旧别名：**3.13 deprecated、3.14 移除**（实测 3.14.x AttributeError），一律写 `node.value`。
-- **`__pycache__` 的 cpython-3xx 是本机解释器版本，不代表运行容器**（版本号会随升级变化，以容器内 `python3 --version` 与 `pip show` 为准）：涉及 ast/语法 API 的改动以容器版本为行为基准写测试。
-- 表达式求值节点（SimpleMath）必须包 try/except（SyntaxError/ZeroDivisionError/KeyError/TypeError）——语法错误/除零/未注册运算符/字符串常量（`math.isnan(str)` TypeError）都是用户一眼踩的崩溃面。
-
-**模型下载统一（2026-08，downloader.py）→ experience.md §27**
-- HF resolve URL → `huggingface_hub.hf_hub_download`（官方缓存/校验/断点续传）→ `copy2` 到约定路径 `save_loc/model_name`（落盘契约不变，调用方零改动）；`requests` 仅兜底非 HF URL。
-- **不用 local_dir**：保留子目录结构破坏 `save_loc/filename` 拼接（`antelopev2/xxx.onnx` → `save_loc/antelopev2/`），且 `local_dir_use_symlinks` 新旧签名不同（rfmsr 踩过）。缓存+复制多占一份磁盘（`~/.cache/huggingface/hub/`，可安全清理）。HF 失败不回退 requests。
-
-**自定义输入框键盘/滚轮（2026-08，快捷键拦截修复）→ experience.md §27**
-- 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键——否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"（所有 sf 自定义输入框统一修复）。
-- **sf DOM widget 输入框不在 Vue TransformPane 的 wheel 转发路径内**（挂 canvas DOM 层）——编辑框上画布缩放完全失效。用 `sf_common.installWheelZoomPassthrough(el)`：Ctrl/⌘+滚轮总转发缩放；普通滚轮可滚动时滚动文本、否则转发（对齐原生输入框）。
-
-**复刻节点去重（sf_common.js / disk_state.py，2026-08）→ experience.md §17**
-- 公共小工具单一实现收敛于 `web/sf_common.js`（小工具/强调色/LoRA 行名三族，含 loadGraphData 全局单例守卫——**勿再各自包装**）与 `sf_utils/disk_state.py`（safe_join 解析根参数化）。新增节点先查复用（Development Rules 14），完整踩坑见 `doc/experience.md` §17。
-- 磁盘源（粘贴/编辑器 Load Image）执行**必须输出源帧 ui_payload**（sf_crop_source/sf_inpaint_source），否则前端 executed 事件收不到、节点预览停留旧图；前端 jsonSync 检测 src_path 变化立即同步缓存（inpaint 无轮询需主动刷新）。
-- 编辑器工具栏 **Reset ≠ Clear**：Reset 委托 `_resetCrop()` 保留源图，勿清 img。
-
-**前端架构治理（2026-08，工具收敛 / 弹层三件套 / 纯模块边界）→ experience.md §26**
-- **通用 DOM 工具单一实现**：`escapeHtml`（五字符）/ `downloadDataURL` / `copyText` 收敛于 `web/sf_common.js`（从 sf_crop_framework / sf_workflows_ui / sf_lora_stack_info 迁入，源文件 re-export 保持调用方零改动）；`sf_find_replace_lib.js` 与 `sf_markdown.js` 因纯模块独立性 + 测试锁定保留各自本地转义实现。
-- **纯模块边界**：`*_lib.js` / `*_core.js` / `sf_markdown.js` **不得 import sf_common.js**（依赖 /scripts/app.js，破坏 Node 测试拷贝）；这类模块的通用纯函数共享应放无依赖模块（sf_popup.js 即无 app 依赖）。
-- **浮动弹层三件套 `web/sf_popup.js`**（attachPopupDismiss 外部点击/Esc/滚轮三关闭 + exempt 豁免 + clampToViewport 钳位）：**新弹层优先使用**，存量 12 个弹层按需迁移不强制。
-- **注册规范固化**（`tests/check_web_imports.py` 校验）：registerExtension 文件必须直接 import `/scripts/app.js`（禁用 `../../scripts/` 相对路径——依赖挂载路径，sf_regional_lora.js 曾踩）、扩展注册名必须 `sfnodes.*` 前缀、相对导入目标必须存在；新增 web 模块时若脚本报 MISSING MODULE 需把模块名加入 MODS 列表。
-
-**风格选择器（SFStylesSelector，复刻 Easy-Use stylesSelector，2026-08）→ experience.md §28**
-- **数据三通道**：内置 `data/styles/*.json`（只读分发）< 用户 `<user>/sfnodes/styles/*.json`（同名覆盖，复用 lora_routes `_sf_user_dir` 惯例）；缩略图本地 samples/ 优先、`fooocus_styles` 库远程 GitHub URL 文本兜底（前端按 http 前缀直用）。库文件 mtime+size 缓存 + `IS_CHANGED` (mtime, size)。
-- **值通道（同 regional_lora 模式）**：Python `hidden` 声明 `SFStylesState`（STRING JSON 数组）作真源随 workflow 保存；DOM widget 纯交互不承担值传输；`isGraphLoading()` 门控标签点击（加载/尾窗误点覆盖刚恢复的选择）。
-- **1:1 拼接语义（原版怪癖测试锁定）**：`{prompt}` 占位**只被第一个**含占位样式消费、后续剥离 `", {prompt}"` 尾接；未消费的输入 `positive + positive_prompt + ', '`（**原版无分隔逗号 + 尾逗号**，行为一致）；negative 尾接；接线 `select_styles` 值 strip（修原版 split 空格匹配不到 bug）。
-- **路由（同文件注册，前缀 /api/sfnodes/styles）**：列表 `?name=` 发展示字段（name/name_cn/thumbnail/prompt/negative_prompt——prompt 文本供 hover 信息浮窗展示）；图片 `?path=` 双目录×（根+samples）查找 + **normpath 后 commonpath 穿越防护**；`?name=` 本地优先 → fooocus 远程 URL 文本 → 404。
-- **hover 信息浮窗（对齐 v2 previewer）**：缩略图 + 名称 + Positive/Negative 提示词文本（3 行 clamp）挂在 widget 内部（absolute + pointer-events:none，坐标相对容器 ÷画布 scale，clamp 防溢出）——修复原版全局 `document.getElementById('show_image_id')` 多节点 id 冲突；预览图 URL http 直链或本地路由原样用（fetch promise 级缓存，失败缓存空会话内不重试）。
-- **Grid/List 显示模式 + Reset（对齐 v2 stylesSelectorDisplay）**：视图模式存 `node.properties.sfStylesView` 随 workflow 保存（不做 v2 的全局设置）；Reset 清空选择；Grid 卡片缩略图 `loading="lazy"`（275 张远程图防一次性拉取），搜索过滤/选中置顶两视图共用 lib 排序。**两坑**：① grid 容器高度确定时 auto 行收缩到 min-content（flex 卡片 min-content ≈ 0 → 行高 10px、缩略图被裁成细条）→ `grid-auto-rows:max-content` 强制按内容撑开；② List 行是 `<label>` 包裹 checkbox——点击的默认激活行为合成 input.click() 冒泡回 label 造成 onclick 二次触发（选中又取消、点不动）→ `e.preventDefault()`。
+优先使用 **codebase-memory 知识图谱**（`search_graph`、`trace_path`、`get_code_snippet`）查找函数、类及其调用关系，代替 grep/glob。仅在搜索字符串字面量、错误消息、配置文件等非代码内容时回退 grep/glob。

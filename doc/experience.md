@@ -24,6 +24,7 @@
 - [17. 复刻节点去重：sf_common.js / disk_state.py 公共模块收敛与踩坑](#17-复刻节点去重sf_commonjs--disk_statepy-公共模块收敛与踩坑)
 - [18. SFLoadImagesPath 目录切换：三源 + 渐进式浏览 + popup 下拉](#18-sfloadimagespath-目录切换三源--渐进式浏览--popup-下拉)
 - [19. SFLoraStack：多行 LoRA 栈复刻（触发词/描述/封面/Civitai 查询/孤儿数据迁移）](#19-sflorastack多行-lora-栈复刻触发词描述封面civitai-查询孤儿数据迁移)
+- [20. SFLoraStack：正交堆叠 ortho_gs（2026-08）](#20-sflorastack正交堆叠-ortho_gs2026-08)
 - [21. Civitai 页面主体描述补充（curl_cffi / __NEXT_DATA__ 与 Cloudflare 拦截）](#21-civitai-页面主体描述补充curl_cffi--__next_data__-与-cloudflare-拦截)
 - [22. SFPauseLatent：latent 快照闸门（分段采样中间暂停）](#22-sfpauselatentlatent-快照闸门分段采样中间暂停)
 - [23. SFPromptList：行号编辑器与 wrap 镜像测量](#23-sfpromptlist行号编辑器与-wrap-镜像测量)
@@ -970,15 +971,16 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 7. 行名显示全局设置共享（2026-08）
 
-- **单一真源**：Power 系设置 `sfnodes.PowerLoraLoader.DisplayName`（full/filename/basename/folder/parent_basename，注册在 power_lora_loader.js）不只管 Power 行——SFLoraStack/SFLoraPlot 行名也读它。逻辑收敛于 `sf_common.js`：`LORA_DISPLAY_MODES`/`LORA_DISPLAY_SETTING`/`loraDisplayName(path, mode)`（纯函数）/`getLoraDisplayMode()`/`loraRowLabel(name, hideExt)`（行名统一入口），**禁止各节点内联副本**。
+> 演变注：设置原为 Power 系的 `sfnodes.PowerLoraLoader.DisplayName`（注册在已删除的 power_lora_loader.js），Power 节点移除后键更名为 `sfnodes.Lora.DisplayName`、注册迁至 SFLoraStack 扩展 init，旧键直接废弃不读取。
+
+- **单一真源**：设置 `sfnodes.Lora.DisplayName`（full/filename/basename/folder/parent_basename，注册在 sf_lora_stack.js 扩展 init）——SFLoraStack/SFLoraPlot 行名共用。逻辑收敛于 `sf_common.js`：`LORA_DISPLAY_MODES`/`LORA_DISPLAY_SETTING`/`loraDisplayName(path, mode)`（纯函数）/`getLoraDisplayMode()`/`loraRowLabel(name, hideExt)`（行名统一入口），**禁止各节点内联副本**。
 - **语义与边界**：模式 ≠ full 时设置优先——basename 用 `lastIndexOf(".")` 剥**任意**扩展名（"xyz.v1.0"→"xyz.v1"，与 Stack 白名单语义不同）；full（默认）回退每节点 hideExt（白名单 `LORA_EXT_RE` 只剥模型扩展名，"xyz.v1.0" 保留）——默认行为与旧版逐字节一致，向后兼容。hideExt 仅在 full 模式参与（全局非默认时让位）。parent_basename = 上级目录名 + basename（"sdxl/style/beauty.safetensors"→"style/beauty"），根目录文件降级仅 basename（与 folder 同降级策略）。
-- **事件桥重绘**：设置 onChange（power_lora_loader.js 注册处）追加 `document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"))`——Power 不 import Stack/Plot 模块（避免节点间耦合，同 lora-data-changed 先例）；sf_lora_stack.js 与 sf_lora_plot.js 各自监听 → `setTimeout(repaintAll / renderAllPlots, 0)`。DOM 行重绘必须走 repaintAll/renderAllPlots（setDirtyCanvas 只重绘画布层，管不到 widget DOM）；setTimeout(0) 推迟到设置 store 更新后（同 Accent 时序坑 3）。
-- 测试：`tests/test_power_lora_display_smoke.js` 复制真实 sf_common.js（重写 `/scripts/app.js`+`/scripts/api.js` import）直测 `loraRowLabel` 五模式 + full 回退 + 版本化名/无扩展名文件边界。
+- **事件桥重绘**：设置 onChange（sf_lora_stack.js 注册处）追加 `document.dispatchEvent(new CustomEvent("sfnodes.lora-display-mode-changed"))`——Stack 不被 Plot import（避免节点间耦合，同 lora-data-changed 先例）；sf_lora_stack.js 与 sf_lora_plot.js 各自监听 → `setTimeout(repaintAll / renderAllPlots, 0)`。DOM 行重绘必须走 repaintAll/renderAllPlots（setDirtyCanvas 只重绘画布层，管不到 widget DOM）；setTimeout(0) 推迟到设置 store 更新后（同 Accent 时序坑 3）。
 - **下拉弹窗定位：方向打开时定一次 + maxHeight 钳制（2026-08）**：`sf_lora_stack_dropdown.js` 的 `place()` 演进两版：① 原本只在打开时与首次 `renderList()` 后调用，目录导航后不重算——进大目录高度增长、top 是"向下"旧值 → 底边越出视口被 `overflow:hidden` 裁掉；把 `place()` 移入 `renderList()` 末尾修复后出现新问题：内容变化反复翻转方向（一会上、一会下）打断视觉锚定。② 终版语义（Floating UI 空间感知同款）：**方向在打开时比较上下可用空间选大者定一次**（`goUp = upSpace > downSpace`，相等向下），展开期间永不翻转；`maxHeight` 动态钳到所选方向空间（`min(60vh, 方向空间)`，下限 40px）——内容超高时 list 内部滚动（`overflow-y:auto`），弹窗实际高度 ≤ 方向空间 → 恒完整可见；top：向下恒定 `r.bottom+4`，向上 `max(8, r.top-4-h)`（底边贴锚点、顶边延伸）。对可增长内容的目录导航弹窗，"选大侧"能容纳更多增长、减少翻转概率。测试 `tests/test_lora_stack_dropdown_smoke.js`：注入可写 `offsetHeight` 模拟高度增长，断言方向恒定（向上 536→36→536）、向下 top 恒定 124、方向空间 < 60vh 时 maxHeight 钳制（356px）；fileRow 文本断言查 `createTextNode` 节点而非元素 `_text`。
 
 ### 8. Description 未保存修改：Save 高亮 + 关闭确认（2026-08）
 
-- **Power 系对话框（sf_lora_info.js）本已具备**（`row._dirty` 追踪 + `closeDialog` confirm 覆盖 ✕/Esc/背景点击）——只补了视觉高亮：dirty 时 Save 按钮实底主色（`#4f7cff` 底 + 白字粗体），替代纯文本 `Save*`。
+- **LoRA 信息对话框（sf_lora_info.js，SFLoraLoader/SFLoraLoaderModelOnly 共用）本已具备**（`row._dirty` 追踪 + `closeDialog` confirm 覆盖 ✕/Esc/背景点击）——只补了视觉高亮：dirty 时 Save 按钮实底主色（`#4f7cff` 底 + 白字粗体），替代纯文本 `Save*`。
 - **SFLoraStack 信息面板（sf_lora_stack_info.js）完整补齐**：`_descBase`（进入编辑时 `shownDesc()` 快照）+ `_descDirty` 模块级状态；textarea `input` 事件比较草稿 → Save 按钮 `.qa.dirty`（accent 实底）高亮，`renderBody` 重建按持久 `_descDirty` 重画；改回基准自动不高亮。
 - **关闭确认**：`closeInfoPanel()` 改造为返回 `Promise<boolean>`——dirty 时经同主题 `confirmDialog`（"Discard description changes?"）确认才关；✕/Esc 忽略返回值（内部异步自关）；**`openInfoPanel` 切换行 `await closeInfoPanel()`，取消则不打开新行面板**；**节点删除路径 `closeInfoPanelFor` 走 `doCloseInfoPanel` 不弹框**（删除不能被阻塞）。textarea 内 Esc（原直接丢草稿）dirty 时也弹确认（误按保护）。
 - **顺带修复草稿泄漏 bug**：`_descEditing/_descDraft` 原是 openInfoPanel 闭包内变量，`closeInfoPanel` 是模块级函数读不到——提升为模块级（闭包共享）后，`doCloseInfoPanel` 关闭时统一重置；旧代码关闭面板不清状态，重开另一行会带着上一行的旧草稿直接进编辑态。
@@ -987,10 +989,39 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 ### 9. 行 i 按钮 _has_custom 高亮（2026-08）
 
 - **需求**：SFLoraStack 行的 info 按钮（`.sf-ls-info` "i"）按"该 LoRA 是否有用户编辑过的信息"高亮（用户以 `.civitai.info` 侧车为标志物）。
-- **判定源与 Power 系 i 图标统一**：用 `lora_notes` 网关的 `_has_custom`（统一存储有词/描述 **或** 侧车有词/描述，lora_notes.py 计算）——比"仅 source==='sidecar'"准（lora_reader 只在侧车有 **triggers** 时置 source=sidecar，侧车仅 description 会漏判）且覆盖统一存储（面板保存的词/描述也亮）。**两节点同一数据源同一语义，跨节点高亮一致**。
+- **判定源与信息对话框 i 图标统一**：用 `lora_notes` 网关的 `_has_custom`（统一存储有词/描述 **或** 侧车有词/描述，lora_notes.py 计算）——比"仅 source==='sidecar'"准（lora_reader 只在侧车有 **triggers** 时置 source=sidecar，侧车仅 description 会漏判）且覆盖统一存储（面板保存的词/描述也亮）。**两节点同一数据源同一语义，跨节点高亮一致**。
 - **实现**：`sf_lora_stack_render.js` 行渲染时 `getLoraMetadata(e.name).then(meta => info.classList.toggle("net", !!meta?._has_custom))`（`isConnected` 守卫：行被 renderNode 重建则丢弃，新行自己会查；缓存命中零请求，未命中 lora_notes 端点轻量）。**`classList.toggle` 传单个类名 `"net"` 而非 `"sf-ls-info.net"`**（后者是含点字符串，会作为单个非法类名添加——CSS 选择器 `.sf-ls-info.net` = 两个类）。
 - **即时刷新**：`sf_lora_stack.js` init 监听 `sfnodes.lora-data-changed` → `setTimeout(repaintAll, 0)`——保存触发词/描述/封面后行高亮更新（loraMetadataCache 已被 sf_lora_info.js 的同事件监听清掉，重渲染时重新查询）。
 - 测试：presets smoke 扩展（makeEl 的 classList 升级为真实 Set + className 双向同步，行 i 高亮的 toggle 依赖）；断言注意 **linkStrength=false 时行结构为 [grip, name, wm, wm(c), info, sw]**，info 是 children[4] 不是 children[3]。
+
+---
+
+## 20. SFLoraStack：正交堆叠 ortho_gs（2026-08）
+
+> 背景：`sf_utils/lora_ortho.py`（纯数学）+ `lora_ortho_load.py`（加载应用，2026-08）。相似 LoRA 叠加糊脸——多个 LoRA 的 down 矩阵行空间重叠 = 干扰源。ortho_gs 把后续 LoRA 的 down 行投影到前序 down 行空间的正交补。落地于 SFLoraStack（`mergeMethod`，与 cacheMode 同模式切换）。
+
+### 1. 数学
+
+- ΔW = Σ s·(α/r)·(A_i·B_i)，多个 LoRA 的 down 矩阵行空间重叠 = 干扰源（相似 LoRA 叠糊）。ortho_gs 把每个 down 的行投影到前序 down 行空间的正交补（`d' = d - (d@Qᵀ)@Q`，Q 用 SVD 右奇异向量扩基 + QR 去线性相关，float32 计算）——**第一个 LoRA 不动、后续让位**，up/alpha/strength 全不动；行空间被完全覆盖时投影归零（幅度损失是 tradeoff 非 bug）。
+
+### 2. 必须走独立加载路径
+
+- 链式 `load_lora_for_models` 的 patch 已展开进 patcher，拿不回 up/down——ortho 需自己 `model_lora_keys_unet`(+clip) 建 key map + `convert_lora`（官方路径有，DuoNodes 漏掉）+ `load_lora` + clone + add_patches + `set_attachments("lora_metadata")`，**按模型 key 分组**（同 key 多 LoRA 才 GS，单条直通），非 LoRA patch（conv/diff/set）该 key fallback 顺序；key map 构建失败整体 fallback 顺序，绝不报错。
+- 加载+应用路径收敛在 **`lora_ortho_load.ortho_apply(model, clip, entries, load_sd)`**——调用方传自己的 sd 加载函数（Stack 传 `self._get_lora` 复用缓存），**禁止另写一份**（AGENTS.md 规则 11）；纯数学/格式探测在 `lora_ortho.py`（仅 torch，可单测）。
+
+### 3. patch 结构
+
+- 当前 ComfyUI 是 `LoRAAdapter.weights = (up, down, alpha, mid, dora_scale, reshape)`（**up 是 [0]、down 是 [1]**）；`replace_down` 对 LoRAAdapter 浅拷贝换 weights[1]，字符串标签/tensor-first/float 前缀多格式回退；**replace_down 对 `("diff", (w,))` 之类 1 元素内部元组必须原样返回**（直接 `list(patch[1])` 会 IndexError）。
+
+### 4. 契约与内存
+
+- Stack 的 `mergeMethod` 与 cacheMode 同模式（前端 `DEFAULT_PREFS`/`normalize`/`promptState` 与 Python `parse_state` 双端 1:1，默认 `"sequential"`）。
+- **ortho 模式 run 内全栈 sd 驻留**（分组需要，与 "last" 逐行释放不同，峰值=栈大小），run 后仍按 cacheMode/无缓存统一修剪。
+- **ok_paths 是 set——绝不能直接迭代它来组装 resolved/触发词/修剪游标**（顺序随机 → 触发词顺序/`last_this_run` 偶发不稳定，表现为测试偶发 FAIL）；必须按 plan 栈顺序扫描 `if zero or path in ok_paths`。
+
+### 5. 测试
+
+- 本机无 torch——GS 数学用 numpy 参考实现逐行对应验证（行两两正交/投影残差在基行空间/覆盖归零）；节点链路 monkeypatch GS + fake `load_lora` **必须按 key_map 值过滤**（unet 与 clip patch 键空间不同，不过滤会串侧）。
 
 ---
 
@@ -1001,7 +1032,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 ### 1. 页面结构（Next.js SSR，别碰 DOM）
 
 - 数据在 `<script id="__NEXT_DATA__">` JSON 里，描述在 `props.pageProps.trpcState.json.queries[]` 中 `queryKey[0]==["model","getById"]` 的 `state.data.description`。**mantine 随机 id 无关**——按 queryKey 结构定位（`[["model","getById"],...]`），绝不用 CSS 选择器。无 slug URL `/models/{id}?modelVersionId={vid}` 302 后数据完整。
-- 拼接：**API 在前、页面在后**（`"\n\n"` 分隔，不截断）。拼接结果写入侧车 `data["description"]`（覆盖 API 空值）：读取端（lora_notes/Power 系走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
+- 拼接：**API 在前、页面在后**（`"\n\n"` 分隔，不截断）。拼接结果写入侧车 `data["description"]`（覆盖 API 空值）：读取端（lora_routes api_lora_info / 侧车缩略图提取走 parse_civitai_modelversion）零改动自然受益；删除侧车仍可清掉。
 
 ### 2. Cloudflare 拦截（TLS 指纹，JA3）
 
@@ -1073,7 +1104,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ## 26. 前端架构治理（2026-08）：工具收敛 / 弹层三件套 / 纯模块边界
 
-> 背景：对 `web/` 全量架构评审（102 文件/4.3 万行）后的治理改动。评审结论：架构总体合理（枢纽-辐射依赖、全局钩子组合式补丁、复用纪律、测试覆盖均为优），本次只治理发现的低/中危问题，不重构双渲染器与超大文件（见 AGENTS.md「经验摘要」末尾的规范条目）。
+> 背景：对 `web/` 全量架构评审（102 文件/4.3 万行）后的治理改动。评审结论：架构总体合理（枢纽-辐射依赖、全局钩子组合式补丁、复用纪律、测试覆盖均为优），本次只治理发现的低/中危问题，不重构双渲染器与超大文件（规范已并入 AGENTS.md「Code Style」）。
 
 ### 1. 通用工具收敛到 sf_common.js（消除跨家族依赖与副本分叉）
 
@@ -1285,7 +1316,7 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
 
 ### 3. 浏览器行宿主：会话内存副本，真源在服务器
 
-- 浏览器行只是面板的可读写对象 `{id,name,triggers,custom}`：勾选/自定义词显示在面板内，随会话存活。**真源始终在统一存储**（`saveCustomTriggers/saveCustomDescription` 按 LoRA 名写回 `user/sfnodes/lora_triggers.json`，Power/Stack/浏览器三端互通）；行副本不持久化、不进任何工作流文件。
+- 浏览器行只是面板的可读写对象 `{id,name,triggers,custom}`：勾选/自定义词显示在面板内，随会话存活。**真源始终在统一存储**（`saveCustomTriggers/saveCustomDescription` 按 LoRA 名写回 `user/sfnodes/lora_triggers.json`，Loader 系对话框/Stack/浏览器三端互通）；行副本不持久化、不进任何工作流文件。
 - `hydrateCustom` 把服务器 `info.custom_triggers` 合入行副本，`persistCustom` 在改动时写回——两端行为与 Stack 面板 1:1。
 
 ### 4. 列表与封面
@@ -1296,7 +1327,7 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
 - **浏览位置记忆**：设置键 `sfnodes.LoraBrowser.Folder` 记住所在目录——打开窗口时恢复，列表到达后按目录存在性校正（`validFolder`：目录被删/改名回根）；搜索时面包屑仍显示当前层 context。
 - **网格/列表双视图（2026-08）**：bar 第二个 seg（九宫格/三横线 SVG 图标，无文字），记忆 `sfnodes.LoraBrowser.View`；列表行 `.sf-lb-row` = 40px 缩略图 + 文件名 + 目录/扩展名（文件夹行 = 📁 图标 + 名称，进入下钻）；**单击/双击防抖提取为 `attachPickAdd(el, name, onPick, onAdd)` 与网格卡片共用**（列表行同样支持单击开信息面板、双击加载到工作流），缩略图 error 占位提取为 `wireThumb`（卡片 108px 与行 40px 共用）；`renderFolder`/`renderFlat` 增加 `view` 参数按容器分支（`.sf-lb-grid` / `.sf-lb-list`）；平面模式滚动分批对列表视图同样生效（行高小、FLAT_STEP=60 也够）。**flat 模式图标从三横线改为层叠（layers）**——三横线语义被列表视图占用，两图标同形会混淆。
 - **性能**：卡片 `content-visibility:auto` + `img.loading="lazy"`——数百上千 LoRA 不一次性拉图，浏览器按视口渲染与解码；缩略图 404 → onerror **替换为内联 SVG 占位图**（深色圆角底 + 层叠图标，data URI 无网络请求必成功渲染；`removeAttribute("src")` 在实测中某些渲染路径仍残留浏览器破损图，有 src 的占位才彻底），守卫防二次 error 循环。
-- **封面跨端刷新**：缩略图路由发 `max-age=3600` 且 URL 不变——任一端（浏览器/Stack/Power）改了数据经 `sfnodes.lora-data-changed`（detail.name）事件刷新可见卡片封面，URL 带 `&t=Date.now()` bust。
+- **封面跨端刷新**：缩略图路由发 `max-age=3600` 且 URL 不变——任一端（浏览器/Stack/信息对话框）改了数据经 `sfnodes.lora-data-changed`（detail.name）事件刷新可见卡片封面，URL 带 `&t=Date.now()` bust。
 - **双击加载到工作流（2026-08）**：文件卡片双击 → 用 SF LoRA Stack 加载该 LoRA 并添加节点，**三分支**：
   - **无 Stack 节点** → 新建：**优先官方命令 `app.extensionManager.command.execute("Comfy.AddNode", { type: "SFLoraStack" })`**，执行后从 `app.graph._nodes` 按「新增集合差」找回节点（不依赖命令返回值形状）；命令缺失/失败兜底 `LiteGraph.createNode` + `graph.add`。位置 = 画布视口中心换算（`(p - ds.offset)/ds.scale`，ds 缺失回退左上）+ 随机 ±30px 防连续双击重叠；尝试 `app.canvas.selectNode` 选中（Vue 无此 API，try/catch 忽略）。
   - **恰一个 Stack 节点** → 直接向它插入（不新建）。
@@ -1304,7 +1335,7 @@ SFLoraStack 信息面板原本只依赖节点做四件事：① `readState(node)
   - 插入统一走 `addLoraRow(node, name)`：`addLora`（core 状态机写 `properties.loraStackState`）→ `node._sfLsRefresh(true)`（renderNode + fitToContent，setupNode 在 nodeCreated 时挂）→ selectNode。
   - **单击/双击防抖**：浏览器双击先派发两次 click 再 dblclick——单击延迟 250ms、dblclick 时 clearTimeout 取消在途单击（第二次 click 覆盖第一次 timer，dblclick 再清一次），双击不误开信息面板。
   - **Vue 新版实测大坑（2026-08 实测）**：裸 `LiteGraph.createNode` + `app.graph.add` **只弹成功 toast 却不渲染节点**——Vue 前端的节点创建/类型注册/widget store 同步必须走官方 AddNode 命令；Classic 前端（及命令缺失兜底）下 createNode + graph.add 仍可用。测试 mock `extensionManager.command.execute` 覆盖命令路径 + 断言命令被调用。
-- **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/列表——mask-image data URI，无文字，title 承载说明，与工具栏按钮图标同风格），模式记忆设置键 `sfnodes.LoraBrowser.Mode`（与 Folder 位置记忆同机制，打开窗口恢复）。**平面模式 = 全量列表分批渲染 + 滚动动态加载**（防 LoRA 上千时一次性建 DOM/拉图卡死）：
+- **文件夹/平面双模式（2026-08）**：bar 上 seg 切换（纯 SVG 图标按钮：文件夹/层叠——mask-image data URI，无文字，title 承载说明，与工具栏按钮图标同风格），模式记忆设置键 `sfnodes.LoraBrowser.Mode`（与 Folder 位置记忆同机制，打开窗口恢复）。**平面模式 = 全量列表分批渲染 + 滚动动态加载**（防 LoRA 上千时一次性建 DOM/拉图卡死）：
   - `renderFlat(main, {names, shown})` 一次只建 `shown` 项卡片（`FLAT_STEP=60`，主扩展 `S.flat.page` 批次游标），未载完时 main 底部挂 `sf-lb-loadmore` 哨兵（显示「已载 / 总数」）；
   - `attachFlatScroll(main, onNeedMore)` 幂等绑定 scroll 监听，距底 300px 回调续批（主扩展判断还有更多才推进 page）；
   - **视口未满自动续批**：render 后若 `scrollHeight <= clientHeight + 8` 且还有更多，立即 page++ 再 render（有限步，防高窗口/小步长空转）——注意必须带「还有更多」守卫，否则空列表死循环；
