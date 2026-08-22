@@ -1552,7 +1552,7 @@ export async function openInfoPanelFor(ctx, id) {
         const dsec = el("div", "sf-ls-desc");
         const dhead = el("h4");
         dhead.appendChild(el("span", null, "Description"));
-        // 三档切换（始终可点，空时显示占位；高亮替代旧徽章）
+        // 三档切换：Custom 空时隐藏（仅当有 custom 或正在编辑时显示）
         {
             const es = effectiveDescSource();
             const seg = el("div", "sf-ls-srctoggle");
@@ -1562,10 +1562,14 @@ export async function openInfoPanelFor(ctx, id) {
             const civBtn = el("span", "sg" + (es === "civitai" ? " on" : ""), civ?.state === "searching" ? "…" : "Civitai");
             civBtn.title = civ?.state === "searching" ? "Looking up Civitai…" : "Show description from Civitai";
             civBtn.addEventListener("click", () => switchDescSource("civitai"));
-            const customBtn = el("span", "sg" + (es === "custom" ? " on" : ""), "Custom");
-            customBtn.title = "Show your custom description";
-            customBtn.addEventListener("click", () => switchDescSource("custom"));
-            seg.append(fileBtn, civBtn, customBtn);
+            seg.append(fileBtn, civBtn);
+            const showCustom = !!info.custom_description || desc.editing;
+            if (showCustom) {
+                const customBtn = el("span", "sg" + (es === "custom" ? " on" : ""), "Custom");
+                customBtn.title = "Show your custom description";
+                customBtn.addEventListener("click", () => switchDescSource("custom"));
+                seg.appendChild(customBtn);
+            }
             dhead.appendChild(seg);
         }
         if (desc.editing) {
