@@ -454,6 +454,71 @@ function toggle() {
     syncButton();
 }
 
+// ── 工具栏按钮顺序（强保证 Workflows | LoRA | Settings）──────────────────
+// LoRA 的挂载时序与 Workflows 竞态：按文件名 `sf_lora_browser.js` <
+// `sf_workflows.js`，LoRA 更易先挂，`W.before(Settings)` 会把后挂的 W 插到
+// `L` 之后（[L,W,Settings] 反序）。LoRA 侧在兜底分支后起一个一次性
+// MutationObserver，捕获 W 的迟到插入并把 `L` 矫正到 `W` 之后。
+function ensureLoraAfterWorkflows() {
+    const wfBtn = document.querySelector(".sf-wb-btn");
+    const wfGroup = wfBtn?.closest(".comfyui-button-group") || wfBtn?.parentElement || null;
+    const lbGroup = document.querySelector(".sf-lb-group-btn");
+    if (!wfGroup || !lbGroup || wfGroup === lbGroup) return false;
+    // 同一父容器下判定顺序：L 在 W 前（wfGroup 跟随 lbGroup）→ 需搬到 W 后
+    try {
+        if (lbGroup.compareDocumentPosition(wfGroup) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            wfGroup.after(lbGroup);
+            return true;
+        }
+    } catch {
+        // compareDocumentPosition 在极端 DOM（无 parent）抛错则回退索引比较
+        const parent = lbGroup.parentElement;
+        if (parent && parent === wfGroup.parentElement) {
+            const kids = [...parent.children];
+            if (kids.indexOf(lbGroup) < kids.indexOf(wfGroup)) {
+                wfGroup.after(lbGroup);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function watchForWorkflowsButton() {
+    if (watchForWorkflowsButton._done) return;
+    if (typeof MutationObserver === "undefined") return;
+    if (watchForWorkflowsButton._obs) return;
+    const obs = new MutationObserver(() => {
+        const wf = document.querySelector(".sf-wb-btn");
+        if (!wf) return;
+        ensureLoraAfterWorkflows();
+        // 顺序已正（L 跟随 W）即可断开；仍反序则继续观察等待下一次 DOM 稳定
+        const wfGroup = document.querySelector(".sf-wb-btn")?.closest(".comfyui-button-group");
+        const lbGroup = document.querySelector(".sf-lb-group-btn");
+        if (wfGroup && lbGroup) {
+            try {
+                const lbBeforeWf = !!(lbGroup.compareDocumentPosition(wfGroup) & Node.DOCUMENT_POSITION_FOLLOWING);
+                if (!lbBeforeWf) {
+                    obs.disconnect();
+                    watchForWorkflowsButton._obs = null;
+                    watchForWorkflowsButton._done = true;
+                }
+            } catch {
+                obs.disconnect();
+                watchForWorkflowsButton._obs = null;
+                watchForWorkflowsButton._done = true;
+            }
+        }
+    });
+    watchForWorkflowsButton._obs = obs;
+    obs.observe(document.body, { childList: true, subtree: true });
+    // 安全超时：12s 后无论如何断开，避免常驻观察
+    setTimeout(() => {
+        try { obs.disconnect(); } catch { /* 已断开 */ }
+        if (watchForWorkflowsButton._obs === obs) watchForWorkflowsButton._obs = null;
+    }, 12000);
+}
+
 // ── 工具栏按钮（插在 SF Workflows 按钮旁）────────────────────────────────
 function mountToolbarButton() {
     if (document.querySelector(".sf-lb-btn")) return;
@@ -480,15 +545,18 @@ function mountToolbarButton() {
     group.append(btn);
 
     // 紧贴 SF Workflows 按钮：已挂载则插其 group 之后，否则兜底插 settings
-    // 组前（workflows 后挂载时两者仍相邻）。
+    // 组前并启动 observer 等待 Workflows 迟到后矫正（最优解，见本文件顶部注释）。
     const wfBtn = document.querySelector(".sf-wb-btn");
     if (wfBtn) {
         (wfBtn.closest(".comfyui-button-group") || wfBtn.parentElement)?.after(group);
     } else {
         settingsGroupEl.before(group);
+        watchForWorkflowsButton();
     }
     S.btn = btn;
     syncButton();
+    // 同步插入后仍可能反序（如 observer 尚未触发时 W 已在 L 后），立即再试一次即时矫正
+    try { ensureLoraAfterWorkflows(); } catch { /* 忽略 */ }
 }
 
 // ── 注册（防重复：模块可能被求值两次）────────────────────────────────────
