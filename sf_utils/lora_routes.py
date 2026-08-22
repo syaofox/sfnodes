@@ -912,18 +912,18 @@ def _register_routes():
                                         ext = _ext_from_image(raw, hdrs, url)
                                         fname = f"civitai_{idx:02d}_{h}{ext}"
                                         fpath = os.path.join(sample_dir, fname)
-                                        # 已有同 hash+扩展名文件跳过；若已存旧扩展名（如 .jpeg 误标的 PNG）则保留旧文件，跳过以免重复
-                                        if os.path.isfile(fpath):
-                                            skipped += 1
-                                            return
-                                        # 兼容旧误标：检查同 hash 不同扩展名的已存文件
+                                        # A 方案：按 hash 去重（共享目录多 LoRA 复用，忽略 idx 差异）
+                                        # 同目录如 wan22/.../All-In-One NSFW 下两 LoRA 的同 URL 在不同 idx 会产生
+                                        # civitai_00_H vs civitai_05_H，旧逻辑仅判同 idx 不同 ext 会重复下载；
+                                        # 现扫描目录内任意含 _<H>. 的文件即视为已存，兼容旧误标与 idx 差异。
                                         try:
-                                            for _e in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".mp4", ".webm", ".mkv", ".mov"):
-                                                if _e == ext:
+                                            for _existing in os.listdir(sample_dir):
+                                                # 快速过滤：须含 _<hash>.
+                                                if f"_{h}." not in _existing:
                                                     continue
-                                                alt = os.path.join(sample_dir, f"civitai_{idx:02d}_{h}{_e}")
-                                                if os.path.isfile(alt):
-                                                    # 已有同 hash 任意扩展名，视为已下载
+                                                # 确保 hash 段在扩展名前（civitai_??_H.ext）
+                                                name_wo_ext = os.path.splitext(_existing)[0]
+                                                if name_wo_ext.endswith(f"_{h}"):
                                                     skipped += 1
                                                     return
                                         except Exception:
