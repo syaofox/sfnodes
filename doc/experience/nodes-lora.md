@@ -1,4 +1,4 @@
-# 经验归档：LoRA / Civitai / Krea2 预设生态（§5、§19、§20、§21、§25、§28、§31）
+# 经验归档：LoRA / Civitai / Krea2 预设生态（§5、§19、§20、§21、§25、§28、§31、§33）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -309,3 +309,23 @@
 
 - 后端 `tests/test_diffusion_routes_smoke.py`：mock folder_paths 需补 `supported_pt_extensions` 与 `get_filename_list`；侧车要用**原始 Civitai API 形状**（trainedWords/model.name/baseModel/modelId/id），不是解析后的形状。
 - 大文件 SHA256 慢：by-hash 查询本就走 executor 且结果持久化在侧车（第二次离线秒开）；hash 本身暂无独立缓存，多 GB 文件首次匹配数十秒属预期（面板 civStrip searching 态可见进度）。
+
+## 33. TextEncodeKrea2 视觉通路机制（Qwen3-VL 单帧绑定 / min_pixels 兜底 / RGBA 预乘时序）
+
+> 背景：为 TextEncodeKrea2 补齐参考图预处理与单测时核实的 ComfyUI 编码器行为（2026-08，对照 comfy/text_encoders/qwen3vl.py、qwen_vl.py）。
+
+### 1. Qwen3-VL tokenizer 的图片是"占位符↔列表元素"一维绑定
+
+- `tokenize_with_weights` 逐个扫描 token 流中的 `<|image_pad|>`（151655），按出现顺序绑定 `images[embed_count]`——**每个占位符只消费 images 列表的一个元素**，多余元素静默丢弃。节点侧组装 `images_vl` 列表的长度/顺序必须与文本中视觉占位符严格一致。
+- 列表元素带 batch 维时下游只取 `[0]`：`comfy/text_encoders/qwen_vl.process_qwen2vl_images` 第一行就是 `img = images[0]`。**batch>1 的参考图只有首帧进 VLM**（官方 TextEncodeQwenImageEdit 同样如此）。节点侧与其隐式依赖，不如显式 `image[:1]`——语义一致还省掉多余帧的缩放开销；遮罩包围盒若有多帧则是全 batch 并集后共用一个裁剪窗口。
+
+### 2. 尺寸边界官方已兜底，勿自建保护
+
+- `process_qwen2vl_images(min_pixels=3136)`：过小图自动放大到 56×56 像素等效（patch 16 × merge 2 的最小逻辑块），极小遮罩裁剪结果不会崩溃视觉塔——**"给裁剪结果加最小尺寸保护"属过度设计**。上限侧同理：节点传 `vision_megapixels` 上限即可，tokenizer 只按 patch 对齐取整。
+- FP8 加载的文本编码器在图像路径必崩（位置编码叠加未转型，`add_stub not implemented for Float8_e4m3fn`），节点把 NotImplementedError 映射为可操作提示（换 bf16/fp16 编码器），见 §5.4。
+
+### 3. RGBA 参考图必须先预乘再缩放
+
+- 直接 `[..., :3]` 截断会保留透明像素的任意 RGB 残留并被 VLM 当真实颜色读走；黑底预乘（`rgb * alpha`，等价于补零背景合成）让透明区语义干净。
+- **时序硬约束：先 `_flatten_to_rgb` 再 common_upscale**——先插值后合成的顺序会把残留杂色扩散进不透明区域的边缘。clamp(0,1) 收尾兜住异常输入。
+- 测试注意：FakeTensor 数值断言别用 >1 的值当标记色（会被 clamp 吃掉），用 0.2/0.8 这类合法区间值。

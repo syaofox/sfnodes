@@ -197,6 +197,26 @@ KREA2_PRESETS = {
 _CATEGORY = "sfnodes/model"
 
 
+def _flatten_to_rgb(image):
+    """参考图通道归一为 RGB [B,H,W,C]：带 alpha 的按黑底预乘合成，最后 clamp 到 [0,1]。
+
+    直接切片 ``[..., :3]`` 会保留透明像素的任意 RGB 残留并被 VLM 当作真实颜色
+    "看到"；预乘黑底让透明区语义干净。必须在插值缩放之前调用——先缩放后合成
+    会把残留杂色扩散进不透明区域的边缘。
+    """
+    if image is None:
+        return None
+    if image.dim() == 3:  # (H,W,C) -> (1,H,W,C)，与 IMAGE [B,H,W,C] 惯例对齐
+        image = image.unsqueeze(0)
+    if image.shape[-1] >= 4:
+        rgb = image[..., :3]
+        alpha = image[..., 3:4]
+        image = rgb * alpha
+    elif image.shape[-1] != 3:
+        image = image[..., :3]
+    return image.clamp(0.0, 1.0)
+
+
 class TextEncodeKrea2:
     @classmethod
     def INPUT_TYPES(cls):
@@ -257,7 +277,8 @@ class TextEncodeKrea2:
     FUNCTION = "encode"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("Krea2（K2）文本条件编码，支持视觉提示。参考图通过 Qwen3-VL 视觉通路送入；"
-                   "每张参考图可选遮罩裁剪到遮罩区域。不使用 VAE（Krea2 无 reference-latent 通路）")
+                   "每张参考图可选遮罩裁剪到遮罩区域；透明通道按黑底合成，多帧 batch 取首帧。"
+                   "不使用 VAE（Krea2 无 reference-latent 通路）")
 
     @staticmethod
     def _collect_indexed(kwargs, prefix):
@@ -273,7 +294,8 @@ class TextEncodeKrea2:
     @staticmethod
     def _crop_to_mask(image, mask, padding=0.0):
         """将图片 (B,H,W,C) 裁剪到遮罩的包围盒，并按 `padding`（图像尺寸的比例）向四周扩展。
-        遮罩为空/未连接时为无操作。"""
+        遮罩为空/未连接时为无操作。多帧 batch 的遮罩会先合并（>0.5 取并集）再求
+        包围盒，即所有帧共用同一个裁剪窗口；调用方已保证 image 为单帧。"""
         if mask is None:
             return image
 
@@ -308,7 +330,13 @@ class TextEncodeKrea2:
 
     @classmethod
     def _prepare_vision(cls, kwargs, vision_megapixels, mask_padding):
-        """裁剪+缩放每张已连接的参考图，并组装视觉 token 字符串。"""
+        """裁剪+缩放每张已连接的参考图，并组装视觉 token 字符串。
+
+        batch>1 的参考图只取首帧：Qwen3-VL tokenizer 为每个 <|image_pad|> 占位符
+        绑定单张图（qwen3vl.py 逐占位符逐元素替换），且下游
+        comfy/text_encoders/qwen_vl.process_qwen2vl_images 只处理 batch[0]——
+        多出的帧会被静默丢弃。这里显式截取首帧，行为一致并省掉多余帧的开销。
+        """
         images = cls._collect_indexed(kwargs, "image")
         masks = cls._collect_indexed(kwargs, "mask")
         ordered = sorted(images.keys())
@@ -318,7 +346,8 @@ class TextEncodeKrea2:
         total = int(vision_megapixels * 1024 * 1024)
 
         for slot, n in enumerate(ordered):
-            image = cls._crop_to_mask(images[n], masks.get(n), padding=mask_padding)
+            # 先做通道归一（RGBA 黑底预乘）与首帧截取，再裁剪缩放。
+            image = cls._crop_to_mask(_flatten_to_rgb(images[n])[:1], masks.get(n), padding=mask_padding)
             samples = image.movedim(-1, 1)
             # vision_megapixels 是上限而不是固定目标：只缩小过大的参考图，绝不放大
             # （否则紧密遮罩裁剪的小图会被放大）。
@@ -326,7 +355,7 @@ class TextEncodeKrea2:
             width = round(samples.shape[3] * scale_by)
             height = round(samples.shape[2] * scale_by)
             s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
-            images_vl.append(s.movedim(1, -1)[:, :, :, :3])
+            images_vl.append(s.movedim(1, -1))
             if len(ordered) > 1:
                 image_prompt += "Picture {}: <|vision_start|><|image_pad|><|vision_end|>".format(slot + 1)
             else:
@@ -617,13 +646,14 @@ class SFImageInterrogator:
     @staticmethod
     def _scale_image(image, megapixels):
         """将单张图片 (B,H,W,C) 缩放到 megapixels 上限（只缩小不放大），返回 [B,H,W,C] 列表。"""
+        image = _flatten_to_rgb(image)
         samples = image.movedim(-1, 1)
         total = int(megapixels * 1024 * 1024)
         scale_by = min(1.0, math.sqrt(total / (samples.shape[3] * samples.shape[2])))
         width = round(samples.shape[3] * scale_by)
         height = round(samples.shape[2] * scale_by)
         s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
-        return [s.movedim(1, -1)[:, :, :, :3]]
+        return [s.movedim(1, -1)]
 
     def interrogate(self, clip, image, preset, prompt, max_length, do_sample, temperature, top_k,
                     top_p, repetition_penalty, seed, user_prompt=None, system_prompt=None,
