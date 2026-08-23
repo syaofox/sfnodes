@@ -141,6 +141,83 @@ def _resolve_lora_path(name):
     return p
 
 
+# ---------------------------------------------------------------------------
+# 数据域分派：SF Load Diffusion Model（web/sf_load_diffusion_model.js）复用
+# 本模块的 Civitai 查询 / 描述 / 预览图 / 孤儿迁移路由，仅换存储域——
+# 同一实现服务两个域，绝不内联副本。别名路由见 _register_routes 尾部：
+# /api/sfnodes/dmodel_* 指向同一 handler，handler 内按请求路径取域。
+#   loras 域            diffusion_models 域
+#   lora_triggers.json  dmodels.json        （用户词/描述，R 函数按文件参数化）
+#   lora_previews/      previews_model/     （sha1 槽位独立目录，防撞键）
+#   models/loras        models/unet + models/diffusion_models
+# ---------------------------------------------------------------------------
+
+def _is_dmodel_req(request):
+    try:
+        return (request.path or "").startswith("/api/sfnodes/dmodel")
+    except Exception:
+        return False
+
+
+def _model_dirs():
+    try:
+        return list(folder_paths.get_folder_paths("diffusion_models"))
+    except Exception:
+        return []
+
+
+def _dmodels_file():
+    """diffusion 域的用户数据文件（与 lora_triggers.json 同构、分域）。"""
+    return os.path.join(_sf_user_dir(), "dmodels.json")
+
+
+def _previews_model_dir():
+    """diffusion 域的用户预览图目录（独立于 lora_previews，槽位不冲突）。"""
+    d = os.path.join(_sf_user_dir(), "previews_model")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
+def _resolve_model_path(name):
+    """diffusion 模型文件名 -> 保证位于配置的 diffusion_models 目录内
+    （models/unet + models/diffusion_models）的真实路径，或 None。
+    fail-closed 与 _resolve_lora_path 同款。"""
+    if not name or not isinstance(name, str):
+        return None
+    try:
+        p = folder_paths.get_full_path("diffusion_models", name)
+    except Exception:
+        p = None
+    if not p or not os.path.isfile(p):
+        return None
+    roots = _model_dirs()
+    if not roots or not _is_path_under(p, *roots):
+        return None
+    return p
+
+
+def _dom_resolve(request, name):
+    """按请求路径所属数据域解析并守卫模型文件路径。"""
+    if _is_dmodel_req(request):
+        return _resolve_model_path(name)
+    return _resolve_lora_path(name)
+
+
+def _dom_dirs(request):
+    return _model_dirs() if _is_dmodel_req(request) else _lora_dirs()
+
+
+def _dom_notes_file(request):
+    return _dmodels_file() if _is_dmodel_req(request) else _custom_triggers_file()
+
+
+def _dom_previews_dir(request):
+    return _previews_model_dir() if _is_dmodel_req(request) else _previews_dir()
+
+
 def _looks_like_image(raw):
     """magic bytes 判定图片（jpg/png/webp/gif/bmp）。该文件会被直接回给浏览器
     当图片渲染，不是图的就是坏功能。"""
@@ -552,37 +629,39 @@ def _register_routes():
 
         @routes.get("/api/sfnodes/lora_thumb")
         async def api_lora_thumb(request):
-            """提供 LoRA 的预览图，404 则无。
+            """提供 LoRA/扩散模型的预览图，404 则无。
 
-            用户自己的图胜过 LoRA 旁的图：面板和未来任何缩略图都读这里，
-            覆盖必须在此兑现而非只在显示处。"""
+            用户自己的图胜过模型旁的图：面板和未来任何缩略图都读这里，
+            覆盖必须在此兑现而非只在显示处。（dmodel 别名路径同 handler，
+            域分派见模块头注释。）"""
             name = request.query.get("name", "")
-            path = _resolve_lora_path(name)
+            path = _dom_resolve(request, name)
             if not path:
                 return web.Response(status=404)
             try:
-                own = R.find_custom_preview(_previews_dir(), name)
+                own = R.find_custom_preview(_dom_previews_dir(request), name)
             except Exception:
                 own = None
             if own:
                 return web.FileResponse(own, headers={"Cache-Control": "public, max-age=3600"})
             prev = R.find_preview_path(path)
-            roots = _lora_dirs()
+            roots = _dom_dirs(request)
             if not prev or not roots or not _is_path_under(prev, *roots):
                 return web.Response(status=404)
             return web.FileResponse(prev, headers={"Cache-Control": "public, max-age=3600"})
 
         @routes.get("/api/sfnodes/lora/civitai")
         async def api_lora_civitai(request):
-            """可选在线查询（仅当用户点击 Civitai 按钮）。
+            """可选在线查询（用户点击，或 dmodel 面板打开时自动）。
 
             给文件取指纹（SHA256），向 Civitai 请求精确文件匹配，把原始响应
-            缓存在 LoRA 旁，未来读取即时且离线。恒 200；`reason` 告诉前端
-            显示哪张卡：found / notfound / offline。"""
+            缓存在模型旁（侧车跟随文件），未来读取即时且离线。恒 200；
+            `reason` 告诉前端显示哪张卡：found / notfound / offline。
+            （dmodel 别名路径同 handler，域分派见模块头注释。）"""
             name = request.query.get("name", "")
-            path = _resolve_lora_path(name)
+            path = _dom_resolve(request, name)
             if not path:
-                return web.json_response({"ok": False, "reason": "notfound", "message": "LoRA not found."})
+                return web.json_response({"ok": False, "reason": "notfound", "message": "Model not found."})
             loop = asyncio.get_running_loop()
             try:
                 sha = await loop.run_in_executor(None, R.file_sha256, path)
@@ -828,7 +907,7 @@ def _register_routes():
             thumbnail = parsed.get("thumbnail")
             if thumbnail:
                 try:
-                    folder = _previews_dir()
+                    folder = _dom_previews_dir(request)
                     existing = R.find_custom_preview(folder, name)
                     overwrite = request.query.get("overwrite") == "1"
                     if existing and not overwrite:
@@ -1042,8 +1121,9 @@ def _register_routes():
             POST {name, description}。
 
             名字是存储键，绝非文件路径（同 custom_triggers 规则）——仍先对
-            loras 目录解析它，存储只积累真实存在的 LoRA。空字符串清除自定义
-            描述（回到 Civitai/文件原文）。恒 200。"""
+            模型目录解析它，存储只积累真实存在的模型。空字符串清除自定义
+            描述（回到 Civitai/文件原文）。恒 200。（dmodel 别名路径同
+            handler，域分派见模块头注释。）"""
             try:
                 data = await request.json()
             except Exception:
@@ -1052,17 +1132,17 @@ def _register_routes():
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
             description = data.get("description", "")
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             loop = asyncio.get_running_loop()
             try:
                 async with _notes_async_lock:
                     # 内容指纹随条目记录（同 custom_triggers）。
                     def _set_with_fp():
                         fp = R.file_fingerprint(path)
-                        return R.set_custom_description(_custom_triggers_file(), name, description, fp)
+                        return R.set_custom_description(_dom_notes_file(request), name, description, fp)
                     stored = await loop.run_in_executor(None, _set_with_fp)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
@@ -1081,23 +1161,23 @@ def _register_routes():
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
             old_key = data.get("old_key", "") or None
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             loop = asyncio.get_running_loop()
             try:
                 async with _notes_async_lock:
                     # old_key 来自孤儿检测（指纹或基名命中）；fp 随迁移写入新键。
                     def _migrate_with_fp():
                         fp = R.file_fingerprint(path)
-                        return R.migrate_custom_data(_custom_triggers_file(), name, fp, old_key)
+                        return R.migrate_custom_data(_dom_notes_file(request), name, fp, old_key)
                     res = await loop.run_in_executor(None, _migrate_with_fp)
                     if not res.get("ok"):
                         return web.json_response({"ok": False, "message": "Nothing to migrate."})
                     old = res["old_key"]
                     moved_pv = await loop.run_in_executor(
-                        None, R.migrate_custom_preview, _previews_dir(), name, old
+                        None, R.migrate_custom_preview, _dom_previews_dir(request), name, old
                     )
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not migrate: {}".format(exc)})
@@ -1117,22 +1197,22 @@ def _register_routes():
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
             old_key = data.get("old_key", "") or None
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             loop = asyncio.get_running_loop()
             try:
                 async with _notes_async_lock:
                     def _merge_with_fp():
                         fp = R.file_fingerprint(path)
-                        return R.merge_custom_data(_custom_triggers_file(), name, fp, old_key)
+                        return R.merge_custom_data(_dom_notes_file(request), name, fp, old_key)
                     res = await loop.run_in_executor(None, _merge_with_fp)
                     if not res.get("ok"):
                         return web.json_response({"ok": False, "message": "Nothing to merge."})
                     old = res["old_key"]
                     # 预览图：旧有新无时迁移，旧有新有则保留新
-                    folder = _previews_dir()
+                    folder = _dom_previews_dir(request)
                     has_new = bool(R.find_custom_preview(folder, name))
                     moved_pv = False
                     if not has_new:
@@ -1159,15 +1239,16 @@ def _register_routes():
             if not isinstance(data, dict):
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False,
+                                          "message": "Model not found."})
             loop = asyncio.get_running_loop()
             thumbnail = R.sidecar_thumbnail(path, allow_adult=bool(_civitai_account().get("adult_thumbs")))
             if not thumbnail:
                 return web.json_response({"ok": False,
-                                          "message": "No Civitai picture saved for this LoRA - run the lookup first."})
+                                          "message": "No Civitai picture saved for this model - run the lookup first."})
             if not _thumb_url_safe(thumbnail):
                 return web.json_response({"ok": False,
                                           "message": "The picture URL is not a secure https link."})
@@ -1175,7 +1256,7 @@ def _register_routes():
             if raw is None:
                 return web.json_response({"ok": False,
                                           "message": "Could not download the picture from Civitai."})
-            folder = _previews_dir()
+            folder = _dom_previews_dir(request)
             written = await loop.run_in_executor(None, R.write_custom_preview, folder, name, raw)
             if not written:
                 return web.json_response({"ok": False, "message": "Could not save the picture locally."})
@@ -1196,10 +1277,10 @@ def _register_routes():
                 body = {}
             name = str(body.get("name", "") or "")
             data_url = str(body.get("dataUrl", "") or "")
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             if "," not in data_url:
                 return web.json_response({"ok": False, "message": "Nothing to save."})
             payload = data_url.split(",", 1)[1]
@@ -1215,7 +1296,7 @@ def _register_routes():
                 return web.json_response(
                     {"ok": False, "message": "That file is not a picture the browser can show."})
             loop = asyncio.get_running_loop()
-            folder = _previews_dir()
+            folder = _dom_previews_dir(request)
             try:
                 written = await loop.run_in_executor(None, R.write_custom_preview, folder, name, raw)
             except Exception as exc:
@@ -1237,12 +1318,12 @@ def _register_routes():
             if not isinstance(body, dict):
                 body = {}
             name = str(body.get("name", "") or "") or request.query.get("name", "")
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             try:
-                removed = R.delete_custom_preview(_previews_dir(), name)
+                removed = R.delete_custom_preview(_dom_previews_dir(request), name)
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not remove: {}".format(exc)})
             return web.json_response({"ok": True, "removed": bool(removed)})
@@ -1258,13 +1339,29 @@ def _register_routes():
             if not isinstance(data, dict):
                 data = {}
             name = data.get("name", "") or request.query.get("name", "")
-            path = _resolve_lora_path(name)
-            roots = _lora_dirs()
+            path = _dom_resolve(request, name)
+            roots = _dom_dirs(request)
             if not path or not roots or not _is_path_under(path, *roots):
-                return web.json_response({"ok": False, "message": "LoRA not found."})
+                return web.json_response({"ok": False, "message": "Model not found."})
             loop = asyncio.get_running_loop()
             ok = await loop.run_in_executor(None, R.delete_sidecar_cache, path)
             return web.json_response({"ok": bool(ok)})
+
+        # ------------------------------------------------------------------
+        # SF Load Diffusion Model 别名路由：同一 handler 注册到 dmodel 前缀，
+        # handler 内按请求路径分派数据域（见模块头注释）。触发词是 LoRA 专属
+        # 概念，custom_triggers / lora_info / lora_list 不设别名——dmodel 域
+        # 的 info 组装在 sf_utils/diffusion_routes.py。
+        # ------------------------------------------------------------------
+        routes.get("/api/sfnodes/dmodel_thumb")(api_lora_thumb)
+        routes.get("/api/sfnodes/dmodel/civitai")(api_lora_civitai)
+        routes.post("/api/sfnodes/dmodel/custom_description")(api_lora_custom_description)
+        routes.post("/api/sfnodes/dmodel/migrate")(api_lora_migrate)
+        routes.post("/api/sfnodes/dmodel/merge")(api_lora_merge)
+        routes.post("/api/sfnodes/dmodel/civitai_thumb_save")(api_lora_civitai_thumb_save)
+        routes.post("/api/sfnodes/dmodel/preview")(api_lora_preview_set)
+        routes.post("/api/sfnodes/dmodel/preview_delete")(api_lora_preview_delete)
+        routes.post("/api/sfnodes/dmodel/civitai_delete")(api_lora_civitai_delete)
 
         logger.info("LoRA stack API routes registered")
 

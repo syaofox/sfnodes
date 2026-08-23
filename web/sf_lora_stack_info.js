@@ -231,10 +231,17 @@ function injectCSS() {
 }
 
 // ── Description 内嵌示例图（与 sf_lora_info.js 编辑器同款机制）─────────────
-// 图片上传到 `models/loras/<lora 目录>/sample/`（后端 /api/sfnodes/lora_samples/
-// upload 复用），描述里以相对路径 `sample/<文件名>` 引用；查看态用
-// resolveSampleUrl 把它解析回图片 URL（目录改名/移动后按当前 lora 路径解析，
-// 无需修复 markdown 文本）。插入格式与 sf_lora_info.js 一致。
+// 图片上传到 `models/<域>/<模型目录>/sample/`（后端 /api/sfnodes/lora_samples/
+// upload 复用，kind 区分 loras / diffusion_models 域），描述里以相对路径
+// `sample/<文件名>` 引用；查看态用 resolveSampleUrl 把它解析回图片 URL
+// （目录改名/移动后按当前模型路径解析，无需修复 markdown 文本）。
+// 插入格式与 sf_lora_info.js 一致。
+
+// samples URL 的域参数后缀：dmodel 宿主传 ctx.samplesKind="diffusion_models"，
+// LoRA 各宿主传空串 → URL 与旧版逐字节一致。
+function samplesKindQ(kind) {
+    return kind ? "&kind=" + encodeURIComponent(kind) : "";
+}
 
 function buildSampleMarkdown(path) {
     const base = String(path || "").split("/").pop() || "image";
@@ -252,12 +259,13 @@ function insertAtCursor(textarea, text) {
     textarea.selectionStart = textarea.selectionEnd = pos;
 }
 
-function openSamplePreview(path, allPaths) {
+function openSamplePreview(path, allPaths, kind) {
     const list = Array.isArray(allPaths) && allPaths.length ? allPaths : [path];
     let idx = list.indexOf(path);
     if (idx < 0) idx = 0;
     const overlay = el("div", "sf-ls-sample-preview");
     let media = null;
+    const kq = samplesKindQ(kind);
     const render = (i) => {
         if (i < 0 || i >= list.length) return;
         idx = i;
@@ -266,12 +274,12 @@ function openSamplePreview(path, allPaths) {
         if (media) media.remove();
         if (isVideo) {
             media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
             media.controls = true;
             media.autoplay = true;
         } else {
             media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
             media.alt = p.split("/").pop();
         }
         media.addEventListener("click", close);
@@ -295,16 +303,16 @@ function openSamplePreview(path, allPaths) {
     document.body.appendChild(overlay);
 }
 
-// 描述里 `sample/xxx.png` 相对路径 -> 图片 URL（基于当前 lora 的目录）。
-function resolveSampleUrl(rel, loraName) {
+// 描述里 `sample/xxx.png` 相对路径 -> 图片 URL（基于当前模型的目录）。
+function resolveSampleUrl(rel, loraName, kind) {
     let r = rel;
     try { r = decodeURIComponent(rel); } catch { /* 保留原样 */ }
     const idx = loraName.lastIndexOf("/");
     const dir = idx === -1 ? "" : loraName.slice(0, idx + 1);
-    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
+    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}${samplesKindQ(kind)}`;
 }
 
-function attachSampleTitleHover(container, loraName) {
+function attachSampleTitleHover(container, loraName, kind) {
     if (!container || !loraName) return;
     // 标题形如 ### [civitai_00_1a2b3c4d — 140313761](https://civitai.com/images/140313761)
     // 悬停时显示对应 sample 文件预览（本地 sample/ 原图）
@@ -313,6 +321,7 @@ function attachSampleTitleHover(container, loraName) {
     let sampleMap = null; // hash -> rel path
     let hoverEl = null;
     let hoverTimer = null;
+    const kq = samplesKindQ(kind);
     const show = async (a, ev) => {
         const text = a.textContent || "";
         const m = text.match(/civitai_\d+_([0-9a-f]{8})/i);
@@ -320,7 +329,7 @@ function attachSampleTitleHover(container, loraName) {
         if (!hash) return;
         if (!sampleMap) {
             try {
-                const data = await fetchSamplesCached(loraName);
+                const data = await fetchSamplesCached(loraName, kind);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 sampleMap = new Map();
                 for (const p of imgs) {
@@ -337,13 +346,13 @@ function attachSampleTitleHover(container, loraName) {
         let media;
         if (isVideo) {
             media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}`;
             media.autoplay = true;
             media.muted = true;
             media.loop = true;
         } else {
             media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}&w=512`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}&w=512`;
         }
         hoverEl.appendChild(media);
         document.body.appendChild(hoverEl);
@@ -553,11 +562,39 @@ export async function openInfoPanel(node, id, refresh) {
  *   accent     强调色
  *   prefs      可选函数，返回 {civitai, thumbs}（缺省全开）
  *   refresh    可选，行变更后回调
+ *   api        可选。路由封装函数束（与 sf_lora_stack_api.js 同形）：
+ *              {info,thumbUrl,civitai,invalidate,delCivitai,saveDescription,
+ *               savePreview,deletePreview,saveCivitaiThumb,migrate,merge}。
+ *              SF Load Diffusion Model 注入 dmodel_* 路由版本；缺省 = LoRA。
+ *   hideTriggers    可选。true 隐藏触发词区块（diffusion 模型无触发词概念）
+ *   samplesKind     可选。samples 路由的 kind 参数（"diffusion_models"）；
+ *                   缺省空串 = loras 域，URL 与旧版逐字节一致
+ *   autoCivitai     可选。true 时面板打开即自动匹配 Civitai（dmodel 行为，
+ *                   侧车已有数据则不打扰）；LoRA 面板仍手动 ↻
  */
 export async function openInfoPanelFor(ctx, id) {
     if (!ctx || typeof ctx.getRow !== "function" || typeof ctx.patchRow !== "function") return;
     const refresh = ctx.refresh;
     const prefsOf = () => (typeof ctx.prefs === "function" ? ctx.prefs() : {});
+    // 路由封装束：缺省绑定本模块顶部的 LoRA api 导入；dmodel 宿主经 ctx.api
+    // 整束替换。函数内一律走 A.*，既有宿主行为不变。
+    const A = {
+        info: loraInfo,
+        thumbUrl,
+        civitai: civitaiLookup,
+        invalidate: invalidateInfo,
+        delCivitai: deleteCivitai,
+        saveDescription: saveCustomDescription,
+        savePreview: saveLoraPreview,
+        deletePreview: deleteLoraPreview,
+        saveCivitaiThumb,
+        migrate: migrateLoraData,
+        merge: mergeLoraData,
+    };
+    if (ctx.api && typeof ctx.api === "object") Object.assign(A, ctx.api);
+    const hideTriggers = !!ctx.hideTriggers;
+    const sKind = typeof ctx.samplesKind === "string" ? ctx.samplesKind : "";
+    const sq = samplesKindQ(sKind);
     // 切换行/重开：上一面板有未保存 Description 修改时先确认——取消则
     // 保留草稿、不打开新面板（await 返回 false）。
     if (!(await closeInfoPanel())) return;
@@ -788,7 +825,7 @@ export async function openInfoPanelFor(ctx, id) {
     function saveDesc(text) {
         clearMsg();
         if (!name) { showMsg("Pick a LoRA first."); return; }   // 无名行没有可设对象
-        saveCustomDescription(name, text).then((res) => {
+        A.saveDescription(name, text).then((res) => {
             if (!panel.isConnected) return;
             if (!res?.ok) { showMsg(res?.message || "Could not save that description."); return; }
             _msg = null;
@@ -847,6 +884,7 @@ export async function openInfoPanelFor(ctx, id) {
         const fd = new FormData();
         fd.append("image", file);
         fd.append("filename", name);
+        if (sKind) fd.append("kind", sKind);
         try {
             const resp = await app.api.fetchApi("/api/sfnodes/lora_samples/upload", {
                 method: "POST",
@@ -854,7 +892,7 @@ export async function openInfoPanelFor(ctx, id) {
             });
             const data = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-            invalidateSamplesCache(name);
+            invalidateSamplesCache(name, sKind);
             if (onInsert) onInsert(data.path);
         } catch (e) {
             showMsg("Upload failed: " + (e.message || e));
@@ -864,7 +902,7 @@ export async function openInfoPanelFor(ctx, id) {
     async function refreshSampleGrid(grid, onInsert) {
         if (!name || !grid.isConnected) return;
         try {
-            const data = await fetchSamplesCached(name);
+            const data = await fetchSamplesCached(name, sKind);
             // fetchSamplesCached 已处理 !ok -> {images:[]},此处若为真实错误则 data 可能无 images
             if (!data || typeof data !== "object") throw new Error("Could not load sample images.");
             grid.innerHTML = "";
@@ -880,7 +918,7 @@ export async function openInfoPanelFor(ctx, id) {
                 let thumb;
                 if (isVideo) {
                     thumb = document.createElement("img");
-                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${sq}&w=256`;
                     thumb.title = p.split("/").pop() + " (video)";
                     thumb.loading = "lazy";
                     thumb.style.cssText = "width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
@@ -899,7 +937,7 @@ export async function openInfoPanelFor(ctx, id) {
                     });
                 } else {
                     thumb = document.createElement("img");
-                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                    thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${sq}&w=256`;
                     thumb.title = p.split("/").pop();
                     thumb.loading = "lazy";
                     thumb.addEventListener("click", () => onInsert(p));
@@ -922,7 +960,7 @@ export async function openInfoPanelFor(ctx, id) {
                     if (!ok || !panel.isConnected) return;
                     try {
                         const r = await app.api.fetchApi(
-                            `/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`,
+                            `/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}${sq}`,
                             { method: "DELETE" });
                         if (!r.ok) throw new Error(`HTTP ${r.status}`);
                         invalidateSamplesCache(name);
@@ -950,7 +988,7 @@ export async function openInfoPanelFor(ctx, id) {
                     promptBtn.style.opacity = "0.5";
                     promptBtn.style.pointerEvents = "none";
                     try {
-                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}`);
+                        const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}${sq}`);
                         const data = await resp.json().catch(() => ({}));
                         if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
                         if (!data.found || !data.text) {
@@ -980,6 +1018,9 @@ export async function openInfoPanelFor(ctx, id) {
     // 前（或在另一台机器做的工作流里）带着自定义词，则推入存储——任何人
     // 已有的词都不会因这次改动丢失。
     function hydrateCustom() {
+        // hideTriggers 域（diffusion）无触发词概念，persistCustom 走的是
+        // LoRA 专属路由——防御性短路，杜绝任何未来路径把词写错域。
+        if (hideTriggers) return;
         const stored = Array.isArray(info?.custom_triggers) ? info.custom_triggers : [];
         const e = ctx.getRow();
         if (!e) return;
@@ -1006,13 +1047,13 @@ export async function openInfoPanelFor(ctx, id) {
         // preview_v 是文件 mtime，另一个节点/早前会话设的图也能越过浏览器
         // 一小时图片缓存。
         if (info.custom_preview && name) {
-            return thumbUrl(name, Math.max(_thumbBust, info.preview_v || 0));
+            return A.thumbUrl(name, Math.max(_thumbBust, info.preview_v || 0));
         }
         if (civ?.state === "found" && civ.info?.thumbnail) return civ.info.thumbnail;
         // _thumbBust 在本面板改了侧车时设置（Civitai 查询/删除）：缩略图 URL
         // 永不变化且路由发 max-age=3600，没有 bust 浏览器会显示变化前的图
         // 一小时。
-        if (info.has_preview && name) return thumbUrl(name, _thumbBust);
+        if (info.has_preview && name) return A.thumbUrl(name, _thumbBust);
         return null;
     }
 
@@ -1094,7 +1135,7 @@ export async function openInfoPanelFor(ctx, id) {
 
     async function attemptInfo(force) {
         const ticket = ++_infoSeq;
-        const j = await loraInfo(name, force);
+        const j = await A.info(name, force);
         if (!panel.isConnected) return "dead";
         if (ticket !== _infoSeq) return "superseded";   // 有更新的持有答案
         if (!j?.ok || !j.info) return "failed";
@@ -1109,7 +1150,7 @@ export async function openInfoPanelFor(ctx, id) {
         // 静默重下载到新 hash 名下，不打扰用户。失败静默（下次打开再试）。
         if (info.restorable_thumb && !_thumbRestoreTried && name) {
             _thumbRestoreTried = true;
-            saveCivitaiThumb(name).then((res) => {
+            A.saveCivitaiThumb(name).then((res) => {
                 if (!panel.isConnected || !res?.ok) return;
                 _thumbBust = res.v || Date.now();
                 loadInfo({ force: true }).then((ok) => { if (ok) renderBody(); });
@@ -1143,7 +1184,7 @@ export async function openInfoPanelFor(ctx, id) {
         setBusy(true);
         try {
             const dataUrl = await toPreviewDataUrl(blob);
-            const res = await saveLoraPreview(name, dataUrl);
+            const res = await A.savePreview(name, dataUrl);
             if (!panel.isConnected) return;
             if (!res?.ok) { showMsg(res?.message || "Could not save that picture."); return; }
             _msg = null;
@@ -1160,7 +1201,7 @@ export async function openInfoPanelFor(ctx, id) {
         if (!name || _busy) return;
         setBusy(true);
         try {
-            const res = await deleteLoraPreview(name);
+            const res = await A.deletePreview(name);
             if (!panel.isConnected) return;
             if (!res?.ok) { showMsg(res?.message || "Could not remove that picture."); return; }
             _msg = null;
@@ -1437,105 +1478,109 @@ export async function openInfoPanelFor(ctx, id) {
             bodyWrap.appendChild(strip);
         }
 
-        // ── 触发词 ─────────────────────────────────────────────────────────
-        const sec = el("div", "sf-ls-info-sec");
-        const head = el("h4");
-        head.appendChild(el("span", null, "Trigger words"));
-        const all = el("span", "qa", "all");
-        all.title = "Select every word";
-        all.addEventListener("click", () => setWords(chipList().map((c) => c.w)));
-        const none = el("span", "qa", "none");
-        none.title = "Clear selection";
-        none.addEventListener("click", () => setWords([]));
-        // 复制全部触发词到剪贴板（SVG，与样例图按钮统一）
-        const copyAll = el("span", "qa");
-        copyAll.title = "Copy all trigger words to clipboard";
-        copyAll.style.cssText = "display:inline-flex;align-items:center;gap:3px;";
-        const copyIc = el("span");
-        copyIc.style.cssText = "width:10px;height:10px;background-color:currentColor;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
-        const _clipSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
-        copyIc.style.webkitMaskImage = `url("${_clipSvg}")`;
-        copyIc.style.maskImage = `url("${_clipSvg}")`;
-        copyAll.appendChild(copyIc);
-        copyAll.appendChild(document.createTextNode("copy"));
-        copyAll.addEventListener("click", async () => {
-            const words = chipList().map((c) => c.w).filter((w) => w);
-            if (!words.length) { showMsg("No trigger words to copy."); return; }
-            const ok = await copyText(words.join(", "));
-            showMsg(ok ? "Trigger words copied to clipboard." : "Could not copy to clipboard.");
-        });
-        head.append(all, none, copyAll);
-        // 源：仅当文件有自己的词且 Civitai 词存在时显示 File / Civitai 切换
-        // （以 file_triggers 而非 fileWords() 为门槛——后者回退到合并的侧车
-        // 列表，纯侧车 LoRA 会显示一个装着 Civitai 词的假 "File" 标签）。
-        // 否则显示普通徽章。
-        if (civitaiAvailable() && (info.file_triggers?.length || 0) > 0) {
-            const es = effectiveSource();
-            const seg = el("div", "sf-ls-srctoggle");
-            const fBtn = el("span", "sg" + (es === "file" ? " on" : ""), "File");
-            fBtn.title = "Show the LoRA's own words (from the file)";
-            fBtn.addEventListener("click", () => { viewSource = "file"; renderBody(); });
-            const cBtn = el("span", "sg" + (es === "civitai" ? " on" : ""), "Civitai");
-            cBtn.title = "Show the saved Civitai words";
-            cBtn.addEventListener("click", () => { viewSource = "civitai"; renderBody(); });
-            seg.append(fBtn, cBtn);
-            head.appendChild(seg);
-        } else {
-            const srcBadge = el("span", "src" + (info.source === "civitai" ? " net" : ""),
-                civ?.state === "found" ? "from Civitai" : info.source === "sidecar" ? "from Civitai (saved)" : "from file");
-            head.appendChild(srcBadge);
-        }
-        sec.appendChild(head);
-        sec.appendChild(el("p", "sf-ls-info-note",
-            "Tap the ones you want. Only these, and only if the LoRA is on, reach the triggers output."));
-
-        const chips = el("div", "sf-ls-chips");
-        const list = chipList();
-        if (!list.length) {
-            chips.appendChild(el("span", "sf-ls-chip-none",
-                "No trigger words in this file - add your own below" + (civitaiOn ? ", or try Civitai." : ".")));
-        } else {
-            for (const { w, isCustom } of list) {
-                const c = el("span", "sf-ls-chip" + (sel.has(w.toLowerCase()) ? " sel" : ""));
-                c.title = w;                              // 悬停看全文（chips 单行截断）
-                c.appendChild(el("span", "ct", w));
-                c.addEventListener("click", () => toggleWord(w));
-                if (isCustom) {
-                    const x = el("span", "cx", "✕");
-                    x.title = "Remove this custom word";
-                    x.addEventListener("click", (ev) => { ev.stopPropagation(); removeCustom(w); });
-                    c.appendChild(x);
-                }
-                chips.appendChild(c);
-            }
-        }
-        sec.appendChild(chips);
-
-        // ── 添加自己的触发词（持久在这个 LoRA 上）──────────────────────────
-        const addRow = el("div", "sf-ls-addtrig");
-        const inp = el("input");
-        inp.type = "text";
+        // 文件缺失态（触发词输入框与描述编辑按钮共用）
         const isMissing = !name || !!info._file_missing;
-        inp.placeholder = isMissing ? "LoRA file not found — cannot add words" : "add your own trigger word… (comma or Enter for batch)";
-        inp.disabled = isMissing;
-        inp.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
-        inp.addEventListener("keydown", (ev) => {
-            ev.stopPropagation();
-            if (ev.key === "Enter") { ev.preventDefault(); addCustom(inp.value); }
-        });
-        const addBtn = el("button", null, "Add");
-        addBtn.disabled = isMissing;
-        addBtn.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
-        addBtn.addEventListener("click", () => addCustom(inp.value));
-        // missing 时 chips 亦禁用点击（视觉 + 行为）
-        if (isMissing) {
-            chips.style.opacity = "0.55";
-            chips.style.pointerEvents = "none";
-        }
-        addRow.append(inp, addBtn);
-        sec.appendChild(addRow);
 
-        bodyWrap.appendChild(sec);
+        // ── 触发词（ctx.hideTriggers：diffusion 模型无触发词概念，整块跳过）──
+        if (!hideTriggers) {
+            const sec = el("div", "sf-ls-info-sec");
+            const head = el("h4");
+            head.appendChild(el("span", null, "Trigger words"));
+            const all = el("span", "qa", "all");
+            all.title = "Select every word";
+            all.addEventListener("click", () => setWords(chipList().map((c) => c.w)));
+            const none = el("span", "qa", "none");
+            none.title = "Clear selection";
+            none.addEventListener("click", () => setWords([]));
+            // 复制全部触发词到剪贴板（SVG，与样例图按钮统一）
+            const copyAll = el("span", "qa");
+            copyAll.title = "Copy all trigger words to clipboard";
+            copyAll.style.cssText = "display:inline-flex;align-items:center;gap:3px;";
+            const copyIc = el("span");
+            copyIc.style.cssText = "width:10px;height:10px;background-color:currentColor;display:block;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;";
+            const _clipSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h6a2 2 0 002-2M9 5a2 2 0 012-2h4a2 2 0 012 2M9 12h6M9 16h6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
+            copyIc.style.webkitMaskImage = `url("${_clipSvg}")`;
+            copyIc.style.maskImage = `url("${_clipSvg}")`;
+            copyAll.appendChild(copyIc);
+            copyAll.appendChild(document.createTextNode("copy"));
+            copyAll.addEventListener("click", async () => {
+                const words = chipList().map((c) => c.w).filter((w) => w);
+                if (!words.length) { showMsg("No trigger words to copy."); return; }
+                const ok = await copyText(words.join(", "));
+                showMsg(ok ? "Trigger words copied to clipboard." : "Could not copy to clipboard.");
+            });
+            head.append(all, none, copyAll);
+            // 源：仅当文件有自己的词且 Civitai 词存在时显示 File / Civitai 切换
+            // （以 file_triggers 而非 fileWords() 为门槛——后者回退到合并的侧车
+            // 列表，纯侧车 LoRA 会显示一个装着 Civitai 词的假 "File" 标签）。
+            // 否则显示普通徽章。
+            if (civitaiAvailable() && (info.file_triggers?.length || 0) > 0) {
+                const es = effectiveSource();
+                const seg = el("div", "sf-ls-srctoggle");
+                const fBtn = el("span", "sg" + (es === "file" ? " on" : ""), "File");
+                fBtn.title = "Show the LoRA's own words (from the file)";
+                fBtn.addEventListener("click", () => { viewSource = "file"; renderBody(); });
+                const cBtn = el("span", "sg" + (es === "civitai" ? " on" : ""), "Civitai");
+                cBtn.title = "Show the saved Civitai words";
+                cBtn.addEventListener("click", () => { viewSource = "civitai"; renderBody(); });
+                seg.append(fBtn, cBtn);
+                head.appendChild(seg);
+            } else {
+                const srcBadge = el("span", "src" + (info.source === "civitai" ? " net" : ""),
+                    civ?.state === "found" ? "from Civitai" : info.source === "sidecar" ? "from Civitai (saved)" : "from file");
+                head.appendChild(srcBadge);
+            }
+            sec.appendChild(head);
+            sec.appendChild(el("p", "sf-ls-info-note",
+                "Tap the ones you want. Only these, and only if the LoRA is on, reach the triggers output."));
+
+            const chips = el("div", "sf-ls-chips");
+            const list = chipList();
+            if (!list.length) {
+                chips.appendChild(el("span", "sf-ls-chip-none",
+                    "No trigger words in this file - add your own below" + (civitaiOn ? ", or try Civitai." : ".")));
+            } else {
+                for (const { w, isCustom } of list) {
+                    const c = el("span", "sf-ls-chip" + (sel.has(w.toLowerCase()) ? " sel" : ""));
+                    c.title = w;                              // 悬停看全文（chips 单行截断）
+                    c.appendChild(el("span", "ct", w));
+                    c.addEventListener("click", () => toggleWord(w));
+                    if (isCustom) {
+                        const x = el("span", "cx", "✕");
+                        x.title = "Remove this custom word";
+                        x.addEventListener("click", (ev) => { ev.stopPropagation(); removeCustom(w); });
+                        c.appendChild(x);
+                    }
+                    chips.appendChild(c);
+                }
+            }
+            sec.appendChild(chips);
+
+            // ── 添加自己的触发词（持久在这个 LoRA 上）──────────────────────
+            const addRow = el("div", "sf-ls-addtrig");
+            const inp = el("input");
+            inp.type = "text";
+            inp.placeholder = isMissing ? "LoRA file not found — cannot add words" : "add your own trigger word… (comma or Enter for batch)";
+            inp.disabled = isMissing;
+            inp.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
+            inp.addEventListener("keydown", (ev) => {
+                ev.stopPropagation();
+                if (ev.key === "Enter") { ev.preventDefault(); addCustom(inp.value); }
+            });
+            const addBtn = el("button", null, "Add");
+            addBtn.disabled = isMissing;
+            addBtn.title = isMissing ? "Pick the LoRA again from the list to enable editing" : "";
+            addBtn.addEventListener("click", () => addCustom(inp.value));
+            // missing 时 chips 亦禁用点击（视觉 + 行为）
+            if (isMissing) {
+                chips.style.opacity = "0.55";
+                chips.style.pointerEvents = "none";
+            }
+            addRow.append(inp, addBtn);
+            sec.appendChild(addRow);
+
+            bodyWrap.appendChild(sec);
+        }
 
         // ── Description（Civitai 说明 + 自定义覆盖，三档切换 File/Civitai/Custom）─────
         const dsec = el("div", "sf-ls-desc");
@@ -1685,10 +1730,10 @@ export async function openInfoPanelFor(ctx, id) {
                 // 无原始 HTML 通过）；sample/ 相对路径解析为图片 URL。
                 // 编辑态仍编辑源码（textarea），保存原文。
                 const db = el("div", "sf-ls-desc-body");
-                db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name) });
+                db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name, sKind) });
                 dsec.appendChild(db);
                 // 标题悬停预览对应 sample 图（与下方网格同源）
-                queueMicrotask(() => attachSampleTitleHover(db, name));
+                queueMicrotask(() => attachSampleTitleHover(db, name, sKind));
             } else {
                 const es = effectiveDescSource();
                 let msg = "No description.";
@@ -1719,7 +1764,7 @@ export async function openInfoPanelFor(ctx, id) {
         (async () => {
             if (!name || info._file_missing || !browseGrid.isConnected) return;
             try {
-                const data = await fetchSamplesCached(name);
+                const data = await fetchSamplesCached(name, sKind);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 if (!imgs.length) return;
                 browseSec.style.display = "";
@@ -1730,7 +1775,7 @@ export async function openInfoPanelFor(ctx, id) {
                     let thumb;
                     if (isVideo) {
                         thumb = document.createElement("img");
-                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${sq}&w=256`;
                         thumb.title = p.split("/").pop() + " (video) — 点击预览";
                         thumb.loading = "lazy";
                         thumb.style.cssText = "width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #3a3a3e;cursor:pointer;display:block;";
@@ -1742,18 +1787,18 @@ export async function openInfoPanelFor(ctx, id) {
                             fb.textContent = p.split("/").pop().slice(0, 12);
                             fb.title = p.split("/").pop() + " (video) — 点击预览";
                             fb.style.cursor = "pointer";
-                            fb.addEventListener("click", () => openSamplePreview(p, imgs));
+                            fb.addEventListener("click", () => openSamplePreview(p, imgs, sKind));
                             thumb.replaceWith(fb);
                             thumb = fb;
                         });
                     } else {
                         thumb = document.createElement("img");
-                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}&w=256`;
+                        thumb.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${sq}&w=256`;
                         thumb.title = p.split("/").pop() + " — 点击预览";
                         thumb.loading = "lazy";
                         thumb.style.cursor = "pointer";
                     }
-                    if (!thumb.dataset.fallback) thumb.addEventListener("click", () => openSamplePreview(p, imgs));
+                    if (!thumb.dataset.fallback) thumb.addEventListener("click", () => openSamplePreview(p, imgs, sKind));
                     const del = el("button", "x");
                     del.title = "Delete this sample image from disk";
                     const delIc = el("span", "ic");
@@ -1770,7 +1815,7 @@ export async function openInfoPanelFor(ctx, id) {
                         });
                         if (!ok || !panel.isConnected) return;
                         try {
-                            const r = await app.api.fetchApi(`/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}`, { method: "DELETE" });
+                            const r = await app.api.fetchApi(`/api/sfnodes/lora_samples?path=${encodeURIComponent(p)}${sq}`, { method: "DELETE" });
                             if (!r.ok) throw new Error(`HTTP ${r.status}`);
                             invalidateSamplesCache(name);
                             // 刷新浏览区与编辑区（若存在）
@@ -1798,7 +1843,7 @@ export async function openInfoPanelFor(ctx, id) {
                         promptBtn.style.opacity = "0.5";
                         promptBtn.style.pointerEvents = "none";
                         try {
-                            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}`);
+                            const resp = await app.api.fetchApi(`/api/sfnodes/lora_samples/prompt?path=${encodeURIComponent(p)}${sq}`);
                             const data = await resp.json().catch(() => ({}));
                             if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
                             if (!data.found || !data.text) {
@@ -1941,7 +1986,7 @@ export async function openInfoPanelFor(ctx, id) {
         clearMsg();
         civ = { state: "searching" };
         renderBody();
-        const res = await civitaiLookup(name, opts);
+        const res = await A.civitai(name, opts);
         if (!panel.isConnected) return;
         if (res.ok && res.found) {
             civ = { state: "found", info: res.info || {} };
@@ -1957,13 +2002,13 @@ export async function openInfoPanelFor(ctx, id) {
             if (res.samples_downloaded) {
                 const n = res.samples_downloaded;
                 civ.note = (civ.note ? civ.note + " " : "") + `Downloaded ${n} sample image${n > 1 ? "s" : ""} to sample/.`;
-                invalidateSamplesCache(name);
+                invalidateSamplesCache(name, sKind);
             } else if (res.samples_note) {
                 civ.note = (civ.note ? civ.note + " " : "") + res.samples_note;
             } else if (res.samples_error) {
                 civ.note = (civ.note ? civ.note + " " : "") + res.samples_error;
             }
-            invalidateInfo(name);
+            A.invalidate(name);
             // 刷新离线 info 让源徽章/缓存 id 反映新侧车，再重绘。走 loadInfo，
             // 慢答案不能覆盖用户在查询进行中设的图。
             loadInfo({ force: true }).then((ok) => { if (ok) renderBody(); });
@@ -1990,7 +2035,7 @@ export async function openInfoPanelFor(ctx, id) {
         });
         if (!panel.isConnected) return;
         if (!replace) { civ.note = "Your own preview picture was kept."; renderBody(); return; }
-        const sv = await saveCivitaiThumb(name);
+        const sv = await A.saveCivitaiThumb(name);
         if (!panel.isConnected) return;
         if (!sv?.ok) {
             civ.note = "Couldn't save the preview: " + ((sv && sv.message) || "unknown error");
@@ -2004,10 +2049,10 @@ export async function openInfoPanelFor(ctx, id) {
 
     async function runDeleteCivitai() {
         clearMsg();
-        await deleteCivitai(name);
+        await A.delCivitai(name);
         if (!panel.isConnected) return;
         _thumbBust = Date.now();              // 侧车（因此预览）变了
-        invalidateInfo(name);                 // 丢缓存的（侧车味的）info
+        A.invalidate(name);                 // 丢缓存的（侧车味的）info
         civ = null;
         viewSource = "file";                  // 没有可切换的了——显示文件词
         await loadInfo({ force: true });
@@ -2019,7 +2064,7 @@ export async function openInfoPanelFor(ctx, id) {
     // info 刷新（custom_triggers/custom_description 出现、orphan 字段消失）。
     async function runMigrate() {
         clearMsg();
-        const res = await migrateLoraData(name, info.orphan_key);
+        const res = await A.migrate(name, info.orphan_key);
         if (!panel.isConnected) return;
         if (!res?.ok) { showMsg((res && res.message) || "Nothing to migrate."); return; }
         _msg = null;
@@ -2031,7 +2076,7 @@ export async function openInfoPanelFor(ctx, id) {
 
     async function runMerge() {
         clearMsg();
-        const res = await mergeLoraData(name, info.orphan_key);
+        const res = await A.merge(name, info.orphan_key);
         if (!panel.isConnected) return;
         if (!res?.ok) { showMsg((res && res.message) || "Nothing to merge."); return; }
         _msg = null;
@@ -2055,6 +2100,13 @@ export async function openInfoPanelFor(ctx, id) {
     if (!panel.isConnected) return;
     renderBody();
     place(panel, ctx);
+
+    // ctx.autoCivitai（dmodel 宿主）：面板打开即自动匹配。侧车已有数据
+    // （离线 info 已带 model_id）或用户关了 civitai 偏好时不打扰。
+    // runCivitai 自带取票与状态条，慢答案不会覆盖用户随后的操作。
+    if (ctx.autoCivitai && name && !info._file_missing && !civ && info.model_id == null) {
+        if (prefsOf().civitai !== false) runCivitai();
+    }
 
     // 点击面板外部 = 离开意图：查看态点击工作流其他位置关闭面板；编辑态
     // （有未保存修改）不关——误关会丢草稿，与 Esc/✕ 的确认保护同对象。

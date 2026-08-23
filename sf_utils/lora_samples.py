@@ -17,9 +17,11 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# 约定：LoRA 示例图存放在该 LoRA 所在目录的 sample/ 子目录下，
+# 约定：模型示例图存放在该模型所在目录的 sample/ 子目录下，
 # 例：lora "krea2/InnieVagina/xxx.safetensors" →
 #     models/loras/krea2/InnieVagina/sample/*.png
+# 路由按 kind 参数服务两个数据域：loras（缺省）与 diffusion_models
+# （SF Load Diffusion Model 信息面板复用同一约定）。
 # ---------------------------------------------------------------------------
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}
@@ -78,8 +80,32 @@ def _prune_thumb_cache(cache_dir: str) -> None:
         pass
 
 
-def _get_loras_roots() -> list[str]:
-    return folder_paths.get_folder_paths("loras")
+# 数据域：sample 路由服务两类模型目录（kind 参数）。"diffusion_models"
+# 供 SF Load Diffusion Model 的信息面板复用同一 sample/ 旁目录约定。
+_KINDS = ("loras", "diffusion_models")
+
+
+def _norm_kind(kind) -> str:
+    return kind if kind in _KINDS else "loras"
+
+
+def _model_exts(kind: str) -> set[str]:
+    """该域模型文件的合法扩展名。loras 域沿用 LoRA 白名单；diffusion_models
+    域与 ComfyUI folder_paths.supported_pt_extensions 对齐（无 .gguf，同原生
+    UNETLoader 行为）。"""
+    if kind == "diffusion_models":
+        try:
+            exts = getattr(folder_paths, "supported_pt_extensions", None)
+            if isinstance(exts, (set, frozenset, list, tuple)) and exts:
+                return {e.lower() for e in exts}
+        except Exception:
+            pass
+        return {".ckpt", ".pt", ".pt2", ".bin", ".pth", ".safetensors", ".pkl", ".sft"}
+    return set(_LORA_EXTS)
+
+
+def _get_loras_roots(dir_type: str = "loras") -> list[str]:
+    return folder_paths.get_folder_paths(_norm_kind(dir_type))
 
 
 def _is_under_root(abs_path: str, root: str) -> bool:
@@ -101,38 +127,39 @@ def _is_under_root(abs_path: str, root: str) -> bool:
             return False
 
 
-def _resolve_lora_dir(lora_name: str) -> str | None:
-    """lora 相对路径 → 其所在目录的绝对路径；找不到/非法返回 None"""
+def _resolve_lora_dir(lora_name: str, dir_type: str = "loras") -> str | None:
+    """模型相对路径 → 其所在目录的绝对路径；找不到/非法返回 None"""
     if not lora_name or not isinstance(lora_name, str):
         return None
-    if os.path.splitext(lora_name)[1].lower() not in _LORA_EXTS:
+    kind = _norm_kind(dir_type)
+    if os.path.splitext(lora_name)[1].lower() not in _model_exts(kind):
         return None
-    full = folder_paths.get_full_path("loras", lora_name)
+    full = folder_paths.get_full_path(kind, lora_name)
     if not full or not os.path.isfile(full):
         return None
     return os.path.dirname(full)
 
 
-def _rel_to_root(abs_path: str) -> str | None:
-    """绝对路径 → 相对于 loras 根的路径；不在根内返回 None"""
-    for root in _get_loras_roots():
+def _rel_to_root(abs_path: str, dir_type: str = "loras") -> str | None:
+    """绝对路径 → 相对于该域模型根的路径；不在根内返回 None"""
+    for root in _get_loras_roots(dir_type):
         if _is_under_root(abs_path, root):
             return os.path.relpath(abs_path, root)
     return None
 
 
-def _rel_to_sample_dir(lora_name: str) -> str | None:
-    """lora 相对路径 → sample 目录相对 loras 根的路径（如 krea2/x/sample）"""
-    lora_dir = _resolve_lora_dir(lora_name)
+def _rel_to_sample_dir(lora_name: str, dir_type: str = "loras") -> str | None:
+    """模型相对路径 → sample 目录相对模型根的路径（如 krea2/x/sample）"""
+    lora_dir = _resolve_lora_dir(lora_name, dir_type)
     if lora_dir is None:
         return None
-    rel = _rel_to_root(os.path.join(lora_dir, "sample"))
+    rel = _rel_to_root(os.path.join(lora_dir, "sample"), dir_type)
     return rel
 
 
-def _list_sample_images(lora_name: str) -> tuple[list[str], str | None]:
-    """返回 (相对 loras 根的图片路径列表, sample 目录相对路径)"""
-    lora_dir = _resolve_lora_dir(lora_name)
+def _list_sample_images(lora_name: str, dir_type: str = "loras") -> tuple[list[str], str | None]:
+    """返回 (相对模型根的图片路径列表, sample 目录相对路径)"""
+    lora_dir = _resolve_lora_dir(lora_name, dir_type)
     if lora_dir is None:
         return [], None
     sample_dir = os.path.join(lora_dir, "sample")
@@ -144,15 +171,16 @@ def _list_sample_images(lora_name: str) -> tuple[list[str], str | None]:
             full = os.path.join(sample_dir, f)
             if not os.path.isfile(full):
                 continue
-            rel = _rel_to_root(full)
+            rel = _rel_to_root(full, dir_type)
             if rel:
                 images.append(rel)
-    return images, _rel_to_root(sample_dir)
+    return images, _rel_to_root(sample_dir, dir_type)
 
 
-def _resolve_sample_image(abs_path: str) -> str | None:
-    """解析 sample 图片的绝对路径（须在 loras 根内且位于某个 sample/ 目录下）"""
+def _resolve_sample_image(abs_path: str, dir_type: str = "loras") -> str | None:
+    """解析 sample 图片的绝对路径（须在该域模型根内且位于某个 sample/ 目录下）"""
     rel = abs_path
+    kind = _norm_kind(dir_type)
     if not rel or not isinstance(rel, str) or os.path.isabs(rel):
         return None
     # 任意 ".." 段即拒（词法层面先于 realpath，防 lev+realpath 绕过）
@@ -168,7 +196,7 @@ def _resolve_sample_image(abs_path: str) -> str | None:
     parts = rel.replace("\\", "/").split("/")
     if "sample" not in parts[:-1]:
         return None
-    for root in _get_loras_roots():
+    for root in _get_loras_roots(kind):
         candidate = os.path.normpath(os.path.join(root, rel))
         # realpath 守卫：symlink 逃逸在此被 _is_under_root (realpath) 挡住
         try:
@@ -202,7 +230,8 @@ def _register_routes():
         async def _list_samples(request: web.Request) -> web.Response:
             try:
                 lora_name = request.rel_url.query.get("filename", "")
-                images, sample_dir = _list_sample_images(lora_name)
+                kind = _norm_kind(request.rel_url.query.get("kind", "loras"))
+                images, sample_dir = _list_sample_images(lora_name, kind)
                 if sample_dir is None:
                     return web.json_response({"error": "lora not found"}, status=404)
                 return web.json_response({"images": images, "sample_dir": sample_dir})
@@ -214,7 +243,8 @@ def _register_routes():
         async def _sample_image(request: web.Request) -> web.Response:
             try:
                 path = request.rel_url.query.get("path", "")
-                full = _resolve_sample_image(path)
+                kind = _norm_kind(request.rel_url.query.get("kind", "loras"))
+                full = _resolve_sample_image(path, kind)
                 if full is None:
                     return web.Response(status=404)
 
@@ -307,7 +337,8 @@ def _register_routes():
             """读取 sample 目录下图片/视频的 prompt（复用 sf_utils.prompt_reader）。"""
             try:
                 path = request.rel_url.query.get("path", "")
-                full = _resolve_sample_image(path)
+                kind = _norm_kind(request.rel_url.query.get("kind", "loras"))
+                full = _resolve_sample_image(path, kind)
                 if full is None:
                     return web.json_response({"found": False, "message": "Sample not found."})
                 try:
@@ -334,7 +365,8 @@ def _register_routes():
                 except Exception:
                     return web.Response(status=400)
                 lora_name = post.get("filename", "")
-                lora_dir = _resolve_lora_dir(lora_name)
+                kind = _norm_kind(post.get("kind", "loras"))
+                lora_dir = _resolve_lora_dir(lora_name, kind)
                 if lora_dir is None:
                     return web.json_response({"error": "lora not found"}, status=404)
 
@@ -375,7 +407,7 @@ def _register_routes():
                     f.write(data)
                 logger.info(f"Saved lora sample: {filepath}")
 
-                rel = _rel_to_root(filepath)
+                rel = _rel_to_root(filepath, kind)
                 if rel is None:
                     return web.Response(status=400)
                 return web.json_response({"name": filename, "path": rel})
@@ -387,7 +419,8 @@ def _register_routes():
         async def _delete_sample(request: web.Request) -> web.Response:
             try:
                 path = request.rel_url.query.get("path", "")
-                full = _resolve_sample_image(path)
+                kind = _norm_kind(request.rel_url.query.get("kind", "loras"))
+                full = _resolve_sample_image(path, kind)
                 if full is None:
                     return web.json_response({"error": "not found"}, status=404)
                 os.remove(full)

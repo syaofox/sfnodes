@@ -103,6 +103,7 @@ class SFMyNode:
 - **lean 注入作缓存键**（text §6/§15）：graphToPrompt 注入只含影响结果的字段（选中值+类型）——改行名/重排/切模式不重跑；游标 pending 在 queue 成功后 commitPick，位置存节点内存或未注册设置按共享范围选，写 properties 会误标 modified。
 - **SF Workflows 面板**（apps §10）：面板是"应用"非节点（分享工作流不携带）；热键避开原版 combo（全局去重报错）；sidecar meta 读写 asyncio.Lock 防读改写互擦；收藏前先 await loadBookmarks()。
 - **SF LoRA 浏览器**（apps §30）：后端零新增全复用 lora_* 路由；信息编辑经 openInfoPanelFor(ctx,id) 宿主适配复用 Stack 面板；平面模式分批渲染防千级列表卡死。
+- **信息面板跨域复用**（lora §32）：新数据域（如 SF Load Diffusion Model）接同一面板 = 后端同 handler 别名路由（`routes.get(别名)(handler)`，handler 内 `_dom_*(request)` 按路径分派存储域：dmodels.json/previews_model/diffusion_models，物理分离防撞槽）+ 前端 ctx 三开关（hideTriggers/samplesKind/autoCivitai）+ **ctx.api 整束注入（键名错会静默回退 lora 路由——冒烟测试锁形状与"绝无 /lora_* 回退"）**。
 - **自定义 API 路由**（image §8.4 等）：`from server import PromptServer` → ins.routes 装饰器 try/except 包裹、导入时副作用注册；前缀统一 /api/sfnodes/；**改动路由必须重启容器**否则 404 静默降级。
 - **全屏编辑器与冒烟测试**（text §6.3/§6.5）：类名前缀与既有插件隔离；Esc 用 window capture 分层处理；危险操作 confirmDanger 无撤销设计；mock DOM 冒烟能抓语法检查漏掉的运行时错误。
 - **中文 token/标签库**（text §6）：token 名 `[\p{L}\p{N}_-]` 带 u flag（中文可作 tag）；标签库存未注册设置（机器私有跨工作流）+ 工作副本 isSameAsStored 判定才写回；拼音表一次性生成内联，非运行时 npm 依赖。

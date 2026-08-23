@@ -87,6 +87,7 @@ from .nodes.model.lora_loader_model_only import LoraLoaderModelOnly
 from .nodes.model.lora_selector import LoraSelector
 from .nodes.model.lora_preset import SFLoraPreset
 from .nodes.model.lora_stack import SFLoraStack
+from .nodes.model.load_diffusion_model import SFLoadDiffusionModel
 from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.regional_lora import SFRegionalLoRA
@@ -271,6 +272,8 @@ NODE_CLASS_MAPPINGS = {
     "SFLoraLoader": LoraLoader,
     "SFLoraLoaderModelOnly": LoraLoaderModelOnly,
     "SFLoraSelector": LoraSelector,
+    # 扩散模型加载
+    "SFLoadDiffusionModel": SFLoadDiffusionModel,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
     "SFPauseImage": SFPauseImage,
@@ -455,6 +458,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoraLoader": "SF LoRA Loader",
     "SFLoraLoaderModelOnly": "SF LoRA Loader (Model Only)",
     "SFLoraSelector": "SF LoRA Selector",
+    # 扩散模型加载
+    "SFLoadDiffusionModel": "SF Load Diffusion Model",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
     "SFPauseImage": "SF Pause Image",

@@ -161,8 +161,20 @@ function getComboValue(node, name) {
     const v = getComboWidget(node, name)?.value;
     return typeof v === "string" ? v : null;
 }
+export { getComboWidget, getComboValue };
 
-function createInfoWidget(comboName) {
+/**
+ * i 信息图标 widget 工厂（SFLoraLoader 与 SF Load Diffusion Model 共用绘制）。
+ * opts:
+ *   hasCustomOf(name)->bool  图标高亮（有用户自定义数据）；缺省读 lora 域缓存
+ *   onOpen(node,name)        点击回调；缺省打开 LoRA 域浮动面板
+ */
+function createInfoWidget(comboName, opts = {}) {
+    const hasCustomOf = opts.hasCustomOf || ((n) => loraMetadataCache.get(n)?._has_custom);
+    const onOpen = opts.onOpen || ((n, modelName) => {
+        const ctx = loaderPanelCtx(n, modelName);
+        openInfoPanelFor(ctx, modelName);
+    });
     const w = {
         name: "_info",
         type: "custom",
@@ -177,8 +189,7 @@ function createInfoWidget(comboName) {
             this._hit = INVALID_BOUNDS;
             const loraName = getComboValue(n, comboName);
             if (!loraName || loraName === "None") return;
-            const cachedMeta = loraMetadataCache.get(loraName);
-            const hasCustom = cachedMeta?._has_custom;
+            const hasCustom = !!hasCustomOf(loraName);
             const size = Math.max(14, height * 0.6);
             const posX = 10;
             const centerX = posX + size / 2;
@@ -219,8 +230,7 @@ function createInfoWidget(comboName) {
                     // 统一为 Stack 同款浮动面板（chip 形态，近节点），不再使用 dialog
                     requestAnimationFrame(() => {
                         setTimeout(() => {
-                            const ctx = loaderPanelCtx(n, loraName);
-                            openInfoPanelFor(ctx, loraName);
+                            onOpen(n, loraName);
                         }, 0);
                     });
                 }
@@ -272,13 +282,19 @@ function loaderPanelCtx(node, loraName) {
 // binds the combo callback to prefetch metadata, guards the positional
 // restoration of widgets_values, and prefetches the restored value after
 // configure (widget values are restored after onNodeCreated).
-export function setupLoraInfoWidget(node, comboName = "lora_name") {
+//
+// opts（SF Load Diffusion Model 等非 LoRA 加载器复用同一装配时序）：
+//   prefetch(value)  combo 选择/恢复后的预取；缺省 = LoRA 元数据网关，
+//                    传 null 关闭预取
+//   其余透传 createInfoWidget（hasCustomOf/onOpen）
+export function setupLoaderInfoWidget(node, comboName = "lora_name", opts = {}) {
+    const prefetch = "prefetch" in opts ? opts.prefetch : getLoraMetadata;
     const combo = getComboWidget(node, comboName);
     if (combo) {
         const origCallback = combo.callback;
         combo.callback = (value) => {
             if (origCallback) origCallback(value);
-            if (value && value !== "None") getLoraMetadata(value);
+            if (prefetch && value && value !== "None") prefetch(value);
         };
     }
 
@@ -288,9 +304,14 @@ export function setupLoraInfoWidget(node, comboName = "lora_name") {
         if (idx !== -1) this.widgets.splice(idx, 1);
         if (_origConfigure) _origConfigure.call(this, info);
         const loraName = getComboValue(this, comboName);
-        if (loraName && loraName !== "None") getLoraMetadata(loraName);
-        this.widgets.push(createInfoWidget(comboName));
+        if (prefetch && loraName && loraName !== "None") prefetch(loraName);
+        this.widgets.push(createInfoWidget(comboName, opts));
     };
 
-    node.widgets.push(createInfoWidget(comboName));
+    node.widgets.push(createInfoWidget(comboName, opts));
 }
+
+export function setupLoraInfoWidget(node, comboName = "lora_name") {
+    return setupLoaderInfoWidget(node, comboName);
+}
+export { createInfoWidget };

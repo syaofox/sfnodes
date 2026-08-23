@@ -53,19 +53,25 @@ export function isVideoPath(p) {
 
 // ── 样例列表短期缓存（2s 去重，避免同面板三处并发各发一次）────────────────
 const _sampleCache = new Map();
-export function fetchSamplesCached(loraName) {
+// 缓存键含 kind（loras 缺省省略前缀，旧调用行为不变）。
+function _sampleCacheKey(loraName, kind) {
+    return kind ? `${kind}:${loraName}` : loraName;
+}
+export function fetchSamplesCached(loraName, kind) {
     if (!loraName || loraName === "None") return Promise.resolve({ images: [], sample_dir: "" });
-    if (_sampleCache.has(loraName)) return _sampleCache.get(loraName);
-    const p = app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}`)
+    const key = _sampleCacheKey(loraName, kind);
+    if (_sampleCache.has(key)) return _sampleCache.get(key);
+    const kq = kind ? `&kind=${encodeURIComponent(kind)}` : "";
+    const p = app.api.fetchApi(`/api/sfnodes/lora_samples?filename=${encodeURIComponent(loraName)}${kq}`)
         .then((r) => r.ok ? r.json() : { images: [] })
         .catch(() => ({ images: [] }))
-        .finally(() => setTimeout(() => _sampleCache.delete(loraName), 2000));
-    _sampleCache.set(loraName, p);
+        .finally(() => setTimeout(() => _sampleCache.delete(key), 2000));
+    _sampleCache.set(key, p);
     return p;
 }
 
-export function invalidateSamplesCache(loraName) {
-    if (loraName) _sampleCache.delete(loraName);
+export function invalidateSamplesCache(loraName, kind) {
+    if (loraName) _sampleCache.delete(_sampleCacheKey(loraName, kind));
 }
 
 // ── 大图预览（图片/视频，支持方向键切换）──────────────────────────────────

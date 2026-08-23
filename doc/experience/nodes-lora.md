@@ -287,3 +287,25 @@
 - **根因**：预设→文本联动的唯一数据源是 `node.properties._krea2PresetData` 快照（`nodeCreated` 时 `init(data)` 写入，随 workflow 保存）。管理 popup 的 `refreshAllNodes` / 跨窗口 `presetsChanged` 监听的 `reloadNodes` 原只调 `setPresetOptions` 重建下拉选项，**未同步快照** → 快照仍是节点创建时的旧合并视图，新键 `data[value]===undefined` 分支不执行。
 - **修复**：① `sf_krea2_presets.js:reloadNodes` 遍历 `nodesOfClass(comfyClass)` 时同步 `n.properties._krea2PresetData = data.presets` 再 `setPresetOptions`；② 两节点 `loadPresets` 首载分支同布快照；③ 回调 `presetWidget.callback` 双源容错 `const cur = presets || node.properties._krea2PresetData`（全局最新优先，快照兜底），后续新增无需再等快照同步也能填充。`SFKrea2SystemPrompt` 同构修复（其 `syncFromPreset` 亦受益）。
 - **教训**：动态 combo 的“选项列表”与“选项→值映射”是两份状态，必须同更新；只更选项不更映射是“下拉可见但联动失效”的典型症状。
+
+## 32. SF Load Diffusion Model：信息面板跨域复用（数据域分派 + ctx.api 整束注入，2026-08）
+
+官方 UNETLoader 强化版（`SFLoadDiffusionModel`）复用 SFLoraStack 信息面板的完整做法——**面板本体零分支、两域零内联副本**。
+
+### 1. 后端：同一 handler 别名路由 + 请求路径分派存储域
+
+- Civitai 查询/自定义描述/预览图/孤儿迁移等 9 个路由与 LoRA **完全同构**，差异只在三个存储锚点（模型目录类型、用户数据文件、预览图目录）。在 `lora_routes.py` 加 `_is_dmodel_req(request)`（按 `request.path` 前缀判定域）+ `_dom_resolve/_dom_dirs/_dom_notes_file/_dom_previews_dir` 四个分派函数，各 handler 首行换用；再把**同一协程注册到第二路径**：`routes.get("/api/sfnodes/dmodel_thumb")(api_lora_thumb)` 式别名（aiohttp RouteTableDef 支持同 handler 多路径）。
+- 存储分域硬约束：`dmodels.json` / `previews_model/` 与 lora 的文件**物理分离**——lora_reader 的存储函数全部按 `(file/folder, name)` 参数化是前提，传不同 file/folder 即得全套指纹/孤儿/迁移语义，一行不用抄。预览图 sha1 槽位目录必须分开，否则同名相对路径撞槽。
+- 真正新写的只有 info 组装（`diffusion_routes.py::dmodel_info`）：safetensors 头部 `__metadata__`（config JSON 架构串）替换 LoRA 训练字段，**触发词三组恒空数组**（响应形状对齐 `build_lora_info` 让前端零分支），侧车 `<base>.civitai.info` 跟随模型文件天然隔离。
+- 触发词是 LoRA 专属概念：`custom_triggers`/`lora_info`/`lora_list` **不设别名**。
+
+### 2. 前端：openInfoPanelFor 的 ctx 三开关 + api 整束
+
+- `ctx.hideTriggers`（缺省 false）整块跳过触发词区块；`ctx.samplesKind="diffusion_models"` 让 samples URL 带 kind 参数（后端 lora_samples.py 四个解析函数加 `dir_type` 缺省参数，旧调用逐字节不变）；`ctx.autoCivitai` 打开面板即自动匹配（侧车已有 model_id 则不打扰）。既有 LoRA 宿主全部走缺省值，行为不变。
+- **api 束注入**是关键机制：面板内部 12 个路由调用收敛为顶部一处解构 `const A = {...默认LoRA函数, ...ctx.api}`。⚠️ **键名错配会静默回退 LoRA 路由**（Object.assign 只覆盖同名键）——必须用冒烟测试锁定束形状（`tests/test_load_dmodel_panel_smoke.js` 逐键 typeof 断言 + fetch 记录断言"绝无 /lora_info 回退"）。
+- i 图标绘制与 configure 时序抽成参数化工厂：`sf_lora_info.js` 导出 `createInfoWidget(comboName,{hasCustomOf,onOpen})` 与 `setupLoaderInfoWidget(node,comboName,{prefetch,...})`，LoRA 版签名不变委托内部。
+
+### 3. 测试
+
+- 后端 `tests/test_diffusion_routes_smoke.py`：mock folder_paths 需补 `supported_pt_extensions` 与 `get_filename_list`；侧车要用**原始 Civitai API 形状**（trainedWords/model.name/baseModel/modelId/id），不是解析后的形状。
+- 大文件 SHA256 慢：by-hash 查询本就走 executor 且结果持久化在侧车（第二次离线秒开）；hash 本身暂无独立缓存，多 GB 文件首次匹配数十秒属预期（面板 civStrip searching 态可见进度）。
