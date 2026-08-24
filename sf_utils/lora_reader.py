@@ -239,14 +239,18 @@ def read_sidecar_info(lora_path):
         if isinstance(model, dict) and model.get("name"):
             info["name"] = str(model["name"])
         # description 在 version 顶层（API 实测）；兼容旧侧车的 model.description。
-        # 统一走 _html_to_markdown：它按 _HTML_TAG_RE 判定真实 HTML，纯 markdown
-        # 侧车描述（含 <sks> 触发词 / <https://...> 自动链接）原样透传，避免
-        # markdownify 对 \_/\*/\` 二次转义固化。
+        # 应用写入的侧车带 sfnodes_description_md 标记（description 已是 markdown，
+        # 见 lora_routes 查询路径），确定性透传零猜测；旧/外部侧车才走
+        # _html_to_markdown（按 _HTML_TAG_RE 判定真实 HTML，纯 markdown 原样透传，
+        # 避免 markdownify 对 \_/\*/\` 二次转义固化）。
         desc = obj.get("description")
         if not desc and isinstance(model, dict):
             desc = model.get("description")
         if desc:
-            info["description"] = _html_to_markdown(desc)
+            if isinstance(desc, str) and obj.get("sfnodes_description_md"):
+                info["description"] = _decode_entities(desc).strip()
+            else:
+                info["description"] = _html_to_markdown(desc)
         if obj.get("baseModel"):
             info["base_model"] = str(obj["baseModel"])
         # modelId / version id 让前端可链接到 Civitai 模型页。

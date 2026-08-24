@@ -899,6 +899,13 @@ def _register_routes():
                 # 侧车同步存拼接版：未来读取/其他节点（lora_notes）
                 # 从侧车解析即拿到完整描述，无需重新抓取。
                 data["description"] = merged
+            # 写入侧归一化：description 统一以 markdown 缓存并打 sfnodes_description_md
+            # 标记——读侧（read_sidecar_info）凭标记确定性透传，不再猜 HTML/markdown。
+            # 页面成功时 merged 已是 markdown；失败时把原始 API 描述转一次。
+            raw_desc = data.get("description")
+            if not merged and isinstance(raw_desc, str):
+                data["description"] = R._html_to_markdown(raw_desc)
+            data["sfnodes_description_md"] = True
             await loop.run_in_executor(None, R.save_sidecar_cache, path, data)
             resp = {"ok": True, "found": True, "info": parsed}
             # 封面自动保存到本地（与用户自定义预览同目录同名规则）：

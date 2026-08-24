@@ -165,6 +165,7 @@
 - markdownify 转换，缺库/异常回退 `_clean_description` 纯文本，测试双环境全绿；API/页面/文件内嵌/侧车描述同一入口。
 - **幂等保护**：无真实 HTML 标签的输入（纯文本/已 markdown 化的侧车描述）只走轻清洗原样放行——markdownify 对非 HTML 输入不幂等（`*` 会转义成 `\*`），而侧车读取路径会二次处理，不保护则"首次查询正常、下次打开面板变转义文本"。
 - **HTML 判定用 `_HTML_TAG_RE` 白名单**（标准富文本标签 p/br/h1-6/strong/a/img/ul/li 等），**不能只看有无 `<`**——markdown 夹带的 `<sks>` 触发词与 `<https://...>` 自动链接虽含尖括号却非标签，按 `"<" not in raw` 判定会被误判成 HTML 交给 markdownify 转义成 `\*\*`/`\_`（实测 qwen multi-angle 侧车描述即此坑）。`read_sidecar_info` 的 `civitai_/Sample Images` 标记启发式因此冗余，已删，统一走 `_html_to_markdown`。
+- **写入侧归一化 + 标记，读侧确定性透传**（2026-08）：查询路径存侧车前把 `description` 统一转 markdown 并写 `sfnodes_description_md: True`；`read_sidecar_info` 见标记即 `_decode_entities` 透传零猜测，`_HTML_TAG_RE` 启发式只兜底旧/外部侧车。猜格式只在格式信息已丢失的存量数据上发生。
 - **`_MAX_DESCRIPTION_LEN` 已删除**——不截断（来源有流量守卫：API 4MB/页面 2MB/文件本地；前端面板滚动展示）。
 
 ---

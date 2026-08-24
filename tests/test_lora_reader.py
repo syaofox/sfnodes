@@ -194,6 +194,21 @@ check("build_lora_info source=sidecar", info2["source"] == "sidecar")
 check("build_lora_info 侧车 description 清洗", info2["description"] == ("**Hello** & welcome\nline 2" if has_markdownify else "Hello & welcome\nline 2"))
 os.remove(sidecar_path)
 
+# 应用写入的侧车带 sfnodes_description_md 标记：description 已是 markdown，
+# 确定性透传（零猜测），即使夹带 <sks>/<https://...> 也不会被 markdownify 转义。
+_md_sidemark = {"trainedWords": ["side2"],
+                "description": "# **Title**\n\n`<sks>` [x](<https://hf.co/a>)\n",
+                "model": {"name": "MD Model"},
+                "sfnodes_description_md": True}
+sidecar_path2 = os.path.join(LORAS_DIR, "test.civitai.info")
+with open(sidecar_path2, "w", encoding="utf-8") as f:
+    json.dump(_md_sidemark, f)
+_md_expected = "# **Title**\n\n`<sks>` [x](<https://hf.co/a>)"
+info3 = utils.build_lora_info(sf_path)
+check("build_lora_info sfnodes_md 标记原样透传",
+      info3["description"] == _md_expected and info3["civitai_description"] == _md_expected)
+os.remove(sidecar_path2)
+
 # ── parse_state ──
 ps = utils.parse_state
 _DEFAULT_STATE = {"loras": [], "sep": ", ", "cacheMode": "last", "mergeMethod": "sequential"}
