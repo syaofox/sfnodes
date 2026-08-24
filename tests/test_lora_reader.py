@@ -398,6 +398,19 @@ check("html_to_md 幂等原样", hm("**bold**\n\n# Page\n\n* a") == "**bold**\n\
 check("html_to_md 嵌套列表无损", hm("* top\n  * nested item\n* bottom") == "* top\n  * nested item\n* bottom")
 check("html_to_md 代码块无损", hm("```\n    indented code\n```") == "```\n    indented code\n```")
 check("html_to_md 纯文本实体解码", hm("Tom &amp; Jerry") == "Tom & Jerry")
+# markdown 夹带 <sks> 触发词 / <https://...> 自动链接：不是 HTML 标签，必须原样
+# 透传（否则 markdownify 把 ** 转义成 \* 显示异常）。
+_md_sks = ("# **Qwen-Image-Edit**\n\n[**fal.ai**](http://fal.ai) `<sks>`\n"
+           "[x](<https://huggingface.co/fal/a>)")
+check("html_to_md sks/自动链接原样", hm(_md_sks) == _md_sks)
+# 仅含 <a>/<font> 等富文本标签的输入是真实 HTML，必须走转换（不能因标签冷门
+# 被当 markdown 透传显示原始标签）。
+if has_markdownify:
+    check("html_to_md 仅 <a> 链接转换", hm('<a href="https://x.com">Author site</a>') == "[Author site](https://x.com)")
+    check("html_to_md <font> 转换", hm('<font color="red">Warning</font>') == "Warning")
+else:
+    check("html_to_md 仅 <a> 回退剥标签", hm('<a href="https://x.com">Author site</a>') == "Author site")
+    check("html_to_md <font> 回退剥标签", hm('<font color="red">Warning</font>') == "Warning")
 if has_markdownify:
     check("html_to_md 转换结构", hm("<h1>Hi</h1><ul><li>a</li><li>b</li></ul>") == "# Hi\n\n* a\n* b")
     check("html_to_md 粗体", hm("<p>Great <b>style</b> &amp; more</p>") == "Great **style** & more")

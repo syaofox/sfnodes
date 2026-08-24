@@ -239,16 +239,14 @@ def read_sidecar_info(lora_path):
         if isinstance(model, dict) and model.get("name"):
             info["name"] = str(model["name"])
         # description 在 version 顶层（API 实测）；兼容旧侧车的 model.description。
-        # 若已是 markdown（含 Sample Images / civitai_ 前缀），直接透传，避免 _html_to_markdown 对 \_/\*/\` 二次转义固化
-        # （markdown 侧车可能含 <https://...> 自动链接，其中的 '<' 不是 HTML 标签，不能作为 HTML 判定）。
+        # 统一走 _html_to_markdown：它按 _HTML_TAG_RE 判定真实 HTML，纯 markdown
+        # 侧车描述（含 <sks> 触发词 / <https://...> 自动链接）原样透传，避免
+        # markdownify 对 \_/\*/\` 二次转义固化。
         desc = obj.get("description")
         if not desc and isinstance(model, dict):
             desc = model.get("description")
         if desc:
-            if isinstance(desc, str) and ("civitai_" in desc or "Sample Images" in desc):
-                info["description"] = _decode_entities(desc).strip()
-            else:
-                info["description"] = _html_to_markdown(desc)
+            info["description"] = _html_to_markdown(desc)
         if obj.get("baseModel"):
             info["base_model"] = str(obj["baseModel"])
         # modelId / version id 让前端可链接到 Civitai 模型页。
@@ -539,6 +537,22 @@ def _clean_description(raw):
     return "\n".join(lines).strip()
 
 
+# 真实 HTML 标签白名单（Civitai 富文本描述常用）。用它能区分"真是 HTML"与
+# "markdown 里夹带的尖括号"——markdown 触发词 `<sks>`、自动链接 `<https://...>`
+# 都不在名单内，不会被误判成 HTML 交给 markdownify 转义（markdownify 对非
+# HTML 输入不幂等：`**` 会被转义成 `\*`）。
+_HTML_TAG_RE = re.compile(
+    r"</?(?:a|abbr|address|article|aside|audio|b|big|blockquote|body|br|button|"
+    r"caption|center|cite|code|dd|del|details|div|dl|dt|em|embed|figcaption|"
+    r"figure|font|footer|form|h[1-6]|header|hr|i|iframe|img|input|ins|kbd|label|"
+    r"li|main|mark|menu|meter|nav|nobr|ol|optgroup|option|output|p|pre|progress|"
+    r"q|s|samp|section|select|small|source|span|strike|strong|sub|summary|sup|"
+    r"table|tbody|td|textarea|tfoot|th|thead|time|tr|tt|u|ul|var|video|wbr)"
+    r"(?:\s|/?>)",
+    re.IGNORECASE,
+)
+
+
 def _html_to_markdown(raw):
     """把描述 HTML 转成 markdown 文本（保留标题/列表/粗体/链接结构）。
 
@@ -549,10 +563,13 @@ def _html_to_markdown(raw):
     无 HTML 标签的输入（纯文本、或已 markdown 化的侧车描述）只做实体解码、
     整体 strip——不做任何行级处理（行首 strip 会拍平嵌套列表缩进、折叠代码
     块）：markdownify 对非 HTML 输入不幂等（`**bold**` 会被转义成反斜杠
-    星号），而侧车读取路径会二次处理拼接结果——必须原样放行。永不抛错。"""
+    星号），而侧车读取路径会二次处理拼接结果——必须原样放行。永不抛错。
+
+    "有无 HTML" 用 `_HTML_TAG_RE` 判定：markdown 里的 `<sks>` 触发词与
+    `<https://...>` 自动链接虽含尖括号，但非真实标签，照旧原样透传。"""
     if not isinstance(raw, str) or not raw.strip():
         return ""
-    if "<" not in raw:
+    if not _HTML_TAG_RE.search(raw):
         return _decode_entities(raw).strip()
     try:
         from markdownify import markdownify as _md
