@@ -1,6 +1,16 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { escapeHtml, injectCSSOnce } from "./sf_common.js";
+import {
+    escapeHtml,
+    injectCSSOnce,
+    copyText,
+    sfToast,
+    el,
+    parseAnnotatedImageValue,
+    buildSourceURL,
+} from "./sf_common.js";
+import { attachPopupDismiss, clampToViewport } from "./sf_popup.js";
+import { loadWorkflowFromImageUrl } from "./sf_lora_shared_info.js";
 
 const PAGE_SIZE = 50;
 const SORT_KEY = "sfnodes_image_browser_sort";
@@ -159,6 +169,17 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-typebtn:hover { color: #ddd; background: #333; }
         .sf-imgbrowser-typebtn.active { background: #89B; color: #fff; }
+        .sf-imgbrowser-ctxmenu {
+            position: fixed; z-index: 100000;
+            background: #2a2a2a; border: 1px solid #555; border-radius: 6px;
+            padding: 4px; min-width: 150px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+        .sf-imgbrowser-ctxitem {
+            padding: 6px 12px; font-size: 13px; color: #ddd;
+            border-radius: 4px; cursor: pointer; white-space: nowrap;
+        }
+        .sf-imgbrowser-ctxitem:hover { background: rgba(136,153,187,0.2); color: #fff; }
     `);
 }
 
@@ -320,6 +341,7 @@ function showImageBrowser(node) {
 
     function close() {
         saveSortPref();
+        closeContextMenu();
         overlay.remove();
     }
 
@@ -369,9 +391,9 @@ function showImageBrowser(node) {
         }
         crumbsEl.innerHTML = html;
 
-        crumbsEl.querySelectorAll("[data-folder]").forEach(el => {
-            el.addEventListener("click", () => {
-                currentFolder = el.dataset.folder;
+        crumbsEl.querySelectorAll("[data-folder]").forEach(span => {
+            span.addEventListener("click", () => {
+                currentFolder = span.dataset.folder;
                 page = 0;
                 hasMore = true;
                 isLoadingMore = false;
@@ -457,6 +479,76 @@ function showImageBrowser(node) {
             .catch(() => alert("Failed to delete image"));
     }
 
+    // ── 右键菜单（复制提示词 / 载入工作流）─────────────────────────────
+    // 单例菜单挂 body（z-index 高于弹窗 overlay），三关闭走 sf_popup 公共件。
+    let ctxMenu = null;
+    let ctxDetach = null;
+
+    function closeContextMenu() {
+        if (ctxDetach) { ctxDetach(); ctxDetach = null; }
+        if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+    }
+
+    function ctxEntry(label, onClick) {
+        const item = el("div", "sf-imgbrowser-ctxitem", label);
+        item.addEventListener("click", () => {
+            closeContextMenu();
+            onClick();
+        });
+        return item;
+    }
+
+    function openContextMenu(e, item) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeContextMenu();
+
+        // output 项拼 ComfyUI 注解后缀：prompt_reader/extract 与 /view 都按
+        // annotated filepath 解析（get_annotated_filepath 同款语义）
+        const annotated = currentType === "output" ? `${item.path} [output]` : item.path;
+        const menu = el("div", "sf-imgbrowser-ctxmenu");
+        menu.appendChild(ctxEntry("复制提示词", () => copyImagePrompt(annotated)));
+        menu.appendChild(ctxEntry("载入工作流（新标签）", () => loadImageWorkflow(annotated)));
+
+        document.body.appendChild(menu);
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+        clampToViewport(menu);
+        ctxMenu = menu;
+        ctxDetach = attachPopupDismiss(menu, { onClose: closeContextMenu });
+    }
+
+    function toast(severity, detail) {
+        sfToast({ summary: "SF Image Browser", severity, detail, fallbackTag: "SF Image Browser" });
+    }
+
+    async function copyImagePrompt(annotated) {
+        try {
+            const r = await api.fetchApi(`/api/sfnodes/prompt_reader/extract?filename=${encodeURIComponent(annotated)}`);
+            const data = await r.json();
+            if (data.found && data.text) {
+                const ok = await copyText(data.text);
+                toast(ok ? "success" : "error", ok ? "正向提示词已复制到剪贴板" : "复制到剪贴板失败");
+            } else {
+                toast("warn", data.message || "未在图片元数据中找到提示词");
+            }
+        } catch (err) {
+            toast("error", "读取提示词失败：" + (err.message || err));
+        }
+    }
+
+    async function loadImageWorkflow(annotated) {
+        const part = parseAnnotatedImageValue(annotated);
+        const url = buildSourceURL(part);
+        if (!url) return;
+        close();
+        try {
+            await loadWorkflowFromImageUrl(url, (msg) => toast("error", msg));
+        } catch (err) {
+            toast("error", "载入工作流失败：" + (err.message || err));
+        }
+    }
+
     function renderImageItem(item) {
         const div = document.createElement("div");
         div.className = "sf-imgbrowser-item";
@@ -504,6 +596,8 @@ function showImageBrowser(node) {
             close();
         });
 
+        div.addEventListener("contextmenu", (e) => openContextMenu(e, item));
+
         return div;
     }
 
@@ -543,10 +637,10 @@ function showImageBrowser(node) {
         page++;
 
         if (page * PAGE_SIZE < currentFolderItems.length) {
-            const el = document.createElement("div");
-            el.className = "sf-imgbrowser-loadmore";
-            el.textContent = `Loading more... (${Math.min(page * PAGE_SIZE, currentFolderItems.length)} / ${currentFolderItems.length})`;
-            grid.appendChild(el);
+            const loadEl = document.createElement("div");
+            loadEl.className = "sf-imgbrowser-loadmore";
+            loadEl.textContent = `Loading more... (${Math.min(page * PAGE_SIZE, currentFolderItems.length)} / ${currentFolderItems.length})`;
+            grid.appendChild(loadEl);
         } else {
             hasMore = false;
         }

@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -250,3 +250,26 @@
 - `web/sf_pause_kit.js`：state/prune/UI/主扩展引擎（prune 仍复用 `sf_pause_text_lib.js::applyGateMode`，extraInputKeys:["image"] 由薄配置传入）。
 - `web/sf_pause_latent.js`：薄配置（调 definePauseGate）。
 - 测试：`tests/test_pause_latent.py` + `test_pause_latent_js.js`（快照 round-trip、extraInputKeys 仅 continue 生效）。
+
+---
+
+## 34. SFLoadImageBrowser 右键菜单：提示词复制与工作流载入（全链路复用零后端改动）
+
+> 背景：`web/image_browser.js` 弹窗浏览器图片项新增右键菜单——①复制正向提示词 ②载入内嵌工作流（新标签）。两能力全部复用既有实现，后端零改动（无需重启容器）。
+
+### 1. 复用路由图（关键：先查复用再动手）
+
+- **提示词提取**：`GET /api/sfnodes/prompt_reader/extract?filename=<path>[output]`（`nodes/text/prompt_reader_routes.py`，启动时副作用注册）。返回 `{found, text|message}` 恒 200；后端权威解析 ComfyUI prompt JSON（追 KSampler 正向）→ A1111 `parameters` 兜底。output 目录文件拼 `" [output]"` 注解即被 `folder_paths.get_annotated_filepath` 正确解析，input/output/temp 均在 allowed_roots 内。
+- **PNG 内嵌工作流**：`sf_lora_shared_info.js::loadWorkflowFromImageUrl(url, onError)`（本次从 `loadImageAsWorkflow` 参数化导出；原函数变 lora_samples URL 薄包装，两个既有调用方签名不变、冒烟测试桩兼容）。内部 readPngWorkflowData 前端 chunk 解析 → prompt chunk 走 `app.loadApiJson`、workflow chunk 走 `loadGraphData`；新标签经 `app.extensionManager.command.execute("Comfy.NewBlankWorkflow")`，旧前端降级 confirm 后替换画布。
+- **取原始字节**：ComfyUI 内置 `/view?filename=<basename>&subfolder=<dir>&type=input|output`——不带 preview/channel 参数时 FileResponse 返回原文件字节（PNG 元数据完整）；`sf_common.parseAnnotatedImageValue` + `buildSourceURL` 现成拼 URL。
+
+### 2. DOM 右键菜单要点
+
+- 菜单单例挂 `document.body`，z-index 100000 > 浏览弹窗 overlay 的 99999；三关闭（外点/Esc/滚轮）直接 `sf_popup.attachPopupDismiss` + `clampToViewport` 钳位，勿手写监听。
+- `close()` 必须联动 `closeContextMenu()`——菜单不在 overlay DOM 子树内，overlay.remove() 不会带走它。
+- contextmenu 处理器需 `preventDefault()` + `stopPropagation()`；右键另一图片时 pointerdown 先触发外点关闭旧菜单，再开新单，顺序天然安全。
+
+### 3. 行为约定
+
+- 非 PNG（jpg/webp 等）两菜单项恒显：readPngWorkflowData 按 PNG magic 校验返回 null → toast「未内嵌工作流数据」，fail-safe 与 LoRA 面板一致。
+- 载入工作流先关浏览弹窗再异步载入（用户意图明确离开浏览），失败仅 toast 可见。

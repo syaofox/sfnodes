@@ -154,8 +154,9 @@ async function readPngWorkflowData(url) {
     return null;
 }
 
-export async function loadImageAsWorkflow(path, onError) {
-    const url = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+// URL 参数化的通用入口：url 指向任意可 fetch 的图片原始字节（PNG 需含
+// workflow/prompt chunk）。image_browser 等外部模块经 /view 原始字节复用此路径。
+export async function loadWorkflowFromImageUrl(url, onError) {
     const embedded = await readPngWorkflowData(url);
     if (!embedded) {
         onError("该图片未内嵌工作流数据，无法载入为工作流（可用 SaveImage 输出的 PNG 测试）。");
@@ -184,6 +185,11 @@ export async function loadImageAsWorkflow(path, onError) {
         onError("工作流载入失败：" + (e.message || e));
         return false;
     }
+}
+
+export async function loadImageAsWorkflow(path, onError) {
+    const url = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(path)}`;
+    return loadWorkflowFromImageUrl(url, onError);
 }
 
 // ── 标题悬停预览（civitai_00_xxx 标题 -> 对应 sample 原图）──────────────
