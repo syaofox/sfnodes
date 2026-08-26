@@ -5,6 +5,7 @@
 // 纯 DOM + app 依赖，无节点状态，可直接 import。
 // ==========================================================================
 import { app } from "/scripts/app.js";
+import { copyText, injectCSSOnce } from "./sf_common.js";
 
 // ── 图标（mask-image data URI，与两面板历史统一样式）───────────────────────
 export const SAMPLE_ICON_TRASH = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 3h6l1 2h4v2H4V5h5l1-2zm-2 6h10l-1 9a1 1 0 01-1 1H8a1 1 0 01-1-1L6 9zM10 11v6M14 11v6' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E";
@@ -255,4 +256,50 @@ export function attachSampleTitleHover(container, loraName) {
         a.addEventListener("mouseleave", hide);
         a.addEventListener("click", hide);
     }
+}
+
+// ── 描述内样例 prompt 复制按钮（civitai 标题紧邻的代码块右上角）────────────
+// 后端 _format_sample_prompts 固定结构：### [civitai_NN_hash …] 后紧跟 ```
+// 围栏代码块，renderMarkdown 渲染为相邻的 h3 + pre。复制内容取渲染时的
+// pre.textContent（围栏原文，换行保留）。notify(msg) 由宿主接面板消息条。
+const _PROMPT_COPY_CSS = `
+.sf-ls-desc-copybtn { position:absolute; top:4px; right:4px; width:18px; height:18px;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  border:1px solid #444; border-radius:4px; background:#242428;
+  cursor:pointer; opacity:0.55; z-index:2; }
+.sf-ls-desc-copybtn:hover { opacity:1; border-color:var(--acc, var(--sf-acc, #f66744)); background:#32302e; }
+`;
+export function attachSamplePromptCopyButtons(container, notify) {
+    if (!container || !container.children) return;
+    injectCSSOnce("sf-lora-desc-copybtn", _PROMPT_COPY_CSS);
+    let prev = null;
+    for (const child of container.children) {
+        if (prev && prev.tagName === "H3" && child.tagName === "PRE"
+            && /civitai_\d+_[0-9a-f]{8}/i.test(prev.textContent || "")) {
+            _wireSamplePromptCopy(child, notify);
+        }
+        prev = child;
+    }
+}
+
+function _wireSamplePromptCopy(pre, notify) {
+    if (typeof pre.querySelector === "function" && pre.querySelector(".sf-ls-desc-copybtn")) return;
+    const text = pre.textContent ?? "";
+    pre.style.position = "relative";
+    const btn = document.createElement("button");
+    btn.className = "sf-ls-desc-copybtn";
+    btn.title = "Copy this prompt to clipboard";
+    btn.appendChild(makeSampleIcon(SAMPLE_ICON_PROMPT));
+    btn.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        btn.style.opacity = "0.3";
+        try {
+            const ok = await copyText(text);
+            notify?.(ok ? "Prompt copied to clipboard." : "Could not copy to clipboard.");
+        } finally {
+            btn.style.opacity = "";
+        }
+    });
+    pre.appendChild(btn);
 }

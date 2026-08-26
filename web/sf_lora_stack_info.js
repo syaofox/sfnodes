@@ -6,7 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
-import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath } from "./sf_lora_shared_info.js";
+import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath, attachSamplePromptCopyButtons } from "./sf_lora_shared_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData, mergeLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
@@ -1732,8 +1732,12 @@ export async function openInfoPanelFor(ctx, id) {
                 const db = el("div", "sf-ls-desc-body");
                 db.innerHTML = renderMarkdown(shown, { resolveRelative: (rel) => resolveSampleUrl(rel, name, sKind) });
                 dsec.appendChild(db);
-                // 标题悬停预览对应 sample 图（与下方网格同源）
-                queueMicrotask(() => attachSampleTitleHover(db, name, sKind));
+                // 标题悬停预览对应 sample 图（与下方网格同源）；
+                // civitai 样例 prompt 代码块右上角加复制按钮
+                queueMicrotask(() => {
+                    attachSampleTitleHover(db, name, sKind);
+                    attachSamplePromptCopyButtons(db, (m) => showMsg(m));
+                });
             } else {
                 const es = effectiveDescSource();
                 let msg = "No description.";

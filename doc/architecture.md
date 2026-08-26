@@ -85,7 +85,7 @@ sfnodes/
 │   ├── sf_load_diffusion_model.js # SF Load Diffusion Model 单模块（i 信息图标复用 sf_lora_info.js 的 setupLoaderInfoWidget 工厂（prefetch:null/hasCustomOf/onOpen 注入）+ dmodelPanelCtx 宿主适配（api/hideTriggers/samplesKind/autoCivitai 四件套），isGraphLoading 门控点击）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
 │   ├── sf_lora_info.js    # LoRA 信息对话框（SFLoraLoader/SFLoraLoaderModelOnly 共用，sf_markdown.js 渲染描述；createInfoWidget/setupLoaderInfoWidget 参数化工厂导出供非 LoRA 加载器（SF Load Diffusion Model）复用图标绘制与 configure 时序）
-│   ├── sf_lora_shared_info.js # 样例图网格/预览/hover/markdown 复用内核（Stack 面板与 info 对话框共享；loadWorkflowFromImageUrl(url) PNG 内嵌工作流通用载入——readPngWorkflowData 前端 chunk 解析 + Comfy.NewBlankWorkflow 新标签，loadImageAsWorkflow 是 lora_samples 路径薄包装，image_browser 经 /view 复用）
+│   ├── sf_lora_shared_info.js # 样例图网格/预览/hover/markdown 复用内核（Stack 面板与 info 对话框共享；loadWorkflowFromImageUrl(url) PNG 内嵌工作流通用载入——readPngWorkflowData 前端 chunk 解析 + Comfy.NewBlankWorkflow 新标签，loadImageAsWorkflow 是 lora_samples 路径薄包装，image_browser 经 /view 复用；attachSamplePromptCopyButtons(container,notify) 描述内 civitai 样例 prompt 代码块右上角常驻复制按钮——h3 紧邻 pre 判定 + copyText/injectCSSOnce 复用 sf_common）
 │   ├── sf_markdown.js     # Markdown 渲染纯模块（无 app 依赖，纯模块边界成员——不得 import sf_common）
 │   ├── sf_lora_preset.js # 预设选择节点前端（原 power_lora_preset.js 改名，SFLoraPreset）
 │   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
