@@ -15,9 +15,10 @@ logger = get_logger(__name__)
 _presets_lock = asyncio.Lock()
 
 # ---------------------------------------------------------------------------
-# 约定：LoRA 预设（顺序 + 强度 + normalize 设置）统一存于
+# 约定：LoRA 预设（顺序 + 强度 + 提示词）统一存于
 #     user/sfnodes/lora_presets.json
-# 结构：{"presets": {"<名称>": {normalize, normalize_weight, separate, loras}}}
+# 结构：{"presets": {"<名称>": {loras: [{lora,on,strength,strengthTwo}], positive?: string}}}
+# positive 为可选正向提示词（与 triggers 分离保存，不自动拼接），旧预设缺省视 ""。
 # ---------------------------------------------------------------------------
 
 _PRESETS_PATH = os.path.join(
@@ -60,6 +61,18 @@ def _valid_preset_name(name) -> bool:
     return True
 
 
+_POSITIVE_MAX_LEN = 8000
+
+
+def _sanitize_positive(v) -> str:
+    if not isinstance(v, str):
+        return ""
+    s = v.strip()
+    if len(s) > _POSITIVE_MAX_LEN:
+        s = s[:_POSITIVE_MAX_LEN]
+    return s
+
+
 def _valid_preset_data(data) -> bool:
     if not isinstance(data, dict):
         return False
@@ -71,6 +84,9 @@ def _valid_preset_data(data) -> bool:
             return False
         if not isinstance(item.get("lora"), str) or not item.get("lora"):
             return False
+    # positive 可选；存在时必须为字符串
+    if "positive" in data and not isinstance(data.get("positive"), str):
+        return False
     return True
 
 
@@ -105,6 +121,11 @@ def _register_routes():
                     return web.json_response({"error": "invalid name"}, status=400)
                 if not _valid_preset_data(data):
                     return web.json_response({"error": "invalid data"}, status=400)
+                # 归一化 positive（截断、去首尾空白，空串不存储以保持旧预设精简）
+                if isinstance(data.get("positive"), str):
+                    data["positive"] = _sanitize_positive(data["positive"])
+                    if not data["positive"]:
+                        data.pop("positive", None)
                 async with _presets_lock:
                     presets = _load_presets()
                     presets[name.strip()] = data

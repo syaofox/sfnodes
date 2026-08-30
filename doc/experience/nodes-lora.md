@@ -331,3 +331,30 @@
 - 直接 `[..., :3]` 截断会保留透明像素的任意 RGB 残留并被 VLM 当真实颜色读走；黑底预乘（`rgb * alpha`，等价于补零背景合成）让透明区语义干净。
 - **时序硬约束：先 `_flatten_to_rgb` 再 common_upscale**——先插值后合成的顺序会把残留杂色扩散进不透明区域的边缘。clamp(0,1) 收尾兜住异常输入。
 - 测试注意：FakeTensor 数值断言别用 >1 的值当标记色（会被 clamp 吃掉），用 0.2/0.8 这类合法区间值。
+
+---
+
+## 34. SFLoraStack 复合预设：LoRA 顺序/强度 + 正向提示词（与 triggers 分离，2026-08）
+
+> 背景：用户要求“LoRA 本身 + 强度 + 提示词”一键保存/载入。SFLoraStack 预设原仅含 `loras` 顺序/强度（`sf_utils/lora_presets.py`），提示词需外接 `TextCombine`，多 LoRA 切换繁琐。落地为复合预设（同文件机器级 `user/sfnodes/lora_presets.json`）。
+
+### 1. 数据与校验
+
+- 形状：`{"presets":{"名":{"loras":[{lora,on,strength,strengthTwo}], "positive"?: string}}}`，`positive` 可选、空串不存，向后兼容旧预设（缺省视 `""`）。
+- 校验：`_valid_preset_data` 追加 `positive` 为 `str` 才合法，`_sanitize_positive` 去首尾空白 + 8000 截断；`POST /api/sfnodes/lora_presets` 写入时归一化空串则 `pop`，保持旧预设精简。前端 `sf_lora_stack_core.js: sanitizePositive / POSITIVE_MAX_LEN` 同阈值，双端 1:1。
+- 经验：预设文件是单文件聚合，新增可选字段必须容错旧数据（`data.get("positive","")` 兜底），否则旧工作流加载即 400。
+
+### 2. 执行与输出
+
+- `SFLoraPreset` 由 `(preset, preset_name)` 扩为 `(preset, preset_name, positive)`（`RETURN_TYPES` 3 输出，`RETURN_NAMES` 增 `positive`），`execute` 对非 `str` 的 `positive` 回 `""`。不与 `triggers` 自动拼接——`triggers`（`SFLoraStack` 的 `triggers` 输出）与 `positive` 职责分离，由用户 `SFTextConcatenate / CLIPTextEncode` 自行选择是否拼接。
+- `SFLoraStack` 的 `triggers` 语义不变（`lora_reader.collect_triggers` 仅 `on` 行去重连接），不引入 `positive` 注入缓存签名（`promptState` 不含 `positive`），避免“改一字就重跑 LoRA”的误触发。
+
+### 3. 前端保存/载入
+
+- 保存入口复用栈内 `Presets` 按钮菜单（`sf_lora_stack_interaction.js: openPresetsMenu`）：`rowsToPreset(st, positive)` 第二参可选，空串不存；保存表单在原 `div.in > input` 首行后追加 `textarea`（`sf-ls-save` 区），`name` 输入 `input` 事件预填已有预设的 `positive` 便于增量编辑，`Save` 前 `sanitizePositive`。
+- 结构兼容：首子保持 `div.in > input`（`tests/test_lora_stack_presets_smoke.js` 用 `menu.children[0].children[0]` 定位），新增区置于其后，`findByClass("ok pri")` 定位 `Save` 按钮不受影响。
+- 载入：菜单列出预设时 `positive` 长 60 字符截断预览于行尾 `.sf-ls-preset-pos`，`SFLoraPreset` 节点 `sf_lora_preset.js` 的 `preset` combo `tooltip` 同步刷新（选中预设的 `positive` 前 120 字符，`beforeRegisterNodeDef onConfigure` + `callback` 包装）。
+
+### 4. 测试与回归
+
+- `tests/test_lora_stack_presets_smoke.js` 首行结构断言仍绿（见上节兼容），`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设；新增需手工验证往返：保存含 `positive` → `SFLoraPreset` 的 `positive` 输出与 `tooltip` 一致 → 旧预设不带 `positive` 仍可载入。

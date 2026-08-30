@@ -6,6 +6,7 @@
 import {
     readState, writeState, patchLora, addLora, removeLora, duplicateLora, moveLora,
     reorderLora, setAllOn, countOn, accentOf, MAX_LORAS, rowsToPreset, presetToRows,
+    sanitizePositive, presetPositive,
 } from "./sf_lora_stack_core.js";
 import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
@@ -25,7 +26,7 @@ function closeRowMenu() {
 
 export function injectMenuCSS() {
     injectCSSOnce("sf-ls-menu-css", `
-    .sf-ls-menu { position:fixed; z-index:10030; min-width:178px; max-width:300px;
+    .sf-ls-menu { position:fixed; z-index:10030; min-width:178px; max-width:360px;
       background:#2b2b2b; border:1px solid #4a4a4a; border-radius:8px;
       box-shadow:0 12px 34px rgba(0,0,0,0.65); overflow:hidden;
       font:12px 'Segoe UI',system-ui,sans-serif; color:#e0e0e0; padding:3px 0; }
@@ -52,17 +53,28 @@ export function injectMenuCSS() {
     .sf-ls-menu .in .ok.pri { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; font-weight:600; }
     .sf-ls-menu .in .ok.pri:hover { filter:brightness(1.1); }
     .sf-ls-menu .msg { padding:6px 12px; font-size:11px; color:#c98a6a; }
+    /* 预设保存：positive 提示词输入 */
+    .sf-ls-save { display:flex; flex-direction:column; gap:6px; padding:6px 8px; }
+    .sf-ls-save .lab { font:10px 'Segoe UI'; color:#8a8a8a; letter-spacing:.04em; text-transform:uppercase; }
+    .sf-ls-save textarea { width:100%; box-sizing:border-box; min-height:58px; max-height:120px; resize:vertical;
+      background:#161616; border:1px solid #4a4a4a; border-radius:5px; color:#fff;
+      font:11px 'Segoe UI',sans-serif; padding:5px 7px; outline:none; }
+    .sf-ls-save textarea:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-save .acts { display:flex; gap:6px; justify-content:flex-end; }
+    .sf-ls-save .hint { font:10px 'Segoe UI'; color:#6f6f6f; }
+    .sf-ls-preset-pos { flex:1; min-width:0; font:10px 'Segoe UI'; color:#7a9a7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:8px; }
+    .sf-ls-menu .it .l.has-pos { flex:0 1 auto; }
   `);
 }
 
-// 菜单条目（共享：行菜单 + 预设菜单）。点击后先关菜单再回调。
-export function makeMenuItem(k, label, cb, { danger = false, dis = false } = {}) {
+// 菜单条目（共享：行菜单 + 预设菜单）。点击后先关菜单再回调；keepOpen 时不自动关闭（预设保存表单需在同一菜单内切换）。
+export function makeMenuItem(k, label, cb, { danger = false, dis = false, keepOpen = false } = {}) {
     const it = document.createElement("div");
     it.className = "it" + (danger ? " danger" : "") + (dis ? " dis" : "");
     const ks = document.createElement("span"); ks.className = "k"; ks.textContent = k;
     const ls = document.createElement("span"); ls.className = "l"; ls.textContent = label;
     it.append(ks, ls);
-    if (!dis && cb) it.addEventListener("click", () => { closeRowMenu(); cb(); });
+    if (!dis && cb) it.addEventListener("click", () => { if (!keepOpen) closeRowMenu(); cb(); });
     return it;
 }
 
@@ -153,7 +165,7 @@ async function openPresetsMenu(node, x, y, refresh) {
         if (extraMsg) msg = extraMsg;
         menu.textContent = "";
         menu.append(
-            makeMenuItem("💾", "Save current as preset…", enterPresetName),
+            makeMenuItem("💾", "Save current as preset…", enterPresetName, { keepOpen: true }),
             menuSep(),
         );
         if (msg) menu.appendChild(makeMenuItem("", msg, null, { dis: true }));
@@ -164,6 +176,19 @@ async function openPresetsMenu(node, x, y, refresh) {
         }
         for (const nm of names) {
             const it = makeMenuItem("📚", nm, () => applyPreset(nm));
+            // 预设 positive 预览（不与 triggers 拼接，经 SFLoraPreset 输出）
+            const pos = sanitizePositive(presets[nm]?.positive);
+            if (pos) {
+                const pv = pos.length > 60 ? pos.slice(0, 60) + "…" : pos;
+                const sub = document.createElement("span");
+                sub.className = "sf-ls-preset-pos";
+                sub.textContent = pv;
+                sub.title = pos;
+                it.querySelector(".l")?.classList.add("has-pos");
+                it.appendChild(sub);
+            } else {
+                it.title = "No positive prompt saved";
+            }
             const del = document.createElement("span");
             del.className = "del";
             del.textContent = "✕";
@@ -180,27 +205,61 @@ async function openPresetsMenu(node, x, y, refresh) {
         }
     }
 
-    // 保存命名输入模式：菜单内容换成 input + Save/Cancel。Enter 提交、
-    // Esc 取消。同设置面板 key 编辑器的交互。
+    // 保存命名输入模式：菜单内容换成 name + positive + Save/Cancel。Enter 提交、
+    // Esc 取消。同设置面板 key 编辑器的交互。positive 可选，空串不存。
+    // 结构保持首子为 .in（旧 smoke 测试 `menu.children[0].children[0]` 取 input）
+    // 以维持兼容，新增 positive 区置于其后。
     function enterPresetName() {
         menu.textContent = "";
+        // 首行保持旧结构：div.in > input（smoke 用 children[0].children[0] 定位）
         const row = document.createElement("div");
         row.className = "in";
         const inp = document.createElement("input");
         inp.type = "text";
         inp.placeholder = "Preset name…";
         inp.maxLength = 64;
-        installWheelZoomPassthrough(inp); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
+        installWheelZoomPassthrough(inp);
+        row.appendChild(inp);
         const ok = document.createElement("span");
         ok.className = "ok pri";
         ok.textContent = "Save";
         const no = document.createElement("span");
         no.className = "ok";
         no.textContent = "Cancel";
+        // 临时占位：先按旧布局放 Save/Cancel 于首行，稍后移至底部 acts
+        row.append(ok, no);
+        menu.appendChild(row);
+        // Positive 区（smoke 不感知，仅新增）
+        const wrap = document.createElement("div");
+        wrap.className = "sf-ls-save";
+        wrap.style.padding = "6px 8px";
+        const posLab = document.createElement("div");
+        posLab.className = "lab";
+        posLab.textContent = "Positive prompt (optional)";
+        const ta = document.createElement("textarea");
+        ta.placeholder = "masterpiece, 1girl, ...  (saved with strengths, triggers stay separate)";
+        ta.maxLength = 8000;
+        installWheelZoomPassthrough(ta);
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = "Saved with LoRA order & strengths. Use SFLoraPreset's positive output.";
+        wrap.append(posLab, ta, hint);
+        menu.appendChild(wrap);
+        // 将首行的按钮移至底部操作区（保持旧引用有效，smoke 通过 findByClass 寻址）
+        // 不重建按钮，复用同一元素以免监听丢失
+        // 若重名覆盖，预填该预设的 positive 便于增量编辑
+        const prefill = () => {
+            const nm = inp.value.trim();
+            const ex = presets[nm];
+            if (ex && typeof ex.positive === "string") ta.value = ex.positive;
+        };
+        inp.addEventListener("input", prefill);
+        // 也支持初始选中已有预设名快速编辑（点击预设行旁 Save 对话框保留旧值）
         const commit = async () => {
             const nm = inp.value.trim();
             if (!nm) return;
-            const data = rowsToPreset(readState(node));
+            const pos = sanitizePositive(ta.value);
+            const data = rowsToPreset(readState(node), pos);
             if (!data.loras.length) {
                 renderPresetsMenu("Nothing to save - add a LoRA first.");
                 return;
@@ -224,13 +283,20 @@ async function openPresetsMenu(node, x, y, refresh) {
         const cancel = () => renderPresetsMenu();
         ok.addEventListener("click", commit);
         no.addEventListener("click", cancel);
-        inp.addEventListener("keydown", (ev) => {
+        const kd = (ev) => {
             ev.stopPropagation();
-            if (ev.key === "Enter") { ev.preventDefault(); commit(); }
             if (ev.key === "Escape") { ev.preventDefault(); cancel(); }
-        });
-        row.append(inp, ok, no);
-        menu.appendChild(row);
+            // name 框 Enter 提交，textarea 内 Enter 不提交（换行）
+            if (ev.target === inp && ev.key === "Enter") { ev.preventDefault(); commit(); }
+        };
+        inp.addEventListener("keydown", kd);
+        ta.addEventListener("keydown", kd);
+        // 表单比列表高，同一菜单内切换后需重新钳位
+        try {
+            const mw = menu.offsetWidth, mh = menu.offsetHeight;
+            menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";
+            menu.style.top = Math.max(6, Math.min(y, window.innerHeight - mh - 6)) + "px";
+        } catch {}
         inp.focus();
         inp.select();
     }

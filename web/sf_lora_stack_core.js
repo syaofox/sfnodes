@@ -275,20 +275,33 @@ export function accentOf(node) {
 }
 
 // ── 预设（与 SFLoraPreset 共享 user/sfnodes/lora_presets.json）──────────
-// 预设存 SFLoraPreset 形状 {lora, on, strength, strengthTwo}，
+// 预设存 SFLoraPreset 形状 {lora, on, strength, strengthTwo, positive?}，
 // 预设为栈与外部预设节点互通。SF 行里
 // 的 triggers/custom 词不入预设（词属文件级存储，不随栈走）。
+// positive 为可选正向提示词（与 triggers 分离，不自动拼接），经 SFLoraPreset
+// 的 STRING 输出流通，机器级存储。
 
-// 行形状 -> 预设形状。无名行（占位/未选）跳过。
-export function rowsToPreset(st) {
-    return {
+export const POSITIVE_MAX_LEN = 8000;
+export function sanitizePositive(v) {
+    if (typeof v !== "string") return "";
+    const s = v.trim();
+    return s.length > POSITIVE_MAX_LEN ? s.slice(0, POSITIVE_MAX_LEN) : s;
+}
+
+// 行形状 -> 预设形状。无名行（占位/未选）跳过。positive 可选，空串不存。
+export function rowsToPreset(st, positive) {
+    const out = {
         loras: st.loras
             .filter((e) => e.name)
             .map((e) => ({ lora: e.name, on: e.on, strength: e.sm, strengthTwo: e.sc })),
     };
+    const pos = sanitizePositive(positive);
+    if (pos) out.positive = pos;
+    return out;
 }
 
 // 预设形状 -> 行形状。防御垃圾输入：缺字段回默认，坏行丢弃。
+// positive 不转行（仅经 SFLoraPreset 输出流通，栈状态不持久化 prompt）。
 export function presetToRows(preset) {
     const items = Array.isArray(preset?.loras) ? preset.loras : [];
     return items
@@ -309,4 +322,8 @@ export function presetToRows(preset) {
             };
         })
         .slice(0, MAX_LORAS);
+}
+
+export function presetPositive(preset) {
+    return sanitizePositive(preset?.positive);
 }
