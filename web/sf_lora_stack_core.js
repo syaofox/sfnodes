@@ -49,6 +49,7 @@ export const DEFAULT_STATE = {
     version: 1,
     loras: [], // { id, name, on, sm, sc, triggers:[], custom:[] }
     positive: "", // 预设正向提示词（与 triggers 分离，栈侧输出）
+    activePreset: "", // 当前加载的预设名（UI 展示用，不进 promptState）
     ...DEFAULT_PREFS,
 };
 
@@ -110,6 +111,9 @@ export function normalize(raw) {
     st.cacheMode = st.cacheMode === "all" || st.cacheMode === "none" ? st.cacheMode : "last";
     st.mergeMethod = st.mergeMethod === "ortho_gs" ? st.mergeMethod : "sequential";
     st.positive = sanitizePositive(st.positive);
+    // activePreset 仅 UI 展示，不进执行缓存
+    if (typeof st.activePreset !== "string") st.activePreset = "";
+    else st.activePreset = st.activePreset.trim().slice(0, 64);
     st.loras = (Array.isArray(st.loras) ? st.loras : [])
         .map((e) => normLora(e, st))
         .filter(Boolean)

@@ -70,6 +70,7 @@ export function injectMenuCSS() {
     .sf-ls-save .hint { font:10px 'Segoe UI'; color:#6f6f6f; }
     .sf-ls-preset-pos { flex:1; min-width:0; font:10px 'Segoe UI'; color:#7a9a7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:8px; }
     .sf-ls-menu .it .l.has-pos { flex:0 1 auto; }
+    .sf-ls-menu .it.sf-ls-preset-active { background:color-mix(in srgb, var(--acc, var(--sf-acc, #f66744)) 22%, transparent); }
   `);
 }
 
@@ -159,7 +160,7 @@ async function openPresetsMenu(node, x, y, refresh) {
     let presets = {};
     let msg = "";
 
-    menu.appendChild(makeMenuItem("⏳", "Loading presets…", null, { dis: true }));
+    menu.appendChild(makeMenuItem("", "Loading presets…", null, { dis: true }));
     showMenu(menu, x, y);
     const res = await loadPresets();
     if (!menu.isConnected) return;
@@ -171,7 +172,7 @@ async function openPresetsMenu(node, x, y, refresh) {
         if (extraMsg) msg = extraMsg;
         menu.textContent = "";
         menu.append(
-            makeMenuItem("💾", "Save current as preset…", enterPresetName, { keepOpen: true }),
+            makeMenuItem("", "Save current as preset…", enterPresetName, { keepOpen: true }),
             menuSep(),
         );
         if (msg) menu.appendChild(makeMenuItem("", msg, null, { dis: true }));
@@ -180,8 +181,10 @@ async function openPresetsMenu(node, x, y, refresh) {
             menu.appendChild(makeMenuItem("", "(no presets yet)", null, { dis: true }));
             return;
         }
+        const active = readState(node).activePreset;
         for (const nm of names) {
-            const it = makeMenuItem("📚", nm, () => applyPreset(nm));
+            const it = makeMenuItem("", nm, () => applyPreset(nm));
+            if (nm === active) it.classList.add("sf-ls-preset-active");
             // 预设 positive 预览（不与 triggers 拼接，经 SFLoraPreset 输出）
             const pos = sanitizePositive(presets[nm]?.positive);
             if (pos) {
@@ -224,11 +227,28 @@ async function openPresetsMenu(node, x, y, refresh) {
                     return;
                 }
                 delete presets[nm];
+                // 若删除的是当前徽标指向的预设，同步清除 activePreset 与 positive 输出
+                try {
+                    const cur = readState(node);
+                    if (cur.activePreset === nm) {
+                        writeState(node, { ...cur, activePreset: "", positive: "" });
+                        refresh(false);
+                    }
+                } catch {}
                 if (menu.isConnected) renderPresetsMenu();
             });
             it.appendChild(del);
             menu.appendChild(it);
         }
+        // 当前预设底色高亮并滚动可见
+        try {
+            const doScroll = () => {
+                const a = menu.querySelector(".sf-ls-preset-active");
+                if (a?.scrollIntoView) a.scrollIntoView({ block: "nearest" });
+            };
+            if (typeof requestAnimationFrame === "function") requestAnimationFrame(doScroll);
+            else setTimeout(doScroll, 0);
+        } catch {}
     }
 
     // 保存命名输入模式：菜单内容换成 name + positive + Save/Cancel。Enter 提交、
@@ -303,11 +323,11 @@ async function openPresetsMenu(node, x, y, refresh) {
             const r = await savePreset(nm, data);
             if (!r?.ok) { renderPresetsMenu((r && r.message) || "Could not save."); return; }
             presets[nm] = data;
-            // 同步更新栈自身 positive，使栈的 positive 输出与刚保存的预设一致
+            // 同步更新栈自身 positive 与 activePreset，使栈侧输出与刚保存的预设一致且徽标可见
             try {
                 const cur = readState(node);
-                if (cur.positive !== pos) writeState(node, { ...cur, positive: pos });
-                refresh(false);
+                writeState(node, { ...cur, positive: pos, activePreset: nm });
+                refresh(true);
             } catch {}
             msg = "";
             renderPresetsMenu();
@@ -391,6 +411,14 @@ async function openPresetsMenu(node, x, y, refresh) {
             else delete updated.positive;
             if (oldName !== newName) delete presets[oldName];
             presets[newName] = updated;
+            // 若编辑的是当前徽标预设，同步更新栈的 activePreset/positive
+            try {
+                const cur = readState(node);
+                if (cur.activePreset === oldName) {
+                    writeState(node, { ...cur, activePreset: newName, positive: newPos });
+                    refresh(false);
+                }
+            } catch {}
             msg = "";
             renderPresetsMenu();
         };
@@ -435,7 +463,7 @@ async function openPresetsMenu(node, x, y, refresh) {
             accent: accentOf(node),
         });
         if (!ok) return;
-        writeState(node, { ...st, loras: rows, positive: presetPositive(preset) });
+        writeState(node, { ...st, loras: rows, positive: presetPositive(preset), activePreset: nm });
         refresh(true);
         closeRowMenu();
     }
@@ -486,6 +514,14 @@ export function attachInteractions(node, widgetEl, refresh) {
         }
         if (act === "gear") { openLoraPanel(node, refresh); return; }
         if (act === "presets") { openPresetsMenu(node, ev.clientX, ev.clientY, refresh); return; }
+        if (act === "clearPreset") {
+            const cur = readState(node);
+            if (cur.activePreset || cur.positive) {
+                writeState(node, { ...cur, activePreset: "", positive: "" });
+                refresh(false);
+            }
+            return;
+        }
 
         const id = rowIdOf(t);
         if (!id) return;
@@ -649,18 +685,26 @@ export function presetUpstream(node) {
 
 // 读上游 combo 名 -> fetch 预设 -> 加载到行并刷新。加载路径不执行。
 // positive 亦同步写入栈状态，保证栈侧 positive 输出与预设一致（preset_override 在 Python 侧亦会覆盖）。
+// 选 None 时清除徽标与 positive 输出，保留当前 loras 供手动编辑。
 export async function loadPresetInto(node, refresh) {
     const up = presetUpstream(node);
     if (!up) return false;
     const combo = up.widgets?.find((w) => w.name === "preset");
     const name = combo?.value;
-    if (!name || name === "None") return false;
+    if (!name || name === "None") {
+        const cur = readState(node);
+        if (cur.activePreset || cur.positive) {
+            writeState(node, { ...cur, activePreset: "", positive: "" });
+            if (refresh) refresh(false);
+        }
+        return false;
+    }
     const res = await loadPresets();
     if (!res.ok || !res.presets[name]) return false;
     const rows = presetToRows(res.presets[name]);
     if (!rows.length) return false;
     const st = readState(node);
-    writeState(node, { ...st, loras: rows, positive: presetPositive(res.presets[name]) });
+    writeState(node, { ...st, loras: rows, positive: presetPositive(res.presets[name]), activePreset: name });
     if (refresh) refresh(true);
     return true;
 }

@@ -134,7 +134,7 @@ async function openPresetManager(node, widget) {
     menu.style.setProperty("--acc", "#f66744");
     const loading = document.createElement("div");
     loading.className = "it dis";
-    loading.textContent = "⏳ Loading presets…";
+    loading.textContent = "Loading presets…";
     menu.appendChild(loading);
     showMgr(menu);
     const res = await loadPresets();
@@ -174,7 +174,7 @@ async function openPresetManager(node, widget) {
             it.className = "it";
             const k = document.createElement("span");
             k.className = "k";
-            k.textContent = "📚";
+            k.textContent = "";
             const l = document.createElement("span");
             l.className = "l";
             l.textContent = nm;
@@ -394,7 +394,7 @@ app.registerExtension({
             refreshCombo(node, widget);
         });
         btn.serialize = false;
-        const mgr = node.addWidget("button", "⚙ Manage Presets", null, () => {
+        const mgr = node.addWidget("button", "Manage Presets", null, () => {
             openPresetManager(node, widget);
         });
         mgr.serialize = false;

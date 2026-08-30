@@ -126,11 +126,19 @@ export function injectCSS() {
 
     /* 预设按钮：存/取整个栈。All 有 min-width:0，宽节点下名称显示正常，
        窄节点里 All 内容被裁剪也不破坏布局。 */
-    .sf-ls-presets { flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    .sf-ls-presets { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:6px;
       padding:0 8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14);
       border-radius:5px; cursor:pointer; user-select:none; font:11px 'Segoe UI',sans-serif;
       color:#a8a8a8; }
     .sf-ls-presets:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#ddd; }
+    .sf-ls-presets.has-preset { background:color-mix(in srgb, var(--acc, var(--sf-acc, #f66744)) 18%, transparent);
+      border-color:var(--acc, var(--sf-acc, #f66744)); color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-ls-presets.has-preset:hover { background:color-mix(in srgb, var(--acc, var(--sf-acc, #f66744)) 26%, transparent); }
+    .sf-ls-presets .x { display:none; flex:none; color:#c2c2c2; font-size:11px; padding:0 2px; cursor:pointer; }
+    .sf-ls-presets.has-preset:hover .x { display:block; }
+    .sf-ls-presets .x:hover { color:#fff; }
+    .sf-ls-preset-active { background:color-mix(in srgb, var(--acc, var(--sf-acc, #f66744)) 22%, transparent) !important;
+      border-color:var(--acc, var(--sf-acc, #f66744)) !important; }
 
     .sf-ls-rows { display:flex; flex-direction:column; gap:${ROW_GAP}px; }
     .sf-ls-row { box-sizing:border-box; height:${ROW_H}px; display:flex; align-items:center; gap:6px;
@@ -187,7 +195,7 @@ export function injectCSS() {
     .sf-ls-sw.on { background:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-sw.on::after { left:15px; background:#fff; }
 
-    .sf-ls-empty { box-sizing:border-box; height:${EMPTY_H}px;
+     .sf-ls-empty { box-sizing:border-box; height:${EMPTY_H}px;
       display:flex; align-items:center; justify-content:center; text-align:center; color:#777;
       font-size:11px; background:rgba(0,0,0,0.2); border:1px dashed #3a3a3a; border-radius:6px; padding:0 10px; }
   `);
@@ -261,10 +269,22 @@ export function renderNode(node) {
     // 无 textContent：图标由 ::before mask 绘制。
     gear.title = "LoRA Stack settings";
     const presets = document.createElement("div");
-    presets.className = "sf-ls-presets";
+    presets.className = "sf-ls-presets" + (st.activePreset ? " has-preset" : "");
     presets.dataset.act = "presets";
-    presets.textContent = "Presets";
-    presets.title = "Save the current stack as a preset, or load one";
+    const pLabel = document.createElement("span");
+    pLabel.textContent = "Presets";
+    presets.appendChild(pLabel);
+    if (st.activePreset) {
+        presets.title = `Loaded preset: ${st.activePreset} — click to switch, hover X to clear`;
+        const x = document.createElement("span");
+        x.className = "x";
+        x.textContent = "✕";
+        x.title = "Clear preset";
+        x.dataset.act = "clearPreset";
+        presets.appendChild(x);
+    } else {
+        presets.title = "Save the current stack as a preset, or load one";
+    }
     toprow.append(all, presets, gear);
     band.appendChild(toprow);
     inner.appendChild(band);

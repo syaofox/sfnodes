@@ -277,9 +277,10 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     check("载入后新 id", loras[0].id !== "l1" && loras[0].id !== "l2");
     check("refresh(true) 已调用", refreshCalls[refreshCalls.length - 1] === true);
     check("状态已变化", node.properties.loraStackState !== beforeState);
-    // 真实 renderNode 渲染新行：root > inner(.sf-ls-inner) > [band, rows]，
-    // rows 下 2 个 .sf-ls-row
-    const rowsWrap = node._sfLsRoot.children[0].children[1];
+    // 真实 renderNode 渲染新行：root > inner(.sf-ls-inner) > [band, (badge), rows]，
+    // badge 在加载预设后出现，需按 class 查找 rows
+    const inner = node._sfLsRoot.children[0];
+    const rowsWrap = inner.children.find((c) => String(c.className).includes("sf-ls-rows")) || inner.children[1];
     check("界面渲染 2 行（真实 renderNode）", rowsWrap.children.length === 2
         && rowsWrap.children.every((r) => String(r.className).includes("sf-ls-row")));
     const nmEl = rowsWrap.children[0].children[1].children[0];
