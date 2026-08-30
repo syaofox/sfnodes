@@ -34,15 +34,16 @@ class SFLoraStack:
         "在一个节点里叠加任意多个 LoRA。每个 LoRA 有独立的开/关开关和强度，"
         "模型与 CLIP 可分开设置，且可串联多个本节点。点击行上的 i 可查看该 "
         "LoRA 的信息并勾选它的触发词；开着的行勾选的触发词会从 triggers 输出"
-        "以纯文本给出，可直接接入提示词。触发词直接读自文件，离线可用；"
-        "可选按 LoRA 的 Civitai 查询（仅在你点击时才联网）。Add LoRA 添加行，"
-        "全部开/关与齿轮设置位于节点中部；右键行可上移/下移/复制/删除。"
-        "可选 preset 输入（SFLoraPreset 输出）：连接后自动把预设的"
-        "顺序与强度加载到行上，执行时预设优先（行上勾选的触发词仍保留）。"
-        "齿轮里的 Stacking method 可切换叠加方式：Sequential（标准，逐行相加）"
-        "或 Orthogonal（Gram-Schmidt 输入空间正交化，减少相似 LoRA 之间的干扰；"
-        "行顺序即优先级——第一个 LoRA 保持原样、后续让位、可能损失幅度；"
-        "仅 UNet 层正交化，CLIP 仍按顺序叠加）。"
+        "以纯文本给出，可直接接入提示词；positive 为预设保存的正向提示词"
+        "（与 triggers 分离，不自动拼接），可直连 CLIP 文本编码。触发词直接"
+        "读自文件，离线可用；可选按 LoRA 的 Civitai 查询（仅在你点击时才联网）。"
+        "Add LoRA 添加行，全部开/关与齿轮设置位于节点中部；右键行可上移/"
+        "下移/复制/删除。可选 preset 输入（SFLoraPreset 输出）：连接后自动把"
+        "预设的顺序、强度与 positive 加载到行上，执行时预设优先（行上勾选的"
+        "触发词仍保留）。齿轮里的 Stacking method 可切换叠加方式：Sequential"
+        "（标准，逐行相加）或 Orthogonal（Gram-Schmidt 输入空间正交化，减少相似"
+        " LoRA 之间的干扰；行顺序即优先级——第一个 LoRA 保持原样、后续让位、"
+        "可能损失幅度；仅 UNet 层正交化，CLIP 仍按顺序叠加）。"
     )
 
     @classmethod
@@ -58,12 +59,13 @@ class SFLoraStack:
             "hidden": {"LoraLoaderState": ("STRING", {"default": "{}"})},
         }
 
-    RETURN_TYPES = ("MODEL", "CLIP", "STRING")
-    RETURN_NAMES = ("MODEL", "CLIP", "triggers")
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING")
+    RETURN_NAMES = ("MODEL", "CLIP", "triggers", "positive")
     OUTPUT_TOOLTIPS = (
         "按行顺序应用了每个开着 LoRA 的模型。",
         "应用了每个开着 LoRA 的 CLIP（未接 CLIP 时原样直通）。",
         "你勾选、且所在行处于开启状态的触发词，按分隔符连接的纯文本。",
+        "预设保存的正向提示词（与 triggers 分离，不自动拼接）；无预设或无 positive 时为空。",
     )
     FUNCTION = "apply"
     CATEGORY = _CATEGORY
@@ -95,7 +97,7 @@ class SFLoraStack:
     def apply(self, model, clip=None, preset=None, LoraLoaderState="{}"):
         state = R.parse_state(LoraLoaderState)
         if isinstance(preset, dict):
-            # 预设优先：preset 覆盖行，触发词继承自行状态。
+            # 预设优先：preset 覆盖行与 positive，触发词继承自行状态。
             state = R.preset_override(state, preset)
         cache_mode = state.get("cacheMode", "last")
         # 行解析（文件存在性/强度/override/零强度语义）两路径共用同一过滤。
@@ -115,11 +117,16 @@ class SFLoraStack:
         # resolved 行都是开的，所以去重连接它们勾选的词）。
         triggers = R.collect_triggers({"loras": resolved, "sep": state.get("sep", ", ")})
 
+        # positive 来自状态（预设优先已在 preset_override 中处理，与 triggers 分离）
+        positive = state.get("positive", "")
+        if not isinstance(positive, str):
+            positive = ""
+
         # 按用户的内存模式修剪（见 __init__）。
         self._trim_cache(cache_mode, used_paths, last_this_run)
 
         logger.info("[SFLoraStack] applied {} LoRA(s).".format(applied))
-        return (model, clip, triggers)
+        return (model, clip, triggers, positive)
 
     def _build_plan(self, state, clip):
         """把状态解析为执行计划 [(entry, path, sm, sc, zero)]。

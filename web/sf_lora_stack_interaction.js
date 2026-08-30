@@ -303,6 +303,12 @@ async function openPresetsMenu(node, x, y, refresh) {
             const r = await savePreset(nm, data);
             if (!r?.ok) { renderPresetsMenu((r && r.message) || "Could not save."); return; }
             presets[nm] = data;
+            // 同步更新栈自身 positive，使栈的 positive 输出与刚保存的预设一致
+            try {
+                const cur = readState(node);
+                if (cur.positive !== pos) writeState(node, { ...cur, positive: pos });
+                refresh(false);
+            } catch {}
             msg = "";
             renderPresetsMenu();
         };
@@ -408,7 +414,7 @@ async function openPresetsMenu(node, x, y, refresh) {
     }
 
     // 载入 = 替换整个栈（触发词随旧行丢弃，词本身在文件级存储，可重勾）。
-    // 确认框防误点丢掉精心调好的配置。
+    // 确认框防误点丢掉精心调好的配置。positive 亦同步写入栈状态，使栈侧 positive 输出生效。
     async function applyPreset(nm) {
         const preset = presets[nm];
         if (!preset) return;
@@ -429,7 +435,7 @@ async function openPresetsMenu(node, x, y, refresh) {
             accent: accentOf(node),
         });
         if (!ok) return;
-        writeState(node, { ...st, loras: rows });
+        writeState(node, { ...st, loras: rows, positive: presetPositive(preset) });
         refresh(true);
         closeRowMenu();
     }
@@ -642,6 +648,7 @@ export function presetUpstream(node) {
 }
 
 // 读上游 combo 名 -> fetch 预设 -> 加载到行并刷新。加载路径不执行。
+// positive 亦同步写入栈状态，保证栈侧 positive 输出与预设一致（preset_override 在 Python 侧亦会覆盖）。
 export async function loadPresetInto(node, refresh) {
     const up = presetUpstream(node);
     if (!up) return false;
@@ -653,7 +660,7 @@ export async function loadPresetInto(node, refresh) {
     const rows = presetToRows(res.presets[name]);
     if (!rows.length) return false;
     const st = readState(node);
-    writeState(node, { ...st, loras: rows });
+    writeState(node, { ...st, loras: rows, positive: presetPositive(res.presets[name]) });
     if (refresh) refresh(true);
     return true;
 }

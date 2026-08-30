@@ -211,7 +211,7 @@ os.remove(sidecar_path2)
 
 # ── parse_state ──
 ps = utils.parse_state
-_DEFAULT_STATE = {"loras": [], "sep": ", ", "cacheMode": "last", "mergeMethod": "sequential"}
+_DEFAULT_STATE = {"loras": [], "sep": ", ", "cacheMode": "last", "mergeMethod": "sequential", "positive": ""}
 check("parse_state 空串", ps("") == _DEFAULT_STATE)
 check("parse_state 垃圾 JSON", ps("{oops") == _DEFAULT_STATE)
 check("parse_state 非 dict JSON", ps("[1]") == _DEFAULT_STATE)
@@ -593,8 +593,8 @@ check("INPUT_TYPES model", it["required"]["model"][0] == "MODEL")
 check("INPUT_TYPES clip 可选", it["optional"]["clip"][0] == "CLIP")
 check("INPUT_TYPES preset 可选", it["optional"]["preset"][0] == "SF_LORA_PRESET")
 check("INPUT_TYPES hidden LoraLoaderState", it["hidden"]["LoraLoaderState"][1]["default"] == "{}")
-check("RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "CLIP", "STRING"))
-check("RETURN_NAMES", node.RETURN_NAMES == ("MODEL", "CLIP", "triggers"))
+check("RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "CLIP", "STRING", "STRING"))
+check("RETURN_NAMES", node.RETURN_NAMES == ("MODEL", "CLIP", "triggers", "positive"))
 check("FUNCTION = apply", node.FUNCTION == "apply")
 
 # ── preset_override（Power 预设形状 -> 行形状，预设优先）──

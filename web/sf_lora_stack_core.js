@@ -48,6 +48,7 @@ export const DEFAULT_PREFS = {
 export const DEFAULT_STATE = {
     version: 1,
     loras: [], // { id, name, on, sm, sc, triggers:[], custom:[] }
+    positive: "", // 预设正向提示词（与 triggers 分离，栈侧输出）
     ...DEFAULT_PREFS,
 };
 
@@ -108,6 +109,7 @@ export function normalize(raw) {
     st.hideExt = st.hideExt == null ? true : !!st.hideExt;
     st.cacheMode = st.cacheMode === "all" || st.cacheMode === "none" ? st.cacheMode : "last";
     st.mergeMethod = st.mergeMethod === "ortho_gs" ? st.mergeMethod : "sequential";
+    st.positive = sanitizePositive(st.positive);
     st.loras = (Array.isArray(st.loras) ? st.loras : [])
         .map((e) => normLora(e, st))
         .filter(Boolean)
@@ -244,9 +246,10 @@ export async function saveDefaults(prefs) {
     } catch { return false; }
 }
 
-// 进入 prompt 的执行相关子集。Python 只读 loras（name/on/sm/sc/triggers）和
-// 分隔符，所以外观偏好（accent/thumbs/civitai/step/defStrength/linkStrength/id）
+// 进入 prompt 的执行相关子集。Python 只读 loras（name/on/sm/sc/triggers）、
+// 分隔符与 positive，所以外观偏好（accent/thumbs/civitai/step/defStrength/linkStrength/id）
 // 剥掉——否则换个颜色或开关设置就会改节点缓存签名、白白重跑（文档化陷阱）。
+// positive 随 prompt 注入（与 triggers 分离），改 positive 会重跑一次节点（可接受）。
 export function promptState(state) {
     return {
         version: 1,
@@ -258,6 +261,7 @@ export function promptState(state) {
         // mergeMethod 同样保留：它改变执行语义（正交化 vs 顺序）。切换会多
         // 重跑一次节点，代价可接受。
         mergeMethod: state.mergeMethod,
+        positive: sanitizePositive(state.positive),
         loras: state.loras.map((e) => ({
             name: e.name, on: !!e.on, sm: e.sm, sc: e.sc, triggers: e.triggers,
         })),
@@ -289,19 +293,21 @@ export function sanitizePositive(v) {
 }
 
 // 行形状 -> 预设形状。无名行（占位/未选）跳过。positive 可选，空串不存。
+// 若未显式传 positive，则取栈状态的 positive（栈侧直出 positive 场景）。
 export function rowsToPreset(st, positive) {
     const out = {
         loras: st.loras
             .filter((e) => e.name)
             .map((e) => ({ lora: e.name, on: e.on, strength: e.sm, strengthTwo: e.sc })),
     };
-    const pos = sanitizePositive(positive);
+    const src = positive !== undefined ? positive : st.positive;
+    const pos = sanitizePositive(src);
     if (pos) out.positive = pos;
     return out;
 }
 
 // 预设形状 -> 行形状。防御垃圾输入：缺字段回默认，坏行丢弃。
-// positive 不转行（仅经 SFLoraPreset 输出流通，栈状态不持久化 prompt）。
+// positive 不转行，但由调用方按需写入栈状态的 positive（presetPositive 辅助）。
 export function presetToRows(preset) {
     const items = Array.isArray(preset?.loras) ? preset.loras : [];
     return items

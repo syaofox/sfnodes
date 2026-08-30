@@ -357,7 +357,7 @@ LORA_PATCHES["b.safetensors"] = {
     "clip_h.k1.weight": FakeAdapter(MockTensor("upB3"), MockTensor("downB3")),
 }
 m, c = reset()
-out_m, out_c, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 0.8, "sc": 0.8, "triggers": ["alpha"]},
     {"name": "b.safetensors", "on": True, "sm": 1.0, "sc": 1.0, "triggers": ["beta"]},
 ]))
@@ -380,7 +380,7 @@ LORA_PATCHES["c.safetensors"] = {
     "diffusion_model.k1.weight": FakeAdapter(MockTensor("upC1"), MockTensor("downC1")),
 }
 m, c = reset()
-out_m, _, _ = node.apply(m, c, LoraLoaderState=state([
+out_m, _, _, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1},
     {"name": "c.safetensors", "on": True, "sm": 1, "sc": 1},
 ]))
@@ -394,7 +394,7 @@ LORA_PATCHES["a.safetensors"] = {
     "diffusion_model.k2.weight": FakeAdapter(MockTensor("upA2"), MockTensor("downA2")),
 }
 m, c = reset()
-out_m, _, _ = node.apply(m, c, LoraLoaderState=state([
+out_m, _, _, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1},
     {"name": "b.safetensors", "on": True, "sm": 1, "sc": 1},
 ]))
@@ -408,7 +408,7 @@ LORA_PATCHES["a.safetensors"] = {
     "diffusion_model.k1.weight": FakeAdapter(MockTensor("upA1"), MockTensor("downA1c", dim=4)),
 }
 m, c = reset()
-out_m, _, _ = node.apply(m, c, LoraLoaderState=state([
+out_m, _, _, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1},
     {"name": "b.safetensors", "on": True, "sm": 1, "sc": 1},
 ]))
@@ -422,7 +422,7 @@ LORA_PATCHES["a.safetensors"] = {
     "diffusion_model.k2.weight": FakeAdapter(MockTensor("upA2"), MockTensor("downA2")),
 }
 m, c = reset()
-out_m, _, _ = node.apply(m, c, LoraLoaderState=state([
+out_m, _, _, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1},
 ]))
 check("ortho 单行直通不调 GS", gs_calls == [] and
@@ -432,7 +432,7 @@ check("ortho 单行直通不调 GS", gs_calls == [] and
 # 3f. sm=0 行：model 侧跳过、CLIP 侧照常；零强度行计触发词不加载
 LORA_PATCHES["a.safetensors"]["clip_h.k1.weight"] = FakeAdapter(MockTensor("upA3"), MockTensor("downA3"))
 m, c = reset()
-out_m, out_c, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 0.0, "sc": 1.0, "triggers": ["zero_sm"]},
     {"name": "b.safetensors", "on": True, "sm": 0.0, "sc": 0.0, "triggers": ["zero_both"]},
 ]))
@@ -446,7 +446,7 @@ check("ortho sm=0 不加载 unet patch", load_lora_calls == ["a.safetensors"])
 # 3g. key map 失败 -> 整体 fallback 顺序路径
 m, c = reset()
 unet_keys_fail[0] = True
-out_m, out_c, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 0.5, "sc": 0.5, "triggers": ["fallback"]},
 ]))
 unet_keys_fail[0] = False
@@ -465,7 +465,7 @@ def fake_model_lora_keys_clip_fail(model, key_map=None):
 comfy_lora.model_lora_keys_clip = fake_model_lora_keys_clip_fail
 m, c = reset()
 clip_keys_fail[0] = True
-out_m, out_c, _ = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, _, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 0.5, "sc": 0.5},
 ]))
 clip_keys_fail[0] = False
@@ -483,7 +483,7 @@ def fake_load_lora_fail(lora_sd, key_map, log_missing=True):
 comfy_lora.load_lora = fake_load_lora_fail
 m, c = reset()
 load_lora_fail[0] = True
-out_m, out_c, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1, "triggers": ["boom"]},
 ]))
 load_lora_fail[0] = False
@@ -494,7 +494,7 @@ check("ortho 加载失败行不计触发词", triggers == "")
 # 3h. 缺失文件行跳过（不进 resolved/不加载）
 LORA_PATCHES.pop("c.safetensors", None)
 m, c = reset()
-out_m, _, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, _, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 1, "triggers": ["present"]},
     {"name": "ghost.safetensors", "on": True, "sm": 1, "sc": 1, "triggers": ["ghost"]},
 ]))
@@ -520,7 +520,7 @@ check("ortho cacheMode=all 保留整栈", len(node._cache) == 2)
 
 # 3k. sequential 模式回归（mergeMethod=sequential 走官方加载路径）
 m, c = reset()
-out_m, out_c, triggers = node.apply(m, c, LoraLoaderState=state([
+out_m, out_c, triggers, _ = node.apply(m, c, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 0.5, "sc": 0.5, "triggers": ["seq"]},
 ], merge="sequential"))
 check("sequential 回归走 load_lora_for_models", apply_calls == [(0.5, 0.5)])
@@ -529,7 +529,7 @@ check("sequential 回归触发词", triggers == "seq")
 
 # 3l. clip 未接：sc 归 0，不碰 clip
 m, c = reset()
-out_m, out_c, _ = node.apply(m, None, LoraLoaderState=state([
+out_m, out_c, _, _ = node.apply(m, None, LoraLoaderState=state([
     {"name": "a.safetensors", "on": True, "sm": 1, "sc": 9},
 ]))
 check("ortho 无 clip sc=0", out_c is None and len(load_lora_calls) == 1)

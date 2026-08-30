@@ -350,17 +350,27 @@ def _clamp_strength(v):
     return max(-_STATE_MAX_STRENGTH, min(_STATE_MAX_STRENGTH, f))
 
 
+_POSITIVE_MAX_LEN = 8000
+
+
+def _sanitize_positive(v):
+    if not isinstance(v, str):
+        return ""
+    s = v.strip()
+    return s[:_POSITIVE_MAX_LEN] if len(s) > _POSITIVE_MAX_LEN else s
+
+
 def parse_state(state_str):
     """把隐藏 LoraLoaderState JSON 归一化为
     {'loras': [...], 'sep': str, 'cacheMode': 'last'|'all'|'none',
-     'mergeMethod': 'sequential'|'ortho_gs'}。
+     'mergeMethod': 'sequential'|'ortho_gs', 'positive': str}。
 
     刻意宽容（手写 API 工作流也必须能跑）：坏/空输入
-    -> {'loras': [], 'sep': ', ', 'cacheMode': 'last', 'mergeMethod': 'sequential'}；
+    -> {'loras': [], 'sep': ', ', 'cacheMode': 'last', 'mergeMethod': 'sequential', 'positive': ''}；
     无名或非 dict 条目丢弃；每个保留条目为 {name, on, sm, sc, triggers}。
     sc 缺省取 sm（单强度驱动双端）。cacheMode 未知值钳到 'last'（ComfyUI 对齐，
     只留最近使用的文件）。mergeMethod 未知值钳到 'sequential'（顺序叠加，
-    默认行为）。永不抛错。
+    默认行为）。positive 为可选正向提示词，与 triggers 分离保存。永不抛错。
     """
     try:
         obj = json.loads(state_str) if isinstance(state_str, str) else (state_str or {})
@@ -377,6 +387,7 @@ def parse_state(state_str):
     merge_method = obj.get("mergeMethod")
     if merge_method != "ortho_gs":
         merge_method = "sequential"
+    positive = _sanitize_positive(obj.get("positive", ""))
     loras = []
     raw = obj.get("loras")
     if isinstance(raw, list):
@@ -397,16 +408,17 @@ def parse_state(state_str):
                             if isinstance(trg, list) else [],
             })
     return {"loras": loras, "sep": sep, "cacheMode": cache_mode,
-            "mergeMethod": merge_method}
+            "mergeMethod": merge_method, "positive": positive}
 
 
 def preset_override(state, preset):
-    """预设（SFLoraPreset 形状 {loras: [{lora, on, strength, strengthTwo}]}）优先覆盖行。
+    """预设（SFLoraPreset 形状 {loras: [{lora, on, strength, strengthTwo}], positive?}）优先覆盖行。
 
     与 SFLoraPreset 的 preset 输入同语义（连接后预设优先）：name/on/sm/sc
     全取预设（strength -> sm，strengthTwo 缺省取 strength）；行状态仅用于继承
     同名行的勾选触发词——预设本身无触发词概念，用户勾选仍到达 triggers 输出。
-    预设缺失/形状不对 -> 原样返回。永不抛错（手写 API 工作流也可能传进来）。
+    positive 亦由预设优先（无则清空）。预设缺失/形状不对 -> 原样返回。
+    永不抛错（手写 API 工作流也可能传进来）。
     """
     if not isinstance(preset, dict) or not isinstance(preset.get("loras"), list):
         return state
@@ -432,6 +444,11 @@ def preset_override(state, preset):
             "triggers": list(prev.get("triggers", [])) if isinstance(prev, dict) else [],
         })
     state["loras"] = rows
+    # positive 由预设优先（与 triggers 语义分离）
+    if "positive" in preset:
+        state["positive"] = _sanitize_positive(preset.get("positive", ""))
+    else:
+        state["positive"] = ""
     return state
 
 
