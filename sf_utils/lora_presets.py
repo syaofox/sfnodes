@@ -152,6 +152,54 @@ def _register_routes():
                 logger.error(f"DELETE /api/sfnodes/lora_presets failed: {e}")
                 return web.json_response({"error": "internal error"}, status=500)
 
+        @routes.post("/api/sfnodes/lora_presets/rename")
+        async def _rename_preset(request: web.Request) -> web.Response:
+            """原子重命名（改名+可选 positive 编辑）。
+
+            body {from: str, to: str, positive?: string}，positive 提供时原子更新
+            （空串则移除该字段），未提供则保留原 positive。from==to 时为纯
+            positive 编辑。同一 _presets_lock 内完成 RMW，避免并发覆盖。
+            """
+            try:
+                try:
+                    body = await request.json()
+                except Exception:
+                    return web.json_response({"error": "invalid json"}, status=400)
+                frm = body.get("from", body.get("old_name", body.get("oldName", "")))
+                to = body.get("to", body.get("new_name", body.get("newName", body.get("name", ""))))
+                if not _valid_preset_name(frm) or not _valid_preset_name(to):
+                    return web.json_response({"error": "invalid name"}, status=400)
+                frm = frm.strip()
+                to = to.strip()
+                has_positive = "positive" in body
+                new_positive = None
+                if has_positive:
+                    if not isinstance(body.get("positive"), str):
+                        return web.json_response({"error": "invalid positive"}, status=400)
+                    new_positive = _sanitize_positive(body.get("positive"))
+                async with _presets_lock:
+                    presets = _load_presets()
+                    if frm not in presets:
+                        return web.json_response({"error": "not found"}, status=404)
+                    if frm != to and to in presets:
+                        return web.json_response({"error": "already exists"}, status=409)
+                    data = dict(presets[frm])
+                    if has_positive:
+                        if new_positive:
+                            data["positive"] = new_positive
+                        else:
+                            data.pop("positive", None)
+                    if frm != to:
+                        presets[to] = data
+                        del presets[frm]
+                    else:
+                        presets[frm] = data
+                    _save_presets(presets)
+                return web.json_response({"ok": True, "from": frm, "to": to})
+            except Exception as e:
+                logger.error(f"POST /api/sfnodes/lora_presets/rename failed: {e}")
+                return web.json_response({"error": "internal error"}, status=500)
+
         logger.info("LoRA presets API routes registered")
 
     except Exception as e:

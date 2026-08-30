@@ -380,3 +380,18 @@ export async function deletePreset(name) {
         return { ok: false, message: "Could not reach the server." };
     }
 }
+
+export async function renamePreset(from, to, positive) {
+    try {
+        const body = { from, to };
+        if (positive !== undefined) body.positive = positive;
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora_presets/rename"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        return await r.json();
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}

@@ -355,6 +355,11 @@
 - 结构兼容：首子保持 `div.in > input`（`tests/test_lora_stack_presets_smoke.js` 用 `menu.children[0].children[0]` 定位），新增区置于其后，`findByClass("ok pri")` 定位 `Save` 按钮不受影响。
 - 载入：菜单列出预设时 `positive` 长 60 字符截断预览于行尾 `.sf-ls-preset-pos`，`SFLoraPreset` 节点 `sf_lora_preset.js` 的 `preset` combo `tooltip` 同步刷新（选中预设的 `positive` 前 120 字符，`beforeRegisterNodeDef onConfigure` + `callback` 包装）。
 
-### 4. 测试与回归
+### 4. 编辑/删除与原子重命名
 
-- `tests/test_lora_stack_presets_smoke.js` 首行结构断言仍绿（见上节兼容），`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设；新增需手工验证往返：保存含 `positive` → `SFLoraPreset` 的 `positive` 输出与 `tooltip` 一致 → 旧预设不带 `positive` 仍可载入。
+- 编辑=改名+`positive`（不含 `loras`，`loras` 通过“载入→改栈→另存”闭环）。栈内 `Presets` 每行 `📚名 [positive 60字] ✎ ✕`，`✎` 进同表单预填旧值（`input` 事件预填 `positive`），`✕` 二次确认（`confirmDialog` 标题 `Delete preset?`），`Save` 时若改名走原子 `POST /api/sfnodes/lora_presets/rename`（`from/to/positive` 同锁内 RMW，409 已存在、404 未找到），否则 `savePreset` 覆盖；`SFLoraPreset` 独立 `⚙ Manage Presets` 按钮复用同一弹窗（无栈上下文，仅名/`positive`，选中行可直接设值）。
+- 原子性：`_presets_lock` 内 `load→check→copy→save`，避免并发 `POST new + DELETE old` 交错覆盖；前端 `renamePreset(from,to,positive)` 薄封装，空串 `positive` 则后端 `pop` 字段保持精简。
+
+### 5. 测试与回归
+
+- `tests/test_lora_stack_presets_smoke.js` 首行结构断言仍绿（见上节兼容），`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设；删除改为二次确认（`confirmDialog`），测试中需点击确认；新增需手工验证往返：保存含 `positive` → `SFLoraPreset` 的 `positive` 输出与 `tooltip` 一致 → 旧预设不带 `positive` 仍可载入 → 编辑改名/`positive` 原子化 → 删除二次确认。

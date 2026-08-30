@@ -12,7 +12,7 @@ import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
 import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 import { openLoraPanel } from "./sf_lora_stack_settings.js";
-import { loadPresets, savePreset, deletePreset } from "./sf_lora_stack_api.js";
+import { loadPresets, savePreset, deletePreset, renamePreset } from "./sf_lora_stack_api.js";
 
 let _menu = null;
 let _menuCleanup = null;
@@ -37,11 +37,17 @@ export function injectMenuCSS() {
     .sf-ls-menu .it.danger:hover { background:#e2504a; }
     .sf-ls-menu .it.dis { opacity:.35; pointer-events:none; }
     .sf-ls-menu .sep { height:1px; background:#1b1b1b; margin:3px 0; }
-    /* 预设菜单：行尾删除 ✕（hover 显示）、保存命名输入行、状态消息 */
-    .sf-ls-menu .del { margin-left:auto; flex:none; color:#c9736a; opacity:0; padding:0 2px;
-      font-size:10px; cursor:pointer; }
-    .sf-ls-menu .it:hover .del { opacity:1; }
-    .sf-ls-menu .it .del:hover { color:#fff; }
+    /* 预设菜单：行尾编辑 ✎（蓝）/ 删除 ✕（红）——常显 pill 样式，色彩与背景强区分 */
+    .sf-ls-menu .del { margin-left:auto; flex:none; color:#ff9a8a; background:rgba(220,70,50,0.18);
+      border:1px solid rgba(220,70,50,0.38); border-radius:4px; padding:2px 6px;
+      font-size:10px; cursor:pointer; opacity:0.92; }
+    .sf-ls-menu .edit { flex:none; color:#8cc8ff; background:rgba(70,130,220,0.18);
+      border:1px solid rgba(70,130,220,0.38); border-radius:4px; padding:2px 6px;
+      font-size:10px; cursor:pointer; opacity:0.92; }
+    .sf-ls-menu .it:hover .del { opacity:1; background:rgba(220,70,50,0.28); border-color:rgba(220,70,50,0.55); }
+    .sf-ls-menu .it:hover .edit { opacity:1; background:rgba(70,130,220,0.28); border-color:rgba(70,130,220,0.55); }
+    .sf-ls-menu .it .del:hover { color:#fff; background:rgba(220,70,50,0.38); }
+    .sf-ls-menu .it .edit:hover { color:#fff; background:rgba(70,130,220,0.38); }
     .sf-ls-menu .in { display:flex; align-items:center; gap:6px; padding:6px 8px; }
     .sf-ls-menu .in input { flex:1; min-width:0; box-sizing:border-box; background:#161616;
       border:1px solid #4a4a4a; border-radius:5px; color:#fff; font:11px 'Segoe UI',sans-serif;
@@ -189,16 +195,36 @@ async function openPresetsMenu(node, x, y, refresh) {
             } else {
                 it.title = "No positive prompt saved";
             }
+            const edit = document.createElement("span");
+            edit.className = "edit";
+            edit.textContent = "✎";
+            edit.title = "Edit this preset (rename / positive)";
+            edit.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                enterEditPreset(nm);
+            });
+            it.appendChild(edit);
             const del = document.createElement("span");
             del.className = "del";
             del.textContent = "✕";
             del.title = "Delete this preset";
-            del.addEventListener("click", (ev) => {
+            del.addEventListener("click", async (ev) => {
                 ev.stopPropagation();
-                deletePreset(nm).then(() => {
-                    delete presets[nm];
-                    if (menu.isConnected) renderPresetsMenu();
+                const ok = await confirmDialog({
+                    title: "Delete preset?",
+                    message: `Delete preset "${nm}"? This cannot be undone.`,
+                    okLabel: "Delete",
+                    cancelLabel: "Cancel",
+                    accent: accentOf(node),
                 });
+                if (!ok) return;
+                const r = await deletePreset(nm);
+                if (!r?.ok && r?.error) {
+                    renderPresetsMenu(r.message || "Could not delete.");
+                    return;
+                }
+                delete presets[nm];
+                if (menu.isConnected) renderPresetsMenu();
             });
             it.appendChild(del);
             menu.appendChild(it);
@@ -292,6 +318,86 @@ async function openPresetsMenu(node, x, y, refresh) {
         inp.addEventListener("keydown", kd);
         ta.addEventListener("keydown", kd);
         // 表单比列表高，同一菜单内切换后需重新钳位
+        try {
+            const mw = menu.offsetWidth, mh = menu.offsetHeight;
+            menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";
+            menu.style.top = Math.max(6, Math.min(y, window.innerHeight - mh - 6)) + "px";
+        } catch {}
+        inp.focus();
+        inp.select();
+    }
+
+    function enterEditPreset(oldName) {
+        const oldData = presets[oldName];
+        if (!oldData) return;
+        menu.textContent = "";
+        const row = document.createElement("div");
+        row.className = "in";
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.placeholder = "Preset name…";
+        inp.maxLength = 64;
+        inp.value = oldName;
+        installWheelZoomPassthrough(inp);
+        row.appendChild(inp);
+        const ok = document.createElement("span");
+        ok.className = "ok pri";
+        ok.textContent = "Save";
+        const no = document.createElement("span");
+        no.className = "ok";
+        no.textContent = "Cancel";
+        row.append(ok, no);
+        menu.appendChild(row);
+        const wrap = document.createElement("div");
+        wrap.className = "sf-ls-save";
+        wrap.style.padding = "6px 8px";
+        const posLab = document.createElement("div");
+        posLab.className = "lab";
+        posLab.textContent = "Positive prompt (optional)";
+        const ta = document.createElement("textarea");
+        ta.placeholder = "masterpiece, 1girl, ...  (saved with strengths, triggers stay separate)";
+        ta.maxLength = 8000;
+        ta.value = oldData.positive || "";
+        installWheelZoomPassthrough(ta);
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = "Edit preset name and positive prompt.";
+        wrap.append(posLab, ta, hint);
+        menu.appendChild(wrap);
+        const commit = async () => {
+            const newName = inp.value.trim();
+            if (!newName) return;
+            const newPos = sanitizePositive(ta.value);
+            if (newName !== oldName && presets[newName]) {
+                renderPresetsMenu(`A preset named "${newName}" already exists.`);
+                return;
+            }
+            // 原子重命名 + positive 更新
+            const r = await renamePreset(oldName, newName, newPos);
+            if (!r?.ok) {
+                const m = r?.error === "already exists" ? `A preset named "${newName}" already exists.` : (r?.message || r?.error || "Could not save.");
+                renderPresetsMenu(m);
+                return;
+            }
+            // 同步前端 map：若 positive 空则后端已移除该字段，保持一致
+            const updated = { ...oldData };
+            if (newPos) updated.positive = newPos;
+            else delete updated.positive;
+            if (oldName !== newName) delete presets[oldName];
+            presets[newName] = updated;
+            msg = "";
+            renderPresetsMenu();
+        };
+        const cancel = () => renderPresetsMenu();
+        ok.addEventListener("click", commit);
+        no.addEventListener("click", cancel);
+        const kd = (ev) => {
+            ev.stopPropagation();
+            if (ev.key === "Escape") { ev.preventDefault(); cancel(); }
+            if (ev.target === inp && ev.key === "Enter") { ev.preventDefault(); commit(); }
+        };
+        inp.addEventListener("keydown", kd);
+        ta.addEventListener("keydown", kd);
         try {
             const mw = menu.offsetWidth, mh = menu.offsetHeight;
             menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";

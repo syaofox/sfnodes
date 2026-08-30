@@ -321,13 +321,38 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
         && lastPost.data.loras[0].strength === 0.9 && lastPost.data.loras[0].strengthTwo === 0.7);
     check("保存后菜单列出新预设", !!findByText(menu3, "my-stack"));
 
-    // ── 删除预设：hover ✕ 点击 ──
+    // ── 删除预设：hover ✕ 点击 -> 二次确认 -> 删除 ──
     const myItem = findItem(menu3, "my-stack");
     const delBtn = findByClass(myItem, "del");
     check("预设项有删除 ✕", !!delBtn);
     delBtn.emit("click", { target: delBtn });
     await tick(); await tick();
+    const delMask = bodyChildren[bodyChildren.length - 1];
+    check("删除确认框出现", delMask.className === "sf-ls-confirm-mask");
+    const delOk = findByClass(delMask, "b pri");
+    check("删除确认框 Delete 按钮", !!delOk);
+    delOk.emit("click", { target: delOk });
+    await tick(); await tick();
     check("DELETE 后列表移除", !findByText(menu3, "my-stack") && !serverPresets["my-stack"]);
+    // 取消路径：再次保存后点击 ✕ -> Cancel 不删除
+    // 重新保存一个用于取消测试
+    // 保存 my-stack-2
+    findItem(menu3, "Save current as preset…").emit("click", { target: findItem(menu3, "Save current as preset…") });
+    await tick();
+    const inp2 = menu3.children[0].children[0];
+    inp2.value = "my-stack-2";
+    findByClass(menu3, "ok pri").emit("click", { target: findByClass(menu3, "ok pri") });
+    await tick(); await tick();
+    const myItem2 = findItem(menu3, "my-stack-2");
+    const delBtn2 = findByClass(myItem2, "del");
+    delBtn2.emit("click", { target: delBtn2 });
+    await tick(); await tick();
+    const delMask2 = bodyChildren[bodyChildren.length - 1];
+    findByClass(delMask2, "b gh").emit("click", { target: findByClass(delMask2, "b gh") });
+    await tick();
+    check("Cancel 后保留", !!findByText(menu3, "my-stack-2") && !!serverPresets["my-stack-2"]);
+    // 清理
+    delete serverPresets["my-stack-2"];
 
     // ── preset 输入连接（SF_LORA_PRESET）：自动加载预设到行 ──
     const upstream = {
