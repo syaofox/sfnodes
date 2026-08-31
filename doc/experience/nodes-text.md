@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -371,4 +371,23 @@
 - **破坏性变更**：旧版输出 12 条 STRING → 现 3 条（combined_prompt / prompt_pack / optimize_request）；还原 11 条分类文本需接 **SFUnpackPromptPreset**（顺序与旧版一致）。prompt_pack 是运行时对象（SF_PROMPT_PACK），**不可**接入 Primitive/保存类节点。
 - 预设被删除/改名的旧工作流 combo 值超出静态选项列表 → `VALIDATE_INPUTS` 恒 True + `_resolve_preset` 安全降级为空串（动态 combo 校验通用模式，见 §4）。
 - **伦理**：数据含 NSFW 预设（仓库分发注意许可与政策）；名人 + NSFW 组合存在肖像权/伦理风险；亚洲名人（22 个）无社区实测依据。
-- 测试：`tests/test_prompt_preset.py`（后端 200+ 断言）+ `test_prompt_preset_js.js`（前端 40+ 断言）。
+ - 测试：`tests/test_prompt_preset.py`（后端 200+ 断言）+ `test_prompt_preset_js.js`（前端 40+ 断言）。
+
+---
+
+## 36. SFLongTextToList：长文本分割转列表（复刻 ComfyUI_Lam LongTextToList）
+
+> 背景：1:1 复刻 `ComfyUI_Lam/py/LongTextToList.py`（2026-08）。原节点 `text.split(delimiter)` 后输出下标项/数组/长度，逻辑极简但有两处崩点。本次落地为 `nodes/text/long_text_to_list.py:SFLongTextToList` + `sf_utils/string.py:split_text` 纯函数（无 ComfyUI 依赖），按 `sfnodes/text` 规范注册，无前端。
+
+### 1. 原版缺陷与加固
+
+- **空分隔符**：`text.split("")` 抛 `ValueError`。本实现 `split_text` 中 `delimiter == ""`（含 `None`）时退化为 `[text]`（空文本则 `[]`），不崩且符合直觉（无分隔符即整体）。
+- **越界 i**：原 `strList[i]` 直接越界抛 `IndexError` 拖垮工作流。本实现 `0 <= i < len(parts)` 守卫，越界返回 `""` 并 `print` 警告，不崩；`i` 仍为 `INT 0..99999`，默认值 `0`。
+- **转义**：原仅 `delimiter.replace("\\n","\n")`。本实现追加 `"\\t"→"\t"` 对齐 `SFTextConcatenate:44` 的双转义约定（分隔符常用 `","`/`"\n"`/`"\t"`）。
+- **类型收敛**：原 `RETURN_TYPES ("STRING","LIST","INT")` 中 `LIST` 为泛型。本实现按 sfnodes 文本列表生态（`SFPromptList`/`SFPromptStack`/`SFLoadPromptsFromFolder`）收敛为 `("STRING","STRING","INT") + OUTPUT_IS_LIST (False,True,False)`——`list` 输出为 `STRING` 列表，下游自动逐项执行，无需额外 `LIST` 类型；`text_at_i`/`count` 为单值。
+
+### 2. 模块边界
+
+- `sf_utils/string.py:split_text(text, delimiter)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错），供节点与 `tests/test_long_text_to_list.py` 共用。
+- `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，`FORCE_INPUT` 保留可连线，分隔符默认 `"\\n"`（换行，贴合长文本场景）。
+- 测试：`tests/test_long_text_to_list.py` 21 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`OUTPUT_IS_LIST` 契约）。
