@@ -7,6 +7,7 @@ from PIL import Image, ImageFilter, ImageOps
 from comfy.utils import common_upscale
 from nodes import SaveImage
 from ...sf_utils.image_convert import mask2tensor, np2tensor, tensor2mask, rescale_image
+from ...sf_utils.resize_engine import floor_divisible
 from ...sf_utils.mask_utils import (
     combine_mask,
     expand_mask,
@@ -335,6 +336,16 @@ class MaskScaleBy:
                         "tooltip": "设置缩放比例，范围为0.01到8.0，步长为0.01",
                     },
                 ),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
+                    },
+                ),
             }
         }
 
@@ -342,13 +353,13 @@ class MaskScaleBy:
     FUNCTION = "upscale"
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = "根据指定比例缩放遮罩"
+    DESCRIPTION = "根据指定比例缩放遮罩；divisible_by 会将宽高向下取整到该数的倍数（默认 8）"
 
-    def upscale(self, mask, scale_by):
+    def upscale(self, mask, scale_by, divisible_by=8):
         image = mask2tensor(mask)
         samples = image.movedim(-1, 1)
-        width = round(samples.shape[3] * scale_by)
-        height = round(samples.shape[2] * scale_by)
+        width = floor_divisible(round(samples.shape[3] * scale_by), divisible_by)
+        height = floor_divisible(round(samples.shape[2] * scale_by), divisible_by)
         s = common_upscale(samples, width, height, "lanczos", "disabled")
         s = s.movedim(1, -1)
         return (tensor2mask(s),)
@@ -362,6 +373,16 @@ class MaskScale:
                 "mask": ("MASK",),
                 "width": ("INT", {"default": 512, "min": 0, "max": 16384, "step": 1}),
                 "height": ("INT", {"default": 512, "min": 0, "max": 16384, "step": 1}),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "向下取整到该数的倍数（0 保持 0），1 表示不约束，默认 8",
+                    },
+                ),
             }
         }
 
@@ -369,9 +390,11 @@ class MaskScale:
     FUNCTION = "upscale"
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = "根据指定宽高缩放遮罩"
+    DESCRIPTION = "根据指定宽高缩放遮罩；divisible_by 会将宽高向下取整（默认 8）"
 
-    def upscale(self, mask, width, height):
+    def upscale(self, mask, width, height, divisible_by=8):
+        width = floor_divisible(width, divisible_by)
+        height = floor_divisible(height, divisible_by)
         image = mask2tensor(mask)
         if width == 0 and height == 0:
             s = image
@@ -380,8 +403,10 @@ class MaskScale:
 
             if width == 0:
                 width = max(1, round(samples.shape[3] * height / samples.shape[2]))
+                width = floor_divisible(width, divisible_by)
             elif height == 0:
                 height = max(1, round(samples.shape[2] * width / samples.shape[3]))
+                height = floor_divisible(height, divisible_by)
 
             s = common_upscale(samples, width, height, "lanczos", "disabled")
             s = s.movedim(1, -1)

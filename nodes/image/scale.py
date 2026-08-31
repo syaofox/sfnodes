@@ -23,27 +23,7 @@ from datetime import datetime
 _CATEGORY = "sfnodes/image"
 UPSCALE_METHODS = ["lanczos", "nearest-exact", "bilinear", "area", "bicubic"]
 
-
-def make_even(number):
-    _, remainder = divmod(number, 2)
-    return number + remainder
-
-
-def make_divisible(number, divisor):
-    """确保数字能被divisor整除，向上取整到最近的倍数"""
-    return ((number + divisor - 1) // divisor) * divisor
-
-
-def floor_divisible(number, divisor):
-    """向下取整到 divisor 的倍数，0 保持 0（用于宽高为 0 的自动档）"""
-    if divisor <= 1:
-        return number
-    if number == 0:
-        return 0
-    floored = (number // divisor) * divisor
-    if floored == 0 and number != 0:
-        return divisor
-    return floored
+from ...sf_utils.resize_engine import floor_divisible, make_divisible, make_even
 
 
 class GetImageSize:
@@ -276,11 +256,11 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                 "divisible_by": (
                     "INT",
                     {
-                        "default": 16,
+                        "default": 8,
                         "min": 1,
                         "step": 1,
-                        "max": 128,
-                        "tooltip": "确保最终图像分辨率能被此数字整除，默认16",
+                        "max": 512,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
                     },
                 ),
             }
@@ -292,6 +272,7 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
     根据指定边长缩放图片，shorter为True时参照短边，否则参照长边
     limit为True时，如果图像的最短边小于size，则不缩放图像
     crop为True时，如果较长边超过阈值，则根据crop_position裁剪图像
+    divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）
     """
 
     def execute(
@@ -310,14 +291,14 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
         # Check if we should skip scaling
         min_side = min(image.shape[2], image.shape[1])
         if limit and min_side < size:
-            width = make_divisible(image.shape[2], divisible_by)
-            height = make_divisible(image.shape[1], divisible_by)
+            width = floor_divisible(image.shape[2], divisible_by)
+            height = floor_divisible(image.shape[1], divisible_by)
             # 如果尺寸发生变化，需要缩放
             if width != image.shape[2] or height != image.shape[1]:
                 scaled_image, result_mask = self.scale_image(
-                    image, width, height, upscale_method, mask
+                    image, width, height, upscale_method, mask, divisible_by
                 )
-                return self.prepare_result(scaled_image, result_mask, width, height)
+                return self.prepare_result(scaled_image, result_mask, scaled_image.shape[2], scaled_image.shape[1])
             else:
                 return self.prepare_result(
                     image,
@@ -334,17 +315,13 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
             reference_side_length = max(image.shape[2], image.shape[1])
 
         scale_by = reference_side_length / size
-        width = make_even(round(image.shape[2] / scale_by))
-        height = make_even(round(image.shape[1] / scale_by))
-
-        # 确保宽度和高度能被divisible_by整除
-        width = make_divisible(width, divisible_by)
-        height = make_divisible(height, divisible_by)
+        width = floor_divisible(round(image.shape[2] / scale_by), divisible_by)
+        height = floor_divisible(round(image.shape[1] / scale_by), divisible_by)
 
         # Apply cropping if enabled and needed
         if crop:
             scaled_image, result_mask = self.scale_image(
-                image, width, height, upscale_method, mask
+                image, width, height, upscale_method, mask, divisible_by
             )
 
             # Check if cropping is needed (one dimension exceeds the crop threshold)
@@ -355,20 +332,20 @@ class ImageScaleBySpecifiedSide(BaseImageScaler):
                     scaled_image, result_mask, crop_threshold, crop_position, shorter
                 )
             width, height = scaled_image.shape[2], scaled_image.shape[1]
-            # 裁剪后也确保能被divisible_by整除
-            width = make_divisible(width, divisible_by)
-            height = make_divisible(height, divisible_by)
+            # 裁剪后也确保能被divisible_by整除（向下取整）
+            width = floor_divisible(width, divisible_by)
+            height = floor_divisible(height, divisible_by)
             # 如果尺寸发生变化，需要重新缩放
             if width != scaled_image.shape[2] or height != scaled_image.shape[1]:
                 scaled_image, result_mask = self.scale_image(
-                    scaled_image, width, height, upscale_method, result_mask
+                    scaled_image, width, height, upscale_method, result_mask, divisible_by
                 )
         else:
             scaled_image, result_mask = self.scale_image(
-                image, width, height, upscale_method, mask
+                image, width, height, upscale_method, mask, divisible_by
             )
 
-        return self.prepare_result(scaled_image, result_mask, width, height)
+        return self.prepare_result(scaled_image, result_mask, scaled_image.shape[2], scaled_image.shape[1])
 
     def _crop_image(self, image, mask, target_size, crop_position, shorter):
         """Crop image to target size based on specified position"""
@@ -441,6 +418,16 @@ class ComputeImageScaleRatio:
                         "tooltip": "设置目标最大尺寸，范围为0到99999，步长为1",
                     },
                 ),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
+                    },
+                ),
             },
         }
 
@@ -456,16 +443,16 @@ class ComputeImageScaleRatio:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "根据引用图片的大小和目标最大尺寸，返回缩放比例和缩放后的宽高"
+    DESCRIPTION = "根据引用图片的大小和目标最大尺寸，返回缩放比例和缩放后的宽高；divisible_by 会将宽高向下取整到该数的倍数（默认 8）"
 
-    def execute(self, image, target_max_size):
+    def execute(self, image, target_max_size, divisible_by=8):
         samples = image.movedim(-1, 1)
         width, height = samples.shape[3], samples.shape[2]
 
         rescale_ratio = target_max_size / max(width, height)
 
-        new_width = make_even(round(width * rescale_ratio))
-        new_height = make_even(round(height * rescale_ratio))
+        new_width = floor_divisible(round(width * rescale_ratio), divisible_by)
+        new_height = floor_divisible(round(height * rescale_ratio), divisible_by)
 
         return {
             "ui": {
@@ -502,6 +489,16 @@ class ScaleImageToSquare:
                     "FLOAT",
                     {"default": 0.0, "min": 0, "max": 1, "step": 0.05},
                 ),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
+                    },
+                ),
             },
         }
 
@@ -510,7 +507,7 @@ class ScaleImageToSquare:
     FUNCTION = "prep_image"
 
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将图片缩放为正方形，可选择裁剪或填充方式，并输出填充区域的mask"
+    DESCRIPTION = "将图片缩放为正方形，可选择裁剪或填充方式，并输出填充区域的mask；divisible_by 会将最终尺寸向下取整（默认 8）"
 
     def prep_image(
         self,
@@ -519,7 +516,9 @@ class ScaleImageToSquare:
         interpolation="LANCZOS",
         crop_position="center",
         sharpening=0.0,
+        divisible_by=8,
     ):
+        size_length = floor_divisible(size_length, divisible_by)
         size = (size_length, size_length)
         _, oh, ow, _ = image.shape
         output = image.permute([0, 3, 1, 2])

@@ -34,6 +34,28 @@ RESIZE_DEFAULTS = {
 }
 
 
+def make_even(number):
+    _, remainder = divmod(number, 2)
+    return number + remainder
+
+
+def make_divisible(number, divisor):
+    """确保数字能被divisor整除，向上取整到最近的倍数"""
+    return ((number + divisor - 1) // divisor) * divisor
+
+
+def floor_divisible(number, divisor):
+    """向下取整到 divisor 的倍数，0 保持 0（用于宽高为 0 的自动档）"""
+    if divisor <= 1:
+        return number
+    if number == 0:
+        return 0
+    floored = (number // divisor) * divisor
+    if floored == 0 and number != 0:
+        return divisor
+    return floored
+
+
 def parse_resize_state(state_json: str, defaults: dict) -> dict:
     """Parse a hidden-state JSON string, merging known keys over `defaults`.
     Falls back to a copy of `defaults` on any error (subgraph / partial-prompt
@@ -136,14 +158,14 @@ def _round_half_up(x: float) -> int:
 
 
 def _apply_snap(w: int, h: int, snap: int) -> Tuple[int, int]:
-    """Floor each dim to a multiple of snap (0 = off). FLOOR not round-to-
+    """Floor each dim to a multiple of snap (0/1 = off). FLOOR not round-to-
     nearest, so the snap step can never push a dim above the cap of a cap-
     bounded mode (max_mp, longest_side, fit_inside). Without floor, snap=64
     on a 1024² source with max 1MP would round 1000 up to 1024, producing
     1.05 MP output and violating the 'Max' promise."""
-    if not snap or snap <= 0:
+    if not snap or snap <= 1:
         return (w, h)
-    return (max(8, (int(w) // snap) * snap), max(8, (int(h) // snap) * snap))
+    return (floor_divisible(int(w), snap), floor_divisible(int(h), snap))
 
 
 def _anchor_offsets(anchor, outer_w, inner_w, outer_h, inner_h):
