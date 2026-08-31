@@ -17,6 +17,34 @@ def split_text(text, delimiter):
     return (text or "").split(delimiter)
 
 
+def affix_list(items, prefix="", suffix="", filter_empty=True):
+    """为列表每项添加前后缀，支持转义与空项过滤。
+
+    - prefix/suffix 中字面 "\\n"/"\\t" 转为换行/制表（对齐 split_text/ SFTextConcatenate）
+    - filter_empty 为 True 时过滤掉去空白后为空的原项（非附加后）
+    - items 为 None/非列表时按单项处理；无 ComfyUI 依赖
+    """
+    if items is None:
+        return []
+    if isinstance(items, (list, tuple)):
+        # INPUT_IS_LIST 场景：可能为单层列表或包裹一层列表
+        if len(items) == 1 and isinstance(items[0], (list, tuple)):
+            items = items[0]
+        # 保持原列表拷贝，转 str
+        raw = list(items)
+    else:
+        raw = [items]
+    prefix = (prefix or "").replace("\\n", "\n").replace("\\t", "\t")
+    suffix = (suffix or "").replace("\\n", "\n").replace("\\t", "\t")
+    out = []
+    for it in raw:
+        s = "" if it is None else str(it)
+        if filter_empty and not s.strip():
+            continue
+        out.append(f"{prefix}{s}{suffix}")
+    return out
+
+
 # 判断是否包含中文
 def has_chinese_character(string):
     """

@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -391,3 +391,21 @@
 - `sf_utils/string.py:split_text(text, delimiter)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错），供节点与 `tests/test_long_text_to_list.py` 共用。
 - `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，`FORCE_INPUT` 保留可连线，分隔符默认 `"\\n"`（换行，贴合长文本场景）。
 - 测试：`tests/test_long_text_to_list.py` 21 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`OUTPUT_IS_LIST` 契约）。
+
+---
+
+## 37. SFTextListAffix：列表前后缀（输入列表加前后缀）
+
+> 背景：弥补 `SFLongTextToList` 分割后无统一前后缀能力的缺口（2026-08）。单节点 `SFPromptList` 有 `prepend/append` 但仅对行拆分支，`SFLongTextToList` 需后接 `prompt_list` 中转多一步；新增 `nodes/text/text_list_affix.py:SFTextListAffix` 通用输入列表前后缀节点，`INPUT_IS_LIST + OUTPUT_IS_LIST` 透传。
+
+### 1. 输入/输出与转义
+
+- **输入列表**：`text_list: STRING forceInput` `INPUT_IS_LIST=True` 整批接收（`SFLongTextToList.list`/`SFPromptList.prompt` 等直接连入），未连接输出 `[]` 不崩；单值输入自动包裹为单元素列表。
+- **前后缀**：`prepend_text`/`append_text` `\\n→\n` `\\t→\t` 转义（与 `SFTextConcatenate:44`/`split_text` 双端一致），`INPUT_IS_LIST` 下单值被包裹为 `[value]` 需取 `[0]` 解包。
+- **空项过滤**：`filter_empty` 默认 `True`，过滤 `s.strip()==""` 的原项（非附加后），对齐 `SFPromptList:30` 的 `skip_empty` 语义；`False` 时保留空串项（`prefix+suffix`）。
+
+### 2. 模块边界
+
+- `sf_utils/string.py:affix_list(items, prefix, suffix, filter_empty)` 纯函数（转义、空项、None/列表包裹容错），节点与测试共用，无 ComfyUI 依赖。
+- `nodes/text/text_list_affix.py:SFTextListAffix` 薄封装（解包标量+调 `affix_list`），`_CATEGORY="sfnodes/text"`，`INPUT_IS_LIST` 整批、`OUTPUT_IS_LIST=(True,)` 透传列表，下游自动逐项执行。
+- 测试：`tests/test_text_list_affix.py` 18 断言（基础前后缀、空项过滤 `True/False`、转义、None/空列表、单值输入、INPUT_IS_LIST 解包、契约）。
