@@ -14,6 +14,7 @@ function check(name, cond) {
     else { failures.push(name); console.log("FAIL:", name); }
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
+globalThis.requestAnimationFrame = globalThis.requestAnimationFrame || ((cb) => setTimeout(cb, 0));
 
 // ── mock DOM（惰性元素 + 事件记录/分发；textContent 赋值清空子节点；
 //    className 与 classList 双向同步——真实 DOM 语义，行 i 按钮的
@@ -146,12 +147,14 @@ for (const n of ["sf_lora_stack_core.js", "sf_lora_stack_api.js",
     "sf_lora_stack_dropdown.js", "sf_lora_stack_info.js",
     "sf_lora_stack_settings.js", "sf_common.js", "sf_markdown.js",
     "sf_lora_shared_info.js", "sf_lora_info.js", "sf_lora_stack_render.js", "sf_lora_stack_interaction.js",
-    "sf_workflows_ui.js", "sf_workflows_lib.js"]) {
+    "sf_workflows_ui.js", "sf_workflows_lib.js",
+    "sf_lora_preset_filter.js", "sf_lora_preset_manager.js", "sf_popup.js"]) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
         .replaceAll('import { api } from "/scripts/api.js";', "const api = globalThis.api;")
-        .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
+        .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"')
+        .replace(/import\("\.\/([a-z_]+)\.js"\)/g, 'import("./$1.mjs")');
     fs.writeFileSync(path.join(tmpDir, n.replace(/\.js$/, ".mjs")), code);
 }
 

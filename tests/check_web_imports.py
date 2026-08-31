@@ -23,6 +23,7 @@ MODS = [
     "sf_lora_stack", "sf_lora_stack_core", "sf_lora_stack_api",
     "sf_lora_stack_render", "sf_lora_stack_interaction",
     "sf_lora_stack_dropdown", "sf_lora_stack_info", "sf_lora_stack_settings",
+    "sf_lora_preset_filter", "sf_lora_preset_manager",
     # Workflows 家族
     "sf_workflows", "sf_workflows_ui", "sf_workflows_lib",
     # LoRA 浏览器家族

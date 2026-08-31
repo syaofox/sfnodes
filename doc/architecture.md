@@ -81,7 +81,7 @@ sfnodes/
 │   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
 │   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
-│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板；ctx 另支持 api 整束注入（路由域替换）/hideTriggers/samplesKind/autoCivitai，SF Load Diffusion Model 复用同一面板；复合预设 positive 经 SFLoraPreset STRING 输出流通，栈内 Presets 菜单保存时同表单输入 + 每预设 ✎ 编辑/✕ 二次确认删除（rename 原子化），见 experience/nodes-lora.md §34）
+│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板；ctx 另支持 api 整束注入（路由域替换）/hideTriggers/samplesKind/autoCivitai，SF Load Diffusion Model 复用同一面板；复合预设 positive 经 SFLoraPreset STRING 输出流通，栈内 Presets 菜单保存时同表单输入 + 每预设 ✎ 编辑/✕ 二次确认删除（rename 原子化）+ 独立大面板搜名/LoRA（见 §34.6），见 experience/nodes-lora.md §34）
 │   ├── sf_dmodel_api.js   # dmodel 域路由薄封装（与 sf_lora_stack_api.js 同形函数束 info/thumbUrl/civitai/saveDescription/savePreview/migrate/merge 等，URL 指向 /api/sfnodes/dmodel_*；事件 sfnodes.model-data-changed 与 lora 域隔离；导出 dmodelApi 整束供面板 ctx.api 注入——键名错会静默回退 LoRA 路由，tests/test_load_dmodel_panel_smoke.js 锁定契约）
 │   ├── sf_load_diffusion_model.js # SF Load Diffusion Model 单模块（i 信息图标复用 sf_lora_info.js 的 setupLoaderInfoWidget 工厂（prefetch:null/hasCustomOf/onOpen 注入）+ dmodelPanelCtx 宿主适配（api/hideTriggers/samplesKind/autoCivitai 四件套），isGraphLoading 门控点击）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
@@ -89,6 +89,8 @@ sfnodes/
 │   ├── sf_lora_shared_info.js # 样例图网格/预览/hover/markdown 复用内核（Stack 面板与 info 对话框共享；loadWorkflowFromImageUrl(url) PNG 内嵌工作流通用载入——readPngWorkflowData 前端 chunk 解析 + Comfy.NewBlankWorkflow 新标签，loadImageAsWorkflow 是 lora_samples 路径薄包装，image_browser 经 /view 复用；attachSamplePromptCopyButtons(container,notify) 描述内 civitai 样例 prompt 代码块右上角常驻复制按钮——h3 紧邻 pre 判定 + copyText/injectCSSOnce 复用 sf_common）
 │   ├── sf_markdown.js     # Markdown 渲染纯模块（无 app 依赖，纯模块边界成员——不得 import sf_common）
 │   ├── sf_lora_preset.js # 预设选择节点前端（原 power_lora_preset.js 改名，SFLoraPreset；2026-08 复合预设：positive 提示词额外 STRING 输出 + 选中预设 tooltip 预览 + 独立 Manage 弹窗（改名+positive 原子化，删除二次确认），见 §34）
+│   ├── sf_lora_preset_filter.js # 预设过滤纯逻辑（名 + LoRA 文件名子串，大小写不敏感，高亮命中，见 §34.6）
+│   ├── sf_lora_preset_manager.js # 独立大面板管理器（栈与预设节点共用，搜名/LoRA、高亮、n/total、底色高亮当前项，复用 sf_popup，见 §34.6）
 │   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
 │   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
 │   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）

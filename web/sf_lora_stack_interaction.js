@@ -240,6 +240,35 @@ async function openPresetsMenu(node, x, y, refresh) {
             it.appendChild(del);
             menu.appendChild(it);
         }
+        // 独立大面板入口（同步）
+        menu.append(menuSep(), makeMenuItem("", "Manage Presets…", () => {
+            closeRowMenu();
+            import("./sf_lora_preset_manager.js").then(m => m.openLoraPresetManager({
+                node,
+                getActive: () => { try { return readState(node).activePreset; } catch { return ""; } },
+                onSelect: async (name) => {
+                    const p = presets[name];
+                    if (!p) {
+                        // 若大面板内刚改名，本地 map 旧键已删，需重拉
+                        const r = await loadPresets();
+                        if (r.ok && r.presets[name]) {
+                            const st = readState(node);
+                            const rows = presetToRows(r.presets[name]);
+                            if (rows.length) {
+                                writeState(node, { ...st, loras: rows, positive: presetPositive(r.presets[name]), activePreset: name });
+                                refresh(true);
+                            }
+                        }
+                        return;
+                    }
+                    const st = readState(node);
+                    const rows = presetToRows(p);
+                    if (!rows.length) return;
+                    writeState(node, { ...st, loras: rows, positive: presetPositive(p), activePreset: name });
+                    refresh(true);
+                }
+            }));
+        }, { keepOpen: true }));
         // 当前预设底色高亮并滚动可见
         try {
             const doScroll = () => {

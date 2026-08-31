@@ -363,3 +363,10 @@
 ### 5. 测试与回归
 
 - `tests/test_lora_stack_presets_smoke.js` 首行结构断言仍绿（见上节兼容），`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设；删除改为二次确认（`confirmDialog`），测试中需点击确认；新增需手工验证往返：保存含 `positive` → `SFLoraPreset` 的 `positive` 输出与 `tooltip` 一致 → 旧预设不带 `positive` 仍可载入 → 编辑改名/`positive` 原子化 → 删除二次确认。
+
+### 6. 独立大面板搜索（名 + LoRA 文件名，高亮 + n/total，2026-08）
+
+- **动机**：预设量 `>20` 后小浮层滚动翻找低效，需独立大面板（`560px` 居中，`64vh` 滚动）按 `预设名 / 关联 LoRA 文件名` 子串即时过滤，`positive` 不参与检索（按需仅展示 60 字预览），命中 `mark` 高亮、头部 `n/total` 计数
+- **纯逻辑** `web/sf_lora_preset_filter.js`（无 `app` 依赖，`filterPresets(presets,q)` 大小写不敏感 `includes`，`highlight(text,q)` 转义后包 `mark`），拷 `.mjs` 单测 `tests/test_lora_preset_filter.mjs`
+- **大面板** `web/sf_lora_preset_manager.js`（`sf_popup` 三件套 + `filterPresets/highlight` + `loadPresets/deletePreset/renamePreset` + `sanitizePositive`），栈与预设节点共用 `openLoraPresetManager({node,widget,getActive,onSelect})`，`onSelect` 对栈走 `presetToRows/writeState`，对节点走 `widget.value/callback`
+- **同步**：两入口共用同一 `allPresets` 引用过滤，`rename/delete` 后原地更新 `allPresets` 并同步 `activePreset`（`readState` 清空或更新），小浮层下次打开重拉即同步
