@@ -34,6 +34,18 @@ def make_divisible(number, divisor):
     return ((number + divisor - 1) // divisor) * divisor
 
 
+def floor_divisible(number, divisor):
+    """向下取整到 divisor 的倍数，0 保持 0（用于宽高为 0 的自动档）"""
+    if divisor <= 1:
+        return number
+    if number == 0:
+        return 0
+    floored = (number // divisor) * divisor
+    if floored == 0 and number != 0:
+        return divisor
+    return floored
+
+
 class GetImageSize:
     @classmethod
     def INPUT_TYPES(cls):
@@ -104,9 +116,9 @@ class BaseImageScaler:
     RETURN_NAMES = ("image", "mask", "width", "height", "min_dimension")
     CATEGORY = _CATEGORY
 
-    def scale_image(self, image, width, height, upscale_method, mask=None):
-        width = width - (width % 16)
-        height = height - (height % 16)
+    def scale_image(self, image, width, height, upscale_method, mask=None, divisible_by=16):
+        width = floor_divisible(width, divisible_by)
+        height = floor_divisible(height, divisible_by)
 
         image_tensor = image.movedim(-1, 1)
         scaled_image = common_upscale(
@@ -166,6 +178,16 @@ class ImageScalerByPixels(BaseImageScaler):
                         "tooltip": "限制缩放比例，如果图像的像素数小于目标像素数，则不缩放图像",
                     },
                 ),
+                "divisible_by": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
+                    },
+                ),
             }
         )
 
@@ -174,9 +196,10 @@ class ImageScalerByPixels(BaseImageScaler):
     FUNCTION = "execute"
     DESCRIPTION = """
     将图片缩放到指定像素数，total_pixels为缩放比例，limit为True时，如果图像的像素数小于目标像素数，则不缩放图像
+    divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）
     """
 
-    def execute(self, image, upscale_method, total_pixels, limit=True, mask=None):
+    def execute(self, image, upscale_method, total_pixels, limit=True, divisible_by=8, mask=None):
         samples = image.movedim(-1, 1)
         total = int(total_pixels * 1024 * 1024)
         current_pixels = samples.shape[3] * samples.shape[2]
@@ -191,13 +214,14 @@ class ImageScalerByPixels(BaseImageScaler):
             )
 
         scale_by = math.sqrt(total / current_pixels)
-        # 计算缩放后的宽高 确保宽高为偶数
-        width = make_even(round(samples.shape[3] * scale_by))
-        height = make_even(round(samples.shape[2] * scale_by))
+        width = floor_divisible(round(samples.shape[3] * scale_by), divisible_by)
+        height = floor_divisible(round(samples.shape[2] * scale_by), divisible_by)
 
         scaled_image, result_mask = self.scale_image(
-            image, width, height, upscale_method, mask
+            image, width, height, upscale_method, mask, divisible_by
         )
+        # scale_image 已按 divisible_by 取整，width/height 取最终张量尺寸
+        width, height = scaled_image.shape[2], scaled_image.shape[1]
         return self.prepare_result(scaled_image, result_mask, width, height)
 
 
@@ -575,7 +599,7 @@ class ScaleImageToSquare:
 
 
 class ImageResizePlus:
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放"
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；multiple_of 会将最终宽高向下取整到该数的倍数（默认 8）"
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -622,10 +646,11 @@ class ImageResizePlus:
                 "multiple_of": (
                     "INT",
                     {
-                        "default": 0,
-                        "min": 0,
+                        "default": 8,
+                        "min": 1,
                         "max": 512,
                         "step": 1,
+                        "tooltip": "向下取整到该数的倍数，1 表示不约束，默认 8",
                     },
                 ),
                 "crop_position": (
@@ -659,7 +684,7 @@ class ImageResizePlus:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放"
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；multiple_of 会将最终宽高向下取整到该数的倍数（默认 8）"
 
     def execute(
         self,
@@ -669,7 +694,7 @@ class ImageResizePlus:
         method="stretch",
         interpolation="nearest",
         condition="always",
-        multiple_of=0,
+        multiple_of=8,
         keep_proportion=False,
         crop_position="center",
         pad_color=[0, 0, 0],
@@ -683,8 +708,8 @@ class ImageResizePlus:
             method = "keep proportion"
 
         if multiple_of > 1:
-            width = width - (width % multiple_of)
-            height = height - (height % multiple_of)
+            width = floor_divisible(width, multiple_of)
+            height = floor_divisible(height, multiple_of)
 
         if method == "keep proportion" or method == "pad":
             if width == 0 and oh < height:
