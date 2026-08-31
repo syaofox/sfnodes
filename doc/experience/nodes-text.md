@@ -385,12 +385,13 @@
 - **越界 i**：原 `strList[i]` 直接越界抛 `IndexError` 拖垮工作流。本实现 `0 <= i < len(parts)` 守卫，越界返回 `""` 并 `print` 警告，不崩；`i` 仍为 `INT 0..99999`，默认值 `0`。
 - **转义**：原仅 `delimiter.replace("\\n","\n")`。本实现追加 `"\\t"→"\t"` 对齐 `SFTextConcatenate:44` 的双转义约定（分隔符常用 `","`/`"\n"`/`"\t"`）。
 - **类型收敛**：原 `RETURN_TYPES ("STRING","LIST","INT")` 中 `LIST` 为泛型。本实现按 sfnodes 文本列表生态（`SFPromptList`/`SFPromptStack`/`SFLoadPromptsFromFolder`）收敛为 `("STRING","STRING","INT") + OUTPUT_IS_LIST (False,True,False)`——`list` 输出为 `STRING` 列表，下游自动逐项执行，无需额外 `LIST` 类型；`text_at_i`/`count` 为单值。
+- **空项过滤**：新增 `filter_empty: BOOLEAN default True`（2026-08 扩展，原版无此开关）—— `True` 时 `split_text(..., filter_empty=True)` 过滤 `p.strip()==""` 的项，`count` 与索引对应过滤后列表，避免空行产生空提示词触发空队列。
 
 ### 2. 模块边界
 
-- `sf_utils/string.py:split_text(text, delimiter)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错），供节点与 `tests/test_long_text_to_list.py` 共用。
-- `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，`FORCE_INPUT` 保留可连线，分隔符默认 `"\\n"`（换行，贴合长文本场景）。
-- 测试：`tests/test_long_text_to_list.py` 21 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`OUTPUT_IS_LIST` 契约）。
+- `sf_utils/string.py:split_text(text, delimiter, filter_empty=False)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错、`filter_empty` 按 `strip` 过滤），供节点与 `tests/test_long_text_to_list.py` 共用。
+- `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i`/`filter_empty` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，分隔符默认 `"\\n"`（换行，贴合长文本场景），`filter_empty` 默认 `True` 对齐 `SFPromptList.skip_empty`。
+- 测试：`tests/test_long_text_to_list.py` 30 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`filter_empty True/False`、索引联动、`OUTPUT_IS_LIST` 契约）。
 
 ---
 

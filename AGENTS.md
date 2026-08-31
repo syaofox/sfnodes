@@ -112,7 +112,7 @@ class SFMyNode:
 - **中文 token/标签库**（text §6）：token 名 `[\p{L}\p{N}_-]` 带 u flag（中文可作 tag）；标签库存未注册设置（机器私有跨工作流）+ 工作副本 isSameAsStored 判定才写回；拼音表一次性生成内联，非运行时 npm 依赖。
 - **提示词恢复 SFPromptReader**（text §16）：三种元数据容器纯标准库解析（MP4 ilst 是 1-based INDEX 非 4cc；WebM 键大写归一小写）；目录状态字段避开 applyResult 写入键的撞名（用 folder）；**DOM widget 高度 ≥ 内容实际高度**（动态测量 + computeLayoutSize，别硬编码）。
 - **SFPromptPreset / Krea2 预设**（text §29 / lora §31·§5）：分类正交原则防组合污染；IS_CHANGED=seed 可复现随机 + seed 偏移防各分类同值；预设管理内置+用户覆盖+墓碑删除 merge() 墓碑胜出；Qwen3 thinking 参数按模型微调来源选（instruct 版 off、无审查微调版 on 反而正常）。
-- **SFLongTextToList**（text §36）：复刻 ComfyUI_Lam LongTextToList——任意分隔符分割→索引取值/列表/长度，分隔符 `\n`/`\t` 转义、空分隔符退化为单元素、越界返回空串不崩；类型收敛为 `STRING+OUTPUT_IS_LIST` 对齐 `SFPromptList` 生态，无前端。
+- **SFLongTextToList**（text §36）：复刻 ComfyUI_Lam LongTextToList——任意分隔符分割→索引取值/列表/长度，分隔符 `\n`/`\t` 转义、空分隔符退化为单元素、越界返回空串不崩、`filter_empty` 空行过滤（默认 True）；类型收敛为 `STRING+OUTPUT_IS_LIST` 对齐 `SFPromptList` 生态，无前端。
 - **SFTextListAffix**（text §37）：输入 `STRING` 列表逐项加前后缀，`INPUT_IS_LIST+OUTPUT_IS_LIST` 透传；前后缀 `\n`/`\t` 转义、`filter_empty` 去空白空项（对齐 `SFPromptList`），`sf_utils/string.py:affix_list` 纯函数复用。
 - **TextEncodeKrea2 视觉通路**（lora §33）：Qwen3-VL tokenizer 每视觉占位符只绑 images 列表单元素、batch 参考图只取 [0]（官方编辑节点同款）；min_pixels=3136 官方兜底极小裁剪图，勿自建最小尺寸保护；RGBA 先黑底预乘再缩放（反序会把透明区杂色扩散进边缘）。
 - **SFLoraStack**（lora §19/§19.7/§20·§34）：Civitai API 字段位置必须实测（description 在 version 顶层）；用户数据以路径为键→改名失配两级孤儿匹配（内容指纹优先基名兜底）；强调色 --sf-acc 三时序坑（onChange 参数即新值 / 重绘 setTimeout(0) / 异步加载轮询）；行名设置 sfnodes.Lora.DisplayName 单真源 sf_common.loraRowLabel；ortho_gs 独立加载路径收敛 ortho_apply，ok_paths 是 set 勿直接迭代组装顺序敏感结果；复合预设 positive 与 triggers 分离、机器级存储、栈内 Presets 菜单同表单保存、SFLoraPreset 的 STRING 输出流通。

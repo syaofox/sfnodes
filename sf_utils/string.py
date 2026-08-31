@@ -1,10 +1,11 @@
 
 
-def split_text(text, delimiter):
-    """按分隔符切分文本，处理转义并守卫空分隔符/None。
+def split_text(text, delimiter, filter_empty=False):
+    """按分隔符切分文本，处理转义、空分隔符守卫与空项过滤。
 
     - delimiter is None/"" 时退化为单元素列表（不崩，原版 split("") 会 ValueError）
     - 将字面 "\\n"/"\\t" 转为真实换行/制表（对齐 SFTextConcatenate 与原 LongTextToList）
+    - filter_empty 为 True 时过滤掉去空白后为空的项（对齐 SFPromptList skip_empty）
     - 无 ComfyUI 依赖，可 .mjs 镜像测试
     """
     if delimiter is None:
@@ -13,8 +14,12 @@ def split_text(text, delimiter):
     delimiter = delimiter.replace("\\n", "\n").replace("\\t", "\t")
     if delimiter == "":
         t = text or ""
-        return [t] if t else []
-    return (text or "").split(delimiter)
+        parts = [t] if t else []
+    else:
+        parts = (text or "").split(delimiter)
+    if filter_empty:
+        parts = [p for p in parts if p.strip()]
+    return parts
 
 
 def affix_list(items, prefix="", suffix="", filter_empty=True):
