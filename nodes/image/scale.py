@@ -598,7 +598,7 @@ class ScaleImageToSquare:
 
 
 class ImageResizePlus:
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；multiple_of 会将最终宽高向下取整到该数的倍数（默认 8）"
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -642,7 +642,7 @@ class ImageResizePlus:
                         "if smaller area",
                     ],
                 ),
-                "multiple_of": (
+                "divisible_by": (
                     "INT",
                     {
                         "default": 8,
@@ -683,7 +683,7 @@ class ImageResizePlus:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；multiple_of 会将最终宽高向下取整到该数的倍数（默认 8）"
+    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
 
     def execute(
         self,
@@ -693,7 +693,7 @@ class ImageResizePlus:
         method="stretch",
         interpolation="nearest",
         condition="always",
-        multiple_of=8,
+        divisible_by=8,
         keep_proportion=False,
         crop_position="center",
         pad_color=[0, 0, 0],
@@ -706,9 +706,9 @@ class ImageResizePlus:
         if keep_proportion:
             method = "keep proportion"
 
-        if multiple_of > 1:
-            width = floor_divisible(width, multiple_of)
-            height = floor_divisible(height, multiple_of)
+        if divisible_by > 1:
+            width = floor_divisible(width, divisible_by)
+            height = floor_divisible(height, divisible_by)
 
         if method == "keep proportion" or method == "pad":
             if width == 0 and oh < height:
@@ -843,15 +843,15 @@ class ImageResizePlus:
         else:
             outputs = image
 
-        if multiple_of > 1 and (
-            outputs.shape[2] % multiple_of != 0 or outputs.shape[1] % multiple_of != 0
+        if divisible_by > 1 and (
+            outputs.shape[2] % divisible_by != 0 or outputs.shape[1] % divisible_by != 0
         ):
             w = outputs.shape[2]
             h = outputs.shape[1]
-            cx = (w % multiple_of) // 2
-            cy = (h % multiple_of) // 2
-            cx2 = w - ((w % multiple_of) - cx)
-            cy2 = h - ((h % multiple_of) - cy)
+            cx = (w % divisible_by) // 2
+            cy = (h % divisible_by) // 2
+            cx2 = w - ((w % divisible_by) - cx)
+            cy2 = h - ((h % divisible_by) - cy)
             outputs = outputs[:, cy:cy2, cx:cx2, :]
             if mask is not None:
                 mask_tensor = mask_tensor[:, cy:cy2, cx:cx2, :]
