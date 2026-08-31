@@ -48,12 +48,11 @@ from .nodes.mask.masks import (
     MaskPaintArea,
     MaskAdjustGrayscale,
     PreviewMask,
-    MaskedFill,
+    MaskFill,
     ImageMaskToTransparency,
     FillWithReferenceColor,
     MaskCrop,
     MaskFillPercentArea,
-    MaskFillColor,
 )
 from .nodes.mask.conditional_invert import ConditionalInvertMask
 from .nodes.image.processing import (
@@ -231,12 +230,11 @@ NODE_CLASS_MAPPINGS = {
     "SFMaskPaintArea": MaskPaintArea,
     "SFMaskAdjustGrayscale": MaskAdjustGrayscale,
     "SFPreviewMask": PreviewMask,
-    "SFMaskedFill": MaskedFill,
+    "SFMaskFill": MaskFill,
     "SFImageMaskToTransparency": ImageMaskToTransparency,
     "SFFillWithReferenceColor": FillWithReferenceColor,
     "SFMaskCrop": MaskCrop,
     "SFMaskFillPercentArea": MaskFillPercentArea,
-    "SFMaskFillColor": MaskFillColor,
     "SFConditionalInvertMask": ConditionalInvertMask,
     # 图片处理节点
     "SFColorAdjustment": ColorAdjustment,
@@ -418,12 +416,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskPaintArea": "SF Mask Paint Area",
     "SFMaskAdjustGrayscale": "SF Mask Adjust Grayscale",
     "SFPreviewMask": "SF Preview Mask",
-    "SFMaskedFill": "SF Masked Fill",
+    "SFMaskFill": "SF Mask Fill",
     "SFImageMaskToTransparency": "SF Image Mask To Transparency",
     "SFFillWithReferenceColor": "SF Fill With Reference Color",
     "SFMaskCrop": "SF Mask Crop",
     "SFMaskFillPercentArea": "SF Mask Fill Percent Area",
-    "SFMaskFillColor": "SF Mask Fill Color",
     "SFConditionalInvertMask": "SF Conditional Invert Mask",
     # 图片处理节点
     "SFColorAdjustment": "SF Color Adjustment",

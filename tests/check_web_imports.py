@@ -65,7 +65,7 @@ MODS = [
     # Diffusion Model 信息面板家族（dmodel 域路由束 + 节点扩展）
     "sf_dmodel_api", "sf_load_diffusion_model",
     # 单文件多依赖节点
-    "load_images_path", "sf_prompt_reader", "sf_prompt_list",
+    "load_images_path", "sf_prompt_reader", "sf_prompt_list", "sf_mask_fill",
 ]
 
 EXPORT_RE = re.compile(

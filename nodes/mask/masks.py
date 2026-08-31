@@ -534,60 +534,166 @@ class PreviewMask(SaveImage):
         return self.save_images(preview, filename_prefix, prompt, extra_pnginfo)
 
 
-class MaskedFill:
+def _parse_fill_color(fill_color):
+    if isinstance(fill_color, str):
+        hex_color = fill_color.lstrip("#")
+        return (
+            int(hex_color[0:2], 16),
+            int(hex_color[2:4], 16),
+            int(hex_color[4:6], 16),
+        )
+    return tuple(fill_color)
+
+
+def _apply_falloff(alpha, falloff: int):
+    falloff = make_odd(falloff)
+    if falloff > 0:
+        erosion = binary_erosion(alpha, falloff)
+        alpha = alpha * gaussian_blur(erosion, falloff)
+    return alpha
+
+
+class MaskFill:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "mask": ("MASK",),
-                "fill": (["neutral", "telea", "navier-stokes"],),
-                "falloff": ("INT", {"default": 0, "min": 0, "max": 8191, "step": 1}),
+                "image": ("IMAGE", {"tooltip": "输入图片"}),
+                "mask": ("MASK", {"tooltip": "输入遮罩，白色区域将被填充"}),
+                "fill_mode": (
+                    ["color", "neutral", "telea", "navier-stokes"],
+                    {
+                        "default": "color",
+                        "tooltip": "填充模式：color=纯色填充，neutral=中性色，telea/navier-stokes=边缘修复",
+                    },
+                ),
+                "fill_color": (
+                    "COLOR",
+                    {
+                        "default": [255, 255, 255],
+                        "tooltip": "填充颜色 (RGB)，仅 color 模式生效",
+                    },
+                ),
+                "opacity": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "填充不透明度，仅 color 模式生效",
+                    },
+                ),
+                "falloff": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 8191,
+                        "step": 1,
+                        "tooltip": "边缘羽化范围，对所有模式生效",
+                    },
+                ),
+                "skip_if_all_white": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "如果遮罩全白则跳过填充，直接返回原图（对所有模式生效）",
+                    },
+                ),
             }
         }
 
     RETURN_TYPES = ("IMAGE",)
     CATEGORY = _CATEGORY
-    FUNCTION = "fill"
-    DESCRIPTION = "用边缘修复或中性色填充遮罩覆盖的区域"
+    FUNCTION = "execute"
+    DESCRIPTION = "用纯色或修复算法填充遮罩区域（合并原 SF Masked Fill / SF Mask Fill Color，falloff 对所有模式生效）"
 
-    def fill(self, image, mask, fill: str, falloff: int):
-        image = image.detach().clone()
+    def execute(
+        self, image, mask, fill_mode, fill_color, opacity, falloff, skip_if_all_white=True
+    ):
+        if skip_if_all_white and torch.all(mask.reshape(-1) == 1.0).item():
+            return (image,)
+
+        result_image = image.detach().clone()
+
+        # 尺寸不一致时先重采样遮罩到图片尺寸（与 MaskFillColor 一致，兼容所有模式）
+        if image.shape[1] != mask.shape[1] or image.shape[2] != mask.shape[2]:
+            mask_tensor = mask2tensor(mask)
+            mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
+            mask = tensor2mask(mask_tensor)
+
         alpha = mask_unsqueeze(mask_floor(mask))
-        assert alpha.shape[0] == image.shape[0], (
-            "Image and mask batch size does not match"
-        )
+        if alpha.shape[0] == 1 and result_image.shape[0] > 1:
+            alpha = alpha.repeat(result_image.shape[0], 1, 1, 1)
+        assert alpha.shape[0] == result_image.shape[0], "图像和遮罩的批次大小不匹配"
 
-        falloff = make_odd(falloff)
-        if falloff > 0:
-            erosion = binary_erosion(alpha, falloff)
-            alpha = alpha * gaussian_blur(erosion, falloff)
+        alpha = _apply_falloff(alpha, falloff)
 
-        if fill == "neutral":
+        if fill_mode == "color":
+            fill_color_r, fill_color_g, fill_color_b = _parse_fill_color(fill_color)
+            fill_color_normalized = torch.tensor(
+                [fill_color_r / 255.0, fill_color_g / 255.0, fill_color_b / 255.0],
+                dtype=result_image.dtype,
+                device=result_image.device,
+            )
+            for i in range(result_image.shape[0]):
+                alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
+                alpha_with_opacity = alpha_i * opacity
+
+                if result_image.shape[-1] == 4:
+                    original_alpha = result_image[i, :, :, 3]
+                    if opacity >= 1.0:
+                        final_alpha = torch.where(
+                            alpha_i > 0, torch.ones_like(original_alpha), original_alpha
+                        )
+                    else:
+                        final_alpha = torch.where(
+                            alpha_i > 0, alpha_with_opacity, original_alpha
+                        )
+                    final_alpha_expanded = final_alpha.unsqueeze(-1).expand(-1, -1, 3)
+                    color_fill = (
+                        torch.ones_like(result_image[i, :, :, :3]) * fill_color_normalized
+                    )
+                    result_image[i, :, :, :3] = (
+                        result_image[i, :, :, :3] * (1.0 - final_alpha_expanded)
+                        + color_fill * final_alpha_expanded
+                    )
+                    result_image[i, :, :, 3] = final_alpha
+                else:
+                    alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
+                    color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
+                    result_image[i] = (
+                        result_image[i] * (1.0 - alpha_expanded) + color_fill * alpha_expanded
+                    )
+            return (result_image,)
+
+        if fill_mode == "neutral":
             m = (1.0 - alpha).squeeze(1)
             for i in range(3):
-                image[:, :, :, i] -= 0.5
-                image[:, :, :, i] *= m
-                image[:, :, :, i] += 0.5
-        else:
-            import cv2
+                result_image[:, :, :, i] -= 0.5
+                result_image[:, :, :, i] *= m
+                result_image[:, :, :, i] += 0.5
+            return (result_image,)
 
-            method = cv2.INPAINT_TELEA if fill == "telea" else cv2.INPAINT_NS
-            for slice, alpha_slice in zip(image, alpha):
-                alpha_np = alpha_slice.squeeze().cpu().numpy()
-                alpha_bc = alpha_np.reshape(*alpha_np.shape, 1)
-                image_np = slice.cpu().numpy()
-                filled_np = cv2.inpaint(
-                    (255.0 * image_np).astype(np.uint8),
-                    (255.0 * alpha_np).astype(np.uint8),
-                    3,
-                    method,
-                )
-                filled_np = filled_np.astype(np.float32) / 255.0
-                filled_np = image_np * (1.0 - alpha_bc) + filled_np * alpha_bc
-                slice.copy_(torch.from_numpy(filled_np))
+        import cv2
 
-        return (image,)
+        method = cv2.INPAINT_TELEA if fill_mode == "telea" else cv2.INPAINT_NS
+        for slice, alpha_slice in zip(result_image, alpha):
+            alpha_np = alpha_slice.squeeze().cpu().numpy()
+            alpha_bc = alpha_np.reshape(*alpha_np.shape, 1)
+            image_np = slice.cpu().numpy()
+            filled_np = cv2.inpaint(
+                (255.0 * image_np).astype(np.uint8),
+                (255.0 * alpha_np).astype(np.uint8),
+                3,
+                method,
+            )
+            filled_np = filled_np.astype(np.float32) / 255.0
+            filled_np = image_np * (1.0 - alpha_bc) + filled_np * alpha_bc
+            slice.copy_(torch.from_numpy(filled_np))
+
+        return (result_image,)
 
 
 class ImageMaskToTransparency:
@@ -1125,110 +1231,4 @@ class MaskFillPercentArea:
         return (result_mask,)
 
 
-class MaskFillColor:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE", {"tooltip": "输入图片"}),
-                "mask": ("MASK", {"tooltip": "输入遮罩，白色区域将被填充"}),
-                "fill_color": (
-                    "COLOR",
-                    {
-                        "default": [255, 255, 255],
-                        "tooltip": "填充颜色 (RGB)",
-                    },
-                ),
-                "opacity": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "填充颜色的不透明度，1.0为完全不透明，0.0为完全透明",
-                    },
-                ),
-                "skip_if_all_white": (
-                    "BOOLEAN",
-                    {
-                        "default": True,
-                        "tooltip": "如果遮罩全白则跳过填充，直接返回原图",
-                    },
-                ),
-            }
-        }
 
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "execute"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "用指定颜色填充图片中mask遮住的部分"
-
-    def execute(self, image, mask, fill_color, opacity, skip_if_all_white=True):
-        if skip_if_all_white:
-            mask_flat = mask.reshape(-1)
-            if torch.all(mask_flat == 1.0).item():
-                return (image,)
-
-        if isinstance(fill_color, str):
-            hex_color = fill_color.lstrip("#")
-            fill_color_r = int(hex_color[0:2], 16)
-            fill_color_g = int(hex_color[2:4], 16)
-            fill_color_b = int(hex_color[4:6], 16)
-        else:
-            fill_color_r, fill_color_g, fill_color_b = fill_color
-
-        result_image = image.detach().clone()
-
-        alpha = mask_unsqueeze(mask_floor(mask))
-        assert alpha.shape[0] == result_image.shape[0] or alpha.shape[0] == 1, (
-            "图像和遮罩的批次大小不匹配"
-        )
-
-        if image.shape[1:3] != alpha.shape[2:4]:
-            mask_tensor = mask2tensor(mask)
-            mask_tensor = rescale_image(mask_tensor, image.shape[2], image.shape[1])
-            mask_rescaled = tensor2mask(mask_tensor)
-            alpha = mask_unsqueeze(mask_floor(mask_rescaled))
-
-        fill_color_normalized = torch.tensor(
-            [fill_color_r / 255.0, fill_color_g / 255.0, fill_color_b / 255.0],
-            dtype=result_image.dtype,
-            device=result_image.device,
-        )
-
-        for i in range(result_image.shape[0]):
-            alpha_i = alpha[i if alpha.shape[0] > 1 else 0].squeeze(0)
-            alpha_with_opacity = alpha_i * opacity
-
-            if result_image.shape[-1] == 4:
-                original_alpha = result_image[i, :, :, 3]
-
-                if opacity >= 1.0:
-                    final_alpha = torch.where(
-                        alpha_i > 0, torch.ones_like(original_alpha), original_alpha
-                    )
-                else:
-                    final_alpha = torch.where(
-                        alpha_i > 0, alpha_with_opacity, original_alpha
-                    )
-
-                final_alpha_expanded = final_alpha.unsqueeze(-1).expand(-1, -1, 3)
-                color_fill = (
-                    torch.ones_like(result_image[i, :, :, :3]) * fill_color_normalized
-                )
-
-                result_image[i, :, :, :3] = (
-                    result_image[i, :, :, :3] * (1.0 - final_alpha_expanded)
-                    + color_fill * final_alpha_expanded
-                )
-                result_image[i, :, :, 3] = final_alpha
-            else:
-                alpha_expanded = alpha_with_opacity.unsqueeze(-1).expand(-1, -1, 3)
-                color_fill = torch.ones_like(result_image[i]) * fill_color_normalized
-                result_image[i] = (
-                    result_image[i] * (1.0 - alpha_expanded)
-                    + color_fill * alpha_expanded
-                )
-
-        return (result_image,)

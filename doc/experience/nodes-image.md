@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -273,3 +273,33 @@
 
 - 非 PNG（jpg/webp 等）两菜单项恒显：readPngWorkflowData 按 PNG magic 校验返回 null → toast「未内嵌工作流数据」，fail-safe 与 LoRA 面板一致。
 - 载入工作流先关浏览弹窗再异步载入（用户意图明确离开浏览），失败仅 toast 可见。
+
+---
+
+## 35. SFMaskFill：统一填充节点（合并 SFMaskedFill / SFMaskFillColor）
+
+> 背景：`nodes/mask/masks.py:MaskFill` 合并原 `MaskedFill`（neutral/telea/navier-stokes）与 `MaskFillColor`（纯色+opacity+skip）为单节点 `SFMaskFill`，前端 `web/sf_mask_fill.js` 按 `fill_mode` 条件显隐，`web/sf_color_picker.js` 适配新类名。决策：**直接删除旧键**（破裂式合并，已获确认）、`falloff` 与 `skip_if_all_white` 提升为全局（对所有模式生效，color 也羽化）、`fill_color/opacity` 仅 color 模式显示。
+
+### 1. 合并策略与兼容性
+
+- **破裂删除**：`__init__.py` 仅留 `SFMaskFill`，历史工作流含 `SFMaskedFill`/`SFMaskFillColor` 将加载失败（Missing node type），需用户手动替换。保留别名可无破裂，但本次按任务目标直接删除。
+- **参数统一**：`fill_mode=[color,neutral,telea,navier-stokes]`；`fill_color:COLOR` + `opacity:FLOAT` 仅 color 分支读取；`falloff:INT` 与 `skip_if_all_white:BOOLEAN` 全局；`DESCRIPTION` 中文并注明合并。
+- **纯函数抽取**：`_parse_fill_color`（hex 字符串与 RGB 列表双形态）与 `_apply_falloff(alpha,falloff)`（`make_odd+binary_erosion*gaussian_blur`）供单测与复用，避免分支内联副本。
+
+### 2. falloff 全局化与尺寸/批次对齐
+
+- **尺寸重采样**：沿用 `MaskFillColor` 的 `mask2tensor→rescale_image→tensor2mask` 宽松策略（`image H/W != mask H/W` 时缩放），对 telea/neutral 同样生效，替代旧 `MaskedFill` 的严格 `assert`。
+- **批次广播**：`alpha` 单例（`[1,1,H,W]`）自动 `repeat` 到 `image` batch；多 batch 仍逐 slice 处理。
+- **falloff 顺序**：`mask_floor→mask_unsqueeze→[resize 重算]→_apply_falloff→分支混合`；color 分支的 `alpha_with_opacity=alpha*opacity` 使用已羽化的 `alpha`，与 telea 的 `alpha_bc` 羽化同源。
+
+### 3. 前端条件显隐（`web/sf_mask_fill.js`）
+
+- 仅对 `SFMaskFill` 生效：`fill_mode` 非 `color` 时 `fill_color.hidden=opacity.hidden=true`，`setDirtyCanvas` 重绘；`fill_mode.callback` 包装原回调 + `configure`/`onAfterGraphConfigured` 双重 `setTimeout(toggle,0)` 保工作流恢复后状态一致。
+- `sf_color_picker.js` 的 COLOR 序列化 hack（`SFImageResizePlus` 同款）同步改 `SFMaskFill` 类名判定，不新增逻辑；`check_web_imports.py` MODS 加 `sf_mask_fill`。
+
+### 4. 模块边界
+
+- `nodes/mask/masks.py:MaskFill`（统一实现，FUNCTION=execute，5 输入 + skip 全局）
+- `web/sf_mask_fill.js`（单文件扩展，`sfnodes.SFMaskFill`，无导出）
+- `web/sf_color_picker.js`（COLOR widget，适配新类名）
+- `__init__.py` 唯一真源 `SFMaskFill`

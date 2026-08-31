@@ -172,7 +172,7 @@ app.registerExtension({
     },
 
     async nodeCreated(node) {
-        if (node.comfyClass === "SFMaskFillColor" || node.comfyClass === "SFImageResizePlus") {
+        if (node.comfyClass === "SFMaskFill" || node.comfyClass === "SFImageResizePlus") {
             const colorWidget = node.widgets.find(w => w.type === "COLOR");
             if (colorWidget) {
                 const name = colorWidget.name;
