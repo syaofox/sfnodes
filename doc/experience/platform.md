@@ -175,7 +175,17 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **改槽名必须同步 `name` 和 `localized_name`** 两字段；若槽已有 `label`（优先级更高，`addInputSocket` 不设但第三方可能设）也需同步。Vue 模式下还需替换数组元素才触发渲染（见 §9 渲染模式差异）。
 - 关联坑：动态槽位节点的**输入槽名必须与后端 `INPUT_TYPES` 键一致**（prompt 序列化依赖），改名后由前端 `graphToPrompt` 补丁映射回 `value{index}`（见 §7 与 any_pack.js 的 `installPromptMapping`）。
 
-### 11. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
+### 11. 画布多选宽度对齐（做"画布背景右键多选操作"必知）
+
+> 背景：`SF Align Width` 画布多选宽度对齐（2026-08，`web/sf_canvas_align*.js`）：系统右键已有对齐/分布，无统一尺寸；需求为选中 ≥2 节点后对齐宽度（Widest / Narrowest / First Selected 子菜单，仅改 `size[0]`）。
+
+- **入口是 `getCanvasMenuItems`，不是 `getExtraMenuOptions`**：后者是节点右键（单节点），前者是画布背景右键；多选操作必须走画布菜单。`sf_workflows` / `sf_lora_browser` 同款入口，无需 monkey-patch `LGraphCanvas.prototype.getCanvasMenuOptions`（随前端版本易碎）。
+- **选中集四形态兼容**：`app.canvas.selected_nodes` 在不同 ComfyUI/前端版本为 `Object` / `Array` / `Map` / `Set` 四种之一；`Map values()` / `Set` 需 `[...sel.values()]` / `[...sel]`，`Object` 走 `Object.values`。为空时回退扫描 `graph._nodes` 上 `is_selected` / `flags.is_selected`（Vue 模式的框选标记）。**单选时不回退扫描**，避免把悬停误判为多选。`<2` 节点不注入菜单，保持右键纯净。
+- **菜单子菜单键名**：LiteGraph `ContextMenu` 认 `has_submenu: true` + `submenu: { options: [...] }`；ComfyUI 前端透传该结构，Classic/Vue 双兼容。仅改对象键名即可修复"子菜单不展开"，零逻辑风险。
+- **尺寸语义**：读 `node.size[0]` 优先，回退 `node.computeSize()[0]`（节点新建时 size 可能未落盘）；写时 `Math.max(targetW, computeSize()[0])` 钳制到最小宽，避免缩到不可渲染；高度 `size[1]` 保持不变。`beforeChange/afterChange + setDirtyCanvas(true,true)` 保证撤销与重绘。
+- **纯逻辑边界**：`sf_canvas_align_lib.js` 无 `app` 依赖，三函数 `getSelectedNodes / calcTargetWidth / alignNodesWidth` 可拷 `.mjs` 直测；`sf_canvas_align.js` 仅做接线（`import {app} from "/scripts/app.js"`，满足 `check_web_imports.py` B2/B3）。
+
+### 12. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
 
 > 背景：SFComboSelector 通用下拉选择器（2026-08，前端 1.48.6，当时版本）：输出连到目标节点 combo 输入（Convert to input 后）→ 下拉选项自动同步为目标选项列表。踩坑链：连线后选项不动 → 事件没触发? → 数据层取不到列表 → 目标节点解析失败。
 

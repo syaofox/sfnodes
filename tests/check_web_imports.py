@@ -65,6 +65,8 @@ MODS = [
     "sf_krea2_presets",
     # Diffusion Model 信息面板家族（dmodel 域路由束 + 节点扩展）
     "sf_dmodel_api", "sf_load_diffusion_model",
+    # 画布对齐（多选宽度对齐：lib 纯逻辑 + 主扩展画布菜单子菜单）
+    "sf_canvas_align", "sf_canvas_align_lib",
     # 单文件多依赖节点
     "load_images_path", "sf_prompt_reader", "sf_prompt_list", "sf_mask_fill",
 ]
