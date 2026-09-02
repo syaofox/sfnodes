@@ -370,3 +370,28 @@
 - **纯逻辑** `web/sf_lora_preset_filter.js`（无 `app` 依赖，`filterPresets(presets,q)` 大小写不敏感 `includes`，`highlight(text,q)` 转义后包 `mark`），拷 `.mjs` 单测 `tests/test_lora_preset_filter.mjs`
 - **大面板** `web/sf_lora_preset_manager.js`（`sf_popup` 三件套 + `filterPresets/highlight` + `loadPresets/deletePreset/renamePreset` + `sanitizePositive`），栈与预设节点共用 `openLoraPresetManager({node,widget,getActive,onSelect})`，`onSelect` 对栈走 `presetToRows/writeState`，对节点走 `widget.value/callback`
 - **同步**：两入口共用同一 `allPresets` 引用过滤，`rename/delete` 后原地更新 `allPresets` 并同步 `activePreset`（`readState` 清空或更新），小浮层下次打开重拉即同步
+
+---
+
+## 35. SFImageInterrogator seed 与 control_after_generate：显式声明与 widgets_values 位置敏感自愈（2026-08）
+
+> 背景：`nodes/model/krea2.py:540 SFImageInterrogator` 的 `seed` 原为 `("INT", {default:0})` 未声明 `control_after_generate`，但 ComfyUI 前端对命名含 `seed` 的 INT 自动追加 `control_after_generate` combo（`SFSeed` 需 `web/seed.js:94 splice` 移除即证据）。未显式声明→隐式追加导致前后端 widget 序列不一致（Python 11 个，前端 12 个含 control），`widgets_values` 按索引恢复时旧图 `vision_megapixels=1.0` 落入 `control` 槽位，界面显示 `control=1`（即用户反馈“运行后变成1”）。
+
+### 1. 根因：隐式 control 追加 + 位置敏感
+- ComfyUI 前端对 `seed` INT 的启发式追加在 `SFSeed` 已验证（显式移除）；`SFImageInterrogator` 未移除亦未声明，隐式存在但未在 Python 序列化契约中体现
+- `widgets_values` 为位置数组：旧工作流（无 thinking 前为 10 值，含 thinking 后为 11 值）载入显式含 control 的 12 widget 节点时，`control` 槽位恰取旧 `vision=1.0` 值→数值 `1` 渲染为 control 值
+- `web/krea2_interrogator.js:73 afterConfigureGraph` 原仅自愈 `user_prompt(string)` / `vision(number)`，未覆盖 `seed(int)` / `control(enum)` / `thinking(boolean)` 的交叉污染
+
+### 2. 修复：显式声明 + 自愈
+- **Python**：`nodes/model/krea2.py:598 seed` 追加 `"control_after_generate": True`（对齐 `nodes.py:1602 KSampler` 范式），前后端 widget 序列显式一致，工作流 `widgets_values` 长度稳定为 12
+- **前端**：`web/krea2_interrogator.js:73 afterConfigureGraph` 扩展四项守卫：
+  - `seed` 非整数→`parseInt` 回退 `0`（字符串 `"fixed"` 落入 seed 时）
+  - `control_after_generate` 非字符串或不在 `["fixed","increment","decrement","randomize"]` →回退 `"fixed"`（数值 `1` 污染一律 fixed，默认不递增，用户显式选 increment 保留）
+  - `vision_megapixels` 保留原数字自愈
+  - `thinking` 非 boolean→回退 `false`
+- **默认**：显式声明后 control 默认 `fixed`（与需求一致：不自动递增，需增量时用户手动选 `increment/randomize`）
+
+### 3. 教训
+- 任何 `seed` INT 必须显式声明 `control_after_generate` 或显式 `splice` 移除，禁止依赖前端隐式追加（隐式=前后端契约不一致=位置敏感 bug 温床）；新增 widget 一律追加末尾仅在显式契约下才安全
+- `afterConfigureGraph` 自愈需覆盖 `widgets_values` 中所有可能被错位的槽位（本例 seed/control/vision/thinking 四项），仅修一两项会遗漏 `control=1` 类症状
+- 测试：`tests/test_interrogator_control.py`（Python 声明） + `tests/test_krea2_interrogator_smoke.mjs`（JS 污染自愈：control numeric→fixed、seed string→0、vision string→1.0、thinking 非 bool→false、缺 control 不崩）

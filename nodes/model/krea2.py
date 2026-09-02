@@ -597,6 +597,7 @@ class SFImageInterrogator:
                 }),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
                     "tooltip": "随机种子。相同参数与种子可复现相同结果",
                 }),
             },

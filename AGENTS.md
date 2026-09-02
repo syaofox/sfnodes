@@ -116,6 +116,7 @@ class SFMyNode:
 - **SFTextListAffix**（text §37）：输入 `STRING` 列表逐项加前后缀，`INPUT_IS_LIST+OUTPUT_IS_LIST` 透传；前后缀 `\n`/`\t` 转义、`filter_empty` 去空白空项（对齐 `SFPromptList`），`sf_utils/string.py:affix_list` 纯函数复用。
 - **TextEncodeKrea2 视觉通路**（lora §33）：Qwen3-VL tokenizer 每视觉占位符只绑 images 列表单元素、batch 参考图只取 [0]（官方编辑节点同款）；min_pixels=3136 官方兜底极小裁剪图，勿自建最小尺寸保护；RGBA 先黑底预乘再缩放（反序会把透明区杂色扩散进边缘）。
 - **SFLoraStack**（lora §19/§19.7/§20·§34）：Civitai API 字段位置必须实测（description 在 version 顶层）；用户数据以路径为键→改名失配两级孤儿匹配（内容指纹优先基名兜底）；强调色 --sf-acc 三时序坑（onChange 参数即新值 / 重绘 setTimeout(0) / 异步加载轮询）；行名设置 sfnodes.Lora.DisplayName 单真源 sf_common.loraRowLabel；ortho_gs 独立加载路径收敛 ortho_apply，ok_paths 是 set 勿直接迭代组装顺序敏感结果；复合预设 positive 与 triggers 分离、机器级存储、栈内 Presets 菜单同表单保存、SFLoraPreset 的 STRING 输出流通。
+- **SFImageInterrogator seed**（lora §35）：`seed` 必须显式声明 `control_after_generate` 或显式移除，禁止依赖前端隐式追加；隐式追加导致 `widgets_values` 位置敏感错位 `control=1`；自愈需全覆盖 `seed/control/vision/thinking` 四槽。
 - **LoRA 数据统一网关**（lora §19）：lora_triggers.json 单一真源（lora_notes 只做形状转换）；跨节点缓存失效经 sfnodes.lora-data-changed 事件桥；信息对话框与 Stack 面板同一数据语义。
 - **Civitai 页面抓取**（lora §21 / patterns §27）：页面是 Next.js SSR，数据在 `__NEXT_DATA__` 按 queryKey 定位勿碰 DOM；**TLS 指纹被 Cloudflare 拦截——curl_cffi impersonate="chrome"，Chrome UA 的 aiohttp 也 403**；描述统一 _html_to_markdown 幂等保护（无 `<` 输入只轻清洗原样放行）。
 - **值通道模式**（lora §25/§28）：hidden STRING 真源随 workflow 保存 + DOM widget 纯交互不承担值传输（regional_lora/styles_selector 同款）；加载期 isGraphLoading 门控点击防覆盖刚恢复的选择。

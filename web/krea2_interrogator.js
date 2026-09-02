@@ -68,10 +68,12 @@ app.registerExtension({
     },
     // 防御：ComfyUI 前端按 widget 数组索引恢复旧工作流的值（widgets_values 位置敏感）。
     // 若旧版保存的工作流因 widget 顺序变化发生值错位（如 vision_megapixels 的数值 1
-    // 落入 user_prompt、或 user_prompt 文本落入 vision_megapixels），图加载完成后按
-    // widget 名自愈：user_prompt 必须是字符串，vision_megapixels 必须是数字。
+    // 落入 user_prompt、或 user_prompt 文本落入 vision_megapixels；以及隐式
+    // control_after_generate 追加导致 vision 误落 control 槽位→control 显示为 1），
+    // 图加载完成后按 widget 名自愈。
     afterConfigureGraph() {
         const nodes = app.graph?._nodes?.filter((n) => n?.comfyClass === COMIFY_CLASS) ?? [];
+        const CAG_ALLOWED = ["fixed", "increment", "decrement", "randomize"];
         for (const node of nodes) {
             const userPrompt = node.widgets?.find((w) => w.name === "user_prompt");
             if (userPrompt && typeof userPrompt.value !== "string") {
@@ -82,6 +84,28 @@ app.registerExtension({
             if (megapixels && typeof megapixels.value !== "number") {
                 const parsed = parseFloat(megapixels.value);
                 megapixels.value = Number.isFinite(parsed) ? parsed : 1.0;
+                node.setDirtyCanvas?.(true, true);
+            }
+            const seedWidget = node.widgets?.find((w) => w.name === "seed");
+            if (seedWidget && !Number.isInteger(seedWidget.value)) {
+                const parsed = Number(seedWidget.value);
+                seedWidget.value = Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+                // NaN / 字符串污染（如 "fixed" 落入 seed）回退 0
+                if (!Number.isInteger(seedWidget.value)) seedWidget.value = 0;
+                node.setDirtyCanvas?.(true, true);
+            }
+            const cag = node.widgets?.find((w) => w.name === "control_after_generate");
+            if (cag) {
+                if (typeof cag.value !== "string" || !CAG_ALLOWED.includes(cag.value)) {
+                    // 数值污染（旧图 vision=1.0 落入 control→显示为 1）一律回退 fixed（默认不递增）
+                    cag.value = "fixed";
+                    node.setDirtyCanvas?.(true, true);
+                }
+            }
+            const thinking = node.widgets?.find((w) => w.name === "thinking");
+            if (thinking && typeof thinking.value !== "boolean") {
+                // 旧污染（数值/字符串落入）一律回退 false（默认不思考）
+                thinking.value = thinking.value === true || thinking.value === "true";
                 node.setDirtyCanvas?.(true, true);
             }
         }
