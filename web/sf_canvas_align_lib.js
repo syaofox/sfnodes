@@ -1,5 +1,5 @@
 // ==========================================================================
-// sf_canvas_align_lib.js — 画布多选宽度对齐纯逻辑（无 app/ DOM 依赖）
+// sf_canvas_align_lib.js — 画布多选尺寸对齐纯逻辑（无 app/ DOM 依赖）
 // 可直接拷 .mjs 用 Node 单测。
 // ==========================================================================
 
@@ -94,10 +94,38 @@ function nodeHeight(n) {
     return 0;
 }
 
+export function calcTargetHeight(nodes, mode) {
+    if (!Array.isArray(nodes) || nodes.length === 0) return 0;
+    if (mode === "first") return nodeHeight(nodes[0]);
+    if (mode === "shortest") {
+        let min = Infinity;
+        for (const n of nodes) {
+            const h = nodeHeight(n);
+            if (h > 0 && h < min) min = h;
+        }
+        return min === Infinity ? 0 : min;
+    }
+    // tallest (default)
+    let max = 0;
+    for (const n of nodes) {
+        const h = nodeHeight(n);
+        if (h > max) max = h;
+    }
+    return max;
+}
+
 function minWidth(n) {
     try {
         const cs = n.computeSize?.();
         if (Array.isArray(cs) && typeof cs[0] === "number" && isFinite(cs[0])) return cs[0];
+    } catch { /* ignore */ }
+    return 0;
+}
+
+function minHeight(n) {
+    try {
+        const cs = n.computeSize?.();
+        if (Array.isArray(cs) && typeof cs[1] === "number" && isFinite(cs[1])) return cs[1];
     } catch { /* ignore */ }
     return 0;
 }
@@ -113,6 +141,48 @@ export function alignNodesWidth(nodes, targetW) {
         const w = Math.max(tw, mw || 0);
         const h = nodeHeight(n) || n.size?.[1] || 0;
         if (!h) continue;
+        try {
+            if (typeof n.setSize === "function") n.setSize([w, h]);
+            else n.size = [w, h];
+            count++;
+        } catch { /* ignore single node failure */ }
+    }
+    return count;
+}
+
+export function alignNodesHeight(nodes, targetH) {
+    if (!Array.isArray(nodes) || nodes.length === 0) return 0;
+    const th = Number(targetH);
+    if (!isFinite(th) || th <= 0) return 0;
+    let count = 0;
+    for (const n of nodes) {
+        if (!n) continue;
+        const mh = minHeight(n);
+        const h = Math.max(th, mh || 0);
+        const w = nodeWidth(n) || n.size?.[0] || 0;
+        if (!w) continue;
+        try {
+            if (typeof n.setSize === "function") n.setSize([w, h]);
+            else n.size = [w, h];
+            count++;
+        } catch { /* ignore single node failure */ }
+    }
+    return count;
+}
+
+export function alignNodesSize(nodes, targetW, targetH) {
+    if (!Array.isArray(nodes) || nodes.length === 0) return 0;
+    const tw = Number(targetW);
+    const th = Number(targetH);
+    if ((!isFinite(tw) || tw <= 0) && (!isFinite(th) || th <= 0)) return 0;
+    let count = 0;
+    for (const n of nodes) {
+        if (!n) continue;
+        const mw = minWidth(n);
+        const mh = minHeight(n);
+        const w = isFinite(tw) && tw > 0 ? Math.max(tw, mw || 0) : (nodeWidth(n) || n.size?.[0] || 0);
+        const h = isFinite(th) && th > 0 ? Math.max(th, mh || 0) : (nodeHeight(n) || n.size?.[1] || 0);
+        if (!w || !h) continue;
         try {
             if (typeof n.setSize === "function") n.setSize([w, h]);
             else n.size = [w, h];

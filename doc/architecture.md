@@ -94,7 +94,7 @@ sfnodes/
 │   ├── sf_krea2_presets.js # Krea2 预设管理共享模块（Interrogator/SystemPrompt 共用：API 封装 + combo 动态重建 + 节点"管理预设"按钮 + 管理 popup，复用 sf_popup.js；改动派发 sfnodes.<kind>-presets-changed 事件）
 │   ├── sf_regional_lora*.js # 多区域 LoRA 两模块（SFRegionalLoRA：lib 纯函数 + 主扩展，DOM canvas 多 box 拖拽/8 向 resize/画新框/背景图对齐，隐藏 SFRegionsJson widget 真源，行控件 enable/lora/strength/remove）
 │   ├── sf_styles_selector*.js # 风格选择器两模块（SFStylesSelector：lib 纯函数 + 主扩展，标签多选列表搜索/清空/选中置顶/hover 缩略图，隐藏 SFStylesState widget 真源，DOM widget 纯交互不承担值传输）
-│   ├── sf_canvas_align*.js # 画布多选宽度对齐两模块（SF Align Width 子菜单：Widest / Narrowest / First Selected，仅改 size[0] + beforeChange/afterChange 撤销；lib 纯逻辑 getSelectedNodes/calcTargetWidth/alignNodesWidth 四形态 selected_nodes 兼容 + 最小宽钳制；主扩展 getCanvasMenuItems 画布背景右键 ≥2 节点才注入）
+│   ├── sf_canvas_align*.js # 画布多选尺寸对齐三入口两模块（SF Align Width/Height/Size：Widest/Narrowest/Tallest/Shortest/First Selected + Size 同时改两维；lib 纯逻辑 getSelectedNodes/calcTargetWidth/calcTargetHeight/alignNodesWidth/alignNodesHeight/alignNodesSize 四形态兼容 + 最小尺寸钳制；主扩展 getCanvasMenuItems 画布背景右键 ≥2 节点才注入）
 │   └── 其余单节点 JS（text_replace/text_concatenate/simple_math/loop_flow/any_pack/image_browser（SFLoadImageBrowser 弹窗浏览器：缩略图网格/面包屑/排序/删除，图片右键菜单——复制正向提示词走 /api/sfnodes/prompt_reader/extract、载入工作流经 loadWorkflowFromImageUrl+/view 原始字节）/lora_loader*/lora_loader_model_only/multi_lora_tree/image_compare/image_concatenate/regex_extract/prompt_batcher/empty_latent_ratio/krea2_*/seed/canvas_size/workflow_name/sf_combo_selector/sf_color_picker/showcontrol/DisplayText/SFLogicSwitch/...）
 ├── data/                # 静态数据（anime_char CSV、face_distance 字体、prompt_presets.json 提示词预设、styles/fooocus_styles.json 内置风格库 + samples/ 缩略图等）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
