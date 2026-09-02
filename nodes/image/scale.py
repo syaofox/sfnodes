@@ -154,7 +154,7 @@ class ImageScalerByPixels(BaseImageScaler):
                 "limit": (
                     "BOOLEAN",
                     {
-                        "default": True,
+                        "default": False,
                         "tooltip": "限制缩放比例，如果图像的像素数小于目标像素数，则不缩放图像",
                     },
                 ),
