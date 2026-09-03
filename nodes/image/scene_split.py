@@ -51,6 +51,20 @@ class SFImageSceneSplit:
                     {"default": 0.18, "min": 0.05, "max": 0.8, "step": 0.01, "tooltip": "溶解单步阈值（窗口内单步均值需高于此才判溶解）"},
                 ),
             },
+            "optional": {
+                "enable_black": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "检闪黑（黑场段边界，关则跳切不受闪黑抬阈影响）"},
+                ),
+                "enable_white": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "检闪白（关则跳切不受白闪抬阈影响）"},
+                ),
+                "enable_dissolve": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "检溶解/渐变（关则仅跳切+闪黑白）"},
+                ),
+            },
         }
 
     RETURN_TYPES = ("IMAGE", "INT", "STRING", "INT", "IMAGE")
@@ -61,7 +75,8 @@ class SFImageSceneSplit:
     DESCRIPTION = "视频帧镜头切分：检测硬切/黑场/白闪/溶解，按 segment_index 输出指定段（负数倒数，越界抛错），max_frames 取首 N 帧；all_segments 以 LIST 输出全部分段"
 
     def execute(self, images, threshold, black_threshold, white_threshold, min_scene_len,
-                segment_index, max_frames, method, dissolve_window, dissolve_threshold):
+                segment_index, max_frames, method, dissolve_window, dissolve_threshold,
+                enable_black=True, enable_white=True, enable_dissolve=True):
         from ...sf_utils.scene_detect import detect_scenes
 
         if images is None or not isinstance(images, torch.Tensor) or images.ndim != 4:
@@ -98,6 +113,9 @@ class SFImageSceneSplit:
             method=str(method),
             dissolve_window=int(dissolve_window),
             dissolve_threshold=float(dissolve_threshold),
+            enable_black=bool(enable_black),
+            enable_white=bool(enable_white),
+            enable_dissolve=bool(enable_dissolve),
         )
         scene_count = len(cuts) - 1
 

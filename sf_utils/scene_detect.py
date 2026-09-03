@@ -216,7 +216,8 @@ def _process_frame(frame, bins=32, longest=160):
 
 def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=0.92,
                   min_scene_len=12, method="auto", dissolve_window=8, dissolve_threshold=0.18,
-                  bins=32, longest=160):
+                  bins=32, longest=160,
+                  enable_black=True, enable_white=True, enable_dissolve=True):
     """帧序列 -> 切点列表 [0, cut1, ..., B]（含起止）。
 
     frames: np.ndarray [B,H,W,3] uint8/float 或 iterable[frame]
@@ -287,7 +288,7 @@ def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=
         if d > adapt_thr[i]:
             cuts.add(i + 1)
 
-    # 2) 黑/白场连续段边界
+    # 2) 黑/白场连续段边界（开关隔离，跳切 fused 不被闪光抬阈）
     def add_runs(mask, is_black=True):
         i = 0
         while i < B:
@@ -304,30 +305,33 @@ def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=
                     cuts.add(s)
                 if e + 1 < B:
                     cuts.add(e + 1)
-    black_mask = [m < black_threshold for m in means]
-    white_mask = [m > white_threshold for m in means]
-    add_runs(black_mask, is_black=True)
-    add_runs(white_mask, is_black=False)
+    if enable_black:
+        black_mask = [m < black_threshold for m in means]
+        add_runs(black_mask, is_black=True)
+    if enable_white:
+        white_mask = [m > white_threshold for m in means]
+        add_runs(white_mask, is_black=False)
 
-    # 3) 溶解/渐变（滑窗累积，RGB 直方图）
-    W = int(dissolve_window)
-    if W >= 2 and B > W:
-        step_dists = fused  # 复用融合距离作单步
-        for i in range(B - W):
-            # 累积距离用 RGB 直方图跨窗
-            D = _hist_distance_rgb(hists_rgb_list[i], hists_rgb_list[i + W])
-            # 也可用 HSV 跨窗取 max 更敏感
-            D_hsv = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + W])
-            D = max(D, D_hsv)
-            window_steps = step_dists[i : i + W]
-            avg_step = float(np.mean(window_steps)) if window_steps else 0.0
-            max_step = float(np.max(window_steps)) if window_steps else 0.0
-            # 自适应阈值取窗起点对应阈值
-            thr = adapt_thr[i] if i < len(adapt_thr) else float(threshold)
-            if D > thr and max_step < thr and avg_step > dissolve_threshold:
-                mid = i + W // 2 + 1
-                if 0 < mid < B:
-                    cuts.add(mid)
+    # 3) 溶解/渐变（滑窗累积，RGB 直方图，开关隔离）
+    if enable_dissolve:
+        W = int(dissolve_window)
+        if W >= 2 and B > W:
+            step_dists = fused  # 复用融合距离作单步（纯跳切 fused，不含黑白抬阈）
+            for i in range(B - W):
+                # 累积距离用 RGB 直方图跨窗
+                D = _hist_distance_rgb(hists_rgb_list[i], hists_rgb_list[i + W])
+                # 也可用 HSV 跨窗取 max 更敏感
+                D_hsv = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + W])
+                D = max(D, D_hsv)
+                window_steps = step_dists[i : i + W]
+                avg_step = float(np.mean(window_steps)) if window_steps else 0.0
+                max_step = float(np.max(window_steps)) if window_steps else 0.0
+                # 自适应阈值取窗起点对应阈值
+                thr = adapt_thr[i] if i < len(adapt_thr) else float(threshold)
+                if D > thr and max_step < thr and avg_step > dissolve_threshold:
+                    mid = i + W // 2 + 1
+                    if 0 < mid < B:
+                        cuts.add(mid)
 
     # 4) 去抖：相邻切点距 < min_scene_len 则合并（删后者）
     cand = sorted(cuts)
