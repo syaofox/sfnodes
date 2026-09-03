@@ -4,13 +4,13 @@
 输入帧为 uint8 RGB [H,W,3] 或 float [0,1]，内部统一转 uint8 小图后对比。
 
 检测四类（融合 max）：
-  - 硬切（跳切）：RGB 直方图 + HSV 直方图 + 边缘差 + 2×2 分块直方图 max + RGB 像素差 的 max > 自适应阈值
+  - 硬切（跳切）：RGB 直方图 + HSV 直方图/均差 + 边缘差 + 4×4 分块直方图 max + RGB 像素差 的 max > 自适应阈值
   - 黑场：连续黑帧（灰度均值 < black_threshold）段边界
   - 白闪：连续白帧（灰度均值 > white_threshold）段边界
   - 溶解/渐变：滑窗 W 内累积 RGB 直方图距离 > threshold 且窗内单步 max < threshold 且 avg > dissolve_threshold
 
-最短场景去抖：相邻切点距 < min_scene_len 则合并（删后者），尾段不足也合并。
-自适应：threshold' = max(threshold, μ+3σ)，μ/σ 取前 32 帧融合距离滑动窗，抑制抖动误切。
+最短场景去抖：相邻切点距 < min_scene_len 则合并（删后者，81 帧短片按 B//12 自适应→6），尾段不足也合并。
+自适应：threshold' = max(threshold, μ+3σ)，μ/σ 取前 16(短片)/32(长片) 帧融合距离滑动窗，抑制抖动误切。
 """
 
 import math
@@ -142,6 +142,25 @@ def _hist_hsv(small_rgb, bins=32):
         return hist
 
 
+def _hsv_mean_diff(small_rgb1, small_rgb2):
+    """PySceneDetect 式 HSV 均差（H 环绕 180/255），归一 0-1，阈值 27→0.106。"""
+    try:
+        import cv2  # type: ignore
+
+        hsv1 = cv2.cvtColor(small_rgb1, cv2.COLOR_RGB2HSV)
+        hsv2 = cv2.cvtColor(small_rgb2, cv2.COLOR_RGB2HSV)
+        h1, s1, v1 = hsv1[:, :, 0].astype(int), hsv1[:, :, 1].astype(int), hsv1[:, :, 2].astype(int)
+        h2, s2, v2 = hsv2[:, :, 0].astype(int), hsv2[:, :, 1].astype(int), hsv2[:, :, 2].astype(int)
+        dh = np.abs(h1 - h2)
+        dh = np.minimum(dh, 180 - dh)  # H 环绕
+        # 归一：H 90 为半程，S/V 255
+        return float((np.mean(dh) / 90.0 + np.mean(np.abs(s1 - s2)) / 255.0 + np.mean(np.abs(v1 - v2)) / 255.0) / 3.0)
+    except Exception:
+        pass
+    # 无 cv2 回退为 RGB 均差
+    return _diff_distance_rgb(small_rgb1, small_rgb2)
+
+
 def _sobel_edge(small_gray):
     try:
         import cv2  # type: ignore
@@ -214,7 +233,7 @@ def _process_frame(frame, bins=32, longest=160):
     return small_rgb, small_gray, hists_rgb, hist_hsv, edge, mean
 
 
-def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=0.92,
+def detect_scenes(frames, threshold=0.20, black_threshold=0.08, white_threshold=0.92,
                   min_scene_len=12, method="auto", dissolve_window=8, dissolve_threshold=0.18,
                   bins=32, longest=160,
                   enable_black=True, enable_white=True, enable_dissolve=True):
@@ -255,27 +274,28 @@ def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=
 
     cuts = set()
 
-    # 预计算融合距离（B-1）
+    # 预计算融合距离（B-1）：HSV 均差 + RGB 直方图 + 像素差 + 边缘 + 4×4 分块（同调色靠分块）
     fused = []
     for i in range(B - 1):
         d_rgb = _hist_distance_rgb(hists_rgb_list[i], hists_rgb_list[i + 1])
-        d_hsv = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + 1])
+        d_hsv_hist = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + 1])
+        d_hsv_mean = _hsv_mean_diff(rgbs[i], rgbs[i + 1])
+        d_hsv = max(d_hsv_hist, d_hsv_mean)
         d_diff = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
         d_edge = _diff_distance(edges[i], edges[i + 1])
         d_block = _block_hist_distance_rgb(rgbs[i], rgbs[i + 1], bins=16)
         fused.append(max(d_rgb, d_hsv, d_diff, d_edge, d_block))
 
-    # 自适应阈值（32 帧滑动窗 μ+3σ），抑制抖动段误切
+    # 自适应阈值：短片 81 帧占 40% 窗过大，按 B 缩放（81→16，>120→32），抑制抖动段误切
     adapt_thr = []
-    window = 32
+    adapt_window = 16 if B < 120 else 32
     for i in range(len(fused)):
         base = float(threshold)
         if i >= 5:
-            win = fused[max(0, i - window) : i]
+            win = fused[max(0, i - adapt_window) : i]
             if len(win) >= 4:
                 mu = float(np.mean(win))
                 sigma = float(np.std(win))
-                # 仅当方差有意义时提升阈值
                 if sigma > 1e-6:
                     cand = mu + 3.0 * sigma
                     if cand > base:
@@ -333,18 +353,23 @@ def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=
                     if 0 < mid < B:
                         cuts.add(mid)
 
-    # 4) 去抖：相邻切点距 < min_scene_len 则合并（删后者）
+    # 4) 去抖：81 帧短片 min 12→0.74s 会吞 0.5s 短镜头，按 B 缩放（81→6，>144→12）
+    effective_min = int(min_scene_len)
+    if B < 120:
+        # B//12 对 81→6，B=30→3
+        adapt_min = max(3, B // 12)
+        effective_min = min(effective_min, adapt_min)
     cand = sorted(cuts)
     cand = [c for c in cand if 0 < c < B]
     merged = []
     last = 0
     for c in cand:
-        if c - last >= min_scene_len:
+        if c - last >= effective_min:
             merged.append(c)
             last = c
     final = [0] + merged
     if final[-1] != B:
-        if B - final[-1] >= min_scene_len or len(final) == 1:
+        if B - final[-1] >= effective_min or len(final) == 1:
             final.append(B)
         else:
             if len(final) > 1:
