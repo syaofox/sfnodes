@@ -395,3 +395,31 @@
 - 任何 `seed` INT 必须显式声明 `control_after_generate` 或显式 `splice` 移除，禁止依赖前端隐式追加（隐式=前后端契约不一致=位置敏感 bug 温床）；新增 widget 一律追加末尾仅在显式契约下才安全
 - `afterConfigureGraph` 自愈需覆盖 `widgets_values` 中所有可能被错位的槽位（本例 seed/control/vision/thinking 四项），仅修一两项会遗漏 `control=1` 类症状
 - 测试：`tests/test_interrogator_control.py`（Python 声明） + `tests/test_krea2_interrogator_smoke.mjs`（JS 污染自愈：control numeric→fixed、seed string→0、vision string→1.0、thinking 非 bool→false、缺 control 不崩）
+
+---
+
+## 36. SFLoraStack 触发词勾选全局默认（新建行默认值，工作流覆盖，2026-08）
+
+> 背景：信息面板 `Toggle` 勾选的触发词仅活在 `node.properties.loraStackState.loras[].triggers` 随工作流保存，新建行/新工作流同 LoRA 永空，用户反馈“勾选没有持久化”。需求细化为**工作流覆盖全局、全局仅作新建行默认值**（与 `custom` 自定义词全局存储同范式，避免静默覆盖用户刻意清空）。
+
+### 1. 存储与契约
+
+- `sf_utils/lora_reader.py` 条目形状 `{words,description,fp,selected?}`（`selected` 复用 `sanitize_custom_words` 去重、上限 64/200，缺省 `[]`）：`_norm_store_entry` 归一、`read_custom_store/write_custom_store` 判空改为 `words||description||selected` 任一非空保留、`set_custom_triggers/set_custom_description` 保留对方 `selected` 不丢、`set_custom_selected/get_custom_selected` 新 API（持 `_STORE_LOCK` RMW，`fp` 同步记录）。
+- `migrate_custom_data/merge_custom_data` 追加 `selected`（迁移整字段、合并并集去重），与词/描述同指纹/基名两级孤儿匹配语义。
+- 旧文件兼容：缺 `selected` 读 `[]`，不截断已有 `words/description`。
+
+### 2. 路由
+
+- `sf_utils/lora_routes.py` 新增 `POST /api/sfnodes/lora/custom_selected`（`{name, selected: string[]}`，`_resolve_lora_path` + `_is_path_under` 守卫 + `_notes_async_lock` 协程锁 + `file_fingerprint` 指纹写入，接 `invalidateInfo+broadcast`）。
+- `GET /api/sfnodes/lora_info` 附加 `custom_selected`（与 `custom_triggers/custom_description` 同源）、孤儿分支追加 `orphan_selected`，缺失文件回退亦带 `custom_selected`。
+
+### 3. 前端
+
+- `web/sf_lora_stack_api.js` 新增 `saveCustomSelected(name, selected)`（`invalidateInfo+broadcast`，fire-and-forget）。
+- `web/sf_lora_stack_info.js`：`info` 初值补 `custom_selected:[]`；`persistSelected` 封装（`hideTriggers` 域短路，防写错域）；`toggleWord/setWords` 在 `patchRow` 后同步 `saveCustomSelected`；`addCustom/removeCustom` 同步 `custom+selected` 双写；`hydrateCustom` 扩展为空行回填（`row.triggers.length===0 && storedSel.length>0` 时取 `file_triggers/sidecar_triggers/custom` 并集过滤后去重保序回填，`refresh(false)`，仅空行触发，工作流非空不覆盖）。
+
+### 4. 经验与坑
+
+- `selected` 不进 `promptState`（`sf_lora_stack_core.js:256`），避免“改默认就重跑”缓存污染；仅面板 hydrate 用。
+- `hideTriggers`（diffusion 域）全程短路，防止 LoRA 选中写进 `dmodels.json` 撞槽。
+- 空行回填需过滤：`storedSel` 含已删词时按可用词交集过滤，避免幽灵词复活；实现时 `avail` 取 `file_triggers/sidecar/triggers/merged/stored` 并集，先 `filter` 再去重保序。

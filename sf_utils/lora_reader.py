@@ -1070,21 +1070,29 @@ def find_orphan_by_fingerprint(store, fp, exclude=None):
 
 
 def _norm_store_entry(v):
-    """旧 {key: [words]} 与新 {key: {"words", "description", "fp"?}} 兼容
-    归一。非 dict/list 垃圾 -> 空条目。"""
+    """旧 {key: [words]} 与新 {key: {"words", "description", "fp"?, "selected"?}} 兼容
+    归一。非 dict/list 垃圾 -> 空条目。
+
+    `selected` 为全局默认勾选（与 `words` 同 sanitization，上限 64），仅作
+    新建行默认值，工作流的 `triggers` 覆盖它（见 sf_lora_stack_info hydrate）。
+    旧条目缺 `selected` -> []。"""
     if isinstance(v, dict):
         return {
             "words": sanitize_custom_words(v.get("words")),
             "description": sanitize_custom_description(v.get("description")),
             "fp": _norm_fp(v.get("fp")),
+            "selected": sanitize_custom_words(v.get("selected")),
         }
-    return {"words": sanitize_custom_words(v), "description": "", "fp": None}
+    return {"words": sanitize_custom_words(v), "description": "", "fp": None, "selected": []}
 
 
 def read_custom_store(path):
-    """整个存储为 {key: {"words": [...], "description": str}}。旧形状
+    """整个存储为 {key: {"words": [...], "description": str, "selected": [...]}}。旧形状
     （{key: [words]}）自动升级读取。永不抛错——缺失/损坏文件必须读作空，
-    绝不能弄坏面板。"""
+    绝不能弄坏面板。
+
+    `selected` 为全局默认勾选（与 `words` 同上限，仅作新建行默认值），
+    空也保留（若同键已有 `words/description/selected` 任一非空即保留条目）。"""
     with _STORE_LOCK:
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -1099,7 +1107,7 @@ def read_custom_store(path):
             if not key:
                 continue
             entry = _norm_store_entry(v)
-            if entry["words"] or entry["description"]:
+            if entry["words"] or entry["description"] or entry["selected"]:
                 out[key] = entry
             if len(out) >= _MAX_CUSTOM_LORAS:
                 break
@@ -1107,10 +1115,10 @@ def read_custom_store(path):
 
 
 def write_custom_store(path, store):
-    """写整个存储（新形状 {key: {"words", "description"}}）。成功返回 True，
+    """写整个存储（新形状 {key: {"words", "description", "selected"}}）。成功返回 True，
     永不抛错。
 
-    临时文件 + os.replace：这单个文件装着每个 LoRA 的词与描述，半路崩溃/
+    临时文件 + os.replace：这单个文件装着每个 LoRA 的词/描述/默认勾选，半路崩溃/
     磁盘满会毁掉全部而非刚编辑的那个。临时名带 pid 和线程 id——路由把它
     交给 run_in_executor，两次保存落在共享同一 pid 的两个池线程上。
 
@@ -1123,7 +1131,7 @@ def write_custom_store(path, store):
                 if not key:
                     continue
                 e = _norm_store_entry(entry)
-                if e["words"] or e["description"]:
+                if e["words"] or e["description"] or e["selected"]:
                     data[key] = e
                 if len(data) >= _MAX_CUSTOM_LORAS:
                     break
@@ -1148,7 +1156,7 @@ def read_custom_triggers(path):
 
 
 def write_custom_triggers(path, store):
-    """旧签名：写 {key: [words]}。合并保留已有 description。成功返回 True，
+    """旧签名：写 {key: [words]}。合并保留已有 description/selected。成功返回 True，
     永不抛错。"""
     old = read_custom_store(path)
     merged = {}
@@ -1160,6 +1168,7 @@ def write_custom_triggers(path, store):
             merged[key] = {
                 "words": sanitize_custom_words(words),
                 "description": old.get(key, {}).get("description", ""),
+                "selected": old.get(key, {}).get("selected", []),
             }
     return write_custom_store(path, merged)
 
@@ -1173,7 +1182,7 @@ def get_custom_triggers(path, name):
 
 
 def set_custom_triggers(path, name, words, fp=None):
-    """替换一个 LoRA 的词。空列表且无描述时移除条目（存储不积累死键）。
+    """替换一个 LoRA 的词。空列表且无描述且无默认勾选时移除条目（存储不积累死键）。
     `fp` 是文件轻量内容指纹（路由层从文件计算），记入条目供改名/移动后的
     孤儿匹配使用；不传则保留旧条目已有的指纹。返回实际存储的列表。永不抛错。"""
     key = custom_trigger_key(name)
@@ -1184,10 +1193,12 @@ def set_custom_triggers(path, name, words, fp=None):
         clean = sanitize_custom_words(words)
         entry = store.get(key)
         desc = (entry or {}).get("description", "")
-        if clean or desc:
+        sel = (entry or {}).get("selected", [])
+        if clean or desc or sel:
             store[key] = {
                 "words": clean,
                 "description": desc,
+                "selected": sel,
                 "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
             }
         else:
@@ -1205,7 +1216,7 @@ def get_custom_description(path, name):
 
 
 def set_custom_description(path, name, desc, fp=None):
-    """替换一个 LoRA 的自定义描述。空描述且无词时移除条目。
+    """替换一个 LoRA 的自定义描述。空描述且无词且无默认勾选时移除条目。
     `fp` 同 set_custom_triggers。返回实际存储的描述。永不抛错。"""
     key = custom_trigger_key(name)
     if not key:
@@ -1215,10 +1226,45 @@ def set_custom_description(path, name, desc, fp=None):
         clean = sanitize_custom_description(desc)
         entry = store.get(key)
         words = (entry or {}).get("words", [])
-        if clean or words:
+        sel = (entry or {}).get("selected", [])
+        if clean or words or sel:
             store[key] = {
                 "words": words,
                 "description": clean,
+                "selected": sel,
+                "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
+            }
+        else:
+            store.pop(key, None)
+        write_custom_store(path, store)
+    return clean
+
+
+def get_custom_selected(path, name):
+    """一个 LoRA 的全局默认勾选（可能为空）。工作流覆盖它，仅空行回填。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return []
+    return read_custom_store(path).get(key, {}).get("selected", [])
+
+
+def set_custom_selected(path, name, selected, fp=None):
+    """替换一个 LoRA 的全局默认勾选（新建行默认值）。空且无词/描述时移除条目。
+    `fp` 同 set_custom_triggers。返回实际存储的列表。永不抛错。"""
+    key = custom_trigger_key(name)
+    if not key:
+        return []
+    with _STORE_LOCK:
+        store = read_custom_store(path)
+        clean = sanitize_custom_words(selected)
+        entry = store.get(key)
+        words = (entry or {}).get("words", [])
+        desc = (entry or {}).get("description", "")
+        if clean or words or desc:
+            store[key] = {
+                "words": words,
+                "description": desc,
+                "selected": clean,
                 "fp": _norm_fp(fp) or _norm_fp((entry or {}).get("fp")),
             }
         else:
@@ -1269,7 +1315,7 @@ def find_orphan_key(store, name):
 
 
 def migrate_custom_data(path, name, fp=None, old_key=None):
-    """把旧路径键下的自定义词/描述迁移到当前 name 键。
+    """把旧路径键下的自定义词/描述/默认勾选迁移到当前 name 键。
 
     `old_key` 由调用方（路由）从孤儿检测结果传入（指纹或基名匹配找到的键）；
     缺省时内部回退基名唯一匹配。新键已有数据不迁移（不覆盖）；旧键空不迁移。
@@ -1281,7 +1327,7 @@ def migrate_custom_data(path, name, fp=None, old_key=None):
     with _STORE_LOCK:
         store = read_custom_store(path)
         cur = store.get(key)
-        if cur and (cur["words"] or cur["description"]):
+        if cur and (cur["words"] or cur["description"] or cur.get("selected")):
             return {"ok": False, "reason": "already has data"}
         if old_key:
             # 调用方已确证（指纹或基名）——直接用指定旧键。防御：必须是存储
@@ -1294,11 +1340,12 @@ def migrate_custom_data(path, name, fp=None, old_key=None):
             if old is None:
                 return {"ok": False, "reason": "no unique match"}
         entry = store.get(old)
-        if not entry or not (entry["words"] or entry["description"]):
+        if not entry or not (entry["words"] or entry["description"] or entry.get("selected")):
             return {"ok": False, "reason": "old entry empty"}
         store[key] = {
             "words": entry["words"],
             "description": entry["description"],
+            "selected": list(entry.get("selected") or []),
             "fp": _norm_fp(fp) or _norm_fp(entry.get("fp")),
         }
         del store[old]
@@ -1307,10 +1354,11 @@ def migrate_custom_data(path, name, fp=None, old_key=None):
 
 
 def merge_custom_data(path, name, fp=None, old_key=None):
-    """把旧路径键下的自定义词/描述合并到当前 name 键（旧键有数据且新键已有数据时用）。
+    """把旧路径键下的自定义词/描述/默认勾选合并到当前 name 键（旧键有数据且新键已有数据时用）。
 
     词：新旧并集去重（保持新键原有顺序，旧键新增词追加，受 64 词上限约束）；
     描述：新键已有则保留，空则取旧键；两者皆有且不同则拼接（新在前、旧在后，空行分隔）；
+    默认勾选：新旧并集去重（同词去重逻辑）；
     指纹：取新文件指纹或旧指纹。
     成功后删除旧键。返回 {"ok": True, "old_key": ..., "merged": True}。永不抛错。"""
     key = custom_trigger_key(name)
@@ -1318,7 +1366,7 @@ def merge_custom_data(path, name, fp=None, old_key=None):
         return {"ok": False, "reason": "bad name"}
     with _STORE_LOCK:
         store = read_custom_store(path)
-        cur = store.get(key) or {"words": [], "description": "", "fp": None}
+        cur = store.get(key) or {"words": [], "description": "", "selected": [], "fp": None}
         if old_key:
             old = custom_trigger_key(old_key)
             if not old or old == key or old not in store:
@@ -1329,7 +1377,7 @@ def merge_custom_data(path, name, fp=None, old_key=None):
             if old is None:
                 return {"ok": False, "reason": "no unique match"}
         entry = store.get(old)
-        if not entry or not (entry["words"] or entry["description"]):
+        if not entry or not (entry["words"] or entry["description"] or entry.get("selected")):
             return {"ok": False, "reason": "old entry empty"}
         # 合并词
         merged_words = sanitize_custom_words((cur.get("words") or []) + (entry.get("words") or []))
@@ -1342,9 +1390,12 @@ def merge_custom_data(path, name, fp=None, old_key=None):
             merged_desc = cur_desc
         else:
             merged_desc = old_desc
+        # 合并默认勾选
+        merged_selected = sanitize_custom_words((cur.get("selected") or []) + (entry.get("selected") or []))
         store[key] = {
             "words": merged_words,
             "description": merged_desc,
+            "selected": merged_selected,
             "fp": _norm_fp(fp) or _norm_fp(cur.get("fp")) or _norm_fp(entry.get("fp")),
         }
         del store[old]

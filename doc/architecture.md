@@ -38,10 +38,10 @@ sfnodes/
 │   ├── lora_notes.py     # LoRA 用户数据统一存储网关（SFLoraStack 与 SFLoraLoader 系共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见 experience/nodes-lora.md §19）
 │   ├── lora_presets.py   # LoRA 预设（复合预设：loras 顺序/强度 + 可选 positive 提示词，与 triggers 分离，机器级 user/sfnodes/lora_presets.json，含重命名原子化 POST /lora_presets/rename，见 experience/nodes-lora.md §34）
 │   ├── lora_samples.py   # 模型样例图处理（sample/ 旁目录约定；kind 参数分派 loras/diffusion_models 两域，SF Load Diffusion Model 复用）
-│   ├── lora_reader.py    # LoRA 元数据/触发词/内容指纹纯逻辑（SFLoraStack 用，无 ComfyUI 依赖；read_safetensors_metadata/file_sha256/侧车与用户数据存储函数全部按 (file/folder, name) 参数化，diffusion 域直接复用）
+│   ├── lora_reader.py    # LoRA 元数据/触发词/内容指纹纯逻辑（SFLoraStack 用，无 ComfyUI 依赖；read_safetensors_metadata/file_sha256/侧车与用户数据存储函数全部按 (file/folder, name) 参数化，diffusion 域直接复用；`selected` 全局默认勾选（新建行默认值，工作流覆盖，见 experience/nodes-lora.md §36））
 │   ├── lora_plot.py      # LoRA 批量对比纯逻辑（文件名净化/元数据双向/字体选择含 CJK/文字覆盖，SFLoraPlot 用，无 ComfyUI 依赖）
 │   ├── lora_cache.py     # LoRA 文件缓存 + 内存模式修剪（last/all/none，与 SFLoraStack 同语义，SFLoraPlot 用）
-│   ├── lora_routes.py    # SFLoraStack 路由（/api/sfnodes/lora_*、civitai/account 等，见文件内注册清单）+ 数据域分派（_is_dmodel_req/_dom_*：/api/sfnodes/dmodel_* 别名路由同 handler 服务 diffusion 域，存储换 dmodels.json + previews_model/ + diffusion_models 目录）
+│   ├── lora_routes.py    # SFLoraStack 路由（/api/sfnodes/lora_*、civitai/account、custom_selected 全局默认勾选（新建行默认值，工作流覆盖，见 §36）等，见文件内注册清单）+ 数据域分派（_is_dmodel_req/_dom_*：/api/sfnodes/dmodel_* 别名路由同 handler 服务 diffusion 域，存储换 dmodels.json + previews_model/ + diffusion_models 目录）
 │   ├── diffusion_routes.py # SF Load Diffusion Model 路由（GET /dmodel_info：safetensors __metadata__ 架构/config + 大小/mtime + 用户数据 + 孤儿兜底，形状对齐 build_lora_info、触发词恒空；查询/描述/预览等由 lora_routes 别名提供，模块尾副作用注册经节点 import 触发）
 │   ├── lora_ortho.py     # 正交堆叠纯数学（GS 投影，仅 torch；ortho_gs 用）
 │   ├── lora_ortho_load.py # ortho_gs 独立加载+应用路径（ortho_apply(model, clip, entries, load_sd)，SFLoraStack 专用，禁止各写一份）
@@ -83,7 +83,7 @@ sfnodes/
 │   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
 │   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
-│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板；ctx 另支持 api 整束注入（路由域替换）/hideTriggers/samplesKind/autoCivitai，SF Load Diffusion Model 复用同一面板；复合预设 positive 经 SFLoraPreset STRING 输出流通，栈内 Presets 菜单保存时同表单输入 + 每预设 ✎ 编辑/✕ 二次确认删除（rename 原子化）+ 独立大面板搜名/LoRA（见 §34.6），见 experience/nodes-lora.md §34）
+│   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板；ctx 另支持 api 整束注入（路由域替换）/hideTriggers/samplesKind/autoCivitai，SF Load Diffusion Model 复用同一面板；复合预设 positive 经 SFLoraPreset STRING 输出流通，栈内 Presets 菜单保存时同表单输入 + 每预设 ✎ 编辑/✕ 二次确认删除（rename 原子化）+ 独立大面板搜名/LoRA（见 §34.6）；触发词勾选全局默认（新建行默认值，工作流覆盖，见 §36），见 experience/nodes-lora.md §34/§36）
 │   ├── sf_dmodel_api.js   # dmodel 域路由薄封装（与 sf_lora_stack_api.js 同形函数束 info/thumbUrl/civitai/saveDescription/savePreview/migrate/merge 等，URL 指向 /api/sfnodes/dmodel_*；事件 sfnodes.model-data-changed 与 lora 域隔离；导出 dmodelApi 整束供面板 ctx.api 注入——键名错会静默回退 LoRA 路由，tests/test_load_dmodel_panel_smoke.js 锁定契约）
 │   ├── sf_load_diffusion_model.js # SF Load Diffusion Model 单模块（i 信息图标复用 sf_lora_info.js 的 setupLoaderInfoWidget 工厂（prefetch:null/hasCustomOf/onOpen 注入）+ dmodelPanelCtx 宿主适配（api/hideTriggers/samplesKind/autoCivitai 四件套），isGraphLoading 门控点击）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）

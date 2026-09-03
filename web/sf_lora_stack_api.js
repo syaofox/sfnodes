@@ -205,6 +205,23 @@ export async function saveCustomTriggers(name, words) {
     }
 }
 
+// 保存这个 LoRA 的全局默认勾选（新建行默认值，工作流覆盖它）。
+// 空数组清除默认。
+export async function saveCustomSelected(name, selected) {
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/lora/custom_selected"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, selected }),
+        });
+        const j = await r.json();
+        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
+        return j;
+    } catch {
+        return { ok: false, message: "Could not reach the server." };
+    }
+}
+
 // 删除保存的 Civitai 侧车（<base>.civitai.info），info 回到文件自己的词。
 // 调用方随后应 invalidateInfo(name)。
 export async function deleteCivitai(name) {

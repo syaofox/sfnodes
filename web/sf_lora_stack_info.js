@@ -7,7 +7,7 @@ import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
 import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath, attachSamplePromptCopyButtons } from "./sf_lora_shared_info.js";
-import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers,
+import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers, saveCustomSelected,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData, mergeLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { copyText } from "./sf_workflows_ui.js";
@@ -622,7 +622,7 @@ export async function openInfoPanelFor(ctx, id) {
     if (ctx.node) startFollowing(panel, ctx.node);
 
     // 本面板会话的视图数据
-    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", file_description: "", civitai_description: "", custom_description: "", orphan_key: "" };
+    let info = { title: name || "LoRA", triggers: [], file_triggers: [], sidecar_triggers: [], source: "file", has_preview: false, custom_preview: false, preview_v: 0, description: "", file_description: "", civitai_description: "", custom_description: "", custom_selected: [], orphan_key: "" };
     // 孤儿迁移提示条按面板会话 dismiss（文件没动的话每次打开都值得再看一眼）。
     let _orphanDismissed = false;
     let civ = null; // { state:"searching"|"found"|"nofind"|"offline", info?, message? }
@@ -652,12 +652,16 @@ export async function openInfoPanelFor(ctx, id) {
         const has = e.triggers.some((w) => w.toLowerCase() === key);
         const next = has ? e.triggers.filter((w) => w.toLowerCase() !== key) : [...e.triggers, word];
         ctx.patchRow({ triggers: next });
+        // 全局默认勾选（新建行默认值，工作流覆盖它）
+        if (!hideTriggers && name) saveCustomSelected(name, next);
         refresh?.(false);
         renderBody();
     }
     function setWords(words) {
         clearMsg();
-        ctx.patchRow({ triggers: words.slice() });
+        const next = words.slice();
+        ctx.patchRow({ triggers: next });
+        if (!hideTriggers && name) saveCustomSelected(name, next);
         refresh?.(false);
         renderBody();
     }
@@ -708,6 +712,11 @@ export async function openInfoPanelFor(ctx, id) {
         if (!name) return;
         saveCustomTriggers(name, words);   // fire and forget：行已有
     }
+    // 全局默认勾选（新建行默认值，工作流覆盖它）。hideTriggers 域短路同 persistCustom。
+    function persistSelected(words) {
+        if (!name || hideTriggers) return;
+        saveCustomSelected(name, words);
+    }
 
     function addCustom(word) {
         clearMsg();
@@ -750,6 +759,7 @@ export async function openInfoPanelFor(ctx, id) {
         else if (longWord) showMsg(`部分触发词过长已截断至 ${MAX_LEN} 字符。`);
         ctx.patchRow({ custom, triggers: trig }); // 添加即选中，到达输出
         persistCustom(custom);
+        persistSelected(trig);
         refresh?.(false);
         renderBody();
         // 清空输入框并聚焦，支持连续批量粘贴
@@ -764,11 +774,13 @@ export async function openInfoPanelFor(ctx, id) {
         const e = ctx.getRow();
         if (!e) return;
         const custom = (e.custom || []).filter((x) => x.toLowerCase() !== key);
+        const nextTriggers = (e.triggers || []).filter((x) => x.toLowerCase() !== key);
         ctx.patchRow({
             custom,
-            triggers: (e.triggers || []).filter((x) => x.toLowerCase() !== key),
+            triggers: nextTriggers,
         });
         persistCustom(custom);
+        persistSelected(nextTriggers);
         refresh?.(false);
         renderBody();
     }
@@ -1017,6 +1029,8 @@ export async function openInfoPanelFor(ctx, id) {
     // 面板打开时把这个 LoRA 的已存词带到行上。也反向迁移：行已在存储出现
     // 前（或在另一台机器做的工作流里）带着自定义词，则推入存储——任何人
     // 已有的词都不会因这次改动丢失。
+    // 选中态（custom_selected）仅作空行默认值：工作流的 `triggers` 覆盖全局，
+    // 仅当行 triggers 为空且全局有值时回填（过滤后交集，避免已删词复活）。
     function hydrateCustom() {
         // hideTriggers 域（diffusion）无触发词概念，persistCustom 走的是
         // LoRA 专属路由——防御性短路，杜绝任何未来路径把词写错域。
@@ -1039,6 +1053,40 @@ export async function openInfoPanelFor(ctx, id) {
         if (!same) { ctx.patchRow({ custom: merged }); refresh?.(false); }
         // 行带着存储缺的词时才写回。
         if (merged.length > stored.length) persistCustom(merged);
+        // 全局默认勾选 → 空行回填（工作流覆盖全局）
+        const storedSel = Array.isArray(info?.custom_selected) ? info.custom_selected : [];
+        const e2 = ctx.getRow();
+        if (!e2) return;
+        if ((e2.triggers || []).length === 0 && storedSel.length > 0) {
+            // 可用词集合：文件/侧车/自定义/当前 triggers 全部并集，避免已删词复活
+            const avail = new Set();
+            for (const arr of [info.file_triggers, info.sidecar_triggers, info.triggers, merged, stored]) {
+                if (!Array.isArray(arr)) continue;
+                for (const w of arr) {
+                    const k = String(w || "").trim().toLowerCase();
+                    if (k) avail.add(k);
+                }
+            }
+            // storedSel 本身也是芯片，需纳入可用集兜底（已删文件词仍可选中时放行）
+            for (const w of storedSel) {
+                const k = String(w || "").trim().toLowerCase();
+                if (k) avail.add(k);
+            }
+            const filtered = storedSel.filter((w) => avail.has(String(w || "").trim().toLowerCase()));
+            // 去重保序（sanitize 同后端）
+            const seenSel = new Set();
+            const uniq = [];
+            for (const w of filtered) {
+                const k = String(w || "").trim().toLowerCase();
+                if (!k || seenSel.has(k)) continue;
+                seenSel.add(k);
+                uniq.push(w);
+            }
+            if (uniq.length) {
+                ctx.patchRow({ triggers: uniq });
+                refresh?.(false);
+            }
+        }
     }
 
     function thumb() {

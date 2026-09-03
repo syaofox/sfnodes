@@ -531,9 +531,11 @@ def _register_routes():
                             "has_preview": False,
                             "custom_triggers": entry.get("words", []),
                             "custom_description": entry.get("description", ""),
+                            "custom_selected": entry.get("selected", []),
                             "orphan_key": orphan,
                             "orphan_triggers": entry.get("words", []),
                             "orphan_description": entry.get("description", ""),
+                            "orphan_selected": entry.get("selected", []),
                             "orphan_preview": False,
                             "preview_v": 0,
                             "custom_preview": False,
@@ -573,6 +575,11 @@ def _register_routes():
                 info["custom_description"] = R.get_custom_description(_custom_triggers_file(), name)
             except Exception:
                 info["custom_description"] = ""
+            # 全局默认勾选（新建行默认值，工作流覆盖它）
+            try:
+                info["custom_selected"] = R.get_custom_selected(_custom_triggers_file(), name)
+            except Exception:
+                info["custom_selected"] = []
             # 面板头部 "View on Civitai" 链接按账户主机偏好生成（偏好 red 的
             # 用户打开 civitai.red 页，成人模型在 com 网页可能访问受限）。
             try:
@@ -597,6 +604,7 @@ def _register_routes():
                     info["orphan_key"] = orphan
                     info["orphan_triggers"] = entry.get("words", [])
                     info["orphan_description"] = entry.get("description", "")
+                    info["orphan_selected"] = entry.get("selected", [])
                     info["orphan_preview"] = bool(R.find_custom_preview(_previews_dir(), orphan))
             except Exception:
                 pass
@@ -1154,6 +1162,35 @@ def _register_routes():
             except Exception as exc:
                 return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
             return web.json_response({"ok": True, "description": stored})
+
+        @routes.post("/api/sfnodes/lora/custom_selected")
+        async def api_lora_custom_selected(request):
+            """保存一个 LoRA 的全局默认勾选（新建行默认值）。POST {name, selected}。
+
+            工作流覆盖它，仅空行回填。与 custom_triggers 同守卫/锁/指纹语义，
+            名字仍先对 loras 目录解析以防存储积累敌意键。恒 200。"""
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            name = data.get("name", "") or request.query.get("name", "")
+            selected = data.get("selected", [])
+            path = _resolve_lora_path(name)
+            roots = _lora_dirs()
+            if not path or not roots or not _is_path_under(path, *roots):
+                return web.json_response({"ok": False, "message": "LoRA not found."})
+            loop = asyncio.get_running_loop()
+            try:
+                async with _notes_async_lock:
+                    def _set_with_fp():
+                        fp = R.file_fingerprint(path)
+                        return R.set_custom_selected(_custom_triggers_file(), name, selected, fp)
+                    stored = await loop.run_in_executor(None, _set_with_fp)
+            except Exception as exc:
+                return web.json_response({"ok": False, "message": "Could not save: {}".format(exc)})
+            return web.json_response({"ok": True, "selected": stored})
 
         @routes.post("/api/sfnodes/lora/migrate")
         async def api_lora_migrate(request):
