@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -303,3 +303,34 @@
 - `web/sf_mask_fill.js`（单文件扩展，`sfnodes.SFMaskFill`，无导出）
 - `web/sf_color_picker.js`（COLOR widget，适配新类名）
 - `__init__.py` 唯一真源 `SFMaskFill`
+
+---
+
+## 36. SFImageSceneSplit：镜头切分（硬切/黑白场/溶解 + 负索引/max_frames 首 N 帧 + LIST 全段）
+
+> 背景：`nodes/image/scene_split.py:SFImageSceneSplit` + `sf_utils/scene_detect.py` 纯逻辑（无 torch/ComfyUI 依赖）。输入为视频连续帧 `IMAGE [B,H,W,C]`，按阈值检测硬切/黑场/白闪/溶解四类切点，去抖后按 `segment_index` 输出指定段与全段 LIST（首 N 帧截断、负索引、越界抛错）。
+
+### 1. 检测策略（纯逻辑，无重依赖）
+
+- **缩略**：每帧最长边 `160` 下采样（`cv2.INTER_AREA`→PIL→最近邻三级回退），转灰度后 `32-bin` 归一化直方图 + 均值亮度 `[0,1]`。千帧 256px 内 <1s。
+- **硬切**：`hist` 用 Bhattacharyya `1-BC`，`diff` 用缩略图均差 `/255`，`d>threshold` 即切 `i+1`。阈值默认 `0.30` 对应 `BC=0.7` 中等相似度。
+- **黑/白场**：灰度均值 `<black_threshold`（默认 0.08）/ `>white_threshold`（默认 0.92）的连续段边界各切一刀（`s` 与 `e+1`），全黑/全白不切。
+- **溶解**：滑窗 `W=dissolve_window`（默认 8），累积距离 `D=dist(h[i],h[i+W])`，`D>threshold && max_step<threshold && avg_step>dissolve_threshold(0.18)` 时在 `i+W//2+1` 记切点；已硬切的窗被 `max_step` 过滤不重复。
+- **去抖**：候选切点排序后 `c-last<min_scene_len(12)` 删后者；尾段不足也合并到上一段，最终补 `[0,B]` 哨兵。
+
+### 2. 节点契约（与 ComfyUI 张量/列表约定）
+
+- **逐帧转 `uint8` 生成器**：`for i in range(B): arr=(images[i].cpu().numpy()*255).astype(uint8)` 避免一次性 `B*H*W` 批拷贝 OOM；`C==1` 复制为 3 通道，`>3` 截断 RGB。
+- **输出**：`images [N,H,W,C]`（选中段首 N 帧截断后）、`count INT`（截断后）、`cuts STRING(JSON [0,..,B])`、`scene_count INT`、`all_segments IMAGE+OUTPUT_IS_LIST`（每段一批，`all_segments[segment_index]` 即选中段原长）。
+- **索引**：`segment_index` 负数走 `scene_count+idx`，越界 `ValueError("越界 ... cuts=...")`（对齐 `batch_index.py` 风格）。
+
+### 3. 测试与复用
+
+- 纯逻辑 `sf_utils/scene_detect.py` 无 comfy：`detect_scenes` 支持 `np.ndarray [B,H,W,3]` 与 `iterable` 帧，`_to_uint8_rgb/_downscale_and_gray/_hist` 内部三级回退保证 CI 无 `cv2` 仍可跑。
+- `tests/test_scene_detect.py` 覆盖硬切/黑白场/溶解/min_len 去抖/单帧/空/float + 节点 mock `torch`（`FakeTensor` 模拟 `detach/cpu/numpy/__getitem__` 切片）断言选段/负索引/max_frames/越界。
+
+### 4. 模块边界
+
+- `sf_utils/scene_detect.py`：`detect_scenes/split_scenes` + `_process_frame/_hist_distance/_downscale_and_gray`（纯函数）
+- `nodes/image/scene_split.py`：`SFImageSceneSplit`（9 输入 + 5 输出，`OUTPUT_IS_LIST[4]=True`）
+- `__init__.py` 唯一真源 `SFImageSceneSplit`
