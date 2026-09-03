@@ -96,6 +96,7 @@ from .nodes.image.compare import ImageCompare
 from .nodes.image.pause_image import SFPauseImage
 from .nodes.image.pause_latent import SFPauseLatent
 from .nodes.image.scene_split import SFImageSceneSplit
+from .nodes.video.save_video import SFSaveVideoSwitchable
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -283,6 +284,7 @@ NODE_CLASS_MAPPINGS = {
     "SFPauseMask": SFPauseMask,
     "SFPauseLatent": SFPauseLatent,
     "SFImageSceneSplit": SFImageSceneSplit,
+    "SFSaveVideoSwitchable": SFSaveVideoSwitchable,
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
@@ -472,6 +474,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPauseMask": "SF Pause Mask",
     "SFPauseLatent": "SF Pause Latent",
     "SFImageSceneSplit": "SF Image Scene Split",
+    "SFSaveVideoSwitchable": "SF Save Video (Switchable)",
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点
