@@ -1,13 +1,13 @@
 """镜头切分纯逻辑（SFImageSceneSplit 用）。
 
 无 torch / ComfyUI 依赖，可独立测试。
-输入帧为 uint8 RGB [H,W,3] 或 float [0,1]，内部统一转 uint8 灰度小图后对比。
+输入帧为 uint8 RGB [H,W,3] 或 float [0,1]，内部统一转 uint8 小图后对比。
 
 检测四类：
-  - 硬切（跳切）：相邻帧直方图/像素差 > threshold
+  - 硬切（跳切）：相邻帧 RGB 直方图/像素差 > threshold（ per-channel Bhattacharyya 均值，对同亮度异色敏感）
   - 黑场：连续黑帧（灰度均值 < black_threshold）段边界
   - 白闪：连续白帧（灰度均值 > white_threshold）段边界
-  - 溶解/渐变：滑窗 W 内累积直方图距离 > threshold 且窗内单步均值 > dissolve_threshold 且 max 单步 < threshold
+  - 溶解/渐变：滑窗 W 内累积 RGB 直方图距离 > threshold 且窗内单步均值 > dissolve_threshold 且 max 单步 < threshold
 
 最短场景去抖：相邻切点距 < min_scene_len 则合并（删后者），尾段不足也合并。
 """
@@ -47,8 +47,8 @@ def _to_uint8_rgb(frame):
     return arr
 
 
-def _downscale_and_gray(frame_uint8, longest=160):
-    """RGB uint8 -> 缩略灰度图 uint8 [h,w]，最长边 longest。"""
+def _downscale_rgb(frame_uint8, longest=160):
+    """RGB uint8 -> 缩略 RGB uint8 [h,w,3]，最长边 longest。"""
     h, w = frame_uint8.shape[:2]
     ls = max(h, w)
     if ls > longest:
@@ -57,14 +57,11 @@ def _downscale_and_gray(frame_uint8, longest=160):
         nw = max(1, int(round(w * scale)))
     else:
         nh, nw = h, w
-    # 优先 cv2，否则 PIL，否则最近邻采样
-    small_rgb = None
     try:
         import cv2  # type: ignore
 
         small_rgb = cv2.resize(frame_uint8, (nw, nh), interpolation=cv2.INTER_AREA)
-        small_gray = cv2.cvtColor(small_rgb, cv2.COLOR_RGB2GRAY)
-        return small_gray
+        return small_rgb
     except Exception:
         pass
     try:
@@ -72,10 +69,7 @@ def _downscale_and_gray(frame_uint8, longest=160):
 
         pil = Image.fromarray(frame_uint8)
         pil_small = pil.resize((nw, nh), Image.BILINEAR)
-        small_rgb = np.array(pil_small)
-        # luma
-        small_gray = (0.2126 * small_rgb[:, :, 0] + 0.7152 * small_rgb[:, :, 1] + 0.0722 * small_rgb[:, :, 2]).astype(np.uint8)
-        return small_gray
+        return np.array(pil_small)
     except Exception:
         pass
     # 最近邻子采样
@@ -84,14 +78,16 @@ def _downscale_and_gray(frame_uint8, longest=160):
     sampled = frame_uint8[::step_h, ::step_w]
     sampled = sampled[:nh, :nw]
     if sampled.shape[0] < nh or sampled.shape[1] < nw:
-        # 尺寸不足时 pad
         res = np.zeros((nh, nw, 3), dtype=np.uint8)
         rh = min(nh, sampled.shape[0])
         rw = min(nw, sampled.shape[1])
         res[:rh, :rw] = sampled[:rh, :rw]
         sampled = res
-    small_gray = (0.2126 * sampled[:, :, 0] + 0.7152 * sampled[:, :, 1] + 0.0722 * sampled[:, :, 2]).astype(np.uint8)
-    return small_gray
+    return sampled
+
+
+def _rgb_to_gray(small_rgb):
+    return (0.2126 * small_rgb[:, :, 0] + 0.7152 * small_rgb[:, :, 1] + 0.0722 * small_rgb[:, :, 2]).astype(np.uint8)
 
 
 def _hist(gray_small, bins=32):
@@ -103,6 +99,18 @@ def _hist(gray_small, bins=32):
     return hist
 
 
+def _hist_rgb(small_rgb, bins=32):
+    hists = []
+    for c in range(3):
+        hist, _ = np.histogram(small_rgb[:, :, c], bins=bins, range=(0, 256))
+        hist = hist.astype(np.float32)
+        s = hist.sum()
+        if s > 0:
+            hist /= s
+        hists.append(hist)
+    return hists
+
+
 def _hist_distance(h1, h2):
     """Bhattacharyya 距离 1 - BC，0=相同，1=完全不同。"""
     bc = float(np.sum(np.sqrt(h1 * h2)))
@@ -110,19 +118,29 @@ def _hist_distance(h1, h2):
     return 1.0 - bc
 
 
+def _hist_distance_rgb(hs1, hs2):
+    return float(np.mean([_hist_distance(h1, h2) for h1, h2 in zip(hs1, hs2)]))
+
+
 def _diff_distance(g1, g2):
     return float(np.mean(np.abs(g1.astype(np.int16) - g2.astype(np.int16))) / 255.0)
 
 
+def _diff_distance_rgb(rgb1, rgb2):
+    return float(np.mean(np.abs(rgb1.astype(np.int16) - rgb2.astype(np.int16))) / 255.0)
+
+
 def _process_frame(frame, bins=32, longest=160):
     fu8 = _to_uint8_rgb(frame)
-    gray_small = _downscale_and_gray(fu8, longest=longest)
-    hist = _hist(gray_small, bins=bins)
-    mean = float(np.mean(gray_small) / 255.0)
-    return gray_small, hist, mean
+    small_rgb = _downscale_rgb(fu8, longest=longest)
+    small_gray = _rgb_to_gray(small_rgb)
+    hists = _hist_rgb(small_rgb, bins=bins)
+    # 兼容：保留灰度 hist 供旧逻辑对比（不使用）
+    mean = float(np.mean(small_gray) / 255.0)
+    return small_rgb, small_gray, hists, mean
 
 
-def detect_scenes(frames, threshold=0.30, black_threshold=0.08, white_threshold=0.92,
+def detect_scenes(frames, threshold=0.25, black_threshold=0.08, white_threshold=0.92,
                   min_scene_len=12, method="hist", dissolve_window=8, dissolve_threshold=0.18,
                   bins=32, longest=160):
     """帧序列 -> 切点列表 [0, cut1, ..., B]（含起止）。
@@ -130,8 +148,9 @@ def detect_scenes(frames, threshold=0.30, black_threshold=0.08, white_threshold=
     frames: np.ndarray [B,H,W,3] uint8/float 或 iterable[frame]
     method: "hist" | "diff"
     """
+    rgbs = []
     grays = []
-    hists = []
+    hists_list = []
     means = []
     # 归一化迭代
     if isinstance(frames, np.ndarray) and frames.ndim == 4:
@@ -148,9 +167,10 @@ def detect_scenes(frames, threshold=0.30, black_threshold=0.08, white_threshold=
         # 无法预知长度，逐个消费
     count = 0
     for fr in iterator:
-        gray_small, hist, mean = _process_frame(fr, bins=bins, longest=longest)
-        grays.append(gray_small)
-        hists.append(hist)
+        small_rgb, small_gray, hists, mean = _process_frame(fr, bins=bins, longest=longest)
+        rgbs.append(small_rgb)
+        grays.append(small_gray)
+        hists_list.append(hists)
         means.append(mean)
         count += 1
     B = len(means)
@@ -161,12 +181,12 @@ def detect_scenes(frames, threshold=0.30, black_threshold=0.08, white_threshold=
 
     cuts = set()
 
-    # 1) 硬切
+    # 1) 硬切（RGB 直方图/像素差，对颜色敏感；原灰度实现对同亮度异色会漏检）
     for i in range(B - 1):
         if method == "hist":
-            d = _hist_distance(hists[i], hists[i + 1])
+            d = _hist_distance_rgb(hists_list[i], hists_list[i + 1])
         else:
-            d = _diff_distance(grays[i], grays[i + 1])
+            d = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
         if d > threshold:
             cuts.add(i + 1)
 
@@ -197,23 +217,23 @@ def detect_scenes(frames, threshold=0.30, black_threshold=0.08, white_threshold=
     add_runs(black_mask, is_black=True)
     add_runs(white_mask, is_black=False)
 
-    # 3) 溶解/渐变（滑窗累积）
+    # 3) 溶解/渐变（滑窗累积，RGB）
     W = int(dissolve_window)
     if W >= 2 and B > W:
         # 预计算单步距离用于窗口内统计
         step_dists = []
         for i in range(B - 1):
             if method == "hist":
-                d = _hist_distance(hists[i], hists[i + 1])
+                d = _hist_distance_rgb(hists_list[i], hists_list[i + 1])
             else:
-                d = _diff_distance(grays[i], grays[i + 1])
+                d = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
             step_dists.append(d)
         for i in range(B - W):
             # 累积距离
             if method == "hist":
-                D = _hist_distance(hists[i], hists[i + W])
+                D = _hist_distance_rgb(hists_list[i], hists_list[i + W])
             else:
-                D = _diff_distance(grays[i], grays[i + W])
+                D = _diff_distance_rgb(rgbs[i], rgbs[i + W])
             # 窗内单步统计
             window_steps = step_dists[i:i + W]
             avg_step = float(np.mean(window_steps)) if window_steps else 0.0

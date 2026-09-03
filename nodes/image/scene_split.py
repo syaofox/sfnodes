@@ -16,7 +16,7 @@ class SFImageSceneSplit:
                 "images": ("IMAGE", {"tooltip": "视频连续帧 [B, H, W, C] float [0,1]"}),
                 "threshold": (
                     "FLOAT",
-                    {"default": 0.30, "min": 0.05, "max": 1.0, "step": 0.01, "tooltip": "硬切阈值（直方图 Bhattacharyya 距离 0-1），越大越迟钝"},
+                    {"default": 0.25, "min": 0.05, "max": 1.0, "step": 0.01, "tooltip": "硬切阈值（RGB 直方图 Bhattacharyya 均值 0-1，越大越迟钝；同亮度异色已用 RGB 修复，建议 0.20-0.30）"},
                 ),
                 "black_threshold": (
                     "FLOAT",
