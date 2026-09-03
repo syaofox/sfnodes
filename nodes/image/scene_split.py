@@ -16,7 +16,7 @@ class SFImageSceneSplit:
                 "images": ("IMAGE", {"tooltip": "视频连续帧 [B, H, W, C] float [0,1]"}),
                 "threshold": (
                     "FLOAT",
-                    {"default": 0.25, "min": 0.05, "max": 1.0, "step": 0.01, "tooltip": "硬切阈值（RGB 直方图 Bhattacharyya 均值 0-1，越大越迟钝；同亮度异色已用 RGB 修复，建议 0.20-0.30）"},
+                    {"default": 0.22, "min": 0.05, "max": 1.0, "step": 0.01, "tooltip": "硬切阈值（融合 max 直方图/HSV/边缘/分块 0-1，自适应 μ+3σ，越大越迟钝；同调色跳切靠分块提升召回，建议 0.20-0.30）"},
                 ),
                 "black_threshold": (
                     "FLOAT",
@@ -39,8 +39,8 @@ class SFImageSceneSplit:
                     {"default": 0, "min": 0, "max": 100000, "step": 1, "tooltip": "限制输出帧数，0=不限制；>0 时取段内首 N 帧"},
                 ),
                 "method": (
-                    ["hist", "diff"],
-                    {"default": "hist", "tooltip": "hist=直方图距离（推荐，抗抖动），diff=缩略图像素差"},
+                    ["auto", "hist", "diff"],
+                    {"default": "auto", "tooltip": "auto=融合 max（HSV+RGB+边缘+2×2分块，自适应，推荐同调色跳切）；hist/diff 兼容为 auto"},
                 ),
                 "dissolve_window": (
                     "INT",

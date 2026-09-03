@@ -3,13 +3,14 @@
 无 torch / ComfyUI 依赖，可独立测试。
 输入帧为 uint8 RGB [H,W,3] 或 float [0,1]，内部统一转 uint8 小图后对比。
 
-检测四类：
-  - 硬切（跳切）：相邻帧 RGB 直方图/像素差 > threshold（ per-channel Bhattacharyya 均值，对同亮度异色敏感）
+检测四类（融合 max）：
+  - 硬切（跳切）：RGB 直方图 + HSV 直方图 + 边缘差 + 2×2 分块直方图 max + RGB 像素差 的 max > 自适应阈值
   - 黑场：连续黑帧（灰度均值 < black_threshold）段边界
   - 白闪：连续白帧（灰度均值 > white_threshold）段边界
-  - 溶解/渐变：滑窗 W 内累积 RGB 直方图距离 > threshold 且窗内单步均值 > dissolve_threshold 且 max 单步 < threshold
+  - 溶解/渐变：滑窗 W 内累积 RGB 直方图距离 > threshold 且窗内单步 max < threshold 且 avg > dissolve_threshold
 
 最短场景去抖：相邻切点距 < min_scene_len 则合并（删后者），尾段不足也合并。
+自适应：threshold' = max(threshold, μ+3σ)，μ/σ 取前 32 帧融合距离滑动窗，抑制抖动误切。
 """
 
 import math
@@ -24,7 +25,6 @@ def _to_uint8_rgb(frame):
         arr = arr[:, :, None]
     if arr.ndim != 3:
         raise ValueError(f"帧形状非法: {arr.shape}")
-    # 通道归一
     if arr.shape[2] == 1:
         arr = np.repeat(arr, 3, axis=2)
     elif arr.shape[2] >= 3:
@@ -32,11 +32,8 @@ def _to_uint8_rgb(frame):
     else:
         raise ValueError(f"通道数非法: {arr.shape}")
     if arr.dtype != np.uint8:
-        # float [0,1] -> uint8
         arr = np.clip(arr, 0, 1) if arr.dtype in (np.float32, np.float64) else np.clip(arr, 0, 255)
         if arr.max() <= 1.0 + 1e-6 and arr.dtype != np.uint8:
-            # 启发式：若已在 0-1 范围则 *255
-            # 若输入是 0-255 float，也会在上一步被 clip 到 255，但仍用 *1 判断
             is_float01 = arr.dtype in (np.float32, np.float64) and float(arr.max()) <= 1.0
             if is_float01:
                 arr = (arr * 255.0).astype(np.uint8)
@@ -72,7 +69,6 @@ def _downscale_rgb(frame_uint8, longest=160):
         return np.array(pil_small)
     except Exception:
         pass
-    # 最近邻子采样
     step_h = max(1, h // nh)
     step_w = max(1, w // nw)
     sampled = frame_uint8[::step_h, ::step_w]
@@ -111,6 +107,57 @@ def _hist_rgb(small_rgb, bins=32):
     return hists
 
 
+def _hist_hsv(small_rgb, bins=32):
+    """H 通道直方图（HSV 对光照不敏感）。cv2 优先，PIL 回退，失败回退 R 通道。"""
+    try:
+        import cv2  # type: ignore
+
+        hsv = cv2.cvtColor(small_rgb, cv2.COLOR_RGB2HSV)
+        h = hsv[:, :, 0]  # 0-180
+        hist, _ = np.histogram(h, bins=bins, range=(0, 180))
+        hist = hist.astype(np.float32)
+        if hist.sum() > 0:
+            hist /= hist.sum()
+        return hist
+    except Exception:
+        pass
+    try:
+        from PIL import Image  # type: ignore
+
+        pil = Image.fromarray(small_rgb)
+        hsv = pil.convert("HSV")
+        arr = np.array(hsv)
+        h = arr[:, :, 0]
+        hist, _ = np.histogram(h, bins=bins, range=(0, 256))
+        hist = hist.astype(np.float32)
+        if hist.sum() > 0:
+            hist /= hist.sum()
+        return hist
+    except Exception:
+        # 回退 R 通道
+        hist, _ = np.histogram(small_rgb[:, :, 0], bins=bins, range=(0, 256))
+        hist = hist.astype(np.float32)
+        if hist.sum() > 0:
+            hist /= hist.sum()
+        return hist
+
+
+def _sobel_edge(small_gray):
+    try:
+        import cv2  # type: ignore
+
+        gx = cv2.Sobel(small_gray, cv2.CV_16S, 1, 0, ksize=3)
+        gy = cv2.Sobel(small_gray, cv2.CV_16S, 0, 1, ksize=3)
+        mag = np.sqrt(gx.astype(float) ** 2 + gy.astype(float) ** 2)
+        return np.clip(mag, 0, 255).astype(np.uint8)
+    except Exception:
+        # 简易梯度
+        gx = np.diff(small_gray.astype(int), axis=1, prepend=small_gray[:, :1].astype(int))
+        gy = np.diff(small_gray.astype(int), axis=0, prepend=small_gray[:1, :].astype(int))
+        mag = np.sqrt(gx.astype(float) ** 2 + gy.astype(float) ** 2)
+        return np.clip(mag, 0, 255).astype(np.uint8)
+
+
 def _hist_distance(h1, h2):
     """Bhattacharyya 距离 1 - BC，0=相同，1=完全不同。"""
     bc = float(np.sum(np.sqrt(h1 * h2)))
@@ -130,49 +177,75 @@ def _diff_distance_rgb(rgb1, rgb2):
     return float(np.mean(np.abs(rgb1.astype(np.int16) - rgb2.astype(np.int16))) / 255.0)
 
 
+def _block_hist_distance_rgb(small_rgb1, small_rgb2, bins=16, grid=4):
+    h, w = small_rgb1.shape[:2]
+    # 4×4 分块（同调色跳切多为局部替换，2×2 对 16×16 小块仅占块 25% 会稀释到 0.13）
+    if h < 8 or w < 8:
+        return _hist_distance_rgb(_hist_rgb(small_rgb1, bins=bins), _hist_rgb(small_rgb2, bins=bins))
+    maxd = 0.0
+    for i in range(grid):
+        for j in range(grid):
+            y = i * h // grid
+            x = j * w // grid
+            bh = h // grid if i < grid - 1 else h - y
+            bw = w // grid if j < grid - 1 else w - x
+            if bh <= 0 or bw <= 0:
+                continue
+            b1 = small_rgb1[y : y + bh, x : x + bw]
+            b2 = small_rgb2[y : y + bh, x : x + bw]
+            if b1.size == 0 or b2.size == 0:
+                continue
+            d = _hist_distance_rgb(_hist_rgb(b1, bins=bins), _hist_rgb(b2, bins=bins))
+            if d > maxd:
+                maxd = d
+                if maxd >= 0.99:
+                    return float(maxd)
+    return float(maxd)
+
+
 def _process_frame(frame, bins=32, longest=160):
     fu8 = _to_uint8_rgb(frame)
     small_rgb = _downscale_rgb(fu8, longest=longest)
     small_gray = _rgb_to_gray(small_rgb)
-    hists = _hist_rgb(small_rgb, bins=bins)
-    # 兼容：保留灰度 hist 供旧逻辑对比（不使用）
+    hists_rgb = _hist_rgb(small_rgb, bins=bins)
+    hist_hsv = _hist_hsv(small_rgb, bins=bins)
+    edge = _sobel_edge(small_gray)
     mean = float(np.mean(small_gray) / 255.0)
-    return small_rgb, small_gray, hists, mean
+    return small_rgb, small_gray, hists_rgb, hist_hsv, edge, mean
 
 
-def detect_scenes(frames, threshold=0.25, black_threshold=0.08, white_threshold=0.92,
-                  min_scene_len=12, method="hist", dissolve_window=8, dissolve_threshold=0.18,
+def detect_scenes(frames, threshold=0.22, black_threshold=0.08, white_threshold=0.92,
+                  min_scene_len=12, method="auto", dissolve_window=8, dissolve_threshold=0.18,
                   bins=32, longest=160):
     """帧序列 -> 切点列表 [0, cut1, ..., B]（含起止）。
 
     frames: np.ndarray [B,H,W,3] uint8/float 或 iterable[frame]
-    method: "hist" | "diff"
+    method: "auto"(融合 max) | "hist" | "diff"（后两者兼容，内部仍走融合以提升同调色召回）
     """
     rgbs = []
     grays = []
-    hists_list = []
+    hists_rgb_list = []
+    hists_hsv_list = []
+    edges = []
     means = []
-    # 归一化迭代
     if isinstance(frames, np.ndarray) and frames.ndim == 4:
         b = frames.shape[0]
         iterator = (frames[i] for i in range(b))
     elif isinstance(frames, (list, tuple)):
         iterator = iter(frames)
     else:
-        # generator / iterable
         try:
             iterator = iter(frames)
         except TypeError:
             raise ValueError("frames 必须是 [B,H,W,C] 数组或可迭代帧序列")
-        # 无法预知长度，逐个消费
-    count = 0
     for fr in iterator:
-        small_rgb, small_gray, hists, mean = _process_frame(fr, bins=bins, longest=longest)
+        small_rgb, small_gray, hists_rgb, hist_hsv, edge, mean = _process_frame(fr, bins=bins, longest=longest)
         rgbs.append(small_rgb)
         grays.append(small_gray)
-        hists_list.append(hists)
+        hists_rgb_list.append(hists_rgb)
+        hists_hsv_list.append(hist_hsv)
+        edges.append(edge)
         means.append(mean)
-        count += 1
     B = len(means)
     if B == 0:
         return [0, 0]
@@ -181,18 +254,41 @@ def detect_scenes(frames, threshold=0.25, black_threshold=0.08, white_threshold=
 
     cuts = set()
 
-    # 1) 硬切（RGB 直方图/像素差，对颜色敏感；原灰度实现对同亮度异色会漏检）
+    # 预计算融合距离（B-1）
+    fused = []
     for i in range(B - 1):
-        if method == "hist":
-            d = _hist_distance_rgb(hists_list[i], hists_list[i + 1])
-        else:
-            d = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
-        if d > threshold:
+        d_rgb = _hist_distance_rgb(hists_rgb_list[i], hists_rgb_list[i + 1])
+        d_hsv = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + 1])
+        d_diff = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
+        d_edge = _diff_distance(edges[i], edges[i + 1])
+        d_block = _block_hist_distance_rgb(rgbs[i], rgbs[i + 1], bins=16)
+        fused.append(max(d_rgb, d_hsv, d_diff, d_edge, d_block))
+
+    # 自适应阈值（32 帧滑动窗 μ+3σ），抑制抖动段误切
+    adapt_thr = []
+    window = 32
+    for i in range(len(fused)):
+        base = float(threshold)
+        if i >= 5:
+            win = fused[max(0, i - window) : i]
+            if len(win) >= 4:
+                mu = float(np.mean(win))
+                sigma = float(np.std(win))
+                # 仅当方差有意义时提升阈值
+                if sigma > 1e-6:
+                    cand = mu + 3.0 * sigma
+                    if cand > base:
+                        base = min(0.9, cand)
+        adapt_thr.append(base)
+
+    # 1) 硬切（融合 max）
+    for i, d in enumerate(fused):
+        # method 兼容：hist/diff 仍走融合，不再单指标漏检
+        if d > adapt_thr[i]:
             cuts.add(i + 1)
 
     # 2) 黑/白场连续段边界
     def add_runs(mask, is_black=True):
-        # mask: bool list
         i = 0
         while i < B:
             if not mask[i]:
@@ -201,80 +297,57 @@ def detect_scenes(frames, threshold=0.25, black_threshold=0.08, white_threshold=
             s = i
             while i < B and mask[i]:
                 i += 1
-            e = i - 1  # inclusive
+            e = i - 1
             run_len = e - s + 1
-            # 过滤单帧噪点？黑场至少 1 帧即有意义，但若整段全黑则不切
             if run_len >= 1 and not (s == 0 and e == B - 1):
-                # 段起点前一切，段终点后一切（若不在边界）
                 if s > 0:
                     cuts.add(s)
                 if e + 1 < B:
                     cuts.add(e + 1)
-                # 对于长黑场，内部不再额外切
-            # i 已在 e+1
     black_mask = [m < black_threshold for m in means]
     white_mask = [m > white_threshold for m in means]
     add_runs(black_mask, is_black=True)
     add_runs(white_mask, is_black=False)
 
-    # 3) 溶解/渐变（滑窗累积，RGB）
+    # 3) 溶解/渐变（滑窗累积，RGB 直方图）
     W = int(dissolve_window)
     if W >= 2 and B > W:
-        # 预计算单步距离用于窗口内统计
-        step_dists = []
-        for i in range(B - 1):
-            if method == "hist":
-                d = _hist_distance_rgb(hists_list[i], hists_list[i + 1])
-            else:
-                d = _diff_distance_rgb(rgbs[i], rgbs[i + 1])
-            step_dists.append(d)
+        step_dists = fused  # 复用融合距离作单步
         for i in range(B - W):
-            # 累积距离
-            if method == "hist":
-                D = _hist_distance_rgb(hists_list[i], hists_list[i + W])
-            else:
-                D = _diff_distance_rgb(rgbs[i], rgbs[i + W])
-            # 窗内单步统计
-            window_steps = step_dists[i:i + W]
+            # 累积距离用 RGB 直方图跨窗
+            D = _hist_distance_rgb(hists_rgb_list[i], hists_rgb_list[i + W])
+            # 也可用 HSV 跨窗取 max 更敏感
+            D_hsv = _hist_distance(hists_hsv_list[i], hists_hsv_list[i + W])
+            D = max(D, D_hsv)
+            window_steps = step_dists[i : i + W]
             avg_step = float(np.mean(window_steps)) if window_steps else 0.0
             max_step = float(np.max(window_steps)) if window_steps else 0.0
-            # 溶解条件：累积显著，单步均值中等但无单步硬切
-            if D > threshold and max_step < threshold and avg_step > dissolve_threshold:
-                # 进一步：亮度单调性可选（对 fade 有效，不强制）
-                # 若需要可放宽：只要直方图条件满足即判溶解
-                # 额外用亮度斜率辅助过滤噪声：若窗口内亮度方差极小且 D 仅略超阈值，可能是噪声，跳过？
-                # 这里保留宽松策略
-                mid = i + W // 2 + 1  # 切在窗口中点后
+            # 自适应阈值取窗起点对应阈值
+            thr = adapt_thr[i] if i < len(adapt_thr) else float(threshold)
+            if D > thr and max_step < thr and avg_step > dissolve_threshold:
+                mid = i + W // 2 + 1
                 if 0 < mid < B:
                     cuts.add(mid)
 
     # 4) 去抖：相邻切点距 < min_scene_len 则合并（删后者）
     cand = sorted(cuts)
-    # 去除 0/B 哨兵若被误加入
     cand = [c for c in cand if 0 < c < B]
-    # 合并
     merged = []
     last = 0
     for c in cand:
         if c - last >= min_scene_len:
             merged.append(c)
             last = c
-        # else 跳过（合并到上一段）
-    # 尾段处理
     final = [0] + merged
     if final[-1] != B:
         if B - final[-1] >= min_scene_len or len(final) == 1:
             final.append(B)
         else:
-            # 尾段过短，合并到上一段（用 B 替换最后一切点）
-            # 若 merged 为空则直接 [0,B]
             if len(final) > 1:
                 final[-1] = B
             else:
                 final.append(B)
-    # 去重排序
     final = sorted(set(final))
-    # 确保首尾
     if final[0] != 0:
         final = [0] + final
     if final[-1] != B:
