@@ -45,15 +45,35 @@ check("seed 含 control_after_generate True", opts.get("control_after_generate")
 check("seed default 0", opts.get("default")==0)
 check("seed min 0", opts.get("min")==0)
 check("seed max 0xffffffffffffffff", opts.get("max")==0xffffffffffffffff)
-# vision/thinking 仍存在且顺序在 seed 之后（widget 追加约束：thinking 在 optional 末尾）
+# vision/thinking/user_prompt 仍存在；user_prompt 为末尾多行文本框（可连可填），thinking 为倒二
 opt_keys = list(it["optional"].keys())
 check("optional 含 vision_megapixels", "vision_megapixels" in opt_keys)
 check("optional 含 thinking", "thinking" in opt_keys)
-check("thinking 在 optional 末尾", opt_keys[-1]=="thinking")
+check("optional 含 user_prompt", "user_prompt" in opt_keys)
+check("user_prompt 在 optional 末尾（文本框化追加）", opt_keys[-1]=="user_prompt")
+check("thinking 为倒二（在 user_prompt 之前）", opt_keys[-2]=="thinking")
+# image/video/audio 均为可选（对齐原生 Generate Text）
+check("image 不在 required", "image" not in it["required"])
+check("image 在 optional", "image" in it["optional"])
+check("image 类型 IMAGE", it["optional"]["image"][0]=="IMAGE")
+check("video 在 optional", "video" in it["optional"])
+check("video 类型 IMAGE", it["optional"]["video"][0]=="IMAGE")
+check("audio 在 optional", "audio" in it["optional"])
+check("audio 类型 AUDIO", it["optional"]["audio"][0]=="AUDIO")
+# user_prompt 已改为节点内文本框
+up = it["optional"]["user_prompt"]
+check("user_prompt 类型 STRING", up[0]=="STRING")
+check("user_prompt 非 forceInput", up[1].get("forceInput") is None or up[1].get("forceInput") is not True)
+check("user_prompt multiline", up[1].get("multiline") is True)
+check("user_prompt default 空串", up[1].get("default")=="")
 # 验证 control 不影响执行签名（interrogate 仍接受 seed）
 import inspect
 sig = inspect.signature(SFImageInterrogator.interrogate)
 check("interrogate 签名含 seed", "seed" in sig.parameters)
+check("interrogate 签名 image 可选", sig.parameters["image"].default is None)
+check("interrogate 签名 video 可选", sig.parameters["video"].default is None)
+check("interrogate 签名 audio 可选", sig.parameters["audio"].default is None)
+check("interrogate 签名 user_prompt 可选", "user_prompt" in sig.parameters)
 
 print(f"\n{'ALL PASS' if fail==0 else str(fail)+' FAILURES'}")
 sys.exit(1 if fail else 0)

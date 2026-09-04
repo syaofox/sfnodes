@@ -423,3 +423,31 @@
 - `selected` 不进 `promptState`（`sf_lora_stack_core.js:256`），避免“改默认就重跑”缓存污染；仅面板 hydrate 用。
 - `hideTriggers`（diffusion 域）全程短路，防止 LoRA 选中写进 `dmodels.json` 撞槽。
 - 空行回填需过滤：`storedSel` 含已删词时按可用词交集过滤，避免幽灵词复活；实现时 `avail` 取 `file_triggers/sidecar/triggers/merged/stored` 并集，先 `filter` 再去重保序。
+
+---
+
+## 38. SFImageInterrogator 三模态可选 + user_prompt 文本框化（对齐原生 Generate Text，2026-08）
+
+> 背景：`SFImageInterrogator` 原 `image` 为 `required IMAGE`，`user_prompt` 为 `forceInput STRING`（仅可连线，无文本框），与原生 `TextGenerate`（`image/video/audio` 均 `optional`，`prompt` 为文本框）不一致。用户要求 `image` 可选、整体对齐三件套、多帧视频支持、`user_prompt` 改为节点内多行文本框可连可填。
+
+### 1. INPUT_TYPES 变更与 widgets_values 位置敏感
+
+- `image` 从 `required` 移入 `optional`：`("IMAGE", {tooltip: "可选，纯文本/图文双模式"})`；新增 `video: ("IMAGE", {tooltip: "视频帧 batch 24FPS→1FPS 抽帧"})`、`audio: ("AUDIO", {tooltip: "透传"})`，均 `optional` 槽位（不进 `widgets_values`），旧连线按名注入安全。
+- `user_prompt` 由 `("STRING", {forceInput: True})`（无 widget）改为 `("STRING", {multiline: True, default: "", tooltip: "可连可填"})`：产生新 widget，**必须追加到 `optional` 末尾（`thinking` 之后）**，否则 `thinking`/`vision` 的 `widgets_values` 索引错位（如 `thinking` 布尔落入 `user_prompt` 字符串、旧图 `vision=1.0` 污染 `control` 的同类事故，见 §35）。追加后旧工作流 `widgets_values` 12 项→新 13 项，新增位取 `default ""`，旧值按名保留。
+- `DESCRIPTION` 同步：`image/video/audio 均为可选（对齐原生 Generate Text），user_prompt 为节点内文本框`。
+
+### 2. 执行分支：纯文本 vs 视觉
+
+- `def interrogate(self, clip, preset, prompt, ..., image=None, video=None, audio=None, system_prompt=None, vision_megapixels=1.0, thinking=False, user_prompt="")`：`image/video/audio` 显式 `None` 默认，按名注入兼容旧工作流。
+- `_scale_image(None) → []` 防御（曾 `None.movedim` 崩）。
+- 视觉聚合：`images_vl = []；image 非空 → _scale_image(image)；video 非空 → 按 24FPS 抽帧（`video[::24]`，不足 24 取首帧），逐帧 `_scale_image`；`images_vl` 为空 → `text = prompt` 不插占位符（纯文本生成），否则 `len==1` 单占位、 `>1` 按 `Picture N:` 前缀多占位（与 `TextEncodeKrea2` 多图一致，见 §33）。
+- `audio/video` 额外经 `**extra_kwargs` 透传给 `clip.tokenize`（`Qwen3VLTokenizer` 当前忽略但不报错，保持与 `TextGenerate` 兼容，未来视频模型可直接受益）。
+- `user_prompt` 的 `strip()` 后非空以 `\n` 附加到 `prompt`，空白则不追加；执行侧对 `prompt` 空时仍回退 `_merged_presets`，对 `user_prompt` 亦 `strip()`。
+
+### 3. 前端与测试
+
+- `web/krea2_interrogator.js` `afterConfigureGraph` 扩展 `user_prompt` 自愈：`typeof !== "string" → ""`（旧图无该 widget 时补默认，类型错位时回退），`thinking/vision/seed/control` 自愈保留。
+- 测试：`tests/test_interrogator_control.py` 更新可选断言（`image/video/audio` 在 `optional`，`user_prompt` `multiline/default` 末位）；新增 `tests/test_interrogator_optional.py` 覆盖纯文本/单图/图文+视频多帧占位/`user_prompt` 拼接/预设回退/`_scale_image None`。
+- 经验：新增可选槽位（`IMAGE/AUDIO`）不进 `widgets_values` 的判断标准是 `forceInput` 或非 `STRING/INT/FLOAT/BOOLEAN/COMBO` widget 类型；文本框化本质是把“输入槽”转为“widget”，必须走末尾追加。
+
+
