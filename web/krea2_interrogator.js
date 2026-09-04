@@ -66,12 +66,9 @@ app.registerExtension({
             if (data && data.presets) presets = data.presets;
         });
     },
-    // 防御：ComfyUI 前端按 widget 数组索引恢复旧工作流的值（widgets_values 位置敏感）。
-    // 若旧版保存的工作流因 widget 顺序变化发生值错位（如 vision_megapixels 的数值 1
-    // 落入 user_prompt、或 user_prompt 文本落入 vision_megapixels；以及隐式
-    // control_after_generate 追加导致 vision 误落 control 槽位→control 显示为 1），
-    // 图加载完成后按 widget 名自愈。user_prompt 原为 forceInput（无 widget），现为
-    // 末尾多行文本框（可连可填），旧工作流无该 widget 时补默认值 ""，类型错位时回退 ""。
+    // 参数已按功能分区重排（已授权打破旧工作流兼容，见 §38），旧图 widgets_values
+    // 索引必然错位，图加载后按 widget 名自愈（类型不符回退默认值），避免崩溃；新参数
+    // min_p/presence_penalty/use_default_template 等亦纳入自愈。
     afterConfigureGraph() {
         const nodes = app.graph?._nodes?.filter((n) => n?.comfyClass === COMIFY_CLASS) ?? [];
         const CAG_ALLOWED = ["fixed", "increment", "decrement", "randomize"];
@@ -91,22 +88,37 @@ app.registerExtension({
             if (seedWidget && !Number.isInteger(seedWidget.value)) {
                 const parsed = Number(seedWidget.value);
                 seedWidget.value = Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
-                // NaN / 字符串污染（如 "fixed" 落入 seed）回退 0
                 if (!Number.isInteger(seedWidget.value)) seedWidget.value = 0;
                 node.setDirtyCanvas?.(true, true);
             }
             const cag = node.widgets?.find((w) => w.name === "control_after_generate");
             if (cag) {
                 if (typeof cag.value !== "string" || !CAG_ALLOWED.includes(cag.value)) {
-                    // 数值污染（旧图 vision=1.0 落入 control→显示为 1）一律回退 fixed（默认不递增）
                     cag.value = "fixed";
                     node.setDirtyCanvas?.(true, true);
                 }
             }
             const thinking = node.widgets?.find((w) => w.name === "thinking");
             if (thinking && typeof thinking.value !== "boolean") {
-                // 旧污染（数值/字符串落入）一律回退 false（默认不思考）
                 thinking.value = thinking.value === true || thinking.value === "true";
+                node.setDirtyCanvas?.(true, true);
+            }
+            const minP = node.widgets?.find((w) => w.name === "min_p");
+            if (minP && typeof minP.value !== "number") {
+                const parsed = parseFloat(minP.value);
+                minP.value = Number.isFinite(parsed) ? parsed : 0.05;
+                node.setDirtyCanvas?.(true, true);
+            }
+            const presence = node.widgets?.find((w) => w.name === "presence_penalty");
+            if (presence && typeof presence.value !== "number") {
+                const parsed = parseFloat(presence.value);
+                presence.value = Number.isFinite(parsed) ? parsed : 0.0;
+                node.setDirtyCanvas?.(true, true);
+            }
+            const useTpl = node.widgets?.find((w) => w.name === "use_default_template");
+            if (useTpl && typeof useTpl.value !== "boolean") {
+                useTpl.value = useTpl.value === true || useTpl.value === "true";
+                if (typeof useTpl.value !== "boolean") useTpl.value = true;
                 node.setDirtyCanvas?.(true, true);
             }
         }

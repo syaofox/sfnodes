@@ -430,24 +430,24 @@
 
 > 背景：`SFImageInterrogator` 原 `image` 为 `required IMAGE`，`user_prompt` 为 `forceInput STRING`（仅可连线，无文本框），与原生 `TextGenerate`（`image/video/audio` 均 `optional`，`prompt` 为文本框）不一致。用户要求 `image` 可选、整体对齐三件套、多帧视频支持、`user_prompt` 改为节点内多行文本框可连可填。
 
-### 1. INPUT_TYPES 变更与 widgets_values 位置敏感
+### 1. INPUT_TYPES 变更与 widgets_values 位置敏感（初版 → 重排破兼容）
 
-- `image` 从 `required` 移入 `optional`：`("IMAGE", {tooltip: "可选，纯文本/图文双模式"})`；新增 `video: ("IMAGE", {tooltip: "视频帧 batch 24FPS→1FPS 抽帧"})`、`audio: ("AUDIO", {tooltip: "透传"})`，均 `optional` 槽位（不进 `widgets_values`），旧连线按名注入安全。
-- `user_prompt` 由 `("STRING", {forceInput: True})`（无 widget）改为 `("STRING", {multiline: True, default: "", tooltip: "可连可填"})`：产生新 widget，**必须追加到 `optional` 末尾（`thinking` 之后）**，否则 `thinking`/`vision` 的 `widgets_values` 索引错位（如 `thinking` 布尔落入 `user_prompt` 字符串、旧图 `vision=1.0` 污染 `control` 的同类事故，见 §35）。追加后旧工作流 `widgets_values` 12 项→新 13 项，新增位取 `default ""`，旧值按名保留。
-- `DESCRIPTION` 同步：`image/video/audio 均为可选（对齐原生 Generate Text），user_prompt 为节点内文本框`。
+- **初版（§38.0）**：`image` 从 `required` 移入 `optional`：`("IMAGE", {tooltip: "可选，纯文本/图文双模式"})`；新增 `video: ("IMAGE", {tooltip: "视频帧 batch 24FPS→1FPS 抽帧"})`、`audio: ("AUDIO", {tooltip: "透传"})`，均 `optional` 槽位（不进 `widgets_values`），旧连线按名注入安全。`user_prompt` 由 `("STRING", {forceInput: True})` 改为 `("STRING", {multiline: True, default: ""})`，为保兼容被迫追加到 `optional` 末尾（`thinking` 之后），`widgets_values` 12→13。
+- **重排（§38.1，已授权破兼容，见用户“不考虑破坏旧工作流,节点参数顺序调整合理”）**：按功能分区 `文本→视觉→采样→模板` 重排，`user_prompt` 紧邻 `prompt`（`required` 内 `preset/prompt/user_prompt` 连续），采样组 `max_length/do_sample/temperature/top_k/top_p/min_p/repetition_penalty/presence_penalty/seed/thinking` 聚合，视觉组 `system_prompt/image/video/audio/vision_megapixels/use_default_template` 置 `optional`。破兼容后 `afterConfigureGraph` 改为按名类型自愈（旧索引必然错位，不再追求追加保位）。
+- **新增采样对齐原生**：`min_p`(`FLOAT 0.05 0-1`)、`presence_penalty`(`FLOAT 0.0 0-5`) 置 `required` 采样组，`use_default_template`(`BOOLEAN True, advanced`) 置 `optional` 末位，`max_length` 上限 `4096→8192`（原生 `32768` 取 8192 兼顾思考预算）。
+- `DESCRIPTION` 同步新分区与采样清单。
 
-### 2. 执行分支：纯文本 vs 视觉
+### 2. 执行分支：纯文本 vs 视觉 vs 裸模板
 
-- `def interrogate(self, clip, preset, prompt, ..., image=None, video=None, audio=None, system_prompt=None, vision_megapixels=1.0, thinking=False, user_prompt="")`：`image/video/audio` 显式 `None` 默认，按名注入兼容旧工作流。
-- `_scale_image(None) → []` 防御（曾 `None.movedim` 崩）。
-- 视觉聚合：`images_vl = []；image 非空 → _scale_image(image)；video 非空 → 按 24FPS 抽帧（`video[::24]`，不足 24 取首帧），逐帧 `_scale_image`；`images_vl` 为空 → `text = prompt` 不插占位符（纯文本生成），否则 `len==1` 单占位、 `>1` 按 `Picture N:` 前缀多占位（与 `TextEncodeKrea2` 多图一致，见 §33）。
-- `audio/video` 额外经 `**extra_kwargs` 透传给 `clip.tokenize`（`Qwen3VLTokenizer` 当前忽略但不报错，保持与 `TextGenerate` 兼容，未来视频模型可直接受益）。
-- `user_prompt` 的 `strip()` 后非空以 `\n` 附加到 `prompt`，空白则不追加；执行侧对 `prompt` 空时仍回退 `_merged_presets`，对 `user_prompt` 亦 `strip()`。
+- `def interrogate(self, clip, preset, prompt, user_prompt, max_length, do_sample, temperature, top_k, top_p, min_p, repetition_penalty, presence_penalty, seed, thinking, image=None, video=None, audio=None, system_prompt=None, vision_megapixels=1.0, use_default_template=True)`：文本紧邻，采样聚合，视觉/模板后置。
+- `_scale_image(None) → []` 防御。
+- 视觉聚合同初版（`video[::24]` 抽帧）；`audio/video` 透传；`use_default_template=False` 时 `skip_template=True` 裸文本直送（`template=None`，视觉占位忽略），`True` 时按 `system_prompt` 包裹 `"<|im_start|>system...`（对齐原生 `Generate Text`）。
+- `clip.generate(..., min_p, presence_penalty)` 透传（`qwen3vl.py:130` 已支持），`clip.tokenize(..., thinking, skip_template)` 显式传递。
+- `user_prompt` 同前 `strip()` 附加。
 
 ### 3. 前端与测试
 
-- `web/krea2_interrogator.js` `afterConfigureGraph` 扩展 `user_prompt` 自愈：`typeof !== "string" → ""`（旧图无该 widget 时补默认，类型错位时回退），`thinking/vision/seed/control` 自愈保留。
-- 测试：`tests/test_interrogator_control.py` 更新可选断言（`image/video/audio` 在 `optional`，`user_prompt` `multiline/default` 末位）；新增 `tests/test_interrogator_optional.py` 覆盖纯文本/单图/图文+视频多帧占位/`user_prompt` 拼接/预设回退/`_scale_image None`。
-- 经验：新增可选槽位（`IMAGE/AUDIO`）不进 `widgets_values` 的判断标准是 `forceInput` 或非 `STRING/INT/FLOAT/BOOLEAN/COMBO` widget 类型；文本框化本质是把“输入槽”转为“widget”，必须走末尾追加。
+- `web/krea2_interrogator.js` `afterConfigureGraph` 改为重排后按名自愈（`user_prompt` string/`vision` number/`seed` int/`control` enum/`thinking` bool/`min_p`→0.05/`presence_penalty`→0.0/`use_default_template`→true），旧注释“追加末尾”更新为“已授权重排破兼容”。
+- 测试：`test_interrogator_control.py` 重写分区顺序断言（`user_prompt` 紧邻 `prompt`、`min_p/presence_penalty/thinking` 在 `required`、`use_default_template` 在 `optional` 末位、`max_length 8192`）；`test_interrogator_optional.py` 扩展 `min_p/presence_penalty` 透传与 `use_default_template=False` 裸模板分支。
 
 

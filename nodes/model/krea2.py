@@ -547,6 +547,9 @@ class SFImageInterrogator:
 
     @classmethod
     def INPUT_TYPES(cls):
+        # 参数按功能分区重排（已授权打破旧工作流 widgets_values 兼容）：
+        # 文本组（preset/prompt/user_prompt 紧邻）→ 视觉组（image/video/audio+vision）→
+        # 采样组（max_length…thinking）→ 模板开关；旧布局为兼容性被迫将 user_prompt 置末。
         return {
             "required": {
                 "clip": ("CLIP", {
@@ -566,11 +569,18 @@ class SFImageInterrogator:
                     "tooltip": "给 VLM 的指令文本，默认要求详细描述图片内容以便作为生成提示词使用，"
                                "可按需修改；留空时使用所选预设的指令",
                 }),
+                "user_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "可选用户提示词（节点内文本框，可直接编辑；亦可连文本节点覆盖，连接时以连线值为准）。"
+                               "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
+                               "保留特定内容）。留空则只使用指令文本（对齐原生 Generate Text 的 prompt 可编辑语义）",
+                }),
                 "max_length": ("INT", {
-                    "default": 256, "min": 8, "max": 4096,
+                    "default": 256, "min": 8, "max": 8192,
                     "tooltip": "生成文本的最大 token 数上限。开启 thinking 时模型先用一部分 token"
                                "推理（思考内容会自动剥离、不计入结果），因此思考块会占用预算："
-                               "若结果被截断为空，请调大此值（如 512~2048）",
+                               "若结果被截断为空，请调大此值（如 512~4096）",
                 }),
                 "do_sample": ("BOOLEAN", {
                     "default": True,
@@ -588,20 +598,35 @@ class SFImageInterrogator:
                     "default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01,
                     "tooltip": "核采样：从累计概率不超过 top_p 的最小 token 集合中采样",
                 }),
+                "min_p": ("FLOAT", {
+                    "default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": "最小概率采样阈值（对齐原生 Generate Text 的 sampling_mode.min_p）。0 = 禁用",
+                }),
                 "repetition_penalty": ("FLOAT", {
                     "default": 1.05, "min": 0.0, "max": 5.0, "step": 0.01,
                     "tooltip": "重复惩罚。>1 抑制重复，<1 鼓励重复",
+                }),
+                "presence_penalty": ("FLOAT", {
+                    "default": 0.0, "min": 0.0, "max": 5.0, "step": 0.01,
+                    "tooltip": "存在惩罚（对齐原生 Generate Text 的 sampling_mode.presence_penalty）。惩罚已出现 token 的重复，0 = 禁用",
                 }),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xffffffffffffffff,
                     "control_after_generate": True,
                     "tooltip": "随机种子。相同参数与种子可复现相同结果",
                 }),
+                "thinking": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "思考模式：模型先推理再回答（如果模型支持）。默认关闭（Qwen3 "
+                               "空 think 块约定抑制推理）；总是推理的 Think/无审查变体会无视该"
+                               "约定，可开启本项让推理走规范的 thinking 块通道。无论开关，推理"
+                               "内容都会在输出时自动剥离，只保留最终回答（对齐原生 Generate Text 的 thinking）",
+                }),
             },
             "optional": {
                 "system_prompt": ("STRING", {
                     "forceInput": True,
-                    "tooltip": "可选系统指令输入。不连接则使用 Krea2 训练时的描述指令（默认模板）",
+                    "tooltip": "可选系统指令输入。不连接则使用 Krea2 训练时的描述指令（默认模板），受 use_default_template 控制",
                 }),
                 "image": ("IMAGE", {
                     "tooltip": "待反推的图片，可选。连接时由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述；"
@@ -619,24 +644,10 @@ class SFImageInterrogator:
                     "tooltip": "图片/视频帧送入视觉编码器前的最大尺寸（百万像素）。超过上限会缩小，"
                                "较小的保持原始大小，不会被放大",
                 }),
-                "thinking": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "思考模式：模型先推理再回答（如果模型支持）。默认关闭（Qwen3 "
-                               "空 think 块约定抑制推理）；总是推理的 Think/无审查变体会无视该"
-                               "约定，可开启本项让推理走规范的 thinking 块通道。无论开关，推理"
-                               "内容都会在输出时自动剥离，只保留最终回答",
-                }),
-                # 注意：ComfyUI 前端按 widget 数组索引恢复旧工作流的值（widgets_values
-                # 位置敏感），新增 widget 若插在中间会导致旧工作流值错位。新增 widget
-                # 一律追加到末尾（当前末尾即 thinking），不得插入中间位置。user_prompt
-                # 原为 forceInput（无 widget），现改为节点内多行文本框（可连可填），为保
-                # 旧工作流不錯位，追加到末尾而非原位。
-                "user_prompt": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "可选用户提示词（节点内文本框，可直接编辑；亦可连文本节点覆盖，连接时以连线值为准）。"
-                               "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
-                               "保留特定内容）。留空则只使用指令文本",
+                "use_default_template": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "是否使用内置聊天模板（对齐原生 Generate Text 的 use_default_template，advanced）。"
+                               "关闭时跳过 <|im_start|>system/user/assistant 包裹，直接以原始文本送入模型（system_prompt/视觉占位自动忽略）",
                 }),
             },
         }
@@ -649,7 +660,8 @@ class SFImageInterrogator:
                    "无图时为纯文本生成；可接 CLIP Text Encode / Text Encode (Krea2) 作为提示词使用。"
                    "支持预设（含不描述人物相貌/身材等特征控制指令，可在节点上管理："
                    "新增/修改/删除/复位）与 thinking 模式（思考内容自动剥离，仅返回最终回答）。"
-                   "image/video/audio 均为可选（对齐原生 Generate Text），user_prompt 为节点内文本框")
+                   "image/video/audio 均为可选（对齐原生 Generate Text），user_prompt 为节点内文本框（紧邻 prompt）;"
+                   "采样参数含 min_p/presence_penalty/use_default_template 对齐原生，max_length 放宽至 8192")
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
@@ -672,17 +684,24 @@ class SFImageInterrogator:
         s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
         return [s.movedim(1, -1)]
 
-    def interrogate(self, clip, preset, prompt, max_length, do_sample, temperature, top_k,
-                    top_p, repetition_penalty, seed, image=None, video=None, audio=None,
-                    system_prompt=None, vision_megapixels=1.0, thinking=False, user_prompt=""):
+    def interrogate(self, clip, preset, prompt, user_prompt, max_length, do_sample, temperature,
+                    top_k, top_p, min_p, repetition_penalty, presence_penalty, seed, thinking,
+                    image=None, video=None, audio=None, system_prompt=None,
+                    vision_megapixels=1.0, use_default_template=True):
         prompt = ((prompt or "").strip()
                   or _merged_presets("interrogator", INTERROGATOR_PRESETS).get(preset, INTERROGATOR_DEFAULT_PROMPT))
         user_prompt = (user_prompt or "").strip()
         if user_prompt:
             prompt = prompt + "\n" + user_prompt
-        system = (system_prompt or "").strip() or KREA2_SYSTEM_DEFAULT
-        template = ("<|im_start|>system\n" + system + "<|im_end|>\n"
-                    "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n")
+        # 模板：use_default_template=False 时跳过系统/用户包裹作裸文本（对齐原生 Generate Text 的 advanced 开关）
+        if use_default_template:
+            system = (system_prompt or "").strip() or KREA2_SYSTEM_DEFAULT
+            template = ("<|im_start|>system\n" + system + "<|im_end|>\n"
+                        "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n")
+            skip_template = False
+        else:
+            template = None
+            skip_template = True
         # 视觉聚合：image + video（IMAGE batch，24FPS→1FPS 抽帧）统一缩放。
         # 无视觉输入时为纯文本生成（对齐原生 Generate Text 的 image 可选语义，不插占位符）。
         images_vl = []
@@ -704,14 +723,18 @@ class SFImageInterrogator:
                     images_vl.extend(self._scale_image(video[:1] if hasattr(video, "__getitem__") else video, vision_megapixels))
                 except Exception:
                     pass
-        # audio 仅透传（Krea2 视觉模型暂忽略，保持与原生 Generate Text 兼容）
+        # audio/video 透传（Krea2 视觉模型暂忽略，保持与原生 Generate Text 兼容）
         extra_kwargs = {}
         if video is not None:
             extra_kwargs["video"] = video
         if audio is not None:
             extra_kwargs["audio"] = audio
+        if skip_template:
+            extra_kwargs["skip_template"] = True
 
-        if images_vl:
+        if not use_default_template:
+            text = prompt
+        elif images_vl:
             # 有视觉时插入占位符：单帧单占位，多帧按 Picture N: 前缀（与 TextEncodeKrea2 多图一致）
             if len(images_vl) == 1:
                 text = "<|vision_start|><|image_pad|><|vision_end|>" + prompt
@@ -727,7 +750,10 @@ class SFImageInterrogator:
         # 设计，不注入空 think 块），生成路径若沿用该默认会让 Think 变体自由推理并输出
         # 思考内容。False 时 qwen3vl 注入空 think 块（` thinking\n\n response\n\n`）抑制
         # 推理（Qwen3 官方约定，仅对遵守它的 instruct 模型有效，见 doc/experience/nodes-lora.md §5）。
-        tokens = clip.tokenize(text, images=images_vl, llama_template=template, thinking=thinking, **extra_kwargs)
+        if use_default_template:
+            tokens = clip.tokenize(text, images=images_vl, llama_template=template, thinking=thinking, **extra_kwargs)
+        else:
+            tokens = clip.tokenize(text, images=images_vl, thinking=thinking, **extra_kwargs)
         generated_ids = clip.generate(
             tokens,
             do_sample=do_sample,
@@ -735,7 +761,9 @@ class SFImageInterrogator:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            min_p=min_p,
             repetition_penalty=repetition_penalty,
+            presence_penalty=presence_penalty,
             seed=seed,
         )
         out = clip.decode(generated_ids)

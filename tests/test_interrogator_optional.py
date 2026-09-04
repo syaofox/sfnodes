@@ -113,11 +113,18 @@ k2.comfy.utils.common_upscale = lambda s,w,h,m,c: s
 # Test 1: pure text (no image/video)
 fc = FakeClip()
 node = SFImageInterrogator()
-res = node.interrogate(clip=fc, preset="default", prompt="a cat", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=0)
+res = node.interrogate(clip=fc, preset="default", prompt="a cat", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False)
 check("纯文本无图调用成功", res[0]=="hello world")
 check("纯文本 images 为空", fc.last["images"]==[])
 check("纯文本 text 无占位符", "<|image_pad|>" not in fc.last["text"])
 check("纯文本 text 含 prompt", "a cat" in fc.last["text"])
+check("纯文本 min_p 透传", fc.last_gen.get("min_p")==0.05 if hasattr(fc, 'last_gen') else True)
+# 用 FakeClip.generate 记录 min_p 需要让 generate 捕获；在 FakeClip.generate 中记 last_gen
+# 上面第一次调用的 last_gen 在 fc.last_gen
+# 额外校验透传
+fc_tmp = FakeClip()
+node.interrogate(clip=fc_tmp, preset="default", prompt="a cat", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.1, repetition_penalty=1.05, presence_penalty=0.5, seed=0, thinking=False)
+check("min_p/presence_penalty 透传", fc_tmp.last_gen.get("min_p")==0.1 and fc_tmp.last_gen.get("presence_penalty")==0.5)
 
 # Test 2: with image only
 fc2 = FakeClip()
@@ -127,7 +134,7 @@ node2 = SFImageInterrogator()
 # patch _scale_image to return [fake]
 orig_scale = node2._scale_image
 k2.SFImageInterrogator._scale_image = staticmethod(lambda img, mp: [img] if img is not None else [])
-res2 = node2.interrogate(clip=fc2, preset="default", prompt="describe", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=1, image=fake_img)
+res2 = node2.interrogate(clip=fc2, preset="default", prompt="describe", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=1, thinking=False, image=fake_img)
 check("单图 images 长度 1", len(fc2.last["images"])==1)
 check("单图含单占位符", fc2.last["text"].count("<|image_pad|>")==1)
 check("单图无 Picture 前缀", "Picture" not in fc2.last["text"])
@@ -169,25 +176,32 @@ class V:
 fake_img2 = V(1)
 fake_vid2 = V(48)
 fc3b = FakeClip()
-res3 = node2.interrogate(clip=fc3b, preset="default", prompt="p", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=0, image=fake_img2, video=fake_vid2)
+res3 = node2.interrogate(clip=fc3b, preset="default", prompt="p", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False, image=fake_img2, video=fake_vid2)
 check("多帧 images 长度 3 (1图+2视频)", len(fc3b.last["images"])==3)
 check("多帧含 Picture 前缀", "Picture 1:" in fc3b.last["text"])
 check("多帧占位符数量 3", fc3b.last["text"].count("<|image_pad|>")==3)
 
-# Test 4: user_prompt 文本框拼接
+# Test 4: user_prompt 文本框拼接（现紧邻 prompt 的 required）
 fc4 = FakeClip()
 k2.SFImageInterrogator._scale_image = staticmethod(lambda img, mp: [])
-res4 = node2.interrogate(clip=fc4, preset="default", prompt="base", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=0, user_prompt="  extra hello  ")
+res4 = node2.interrogate(clip=fc4, preset="default", prompt="base", user_prompt="  extra hello  ", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False)
 check("user_prompt 拼接到 prompt", "base\nextra hello" in fc4.last["text"] or "base\n"+"extra hello" in fc4.last["text"])
 # 空 user_prompt 不拼
 fc5 = FakeClip()
-res5 = node2.interrogate(clip=fc5, preset="default", prompt="base", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=0, user_prompt="   ")
+res5 = node2.interrogate(clip=fc5, preset="default", prompt="base", user_prompt="   ", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False)
 check("空 user_prompt 不追加", fc5.last["text"].strip()=="base")
 
 # Test 5: preset 回退（prompt 空时用 preset）
 fc6 = FakeClip()
-res6 = node2.interrogate(clip=fc6, preset="default", prompt="   ", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, repetition_penalty=1.05, seed=0)
+res6 = node2.interrogate(clip=fc6, preset="default", prompt="   ", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False)
 check("空 prompt 回退预设", "Generate a detailed paragraph" in fc6.last["text"])
+
+# Test 5b: use_default_template=False 裸模板
+fc7 = FakeClip()
+res7 = node2.interrogate(clip=fc7, preset="default", prompt="hello", user_prompt="", max_length=256, do_sample=True, temperature=0.7, top_k=64, top_p=0.95, min_p=0.05, repetition_penalty=1.05, presence_penalty=0.0, seed=0, thinking=False, use_default_template=False)
+check("裸模板不包裹系统", fc7.last["template"] is None)
+check("裸模板 skip_template 透传", fc7.last["kw"].get("skip_template") is True)
+check("裸模板 text 直送", fc7.last["text"]=="hello")
 
 # Test 6: _scale_image None 防御
 check("_scale_image None 返回 []", SFImageInterrogator._scale_image(None, 1.0)==[])
