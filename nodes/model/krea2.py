@@ -514,6 +514,34 @@ INTERROGATOR_PRESETS = {
         "features, appearance, facial contours, body shape, height, hairstyle, hair color or "
         "eye color."
     ),
+    "扩写提示词": (
+        "你是专业的提示词助手，要把用户输入的提示词，扩写优化成很详细的提示词。\n"
+        "要求：\n"
+        "1.不能改变输入的提示词意思，包括主题，主体，颜色等\n"
+        "2.在输入的提示词基础上，优化扩写详细的提示词\n"
+        "3.最后输出纯英文提示词，不要其他废话\n"
+        "示例：\n"
+        "用户输入：一个穿着日式校服的女人，手拿着泡泡枪，做出举枪的酷酷动作，身材饱满丰满，可爱的圆脸，戴上圆形的眼镜，在废弃的公园里。\n"
+        "你输出：Subject & Action:\n"
+        "A young woman in a classic Japanese sailor-style school uniform (white square-collar top with a navy pleated skirt and a red ribbon bow at the collar), with a well-proportioned, curvaceous figure that is naturally full and feminine. She firmly grips a brightly colored toy bubble gun with both hands, striking a cool sideways aiming pose toward the viewer—left arm extended forward, right arm pulled back, head tilted slightly, with a sharp yet playful gaze, as if executing a dreamy \"bubble blitz.\"\n"
+        "\n"
+        "Face & Hairstyle & Accessories:\n"
+        "She has a round, adorable doll-like face with soft rosy cheeks; glossy jet-black shoulder-length bob hair with straight bangs covering her forehead and slightly curled ends. She wears a pair of silver-framed thin-rimmed round glasses, the lenses subtly reflecting light, revealing bright amber eyes behind them. A mischievous yet sweet smile curves at the corner of her lips, showing a tiny fang on the right side.\n"
+        "\n"
+        "Costume & Prop Details:\n"
+        "The sailor collar and cuffs have white piping, and the front ribbon flutters gently in the breeze; the pleated skirt hem falls just above the knee, rippling in soft folds with her movement. The bubble gun is vintage-styled, in pastel blue and white, with a stream of iridescent soap bubbles floating from the muzzle, refracting rainbow halos in the sunlight. Her right leg is slightly bent, left leg straight, feet clad in black round-toe uniform shoes and white ankle socks, with soles pressing down on fallen leaves.\n"
+        "\n"
+        "Scene & Environment:\n"
+        "The setting is a forgotten, abandoned park—rusty iron swing frames lean askew in overgrown grass, beside a carousel wreck draped in vines, with dry yellow leaves and sporadic wildflowers carpeting the ground. In the deep background stands a large old cherry tree with drooping branches, sparse petals drifting down; farther off, a broken fountain and cracked tiles are visible, with rainwater pooled in the basin reflecting the grey-blue sky.\n"
+        "\n"
+        "Lighting & Atmosphere:\n"
+        "Set in a summer twilight, the warm golden light of the setting sun pours in from the left, filtering through the treetops to cast dappled shadows, creating soft rim lighting on the figure and outlining her silhouette with a glowing edge. Dust motes and tiny petals float in the air, and the bubbles turn into translucent luminous spheres in the light. The overall mood blends nostalgia, dreaminess, and a hint of sassy coolness, with a slight film-grain texture and soft-focus effect, like a freeze-frame from a youthful fantasy movie.\n"
+        "\n"
+        "Quality & Composition:\n"
+        "cinematic depth-of-field, with the subject slightly off-center to the right, captured from a low-angle upward shot to emphasize her confidence and edge. Background bokeh is moderately blurred, retaining environmental textures but keeping sharp focus on the face and bubble gun. Color saturation is medium-warm, with purplish-brown shadows and orange-yellow highlights, evoking a retro Japanese photographic aesthetic.\n"
+        "\n"
+        "user prompt："
+    ),
 }
 
 
@@ -553,101 +581,88 @@ class SFImageInterrogator:
         return {
             "required": {
                 "clip": ("CLIP", {
-                    "tooltip": "Krea2 的 CLIP 模型。使用 CLIPLoader 加载，类型选择 krea2",
+                    "tooltip": "Krea2 的 CLIP 文本编码器（Qwen3-VL-4B）。需用 CLIPLoader 加载，类型选 krea2；FP8 权重的编码器仅支持纯文本，图文/视频会报错",
                 }),
                 # combo 只列内置选项（INPUT_TYPES 在 import 时求值，无法预知运行时新增的
                 # 用户预设）；用户预设由前端加载后动态重建 options（VALIDATE_INPUTS 兜底）。
                 "preset": (list(INTERROGATOR_PRESETS.keys()), {
                     "default": "default",
-                    "tooltip": "反推指令预设（含不描述人物相貌等特征控制指令）。选择后自动填充"
-                               "下方文本，之后仍可手动编辑；留空文本时回退到所选预设。可在节点"
-                               "管理预设按钮中新增/修改/删除/复位",
+                    "tooltip": "反推指令预设（内置+用户自定义，含“不描述相貌/身材”等控制）。选择后自动覆盖 prompt 文本，之后可再手动编辑；prompt 留空时执行时回退到该预设。可通过节点内“管理预设”按钮新增/修改/删除/复位",
                 }),
                 "prompt": ("STRING", {
                     "multiline": True,
                     "default": INTERROGATOR_DEFAULT_PROMPT,
-                    "tooltip": "给 VLM 的指令文本，默认要求详细描述图片内容以便作为生成提示词使用，"
-                               "可按需修改；留空时使用所选预设的指令",
+                    "tooltip": "主指令文本（发给 VLM 的任务描述）。选择预设后自动填充，可再编辑；留空时回退到所选预设的默认指令。会与 user_prompt 拼接后送入模型",
                 }),
                 "user_prompt": ("STRING", {
                     "multiline": True,
                     "default": "",
-                    "tooltip": "可选用户提示词（节点内文本框，可直接编辑；亦可连文本节点覆盖，连接时以连线值为准）。"
-                               "以独立段落附加到指令文本末尾，可结合自己的诉求引导反推（如强调"
-                               "保留特定内容）。留空则只使用指令文本（对齐原生 Generate Text 的 prompt 可编辑语义）",
+                    "tooltip": "可选用户附加提示词（节点内文本框，可直接编辑；连线输入时以连线值为准覆盖文本框）。"
+                               "会自动以独立段落追加到主指令（prompt/预设）末尾，用于补充约束（如“保留服装细节/不描述背景”）；留空则仅用主指令",
                 }),
                 "max_length": ("INT", {
                     "default": 256, "min": 8, "max": 8192,
-                    "tooltip": "生成文本的最大 token 数上限。开启 thinking 时模型先用一部分 token"
-                               "推理（思考内容会自动剥离、不计入结果），因此思考块会占用预算："
-                               "若结果被截断为空，请调大此值（如 512~4096）",
+                    "tooltip": "生成文本的最大 token 数上限（包含思考链）。开启 thinking 时模型先用一部分 token做内部推理（会自动剥离不计入结果），会占用预算；若输出为空或被截断，请调大至 512~4096",
                 }),
                 "do_sample": ("BOOLEAN", {
                     "default": True,
-                    "tooltip": "是否采样生成。关闭时使用贪心解码（确定性输出），适合追求稳定",
+                    "tooltip": "是否采样生成。开启时按 temperature/top_k/top_p/min_p 采样（多样）；关闭时贪心解码（确定性、稳定）",
                 }),
                 "temperature": ("FLOAT", {
                     "default": 0.7, "min": 0.01, "max": 2.0, "step": 0.01,
-                    "tooltip": "采样温度。越高越随机，越低越保守",
+                    "tooltip": "采样温度（仅 do_sample 开启时生效）。越高越随机/发散（>1 创造性强），越低越保守/确定（<0.5 更稳定）",
                 }),
                 "top_k": ("INT", {
                     "default": 64, "min": 0, "max": 1000,
-                    "tooltip": "仅从概率最高的 top_k 个 token 中采样。0 = 禁用",
+                    "tooltip": "仅从概率最高的 top_k 个 token 中采样（仅 do_sample 开启时生效）。0 = 禁用，越大候选越多",
                 }),
                 "top_p": ("FLOAT", {
                     "default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01,
-                    "tooltip": "核采样：从累计概率不超过 top_p 的最小 token 集合中采样",
+                    "tooltip": "核采样（仅 do_sample 开启时生效）：从累计概率 ≤ top_p 的最小 token 集合中采样，1.0 = 不截断",
                 }),
                 "min_p": ("FLOAT", {
                     "default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01,
-                    "tooltip": "最小概率采样阈值（对齐原生 Generate Text 的 sampling_mode.min_p）。0 = 禁用",
+                    "tooltip": "最小概率阈值（对齐原生 Generate Text 的 min_p）。仅保留概率 ≥ min_p × 最高 token 概率的候选，比 top_p 更激进地截断长尾噪声；0 = 禁用",
                 }),
                 "repetition_penalty": ("FLOAT", {
                     "default": 1.05, "min": 0.0, "max": 5.0, "step": 0.01,
-                    "tooltip": "重复惩罚。>1 抑制重复，<1 鼓励重复",
+                    "tooltip": "重复惩罚（按比例缩放已出现 token 的 logit）。>1 抑制重复/循环，<1 鼓励重复，1.0 = 无惩罚",
                 }),
                 "presence_penalty": ("FLOAT", {
                     "default": 0.0, "min": 0.0, "max": 5.0, "step": 0.01,
-                    "tooltip": "存在惩罚（对齐原生 Generate Text 的 sampling_mode.presence_penalty）。惩罚已出现 token 的重复，0 = 禁用",
+                    "tooltip": "存在惩罚（对齐原生 Generate Text 的 presence_penalty）。对已出现过的 token 施加固定惩罚以抑制话题/重复短语，与 repetition_penalty（按比例缩放）叠加生效；0 = 禁用",
                 }),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xffffffffffffffff,
                     "control_after_generate": True,
-                    "tooltip": "随机种子。相同参数与种子可复现相同结果",
+                    "tooltip": "随机种子（可复现）。右侧下拉控制递增模式：fixed 固定、increment/decrement/randomize 自动变化",
                 }),
                 "thinking": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "思考模式：模型先推理再回答（如果模型支持）。默认关闭（Qwen3 "
-                               "空 think 块约定抑制推理）；总是推理的 Think/无审查变体会无视该"
-                               "约定，可开启本项让推理走规范的 thinking 块通道。无论开关，推理"
-                               "内容都会在输出时自动剥离，只保留最终回答（对齐原生 Generate Text 的 thinking）",
+                    "tooltip": "思考模式（对齐原生 thinking）。默认关闭：向模型注入空 <think> 块以抑制推理（Qwen3 约定，仅 instruct 模型有效）；开启则走规范 thinking 通道，让模型先推理再回答。推理内容输出时自动剥离，只保留最终回答；开启会额外占用 max_length 预算",
                 }),
             },
             "optional": {
                 "system_prompt": ("STRING", {
                     "forceInput": True,
-                    "tooltip": "可选系统指令输入。不连接则使用 Krea2 训练时的描述指令（默认模板），受 use_default_template 控制",
+                    "tooltip": "可选系统指令（覆盖 Krea2 训练时默认的“详细描述颜色/形状/空间...”模板）。可接入 SFKrea2SystemPrompt 输出或任意 STRING；不连接则用默认描述指令。关闭 use_default_template 时此输入被忽略",
                 }),
                 "image": ("IMAGE", {
-                    "tooltip": "待反推的图片，可选。连接时由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述；"
-                               "不连接时仅按指令/提示词做纯文本生成（对齐原生 Generate Text）",
+                    "tooltip": "待反推的图片（可选）。连接后由 Krea2 的 Qwen3-VL 视觉通路理解并生成描述；不连时为纯文本生成（对齐原生 Generate Text 的 image 可选）。支持 RGB/RGBA（透明按黑底合成）",
                 }),
                 "video": ("IMAGE", {
-                    "tooltip": "可选视频帧（IMAGE batch，假定 24FPS、内部按 1FPS 抽帧）。不连接则忽略；"
-                               "与 image 可同时连接，多帧时每帧占一个视觉占位符",
+                    "tooltip": "可选视频（IMAGE batch，帧序列）。内部按 1FPS 抽帧（24FPS 输入每 24 帧取 1，不足 24 取首帧），每帧独立缩放后各占一个 <|image_pad|> 视觉占位；可与 image 同时连接，输出按 Picture 1/2/... 前缀区分",
                 }),
                 "audio": ("AUDIO", {
-                    "tooltip": "可选音频（对齐原生 Generate Text）。Krea2 视觉模型暂忽略该输入，仅透传以保持兼容",
+                    "tooltip": "可选音频（对齐原生 Generate Text 的 audio）。当前 Krea2 视觉模型不消费音频，仅透传给 tokenizer 以保持与原生一致，未来音频模型可直接受益",
                 }),
                 "vision_megapixels": ("FLOAT", {
                     "default": 1.0, "min": 0.1, "max": 8.0, "step": 0.1,
-                    "tooltip": "图片/视频帧送入视觉编码器前的最大尺寸（百万像素）。超过上限会缩小，"
-                               "较小的保持原始大小，不会被放大",
+                    "tooltip": "视觉输入缩放上限（百万像素，按面积等比）。单张/每帧超过上限会等比缩小，未超则保持原尺寸不放大；多帧时 per-frame 独立计算",
                 }),
                 "use_default_template": ("BOOLEAN", {
                     "default": True,
-                    "tooltip": "是否使用内置聊天模板（对齐原生 Generate Text 的 use_default_template，advanced）。"
-                               "关闭时跳过 <|im_start|>system/user/assistant 包裹，直接以原始文本送入模型（system_prompt/视觉占位自动忽略）",
+                    "tooltip": "是否使用内置聊天模板（对齐原生 use_default_template，advanced）。开启时自动包裹 <|im_start|>system/user/assistant 并插入视觉占位；关闭时以 prompt 原文直送（跳过模板，system_prompt 与视觉占位均失效，适合裸提示词调试）",
                 }),
             },
         }
