@@ -50,6 +50,24 @@ def affix_list(items, prefix="", suffix="", filter_empty=True):
     return out
 
 
+def pad_number_text(text, digits):
+    """纯整数文本左侧补零到 digits 位，其余原样返回。
+
+    - 仅匹配可选正负号 + 纯数字的整数文本（如 "7"、"-5"、"+3"）；浮点/非数字不补
+    - 符号保留在补零结果之外（"-5", digits=2 -> "-05"）
+    - digits <= 0 或位数已足够时原样返回；无 ComfyUI 依赖
+    """
+    if digits is None or digits <= 0:
+        return text
+    body = text[1:] if text[:1] in ("+", "-") else text
+    if not body.isdigit():
+        return text
+    if len(body) >= digits:
+        return text
+    sign = text[:1] if body != text else ""
+    return sign + body.zfill(digits)
+
+
 # 判断是否包含中文
 def has_chinese_character(string):
     """
