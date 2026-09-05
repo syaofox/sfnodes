@@ -56,6 +56,26 @@ def floor_divisible(number, divisor):
     return floored
 
 
+def total_pixels_to_wh(orig_w: int, orig_h: int, total_pixels: float) -> Tuple[int, int] | None:
+    """按源宽高比缩放到目标总像素数，返回 (width, height)。
+
+    ComfyUI binary-MP convention: 1 MP = 1024*1024 = 1,048,576 pixels（与原生
+    ImageScaleToTotalPixels 一致，非 10⁶ SI-MP）。取整用 round（不在此处做
+    divisible 取整，由调用方按各自 divisible_by 处理）。
+    total_pixels <= 0 或源宽高非法时返回 None（调用方回退直通）。
+    """
+    try:
+        ow, oh = int(orig_w), int(orig_h)
+        mp = float(total_pixels)
+    except (TypeError, ValueError):
+        return None
+    if ow <= 0 or oh <= 0 or mp <= 0:
+        return None
+    total = mp * 1024.0 * 1024.0
+    scale = math.sqrt(total / (ow * oh))
+    return max(1, round(ow * scale)), max(1, round(oh * scale))
+
+
 def parse_resize_state(state_json: str, defaults: dict) -> dict:
     """Parse a hidden-state JSON string, merging known keys over `defaults`.
     Falls back to a copy of `defaults` on any error (subgraph / partial-prompt

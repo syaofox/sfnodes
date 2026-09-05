@@ -23,7 +23,12 @@ from datetime import datetime
 _CATEGORY = "sfnodes/image"
 UPSCALE_METHODS = ["lanczos", "nearest-exact", "bilinear", "area", "bicubic"]
 
-from ...sf_utils.resize_engine import floor_divisible, make_divisible, make_even
+from ...sf_utils.resize_engine import (
+    floor_divisible,
+    make_divisible,
+    make_even,
+    total_pixels_to_wh,
+)
 
 
 class GetImageSize:
@@ -193,9 +198,9 @@ class ImageScalerByPixels(BaseImageScaler):
                 image, result_mask, image.shape[2], image.shape[1]
             )
 
-        scale_by = math.sqrt(total / current_pixels)
-        width = floor_divisible(round(samples.shape[3] * scale_by), divisible_by)
-        height = floor_divisible(round(samples.shape[2] * scale_by), divisible_by)
+        computed = total_pixels_to_wh(samples.shape[3], samples.shape[2], total_pixels)
+        width = floor_divisible(computed[0], divisible_by)
+        height = floor_divisible(computed[1], divisible_by)
 
         scaled_image, result_mask = self.scale_image(
             image, width, height, upscale_method, mask, divisible_by
@@ -604,6 +609,13 @@ class ImageResizePlus:
         return {
             "required": {
                 "image": ("IMAGE",),
+                "size_mode": (
+                    ["width & height", "total pixels"],
+                    {
+                        "default": "width & height",
+                        "tooltip": "目标尺寸模式：width & height=按宽高，total pixels=按总像素数（忽略 width/height，保持源图宽高比）",
+                    },
+                ),
                 "width": (
                     "INT",
                     {
@@ -620,6 +632,16 @@ class ImageResizePlus:
                         "min": 0,
                         "max": MAX_RESOLUTION,
                         "step": 1,
+                    },
+                ),
+                "total_pixels": (
+                    "FLOAT",
+                    {
+                        "default": 1.00,
+                        "min": 0.01,
+                        "max": 16.0,
+                        "step": 0.01,
+                        "tooltip": "目标总像素（百万像素），1.00 = 1024×1024 = 1,048,576 像素（与原生 ImageScaleToTotalPixels 一致）；仅 size_mode=total pixels 生效",
                     },
                 ),
                 "interpolation": (
@@ -694,6 +716,8 @@ class ImageResizePlus:
         image,
         width,
         height,
+        size_mode="width & height",
+        total_pixels=1.0,
         method="keep proportion",
         interpolation="lanczos",
         condition="always",
@@ -709,6 +733,11 @@ class ImageResizePlus:
 
         if keep_proportion:
             method = "keep proportion"
+
+        if size_mode == "total pixels":
+            computed = total_pixels_to_wh(ow, oh, total_pixels)
+            if computed is not None:
+                width, height = computed
 
         if divisible_by > 1:
             width = floor_divisible(width, divisible_by)

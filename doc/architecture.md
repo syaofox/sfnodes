@@ -10,7 +10,7 @@ sfnodes/
 ├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
 ├── nodes/               # 所有节点实现，按功能分子目录
 │   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
-│   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸）、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、镜头切分（scene_split.py：SFImageSceneSplit 视频连续帧硬切/黑场/白闪/溶解检测→按 index 选段+全段 LIST）、精确保存（save_image_exact.py：SFSaveImageExact 精确文件名/可选覆盖/无计数后缀）、预览保存路由（preview_routes.py）
+│   ├── image/           # 图片：加载（files.py：SFLoadImages / browser.py：SFLoadImageBrowser / load_images_path.py：SFLoadImagesPath 三源渐进式 / load_image_resize.py：SFLoadImageResize）、缩放（resize_image.py：SFImageResize wired 尺寸；scale.py：ImageResizePlus 增强（size_mode 双模式 width & height/total pixels，1024² MP 约定））、拼接（concatenate.py）、混合（blend.py）、切块（tile.py）、变换（transform.py/scale.py）、处理（processing.py）、对比（compare.py）、三点色彩匹配（color_match_points.py：SFImageColorMatchByPoints 亮度分位自动提取暗/灰/亮三点 → 逐通道三点分段线性 LUT）、LUT（lut.py）、仿色（imitation_hue.py）、批次索引（batch_index.py）、可视化裁剪+贴回（crop.py）、外绘填充+贴回（outpaint.py）、RFMSR 超分（rfmsr_upscale.py：SFRFMSRUpscale）、图片闸门（pause_image.py）、latent 闸门（pause_latent.py：SFPauseLatent 分段采样中间暂停）、镜头切分（scene_split.py：SFImageSceneSplit 视频连续帧硬切/黑场/白闪/溶解检测→按 index 选段+全段 LIST）、精确保存（save_image_exact.py：SFSaveImageExact 精确文件名/可选覆盖/无计数后缀）、预览保存路由（preview_routes.py）
 │   ├── video/           # 视频：保存（save_video.py：SFSaveVideoSwitchable 原生 SaveVideo 强化版——save_enabled 开关（开=output 落盘/关=temp 预览透传）+ overwrite 保留计数（默认不覆盖递增，覆盖则复写同计数文件）+ 全量 format/codec 复刻）
 │   ├── mask/            # 遮罩：参数、轮廓、模糊、缩放、统一填充（masks.py：SFMaskFill 合并原 SFMaskedFill/SFMaskFillColor，四模式 color/neutral/telea/navier-stokes + falloff/skip 全局 + 前端 sf_mask_fill.js 条件显隐）、反转、遮罩闸门（pause_mask.py）
 │   ├── model/           # 模型：LoRA加载（多行 LoRA 栈 lora_stack.py：SFLoraStack，含触发词/描述/封面/Civitai 查询；预设 lora_preset.py：SFLoraPreset（原 Power 预设改名，供 Stack 的 preset 输入复用）；批量对比 lora_plot.py：SFLoraPlot 动态行模型输出列表 + SFLoraPlotImageSaver 文字标注，复用 stack 状态契约与 sf_utils/lora_plot.py、lora_cache.py；区域注入 regional_lora.py：SFRegionalLoRA 多区域角色 LoRA（每 box 一个 LoRA，激活 delta 只注入 box 内 image token，Krea2 专用，forward hook 稀疏注入 + 每区域匹配诊断，纯逻辑在 sf_utils/regional_engine.py）；扩散模型强化加载 load_diffusion_model.py：SFLoadDiffusionModel 官方 UNETLoader 行为超集 + i 信息面板（执行委托原生 load_unet 零漂移，前端 web/sf_load_diffusion_model.js）；其余 lora_loader.py/lora_loader_model_only.py/lora_selector.py、hyperlora.py、sage_attention.py、krea2.py（TextEncodeKrea2 视觉条件编码 + SFImageInterrogator 图像反推（image/video/audio 均可选对齐原生 Generate Text，无图纯文本生成，见 §38；user_prompt 紧邻 prompt 的重排文本框（破兼容），min_p/presence_penalty/use_default_template 对齐原生 sampling，max_length 8192，thinking 显式透传 + 输出剥离 Qwen3 思考块，见 §5.4；参考图 RGBA 黑底预乘合成（_flatten_to_rgb）+ batch 取首帧 + 遮罩包围盒裁剪，见 §33；Interrogator/SystemPrompt 预设可管理——内置+用户覆盖，见 §31；Interrogator seed 显式 control_after_generate + widgets_values 位置敏感自愈，见 §35）、adv_clip.py、rfmsr/（RFMSR 网络实现，节点在 image/rfmsr_upscale.py））、CLIP编码
@@ -46,7 +46,7 @@ sfnodes/
 │   ├── lora_ortho.py     # 正交堆叠纯数学（GS 投影，仅 torch；ortho_gs 用）
 │   ├── lora_ortho_load.py # ortho_gs 独立加载+应用路径（ortho_apply(model, clip, entries, load_sd)，SFLoraStack 专用，禁止各写一份）
 │   ├── workflow_index_helpers.py # 工作流索引纯逻辑（Workflows 面板，无 ComfyUI 依赖）
-│   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖）
+│   ├── resize_engine.py  # 图片缩放引擎（8 模式 + wired 尺寸 _apply_wired_size，无 ComfyUI 依赖；total_pixels_to_wh 纯函数 1024² MP 约定，SFImageResizePlus/ImageScalerByPixels 共用）
 │   ├── tiling.py         # 图片切块纯逻辑（行/列/重叠 → 块矩形，SFImageTile/Untile 共用，无 ComfyUI 依赖）
 │   ├── color_match_points.py # 三点色彩匹配纯逻辑（亮度分位三点提取/逐通道分段线性 LUT/查表，SFImageColorMatchByPoints 用，无 ComfyUI 依赖）
 │   ├── regional_engine.py # 区域 LoRA 纯逻辑（键归一化/矩阵解析/regions JSON/层规划+每区域匹配诊断/token 网格 mask 数学/彩虹预览，SFRegionalLoRA 用，无 ComfyUI 依赖）
@@ -69,6 +69,7 @@ sfnodes/
 │   ├── sf_pause_image.js  # 图片闸门薄配置（快照/预览保存；调 definePauseGate）
 │   ├── sf_pause_mask.js   # 遮罩闸门薄配置（灰度快照；调 definePauseGate）
 │   ├── sf_mask_fill.js    # 统一填充节点前端（SFMaskFill：fill_mode=color 时显 fill_color/opacity，其余隐藏）
+│   ├── sf_image_resize_plus.js # 缩放增强节点前端（SFImageResizePlus：size_mode 置顶（width/height/total_pixels 紧随），total pixels 时隐藏 width/height 反则隐藏 total_pixels，hidden 切换+双钩子保恢复；configure 前对旧版 8 项 widgets_values remap 补齐新 10 项顺序）
 │   ├── sf_pause_latent.js # latent 闸门薄配置（分段采样中间暂停，safetensors 快照，extraInputKeys:["image"]；调 definePauseGate）
 │   ├── sf_outpaint*.js  # 外绘预览两模块（core 纯数学 + 主扩展）
 │   ├── sf_image_resize*.js # wired 尺寸缩放三模块（复用 sf_load_image_resize.js 面板 + sf_load_image_ui.js）

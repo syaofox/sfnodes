@@ -45,6 +45,8 @@ MODS = [
     "sf_find_replace", "sf_find_replace_lib", "sf_find_replace_ui",
     # wired 尺寸家族
     "sf_image_resize", "sf_image_resize_lib", "sf_image_resize_ui",
+    # Image Resize Plus（size_mode 显隐切换）
+    "sf_image_resize_plus",
     # 加载图片家族
     "sf_load_image", "sf_load_image_api", "sf_load_image_ui", "sf_load_image_resize",
     # @tag 家族
