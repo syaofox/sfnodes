@@ -91,7 +91,7 @@ class SFMyNode:
 
 > 完整机制与踩坑案例在 `doc/experience/` 六主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / apps，全局 § 号映射见目录内 README.md；摘要括号内 `<简称> §N` 指向对应文件章节，改动对应功能前先读该文件。
 
-- **循环/图展开**（`nodes/logic.py`，platform §1）：execute 可返回 `{"result","expand"}` 展开动态子图，result 中 link 值 `[id,slot]` 被解析为链接目标值；**ForLoopEnd 必须被下游消费才会被调度执行**（死端节点从不执行——"循环不跑"先查其输出有无下游）；隐藏输入首轮不在 prompt 中→kwargs 缺键而非 None，需默认值兜底。
+- **循环/图展开**（`nodes/logic.py`，platform §1）：execute 可返回 `{"result","expand"}` 展开动态子图，result 中 link 值 `[id,slot]` 被解析为链接目标值；**LoopEnd 已声明 OUTPUT_NODE=True（2026-09），输出悬空也会被调度执行循环**——但 WhileLoopEnd 重建收集（`_collect_output_nodes`）必须跳过 SFForLoopEnd，否则其被误当循环体内输出消费者纳入 contained → 每轮克隆再 expand 嵌套错误展开（WhileLoopEnd 自身被收集无害：explore_dependencies 已排除 + upstream 守卫去重）；隐藏输入首轮不在 prompt 中→kwargs 缺键而非 None，需默认值兜底。
 - **widget 值传后端必须先声明输入**（patterns §4 / image §11）：前端提交 prompt 前 validatePrompt 删除 schema 外输入——任何"运行时状态"输入须 Python hidden 声明 + 同名隐藏 STRING widget 走标准收集；注入只能作双保险。**勿写 addDOMWidget 的 .value**（Vue setter 回调链无限递归），读取走 getValue。
 - **graphToPrompt ≠ 队列**（text §6/§7）：Export/分享/保存也触发——注入可在此做，剪枝/游标 commit 只能在 `api.queuePrompt` 成功后；闸门 continue 先于 pause/pass 处理，解析不到节点默认 pass（fail-safe 不剪）。**Python 禁 IS_CHANGED=float("nan")**（NaN 折叠祖先缓存键→下游每次全量重跑），要重跑用 time_ns 或 (mtime,size)。
 - **数据载体与动态 combo**（patterns §4 / lora §31）：状态存隐藏 STRING widget 值随 workflow 自动保存/复制，新节点=全新默认值；前端动态重建 combo options 必须 `VALIDATE_INPUTS` 返回 True 接管校验，恢复挂 onAfterGraphConfigured（nodeCreated 早于值恢复）。

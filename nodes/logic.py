@@ -243,7 +243,10 @@ class SFWhileLoopEnd:
     RETURN_NAMES = tuple("value%d" % i for i in range(MAX_FLOW_NUM))
     FUNCTION = "while_loop_close"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "While 循环结束节点：condition 为真时重建并重跑循环体，为假时输出当前 value0-19"
+    DESCRIPTION = "While 循环结束节点：condition 为真时重建并重跑循环体，为假时输出当前 value0-19；输出未接下游时循环仍会执行"
+    # 悬空也可被调度执行：执行器只从 OUTPUT_NODE 节点反向入队，否则输出无下游时
+    # 本节点从不执行 → 不触发重建/迭代，整个循环静默不跑。
+    OUTPUT_NODE = True
 
     def explore_dependencies(self, node_id, dynprompt, upstream, parent_ids):
         node_info = dynprompt.get_node(node_id)
@@ -285,6 +288,30 @@ class SFWhileLoopEnd:
                 contained[child_id] = True
                 self.collect_contained(child_id, upstream, contained)
 
+    def _collect_output_nodes(self, prompts):
+        """收集 prompt 中所有 OUTPUT_NODE 节点的链接输入，按节点 id 分组。
+
+        跳过 SFForLoopEnd：它带 OUTPUT_NODE 后若被当作"循环体内输出消费者"纳入
+        contained 集，重建图会包含其克隆并再次 expand，产生嵌套错误展开。
+        SFForLoopEnd 位于循环边界外，本就不应随单轮迭代重建。
+        """
+        from nodes import NODE_CLASS_MAPPINGS as ALL_NODE_CLASS_MAPPINGS
+
+        output_nodes = {}
+        for id in prompts:
+            node = prompts[id]
+            if "inputs" not in node:
+                continue
+            class_type = node["class_type"]
+            if class_type == "SFForLoopEnd":
+                continue
+            class_def = ALL_NODE_CLASS_MAPPINGS[class_type]
+            if hasattr(class_def, "OUTPUT_NODE") and class_def.OUTPUT_NODE == True:
+                for k, v in node["inputs"].items():
+                    if is_link(v):
+                        output_nodes.setdefault(id, []).append(v)
+        return output_nodes
+
     def while_loop_close(self, flow, condition, dynprompt=None, unique_id=None, **kwargs):
         if not condition:
             values = []
@@ -292,24 +319,12 @@ class SFWhileLoopEnd:
                 values.append(kwargs.get("initial_value%d" % i, None))
             return tuple(values)
 
-        from nodes import NODE_CLASS_MAPPINGS as ALL_NODE_CLASS_MAPPINGS
-
         upstream = {}
         parent_ids = []
         self.explore_dependencies(unique_id, dynprompt, upstream, parent_ids)
         parent_ids = list(set(parent_ids))
         prompts = dynprompt.get_original_prompt()
-        output_nodes = {}
-        for id in prompts:
-            node = prompts[id]
-            if "inputs" not in node:
-                continue
-            class_type = node["class_type"]
-            class_def = ALL_NODE_CLASS_MAPPINGS[class_type]
-            if hasattr(class_def, "OUTPUT_NODE") and class_def.OUTPUT_NODE == True:
-                for k, v in node["inputs"].items():
-                    if is_link(v):
-                        output_nodes.setdefault(id, []).append(v)
+        output_nodes = self._collect_output_nodes(prompts)
 
         graph = GraphBuilder()
         self.explore_output_nodes(dynprompt, upstream, output_nodes, parent_ids)
@@ -406,7 +421,11 @@ class SFForLoopEnd:
     RETURN_NAMES = tuple("value%d" % i for i in range(1, MAX_FLOW_NUM))
     FUNCTION = "for_loop_end"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "For 循环结束节点：接收 SF For Loop Start 的 flow 与循环体末态，未达 total 时自动重建循环体继续迭代，结束后输出最终 value1-19"
+    DESCRIPTION = "For 循环结束节点：接收 SF For Loop Start 的 flow 与循环体末态，未达 total 时自动重建循环体继续迭代，结束后输出最终 value1-19；输出未接下游时循环仍会执行"
+    # 悬空也可被调度执行：执行器只从 OUTPUT_NODE 节点反向入队，否则输出无下游时
+    # 本节点从不执行 → 不触发 expand，整个循环静默不跑。
+    # 重建侧（SFWhileLoopEnd._collect_output_nodes）必须跳过本节点防克隆嵌套展开。
+    OUTPUT_NODE = True
 
     def for_loop_end(self, flow, dynprompt=None, extra_pnginfo=None, unique_id=None, **kwargs):
         graph = GraphBuilder()
