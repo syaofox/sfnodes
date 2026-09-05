@@ -40,6 +40,9 @@ const SFColorPickerWidget = {
         let defaultColor = [255, 255, 255];
         if (Array.isArray(val) && val.length === 3) {
             defaultColor = val;
+        } else if (typeof val === "string") {
+            const rgb = hexToRgb(val);
+            if (rgb) defaultColor = [rgb.r, rgb.g, rgb.b];
         }
 
         const defaultHex = rgbToHex(defaultColor[0], defaultColor[1], defaultColor[2]);
@@ -143,6 +146,35 @@ const SFColorPickerWidget = {
     }
 };
 
+// 新版 Vue 前端将 COLOR 收编为内置 widget（widgetStore 合并时 core 覆盖同名
+// 自定义注册），实际渲染的是内置 ColorWidget：value 必须是 hex 字符串，数组
+// 默认值会显示为 "0,0,0" 且无色块。后端 execute 对 hex 字符串与 [r,g,b] 数组
+// 均兼容，这里只负责把 widget 值统一规整为 hex。
+const COLOR_PICKER_CLASSES = new Set(["SFMaskFill", "SFImageResizePlus"]);
+
+function toHexColor(val) {
+    if (typeof val === "string") {
+        const rgb = hexToRgb(val);
+        return rgb ? rgbToHex(rgb.r, rgb.g, rgb.b) : null;
+    }
+    if (Array.isArray(val) && val.length === 3 && val.every(Number.isFinite)) {
+        return rgbToHex(
+            Math.round(val[0]),
+            Math.round(val[1]),
+            Math.round(val[2])
+        );
+    }
+    return null;
+}
+
+function normalizeColorWidgets(node) {
+    for (const w of node.widgets || []) {
+        if (String(w.type).toLowerCase() !== "color") continue;
+        const hex = toHexColor(w.value);
+        if (hex) w.value = hex;
+    }
+}
+
 app.registerExtension({
     name: "sfnodes.SFColorPicker",
 
@@ -154,11 +186,12 @@ app.registerExtension({
         return {
             COLOR: (node, inputName, inputData) => {
                 let defaultValue = [255, 255, 255];
-                if (inputData && inputData[1] && inputData[1].default) {
-                    const val = inputData[1].default;
-                    if (Array.isArray(val) && val.length === 3) {
-                        defaultValue = val;
-                    }
+                const raw = inputData && inputData[1] && inputData[1].default;
+                if (Array.isArray(raw) && raw.length === 3) {
+                    defaultValue = raw;
+                } else if (typeof raw === "string") {
+                    const rgb = hexToRgb(raw);
+                    if (rgb) defaultValue = [rgb.r, rgb.g, rgb.b];
                 }
                 return {
                     widget: node.addCustomWidget(
@@ -172,42 +205,19 @@ app.registerExtension({
     },
 
     async nodeCreated(node) {
-        if (node.comfyClass === "SFMaskFill" || node.comfyClass === "SFImageResizePlus") {
-            const colorWidget = node.widgets.find(w => w.type === "COLOR");
-            if (colorWidget) {
-                const name = colorWidget.name;
-                const serialize = node.serialize;
-                node.serialize = function () {
-                    const data = serialize.call(this);
-                    if (this.widgets) {
-                        const cw = this.widgets.find(w => w.name === name);
-                        if (cw && cw.value) {
-                            const rgb = hexToRgb(cw.value);
-                            if (rgb) {
-                                data.widgets_data = data.widgets_data || {};
-                                const idx = this.widgets.indexOf(cw);
-                                if (idx !== -1) {
-                                    data.widgets_data[idx] = [rgb.r, rgb.g, rgb.b];
-                                }
-                            }
-                        }
-                    }
-                    return data;
-                };
+        if (!COLOR_PICKER_CLASSES.has(node.comfyClass)) return;
+        normalizeColorWidgets(node);
+        const configure = node.configure;
+        node.configure = function () {
+            const result = configure.apply(this, arguments);
+            normalizeColorWidgets(this);
+            return result;
+        };
+    },
 
-                const configure = node.configure;
-                node.configure = function (data) {
-                    configure.apply(this, arguments);
-                    if (data.widgets_data) {
-                        for (let i = 0; i < this.widgets.length; i++) {
-                            if (this.widgets[i].name === name && Array.isArray(data.widgets_data[i])) {
-                                const rgb = data.widgets_data[i];
-                                this.widgets[i].value = rgbToHex(rgb[0], rgb[1], rgb[2]);
-                            }
-                        }
-                    }
-                };
-            }
+    loadedGraphNode(node) {
+        if (COLOR_PICKER_CLASSES.has(node.comfyClass)) {
+            normalizeColorWidgets(node);
         }
     }
 });

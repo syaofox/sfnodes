@@ -126,6 +126,7 @@ class SFMyNode:
 - **模型下载统一**（patterns §27）：HF resolve URL → hf_hub_download 缓存+copy2 到约定路径；不用 local_dir（子目录破坏平铺拼接）；HF 失败不回退 requests。
 - **输入框键盘/滚轮**（patterns §27）：keydown 必须放行 ctrl/meta/alt 组合键（否则 Ctrl+S 漏成浏览器保存）；DOM widget 输入框不在 Vue wheel 转发路径 → installWheelZoomPassthrough。
 - **静态检查与版本陷阱**（patterns §3/§27）：ast.unparse 输出单引号、literal_eval 遇变量引用抛错——先怀疑检查脚本再怀疑代码；ast.Constant.n 已移除一律写 node.value；__pycache__ 的 cpython-3xx 是本机解释器版本，不代表运行容器。
+- **COLOR 输入被内置 widget 收编**（patterns §39）：新版 Vue 前端 `widgetStore` 合并时 core 覆盖同名 getCustomWidgets 注册，COLOR 实际渲染内置 ColorWidget（hex 文本+色块）；**COLOR default 一律写 hex 字符串不写数组**（数组显示 "0,0,0" 且无色块），按 type 查 widget 需大小写不敏感（自定义 "COLOR" vs 内置 "color"），后端 hex/数组双兼容，旧工作流数组值前端三时序归一（nodeCreated/loadedGraphNode/configure 包装）。
 
 ## Code Discovery
 

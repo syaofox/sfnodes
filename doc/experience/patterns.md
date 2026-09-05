@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -163,3 +163,20 @@
 - **lora_routes.py / lora_presets.py / workflow_routes.py**：`asyncio.get_event_loop()` → `get_running_loop()`（3.12 弃用告警、3.14 移除），闭包内冗余 `import asyncio` 删除；`.tmp` 临时名带 `threading.get_ident()`（并发写同文件互覆盖）；预设 POST/DELETE 加 `asyncio.Lock`。
 - **requirements.txt**：补 `requests`、`typing_extensions`（代码已在用但未声明）。
 - **自定义输入框键盘/滚轮（2026-08 快捷键拦截修复批次）**：① 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键（否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"——sf_prompt_list/prompt_stack/pause_text/prompt_tags/find_replace/crop_panel/lora_stack_*/load_image_ui/workflows_ui/prompt_tags_editor 等 11+ 处统一修复）；② **sf 的 DOM widget 输入框挂载在 canvas DOM 层，不在 Vue 新版 TransformPane 的 @wheel.capture 转发路径内——ComfyUI 画布缩放/滚动在编辑框上完全失效（连 Ctrl+滚轮都不缩放）**。修复：`sf_common.installWheelZoomPassthrough(el)` 挂输入框——Ctrl/⌘+滚轮总转发 canvas 缩放；普通滚轮在输入框可滚动（scrollHeight>clientHeight）时滚动文本、否则转发缩放（对齐 ComfyUI 原生输入框行为）。
+
+---
+
+## 39. COLOR 输入类型被 Vue 前端内置 widget 收编（2026-09）
+
+> 背景：SF Image Resize Plus 的 `pad_color` 默认显示 "0,0,0"、点一次取色器后才变 "#000000"+色块。同病灶：SFMaskFill 的 `fill_color`。涉及 `web/sf_color_picker.js`、`nodes/image/scale.py`、`nodes/mask/masks.py`。
+
+### 1. 机制：内置 COLOR widget 覆盖自定义注册
+
+- 新版 Vue 前端 `widgetRegistry` 已注册 `'color'`（别名 `COLOR`）→ 内置 `ColorWidget`（左侧画 hex 文本、右侧画色块，点击弹原生取色器）。`widgetStore` 合并时 `new Map([...customWidgets, ...coreWidgets])` —— **重复键后写胜出，core 覆盖同名 `getCustomWidgets` 自定义注册**，`sf_color_picker.js` 的自定义 COLOR widget（色块 + RGB 文本）在新前端实际已死代码。
+- 内置 ColorWidget 的 value 必须是 **hex 字符串**：数组 `[0,0,0]` 作默认值时 `fillStyle` 无效（无色块）、`fillText` 直出 "0,0,0"；用户点一次取色器后 value 变 hex 才正常显示。**教训：COLOR 输入的 default 一律写 hex 字符串，不写数组。**
+- 自定义 widget 的 type 是大写 `"COLOR"`，内置是小写 `"color"`——按 type 查找 widget 的逻辑（如旧 serialize hack）必须大小写不敏感匹配。
+
+### 2. 修复形态
+
+- 后端 default 改 hex（`pad_color="#000000"` / `fill_color="#ffffff"`）；execute 对 hex 字符串与 `[r,g,b]` 数组双兼容（`_parse_fill_color` / scale.py 内联解析），旧工作流数组值后端照常工作。
+- 前端 `sf_color_picker.js`：nodeCreated + loadedGraphNode + configure 包装三时序把 widget 值归一为 hex（`toHexColor`，数组四舍五入取整 / hex 字符串规范化）；旧工作流已存的数组值经归一后显示恢复正常。旧 serialize hack（写 `widgets_data`）确认是死代码（LiteGraph 序列化字段是 `widgets_values`，`widgets_data` 无人消费）删除。配套 `tests/test_color_picker_js.js`。

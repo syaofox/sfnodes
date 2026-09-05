@@ -595,8 +595,8 @@ class MaskFill:
                 "fill_color": (
                     "COLOR",
                     {
-                        "default": [255, 255, 255],
-                        "tooltip": "填充颜色 (RGB)，仅 color 模式生效",
+                        "default": "#ffffff",
+                        "tooltip": "填充颜色，hex 格式（如 #ffffff），仅 color 模式生效",
                     },
                 ),
                 "opacity": (

@@ -659,8 +659,8 @@ class ImageResizePlus:
                 "pad_color": (
                     "COLOR",
                     {
-                        "default": [0, 0, 0],
-                        "tooltip": "pad 模式的填充颜色 (RGB)",
+                        "default": "#000000",
+                        "tooltip": "pad 模式的填充颜色，hex 格式（如 #000000）",
                     },
                 ),
             },
@@ -696,7 +696,7 @@ class ImageResizePlus:
         divisible_by=8,
         keep_proportion=False,
         crop_position="center",
-        pad_color=[0, 0, 0],
+        pad_color="#000000",
         mask=None,
     ):
         _, oh, ow, _ = image.shape
