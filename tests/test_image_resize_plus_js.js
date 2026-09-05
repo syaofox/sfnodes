@@ -35,6 +35,9 @@ function makeNode(sizeMode, dirty) {
             { name: "width", value: 1024, callback: null },
             { name: "height", value: 1024, callback: null },
             { name: "total_pixels", value: 1.0, callback: null },
+            { name: "method", value: "keep proportion", callback: null },
+            { name: "crop_position", value: "center", callback: null },
+            { name: "pad_color", value: "#000000", callback: null },
         ],
     };
     if (dirty) node.setDirtyCanvas = () => { node._dirty = true; };
@@ -88,6 +91,24 @@ const w = (n, name) => n.widgets.find((x) => x.name === name);
     setTimeout(() => {
         check("configure 恢复 total pixels 后 width/height 隐藏",
             w(n, "width").hidden === true && w(n, "height").hidden === true && w(n, "total_pixels").hidden === false);
+
+        // 3.5 method 联动：crop_position 仅 fill / crop，pad_color 仅 pad
+        const n4 = makeNode("width & height");
+        ext.nodeCreated(n4);
+        check("默认 method=keep proportion: crop_position/pad_color 隐藏",
+            w(n4, "crop_position").hidden === true && w(n4, "pad_color").hidden === true);
+        w(n4, "method").value = "fill / crop";
+        w(n4, "method").callback();
+        check("fill / crop: crop_position 可显 pad_color 隐藏",
+            w(n4, "crop_position").hidden === false && w(n4, "pad_color").hidden === true);
+        w(n4, "method").value = "pad";
+        w(n4, "method").callback();
+        check("pad: pad_color 可显 crop_position 隐藏",
+            w(n4, "pad_color").hidden === false && w(n4, "crop_position").hidden === true);
+        w(n4, "method").value = "keep proportion";
+        w(n4, "method").callback();
+        check("keep proportion: 两者隐藏",
+            w(n4, "crop_position").hidden === true && w(n4, "pad_color").hidden === true);
 
         // 4. onAfterGraphConfigured 同步恢复
         const n2 = makeNode("width & height");

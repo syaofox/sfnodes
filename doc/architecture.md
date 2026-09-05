@@ -69,7 +69,7 @@ sfnodes/
 │   ├── sf_pause_image.js  # 图片闸门薄配置（快照/预览保存；调 definePauseGate）
 │   ├── sf_pause_mask.js   # 遮罩闸门薄配置（灰度快照；调 definePauseGate）
 │   ├── sf_mask_fill.js    # 统一填充节点前端（SFMaskFill：fill_mode=color 时显 fill_color/opacity，其余隐藏）
-│   ├── sf_image_resize_plus.js # 缩放增强节点前端（SFImageResizePlus：size_mode 置顶（width/height/total_pixels 紧随），total pixels 时隐藏 width/height 反则隐藏 total_pixels，hidden 切换+双钩子保恢复；configure 前对旧版 8 项 widgets_values remap 补齐新 10 项顺序）
+│   ├── sf_image_resize_plus.js # 缩放增强节点前端（SFImageResizePlus：size_mode 置顶（width/height/total_pixels 紧随），total pixels 时隐藏 width/height 反则隐藏 total_pixels；method 联动——crop_position 仅 fill / crop、pad_color 仅 pad；hidden 切换+双钩子保恢复；configure 前对旧版 8 项 widgets_values remap 补齐新 10 项顺序）
 │   ├── sf_pause_latent.js # latent 闸门薄配置（分段采样中间暂停，safetensors 快照，extraInputKeys:["image"]；调 definePauseGate）
 │   ├── sf_outpaint*.js  # 外绘预览两模块（core 纯数学 + 主扩展）
 │   ├── sf_image_resize*.js # wired 尺寸缩放三模块（复用 sf_load_image_resize.js 面板 + sf_load_image_ui.js）
