@@ -607,7 +607,7 @@ class ImageResizePlus:
                 "width": (
                     "INT",
                     {
-                        "default": 512,
+                        "default": 1024,
                         "min": 0,
                         "max": MAX_RESOLUTION,
                         "step": 1,
@@ -616,7 +616,7 @@ class ImageResizePlus:
                 "height": (
                     "INT",
                     {
-                        "default": 512,
+                        "default": 1024,
                         "min": 0,
                         "max": MAX_RESOLUTION,
                         "step": 1,
@@ -631,8 +631,12 @@ class ImageResizePlus:
                         "nearest-exact",
                         "lanczos",
                     ],
+                    {"default": "lanczos"},
                 ),
-                "method": (["stretch", "keep proportion", "fill / crop", "pad"],),
+                "method": (
+                    ["stretch", "keep proportion", "fill / crop", "pad"],
+                    {"default": "keep proportion"},
+                ),
                 "condition": (
                     [
                         "always",
@@ -690,8 +694,8 @@ class ImageResizePlus:
         image,
         width,
         height,
-        method="stretch",
-        interpolation="nearest",
+        method="keep proportion",
+        interpolation="lanczos",
         condition="always",
         divisible_by=8,
         keep_proportion=False,
