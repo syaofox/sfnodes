@@ -34,21 +34,20 @@ class SFNumber:
             },
         }
 
-    RETURN_TYPES = ("INT", "FLOAT")
-    RETURN_NAMES = ("int", "float")
+    RETURN_TYPES = (any,)
+    RETURN_NAMES = ("value",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "输出数值，支持 INT / FLOAT / PERCENT 三种类型"
+    DESCRIPTION = "输出单个数值（随 number_type 输出真类型：INT 档取整、FLOAT 档小数直通、PERCENT 档按百分数书写输入 ÷100 输出——150→1.5，突破 1 即输入 >100）"
 
     def execute(self, number_type, value):
         if number_type == "INT":
-            v = round(value)
-            return (int(v), float(v))
-        elif number_type == "PERCENT":
-            v = max(0.0, min(1.0, value))
-            return (int(v), v)
-        else:
-            return (int(value), value)
+            return (int(round(value)),)
+        if number_type == "PERCENT":
+            # 百分数书写语义：输入 150 → 输出 1.5（可突破 1 / 负值）
+            return (float(value) / 100.0,)
+        # FLOAT 小数直通
+        return (float(value),)
 
 
 

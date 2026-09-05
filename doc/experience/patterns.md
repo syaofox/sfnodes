@@ -180,3 +180,31 @@
 
 - 后端 default 改 hex（`pad_color="#000000"` / `fill_color="#ffffff"`）；execute 对 hex 字符串与 `[r,g,b]` 数组双兼容（`_parse_fill_color` / scale.py 内联解析），旧工作流数组值后端照常工作。
 - 前端 `sf_color_picker.js`：nodeCreated + loadedGraphNode + configure 包装三时序把 widget 值归一为 hex（`toHexColor`，数组四舍五入取整 / hex 字符串规范化）；旧工作流已存的数组值经归一后显示恢复正常。旧 serialize hack（写 `widgets_data`）确认是死代码（LiteGraph 序列化字段是 `widgets_values`，`widgets_data` 无人消费）删除。配套 `tests/test_color_picker_js.js`。
+
+---
+
+## 40. number widget 整数/小数输入切换（SFNumber，2026-09）
+
+> 背景：SFNumber 的 `value` 固定声明为 FLOAT（step 0.01），切到 INT 后输入框仍是 0.01 步进的小数框。需求：INT 输入整数、FLOAT/PERCENT 输入小数；另 PERCENT 后端原钳制 0-1 不合理，应允许突破 1。后续演进（2026-09 同日）：解除钳制后 PERCENT 与 FLOAT 完全同质成冗余 → PERCENT 改为 **÷100 百分数书写语义**（输入 150 → 输出 1.5，突破 1 即输入 >100），切档自动换算。
+
+### 1. 方案：改 options，不换 widget 类型
+
+- 后端输入类型保持 FLOAT 不变（换 widget type 有提交类型校验风险，双输入显隐改 schema 破旧工作流）。前端只改 `value.options`：`step`（步进）+ `round`（旧 LiteGraph 取整档）+ `precision`（Vue 新前端小数位）+ `step2`（**前端创建 widget 时按 step 派生的精调步进（修饰键拖拽用），派生一次性、不随 step 联动——只改 step 会残留旧 step2**，实测诊断 D3 锁定）——四键同设兼容两代前端。**切 INT 档时同步 `Math.round` 当前值**，避免显示与步进不一致；切回 FLOAT 值保留。
+- 联动三时序沿用 sf_mask_fill 同款（§27 复用）：combo 包装 `callback`（不吞原回调）+ 包装 `node.configure`（工作流恢复不触发 callback，值还原后按保存的 number_type 重应用）+ nodeCreated 初始应用。实现在既有 `web/simple_math.js`（与 SFSimpleMath 同一 Python 文件的节点族共用一个 JS 模块）。
+- 后端 `execute` PERCENT 最终语义：`float(value) / 100`（百分数书写，150→1.5，可负可 >100）；INT 取整、FLOAT 直通。
+
+### 1.5 切档换算与恢复时序（PERCENT ÷100 语义追加）
+
+- **切档换算仅限用户显式切换**（callback 包装路径）：以 FLOAT 语义量为规范值 q——q = FLOAT/INT 档显示值；PERCENT 档 q = 显示值 ÷100。切档回填：FLOAT→PERCENT ×100（0.5→50）、PERCENT→FLOAT ÷100（150→1.5）、任意→INT `Math.round(q)`（PERCENT 150→2）、INT→PERCENT ×100（2→200）。节点级 `_sfNumberMode` 记录当前档位供换算判断。
+- **configure 恢复路径绝不换算**（存量值原样，只重应用 options + INT 取整）——否则旧工作流 PERCENT 存量值 150 会被错误 ÷100。这与 §27"恢复挂 configure 包装"的模式叠加时须区分两条路径的职责：callback 路径 = 换算 + 应用，configure 路径 = 仅应用。
+- PERCENT 档 widget 整数书写 `{step:1, step2:1, precision:0}`（输入 150 而非 150.00）。**旧工作流破坏性**：PERCENT 存量直通值语义突变（存 0.5 → 现输出 0.005），已确认接受。
+
+### 2. 踩坑
+
+- 测试模拟 configure 时，wrapper 捕获的是 **nodeCreated 时刻的 `node.configure`**——先赋还原逻辑再 nodeCreated 才能链上；顺序反了 wrapper 被覆盖、恢复路径测不到（这正是"恢复挂 configure 包装"模式能否生效的关键时序）。
+- `SF_NUMBER_OPTS` 档位表集中定义（INT {1,1,1,0} / FLOAT {0.01,0.01,0.01,2} / PERCENT 整数书写 {1,1,1,0}，含 step2），新类型只需加一行；换算矩阵集中在 `SF_NUMBER_TO_Q`/`SF_NUMBER_FROM_Q`。配套 `tests/test_number_js.js`（stage simple_math.js + sf_dynamic_slots.js 同目录暂存）与 `tests/test_simple_math.py` PERCENT ÷100 用例。
+
+### 3. 单输出 any 化（2026-09 追加）
+
+- 原 `RETURN_TYPES = ("INT","FLOAT")` 双输出改单输出 `RETURN_TYPES = (any,)` / `RETURN_NAMES = ("value",)`（复用 `sf_utils/common.py` AnyType）——输出槽类型是静态类属性不能随 number_type 运行时切换，固定 FLOAT 会接不上 INT 输入，固定 INT 丢精度，any 是唯一兼顾方案；execute 按档位返回真类型值（INT→`int`、FLOAT/PERCENT→`float`），下游类型检测仍可 `isinstance` 判断。
+- **旧工作流槽位兼容（按槽索引恢复）**：接槽 0（原 int）的链接理论可恢复（any 与 INT 兼容）；接槽 1（原 float）的链接加载时丢弃需手动重接——破裂式改动，已获确认接受。

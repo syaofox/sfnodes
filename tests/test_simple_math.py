@@ -65,6 +65,21 @@ check("condition on_true 合法", cond.execute(True, "1+1", "2/0")[1] == 2.0)
 r = cond.execute(False, "1+1", "2/0")
 check("condition on_false 除零不崩", r == (0, 0.0))
 
+# SFNumber：单输出 any 化——随 number_type 输出真类型值；PERCENT ÷100 百分数语义
+num = sm.SFNumber()
+check("RETURN_TYPES 单输出 any", num.RETURN_TYPES == (sm.any,))
+check("RETURN_NAMES value", num.RETURN_NAMES == ("value",))
+r = num.execute("PERCENT", 150)
+check("PERCENT 150 -> 1.5（突破 1）", r == (1.5,) and isinstance(r[0], float))
+r = num.execute("PERCENT", 50)
+check("PERCENT 50 -> 0.5", r == (0.5,))
+r = num.execute("PERCENT", -10)
+check("PERCENT -10 -> -0.1", r == (-0.1,))
+r = num.execute("INT", 1.5)
+check("INT 1.5 取整且为 int", r == (2,) and isinstance(r[0], int))
+r = num.execute("FLOAT", 0.5)
+check("FLOAT 0.5 直通且为 float", r == (0.5,) and isinstance(r[0], float))
+
 if failures:
     print(f"\n{failures}")
     sys.exit(1)
