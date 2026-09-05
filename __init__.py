@@ -143,6 +143,7 @@ from .nodes.text.long_text_to_list import SFLongTextToList
 from .nodes.text.text_list_affix import SFTextListAffix
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
+from .nodes.utils.qwen_edit import SFQwenEditTextEncode, SFQwenEditOutputExtractor
 from .nodes.utils.flux_resolution import FluxResolution
 from .nodes.utils.canvas_size import CanvasSizePreset  # noqa: F401  # 副作用注册 /api/sfnodes/canvas_size_presets 路由
 from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
@@ -325,6 +326,8 @@ NODE_CLASS_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": TextEncodeQwenImageEdit,
     "SFTextEncodeQwenImageEditPlus": TextEncodeQwenImageEditPlus,
+    "SFQwenEditTextEncode": SFQwenEditTextEncode,
+    "SFQwenEditOutputExtractor": SFQwenEditOutputExtractor,
     # Krea2节点
     "SFTextEncodeKrea2": TextEncodeKrea2,
     "SFKrea2SystemPrompt": Krea2SystemPrompt,
@@ -515,6 +518,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Qwen节点
     "SFTextEncodeQwenImageEdit": "SF Text Encode Qwen Image Edit",
     "SFTextEncodeQwenImageEditPlus": "SF Text Encode Qwen Image Edit Plus",
+    "SFQwenEditTextEncode": "SF Qwen Edit Text Encode",
+    "SFQwenEditOutputExtractor": "SF Qwen Edit Output Extractor",
     # Krea2节点
     "SFTextEncodeKrea2": "SF Text Encode (Krea2)",
     "SFKrea2SystemPrompt": "SF Krea2 System Prompt",
