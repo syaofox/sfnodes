@@ -763,6 +763,34 @@ class ImageMaskToTransparency:
         return (rgba,)
 
 
+class MasksToImage:
+    """将遮罩批量转换为灰度图像（三通道复制），兼容 [H,W] / [B,H,W] / [N,C,H,W] 输入。复刻 WAS Convert Masks to Images。"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "masks": ("MASK", {"tooltip": "输入遮罩，支持 [H,W] / [B,H,W] / [N,C,H,W] 形态"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "将遮罩转换为灰度图像输出，遮罩值作为亮度复制到 RGB 三通道"
+
+    def execute(self, masks):
+        if len(masks.shape) == 4:  # NCHW → 取首通道归一为灰度
+            masks = masks.permute(0, 2, 3, 1)[..., 0]
+        if len(masks.shape) > 3 or len(masks.shape) < 2:
+            raise ValueError(
+                f"MasksToImage: 无效的遮罩维度 {tuple(masks.shape)}，期望 [H,W] / [B,H,W] / [N,C,H,W]"
+            )
+        masks = masks.reshape((-1, masks.shape[-2], masks.shape[-1]))
+        return (masks.unsqueeze(-1).expand(-1, -1, -1, 3),)
+
+
 class FillWithReferenceColor:
     @classmethod
     def INPUT_TYPES(cls):
