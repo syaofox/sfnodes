@@ -1,10 +1,14 @@
 // SF Text Preset 前端扩展
-// 预设数据存于隐藏 widget presets_json（JSON 数组 [{name, text}]），随当前工作流保存；
-// 前端重建下拉选项并提供弹窗管理（新增/编辑/删除），combo 与预览即时同步。
+// 预设真源为全局库 user/sfnodes/text_presets.json（经 /api/sfnodes/text_presets 读写，跨工作流共享）；
+// 节点隐藏 widget presets_json 仅作旧工作流兼容回退（只读，combo 同时显示其残留项）。
+// 前端重建下拉选项并提供弹窗管理（新增/编辑/删除），combo 与预览即时同步；
+// 后端路由不可用时整体降级回旧版工作流数据源行为。
 
 import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
 import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
+
+const API = "/api/sfnodes/text_presets";
 
 let mgrEl = null;
 const MGR_CSS = `
@@ -56,10 +60,89 @@ function parsePresets(value) {
     }
 }
 
-// ---------------- 节点同步 ----------------
+// ---------------- 全局库 API ----------------
+
+async function fetchGlobalPresets() {
+    try {
+        const r = await fetch(API, { cache: "no-store" });
+        if (!r.ok) throw new Error(`load presets failed: ${r.status}`);
+        const j = await r.json();
+        const arr = Array.isArray(j?.presets) ? j.presets : [];
+        return arr
+            .filter((x) => x && typeof x === "object" && String(x.name ?? "").trim())
+            .map((x) => ({ name: String(x.name).trim(), text: String(x.text ?? "") }));
+    } catch (e) {
+        console.warn("[SFTextPreset] 全局预设库加载失败，回退工作流数据源:", e);
+        return null;
+    }
+}
+
+async function apiSave(name, text) {
+    try {
+        const r = await fetch(API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, text }),
+        });
+        if (!r.ok) throw new Error(`save preset failed: ${r.status}`);
+        return true;
+    } catch (e) {
+        console.warn("[SFTextPreset]", e);
+        return false;
+    }
+}
+
+async function apiDelete(name) {
+    try {
+        const r = await fetch(`${API}?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+        if (!r.ok) throw new Error(`delete preset failed: ${r.status}`);
+        return true;
+    } catch (e) {
+        console.warn("[SFTextPreset]", e);
+        return false;
+    }
+}
+
+// ---------------- 节点状态（全局库 + 工作流残留合并） ----------------
 
 function findWidget(node, name) {
     return node?.widgets?.find((w) => w.name === name);
+}
+
+function workflowPresets(node) {
+    return parsePresets(findWidget(node, "presets_json")?.value);
+}
+
+// 节点状态：{presets: 合并列表, globalNames: Set|null}
+// globalNames 为 null 表示后端路由不可用（降级：工作流数据源，保持旧行为）
+function stateOf(node) {
+    if (!node?._sfTpState) {
+        node._sfTpState = { presets: workflowPresets(node), globalNames: null };
+    }
+    return node._sfTpState;
+}
+
+async function rebuildState(node) {
+    if (!node) return;
+    const global = await fetchGlobalPresets();
+    const wf = workflowPresets(node);
+    if (global === null) {
+        node._sfTpState = { presets: wf, globalNames: null };
+    } else {
+        const names = new Set(global.map((p) => p.name));
+        node._sfTpState = {
+            presets: global.concat(wf.filter((p) => !names.has(p.name))),
+            globalNames: names,
+        };
+    }
+    syncFromJson(node);
+}
+
+function refreshAllNodes() {
+    const nodes = app.graph?._nodes ?? [];
+    nodes.forEach((n) => {
+        if (n?.comfyClass === "SFTextPreset") rebuildState(n);
+    });
 }
 
 function setPresetWidgetValues(node, presets) {
@@ -77,43 +160,63 @@ function setPresetWidgetValues(node, presets) {
 function refreshContentDisplay(node) {
     const display = findWidget(node, "content_display");
     if (!display) return;
-    const presets = parsePresets(findWidget(node, "presets_json")?.value);
+    const state = stateOf(node);
     const name = findWidget(node, "preset")?.value ?? "";
-    const preset = presets.find((p) => p.name === name);
+    const preset = state.presets.find((p) => p.name === name);
     display.value = preset ? preset.text : "";
 }
 
+function queueGlobalSave(node, name, text) {
+    clearTimeout(node._sfTpSaveTimer);
+    node._sfTpSaveTimer = setTimeout(() => apiSave(name, text), 400);
+}
+
 function saveEditedText(node, text) {
-    const jsonWidget = findWidget(node, "presets_json");
     const presetWidget = findWidget(node, "preset");
-    if (!jsonWidget || !presetWidget) return;
-    const presets = parsePresets(jsonWidget.value);
-    const idx = presets.findIndex((p) => p.name === presetWidget.value);
-    if (idx < 0) return;
-    if (presets[idx].text === text) return;
-    presets[idx].text = text;
-    jsonWidget.value = JSON.stringify(presets);
-    node.setDirtyCanvas?.(true, true);
+    if (!presetWidget) return;
+    const name = presetWidget.value ?? "";
+    const state = stateOf(node);
+    if (state.globalNames === null) {
+        // 降级（后端路由不可用）：保持旧行为写回 presets_json
+        const jsonWidget = findWidget(node, "presets_json");
+        if (!jsonWidget) return;
+        const presets = parsePresets(jsonWidget.value);
+        const idx = presets.findIndex((p) => p.name === name);
+        if (idx < 0) return;
+        if (presets[idx].text === text) return;
+        presets[idx].text = text;
+        jsonWidget.value = JSON.stringify(presets);
+        node.setDirtyCanvas?.(true, true);
+        return;
+    }
+    if (!state.globalNames.has(name)) return; // 工作流残留项只读
+    const item = state.presets.find((p) => p.name === name);
+    if (!item || item.text === text) return;
+    item.text = text;
+    queueGlobalSave(node, name, text);
 }
 
 function updateDisplayEditable(node) {
     const display = findWidget(node, "content_display");
     if (!display?.inputEl) return;
-    const presets = parsePresets(findWidget(node, "presets_json")?.value);
+    const state = stateOf(node);
     const name = findWidget(node, "preset")?.value ?? "";
-    display.inputEl.readOnly = !presets.some((p) => p.name === name);
+    if (state.globalNames === null) {
+        display.inputEl.readOnly = !state.presets.some((p) => p.name === name);
+    } else {
+        display.inputEl.readOnly = !state.globalNames.has(name);
+    }
 }
 
 function syncFromJson(node) {
     if (!node) return;
-    const presets = parsePresets(findWidget(node, "presets_json")?.value);
-    setPresetWidgetValues(node, presets);
+    setPresetWidgetValues(node, stateOf(node).presets);
     refreshContentDisplay(node);
     updateDisplayEditable(node);
     node.setDirtyCanvas?.(true, true);
 }
 
-// ---------------- 管理弹窗 ----------------
+// ---------------- 管理弹窗（编辑全局库） ----------------
 
 function closeMgr() {
     if (mgrEl) {
@@ -122,13 +225,21 @@ function closeMgr() {
     }
 }
 
-function openMgr(node) {
+let mgrOpening = false;
+
+async function openMgr(node) {
+    if (mgrOpening) return; // 防双击重入：await 加载期间 mgrEl 尚为 null，二次进入会泄漏一个 Escape 关不掉的弹窗
+    mgrOpening = true;
     injectMgrStyle();
     if (mgrEl) closeMgr();
 
-    const presetsWidget = findWidget(node, "presets_json");
-    if (!presetsWidget) return;
-    let presets = parsePresets(presetsWidget.value);
+    const global = await fetchGlobalPresets();
+    mgrOpening = false;
+    if (global === null) {
+        alert("全局预设库加载失败（后端路由不可用？请重启 ComfyUI 后重试）");
+        return;
+    }
+    let presets = global;
     let selectedIndex = -1;
 
     const overlay = document.createElement("div");
@@ -196,11 +307,6 @@ function openMgr(node) {
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
-    function save() {
-        presetsWidget.value = JSON.stringify(presets);
-        syncFromJson(node);
-    }
-
     function renderList() {
         list.replaceChildren();
         if (presets.length === 0) {
@@ -235,7 +341,11 @@ function openMgr(node) {
         return presets.some((p, idx) => idx !== ignoreIndex && p.name === name);
     }
 
-    function handleAdd() {
+    function saveFailAlert() {
+        alert("保存失败，请检查后端服务（需重启 ComfyUI 生效）");
+    }
+
+    async function handleAdd() {
         const name = nameInput.value.trim();
         if (!name) {
             alert("预设名称不能为空");
@@ -245,18 +355,23 @@ function openMgr(node) {
             alert(`已存在名为「${name}」的预设`);
             return;
         }
+        if (!(await apiSave(name, textArea.value))) {
+            saveFailAlert();
+            return;
+        }
         presets.push({ name, text: textArea.value });
         selectedIndex = presets.length - 1;
-        save();
         renderList();
         textArea.focus();
+        refreshAllNodes();
     }
 
-    function handleUpdate() {
+    async function handleUpdate() {
         if (selectedIndex < 0 || selectedIndex >= presets.length) {
             alert("请先在左侧选择要更新的预设");
             return;
         }
+        const oldName = presets[selectedIndex].name;
         const name = nameInput.value.trim();
         if (!name) {
             alert("预设名称不能为空");
@@ -266,14 +381,26 @@ function openMgr(node) {
             alert(`已存在名为「${name}」的预设`);
             return;
         }
+        if (!(await apiSave(name, textArea.value))) {
+            saveFailAlert();
+            return;
+        }
+        if (name !== oldName && !(await apiDelete(oldName))) {
+            console.warn(`[SFTextPreset] 旧名「${oldName}」清理失败（可能产生重名残留）`);
+        }
         presets[selectedIndex] = { name, text: textArea.value };
-        save();
         renderList();
+        refreshAllNodes();
     }
 
-    function handleDelete() {
+    async function handleDelete() {
         if (selectedIndex < 0 || selectedIndex >= presets.length) {
             alert("请先在左侧选择要删除的预设");
+            return;
+        }
+        const name = presets[selectedIndex].name;
+        if (!(await apiDelete(name))) {
+            saveFailAlert();
             return;
         }
         presets.splice(selectedIndex, 1);
@@ -287,8 +414,8 @@ function openMgr(node) {
             nameInput.value = "";
             textArea.value = "";
         }
-        save();
         renderList();
+        refreshAllNodes();
     }
 
     addBtn.addEventListener("click", handleAdd);
@@ -329,7 +456,7 @@ app.registerExtension({
         if (!presetsWidget || !presetWidget) return;
 
         // 隐藏 JSON 数据载体（后端 display:hidden 在 Vue 新版前端不生效），
-        // 保留在 widgets 数组中 → 值仍随 workflow 序列化/恢复
+        // 保留在 widgets 数组中 → 值仍随 workflow 序列化/恢复（旧工作流兼容回退用）
         presetsWidget.hidden = true;
         presetsWidget.computeSize = () => [0, 0];
         presetsWidget.draw = () => {};
@@ -351,8 +478,8 @@ app.registerExtension({
                 app
             ).widget;
             display.serialize = false;
-            // 编辑框直接修改选中预设的文本内容，输入即写回 presets_json（与弹窗「更新」一致）；
-            // 空预设（无选中）时由 updateDisplayEditable 置为只读
+            // 编辑框直接修改选中预设的文本内容，输入即写回全局库（防抖 POST）；
+            // 无选中或选中为工作流残留项时由 updateDisplayEditable 置为只读
             display.inputEl.readOnly = false;
             display.inputEl.addEventListener("input", () => {
                 saveEditedText(node, display.value);
@@ -366,10 +493,12 @@ app.registerExtension({
         }
 
         syncFromJson(node);
+        rebuildState(node);
 
         const originalOnAfterConfigured = node.onAfterGraphConfigured;
         node.onAfterGraphConfigured = function (...args) {
             syncFromJson(node);
+            rebuildState(node);
             if (typeof originalOnAfterConfigured === "function") {
                 return originalOnAfterConfigured.apply(this, args);
             }

@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -410,3 +410,27 @@
 - `sf_utils/string.py:affix_list(items, prefix, suffix, filter_empty)` 纯函数（转义、空项、None/列表包裹容错），节点与测试共用，无 ComfyUI 依赖。
 - `nodes/text/text_list_affix.py:SFTextListAffix` 薄封装（解包标量+调 `affix_list`），`_CATEGORY="sfnodes/text"`，`INPUT_IS_LIST` 整批、`OUTPUT_IS_LIST=(True,)` 透传列表，下游自动逐项执行。
 - 测试：`tests/test_text_list_affix.py` 18 断言（基础前后缀、空项过滤 `True/False`、转义、None/空列表、单值输入、INPUT_IS_LIST 解包、契约）。
+
+---
+
+## 42. SFTextPreset：工作流绑定预设 → 全局持久化改造（user/sfnodes）
+
+> 背景：SFTextPreset 原为工作流绑定预设（presets_json 隐藏 widget 随工作流保存，见 patterns.md §4 的数据载体模式，2026-08）。用户要求预设跨工作流持久化到 `user/sfnodes`（2026-09）。落地为 `sf_utils/text_presets.py`（存储+路由）+ `nodes/text/text_preset.py`/`web/sf_text_preset.js` 改造，确认语义：全局库为真源、不提供旧数据迁移 UI。
+
+### 1. 分层设计：全局库为真源 + 工作流回退兼容
+
+- **存储**：`user/sfnodes/text_presets.json`，结构 `{"presets": [{"name","text"}]}` 数组保序（沿用原 presets_json 结构，前端 parsePresets 零改动复用）。
+- **后端 execute 回退**：`find_text(name)` 命中全局库返回文本；返回 `None`（区分"存在但文本为空"）才回退解析 `presets_json`（platform §1 隐藏输入缺键 → `presets_json="[]"` 显式默认值兜底）。旧工作流零迁移继续输出。
+- **前端合并**：combo = 全局库 + 工作流残留名（去重补尾）；残留项只读（编辑框 readOnly），全局项内联编辑防抖 400ms POST 写库。
+
+### 2. 复用与降级
+
+- 范式复用：路由注册/asyncio.Lock/线程 id 临时名原子写取自 `lora_presets.py`，mtime+size 缓存读与 `_sf_user_dir()`（folder_paths 惰性 import + 兜底）取自 `krea2_presets.py`；lora 校验函数是模块私有且数据域不同（dict vs 数组），不跨域 import，按同款实现新写。
+- **API 失败降级**（容器未重启 404 等场景）：`fetchGlobalPresets()` 返回 null → 节点状态 `globalNames=null` → 整体回退旧版工作流数据源行为（combo 用 presets_json、内联编辑写回 presets_json），管理弹窗 alert 后中止。每个节点状态存 `node._sfTpState`，同步首绘用工作流数据、异步 rebuildState 完成后覆盖。
+- 弹窗增删改全部走 POST/DELETE（改名 = POST 新名 + DELETE 旧名），成功后 `refreshAllNodes()`（遍历 `app.graph._nodes` 中同 comfyClass 节点 rebuildState）同步其他实例。
+
+### 3. 踩坑
+
+- **save_presets 传列表、_normalize_presets 只收文件级 dict** → 缓存归一化恒为空，下一次读改写从 `[]` 起步丢数据（首测即抓出）。归一化入口同时接受 dict 与裸列表。
+- **测试 mock `get_user_directory` 返回每次新建的 tmpdir** → save 与 load 落到不同目录，全局优先断言假失败；mock 必须固定目录。
+- **前端测试 top-level await 与 require 混用**（ERR_AMBIGUOUS_MODULE_SYNTAX）：Node 断言主体需包 async IIFE；`flush()` 用 `setImmediate` 宏任务（单微任务 await 跑不完 fetch 链），`setTimeout` 补丁为立即执行使防抖 POST 同步可断言。

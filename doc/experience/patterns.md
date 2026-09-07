@@ -15,7 +15,7 @@
 
 ## 4. 动态 combo 校验与工作流绑定状态（widget 数据载体）
 
-> 背景：SFTextPreset 工作流绑定文本预设节点（2026-08），落地为 `nodes/text/text_preset.py` + `web/sf_text_preset.js`。需求：预设绑定当前工作流，其他工作流添加此节点是全新空预设。
+> 背景：SFTextPreset 工作流绑定文本预设节点（2026-08），落地为 `nodes/text/text_preset.py` + `web/sf_text_preset.js`。需求：预设绑定当前工作流，其他工作流添加此节点是全新空预设。**2026-09 已改为全局持久化（user/sfnodes/text_presets.json 真源 + presets_json 回退兼容），见 nodes-text.md §42；本节"数据载体"模式与 VALIDATE_INPUTS 经验仍适用。**
 
 ### 1. "状态绑定工作流"的标准模式：数据存 widget 值（数据载体）
 
