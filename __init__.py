@@ -19,6 +19,7 @@ from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
+from .nodes.image.batch import SFImageBatch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
@@ -208,6 +209,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageOutpaint": SFImageOutpaint,
     "SFImageOutpaintStitch": SFImageOutpaintStitch,
     "SFImageBatchIndex": SFImageBatchIndex,
+    "SFImageBatch": SFImageBatch,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -400,6 +402,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageOutpaint": "SF Image Outpaint",
     "SFImageOutpaintStitch": "SF Image Outpaint Stitch",
     "SFImageBatchIndex": "SF Image Batch Index",
+    "SFImageBatch": "SF Image Batch",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
