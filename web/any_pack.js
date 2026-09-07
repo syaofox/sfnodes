@@ -156,14 +156,18 @@ function unionType(types) {
     return types && types.length ? types.join(",") : "*";
 }
 
-// Replace the slot with a shallow copy carrying the new type. In the Vue
+// Replace the slot with a shallow copy carrying the new type (and optional
+// extra fields, e.g. name/localized_name for type-named outputs). In the Vue
 // frontend node.inputs/node.outputs are reactive arrays: mutating slot.type
 // in place does not re-render the slot dot, but replacing the array element
 // does (same pattern as the official dynamic-type feature).
-export function setSlotType(node, slots, index, type) {
+export function setSlotType(node, slots, index, type, patch) {
     const slot = slots[index];
-    if (!slot || slot.type === type) return;
-    slots[index] = Object.assign({}, slot, { type });
+    if (!slot) return;
+    const extras = patch || {};
+    const nameChanged = extras.name !== undefined && slot.name !== extras.name;
+    if (slot.type === type && !nameChanged) return;
+    slots[index] = Object.assign({}, slot, { type }, extras);
     app.canvas?.setDirty?.(true, true);
 }
 

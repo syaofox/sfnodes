@@ -46,6 +46,7 @@ const makeNode = () => ({
     widgets: [{ name: "output_type", value: "string", callback: undefined }],
     outputs: [{ name: "output", type: "*", localized_name: "output" }],
 });
+check("makeNode 初始槽名 output（改型起点）", makeNode().outputs[0].name === "output");
 
 const nodeType = { prototype: {} };
 ext.beforeRegisterNodeDef(nodeType, { name: "SFConvertAnything" });
@@ -67,16 +68,18 @@ check("callback 改型 BOOLEAN", node.outputs[0].type === "BOOLEAN");
 const before = node.outputs[0];
 node.widgets[0].callback("string");
 check("槽位元素被替换", node.outputs[0] !== before && node.outputs[0].type === "STRING");
-check("槽名/显示名不动（保留 output）", node.outputs[0].name === "output" && node.outputs[0].localized_name === "output");
+check("槽名跟随类型值（含 localized_name 同步）", node.outputs[0].name === "string"
+    && node.outputs[0].localized_name === "string");
 
-// 未知 combo 值回退通配
+// 未知 combo 值回退通配（槽名同样跟随，同 easy 原件）
 node.widgets[0].callback("nonsense");
-check("未知值回退 *", node.outputs[0].type === "*");
+check("未知值回退 * 且槽名跟随", node.outputs[0].type === "*" && node.outputs[0].name === "nonsense");
 
 // 工作流恢复：nodeCreated 早于 widgets_values 恢复，onAfterGraphConfigured 补挂
 node.widgets[0].value = "boolean";
 nodeType.prototype.onAfterGraphConfigured.call(node);
-check("configure 恢复 BOOLEAN", node.outputs[0].type === "BOOLEAN");
+check("configure 恢复 BOOLEAN + 槽名", node.outputs[0].type === "BOOLEAN"
+    && node.outputs[0].name === "boolean");
 
 // 热重载防双包装：再次注册不再包装（改型行为不变且 callback 未叠加）
 const node2 = makeNode();

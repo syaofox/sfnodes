@@ -8,7 +8,7 @@
 // 后端始终声明 "*"（any_type），改型纯属前端渲染与连线校验。
 //
 // 与原件差异（已确认范围）：
-// - 保留输出槽名 "output" 不随类型改名（easy 会把槽名改成类型值）
+// - 输出槽名跟随类型值改名（string/int/...，同 easy 原件；含 localized_name 同步）
 // - 补上 onAfterGraphConfigured 恢复：easy 无恢复逻辑，重载工作流后槽型
 //   回退 "*"；这里按 widget 当前值恢复（platform §2.7：元素替换式改型）
 //
@@ -29,7 +29,9 @@ const SOCKET_TYPES = {
 
 function applyOutputType(node, value) {
     const type = SOCKET_TYPES[value] || "*";
-    setSlotType(node, node.outputs, 0, type);
+    // 槽名跟随类型值（easy 原件行为）：渲染读 label ?? localized_name ?? name，
+    // 初始槽带 localized_name，必须一并同步（platform §2.7）
+    setSlotType(node, node.outputs, 0, type, { name: value, localized_name: value });
 }
 
 app.registerExtension({

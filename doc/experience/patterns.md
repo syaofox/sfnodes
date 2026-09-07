@@ -215,12 +215,12 @@
 
 ### 1. 模式
 
-- **改型实现复用 `any_pack.js::setSlotType`**（本次起 export）：Vue 前端 `node.outputs` 是 reactive 数组，原地改 `slot.type` 不重渲染槽点，必须**元素替换**（`slots[i] = Object.assign({}, slot, { type })`，同官方 dynamic-type 模式）。跨模块复用即 `export` 后 import，不内联副本。
+- **改型实现复用 `any_pack.js::setSlotType`**（本次起 export，并扩展可选 `patch` 参数附带 name 等字段，diff 门控含 name）：Vue 前端 `node.outputs` 是 reactive 数组，原地改 `slot.type` 不重渲染槽点，必须**元素替换**（`slots[i] = Object.assign({}, slot, { type }, patch)`，同官方 dynamic-type 模式）。跨模块复用即 `export` 后 import，不内联副本。
 - **挂点两条路径**：callback 包装（callback 参数即新值，§27 同款）+ `onAfterGraphConfigured` 恢复（nodeCreated 早于 widgets_values 恢复，lora §31 同款）。easy 原件只有 callback（还靠 setTimeout 300），**无恢复逻辑**——重载工作流槽型回退 `*`，复刻时补上。
 - 热重载防双包装 `_sfConvertAnythingPatched`（sf_dropdown.js 先例）；未知 combo 值回退 `"*"` 通配。
 
 ### 2. 决策记录
 
-- 输入名照抄原件字面量 `"*"`（kwargs取 `kwargs["*"]`）；None 输入直通返回 None（原件对 None 转 int/float 直接崩，防御性改进）；OUTPUT_NODE=True 照抄（输出悬空也强制执行）；输出槽名保留 `"output"` 不随类型改名（easy 会把槽名改成类型值，信息量低且徒增 name/localized_name 同步负担）。
+- 输入名照抄原件字面量 `"*"`（kwargs取 `kwargs["*"]`）；None 输入直通返回 None（原件对 None 转 int/float 直接崩，防御性改进）；OUTPUT_NODE=True 照抄（输出悬空也强制执行）；输出槽名跟随类型值改名（string/int/…，同原件；初期曾定保留 "output"，实测后确认跟随才符合预期——改槽名必须 name+localized_name 一并同步，渲染读 label ?? localized_name ?? name）。
 - 前端测试 `tests/test_convert_anything_js.js`：Function-eval 双模块注入（any_pack 尾部追加一行把 setSlotType 挂 globalThis 再喂给 convert 模块作用域）。**注意**：`new Function` eval 源码时 strip 正则必须同时去 `import` 语句与 `export ` 关键字（`export function` 直接语法错误）——any_pack 本次新增 export 后 `test_any_pack_js.js` 的旧 strip 正则同步补了 export 剥离。
 - `tests/check_web_imports.py` MODS 新增 `sf_convert_anything` 与 `any_pack`（规则 A 只扫 MODS 成员的导出；any_pack 有了导出符号被跨模块 import 后必须入列）。
