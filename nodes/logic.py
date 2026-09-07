@@ -560,3 +560,40 @@ class ComboSelector:
     def execute(self, value):
         stem = os.path.splitext(os.path.basename(str(value)))[0]
         return (value, stem)
+
+
+CONVERT_ANYTHING_TYPES = ("string", "int", "float", "boolean")
+CONVERT_ANYTHING_CONVERTERS = {
+    "string": str,
+    "int": int,
+    "float": float,
+    "boolean": bool,
+}
+
+
+class SFConvertAnything:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                # 输入名照抄 easy convertAnything 的字面量 "*"，任意类型
+                "*": (any_type, {"tooltip": "任意输入值"}),
+                "output_type": (
+                    list(CONVERT_ANYTHING_TYPES),
+                    {"default": "string", "tooltip": "输出转换的目标类型"},
+                ),
+            },
+        }
+
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("output",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    OUTPUT_NODE = True  # 复刻 easy：输出悬空也强制执行
+    DESCRIPTION = "把任意输入转换为指定类型（string/int/float/boolean）输出；输入为 None 时原样直通。前端会按所选类型同步输出槽类型（便于连线校验）"
+
+    def execute(self, **kwargs):
+        value = kwargs["*"]
+        if value is None:
+            return (None,)
+        return (CONVERT_ANYTHING_CONVERTERS[kwargs["output_type"]](value),)

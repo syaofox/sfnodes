@@ -71,6 +71,10 @@ MODS = [
     "sf_canvas_align", "sf_canvas_align_lib",
     # 单文件多依赖节点
     "load_images_path", "sf_prompt_reader", "sf_prompt_list", "sf_mask_fill",
+    # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）
+    "sf_convert_anything",
+    # Any Pack / Unpack 动态槽位（导出 setSlotType 供跨模块复用）
+    "any_pack",
 ]
 
 EXPORT_RE = re.compile(

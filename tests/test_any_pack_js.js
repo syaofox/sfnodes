@@ -10,7 +10,8 @@ const path = require("path");
 
 const code = fs
     .readFileSync(path.join(__dirname, "..", "web", "any_pack.js"), "utf8")
-    .replace(/import[^;]+;/g, "");
+    .replace(/import[^;]+;/g, "")
+    .replace(/export\s+(?=function|const|let|class|var)/g, "");
 
 // ---- 与 web/sf_dynamic_slots.js 一致的工具函数（测试独立，行为保持一致） ----
 const isSlotConnected = (slot) => {

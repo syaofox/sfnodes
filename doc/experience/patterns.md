@@ -208,3 +208,19 @@
 
 - 原 `RETURN_TYPES = ("INT","FLOAT")` 双输出改单输出 `RETURN_TYPES = (any,)` / `RETURN_NAMES = ("value",)`（复用 `sf_utils/common.py` AnyType）——输出槽类型是静态类属性不能随 number_type 运行时切换，固定 FLOAT 会接不上 INT 输入，固定 INT 丢精度，any 是唯一兼顾方案；execute 按档位返回真类型值（INT→`int`、FLOAT/PERCENT→`float`），下游类型检测仍可 `isinstance` 判断。
 - **旧工作流槽位兼容（按槽索引恢复）**：接槽 0（原 int）的链接理论可恢复（any 与 INT 兼容）；接槽 1（原 float）的链接加载时丢弃需手动重接——破裂式改动，已获确认接受。
+
+## 41. combo→输出槽类型前端改型（SFConvert Anything，2026-09）
+
+> 背景：复刻 easy convertAnything（`nodes/logic.py::SFConvertAnything`）——任意输入按 `output_type` combo（string/int/float/boolean）转换输出。后端 `RETURN_TYPES = (any_type,)` 静态声明无法随 combo 变化，输出槽类型同步是纯前端职责（渲染槽点颜色 + 连线校验）。
+
+### 1. 模式
+
+- **改型实现复用 `any_pack.js::setSlotType`**（本次起 export）：Vue 前端 `node.outputs` 是 reactive 数组，原地改 `slot.type` 不重渲染槽点，必须**元素替换**（`slots[i] = Object.assign({}, slot, { type })`，同官方 dynamic-type 模式）。跨模块复用即 `export` 后 import，不内联副本。
+- **挂点两条路径**：callback 包装（callback 参数即新值，§27 同款）+ `onAfterGraphConfigured` 恢复（nodeCreated 早于 widgets_values 恢复，lora §31 同款）。easy 原件只有 callback（还靠 setTimeout 300），**无恢复逻辑**——重载工作流槽型回退 `*`，复刻时补上。
+- 热重载防双包装 `_sfConvertAnythingPatched`（sf_dropdown.js 先例）；未知 combo 值回退 `"*"` 通配。
+
+### 2. 决策记录
+
+- 输入名照抄原件字面量 `"*"`（kwargs取 `kwargs["*"]`）；None 输入直通返回 None（原件对 None 转 int/float 直接崩，防御性改进）；OUTPUT_NODE=True 照抄（输出悬空也强制执行）；输出槽名保留 `"output"` 不随类型改名（easy 会把槽名改成类型值，信息量低且徒增 name/localized_name 同步负担）。
+- 前端测试 `tests/test_convert_anything_js.js`：Function-eval 双模块注入（any_pack 尾部追加一行把 setSlotType 挂 globalThis 再喂给 convert 模块作用域）。**注意**：`new Function` eval 源码时 strip 正则必须同时去 `import` 语句与 `export ` 关键字（`export function` 直接语法错误）——any_pack 本次新增 export 后 `test_any_pack_js.js` 的旧 strip 正则同步补了 export 剥离。
+- `tests/check_web_imports.py` MODS 新增 `sf_convert_anything` 与 `any_pack`（规则 A 只扫 MODS 成员的导出；any_pack 有了导出符号被跨模块 import 后必须入列）。

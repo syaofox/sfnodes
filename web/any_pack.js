@@ -160,7 +160,7 @@ function unionType(types) {
 // frontend node.inputs/node.outputs are reactive arrays: mutating slot.type
 // in place does not re-render the slot dot, but replacing the array element
 // does (same pattern as the official dynamic-type feature).
-function setSlotType(node, slots, index, type) {
+export function setSlotType(node, slots, index, type) {
     const slot = slots[index];
     if (!slot || slot.type === type) return;
     slots[index] = Object.assign({}, slot, { type });
