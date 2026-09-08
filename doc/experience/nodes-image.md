@@ -360,3 +360,9 @@
 
 - `tests/test_crop_expand.py`：mock torch/aiohttp/folder_paths（同 test_crop.py 机制，先加载 crop.py 再加载 crop_expand.py 满足同包导入），覆盖结构/注册键（根 `__init__.py` 文本断言）/纯函数/execute 磁盘源与缺源退化/IS_CHANGED。
 - `tests/test_crop_expand_js.mjs`：lib 拷 .mjs 直跑——冻结快照透传、坐标往返、八向拖拽+比例约束（⚠ 自写期望值时要按 `startRect.w + dx` 算，两处期望值算错被测试反抓）、`RATIO_PRESETS_ROW2`/`LAYOUT` 与原版逐字一致。
+
+### 5. Browse 按钮：复用 Image Browser 弹窗（2026-09 补充）
+
+- `image_browser.js:showImageBrowser(node)` 原与 LoadImage 系的 `image` widget 强耦合（选中高亮/定位/写入）。参数化加可选 `opts.onPick(value, item, type)` **选择器模式**：传入后 `imageWidget` 置 null，widget 写入路径整体跳过，选中项交宿主回调，「定位当前」按钮一并隐藏（无 widget 值可定位）——SF Load Image Browser 原行为零改动（不传 opts 时走原 widget 路径）。
+- SFImageCropExpand 的 Browse 按钮走选择器模式：onPick 里 `parseAnnotatedImageValue` + `buildSourceURL`（output 项自带 `[output]` 注解）→ fetch `/view` 原始字节 → FileReader dataURL → 既有 `loadAndStoreImage`（落盘 + 满框 + 状态同步）。零后端改动。
+- ⚠ 跨模块 import 的 `image_browser.js` 必须入 `check_web_imports.py` MODS（否则 MISSING MODULE 报错）；row1 按钮加到 6 枚（尾 x≈350）后 `MIN_NODE_WIDTH` 相应 400→460（面板背景右缘 = nodeW-76 须盖住按钮行）。

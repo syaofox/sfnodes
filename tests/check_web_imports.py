@@ -19,6 +19,7 @@ WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 MODS = [
     # 共享库
     "sf_common", "sf_dynamic_slots", "sf_markdown", "sf_lora_shared_info", "sf_lora_info",
+    "image_browser",
     # LoRA Stack 家族
     "sf_lora_stack", "sf_lora_stack_core", "sf_lora_stack_api",
     "sf_lora_stack_render", "sf_lora_stack_interaction",

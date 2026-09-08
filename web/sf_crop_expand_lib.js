@@ -33,10 +33,10 @@ export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58 };
 export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
-// 节点最小宽高：面板按钮行（row1 到 x≈290）+ 画布区 + 信息文本所需空间。
+// 节点最小宽高：面板按钮行（row1 到 x≈350）+ 画布区 + 信息文本所需空间。
 // 创建/恢复/尺寸自适应三处统一钳制（LiteGraph 默认按 schema 算的初始尺寸
 // 偏小，按钮会外溢）。
-export const MIN_NODE_WIDTH = 400;
+export const MIN_NODE_WIDTH = 460;
 export const MIN_NODE_HEIGHT = 360;
 
 // ratioFromAspect(key, customW, customH) → number | null

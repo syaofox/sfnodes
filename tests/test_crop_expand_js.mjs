@@ -121,8 +121,8 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("RATIO_PRESETS_ROW2 与原版一致", JSON.stringify(L.RATIO_PRESETS_ROW2) === JSON.stringify(["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
   check("LAYOUT 与原版一致", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.panelHeight === 58);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
-  // 最小节点尺寸：覆盖按钮行（row1 至 x≈290）+ shiftRight + 画布区 + 信息文本
-  check("MIN_NODE尺寸覆盖按钮行", L.MIN_NODE_WIDTH >= 300 && L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft * 2 + L.LAYOUT.panelHeight + 100);
+  // 最小节点尺寸：覆盖按钮行（row1 至 x≈350）+ shiftRight 80 + 画布区 + 信息文本
+  check("MIN_NODE尺寸覆盖按钮行", L.MIN_NODE_WIDTH >= 440 && L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft * 2 + L.LAYOUT.panelHeight + 100);
 
   // ── 结果 ──
   console.log();

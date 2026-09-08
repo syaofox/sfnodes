@@ -16,8 +16,9 @@
 
 import { app } from "/scripts/app.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent } from "./sf_common.js";
+import { sfToast, buildSourceURL, getSfAccent, parseAnnotatedImageValue } from "./sf_common.js";
 import { attachPopupDismiss } from "./sf_popup.js";
+import { showImageBrowser } from "./image_browser.js";
 import {
   ASPECT_RATIOS,
   RATIO_PRESETS_ROW2,
@@ -143,6 +144,33 @@ function pickFile(node) {
   input.click();
 }
 
+// Browse 按钮：复用 SF Load Image Browser 弹窗（选择器模式），
+// 选中后经 /view 取原始字节 → dataURL → 既有落盘+状态链路
+function browseImage(node) {
+  showImageBrowser(node, {
+    onPick: async (annotated) => {
+      const part = parseAnnotatedImageValue(annotated);
+      const url = buildSourceURL(part);
+      if (!url) return;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const dataURL = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        });
+        await loadAndStoreImage(node, dataURL);
+      } catch (err) {
+        console.error("[SF Crop Expand] browse load failed:", err);
+        sfToast({ summary: "SF Crop Expand", detail: "从图片浏览器加载失败", severity: "error", fallbackTag: "SF Crop Expand" });
+      }
+    },
+  });
+}
+
 // ── 面板按钮 ──────────────────────────────────────────────────────────────
 
 function ratioLabel(key) {
@@ -155,10 +183,11 @@ function buildButtons(node) {
   const h2 = 18;
   const buttons = [
     { text: "Load Image", x: 10, y: y1, w: 80, h: h1, action: () => pickFile(node) },
-    { text: "Reset", x: 95, y: y1, w: 50, h: h1, action: () => resetCrop(node) },
-    { text: "Color", x: 150, y: y1, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
-    { text: "Free", x: 205, y: y1 + 2, w: 30, h: h2, isRatio: true, ratioKey: "free", action: () => setAspect(node, "free") },
-    { text: "Custom", x: 240, y: y1 + 2, w: 50, h: h2, isRatio: true, ratioKey: "custom", action: () => openCustomRatioDialog(node) },
+    { text: "Browse", x: 95, y: y1, w: 55, h: h1, action: () => browseImage(node) },
+    { text: "Reset", x: 155, y: y1, w: 50, h: h1, action: () => resetCrop(node) },
+    { text: "Color", x: 210, y: y1, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
+    { text: "Free", x: 265, y: y1 + 2, w: 30, h: h2, isRatio: true, ratioKey: "free", action: () => setAspect(node, "free") },
+    { text: "Custom", x: 300, y: y1 + 2, w: 50, h: h2, isRatio: true, ratioKey: "custom", action: () => openCustomRatioDialog(node) },
   ];
   let x = 10;
   const y2 = y1 + h1 + 5;

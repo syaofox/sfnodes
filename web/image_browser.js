@@ -204,7 +204,12 @@ function folderExists(items, folder) {
     return items.some(it => it.path.startsWith(prefix));
 }
 
-function showImageBrowser(node) {
+// 打开图片浏览弹窗。默认宿主为 LoadImage 系节点（写 image widget）；
+// 传入 opts.onPick(value, item, type) 时切换为"选择器"模式——选中项交给
+// 宿主回调处理（widget 写入路径整体跳过，imageWidget 置 null，
+// 选中高亮/定位按钮退化为无值状态），SFImageCropExpand 的 Browse 按钮复用。
+export function showImageBrowser(node, opts = {}) {
+    const pickHandler = typeof opts.onPick === "function" ? opts.onPick : null;
     injectModalStyles();
 
     let allItems = [];
@@ -250,8 +255,9 @@ function showImageBrowser(node) {
     const sortbar = overlay.querySelector(".sf-imgbrowser-sortbar");
     const closeBtn = overlay.querySelector(".sf-imgbrowser-close");
 
-    const imageWidget = node.widgets.find(w => w.name === "image");
-    const currentValue = imageWidget ? imageWidget.value : "";
+    // 选择器模式不碰 image widget（宿主自持状态）；默认模式维持原行为
+    const imageWidget = pickHandler ? null : node.widgets.find(w => w.name === "image");
+    const currentValue = imageWidget ? imageWidget.value : (opts.selectedValue || "");
     const typeToggle = overlay.querySelector(".sf-imgbrowser-type-toggle");
 
     // 拉取当前类型全量列表 → 校验目录有效性（失效回退根目录）→ 渲染
@@ -291,7 +297,10 @@ function showImageBrowser(node) {
 
     // 定位到当前选中文件所在目录（显式触发，不做自动跟随——系统写入
     // 如蒙版编辑保存的 clipspace 会静默改写 image 值，自动跟随会割裂浏览上下文）
-    overlay.querySelector(".sf-imgbrowser-locate").addEventListener("click", () => {
+    // 选择器模式无 widget 值可定位，按钮隐藏
+    const locateBtn = overlay.querySelector(".sf-imgbrowser-locate");
+    if (pickHandler) locateBtn.style.display = "none";
+    locateBtn.addEventListener("click", () => {
         const v = imageWidget ? imageWidget.value : "";
         const { type: t, folder: f } = getImageFolderFromValue(v);
         if (t === currentType) {
@@ -584,8 +593,10 @@ function showImageBrowser(node) {
         div.appendChild(label);
 
         div.addEventListener("click", () => {
-            if (imageWidget) {
-                const value = currentType === "output" ? item.path + " [output]" : item.path;
+            const value = currentType === "output" ? item.path + " [output]" : item.path;
+            if (pickHandler) {
+                pickHandler(value, item, currentType);
+            } else if (imageWidget) {
                 imageWidget.value = value;
                 if (imageWidget.callback) {
                     imageWidget.callback(value);
