@@ -120,7 +120,7 @@ async function loadAndStoreImage(node, dataURL) {
     const img = new Image();
     img.onload = () => {
       node._sfExpandImg = img;
-      updateNodeSize(node);
+      // 不改节点大小：显示区 scale 动态计算，自动适配现有画布区域
       stateChanged(node);
     };
     img.src = dataURL;
@@ -327,20 +327,6 @@ function openCustomRatioDialog(node) {
 function clampNodeSize(node) {
   const w = Math.max(MIN_NODE_WIDTH, node.size?.[0] || 0);
   const h = Math.max(MIN_NODE_HEIGHT, node.size?.[1] || 0);
-  node.size = [w, h];
-}
-
-function updateNodeSize(node) {
-  const st = getState(node);
-  const { shiftLeft, shiftRight, panelHeight } = LAYOUT;
-  const maxDisplaySize = 500;
-  const scale = Math.min(
-    maxDisplaySize / Math.max(1, st.src_w),
-    maxDisplaySize / Math.max(1, st.src_h),
-    1.0,
-  );
-  const w = Math.max(MIN_NODE_WIDTH, Math.min(st.src_w * scale + shiftRight + shiftLeft, 800));
-  const h = Math.max(MIN_NODE_HEIGHT, Math.min(st.src_h * scale + shiftLeft * 2 + panelHeight, 800));
   node.size = [w, h];
 }
 
