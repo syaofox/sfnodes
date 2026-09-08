@@ -1,8 +1,10 @@
 // SF Text Preset 前端扩展
 // 预设真源为全局库 user/sfnodes/text_presets.json（经 /api/sfnodes/text_presets 读写，跨工作流共享）；
 // 节点隐藏 widget presets_json 仅作旧工作流兼容回退（只读，combo 同时显示其残留项）。
+// 编辑框为草稿语义：修改写本节点 text_override（随工作流保存，仅影响本节点输出），
+// 切换预设即丢弃，「💾 保存到预设」确认后才写入全局库。
 // 前端重建下拉选项并提供弹窗管理（新增/编辑/删除），combo 与预览即时同步；
-// 后端路由不可用时整体降级回旧版工作流数据源行为。
+// 后端路由不可用时选项降级回工作流数据源（编辑仍走草稿，不写 presets_json）。
 
 import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
@@ -170,50 +172,33 @@ function refreshContentDisplay(node) {
     if (!display) return;
     const state = stateOf(node);
     const name = findWidget(node, "preset")?.value ?? "";
+    // 草稿优先：编辑过的文本显示草稿（仅本节点，未写全局库）
+    const draft = findWidget(node, "text_override")?.value ?? "";
     const preset = state.presets.find((p) => p.name === name);
-    display.value = preset ? preset.text : "";
-}
-
-function queueGlobalSave(node, name, text) {
-    clearTimeout(node._sfTpSaveTimer);
-    node._sfTpSaveTimer = setTimeout(() => apiSave(name, text), 400);
+    display.value = draft ? draft : preset ? preset.text : "";
 }
 
 function saveEditedText(node, text) {
     const presetWidget = findWidget(node, "preset");
     if (!presetWidget) return;
     const name = presetWidget.value ?? "";
-    const state = stateOf(node);
-    if (state.globalNames === null) {
-        // 降级（后端路由不可用）：保持旧行为写回 presets_json
-        const jsonWidget = findWidget(node, "presets_json");
-        if (!jsonWidget) return;
-        const presets = parsePresets(jsonWidget.value);
-        const idx = presets.findIndex((p) => p.name === name);
-        if (idx < 0) return;
-        if (presets[idx].text === text) return;
-        presets[idx].text = text;
-        jsonWidget.value = JSON.stringify(presets);
-        node.setDirtyCanvas?.(true, true);
-        return;
-    }
-    if (!state.globalNames.has(name)) return; // 工作流残留项只读
-    const item = state.presets.find((p) => p.name === name);
-    if (!item || item.text === text) return;
-    item.text = text;
-    queueGlobalSave(node, name, text);
+    if (!name) return;
+    // 草稿语义：编辑只写本节点隐藏载体（随工作流保存），不写全局库；
+    // 切换预设即丢弃，点「💾 保存到预设」确认后才写入全局库
+    const draft = findWidget(node, "text_override");
+    if (!draft) return;
+    if (draft.value === text) return;
+    draft.value = text;
+    node.setDirtyCanvas?.(true, true);
 }
 
 function updateDisplayEditable(node) {
     const display = findWidget(node, "content_display");
     if (!display?.inputEl) return;
-    const state = stateOf(node);
+    // 有选中预设即可编辑（含工作流残留项：编辑产生草稿，💾 可将其晋升为全局预设）
     const name = findWidget(node, "preset")?.value ?? "";
-    if (state.globalNames === null) {
-        display.inputEl.readOnly = !state.presets.some((p) => p.name === name);
-    } else {
-        display.inputEl.readOnly = !state.globalNames.has(name);
-    }
+    const state = stateOf(node);
+    display.inputEl.readOnly = !state.presets.some((p) => p.name === name) && !findWidget(node, "text_override")?.value;
 }
 
 function syncFromJson(node) {
@@ -447,6 +432,26 @@ function onKeyDownCapture(e) {
     if (mgrEl && e.key === "Escape") closeMgr();
 }
 
+// 「💾 保存到预设」：把当前草稿（文本框内容）写入全局库并清草稿。
+// 选中为工作流残留项时保存即把它新增为全局预设（晋升）。
+async function saveDraftToPreset(node) {
+    const presetWidget = findWidget(node, "preset");
+    const display = findWidget(node, "content_display");
+    if (!presetWidget || !display) return;
+    const name = presetWidget.value ?? "";
+    if (!name) {
+        alert("未选中预设，无法保存");
+        return;
+    }
+    if (!(await apiSave(name, display.value))) {
+        alert("保存失败，请检查后端服务（需重启 ComfyUI 生效）");
+        return;
+    }
+    const draft = findWidget(node, "text_override");
+    if (draft) draft.value = "";
+    refreshAllNodes(); // 本节点草稿已入库，同步所有节点的显示与选项
+}
+
 // ---------------- 节点挂载 ----------------
 
 app.registerExtension({
@@ -469,8 +474,18 @@ app.registerExtension({
         presetsWidget.computeSize = () => [0, 0];
         presetsWidget.draw = () => {};
 
+        // 草稿载体同样隐藏（值随 workflow 序列化/恢复 = 工作流级草稿）
+        const draftWidget = findWidget(node, "text_override");
+        if (draftWidget) {
+            draftWidget.hidden = true;
+            draftWidget.computeSize = () => [0, 0];
+            draftWidget.draw = () => {};
+        }
+
         const originalCallback = presetWidget.callback;
         presetWidget.callback = function (...args) {
+            // 切换预设即丢弃草稿：草稿永远属于当前选中项
+            if (draftWidget) draftWidget.value = "";
             refreshContentDisplay(node);
             updateDisplayEditable(node);
             if (typeof originalCallback === "function") {
@@ -486,8 +501,8 @@ app.registerExtension({
                 app
             ).widget;
             display.serialize = false;
-            // 编辑框直接修改选中预设的文本内容，输入即写回全局库（防抖 POST）；
-            // 无选中或选中为工作流残留项时由 updateDisplayEditable 置为只读
+            // 编辑框 = 草稿：输入即写本节点 text_override（随工作流保存，不影响
+            // 全局库与其他工作流）；「💾 保存到预设」确认后才写入全局库
             display.inputEl.readOnly = false;
             display.inputEl.addEventListener("input", () => {
                 saveEditedText(node, display.value);
@@ -498,6 +513,7 @@ app.registerExtension({
 
         if (!node.widgets.some((w) => w.type === "button")) {
             node.addWidget("button", "⚙ 预设", null, () => openMgr(node));
+            node.addWidget("button", "💾 保存到预设", null, () => saveDraftToPreset(node));
         }
 
         syncFromJson(node);

@@ -97,6 +97,9 @@ check("preset 初始选项为空占位", required["preset"][0] == [""])
 check("INPUT_TYPES 含 presets_json", "presets_json" in required)
 check("presets_json 隐藏", required["presets_json"][1].get("display") == "hidden")
 check("presets_json 默认空数组", required["presets_json"][1].get("default") == "[]")
+check("INPUT_TYPES 含 text_override", "text_override" in required)
+check("text_override 隐藏", required["text_override"][1].get("display") == "hidden")
+check("text_override 默认空串", required["text_override"][1].get("default") == "")
 check("返回类型 text+preset_name", node.RETURN_TYPES == ("STRING", "STRING") and node.RETURN_NAMES == ("text", "preset_name"))
 check("VALIDATE_INPUTS 跳过 combo 校验", node.VALIDATE_INPUTS(preset="a", presets_json="[]") is True)
 
@@ -105,6 +108,16 @@ text_presets = mod.text_presets
 text_presets.save_presets([{"name": "G", "text": "global"}])
 t, n = node.execute("G", '[{"name": "G", "text": "workflow"}]')
 check("全局库优先命中", t == "global" and n == "G")
+
+# 草稿优先：text_override 非空时覆盖全局库与工作流载体（仅本节点输出）
+t, n = node.execute("G", '[{"name": "G", "text": "workflow"}]', "draft text")
+check("草稿优先于全局库", t == "draft text" and n == "G")
+t, n = node.execute("WF", '[{"name": "WF", "text": "workflow"}]', "draft wf")
+check("草稿优先于工作流回退", t == "draft wf" and n == "WF")
+t, n = node.execute("G", "[]", "")
+check("空草稿不生效", t == "global" and n == "G")
+t, n = node.execute("G", "[]")
+check("缺省 text_override 容错", t == "global" and n == "G")
 
 # 工作流回退：全局库未命中时解析 presets_json
 json_data = '[{"name": "A", "text": "hello"}, {"name": "B", "text": "world"}]'

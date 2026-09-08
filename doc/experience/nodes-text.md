@@ -434,4 +434,13 @@
 - **save_presets 传列表、_normalize_presets 只收文件级 dict** → 缓存归一化恒为空，下一次读改写从 `[]` 起步丢数据（首测即抓出）。归一化入口同时接受 dict 与裸列表。
 - **测试 mock `get_user_directory` 返回每次新建的 tmpdir** → save 与 load 落到不同目录，全局优先断言假失败；mock 必须固定目录。
 - **异步状态缓存 vs configure 恢复时序**（切换工作流/重载跳回第一项，2026-09 实测抓出）：`_sfTpState` 建于 `nodeCreated`（widget 默认值），`configure` 恢复选中值后若再套用该陈旧快照（onAfterGraphConfigured 里调 syncFromJson）→ 选中值被清 → rebuildState 的"保留当前选中"检查作用在已清值上 → 回落第一项。修法：onAfterGraphConfigured 不调 syncFromJson；rebuildState 进入时先捕获 combo 当前值、构建合并列表后若仍存在则恢复——选中值全程被持有，不依赖中间时刻恰好未被清。
+- **诊断脚本 D0 版本检查的假阴性**：`fetch("/extensions/...js")` 拿到的可能是网络层新文件，而 ES module 实际运行的是磁盘缓存的旧副本——D0 true ≠ 新代码在跑。判定要用**调用栈行号比对**（D4 变更探针打出 `new Error().stack`，行号/列号与 git show 各版本逐一对照，500:13/138 精确命中旧版才算实锤）。
+
+### 4. 编辑框草稿语义（全局库时代"输入即保存"的替换，2026-09）
+
+- 背景：预设全局共享后，编辑框"输入即保存"会直接污染全局库（一次随手编辑影响所有工作流），用户实测反馈不便。
+- **草稿载体**：节点隐藏 STRING widget `text_override`（patterns §4 数据载体，值随工作流保存 = 工作流级草稿）；编辑框输入即写草稿，**只影响本节点 execute 输出**（execute 优先级：`text_override` 非空 → 全局库 → 旧 presets_json 回退）。
+- **生命周期**：切换预设（combo callback）即清空草稿——草稿永远属于当前选中项；configure 直接赋值 widget 不触发 callback → 工作流恢复的草稿保留；「💾 保存到预设」按钮显式 POST 全局库并清草稿。
+- **可编辑性放宽**：有选中预设即可编辑（含工作流残留项——残留项编辑后 💾 保存即"晋升"为全局预设）；仅无任何预设时只读（有全局库时空选中自动回落第一项，"空选中"只在库为空时出现）。
+- 注意 combo callback 在 setPresetWidgetValues 程序化改值时也会触发 → 清草稿逻辑放在 callback 内对"回落第一项"同样成立（旧选中失效=丢弃其草稿，语义正确）。
 - **前端测试 top-level await 与 require 混用**（ERR_AMBIGUOUS_MODULE_SYNTAX）：Node 断言主体需包 async IIFE；`flush()` 用 `setImmediate` 宏任务（单微任务 await 跑不完 fetch 链），`setTimeout` 补丁为立即执行使防抖 POST 同步可断言。
