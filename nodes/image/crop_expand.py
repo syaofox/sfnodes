@@ -103,7 +103,8 @@ class SFImageCropExpand:
         "面板提供常用比例（Free/1:1/16:9 等）与 Custom 自定义比例，非 Free 时拖拽"
         "保持比例；Color 按钮选择扩展区填充色（默认黑色，外绘建议中性灰）。\n\n"
         "图片持久化到 input/sfnodes_crop/，工作流保存/重载不丢图。输出 裁剪图、"
-        "遮罩、宽、高。"
+        "遮罩、宽、高，以及 filename——源图在 input 目录下的存储路径（可直连 "
+        "LoadImage，未加载时为空串）。"
     )
 
     @classmethod
@@ -118,13 +119,14 @@ class SFImageCropExpand:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT")
-    RETURN_NAMES = ("image", "mask", "width", "height")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "STRING")
+    RETURN_NAMES = ("image", "mask", "width", "height", "filename")
     OUTPUT_TOOLTIPS = (
         "crop_w×crop_h 画布：与源图交集为原像素，出界区域为填充色",
         "白（1.0）=扩展区、黑（0.0）=原图区域——外绘重绘遮罩",
         "画布宽度（crop_w）",
         "画布高度（crop_h）",
+        "源图在 input 目录下的存储路径（如 sfnodes_crop/crop_src_x.png），可直连 LoadImage；未加载源图时为空串",
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
@@ -168,4 +170,5 @@ class SFImageCropExpand:
 
         image = torch.from_numpy(img_arr)[None,]   # [1, H, W, 3]
         mask = torch.from_numpy(mask_arr)[None,]   # [1, H, W]
-        return (image, mask, w, h)
+        # filename 输出 = src_path 原样（input 相对路径，可直连 LoadImage）
+        return (image, mask, w, h, meta.get("src_path", ""))

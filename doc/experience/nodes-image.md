@@ -352,7 +352,7 @@
 
 ### 3. 后端合成与契约
 
-- `_compose_expand(src, x, y, w, h, fill_rgb)` 纯 numpy：fill 画布 → 源图矩形与裁剪矩形求交贴回 → mask 交集处置 0（黑=原图），其余 1（白=扩展区）。输出 `[1,H,W,3]` / `[1,H,W]` + `(w,h)` INT。
+- `_compose_expand(src, x, y, w, h, fill_rgb)` 纯 numpy：fill 画布 → 源图矩形与裁剪矩形求交贴回 → mask 交集处置 0（黑=原图），其余 1（白=扩展区）。输出 `[1,H,W,3]` / `[1,H,W]` + `(w,h)` INT + `filename` STRING（src_path 原样——input 相对路径可直连 LoadImage，无源空串）。
 - `_clamp_crop` 对齐原版输入域（x/y ±4096、w/h 1..8192）；`_safe_join` 复用 crop.py（同包 `from .crop import _safe_join`）防路径穿越；`IS_CHANGED` 键 = `(mtime_ns, size) + rect + fill_color`（§3 禁 NaN）。
 - 缺源/载入失败退化：纯填充画布 + 全白遮罩（不崩，语义正确——整幅都是扩展区）。
 

@@ -79,8 +79,8 @@ check("SFImageCropExpand 已加载", hasattr(mod, "SFImageCropExpand"))
 check("CATEGORY", mod.SFImageCropExpand.CATEGORY == "sfnodes/image")
 check("DESCRIPTION", isinstance(mod.SFImageCropExpand.DESCRIPTION, str) and len(mod.SFImageCropExpand.DESCRIPTION) > 0)
 check("非 OUTPUT_NODE", getattr(mod.SFImageCropExpand, "OUTPUT_NODE", False) is False)
-check("RETURN_TYPES", mod.SFImageCropExpand.RETURN_TYPES == ("IMAGE", "MASK", "INT", "INT"))
-check("RETURN_NAMES", mod.SFImageCropExpand.RETURN_NAMES == ("image", "mask", "width", "height"))
+check("RETURN_TYPES", mod.SFImageCropExpand.RETURN_TYPES == ("IMAGE", "MASK", "INT", "INT", "STRING"))
+check("RETURN_NAMES", mod.SFImageCropExpand.RETURN_NAMES == ("image", "mask", "width", "height", "filename"))
 
 it = mod.SFImageCropExpand.INPUT_TYPES()
 check("required 为空", it["required"] == {})
@@ -164,28 +164,31 @@ state = json.dumps({
     "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
     "fill_color": "#0000ff",
 })
-img_t, mask_t, w, h = node.execute(SFCropExpandJson=state)
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandJson=state)
 check("execute 输出宽度", (w, h) == (8, 8))
 check("execute 图形状 [1,8,8,3]", img_t.shape == (1, 8, 8, 3))
 check("execute 遮罩形状 [1,8,8]", mask_t.shape == (1, 8, 8))
 check("execute 交集红", np.allclose(np.asarray(img_t)[2:6, 2:6, 0], 1.0))
 check("execute 扩展遮罩白", np.allclose(np.asarray(mask_t)[:, 0:2, :], 1.0))
 check("execute 交集遮罩黑", np.allclose(np.asarray(mask_t)[2:6, 2:6], 0.0))
+check("execute filename=src_path", fname == "sfnodes_crop/crop_src_testx.png")
 
-img_t, mask_t, w, h = node.execute(SFCropExpandJson=json.dumps({
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandJson=json.dumps({
     "src_path": "sfnodes_crop/missing.png", "crop_x": 0, "crop_y": 0, "crop_w": 6, "crop_h": 5,
     "fill_color": "#000000",
 }))
 check("缺源退化画布尺寸", (w, h) == (6, 5) and np.asarray(img_t).shape == (1, 5, 6, 3))
 check("缺源遮罩全白", np.allclose(np.asarray(mask_t), 1.0))
+check("缺源 filename 仍输出 src_path", fname == "sfnodes_crop/missing.png")
 
 # 空状态：默认 512 黑画布
-img_t, mask_t, w, h = node.execute()
+img_t, mask_t, w, h, fname = node.execute()
 check("空状态默认尺寸", (w, h) == (512, 512) and np.asarray(img_t).shape == (1, 512, 512, 3))
 check("空状态默认黑", np.allclose(np.asarray(img_t), 0.0))
+check("空状态 filename 空串", fname == "")
 
 # 非法 fill_color 兜底黑
-img_t, mask_t, w, h = node.execute(SFCropExpandJson=json.dumps({"fill_color": "zzz", "crop_w": 3, "crop_h": 3}))
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandJson=json.dumps({"fill_color": "zzz", "crop_w": 3, "crop_h": 3}))
 check("非法颜色兜底黑", np.allclose(np.asarray(img_t), 0.0))
 
 # ── IS_CHANGED ──
