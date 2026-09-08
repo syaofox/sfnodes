@@ -1,7 +1,7 @@
 // SFTextPreset 前端逻辑测试（Node 直接运行：node tests/test_text_preset_js.js）
 // 覆盖：扩展注册、nodeCreated 挂载（combo 重建/预览/按钮/callback 包装/onAfterGraphConfigured）、
 //       全局库合并渲染（全局优先 + 工作流残留）、草稿语义（编辑写 text_override 不碰全局库/
-//       切预设清草稿/💾 保存到预设写库并清草稿/残留项晋升）、configure 保留选中值、
+//       切预设清草稿/↧ 保存到预设写库并清草稿/残留项晋升）、configure 保留选中值、
 //       API 失败降级、管理弹窗（打开/列表/新增/重名/更新改名/删除/Escape/双击重入）
 const fs = require("fs");
 const path = require("path");
@@ -156,7 +156,7 @@ check("预览 widget 已添加且不序列化", displayW1 !== undefined && displ
 check("预览显示选中文本", displayW1.value === "hello");
 check("选中预设即可编辑（残留项也产生草稿）", displayW1.inputEl.readOnly === false);
 check("⚙ 预设按钮已添加", n1.buttons["⚙ 预设"] !== undefined);
-check("💾 保存到预设按钮已添加", n1.buttons["💾 保存到预设"] !== undefined);
+check("↧ 保存到预设按钮已添加", n1.buttons["↧ 保存到预设"] !== undefined);
 check("combo callback 已包装", typeof presetW1.callback === "function");
 check("onAfterGraphConfigured 已包装", typeof n1.onAfterGraphConfigured === "function");
 
@@ -190,13 +190,13 @@ check("切回显示预设原文（草稿已丢）", displayW1.value === "g2 text
 
 // 空选中仅当无任何预设时出现（有全局库时自动回落第一项）
 
-// ---------- 💾 保存到预设（草稿 → 全局库） ----------
+// ---------- ↧ 保存到预设（草稿 → 全局库） ----------
 presetW1.value = "G1";
 presetW1.callback("G1");
 displayW1.value = "g1 edited";
 displayW1.inputEl.trigger("input");
 check("草稿已写 text_override", draftW1.value === "g1 edited");
-await n1.buttons["💾 保存到预设"]();
+await n1.buttons["↧ 保存到预设"]();
 const postCall = apiCalls.filter((c) => c.method === "POST").pop();
 check("保存 POST 全局库", postCall && postCall.body.name === "G1" && postCall.body.text === "g1 edited");
 check("保存后草稿清空", draftW1.value === "");
@@ -209,7 +209,7 @@ presetW1.callback("A");
 check("选中残留项显示原文", displayW1.value === "hello");
 displayW1.value = "hello promoted";
 displayW1.inputEl.trigger("input");
-await n1.buttons["💾 保存到预设"]();
+await n1.buttons["↧ 保存到预设"]();
 check("残留项保存晋升为全局预设", store.find((p) => p.name === "A")?.text === "hello promoted");
 check("晋升后草稿清空", draftW1.value === "");
 await flush();
@@ -265,7 +265,7 @@ check("降级编辑不调 API", apiCalls.length === callsBefore2);
 check("降级编辑不动 presets_json", JSON.parse(jsonW4.value).find((p) => p.name === "A").text === "hello");
 // 降级保存失败 → 提示且草稿保留
 const alertsBefore = alerts.length;
-await n4.buttons["💾 保存到预设"]();
+await n4.buttons["↧ 保存到预设"]();
 check("降级保存失败有提示且草稿保留", alerts.length > alertsBefore
     && n4.widgets.find((w) => w.name === "text_override").value === "edited A");
 apiFail = false;

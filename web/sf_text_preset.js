@@ -2,7 +2,7 @@
 // 预设真源为全局库 user/sfnodes/text_presets.json（经 /api/sfnodes/text_presets 读写，跨工作流共享）；
 // 节点隐藏 widget presets_json 仅作旧工作流兼容回退（只读，combo 同时显示其残留项）。
 // 编辑框为草稿语义：修改写本节点 text_override（随工作流保存，仅影响本节点输出），
-// 切换预设即丢弃，「💾 保存到预设」确认后才写入全局库。
+// 切换预设即丢弃，「↧ 保存到预设」确认后才写入全局库。
 // 前端重建下拉选项并提供弹窗管理（新增/编辑/删除），combo 与预览即时同步；
 // 后端路由不可用时选项降级回工作流数据源（编辑仍走草稿，不写 presets_json）。
 
@@ -184,7 +184,7 @@ function saveEditedText(node, text) {
     const name = presetWidget.value ?? "";
     if (!name) return;
     // 草稿语义：编辑只写本节点隐藏载体（随工作流保存），不写全局库；
-    // 切换预设即丢弃，点「💾 保存到预设」确认后才写入全局库
+    // 切换预设即丢弃，点「↧ 保存到预设」确认后才写入全局库
     const draft = findWidget(node, "text_override");
     if (!draft) return;
     if (draft.value === text) return;
@@ -195,7 +195,7 @@ function saveEditedText(node, text) {
 function updateDisplayEditable(node) {
     const display = findWidget(node, "content_display");
     if (!display?.inputEl) return;
-    // 有选中预设即可编辑（含工作流残留项：编辑产生草稿，💾 可将其晋升为全局预设）
+    // 有选中预设即可编辑（含工作流残留项：编辑产生草稿，↧ 可将其晋升为全局预设）
     const name = findWidget(node, "preset")?.value ?? "";
     const state = stateOf(node);
     display.inputEl.readOnly = !state.presets.some((p) => p.name === name) && !findWidget(node, "text_override")?.value;
@@ -432,7 +432,7 @@ function onKeyDownCapture(e) {
     if (mgrEl && e.key === "Escape") closeMgr();
 }
 
-// 「💾 保存到预设」：把当前草稿（文本框内容）写入全局库并清草稿。
+// 「↧ 保存到预设」：把当前草稿（文本框内容）写入全局库并清草稿。
 // 选中为工作流残留项时保存即把它新增为全局预设（晋升）。
 async function saveDraftToPreset(node) {
     const presetWidget = findWidget(node, "preset");
@@ -502,7 +502,7 @@ app.registerExtension({
             ).widget;
             display.serialize = false;
             // 编辑框 = 草稿：输入即写本节点 text_override（随工作流保存，不影响
-            // 全局库与其他工作流）；「💾 保存到预设」确认后才写入全局库
+            // 全局库与其他工作流）；「↧ 保存到预设」确认后才写入全局库
             display.inputEl.readOnly = false;
             display.inputEl.addEventListener("input", () => {
                 saveEditedText(node, display.value);
@@ -513,7 +513,7 @@ app.registerExtension({
 
         if (!node.widgets.some((w) => w.type === "button")) {
             node.addWidget("button", "⚙ 预设", null, () => openMgr(node));
-            node.addWidget("button", "💾 保存到预设", null, () => saveDraftToPreset(node));
+            node.addWidget("button", "↧ 保存到预设", null, () => saveDraftToPreset(node));
         }
 
         syncFromJson(node);

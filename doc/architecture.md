@@ -83,7 +83,7 @@ sfnodes/
 │   ├── sf_prompt_reader.js # 提示词恢复单模块（IN/OUT 目录切换）
 │   ├── sf_prompt_list.js  # 行号编辑器单模块（SFPromptList：隐藏原生 multiline_text widget 作值真源 + DOM widget 行号栏从 0 起/跳过空白行对齐输出 index/超 500 行虚拟化，值恢复三通道；wrap 开启走镜像测量（mirror 与 textarea 同几何块级 div，行高按行缓存/宽度变化清空，渲染后强制重同步 scrollTop 防浏览器钳制错位）；start_index/max_rows 切片范围高亮跟随——仅裁剪时文本背景块+行号联动，wrap 开时高亮随测量行高展开（与行号同源））
 │   ├── sf_prompt_stack*.js # 动态 Prompt 列表两模块（core 纯逻辑 + 行 UI，SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高 state.rows[i].h 随工作流保存）
-│   ├── sf_text_preset.js  # 持久化文本预设单模块（全局库 API 读写 + 工作流残留合并 + 编辑框草稿语义 text_override/💾 保存到预设 + API 失败降级）
+│   ├── sf_text_preset.js  # 持久化文本预设单模块（全局库 API 读写 + 工作流残留合并 + 编辑框草稿语义 text_override/↧ 保存到预设 + API 失败降级）
 │   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
 │   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）

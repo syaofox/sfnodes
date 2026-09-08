@@ -440,7 +440,7 @@
 
 - 背景：预设全局共享后，编辑框"输入即保存"会直接污染全局库（一次随手编辑影响所有工作流），用户实测反馈不便。
 - **草稿载体**：节点隐藏 STRING widget `text_override`（patterns §4 数据载体，值随工作流保存 = 工作流级草稿）；编辑框输入即写草稿，**只影响本节点 execute 输出**（execute 优先级：`text_override` 非空 → 全局库 → 旧 presets_json 回退）。
-- **生命周期**：切换预设（combo callback）即清空草稿——草稿永远属于当前选中项；configure 直接赋值 widget 不触发 callback → 工作流恢复的草稿保留；「💾 保存到预设」按钮显式 POST 全局库并清草稿。
-- **可编辑性放宽**：有选中预设即可编辑（含工作流残留项——残留项编辑后 💾 保存即"晋升"为全局预设）；仅无任何预设时只读（有全局库时空选中自动回落第一项，"空选中"只在库为空时出现）。
+- **生命周期**：切换预设（combo callback）即清空草稿——草稿永远属于当前选中项；configure 直接赋值 widget 不触发 callback → 工作流恢复的草稿保留；「↧ 保存到预设」按钮显式 POST 全局库并清草稿。
+- **可编辑性放宽**：有选中预设即可编辑（含工作流残留项——残留项编辑后 ↧ 保存即"晋升"为全局预设）；仅无任何预设时只读（有全局库时空选中自动回落第一项，"空选中"只在库为空时出现）。
 - 注意 combo callback 在 setPresetWidgetValues 程序化改值时也会触发 → 清草稿逻辑放在 callback 内对"回落第一项"同样成立（旧选中失效=丢弃其草稿，语义正确）。
 - **前端测试 top-level await 与 require 混用**（ERR_AMBIGUOUS_MODULE_SYNTAX）：Node 断言主体需包 async IIFE；`flush()` 用 `setImmediate` 宏任务（单微任务 await 跑不完 fetch 链），`setTimeout` 补丁为立即执行使防抖 POST 同步可断言。
