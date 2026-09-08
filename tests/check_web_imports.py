@@ -75,6 +75,8 @@ MODS = [
     "sf_convert_anything",
     # Any Pack / Unpack 动态槽位（导出 setSlotType 供跨模块复用）
     "any_pack",
+    # Any Switch（复刻 rgthree；复用 any_pack.setSlotType/slotLinkTypes）
+    "sf_any_switch",
 ]
 
 EXPORT_RE = re.compile(

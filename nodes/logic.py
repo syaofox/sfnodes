@@ -46,6 +46,44 @@ class AnythingIndexSwitch:
         return (kwargs[key],)
 
 
+class _AnySwitchInputs(dict):
+    """灵活 optional 输入：任意输入名都能通过校验并按 any_type 处理。
+
+    复刻 rgthree 的 FlexibleOptionalInputType——前端动态添加的 any_XX 输入
+    不在后端 schema 里，靠 __contains__ 恒 True 让 get_input_info / 前端
+    validatePrompt 都放行，__getitem__ 回退返回 (any_type,)。
+    """
+
+    def __contains__(self, key):
+        return True
+
+    def __getitem__(self, key):
+        return (any_type,)
+
+
+class SFAnySwitch:
+    """复刻 rgthree Any Switch：输出第一个非空的 any 输入。"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {},
+            "optional": _AnySwitchInputs(),
+        }
+
+    RETURN_TYPES = (any_type,)
+    RETURN_NAMES = ("value",)
+    FUNCTION = "execute"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = "多路任意类型输入切换：按连线顺序输出第一个非空（非 None）的输入，全部为空时输出 None。连上即用，输入槽会自动增删（上限 20），前端按连接类型着色"
+
+    def execute(self, **kwargs):
+        for key, value in kwargs.items():
+            if key.startswith("any_") and value is not None:
+                return (value,)
+        return (None,)
+
+
 class AnyPack:
     @classmethod
     def INPUT_TYPES(cls):

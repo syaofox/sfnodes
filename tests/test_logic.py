@@ -191,6 +191,21 @@ check("output_type 选项与默认", ca_inputs["output_type"][0] == ["string", "
       and ca_inputs["output_type"][1]["default"] == "string")
 check("DESCRIPTION 已声明", bool(ca.DESCRIPTION))
 
+# ── SFAnySwitch（复刻 rgthree Any Switch）──
+sw = mod.SFAnySwitch()
+sw_inputs = sw.INPUT_TYPES()
+check("required 为空 + optional 为灵活 dict", sw_inputs["required"] == {}
+      and isinstance(sw_inputs["optional"], mod._AnySwitchInputs))
+check("灵活 schema：任意键包含且类型回退 any_type",
+      "any_01" in sw_inputs["optional"] and sw_inputs["optional"]["any_01"][0] == "*")
+check("switch 取第一个非 None 的 any_*", sw.execute(any_01=None, any_02="b", any_03="c") == ("b",))
+check("switch 跳过 None 顺序优先", sw.execute(any_02=None, any_01="a") == ("a",))
+check("switch 非 any_ 前缀键不参与", sw.execute(other="x", any_01="a") == ("a",))
+check("switch 全空返回 None", sw.execute(any_01=None, any_02=None) == (None,))
+check("switch 无输入返回 None", sw.execute() == (None,))
+check("输出槽声明任意类型", sw.RETURN_TYPES == ("*",) and sw.RETURN_NAMES == ("value",))
+check("DESCRIPTION 已声明", bool(sw.DESCRIPTION))
+
 if failures:
     print(f"\n{failures}")
     sys.exit(1)

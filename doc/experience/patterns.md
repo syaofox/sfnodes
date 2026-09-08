@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -224,3 +224,20 @@
 - 输入名照抄原件字面量 `"*"`（kwargs取 `kwargs["*"]`）；None 输入直通返回 None（原件对 None 转 int/float 直接崩，防御性改进）；OUTPUT_NODE=True 照抄（输出悬空也强制执行）；输出槽名跟随类型值改名（string/int/…，同原件；初期曾定保留 "output"，实测后确认跟随才符合预期——改槽名必须 name+localized_name 一并同步，渲染读 label ?? localized_name ?? name）。
 - 前端测试 `tests/test_convert_anything_js.js`：Function-eval 双模块注入（any_pack 尾部追加一行把 setSlotType 挂 globalThis 再喂给 convert 模块作用域）。**注意**：`new Function` eval 源码时 strip 正则必须同时去 `import` 语句与 `export ` 关键字（`export function` 直接语法错误）——any_pack 本次新增 export 后 `test_any_pack_js.js` 的旧 strip 正则同步补了 export 剥离。
 - `tests/check_web_imports.py` MODS 新增 `sf_convert_anything` 与 `any_pack`（规则 A 只扫 MODS 成员的导出；any_pack 有了导出符号被跨模块 import 后必须入列）。
+
+## 43. 灵活 optional schema 与 Any Switch 复刻（2026-09）
+
+> 背景：复刻 rgthree Any Switch（`nodes/logic.py::SFAnySwitch` + `web/sf_any_switch.js`）——多路任意类型输入取第一个非 None 输出，前端动态增删输入槽。
+
+### 1. 灵活 optional schema（后端）
+
+- 前端动态声明的输入（any_01…）不在后端 schema 里，validatePrompt 会按「schema 外输入」剪掉（§4）——放行靠 dict 子类 `_AnySwitchInputs`：`__contains__` 恒 True + `__getitem__` 回退 `(any_type,)`（照抄 rgthree `FlexibleOptionalInputType`）。后端 `get_input_info` 与前端校验都走这两个协议，schema 即「任意输入名都合法」。
+- 不可复用 `_CropOptionalInputs`（crop.py/inpaint_editor.py 同类 dict 子类）：它缺 `__contains__` 覆盖（concrete 键之外一律被剪），且硬编码 image/mask 条目，语义不同。
+- 选择语义：按 kwargs 迭代序（即 prompt JSON 里 inputs 顺序 = 前端槽位顺序）取第一个非 None 的 `any_*`；rgthree 的 context 空判断是 RGTHREE_CONTEXT 专属，不复刻。上限 20 由前端约束（对齐项目 MAX_FLOW_NUM 先例），后端不设限。
+
+### 2. 前端槽位与着色
+
+- 槽位增删直接复用 `sf_dynamic_slots.js::installDynamicSlots`（全连→加 1、尾部空→回收、保底 initial=4 ⇒ 稳态恒有 1 个空闲槽），与 rgthree `removeUnusedInputsFromEnd(node,4)+addAnyInput` 的稳态行为等价。**灵活 schema 下前端节点创建时 0 个输入**（object_info optional 为空 dict），初始 4 槽由 nodeCreated 手动 addInput 补齐——与固定 20 输入先例（SFLogicSwitch 靠 schema 提供槽位）的关键差异。
+- 着色复用 `any_pack.js::setSlotType/slotLinkTypes/unionType`（本次起 export）：每输入按自身连线类型独立着色（unionType 并集），输出跟随**第一个非 "\*" 的输入类型**（= 选择优先序），label 同步类型名、全断开复位；`onAfterGraphConfigured` 恢复重算（§41 同款挂点）。**有意简化**：不做 rgthree 的 reroute 穿透推断（followConnectionUntilType），经 reroute 时 link.type 为 "\*" 保持不着色——any_pack 同样接受此限制。
+- `setSlotType` 在类型未变时提前返回（diff 门控），**patch 里的 label 也不会应用**——初始态/未变态的 label 由槽位自身 localized_name（RETURN_NAMES）提供，不要依赖 patch。
+- 包装顺序：nodeCreated 先挂类型重算 wrapper，再 `installDynamicSlots`（它会再包装一层，槽位增删先发生、着色后执行，读到的是最终槽集）。

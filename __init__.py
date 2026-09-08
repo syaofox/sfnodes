@@ -159,6 +159,7 @@ from .nodes.utils.path_parse import SFParsePath
 
 from .nodes.logic import (
     AnythingIndexSwitch,
+    SFAnySwitch,
     IsMaskEmpty,
     AnyPack,
     AnyUnpack,
@@ -356,6 +357,7 @@ NODE_CLASS_MAPPINGS = {
     "SFParsePath": SFParsePath,
     # 逻辑节点
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
+    "SFAnySwitch": SFAnySwitch,
     "SFIsMaskEmpty": IsMaskEmpty,
     "SFAnyPack": AnyPack,
     "SFAnyUnpack": AnyUnpack,
@@ -551,6 +553,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFParsePath": "SF Parse Path",
     # 逻辑节点
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
+    "SFAnySwitch": "SF Any Switch",
     "SFIsMaskEmpty": "SF Is Mask Empty",
     "SFAnyPack": "SF Any Pack",
     "SFAnyUnpack": "SF Any Unpack",

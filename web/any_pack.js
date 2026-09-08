@@ -133,7 +133,8 @@ function propagateNames(node, depth = 0) {
 // "*/empty" types are dropped (nothing to color); link types are already
 // concrete because the graph computes them with commonType() at connect time.
 // ---------------------------------------------------------------------------
-function slotLinkTypes(node, slot) {
+// （slotLinkTypes / unionType 同时导出，供 SF Any Switch 等其他节点复用）
+export function slotLinkTypes(node, slot) {
     if (!node || !node.graph || !slot) return [];
     const ids = slot.link != null
         ? [slot.link]
@@ -152,7 +153,7 @@ function slotLinkTypes(node, slot) {
     return types;
 }
 
-function unionType(types) {
+export function unionType(types) {
     return types && types.length ? types.join(",") : "*";
 }
 
