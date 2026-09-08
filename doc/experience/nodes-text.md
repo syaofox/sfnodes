@@ -433,4 +433,5 @@
 
 - **save_presets 传列表、_normalize_presets 只收文件级 dict** → 缓存归一化恒为空，下一次读改写从 `[]` 起步丢数据（首测即抓出）。归一化入口同时接受 dict 与裸列表。
 - **测试 mock `get_user_directory` 返回每次新建的 tmpdir** → save 与 load 落到不同目录，全局优先断言假失败；mock 必须固定目录。
+- **异步状态缓存 vs configure 恢复时序**（切换工作流/重载跳回第一项，2026-09 实测抓出）：`_sfTpState` 建于 `nodeCreated`（widget 默认值），`configure` 恢复选中值后若再套用该陈旧快照（onAfterGraphConfigured 里调 syncFromJson）→ 选中值被清 → rebuildState 的"保留当前选中"检查作用在已清值上 → 回落第一项。修法：onAfterGraphConfigured 不调 syncFromJson；rebuildState 进入时先捕获 combo 当前值、构建合并列表后若仍存在则恢复——选中值全程被持有，不依赖中间时刻恰好未被清。
 - **前端测试 top-level await 与 require 混用**（ERR_AMBIGUOUS_MODULE_SYNTAX）：Node 断言主体需包 async IIFE；`flush()` 用 `setImmediate` 宏任务（单微任务 await 跑不完 fetch 链），`setTimeout` 补丁为立即执行使防抖 POST 同步可断言。

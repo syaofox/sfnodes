@@ -124,6 +124,10 @@ function stateOf(node) {
 
 async function rebuildState(node) {
     if (!node) return;
+    // 先捕获当前选中值：configure 恢复的选中项是工作流级持久化真源，
+    // 异步重建期间任何中间态都不得清掉它（选中预设仍存在则必须保留）
+    const presetWidget = findWidget(node, "preset");
+    const current = presetWidget ? presetWidget.value : undefined;
     const global = await fetchGlobalPresets();
     const wf = workflowPresets(node);
     if (global === null) {
@@ -134,6 +138,10 @@ async function rebuildState(node) {
             presets: global.concat(wf.filter((p) => !names.has(p.name))),
             globalNames: names,
         };
+    }
+    const state = node._sfTpState;
+    if (presetWidget && current !== undefined && state.presets.some((p) => p.name === current)) {
+        presetWidget.value = current;
     }
     syncFromJson(node);
 }
@@ -497,7 +505,10 @@ app.registerExtension({
 
         const originalOnAfterConfigured = node.onAfterGraphConfigured;
         node.onAfterGraphConfigured = function (...args) {
-            syncFromJson(node);
+            // 不调 syncFromJson：此时 _sfTpState 还是 nodeCreated 时的陈旧快照
+            // （presets_json 尚未恢复时的默认值），套用会把 configure 刚恢复的
+            // 选中值清掉 → rebuildState 回落第一项。选中值由 rebuildState
+            // 的捕获-恢复逻辑保全，重建完成后的 sync 才是权威的。
             rebuildState(node);
             if (typeof originalOnAfterConfigured === "function") {
                 return originalOnAfterConfigured.apply(this, args);

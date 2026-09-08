@@ -202,6 +202,17 @@ const presetW3 = n3.widgets.find((w) => w.name === "preset");
 check("configure 后 combo 合并全局与工作流", JSON.stringify(presetW3.options.values) === '["G1","G2","C"]');
 check("configure 后选中回落第一项", presetW3.value === "G1");
 
+// 工作流切换/重载：选中的全局预设（不在本工作流 presets_json）必须保留
+// （回归：陈旧 _sfTpState 曾把 configure 恢复的选中值清掉 → 回落第一项）
+const n3b = mkNode("[]", "");
+await flush();
+const presetW3b = n3b.widgets.find((w) => w.name === "preset");
+presetW3b.value = "G2"; // 模拟 configure 恢复的选中值
+n3b.onAfterGraphConfigured();
+await flush();
+check("configure 保留选中的全局预设", presetW3b.value === "G2");
+check("保留选中后预览同步", n3b.widgets.find((w) => w.name === "content_display").value === "edited g2");
+
 // API 失败降级：combo 为工作流数据源，编辑写回 presets_json（旧行为）
 apiFail = true;
 const n4 = mkNode('[{"name": "A", "text": "hello"}]', "A");
