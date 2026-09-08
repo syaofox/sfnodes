@@ -8,6 +8,7 @@ from comfy.utils import common_upscale
 from nodes import SaveImage
 from ...sf_utils.image_convert import mask2tensor, np2tensor, tensor2mask, rescale_image
 from ...sf_utils.resize_engine import floor_divisible
+from ...sf_utils.common import _parse_fill_color
 from ...sf_utils.mask_utils import (
     combine_mask,
     expand_mask,
@@ -558,16 +559,6 @@ class PreviewMask(SaveImage):
         )
         return self.save_images(preview, filename_prefix, prompt, extra_pnginfo)
 
-
-def _parse_fill_color(fill_color):
-    if isinstance(fill_color, str):
-        hex_color = fill_color.lstrip("#")
-        return (
-            int(hex_color[0:2], 16),
-            int(hex_color[2:4], 16),
-            int(hex_color[4:6], 16),
-        )
-    return tuple(fill_color)
 
 
 def _apply_falloff(alpha, falloff: int):

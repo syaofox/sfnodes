@@ -334,3 +334,29 @@
 - `sf_utils/scene_detect.py`：`detect_scenes/split_scenes` + `_process_frame/_hist_distance/_downscale_and_gray`（纯函数）
 - `nodes/image/scene_split.py`：`SFImageSceneSplit`（9 输入 + 5 输出，`OUTPUT_IS_LIST[4]=True`）
 - `__init__.py` 唯一真源 `SFImageSceneSplit`
+
+## 37. SFImageCropExpand：出界裁剪/外绘预处理（复刻 YCNodes Load Image Crop Expand）
+
+> 背景：`nodes/image/crop_expand.py:SFImageCropExpand` + `web/sf_crop_expand_lib.js`（纯几何）+ `web/sf_crop_expand.js`（主扩展）。复刻 ComfyUI-YCNodes_Toolkit `ycImageCrop`：节点上加载图片，拖拽一个**可出界**的裁剪框（负坐标/越界=外扩），输出填充色画布（交集=原像素，出界=纯色）+ 白=扩展区遮罩 + 宽高——外绘工作流的预处理节点。
+
+### 1. 与原版的三处确认差异（用户拍板）
+
+- **图片持久化**：原版序列化时清空 base64（widget+properties），工作流重载即丢图（仅会话内 id 缓存）。本实现复用 `crop.py` 的 `/api/sfnodes/crop/upload_src` 路由落盘 `input/sfnodes_crop/`，状态只存 `src_path`，重载经 `/view`（`buildSourceURL` + cacheBust）恢复预览。
+- **不接上游 IMAGE**：与原版一致，仅手动加载（Load Image 按钮 / 拖放文件到节点显示区）。
+- **隐藏状态收敛**：原版 7 个隐藏 widget 逐个同步；本实现单个 `properties.sfCropExpandState`（JSON 字符串随工作流保存）+ graphToPrompt 注入隐藏输入 `SFCropExpandJson`（outpaint 先例），Python `_parse_state` dict/str 双容错。`aspect_ratio`/`custom_w/h` 只进状态给前端拖拽用，后端忽略。
+
+### 2. 交互层复用判定（为何不复用 sf_crop_framework）
+
+- `sf_crop_core.js:CropEditor` 把裁剪矩形**钳制在图界内**（restore/snap 全链路 `Math.max(0,...)`），支持出界需深改 core/render/save 全链路并波及既有 SFImageCrop——违背最小改动。故交互层按原版形态新写（节点上直接画布拖拽，约 500 行），**但交互数学全部抽入纯库** `sf_crop_expand_lib.js`（无 app 依赖可 .mjs 直测）：`computeDisplayMetrics`（含**拖拽冻结快照**——onMouseDown 时冻结 scale/offset/displayMin，全程共用防"框扩张→scale 变小→鼠标反算漂移"自反馈）、`getHandleAtPoint`（命中半径=10px/scale）、`updateCropByDrag`（八向+比例约束+最小 10px）、`applyRatioToRect`。
+- 复用清单：`CropAPI`（crop_core 新增 `uploadSrc` 方法——crop.js 内联上传片段收敛进共享 API 束）、`sf_common.js`（sfToast/buildSourceURL/getSfAccent——比例按钮选中色跟随全局强调色）、`sf_popup.js`（Custom 比例弹窗三关闭；输入框 keydown 放行 ctrl/meta/alt）、`sf_utils/common.py:_parse_fill_color`（自 `nodes/mask/masks.py` 提升为公共实现，masks.py 改同源导入——提升而非副本）。
+
+### 3. 后端合成与契约
+
+- `_compose_expand(src, x, y, w, h, fill_rgb)` 纯 numpy：fill 画布 → 源图矩形与裁剪矩形求交贴回 → mask 交集处置 0（黑=原图），其余 1（白=扩展区）。输出 `[1,H,W,3]` / `[1,H,W]` + `(w,h)` INT。
+- `_clamp_crop` 对齐原版输入域（x/y ±4096、w/h 1..8192）；`_safe_join` 复用 crop.py（同包 `from .crop import _safe_join`）防路径穿越；`IS_CHANGED` 键 = `(mtime_ns, size) + rect + fill_color`（§3 禁 NaN）。
+- 缺源/载入失败退化：纯填充画布 + 全白遮罩（不崩，语义正确——整幅都是扩展区）。
+
+### 4. 测试
+
+- `tests/test_crop_expand.py`：mock torch/aiohttp/folder_paths（同 test_crop.py 机制，先加载 crop.py 再加载 crop_expand.py 满足同包导入），覆盖结构/注册键（根 `__init__.py` 文本断言）/纯函数/execute 磁盘源与缺源退化/IS_CHANGED。
+- `tests/test_crop_expand_js.mjs`：lib 拷 .mjs 直跑——冻结快照透传、坐标往返、八向拖拽+比例约束（⚠ 自写期望值时要按 `startRect.w + dx` 算，两处期望值算错被测试反抓）、`RATIO_PRESETS_ROW2`/`LAYOUT` 与原版逐字一致。

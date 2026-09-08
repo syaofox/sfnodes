@@ -32,6 +32,8 @@ MODS = [
     "sf_crop", "sf_crop_core", "sf_crop_framework", "sf_crop_panel",
     "sf_crop_preview", "sf_crop_render", "sf_crop_interaction",
     "sf_crop_alignments", "sf_crop_undo_guard",
+    # Crop Expand（出界裁剪/外绘预处理，复用 sf_crop_core 的 CropAPI）
+    "sf_crop_expand", "sf_crop_expand_lib",
     # Inpaint 家族
     "sf_inpaint", "sf_inpaint_core", "sf_inpaint_geometry",
     "sf_inpaint_paint", "sf_inpaint_render",

@@ -17,6 +17,7 @@ from .nodes.image.load_images_path import SFLoadImagesPath
 from .nodes.image.load_image_resize import SFLoadImageResize
 from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
+from .nodes.image.crop_expand import SFImageCropExpand
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
 from .nodes.image.batch import SFImageBatch
@@ -205,6 +206,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImageResize": SFLoadImageResize,
     "SFImageResize": SFImageResize,
     "SFImageCrop": SFImageCrop,
+    "SFImageCropExpand": SFImageCropExpand,
     "SFImageUncrop": SFImageUncrop,
     "SFImageTile": SFImageTile,
     "SFImageUntile": SFImageUntile,
@@ -401,6 +403,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImageResize": "SF Load Image Resize",
     "SFImageResize": "SF Image Resize",
     "SFImageCrop": "SF Image Crop",
+    "SFImageCropExpand": "SF Image Crop Expand",
     "SFImageUncrop": "SF Image Uncrop",
     "SFImageTile": "SF Image Tile",
     "SFImageUntile": "SF Image Untile",

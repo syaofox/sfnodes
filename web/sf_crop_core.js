@@ -47,6 +47,16 @@ export const CropAPI = {
     });
     return await res.json();
   },
+  // 上传完整源图到 input/sfnodes_crop/（crop/upload_src 路由），返回 { path }。
+  // SFImageCrop（粘贴链路）与 SFImageCropExpand（加载/拖放链路）共用。
+  async uploadSrc(projectId, dataURL) {
+    const res = await api.fetchApi(sfApiUrl("/api/sfnodes/crop/upload_src"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId, image: dataURL }),
+    });
+    return await res.json();
+  },
 };
 
 // Re-export BRAND for use in other mixin files
