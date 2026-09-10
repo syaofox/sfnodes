@@ -46,6 +46,34 @@ export const OPA_MIN = 0.1;
 export const OPA_MAX = 1.0;
 export const OPA_STEP = 0.05;
 
+// 滚轮快调命中的按钮 id（左竖列四个步进器；取色/模式/底行按钮不响应滚轮）。
+export const WHEEL_STEPPERS = ["sizeMinus", "sizePlus", "opaMinus", "opaPlus"];
+
+// hitStepper(buttons, lx, ly) → 步进器 id | null
+// buttons: buildControls 几何（含 x/y/w/h，步进器 y 均为数值）；纯函数，
+// 主扩展的全局 wheel 监听与测试共用。
+export function hitStepper(buttons, lx, ly) {
+  for (const b of buttons || []) {
+    if (!WHEEL_STEPPERS.includes(b.id)) continue;
+    if (lx >= b.x && lx <= b.x + b.w && ly >= b.y && ly <= b.y + b.h) return b.id;
+  }
+  return null;
+}
+
+// wheelDir(deltaY) → +1（上滚增大）/ -1（下滚减小）/ 0（水平滚忽略）
+export function wheelDir(deltaY) {
+  if (deltaY < 0) return 1;
+  if (deltaY > 0) return -1;
+  return 0;
+}
+
+// wheelAction(id, dir) → 步进后的按钮行为 id（上滚走 Plus、下滚走 Minus）
+export function wheelAction(id, dir) {
+  if (id === "sizeMinus" || id === "sizePlus") return dir >= 0 ? "sizePlus" : "sizeMinus";
+  if (id === "opaMinus" || id === "opaPlus") return dir >= 0 ? "opaPlus" : "opaMinus";
+  return null;
+}
+
 // stepBrushSize(cur, dir) → 新笔刷直径（dir=+1/-1，钳制 1..200 取整）
 export function stepBrushSize(cur, dir) {
   const v = (Number(cur) || 0) + (dir >= 0 ? SIZE_STEP : -SIZE_STEP);

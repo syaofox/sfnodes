@@ -425,6 +425,7 @@
 
 - **布局**：初版顶面板（按钮行 + Size/Opacity 横向滑块 + 色块）改为 CropExpand 同形——左工具竖列 `TOOL_COL` 10 项（Brush/Erase 模式 → Clear/Undo → Size±/Opa± → BCol/ECol）+ 底行 Load Image/Browse 与信息文本同排。`LAYOUT` 与 `computeDisplayMetrics` 公式与 `sf_crop_expand_lib.js` 逐字同形（竖列 `toolColW/toolColGap` 让宽、底行 `bottomH` 让高），`buttonRect` 的 `BOTTOM_Y` 运行时解析亦同款。
 - **滑块→步进器**：30px 竖列放不下横向拖拽滑块，改为纯函数步进（`stepBrushSize` 步长 2 钳制 1..200 / `stepOpacity` 步长 5% 钳制 0.1..1.0，lib 可测）；实时数值进底行信息文本（`Brush 80 · Op 50% · Strokes 3 · 512×512`，超宽截断 `…`）。取色按钮背景即当前色、文字按亮度取黑/白（CropExpand Color 按钮同款）。
+- **步进器滚轮快调**：悬停 S±/O± 时滚轮直调（上滚增大/下滚减小，每 tick 一步）。引擎无节点级 `onMouseWheel` 钩子（1.51.9 实测零命中），故用 window capture + `{passive:false}` 先手拦截（`installPasteHandler` 同款）；仅命中四步进器（纯函数 `hitStepper`/`wheelDir`/`wheelAction`，lib 可测）且无 Ctrl/Meta（捏合缩放）时 `preventDefault+stopPropagation`，其余放行画布缩放；折叠节点与界外坐标跳过。
 - **影响面**：纯前端（lib + 主扩展 + mjs 测试 + 本节/架构一行）；后端、隐藏输入契约、`tests/test_brush_mask.py` 零改动。
 
 ### 8. 底栏残影：半透明背景盖住按钮（2026-09，用户实测）

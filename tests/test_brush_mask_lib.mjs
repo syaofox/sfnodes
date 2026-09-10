@@ -69,6 +69,27 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("越界钳制", JSON.stringify(L.clampToImage(-5, 999, 512, 512)) === JSON.stringify({ x: 0, y: 511 }));
   check("界内不动", JSON.stringify(L.clampToImage(10, 20, 512, 512)) === JSON.stringify({ x: 10, y: 20 }));
 
+  // ── hitStepper / wheelDir / wheelAction（滚轮快调）──
+  const fakeCtrls = [
+    { id: "brush", x: 10, y: 16, w: 30, h: 18 },
+    { id: "sizeMinus", x: 10, y: 104, w: 30, h: 18 },
+    { id: "sizePlus", x: 10, y: 126, w: 30, h: 18 },
+    { id: "opaMinus", x: 10, y: 148, w: 30, h: 18 },
+    { id: "load", text: "Load Image", x: 10, y: "bottom", w: 72, h: 21 },
+  ];
+  check("命中 S+", L.hitStepper(fakeCtrls, 20, 130) === "sizePlus");
+  check("命中 O-", L.hitStepper(fakeCtrls, 20, 150) === "opaMinus");
+  check("非步进器不命中", L.hitStepper(fakeCtrls, 20, 20) === null);
+  check("空白处不命中", L.hitStepper(fakeCtrls, 200, 200) === null);
+  check("BOTTOM_Y 按钮不命中（仅数值 y）", L.hitStepper(fakeCtrls, 20, 0) === null);
+  check("wheelDir 上滚 +1", L.wheelDir(-100) === 1);
+  check("wheelDir 下滚 -1", L.wheelDir(100) === -1);
+  check("wheelDir 水平 0", L.wheelDir(0) === 0);
+  check("wheelAction S 上滚走 Plus", L.wheelAction("sizeMinus", 1) === "sizePlus");
+  check("wheelAction S 下滚走 Minus", L.wheelAction("sizePlus", -1) === "sizeMinus");
+  check("wheelAction O 上滚走 Plus", L.wheelAction("opaMinus", 1) === "opaPlus");
+  check("wheelAction 非步进 null", L.wheelAction("brush", 1) === null);
+
   // ── parseStroke 三格式（与 Python _parse_one_stroke 同语义）──
   let s = L.parseStroke("brush:20:1.0:10,10;20,20");
   check("新无色格式", s.mode === "brush" && s.size === 20 && s.points.length === 2 && s.points[0].x === 10);

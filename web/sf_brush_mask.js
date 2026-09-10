@@ -46,6 +46,9 @@ import {
   clampToImage,
   stepBrushSize,
   stepOpacity,
+  hitStepper,
+  wheelDir,
+  wheelAction,
 } from "./sf_brush_mask_lib.js";
 
 const CLASS = "SFImageBrushMask";
@@ -675,6 +678,41 @@ if (!app._sfBrushMaskCursorPatch) {
       if (canvas.canvas.style.cursor === "nwse-resize") canvas.canvas.style.cursor = "";
     }
   });
+}
+
+// ── 步进器滚轮快调 ────────────────────────────────────────────────────────
+//
+// 悬停左竖列 S±/O± 步进器时滚轮直接调值（上滚增大/下滚减小，每 tick 一步）：
+// 引擎无节点级 onMouseWheel 钩子，故用 window capture 先手拦截（同
+// installPasteHandler 先例）；仅命中四个步进器且无 Ctrl/Meta（捏合缩放手势）
+// 时拦截，其余一律放行（画布缩放不受影响）。passive:false 否则 preventDefault
+// 无效；折叠节点跳过（控件不可见）。
+
+if (!app._sfBrushMaskWheelPatch) {
+  app._sfBrushMaskWheelPatch = true;
+  window.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.metaKey) return;
+    const dir = wheelDir(e.deltaY);
+    if (!dir) return;
+    const canvas = app.canvas;
+    if (!canvas) return;
+    const mx = canvas.graph_mouse?.[0], my = canvas.graph_mouse?.[1];
+    if (mx == null || my == null) return;
+    for (const n of app.graph?._nodes || []) {
+      if (n.comfyClass !== CLASS && n.type !== CLASS) continue;
+      if (n.flags?.collapsed || !n._sfBrushCtrls) continue;
+      const lx = mx - n.pos[0], ly = my - n.pos[1];
+      if (lx < 0 || ly < 0 || lx > n.size[0] || ly > n.size[1]) continue;
+      const hovered = hitStepper(n._sfBrushCtrls, lx, ly);
+      if (!hovered) continue;
+      const action = wheelAction(hovered, dir);
+      if (!action) continue;
+      e.preventDefault();
+      e.stopPropagation();
+      buttonAction(n, action);
+      return;
+    }
+  }, { passive: false, capture: true });
 }
 
 // ── 注册 ──────────────────────────────────────────────────────────────────
