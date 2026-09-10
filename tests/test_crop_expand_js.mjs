@@ -148,6 +148,13 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   const ems4 = L.ensureMinSize(undefined, undefined);
   check("ensureMinSize undefined 兜底", ems4[0] === L.MIN_NODE_WIDTH && ems4[1] === L.MIN_NODE_HEIGHT);
 
+  // ── hitResizeCornerSE（右下角 15×15 原生命中区，cursor 视觉修正用）──
+  check("SE 角内命中", L.hitResizeCornerSE(360, 300, 360, 300) === true);
+  check("SE 角边界命中", L.hitResizeCornerSE(345, 285, 360, 300) === true);
+  check("SE 角外不命中", L.hitResizeCornerSE(344, 285, 360, 300) === false && L.hitResizeCornerSE(345, 284, 360, 300) === false);
+  check("西北远处不命中", L.hitResizeCornerSE(10, 10, 360, 300) === false);
+  check("RESIZE_HANDLE_SIZE 与原生一致", L.RESIZE_HANDLE_SIZE === 15);
+
   // ── 结果 ──
   console.log();
   if (failures.length) {

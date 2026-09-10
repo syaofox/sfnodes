@@ -27,6 +27,7 @@ import {
   ratioFromAspect,
   computeDisplayMetrics,
   ensureMinSize,
+  hitResizeCornerSE,
   localToImage,
   getHandleAtPoint,
   getCursorForHandle,
@@ -781,6 +782,47 @@ if (!app._sfCropExpandPromptPatched) {
     }
     return result;
   };
+}
+
+// ── 右下角 resize cursor 视觉修正 ─────────────────────────────────────────
+//
+// 命中区维持原生 15×15（不做扩大）；仅修视觉。原生链路 dir→帧尾
+// updateCursorStyle→css 不可靠：pointer.resizeDirection 会被两处反复清空
+// （诊断栈实锤）——① LGraphCanvas.updateMouseOverNodes（hover 判定切换时无
+// 条件清）；② 第三方扩展（如 Comfyui_LG_Tools/queue_shortcut.js）重放
+// processMouseMove，每次物理移动跑 ≥2 遍，第二遍清掉刚设的 dir。
+// 此 listener 在 LiteGraph 与第三方扩展处理完之后（后注册）运行：
+// - 原生 15×15 区内：直接写 style.cursor（不经 dir 间接层，绕过清空/时序），
+//   并补写 dir=SE 作双保险；
+// - 区外仅在 cursor 是我们写入时恢复 ""（交还原生/页面管理），不覆盖其它
+//   cursor 状态（槽 grab 等）。
+
+if (!app._sfCropExpandCursorPatch) {
+  app._sfCropExpandCursorPatch = true;
+  let _sfCursorOwned = false;
+  window.addEventListener("mousemove", () => {
+    const canvas = app.canvas;
+    const pointer = canvas?.pointer;
+    if (!pointer || pointer.eDown) return;
+    const mx = canvas.graph_mouse?.[0], my = canvas.graph_mouse?.[1];
+    if (mx == null || my == null) return;
+    let inSE = false;
+    for (const n of app.graph?._nodes || []) {
+      if (n.comfyClass !== CLASS) continue;
+      if (hitResizeCornerSE(mx - n.pos[0], my - n.pos[1], n.size[0], n.size[1])) {
+        inSE = true;
+        break;
+      }
+    }
+    if (inSE) {
+      if (pointer.resizeDirection !== "SE") pointer.resizeDirection = "SE";
+      canvas.canvas.style.cursor = "nwse-resize";
+      _sfCursorOwned = true;
+    } else if (_sfCursorOwned) {
+      _sfCursorOwned = false;
+      if (canvas.canvas.style.cursor === "nwse-resize") canvas.canvas.style.cursor = "";
+    }
+  });
 }
 
 // ── 注册 ──────────────────────────────────────────────────────────────────

@@ -56,6 +56,19 @@ export function ensureMinSize(w, h) {
   return [Math.max(w || 0, MIN_NODE_WIDTH), Math.max(h || 0, MIN_NODE_HEIGHT)];
 }
 
+// 右下角 resize cursor 视觉修正：原生命中区（resizeHandleSize 15×15）本身
+// 可用，无需扩大；但 pointer.resizeDirection 会被 hover 判定切换与第三方扩
+// 展重放 processMouseMove 反复清空（帧尾 updateCursorStyle 读到空 → cursor
+// 闪回 default，视觉上几乎不触发）。主扩展注册后执行的 mousemove listener
+// 在原生 15×15 区内补写 dir——判定区与原生命中区一致（cursor 与拖动匹配）。
+export const RESIZE_HANDLE_SIZE = 15;
+
+// hitResizeCornerSE(localX, localY, w, h) → 右下角 handleSize×handleSize 内
+// （调用点已保证坐标在节点 boundingRect 内；x=右缘/y=底缘含边界）。
+export function hitResizeCornerSE(localX, localY, w, h, handleSize = RESIZE_HANDLE_SIZE) {
+  return localX >= w - handleSize && localX <= w && localY >= h - handleSize && localY <= h;
+}
+
 // ratioFromAspect(key, customW, customH) → number | null
 // custom 比例取 customW/customH，非法输入退化为不约束。
 export function ratioFromAspect(key, customW, customH) {
