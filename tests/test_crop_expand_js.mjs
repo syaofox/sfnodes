@@ -118,7 +118,7 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("底部越界 extended", L.isExtended({ x: 0, y: 0, w: 512, h: 600 }, 512, 512) === true);
 
   // ── 常量 ──
-  check("RATIO_PRESETS_COL 集合与原版行2 一致", JSON.stringify(L.RATIO_PRESETS_COL) === JSON.stringify(["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
+  check("RATIO_PRESETS_COL free 置顶 + 预设", JSON.stringify(L.RATIO_PRESETS_COL) === JSON.stringify(["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
   check("LAYOUT 字段", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.panelHeight === 58 && L.LAYOUT.ratioColW === 34 && L.LAYOUT.ratioColGap === 6);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
   // 最小节点尺寸：面板两行（行1 至 x≈150）+ 比例竖列 + 画布区 + 信息文本

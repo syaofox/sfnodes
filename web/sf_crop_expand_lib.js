@@ -25,11 +25,12 @@ export const ASPECT_RATIOS = [
   { key: "custom", label: "Custom", ratio: null },
 ];
 
-// 竖列预设比例（画布区左侧一列；key 与原版行2 集合一致）
-export const RATIO_PRESETS_COL = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
+// 竖列预设比例（画布区左侧一列，free 置顶；预设 key 集合与原版行2 一致）
+export const RATIO_PRESETS_COL = ["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
 
-// 节点内边距布局。面板两行（行1 Load Image/Browse，行2 Color/Free/Custom/
-// Reset）+ 比例竖列在画布区左侧（ratioColW + ratioColGap 由图片区让出）。
+// 节点内边距布局。面板两行（行1 Load Image/Browse，行2 Color/Custom/Reset）
+// + 比例竖列（Free 置顶 + 预设）在画布区左侧（ratioColW + ratioColGap 由图
+// 片区让出）。
 export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58, ratioColW: 34, ratioColGap: 6 };
 
 // 底部信息文本预留高度（基线 +15 + 字形余量）。画布区高度必须让出这一行：
