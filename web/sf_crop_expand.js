@@ -180,26 +180,32 @@ function ratioLabel(key) {
 function buildButtons(node) {
   const y1 = 10;
   const h1 = 21;
-  const h2 = 18;
   const buttons = [
     { text: "Load Image", x: 10, y: y1, w: 80, h: h1, action: () => pickFile(node) },
     { text: "Browse", x: 95, y: y1, w: 55, h: h1, action: () => browseImage(node) },
     { text: "Color", x: 10, y: y1 + h1 + 5, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
-    { text: "Custom", x: 65, y: y1 + h1 + 7, w: 50, h: h2, isRatio: true, ratioKey: "custom", action: () => openCustomRatioDialog(node) },
-    { text: "Reset", x: 120, y: y1 + h1 + 5, w: 50, h: h1, action: () => resetCrop(node) },
   ];
-  // 比例预设竖列：画布区左侧一整列（从面板下缘到信息文本上方，与图片区同高）
+  // 左侧竖列：Free 置顶 + 7 预设 + Custom/Reset 收尾（与图片区同高）
   const colH = 18;
   const colGap = 4;
   const colTop = LAYOUT.shiftLeft + LAYOUT.panelHeight + 6;
+  const colButton = (i, b) => ({ ...b, x: LAYOUT.shiftLeft, y: colTop + i * (colH + colGap), w: 30, h: colH });
   RATIO_PRESETS_COL.forEach((key, i) => {
-    buttons.push({
+    buttons.push(colButton(i, {
       text: ratioLabel(key),
-      x: LAYOUT.shiftLeft, y: colTop + i * (colH + colGap), w: 30, h: colH,
       isRatio: true, ratioKey: key,
       action: () => setAspect(node, key),
-    });
+    }));
   });
+  buttons.push(
+    colButton(RATIO_PRESETS_COL.length, {
+      isRatio: true, ratioKey: "custom",
+      action: () => openCustomRatioDialog(node),
+    }),
+    colButton(RATIO_PRESETS_COL.length + 1, {
+      action: () => resetCrop(node),
+    }),
+  );
   return buttons;
 }
 
@@ -460,11 +466,11 @@ function setupDrawing(node) {
     // 控制面板背景（两行按钮，右缘盖住行内容即可）
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
-    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, 168, panelHeight, 4);
+    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, 148, panelHeight, 4);
     ctx.fill();
     ctx.strokeStyle = "rgba(100,100,100,0.5)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, 168, panelHeight);
+    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, 148, panelHeight);
 
     const m = computeDisplayMetrics(
       { cropX: st.crop_x, cropY: st.crop_y, cropW: st.crop_w, cropH: st.crop_h, srcW: st.src_w, srcH: st.src_h },
