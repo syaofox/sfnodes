@@ -94,14 +94,15 @@ export function stepOpacity(cur, dir, step = OPA_STEP) {
 }
 
 // 节点最小宽高（控件不溢出前提下的下限）：
-// - 宽度：底行 Load(72)/Browse(48)（右缘 135）+ 最小文本窗（信息文本溢出
-//   时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 与 CropExpand 同款 420；
+// - 宽度：底行 Load(44)/Browse(48)（右缘 106）+ 最小文本窗 ~100（信息文本
+//   溢出时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 取整 320；
+//   推导：10（左缩进）+ 106（按钮）+ 6（间隙）+ 100（文本）+ 86（右槽区）≈ 308。
 // - 高度：竖列 9 项（列顶 16 起，步进 22，底 =16+9*22-4=210）+ 底行 26 +
 //   上下边距 → 取整 320（竖列缩短后仍保持，与旧存量 size 兼容）。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
 // 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。
-export const MIN_NODE_WIDTH = 420;
+export const MIN_NODE_WIDTH = 320;
 export const MIN_NODE_HEIGHT = 320;
 
 // ensureMinSize(w, h) → [w, h]（低于下限抬升，非 0 数值原样放行）。

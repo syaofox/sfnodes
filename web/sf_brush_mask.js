@@ -248,7 +248,7 @@ function browseImage(node) {
 // ── 控件（左竖列 + 底行：绘制与命中共用同一几何）──────────────────────────
 // 左竖列（x=shiftLeft, w=30, h=18，步进 22，列顶 16）：Brush/Erase 模式 →
 // Clear/Undo → Size±/Opa± 步进 → BCol 取色（背景即当前色）。
-// 底行（y 运行时解析为 nodeH-shiftLeft-21）：Load Image/Browse + 信息文本。
+// 底行（y 运行时解析为 nodeH-shiftLeft-21）：Load/Browse + 信息文本。
 
 function toolText(id) {
   return {
@@ -288,10 +288,10 @@ function buildControls() {
     isToggle: id === "brush" || id === "erase",
     isColor: id === "brushColor" ? "brush" : null,
   }));
-  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析）
+  // 底行：Load/Browse（与信息文本同排，y 运行时解析；短文案保 MIN 320）
   buttons.push(
-    { id: "load", text: "Load Image", x: 10, y: BOTTOM_Y, w: 72, h: 21 },
-    { id: "browse", text: "Browse", x: 87, y: BOTTOM_Y, w: 48, h: 21 },
+    { id: "load", text: "Load", x: 10, y: BOTTOM_Y, w: 44, h: 21 },
+    { id: "browse", text: "Browse", x: 58, y: BOTTOM_Y, w: 48, h: 21 },
   );
   return buttons;
 }
@@ -723,7 +723,7 @@ function setupDrawing(node) {
     ctx.font = "10px Arial";
     ctx.textAlign = "right";
     const fullText = `Brush ${Math.round(st.brush_size)} · Op ${Math.round(st.brush_opacity * 100)}% · Strokes ${st.strokes.length} · ${st.src_w}\u00d7${st.src_h}`;
-    const maxTextW = nodeW - shiftRight - 6 - (135 + 6); // 底行按钮右缘 135 + 间隙 6
+    const maxTextW = nodeW - shiftRight - 6 - (106 + 6); // 底行按钮右缘 106 + 间隙 6
     let label = fullText;
     if (ctx.measureText(fullText).width > maxTextW) {
       while (label.length > 1 && ctx.measureText(label + "\u2026").width > maxTextW) {
