@@ -361,7 +361,18 @@ function setupDrawing(node) {
     ctx.lineWidth = 1;
     ctx.strokeRect(shiftLeft - 4, colTop, LAYOUT.toolColW + 2, colBottom - colTop);
 
-    // 竖列 + 底行按钮
+    // 底信息行背景（必须画在底行按钮之前：后画盖先画，半透明底栏
+    // 若盖住按钮会导致按钮发虚 + 边框错层残影，见 §45.8）
+    const bottomY = nodeH - shiftLeft - 21;
+    ctx.fillStyle = "rgba(40,40,40,0.9)";
+    ctx.beginPath();
+    ctx.roundRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, 21 + 8, 4);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, 21 + 8);
+
+    // 竖列 + 底行按钮（底行按钮落在底栏背景之上）
     for (const b of node._sfBrushCtrls) {
       const [bx, by, bw, bh] = buttonRect(b, node);
       if (b.isColor) {
@@ -423,14 +434,7 @@ function setupDrawing(node) {
         st.brush_mode === "erase" ? eraserStyle : brushStyle);
     }
 
-    // 底信息行（与 CropExpand 同款：背景条 + 右对齐截断文本，实时数值）
-    const bottomY = nodeH - shiftLeft - 21;
-    ctx.fillStyle = "rgba(40,40,40,0.9)";
-    ctx.beginPath();
-    ctx.roundRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, 21 + 8, 4);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(100,100,100,0.5)";
-    ctx.strokeRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, 21 + 8);
+    // 底信息行文本（右对齐截断，落在按钮之上，两者无重叠）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
     ctx.textAlign = "right";

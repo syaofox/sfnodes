@@ -426,3 +426,10 @@
 - **布局**：初版顶面板（按钮行 + Size/Opacity 横向滑块 + 色块）改为 CropExpand 同形——左工具竖列 `TOOL_COL` 10 项（Brush/Erase 模式 → Clear/Undo → Size±/Opa± → BCol/ECol）+ 底行 Load Image/Browse 与信息文本同排。`LAYOUT` 与 `computeDisplayMetrics` 公式与 `sf_crop_expand_lib.js` 逐字同形（竖列 `toolColW/toolColGap` 让宽、底行 `bottomH` 让高），`buttonRect` 的 `BOTTOM_Y` 运行时解析亦同款。
 - **滑块→步进器**：30px 竖列放不下横向拖拽滑块，改为纯函数步进（`stepBrushSize` 步长 2 钳制 1..200 / `stepOpacity` 步长 5% 钳制 0.1..1.0，lib 可测）；实时数值进底行信息文本（`Brush 80 · Op 50% · Strokes 3 · 512×512`，超宽截断 `…`）。取色按钮背景即当前色、文字按亮度取黑/白（CropExpand Color 按钮同款）。
 - **影响面**：纯前端（lib + 主扩展 + mjs 测试 + 本节/架构一行）；后端、隐藏输入契约、`tests/test_brush_mask.py` 零改动。
+
+### 8. 底栏残影：半透明背景盖住按钮（2026-09，用户实测）
+
+- **症状**：落笔时底栏出现多重半透明边框，Load/Browse 按钮发虚（竖列按钮个个清晰）。
+- **排查**：先怀疑帧间因素——分段 console 诊断（205 次 `onDrawForeground` 调用：size 恒 420×320、ds 恒定、零重入、零同帧多画、`clear_background=true`+`dirty_area=null`）一锤排除（诊断脚本见 §45 配套：包装计数 `size/ds` 分布 + 重入 + 同毫秒多画，四个假说一次证伪）。帧间静态 + 逐帧全清 ⇒ 只能是**单帧内画序错**。
+- **根因**：底栏背景（`rgba(40,40,40,0.9)`）画在底行按钮**之后**——后画盖先画，按钮以一成亮度透出：发虚的按钮 + 按钮边框与底栏边框错层 = "多重边框"。CropExpand 是先底栏后 `drawButtons`，合并循环时把顺序搞反了。
+- **修法**：底栏背景块移到按钮循环之前（`tests/test_brush_mask_smoke.js` 锁定：FakeCtx 记录 op 流，断言底行按钮 fill 在底栏 fill 之后；已验证旧错序 FAIL/新顺序 PASS）。**教训：同节点多层半透明 chrome 必须按"背景→控件→文本"分层绘制，写循环合并时保持层序**——冒烟断言时注意同色复用陷阱（底栏与竖列底条同 `rgba(40,40,40,0.9)`，必须用 `roundRect(高29)` 定位底栏，不能按色取第一个 fill）。
