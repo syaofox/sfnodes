@@ -41,13 +41,14 @@ export const HANDLE_SIZE = 10;
 
 // 节点最小宽高（控件不溢出前提下的下限）：
 // - 高度：竖列 11 项（colTop=16 起，步进 22，底 ≈254）+ 底行 26 + 上下边距
-// - 宽度：底行 Load Image/Browse（右缘 135）+ 最小文本窗 120（信息文本溢出
-//   时截断 "…"，节点拉宽即恢复全文）+ 间隙与 shiftRight
+// - 宽度：底行 Load(44)/Browse(48)（右缘 106）+ 最小文本窗 ~100（信息文本
+//   溢出时截断 "…"，节点拉宽即恢复全文）+ 间隙与 shiftRight → 取整 320；
+//   推导：10（左缩进）+ 106（按钮）+ 6（间隙）+ 100（文本）+ 86（右槽区）≈ 308。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
 // 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。加载图片不改节点大小（显示
 // 区 scale 动态适配现有画布区域）。
-export const MIN_NODE_WIDTH = 360;
+export const MIN_NODE_WIDTH = 320;
 export const MIN_NODE_HEIGHT = 300;
 
 // ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，

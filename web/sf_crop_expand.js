@@ -3,9 +3,9 @@
 // ==========================================================================
 //
 // 复刻 ComfyUI-YCNodes_Toolkit ycImageCrop（Load Image Crop Expand）：节点上
-// 直接加载图片（Load Image 按钮 / 拖放文件到节点），拖拽一个可出界的裁剪框，
+// 直接加载图片（Load 按钮 / 拖放文件到节点），拖拽一个可出界的裁剪框，
 // 左侧竖列提供比例按钮（Free 置顶/预设/Custom）与填充色/重置按钮；底行为
-// Load Image/Browse 与信息文本同排。
+// Load/Browse 与信息文本同排。
 //
 // 状态真源 node.properties.sfCropExpandState（JSON 字符串，随工作流保存），
 // 经 graphToPrompt 钩子注入隐藏输入 SFCropExpandJson（只注入不剪枝，同
@@ -178,7 +178,7 @@ function ratioLabel(key) {
   return ASPECT_RATIOS.find((r) => r.key === key)?.label || key;
 }
 
-// 底行按钮（Load Image/Browse）的 y 标记为 "bottom"：节点高度运行时可变，
+// 底行按钮（Load/Browse）的 y 标记为 "bottom"：节点高度运行时可变，
 // 绘制/命中时经 buttonRect 动态解析为 nodeH - shiftLeft - h。
 const BOTTOM_Y = "bottom";
 
@@ -220,11 +220,11 @@ function buildButtons(node) {
       action: () => pickFillColor(node),
     }),
   );
-  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析；按钮右缘 135，
+  // 底行：Load/Browse（与信息文本同排，y 运行时解析；按钮右缘 106，
   // 其右为信息文本窗——MIN 宽度下文本不足时截断，见 setupDrawing）
   buttons.push(
-    { text: "Load Image", x: 10, y: BOTTOM_Y, w: 72, h: 21, action: () => pickFile(node) },
-    { text: "Browse", x: 87, y: BOTTOM_Y, w: 48, h: 21, action: () => browseImage(node) },
+    { text: "Load", x: 10, y: BOTTOM_Y, w: 44, h: 21, action: () => pickFile(node) },
+    { text: "Browse", x: 58, y: BOTTOM_Y, w: 48, h: 21, action: () => browseImage(node) },
   );
   return buttons;
 }
@@ -551,7 +551,7 @@ function setupDrawing(node) {
 
     drawCropBox(ctx, node, m);
 
-    // 底行背景条（Load Image/Browse 按钮与信息文本同排）
+    // 底行背景条（Load/Browse 按钮与信息文本同排）
     const bottomY = nodeH - shiftLeft - BTN_H;
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
@@ -570,7 +570,7 @@ function setupDrawing(node) {
       { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, st.src_w, st.src_h)
       ? " (Extended)" : "";
     const fullText = `Source: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}`;
-    const maxTextW = nodeW - shiftRight - 6 - (135 + 6); // 底行按钮右缘 135 + 间隙 6
+    const maxTextW = nodeW - shiftRight - 6 - (106 + 6); // 底行按钮右缘 106 + 间隙 6
     let label = fullText;
     if (ctx.measureText(fullText).width > maxTextW) {
       while (label.length > 1 && ctx.measureText(label + "\u2026").width > maxTextW) {
