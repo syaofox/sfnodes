@@ -21,8 +21,9 @@ import { attachPopupDismiss } from "./sf_popup.js";
 import { showImageBrowser } from "./image_browser.js";
 import {
   ASPECT_RATIOS,
-  RATIO_PRESETS_ROW2,
+  RATIO_PRESETS_COL,
   LAYOUT,
+  TEXT_RESERVE,
   ratioFromAspect,
   computeDisplayMetrics,
   ensureMinSize,
@@ -183,22 +184,23 @@ function buildButtons(node) {
   const buttons = [
     { text: "Load Image", x: 10, y: y1, w: 80, h: h1, action: () => pickFile(node) },
     { text: "Browse", x: 95, y: y1, w: 55, h: h1, action: () => browseImage(node) },
-    { text: "Reset", x: 155, y: y1, w: 50, h: h1, action: () => resetCrop(node) },
-    { text: "Color", x: 210, y: y1, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
-    { text: "Free", x: 265, y: y1 + 2, w: 30, h: h2, isRatio: true, ratioKey: "free", action: () => setAspect(node, "free") },
-    { text: "Custom", x: 300, y: y1 + 2, w: 50, h: h2, isRatio: true, ratioKey: "custom", action: () => openCustomRatioDialog(node) },
+    { text: "Color", x: 10, y: y1 + h1 + 5, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
+    { text: "Free", x: 65, y: y1 + h1 + 7, w: 30, h: h2, isRatio: true, ratioKey: "free", action: () => setAspect(node, "free") },
+    { text: "Custom", x: 100, y: y1 + h1 + 7, w: 50, h: h2, isRatio: true, ratioKey: "custom", action: () => openCustomRatioDialog(node) },
+    { text: "Reset", x: 155, y: y1 + h1 + 5, w: 50, h: h1, action: () => resetCrop(node) },
   ];
-  let x = 10;
-  const y2 = y1 + h1 + 5;
-  for (const key of RATIO_PRESETS_ROW2) {
+  // 比例预设竖列：画布区左侧一整列（从面板下缘到信息文本上方，与图片区同高）
+  const colH = 18;
+  const colGap = 4;
+  const colTop = LAYOUT.shiftLeft + LAYOUT.panelHeight + 6;
+  RATIO_PRESETS_COL.forEach((key, i) => {
     buttons.push({
       text: ratioLabel(key),
-      x, y: y2, w: 30, h: h2,
+      x: LAYOUT.shiftLeft, y: colTop + i * (colH + colGap), w: 30, h: colH,
       isRatio: true, ratioKey: key,
       action: () => setAspect(node, key),
     });
-    x += 35;
-  }
+  });
   return buttons;
 }
 
@@ -456,20 +458,30 @@ function setupDrawing(node) {
     const dragging = !!node._sfExpandDrag;
     const st = getState(node);
 
-    // 控制面板背景
+    // 控制面板背景（两行按钮，右缘盖住行内容即可）
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
-    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, nodeW - shiftRight - shiftLeft + 8, panelHeight, 4);
+    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, 204, panelHeight, 4);
     ctx.fill();
     ctx.strokeStyle = "rgba(100,100,100,0.5)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, nodeW - shiftRight - shiftLeft + 8, panelHeight);
+    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, 204, panelHeight);
 
     const m = computeDisplayMetrics(
       { cropX: st.crop_x, cropY: st.crop_y, cropW: st.crop_w, cropH: st.crop_h, srcW: st.src_w, srcH: st.src_h },
       nodeW, nodeH,
       dragging ? node._sfExpandDrag.frozen : null,
     );
+
+    // 比例竖列底条（面板下缘到画布区底缘，与图片区同高）
+    const colTop = shiftLeft + panelHeight - 1;
+    const colBottom = shiftLeft + panelHeight + (nodeH - shiftLeft - shiftLeft - panelHeight - TEXT_RESERVE);
+    ctx.fillStyle = "rgba(40,40,40,0.9)";
+    ctx.beginPath();
+    ctx.roundRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop, 4);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.strokeRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop);
 
     // 扩展区背景 + 网格
     ctx.fillStyle = "rgba(60,60,60,0.8)";

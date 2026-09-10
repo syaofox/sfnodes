@@ -25,10 +25,12 @@ export const ASPECT_RATIOS = [
   { key: "custom", label: "Custom", ratio: null },
 ];
 
-export const RATIO_PRESETS_ROW2 = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
+// 竖列预设比例（画布区左侧一列；key 与原版行2 集合一致）
+export const RATIO_PRESETS_COL = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
 
-// 节点内边距布局（与原版 DEFAULT_LAYOUT 一致）
-export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58 };
+// 节点内边距布局。面板两行（行1 Load Image/Browse，行2 Color/Free/Custom/
+// Reset）+ 比例竖列在画布区左侧（ratioColW + ratioColGap 由图片区让出）。
+export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58, ratioColW: 34, ratioColGap: 6 };
 
 // 底部信息文本预留高度（基线 +15 + 字形余量）。画布区高度必须让出这一行：
 // 否则显示区填满时文本基线 y = nodeH+5，无论节点多高都恒超界 5px。
@@ -37,13 +39,13 @@ export const TEXT_RESERVE = 20;
 export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
-// 节点最小宽高：面板按钮行（row1 到 x≈350）+ 画布区（含 TEXT_RESERVE
-// 底部信息文本行）所需空间。双端拖拽 resize 的最小值都取自
+// 节点最小宽高：面板按钮两行（行1 至 x≈150）+ 比例竖列 + 画布区（含
+// TEXT_RESERVE 底部信息文本行）所需空间。双端拖拽 resize 的最小值都取自
 // node.computeSize()（前端包实测 onDrag 里 clamp 到 computeSize）——主扩展
 // 包装 computeSize 返回 ensureMinSize 结果钳住拖拽；创建/恢复两处
 // clampNodeSize 兜底。加载图片不改节点大小（显示区 scale 动态适配现有画
 // 布区域）。
-export const MIN_NODE_WIDTH = 460;
+export const MIN_NODE_WIDTH = 320;
 export const MIN_NODE_HEIGHT = 368;
 
 // ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，
@@ -89,12 +91,12 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
   const displayWidth = Math.max(1, displayMaxX - displayMinX);
   const displayHeight = Math.max(1, displayMaxY - displayMinY);
 
-  const areaW = nodeW - shiftRight - shiftLeft;
+  const areaW = nodeW - shiftRight - shiftLeft - LAYOUT.ratioColW - LAYOUT.ratioColGap;
   const areaH = nodeH - shiftLeft - shiftLeft - panelHeight - TEXT_RESERVE;
   const scale = Math.min(areaW / displayWidth, areaH / displayHeight);
   const scaledDisplayWidth = displayWidth * scale;
   const scaledDisplayHeight = displayHeight * scale;
-  const offsetX = shiftLeft + (areaW - scaledDisplayWidth) / 2;
+  const offsetX = shiftLeft + LAYOUT.ratioColW + LAYOUT.ratioColGap + (areaW - scaledDisplayWidth) / 2;
   const offsetY = shiftLeft + panelHeight + (areaH - scaledDisplayHeight) / 2;
 
   return { displayMinX, displayMinY, scale, offsetX, offsetY, scaledDisplayWidth, scaledDisplayHeight };
