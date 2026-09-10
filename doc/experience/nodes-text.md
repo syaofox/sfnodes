@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -444,3 +444,23 @@
 - **可编辑性放宽**：有选中预设即可编辑（含工作流残留项——残留项编辑后 ↧ 保存即"晋升"为全局预设）；仅无任何预设时只读（有全局库时空选中自动回落第一项，"空选中"只在库为空时出现）。
 - 注意 combo callback 在 setPresetWidgetValues 程序化改值时也会触发 → 清草稿逻辑放在 callback 内对"回落第一项"同样成立（旧选中失效=丢弃其草稿，语义正确）。
 - **前端测试 top-level await 与 require 混用**（ERR_AMBIGUOUS_MODULE_SYNTAX）：Node 断言主体需包 async IIFE；`flush()` 用 `setImmediate` 宏任务（单微任务 await 跑不完 fetch 链），`setTimeout` 补丁为立即执行使防抖 POST 同步可断言。
+
+---
+
+## 46. SFIDClothingSelector：证件照服装单选器（复刻孤海画廊，复用 styles JSON 生态）
+
+> 背景：复刻孤海 `IDPhotoClothingSelector_孤海`（点选服装/发型模板图 → 输出提示词 STRING 的画廊选择器）。路线否决了硬改 `SFStylesSelector` 加 IMAGE 输出（多选 `{prompt}` 拼接语义 vs 单选直出语义冲突，多选时 IMAGE 无定义，前端多选改单选等于重写）。落地为独立新节点 `nodes/text/id_clothing.py` + `web/sf_id_clothing*.js` + `sf_utils/id_clothing.py`，模板库复用 styles JSON 生态的 `id_` 前缀子集（`user/sfnodes/styles/id_*.json` + `samples_id_clothing/` 独立目录防与风格库 `samples/` 混放，孤海 `标题-提示词` 文件名经一次性 `/tmp` 脚本转写，包内 `data/` 不放二进制模板）。
+
+### 1. 分层与契约
+
+- **数据层零新增**：`style_library_names/_load_styles/_style_file_sig/_styles_dirs` 直接 import 复用；列表/缩略图路由全复用 `/api/sfnodes/styles*`（import styles_selector 触发其副作用注册，本节点零新增路由，测试断言锁定）。
+- **单选语义**：隐藏 `SFIDClothingState` 与 styles 同形 JSON 数组，只取首个有效名（旧多值数据向前兼容）；library 下拉只列 `id_` 前缀库（`filter_libraries`，与风格库隔离）；空库占位 `[""]` + `VALIDATE_INPUTS→True` + 未知库降级 `("", 占位图)`。
+- **草稿优先**：隐藏 `SFIDClothingPrompt`（`text_override` 同款语义：编辑框输入即写草稿，切换模板/库即清空，configure 恢复保留）；execute 优先级：草稿非空 → 模板原 prompt → `""`。无选择/远程缩略图/加载失败 → 1×1 黑占位 IMAGE（lean 语义：只影响本节点输出）。
+- **缩略图落盘**：`resolve_thumbnail_path` 支持 `samples/x.jpg` 与路由 `?path=` 两种形式，`commonpath` 钳位 + `..`/绝对路径前置拒绝（`disk_state.safe_join` 同款思想，styles 路由已有钳位，此处是 execute 读图侧的第二道）。
+- **前端**：结构对齐 `sf_styles_selector.js`（工具条 + Grid/List + hover 浮窗 + `getMinHeight/getMaxHeight` + `applyAdaptiveCanvasOnly` + legacy-only `onResize`），CSS `sf-idc-` 前缀隔离；差异有三：① 单选切换（点已选项取消）；② 可编辑提示词框（显示值 = 草稿 || 模板原词，后端同语义镜像）；③ 搜索范围含 `prompt`（styles 只搜 name/label——服装英文描述全在 prompt 里，标题只是短中文名）。
+
+### 2. 踩坑
+
+- **测试桩打错命名空间**：节点模块 `from .styles_selector import _load_styles` 是绑定时拷贝，`monkeypatch styles._load_styles` 影响不到 `mod._load_styles`——4 个失败全因此起。桩必须打在被测模块命名空间（`mod._load_styles/mod._styles_dirs/mod.style_library_names`）。
+- **torch/PIL 頂层 import 会污染测试**：`image_convert` 拉 `torch/comfy`（本机无），张量化与占位函数一律函数内 import，模块 import 只需 `aiohttp/server` 双 mock（`test_styles_selector.py` 同款）；execute 的张量路径测试用哨兵对象打桩 `_load_template_tensor/_placeholder_tensor`。
+- **lib 单文件可拷测约束**：`sf_id_clothing_lib.js` 自包含、不 import `sf_styles_selector_lib.js`（tests 把单文件拷 `/tmp` 直跑，相对 import 会断）。30 行解析/过滤重复是故意的，与 `sf_common` 禁止内联是两回事（纯逻辑跨文件 import 在此场景下不可测）。

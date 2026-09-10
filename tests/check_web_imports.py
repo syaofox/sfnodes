@@ -66,6 +66,8 @@ MODS = [
     "sf_prompt_stack", "sf_prompt_stack_core",
     # 风格选择器家族（Easy-Use stylesSelector 复刻）
     "sf_styles_selector", "sf_styles_selector_lib",
+    # 证件照服装单选器家族（复刻孤海画廊，复用 styles JSON 生态）
+    "sf_id_clothing", "sf_id_clothing_lib",
     # 公共弹层三件套
     "sf_popup",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）
