@@ -122,7 +122,19 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("LAYOUT 与原版一致", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.panelHeight === 58);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
   // 最小节点尺寸：覆盖按钮行（row1 至 x≈350）+ shiftRight 80 + 画布区 + 信息文本
+  //（节点恰在最小高度且画布填满时，信息文本基线 y 最大 = H+5，故下限 ≥365）
   check("MIN_NODE尺寸覆盖按钮行", L.MIN_NODE_WIDTH >= 440 && L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft * 2 + L.LAYOUT.panelHeight + 100);
+  check("MIN_NODE高度≥信息文本最坏位置", L.MIN_NODE_HEIGHT >= 365);
+
+  // ── ensureMinSize ──
+  const ems = L.ensureMinSize(0, 0);
+  check("ensureMinSize 兜底", ems[0] === L.MIN_NODE_WIDTH && ems[1] === L.MIN_NODE_HEIGHT);
+  const ems2 = L.ensureMinSize(200, 100);
+  check("ensureMinSize 抬升", ems2[0] === L.MIN_NODE_WIDTH && ems2[1] === L.MIN_NODE_HEIGHT);
+  const ems3 = L.ensureMinSize(600, 400);
+  check("ensureMinSize 原样放行", ems3[0] === 600 && ems3[1] === 400);
+  const ems4 = L.ensureMinSize(undefined, undefined);
+  check("ensureMinSize undefined 兜底", ems4[0] === L.MIN_NODE_WIDTH && ems4[1] === L.MIN_NODE_HEIGHT);
 
   // ── 结果 ──
   console.log();

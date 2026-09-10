@@ -23,10 +23,9 @@ import {
   ASPECT_RATIOS,
   RATIO_PRESETS_ROW2,
   LAYOUT,
-  MIN_NODE_WIDTH,
-  MIN_NODE_HEIGHT,
   ratioFromAspect,
   computeDisplayMetrics,
+  ensureMinSize,
   localToImage,
   getHandleAtPoint,
   getCursorForHandle,
@@ -323,11 +322,9 @@ function openCustomRatioDialog(node) {
 
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────
 
-// 钳制节点尺寸不低于最小值（LiteGraph 按 schema 算的初始尺寸偏小，按钮外溢）
+// 钳制节点尺寸不低于最小值（创建/恢复兜底；拖拽路径由 computeSize 包装钳住）
 function clampNodeSize(node) {
-  const w = Math.max(MIN_NODE_WIDTH, node.size?.[0] || 0);
-  const h = Math.max(MIN_NODE_HEIGHT, node.size?.[1] || 0);
-  node.size = [w, h];
+  node.size = ensureMinSize(node.size?.[0], node.size?.[1]);
 }
 
 // ── 绘制 ──────────────────────────────────────────────────────────────────
@@ -746,6 +743,14 @@ app.registerExtension({
   name: "sfnodes.CropExpand",
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== CLASS) return;
+
+    // 拖拽 resize 的最小值取自 node.computeSize()（双端同款：onDrag 里
+    // clamp 到 computeSize 再 setSize）——包装抬高到 MIN 一处钳住两条路径
+    const origComputeSize = nodeType.prototype.computeSize;
+    nodeType.prototype.computeSize = function (out) {
+      const size = origComputeSize ? origComputeSize.call(this, out) : [0, 0];
+      return ensureMinSize(size[0], size[1]);
+    };
 
     const onNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {

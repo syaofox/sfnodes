@@ -34,10 +34,20 @@ export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
 // 节点最小宽高：面板按钮行（row1 到 x≈350）+ 画布区 + 信息文本所需空间。
-// 创建/恢复两处统一钳制（LiteGraph 默认按 schema 算的初始尺寸偏小，按钮会
-// 外溢）；加载图片不改节点大小（显示区 scale 动态适配现有画布区域）。
+// 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
+// clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
+// 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。高度下限 368：节点恰在最小
+// 高度且画布区填满时，信息文本基线 y 最大可达 H+5（68 起排 + areaH + 15），
+// 360 不够出界 5px，368 留出字形余量。加载图片不改节点大小（显示区 scale
+// 动态适配现有画布区域）。
 export const MIN_NODE_WIDTH = 460;
-export const MIN_NODE_HEIGHT = 360;
+export const MIN_NODE_HEIGHT = 368;
+
+// ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，
+// 非 0 数值原样放行）。computeSize 包装与 clampNodeSize 共用。
+export function ensureMinSize(w, h) {
+  return [Math.max(w || 0, MIN_NODE_WIDTH), Math.max(h || 0, MIN_NODE_HEIGHT)];
+}
 
 // ratioFromAspect(key, customW, customH) → number | null
 // custom 比例取 customW/customH，非法输入退化为不约束。

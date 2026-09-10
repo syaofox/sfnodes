@@ -366,3 +366,12 @@
 - `image_browser.js:showImageBrowser(node)` 原与 LoadImage 系的 `image` widget 强耦合（选中高亮/定位/写入）。参数化加可选 `opts.onPick(value, item, type)` **选择器模式**：传入后 `imageWidget` 置 null，widget 写入路径整体跳过，选中项交宿主回调，「定位当前」按钮一并隐藏（无 widget 值可定位）——SF Load Image Browser 原行为零改动（不传 opts 时走原 widget 路径）。
 - SFImageCropExpand 的 Browse 按钮走选择器模式：onPick 里 `parseAnnotatedImageValue` + `buildSourceURL`（output 项自带 `[output]` 注解）→ fetch `/view` 原始字节 → FileReader dataURL → 既有 `loadAndStoreImage`（落盘 + 满框 + 状态同步）。零后端改动。
 - ⚠ 跨模块 import 的 `image_browser.js` 必须入 `check_web_imports.py` MODS（否则 MISSING MODULE 报错）；row1 按钮加到 6 枚（尾 x≈350）后 `MIN_NODE_WIDTH` 相应 400→460（面板背景右缘 = nodeW-76 须盖住按钮行）。
+
+## 44. 画布节点拖拽缩小外溢：computeSize 包装钳最小尺寸（2026-09）
+
+> 背景：SFImageCropExpand 用户手动把节点拖到 `MIN_NODE_WIDTH/HEIGHT` 以下，固定像素布局的按钮行外溢出节点。`clampNodeSize` 只在 onNodeCreated/onConfigure 钩一次，管不住后续拖拽。
+
+- **双端拖拽 resize 的最小值都取自 `node.computeSize()`**（前端包 1.51.10 实测 onDrag 处理：`let l=node.computeSize(); c.width<l[0]&&(c.width=l[0]); c.height<l[1]&&(c.height=l[1]); node.setSize(c.size)`；legacy litegraph 同款）——**包装 `nodeType.prototype.computeSize` 返回 `max(原值, MIN)` 一处改动同时钳住两条路径**，且只抬不降（`expandToFitContent`/初始 sizing 均安全）。
+- ⚠ **`node.onResize` 是 legacy-only**：Vue 前端（1.x）拖拽 resize 与布局同步路径均不触发（容器内实测仅 widget finalize 与 DOM 尺寸回写各一处调用）；sf_find_replace/sf_lora_plot 等先例的 onResize 钳制都显式 `isVueNodes()` 守卫。新钳制需求优先选 computeSize 包装。
+- 纯函数 `ensureMinSize(w,h)` 收敛 lib（computeSize 包装与 clampNodeSize 共用，避免双份 Math.max）；`MIN_NODE_HEIGHT` 360→368：节点恰在最小高度且画布区填满时信息文本基线 y 最大 = H+5（68 起排 + areaH + 15），360 出界 5px。
+- 已保存工作流恢复（configure 直接赋 size 不走 computeSize）仍由 onConfigure 的 clampNodeSize 兜底；工作流里偏小的存量 size 会被抬到 MIN（可接受的显示修正）。
