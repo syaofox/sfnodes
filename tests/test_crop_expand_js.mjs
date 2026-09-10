@@ -37,12 +37,12 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   // 状态：源图 512×512，裁剪框 (-256,-256,1024,1024) → 显示区 -256..768 = 1024²
   const st = { cropX: -256, cropY: -256, cropW: 1024, cropH: 1024, srcW: 512, srcH: 512 };
   const m = L.computeDisplayMetrics(st, 500, 400, null);
-  // 区面积：x 500-80-10=410，y 400-10-10-58=322 → scale = min(410/1024, 322/1024)
-  check("动态 scale", approx(m.scale, 322 / 1024));
+  // 区面积：x 500-80-10=410，y 400-10-10-58-20(TEXT_RESERVE)=302 → scale = min(410/1024, 302/1024)
+  check("动态 scale", approx(m.scale, 302 / 1024));
   check("动态 displayMin", m.displayMinX === -256 && m.displayMinY === -256);
-  check("动态 scaled 尺寸", approx(m.scaledDisplayWidth, 322) && approx(m.scaledDisplayHeight, 322));
-  // 显示区居中：offsetX = 10 + (410 - 322)/2
-  check("动态 offsetX 居中", approx(m.offsetX, 10 + (410 - 322) / 2));
+  check("动态 scaled 尺寸", approx(m.scaledDisplayWidth, 302) && approx(m.scaledDisplayHeight, 302));
+  // 显示区居中：offsetX = 10 + (410 - 302)/2
+  check("动态 offsetX 居中", approx(m.offsetX, 10 + (410 - 302) / 2));
   check("动态 offsetY 居中", approx(m.offsetY, 10 + 58 + 0));
 
   // 框在图内不越界：displayMin = 0
@@ -122,9 +122,16 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("LAYOUT 与原版一致", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.panelHeight === 58);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
   // 最小节点尺寸：覆盖按钮行（row1 至 x≈350）+ shiftRight 80 + 画布区 + 信息文本
-  //（节点恰在最小高度且画布填满时，信息文本基线 y 最大 = H+5，故下限 ≥365）
   check("MIN_NODE尺寸覆盖按钮行", L.MIN_NODE_WIDTH >= 440 && L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft * 2 + L.LAYOUT.panelHeight + 100);
-  check("MIN_NODE高度≥信息文本最坏位置", L.MIN_NODE_HEIGHT >= 365);
+
+  // ── 信息文本不超界（底部预留 TEXT_RESERVE 后恒等式）──
+  // 文本基线最坏 y = 10+panelHeight+areaH+15 = nodeH - 15 ≤ nodeH
+  {
+    const H = L.MIN_NODE_HEIGHT;
+    const mFill = L.computeDisplayMetrics(st, L.MIN_NODE_WIDTH, H, null); // 画布区被填满的最坏比例
+    const yText = mFill.offsetY + mFill.scaledDisplayHeight + 15;
+    check("信息文本基线不超界", yText <= H && approx(yText, H - 15));
+  }
 
   // ── ensureMinSize ──
   const ems = L.ensureMinSize(0, 0);

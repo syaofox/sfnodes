@@ -30,16 +30,19 @@ export const RATIO_PRESETS_ROW2 = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "1
 // 节点内边距布局（与原版 DEFAULT_LAYOUT 一致）
 export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58 };
 
+// 底部信息文本预留高度（基线 +15 + 字形余量）。画布区高度必须让出这一行：
+// 否则显示区填满时文本基线 y = nodeH+5，无论节点多高都恒超界 5px。
+export const TEXT_RESERVE = 20;
+
 export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
-// 节点最小宽高：面板按钮行（row1 到 x≈350）+ 画布区 + 信息文本所需空间。
-// 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
-// clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
-// 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。高度下限 368：节点恰在最小
-// 高度且画布区填满时，信息文本基线 y 最大可达 H+5（68 起排 + areaH + 15），
-// 360 不够出界 5px，368 留出字形余量。加载图片不改节点大小（显示区 scale
-// 动态适配现有画布区域）。
+// 节点最小宽高：面板按钮行（row1 到 x≈350）+ 画布区（含 TEXT_RESERVE
+// 底部信息文本行）所需空间。双端拖拽 resize 的最小值都取自
+// node.computeSize()（前端包实测 onDrag 里 clamp 到 computeSize）——主扩展
+// 包装 computeSize 返回 ensureMinSize 结果钳住拖拽；创建/恢复两处
+// clampNodeSize 兜底。加载图片不改节点大小（显示区 scale 动态适配现有画
+// 布区域）。
 export const MIN_NODE_WIDTH = 460;
 export const MIN_NODE_HEIGHT = 368;
 
@@ -87,7 +90,7 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
   const displayHeight = Math.max(1, displayMaxY - displayMinY);
 
   const areaW = nodeW - shiftRight - shiftLeft;
-  const areaH = nodeH - shiftLeft - shiftLeft - panelHeight;
+  const areaH = nodeH - shiftLeft - shiftLeft - panelHeight - TEXT_RESERVE;
   const scale = Math.min(areaW / displayWidth, areaH / displayHeight);
   const scaledDisplayWidth = displayWidth * scale;
   const scaledDisplayHeight = displayHeight * scale;

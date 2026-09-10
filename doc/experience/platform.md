@@ -196,3 +196,10 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **坑 4：combo widget 是 DOMWidget（ComboWidget，带 `element`）** → 更新选项需整体替换 `widget.options` 对象 + 重赋 `values` 数组引用（Vue 渲染监听引用变化）并 `setDirtyCanvas`；断线/无连接恢复占位 `[""]`。
 - **通用输出类型**：目标不可预测时用 `RETURN_TYPES = (AnyType("*"), ...)`（项目 `sf_utils/common.py`）——后端 `validation.py` 与前端 `isValidConnection` 对 `*` 均直接放行，可连任意 combo 输入；动态选项节点标配 `VALIDATE_INPUTS → True`（见 §4.2）。ComfyUI 官方生态同类参考：`ControlNetPreprocessorSelector`（输出类型 = 具体 combo 列表，`isValidConnection` 对数组按元素逐项匹配，任一共有即可连）。
 - **诊断**：node 上暴露 `_sfComboSync`/`_sfComboGetLinks`/`_sfComboFindTarget` 调试接口，console 分段脚本直接调用定位（见 §9）。
+
+### 13. 槽点与槽名文字基线错位（前端包全局行为，勿在本节点修）
+
+> 背景：SFImageCropExpand 用户反馈输出槽文字相对槽点下偏（2026-09）。前端包 1.51.10 实测 `NodeSlot.draw`（settingStore chunk）。
+
+- 槽圆点画在 `boundingRect` 中心 `u[1]`，槽名文字**统一硬编码** `fillText(label, u[0]±10, u[1]+5)`（输出槽 textAlign=right，输入槽 left），且 draw 内未设 `textBaseline`（继承 alphabetic）→ 文字视觉中心低于圆点约 2-5px。
+- **所有 canvas 渲染节点的输入/输出槽一致如此**（原生节点同款）——节点侧无钩子可修，hack 槽渲染会与其它节点不一致；归因时先对照其它节点确认全局性，勿误判为本节点绘制问题。
