@@ -36,12 +36,16 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("size 下限钳制", L.stepBrushSize(1, -1) === 1);
   check("size 上限钳制", L.stepBrushSize(200, +1) === 200);
   check("size 非法兜底", L.stepBrushSize("x", +1) === 2);
+  check("size 显式步长（设置页）", L.stepBrushSize(80, +1, 5) === 85 && L.stepBrushSize(80, -1, 5) === 75);
+  check("size 非法步长回退默认", L.stepBrushSize(80, +1, 0) === 82 && L.stepBrushSize(80, +1, "x") === 82);
 
   // ── stepOpacity（步长 5%，钳制 0.1..1.0）──
   check("opa +", approx(L.stepOpacity(0.5, +1), 0.55));
   check("opa -", approx(L.stepOpacity(0.5, -1), 0.45));
   check("opa 下限钳制", L.stepOpacity(0.1, -1) === 0.1);
   check("opa 上限钳制", L.stepOpacity(1.0, +1) === 1.0);
+  check("opa 显式步长（设置页百分比换算）", approx(L.stepOpacity(0.5, +1, 10 / 100), 0.6));
+  check("opa 非法步长回退默认", approx(L.stepOpacity(0.5, +1, -1), 0.55));
 
   // ── ensureMinSize ──
   check("低于下限抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([L.MIN_NODE_WIDTH, L.MIN_NODE_HEIGHT]));

@@ -57,6 +57,54 @@ const CLASS = "SFImageBrushMask";
 const HIDDEN_INPUT = "SFBrushMaskJson"; // 必须与 brush_mask.py 的隐藏输入一致
 const STATE_PROP = "sfBrushMaskState";
 
+// ComfyUI 设置页步长项（init 幂等注册；读取失败回默认值，见 sf_load_image_ui.js 先例）
+const SIZE_STEP_SETTING = "sfnodes.BrushMask.SizeStep";
+const OPA_STEP_SETTING = "sfnodes.BrushMask.OpacityStep";
+const SIZE_STEP_DEFAULT = 2;
+const OPA_STEP_DEFAULT = 5; // 整数百分比
+
+function brushSizeStep() {
+  try {
+    const v = Math.round(Number(app.ui.settings.getSettingValue(SIZE_STEP_SETTING)));
+    return Number.isFinite(v) && v >= 1 && v <= 20 ? v : SIZE_STEP_DEFAULT;
+  } catch {
+    return SIZE_STEP_DEFAULT;
+  }
+}
+
+function brushOpacityStep() {
+  try {
+    const v = Math.round(Number(app.ui.settings.getSettingValue(OPA_STEP_SETTING)));
+    return Number.isFinite(v) && v >= 1 && v <= 25 ? v : OPA_STEP_DEFAULT;
+  } catch {
+    return OPA_STEP_DEFAULT;
+  }
+}
+
+let _brushStepSettingsRegistered = false;
+function registerBrushStepSettings() {
+  if (_brushStepSettingsRegistered) return;
+  _brushStepSettingsRegistered = true;
+  try {
+    app.ui.settings.addSetting({
+      id: SIZE_STEP_SETTING,
+      name: "SF Image Brush Mask: brush size step (Size± buttons, wheel, [ ] keys)",
+      defaultValue: SIZE_STEP_DEFAULT,
+      type: "slider",
+      attrs: { min: 1, max: 20, step: 1 },
+    });
+    app.ui.settings.addSetting({
+      id: OPA_STEP_SETTING,
+      name: "SF Image Brush Mask: opacity step percent (Opa± buttons, wheel)",
+      defaultValue: OPA_STEP_DEFAULT,
+      type: "slider",
+      attrs: { min: 1, max: 25, step: 1 },
+    });
+  } catch {
+    // 设置系统不可用则退化为默认值
+  }
+}
+
 const DEFAULT_STATE = {
   src_path: "",
   src_w: 512,
@@ -258,10 +306,10 @@ function buttonAction(node, id) {
   else if (id === "undo") {
     if (st.strokes.length > 0) setState(node, { strokes: st.strokes.slice(0, -1) });
     else return;
-  } else if (id === "sizeMinus") setState(node, { brush_size: stepBrushSize(st.brush_size, -1) });
-  else if (id === "sizePlus") setState(node, { brush_size: stepBrushSize(st.brush_size, +1) });
-  else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, -1) });
-  else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1) });
+  } else if (id === "sizeMinus") setState(node, { brush_size: stepBrushSize(st.brush_size, -1, brushSizeStep()) });
+  else if (id === "sizePlus") setState(node, { brush_size: stepBrushSize(st.brush_size, +1, brushSizeStep()) });
+  else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, -1, brushOpacityStep() / 100) });
+  else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1, brushOpacityStep() / 100) });
   else if (id === "brushColor") { pickColor(node); return; }
   else return;
   stateChanged(node);
@@ -973,14 +1021,13 @@ function brushKeyStep(e) {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return false;
   if (typeof document !== "undefined" && document.querySelector && document.querySelector(".sf-px-overlay")) return false;
   _sfBrushLastKey = { t: e.timeStamp, k: e.key };
-  const dir = e.key === "]" ? 1 : -1;
+  // 经 buttonAction 统一入口（步长设置三路同源，勿内联 stepBrushSize——曾漏传设置值）
+  const action = e.key === "]" ? "sizePlus" : "sizeMinus";
   let hit = false;
   for (const n of getSelectedNodes(app)) {
     if (n.comfyClass !== CLASS && n.type !== CLASS) continue;
     if (!n.properties) continue;
-    const st = getState(n);
-    setState(n, { brush_size: stepBrushSize(st.brush_size, dir) });
-    if (app.graph) app.graph.setDirtyCanvas(true, true);
+    buttonAction(n, action);
     hit = true;
   }
   return hit;
@@ -1000,6 +1047,9 @@ if (!app._sfBrushMaskKeysPatch) {
 
 app.registerExtension({
   name: "sfnodes.BrushMask",
+  init() {
+    registerBrushStepSettings();
+  },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== CLASS) return;
 

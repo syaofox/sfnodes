@@ -65,7 +65,9 @@ function makeCtx(ops) {
 
   // 桩模块
   fs.writeFileSync(path.join(tmpDir, "stub_app.js"),
-    `export const app = { get graph() { return globalThis.__bmGraph || null; }, canvas: globalThis.__bmCanvas || null, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
+    `export const app = { get graph() { return globalThis.__bmGraph || null; }, canvas: globalThis.__bmCanvas || null, ui: { settings: { getSettingValue(id) { return globalThis.__bmSettingVals[id]; }, addSetting(def) { globalThis.__bmSettingDefs[def.id] = def; } } }, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
+  globalThis.__bmSettingVals = {};
+  globalThis.__bmSettingDefs = {};
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
@@ -251,7 +253,36 @@ function makeCtx(ops) {
   fireKey("]");
   check("未选中不动", sizeOf() === 80);
 
+  // 设置页步长：init 注册 + S+ 按钮读取自定义步长
+  globalThis.__bmExt.init();
+  check("注册 SizeStep 设置项", globalThis.__bmSettingDefs["sfnodes.BrushMask.SizeStep"]?.defaultValue === 2);
+  check("注册 OpacityStep 设置项", globalThis.__bmSettingDefs["sfnodes.BrushMask.OpacityStep"]?.defaultValue === 5);
+  node.onMouseDown({}, [25, 126 + 11]); // S+ 按钮中心（列顶 16 + 5×22，高 18）
+  check("默认步长 +2", sizeOf() === 82);
+  globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 5;
+  node.onMouseDown({}, [25, 126 + 11]);
+  check("自定义步长 +5", sizeOf() === 87);
+  globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 999;
+  node.onMouseDown({}, [25, 126 + 11]);
+  check("非法设置回退默认", sizeOf() === 89);
+  // 快捷键必须同样走设置（三路统一入口，§45.12 复修）
+  globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 7;
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, strokes: [],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  globalThis.__bmCanvas.selected_nodes = { 12: node };
+  fireKey("]");
+  check("快捷键走自定义步长", sizeOf() === 87);
+
   // 官方通道 onKeyDown（画布 processKey 分发）+ 同物理按键去重
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, strokes: [],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 2;
   globalThis.__bmCanvas.selected_nodes = { 12: node };
   const ev1 = { key: "]", timeStamp: 5000, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {} };
   check("onKeyDown 放大", node.onKeyDown(ev1) === false && sizeOf() === 82);

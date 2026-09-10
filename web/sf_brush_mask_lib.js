@@ -74,15 +74,22 @@ export function wheelAction(id, dir) {
   return null;
 }
 
-// stepBrushSize(cur, dir) → 新笔刷直径（dir=+1/-1，钳制 1..200 取整）
-export function stepBrushSize(cur, dir) {
-  const v = (Number(cur) || 0) + (dir >= 0 ? SIZE_STEP : -SIZE_STEP);
+// stepBrushSize(cur, dir, step) → 新笔刷直径（dir=+1/-1，钳制 1..200 取整；
+// step 默认 SIZE_STEP，设置页 sfnodes.BrushMask.SizeStep 覆盖）
+export function stepBrushSize(cur, dir, step = SIZE_STEP) {
+  const st = Number(step);
+  const dv = Number.isFinite(st) && st > 0 ? st : SIZE_STEP;
+  const v = (Number(cur) || 0) + (dir >= 0 ? dv : -dv);
   return Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(v)));
 }
 
-// stepOpacity(cur, dir) → 新预览透明度（dir=+1/-1，钳制 0.1..1.0，保留 2 位小数）
-export function stepOpacity(cur, dir) {
-  const v = (Number(cur) || 0) + (dir >= 0 ? OPA_STEP : -OPA_STEP);
+// stepOpacity(cur, dir, step) → 新预览透明度（dir=+1/-1，钳制 0.1..1.0，
+// 保留 2 位小数；step 默认 OPA_STEP，设置页 sfnodes.BrushMask.OpacityStep
+// 以整数百分比存取，调用方除以 100 传入）
+export function stepOpacity(cur, dir, step = OPA_STEP) {
+  const st = Number(step);
+  const dv = Number.isFinite(st) && st > 0 ? st : OPA_STEP;
+  const v = (Number(cur) || 0) + (dir >= 0 ? dv : -dv);
   return Math.max(OPA_MIN, Math.min(OPA_MAX, Math.round(v * 100) / 100));
 }
 

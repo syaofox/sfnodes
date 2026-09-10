@@ -502,4 +502,10 @@
 - **做法**：选中本类节点时 `[` 缩小/`]` 放大，步长同 S± 步进器；OS 自动连发即按住连调，故不做 inpaint 式按住加速。选中集复用 `sf_canvas_align_lib.js::getSelectedNodes`（四形态兼容），`e.repeat` 放行。（初版误判无官方钩子只写 window 通道，见下“实测无效复修”。）
 - **互斥**：输入框内 / 修饰键 / 全屏编辑器打开（`.sf-px-overlay` 存活，crop/inpaint 自家 handler 接管）时跳过；命中才 `preventDefault+stopPropagation`，不干扰画布其他按键。
 - **测试**：smoke 升级 window 桩为捕获型 + `__bmGraph` 可注入伪图/伪选中——放大/缩小/无关键/输入框/修饰键/编辑器互斥/未选中七用例；新 import 的 `sf_canvas_align_lib.js`（零依赖纯模块）同步进改写表拷贝。
+
+### 12. 步进器步长进设置页（2026-09）
+
+- **做法**：ComfyUI 设置页新增两个 slider 项（`sf_load_image_ui.js` 先例）——`sfnodes.BrushMask.SizeStep`（1–20，默认 2）与 `sfnodes.BrushMask.OpacityStep`（1–25 整数百分比，默认 5）；`init()` 幂等注册，读取失败回默认值。lib 步进函数步长参数化（默认保持原值，纯函数可测）；`buttonAction` 内读取——步进器/滚轮/`[ ]` 三路同一入口，自动统一，设置页改完即时生效（每次动作现读，无需 onChange 监听）。
+- **测试**：mjs 加显式步长/非法步长回退用例；smoke 伪 settings 断言 init 注册默认值 + S+ 点击走自定义步长 + 非法值回退（用例间重置 size 前置，避免互相污染——已踩）。
+- **复修（2026-09，真机）**：设置页改完按钮/滚轮生效、唯独 `[ ]` 恒 ±2——快捷键分支内联了 `stepBrushSize` 却漏传设置值（三路统一入口的设计被绕过）。改回经 `buttonAction` 收敛 + smoke 加“快捷键走自定义步长”回归锁。**教训：声称统一入口必须有测试锁，否则旁路悄悄分叉**。
 - **实测无效复修（2026-09）**：初版 window 通道在用户环境无响应。排查确认两点：① 快捷键代码当时未进 HEAD（工作区未提交，部署侧无此代码）；② 发现官方通道——画布 `processKey` 把 keydown 分发给选中节点的 `onKeyDown`（core `addNodeKeyHandler` 再包一层，`=== false` 表已处理，链式兼容）。改为双通道：`nodeType.prototype.onKeyDown` 主办 + window 冒泡兜底（焦点在 body 时画布收不到），同物理按键经 `e.timeStamp` 去重（多选同戳亦然，首个节点全量调整后其余跳过）。smoke 加官方通道/同戳/跨通道去重/放行四用例。**教训：先查引擎有无官方钩子（`processKey`/`addNode*Handler`），再写全局监听；未提交代码先查部署差再查 bug**。
