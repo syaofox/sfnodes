@@ -17,7 +17,7 @@
 
 import { app } from "/scripts/app.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent, parseAnnotatedImageValue } from "./sf_common.js";
+import { sfToast, buildSourceURL, getSfAccent, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
 import { attachPopupDismiss } from "./sf_popup.js";
 import { showImageBrowser } from "./image_browser.js";
 import {
@@ -851,6 +851,14 @@ app.registerExtension({
       this._sfExpandButtons = buildButtons(this);
       setupDrawing(this);
       setupInteractions(this);
+      // Ctrl+V 粘贴剪贴板图片：installPasteHandler（选中判定/防抢输入框/
+      // 清扫自动 pasted/ LoadImage 均在公共实现内），加载走既有链路
+      installPasteHandler({
+        comfyClass: CLASS,
+        hook: "_sfExpandPaste",
+        onPasteImage: (n, dataURL) => n._sfExpandPaste(dataURL),
+      });
+      this._sfExpandPaste = (dataURL) => loadAndStoreImage(this, dataURL);
     };
 
     const onConfigure = nodeType.prototype.onConfigure;
