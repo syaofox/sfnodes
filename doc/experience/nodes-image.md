@@ -491,3 +491,8 @@
 - **做法**：离屏遮罩画布按画序合成（brush/fill 盖不透明白 → erase `destination-out` 打洞）再 `globalAlpha` 一次贴回；离屏按源图像素绘制（lineW 取源图直径，与后端印章同语义），画布按源图尺寸缓存。主画布禁用 `destination-out`（会连照片一起擦）。inpaint 编辑器同款架构（其遮罩 canvas + 烘焙），此处无羽化需求故单画布逐帧重建。
 - **ECol 删除**：真擦除后无红色可染，竖列 10→9 项（MIN 保持 320，与存量 size 兼容）；`eraser_color` 状态惰性遗留，旧工作流无感。后端零改动。
 - **测试**：smoke 离屏 op 流断言（`destination-out` 出现且事后恢复 `source-over`、纯 brush 无打洞）+ 主画布无红色 style + 单次 blit；画布缓存命中断言前先清缓存（与实现同因）。
+
+### 10. 悬停笔刷光环（2026-09）
+
+- **做法**：`onMouseMove` 常驻记录图片区内光标（画与不画都记，区外置空）；`onDrawForeground` 经 `canvas.node_over === node` 门控画环——离开节点后无额外监听，靠 hover 切换自带重绘消环。半径 `size/2×scale` 随缩放/步进/滚轮实时生效；brush 强调色实线 + 圆点、erase 白虚线 + 圆点（inpaint `_drawCursor` 同款）。
+- **测试**：smoke 断言位置记录/区外清空/hover 时 arc 半径（100px 图在 420×320 节点下 scale=2.74，80 笔刷环半径 109.6）/非 hover 无 arc；app 桩 canvas 改为测试可注入的 `__bmCanvas` 对象。

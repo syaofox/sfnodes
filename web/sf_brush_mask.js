@@ -640,6 +640,35 @@ function setupDrawing(node) {
     }
     ctx.restore();
 
+    // 笔刷光环：悬停图片区时显示实际笔刷直径（inpaint _drawCursor 同款语义）。
+    // 半径随显示 scale 自适应，Size 步进/滚轮实时生效；离开节点后靠
+    // canvas.node_over 门控隐藏（无额外监听，hover 切换自带重绘）。
+    // app.canvas 为空时（冒烟测试）视为悬停。
+    const cursor = node._sfBrushCursor;
+    const hovering = !app.canvas || app.canvas.node_over === node;
+    if (cursor && hovering) {
+      const isErase = st.brush_mode === "erase";
+      const ringR = Math.max(2, (st.brush_size / 2) * m.scale);
+      ctx.save();
+      ctx.lineWidth = 1.5;
+      if (isErase) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.setLineDash([4, 3]);
+      } else {
+        ctx.strokeStyle = accent;
+        ctx.setLineDash([]);
+      }
+      ctx.beginPath();
+      ctx.arc(cursor[0], cursor[1], ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = isErase ? "#ffffff" : accent;
+      ctx.beginPath();
+      ctx.arc(cursor[0], cursor[1], 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // 底信息行文本（右对齐截断，落在按钮之上，两者无重叠）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
@@ -714,9 +743,14 @@ function setupInteractions(node) {
   };
 
   node.onMouseMove = (e, localPos) => {
-    if (!node._sfBrushDrawing) return false;
     const lp = localPos || [e.canvasX - node.pos[0], e.canvasY - node.pos[1]];
     const [lx, ly] = lp;
+    // 光环位置常驻记录（画与不画都记；图片区外置空，绘制侧再经 node_over 门控）
+    const mm = metricsOf(node);
+    node._sfBrushCursor =
+      lx >= mm.offsetX && lx <= mm.offsetX + mm.scaledW &&
+      ly >= mm.offsetY && ly <= mm.offsetY + mm.scaledH ? [lx, ly] : null;
+    if (!node._sfBrushDrawing) return false;
     const st = getState(node);
     const m = metricsOf(node);
     const p = localToImage(lx, ly, m);

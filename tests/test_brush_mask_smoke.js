@@ -18,6 +18,7 @@ function check(name, cond) {
 // ── 全局桩（模块顶层即用）──
 globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
 globalThis.window = { addEventListener() {} };
+globalThis.__bmCanvas = { node_over: null }; // 画布桩（import 时被 stub_app 引用，可变）
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: {} };
 // 离屏画布工厂（遮罩合成用）：每画布独立 op 流，调用与属性赋值全记录
 const createdCanvases = [];
@@ -56,7 +57,7 @@ function makeCtx(ops) {
 
   // 桩模块
   fs.writeFileSync(path.join(tmpDir, "stub_app.js"),
-    `export const app = { graph: null, canvas: null, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
+    `export const app = { graph: null, canvas: globalThis.__bmCanvas || null, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
@@ -180,6 +181,30 @@ function makeCtx(ops) {
   node._sfMaskCvs = null;
   node.onDrawForeground(makeCtx([]));
   check("纯 brush 无打洞", !createdCanvases[0].ops.some((o) => o.value === "destination-out"));
+
+  // 笔刷光环：悬停图片区记录位置并画环（半径 = size/2×scale）；
+  // 非悬停（node_over 他人）不画
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, strokes: [],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  node._sfBrushCursor = null;
+  node.onMouseMove({}, [100, 100]);
+  check("悬停图片区记录光标", JSON.stringify(node._sfBrushCursor) === JSON.stringify([100, 100]));
+  node.onMouseMove({}, [5, 5]);
+  check("图片区外清空光标", node._sfBrushCursor === null);
+  node.onMouseMove({}, [100, 100]);
+  globalThis.__bmCanvas.node_over = node;
+  const ops4 = [];
+  node.onDrawForeground(makeCtx(ops4));
+  // scale = min(290/100, 274/100) = 2.74，环半径 = 40×2.74 = 109.6
+  const arcs = ops4.filter((o) => o.op === "arc");
+  check("悬停时画光环", arcs.some((o) => Math.abs(o.args[2] - 109.6) < 1e-9));
+  globalThis.__bmCanvas.node_over = {};
+  const ops5 = [];
+  node.onDrawForeground(makeCtx(ops5));
+  check("非悬停不画光环", !ops5.some((o) => o.op === "arc"));
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }
