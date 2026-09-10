@@ -24,10 +24,10 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 (async () => {
   const L = await import(tmpUrl);
 
-  // ── TOOL_COL（左竖列顺序：模式 → 破坏性 → 步进 → 取色）──
-  check("竖列 10 项", L.TOOL_COL.length === 10);
+  // ── TOOL_COL（左竖列顺序：模式 → 破坏性 → 步进 → 取色；ECol 已随真擦除移除）──
+  check("竖列 9 项", L.TOOL_COL.length === 9);
   check("竖列顺序", JSON.stringify(L.TOOL_COL) === JSON.stringify(
-    ["brush", "erase", "clear", "undo", "sizeMinus", "sizePlus", "opaMinus", "opaPlus", "brushColor", "eraserColor"]));
+    ["brush", "erase", "clear", "undo", "sizeMinus", "sizePlus", "opaMinus", "opaPlus", "brushColor"]));
   check("列几何", L.COL_TOP === 16 && L.COL_W === 30 && L.COL_H === 18 && L.COL_STEP === 22);
 
   // ── stepBrushSize（步长 2，钳制 1..200）──

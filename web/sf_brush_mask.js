@@ -15,7 +15,7 @@
 // 状态真源 node.properties.sfBrushMaskState（JSON 字符串，随工作流保存），
 // 经 graphToPrompt 钩子注入隐藏输入 SFBrushMaskJson（只注入影响结果的
 // lean 字段：src_path/src_w/src_h/brush_size/strokes——预览用的
-// brush_opacity/brush_color/eraser_color 不进注入，改预览不重跑，
+// brush_opacity/brush_color 不进注入，改预览不重跑，
 // 同 sf_outpaint.js / sf_crop_expand.js 先例；Python hidden 已声明，
 // schema 内不被剥离）。
 // 源图持久化：dataURL 经 CropAPI.uploadSrc 落盘 input/sfnodes_crop/
@@ -65,8 +65,8 @@ const DEFAULT_STATE = {
   // 以下仅预览语义（不进 lean 注入，后端忽略）：
   brush_opacity: 0.5,
   brush_color: "255,255,255",
-  eraser_color: "255,50,50",
   brush_mode: "brush",
+  // eraser_color 惰性遗留（ECol 按钮已随真擦除预览移除，无读取方，旧工作流无感）
   // SAM 对话框记忆（不进 lean 注入；SAM 结果即 fill 笔触进 strokes）
   sam_prompt: "",
   sam_threshold: 0.5,
@@ -198,7 +198,7 @@ function browseImage(node) {
 
 // ── 控件（左竖列 + 底行：绘制与命中共用同一几何）──────────────────────────
 // 左竖列（x=shiftLeft, w=30, h=18，步进 22，列顶 16）：Brush/Erase 模式 →
-// Clear/Undo → Size±/Opa± 步进 → BCol/ECol 取色（背景即当前色）。
+// Clear/Undo → Size±/Opa± 步进 → BCol 取色（背景即当前色）。
 // 底行（y 运行时解析为 nodeH-shiftLeft-21）：Load Image/Browse + 信息文本。
 
 function toolText(id) {
@@ -212,7 +212,6 @@ function toolText(id) {
     opaMinus: "O−",
     opaPlus: "O+",
     brushColor: "BCol",
-    eraserColor: "ECol",
   }[id] || id;
 }
 
@@ -238,7 +237,7 @@ function buildControls() {
     w: COL_W,
     h: COL_H,
     isToggle: id === "brush" || id === "erase",
-    isColor: id === "brushColor" ? "brush" : id === "eraserColor" ? "erase" : null,
+    isColor: id === "brushColor" ? "brush" : null,
   }));
   // 底行：Load Image/Browse（与信息文本同排，y 运行时解析）
   buttons.push(
@@ -262,15 +261,13 @@ function buttonAction(node, id) {
   else if (id === "sizePlus") setState(node, { brush_size: stepBrushSize(st.brush_size, +1) });
   else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, -1) });
   else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1) });
-  else if (id === "brushColor") { pickColor(node, "brush"); return; }
-  else if (id === "eraserColor") { pickColor(node, "erase"); return; }
+  else if (id === "brushColor") { pickColor(node); return; }
   else return;
   stateChanged(node);
 }
 
-function pickColor(node, which) {
-  const st = getState(node);
-  const cur = which === "erase" ? st.eraser_color : st.brush_color;
+function pickColor(node) {
+  const cur = getState(node).brush_color;
   const rgb = String(cur || "255,255,255").split(",").map((c) => parseInt(String(c).trim(), 10));
   const hex = "#" + rgb.map((c) => Math.max(0, Math.min(255, c || 0)).toString(16).padStart(2, "0")).join("");
   const input = document.createElement("input");
@@ -278,9 +275,9 @@ function pickColor(node, which) {
   input.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#ffffff";
   input.onchange = (e) => {
     const h = e.target.value;
-    const c = `${parseInt(h.substr(1, 2), 16)},${parseInt(h.substr(3, 2), 16)},${parseInt(h.substr(5, 2), 16)}`;
-    if (which === "erase") setState(node, { eraser_color: c });
-    else setState(node, { brush_color: c });
+    setState(node, {
+      brush_color: `${parseInt(h.substr(1, 2), 16)},${parseInt(h.substr(3, 2), 16)},${parseInt(h.substr(5, 2), 16)}`,
+    });
     stateChanged(node);
   };
   input.click();
@@ -561,8 +558,7 @@ function setupDrawing(node) {
     for (const b of node._sfBrushCtrls) {
       const [bx, by, bw, bh] = buttonRect(b, node);
       if (b.isColor) {
-        const src = b.isColor === "erase" ? st.eraser_color : st.brush_color;
-        const rgb = String(src || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
+        const rgb = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
         ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
       } else if (b.isToggle && (
         (b.id === "brush" && st.brush_mode !== "erase") ||
@@ -574,9 +570,7 @@ function setupDrawing(node) {
       ctx.fillRect(bx, by, bw, bh);
       ctx.strokeStyle = "rgba(150,150,150,0.6)";
       ctx.strokeRect(bx, by, bw, bh);
-      ctx.fillStyle = b.isColor
-        ? colorTextStyle(b.isColor === "erase" ? st.eraser_color : st.brush_color)
-        : "rgba(220,220,220,0.9)";
+      ctx.fillStyle = b.isColor ? colorTextStyle(st.brush_color) : "rgba(220,220,220,0.9)";
       ctx.font = b.y === BOTTOM_Y ? "11px Arial" : "10px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -600,24 +594,51 @@ function setupDrawing(node) {
       drawPlaceholder(ctx, m.offsetX, m.offsetY, m.scaledW, m.scaledH, m.scale);
     }
 
-    // 已落笔触：先刷后擦（与原版同序；擦以红色预览叠加；fill 整体填充）
-    const brushRGB = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
-    const brushStyle = `rgba(${brushRGB[0]},${brushRGB[1]},${brushRGB[2]},${st.brush_opacity})`;
-    for (const s of st.strokes) {
-      if ((s.mode || "brush") === "erase") continue;
-      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, brushStyle, (s.mode || "brush") === "fill");
+    // 遮罩合成（真擦除预览）：离屏画布按画序合成——brush/fill 盖不透明白，
+    // erase 以 destination-out 打洞——再一次贴回主画布。主画布禁用
+    // destination-out（会连照片一起擦掉）。离屏按源图像素绘制
+    // （lineW 取源图笔刷直径，与后端印章同语义），贴回时一次缩放到显示区。
+    // 后端已是同款画序真擦除，预览与输出逐像素一致。
+    const mw = Math.max(1, st.src_w || 512);
+    const mh = Math.max(1, st.src_h || 512);
+    let maskCvs = node._sfMaskCvs;
+    if (!maskCvs || maskCvs.width !== mw || maskCvs.height !== mh) {
+      maskCvs = document.createElement("canvas");
+      maskCvs.width = mw;
+      maskCvs.height = mh;
+      node._sfMaskCvs = maskCvs;
     }
-    const eraserRGB = String(st.eraser_color || "255,50,50").split(",").map((v) => parseInt(String(v).trim(), 10));
-    const eraserStyle = `rgba(${eraserRGB[0]},${eraserRGB[1]},${eraserRGB[2]},${st.brush_opacity})`;
-    for (const s of st.strokes) {
-      if ((s.mode || "brush") !== "erase") continue;
-      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, eraserStyle);
-    }
-    // 进行中笔触
+    const mx = maskCvs.getContext("2d");
+    mx.save();
+    mx.setTransform(1, 0, 0, 1, 0, 0);
+    mx.clearRect(0, 0, mw, mh);
+    mx.globalCompositeOperation = "source-over";
+    const paintRGB = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
+    const paintStyle = `rgba(${paintRGB[0]},${paintRGB[1]},${paintRGB[2]},1)`;
+    const unit = { scale: 1, offsetX: 0, offsetY: 0 }; // 源图像素系（drawStrokePath 复用）
+    const paintStroke = (s) => {
+      const mode = s.mode || "brush";
+      if (mode === "erase") {
+        mx.globalCompositeOperation = "destination-out";
+        drawStrokePath(mx, s.points, unit, s.size || st.brush_size, "rgba(0,0,0,1)", false);
+        mx.globalCompositeOperation = "source-over";
+      } else {
+        drawStrokePath(mx, s.points, unit, s.size || st.brush_size, paintStyle, mode === "fill");
+      }
+    };
+    for (const s of st.strokes) paintStroke(s);
     if (node._sfBrushCur && node._sfBrushCur.length > 0) {
-      drawStrokePath(ctx, node._sfBrushCur, m, st.brush_size * m.scale,
-        st.brush_mode === "erase" ? eraserStyle : brushStyle);
+      paintStroke({ mode: st.brush_mode === "erase" ? "erase" : "brush", size: st.brush_size, points: node._sfBrushCur });
     }
+    mx.restore();
+    ctx.save();
+    ctx.globalAlpha = st.brush_opacity;
+    try {
+      ctx.drawImage(maskCvs, m.offsetX, m.offsetY, m.scaledW, m.scaledH);
+    } catch (e) {
+      console.error("[SF Brush Mask] draw mask composite failed:", e);
+    }
+    ctx.restore();
 
     // 底信息行文本（右对齐截断，落在按钮之上，两者无重叠）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;

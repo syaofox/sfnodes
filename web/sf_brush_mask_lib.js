@@ -19,6 +19,7 @@ export const LAYOUT = { shiftLeft: 10, shiftRight: 80, toolColW: 34, toolColGap:
 
 // 左侧竖列按钮（从上到下）：模式 → 破坏性操作 → 数值步进 → 取色。
 // 列按钮几何：w=30、h=18、步进 22、列顶 = shiftLeft+6（主扩展 buildControls）。
+// eraserColor 已移除（真擦除预览无红色可染，见 §45.9）。
 export const TOOL_COL = [
   "brush",
   "erase",
@@ -29,7 +30,6 @@ export const TOOL_COL = [
   "opaMinus",
   "opaPlus",
   "brushColor",
-  "eraserColor",
 ];
 
 export const COL_TOP = 16;
@@ -89,8 +89,8 @@ export function stepOpacity(cur, dir) {
 // 节点最小宽高（控件不溢出前提下的下限）：
 // - 宽度：底行 Load(72)/Browse(48)（右缘 135）+ 最小文本窗（信息文本溢出
 //   时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 与 CropExpand 同款 420；
-// - 高度：竖列 10 项（列顶 16 起，步进 22，底 =16+10*22-4=232）+ 底行 26 +
-//   上下边距 → 取整 320。
+// - 高度：竖列 9 项（列顶 16 起，步进 22，底 =16+9*22-4=210）+ 底行 26 +
+//   上下边距 → 取整 320（竖列缩短后仍保持，与旧存量 size 兼容）。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
 // 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。

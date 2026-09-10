@@ -76,7 +76,7 @@ class SFImageBrushMask:
         "文件到节点 / Ctrl+V 粘贴），用画笔在图上直接涂抹遮罩，无需打开遮罩"
         "编辑器。Brush 涂白（遮罩=1），Eraser 擦除；Clear 清空全部笔触，Undo "
         "撤销上一笔。\n\n"
-        "Size 步进（S±，可悬停滚轮快调）调节笔刷直径；Opacity 与取色块仅改变预览叠加的透明度/颜色，"
+        "Size 步进（S±，可悬停滚轮快调）调节笔刷直径；Opacity 与取色仅改变预览叠加的透明度/颜色，"
         "不影响输出（输出遮罩恒为二值）。\n\n"
         "右键菜单可用文本 prompt 跑 SAM 分割（核心 SAM3_Detect，需 "
         "models/checkpoints/sam3.1_multiplex_fp16.safetensors），结果转为填充"

@@ -19,6 +19,24 @@ function check(name, cond) {
 globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
 globalThis.window = { addEventListener() {} };
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: {} };
+// 离屏画布工厂（遮罩合成用）：每画布独立 op 流，调用与属性赋值全记录
+const createdCanvases = [];
+function makeFullCtx(ops) {
+  const st = {};
+  return new Proxy({}, {
+    get(t, p) {
+      return (...a) => { ops.push({ op: p, args: a, fill: st.fillStyle, gco: st.globalCompositeOperation }); };
+    },
+    set(t, p, v) { st[p] = v; ops.push({ op: "set:" + p, value: v }); return true; },
+  });
+}
+globalThis.document.createElement = (tag) => {
+  if (tag !== "canvas") return { style: {}, appendChild() {}, querySelector() { return null; } };
+  const ops = [];
+  const c = { width: 0, height: 0, ops, getContext: () => makeFullCtx(ops) };
+  createdCanvases.push(c);
+  return c;
+};
  
 // ── FakeCtx：记录 op + 调用时 fillStyle ──
 function makeCtx(ops) {
@@ -78,7 +96,7 @@ function makeCtx(ops) {
   node.size = [420, 320];
   node.flags = {};
   nodeType.prototype.onNodeCreated.call(node);
-  check("控件 12 项（竖列 10 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 12);
+  check("控件 11 项（竖列 9 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 11);
 
   // 跑一帧真实绘制
   const ops = [];
@@ -121,9 +139,47 @@ function makeCtx(ops) {
   });
   const ops2 = [];
   node.onDrawForeground(makeCtx(ops2));
-  const fills = ops2.filter((o) => o.op === "fill");
+  // fill 画在离屏遮罩画布上（不透明白），不透明度在贴回时统一施加
+  const fillCvs = createdCanvases[createdCanvases.length - 1];
+  const fills = fillCvs ? fillCvs.ops.filter((o) => o.op === "fill") : [];
   check("fill 笔触触发填充", fills.length >= 1);
-  check("fill 用画笔色半透明", fills.some((o) => o.fill === "rgba(255,255,255,0.5)"));
+  check("fill 用画笔色不透明", fills.some((o) => o.fill === "rgba(255,255,255,1)"));
+
+  // 真擦除预览（§45.9）：离屏按画序合成，erase 走 destination-out；
+  // 主画布无红色、无 destination-out，只有一次贴回 blit
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 20, strokes: [
+      { mode: "brush", size: 20, points: [[10, 10], [30, 30]] },
+      { mode: "erase", size: 20, points: [[15, 15], [25, 25]] },
+    ],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  createdCanvases.length = 0;
+  node._sfMaskCvs = null; // 清缓存，断言按尺寸重建
+  const ops3 = [];
+  node.onDrawForeground(makeCtx(ops3));
+  check("离屏遮罩画布按源图尺寸创建", createdCanvases.length === 1
+    && createdCanvases[0].width === 100 && createdCanvases[0].height === 100);
+  const mops = createdCanvases[0].ops;
+  const gcos = mops.filter((o) => o.op === "set:globalCompositeOperation").map((o) => o.value);
+  check("erase 走 destination-out", gcos.includes("destination-out"));
+  check("打洞后恢复 source-over", gcos[gcos.length - 1] === "source-over");
+  check("主画布无红色叠加", !ops3.some((o) => o.fill && String(o.fill).startsWith("rgba(255,50,50")));
+  check("合成一次贴回", ops3.filter((o) => o.op === "drawImage").length === 1);
+
+  // 纯 brush 时不出现 destination-out
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 20, strokes: [
+      { mode: "brush", size: 20, points: [[10, 10], [30, 30]] },
+    ],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  createdCanvases.length = 0;
+  node._sfMaskCvs = null;
+  node.onDrawForeground(makeCtx([]));
+  check("纯 brush 无打洞", !createdCanvases[0].ops.some((o) => o.value === "destination-out"));
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

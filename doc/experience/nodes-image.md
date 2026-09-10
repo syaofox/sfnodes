@@ -484,3 +484,10 @@
 - **管线**：`mask_to_fill_strokes`（`cv2.findContours` RETR_EXTERNAL + `approxPolyDP(eps=1.5)` + 面积 <16px 丢弃 + 只留最大 64 个，一轮廓一笔，Undo 以物体为粒度）→ 后端 `rasterize_strokes` fill 分支（PIL `ImageDraw.polygon` 整体填充，无需 cv2，本地可真测）→ 前端 `drawStrokePath` fill 分支（`closePath+fill`，擦除笔触按画序覆盖）。`parse_state_strokes` 放行 `fill` 模式；旧串格式无 fill（只走 state）。
 - **契约**：路由回 `{strokes, count, coverage}`（不落盘）；`sam_mask_path` 退出状态（旧工作流残留被忽略）；lean/IS_CHANGED 回归纯笔触键。空结果回 `strokes: []` + warn toast（笔触不变）。
 - **测试**：cv2 用行为桩（方框轮廓 + 鞋带面积 + approx 恒等——测我方管线：点序/面积过滤/数量上限/格式，而非 cv2 本体）+ PIL 真实像素断言（fill 块内外/erase 可擦 fill）+ smoke（菜单两项 + fill 触发 `fill` op）。
+
+### 9. 橡皮擦真擦除预览（2026-09，用户诉求）
+
+- **动因**：后端早就是真擦除（`_erase_circle` 置 0），唯独前端预览是红色叠加——红块≠输出，擦空区凭空出红块，fill/擦除交错时预览与输出分叉。
+- **做法**：离屏遮罩画布按画序合成（brush/fill 盖不透明白 → erase `destination-out` 打洞）再 `globalAlpha` 一次贴回；离屏按源图像素绘制（lineW 取源图直径，与后端印章同语义），画布按源图尺寸缓存。主画布禁用 `destination-out`（会连照片一起擦）。inpaint 编辑器同款架构（其遮罩 canvas + 烘焙），此处无羽化需求故单画布逐帧重建。
+- **ECol 删除**：真擦除后无红色可染，竖列 10→9 项（MIN 保持 320，与存量 size 兼容）；`eraser_color` 状态惰性遗留，旧工作流无感。后端零改动。
+- **测试**：smoke 离屏 op 流断言（`destination-out` 出现且事后恢复 `source-over`、纯 brush 无打洞）+ 主画布无红色 style + 单次 blit；画布缓存命中断言前先清缓存（与实现同因）。
