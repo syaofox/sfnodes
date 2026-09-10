@@ -68,6 +68,8 @@ MODS = [
     "sf_styles_selector", "sf_styles_selector_lib",
     # 证件照服装单选器家族（复刻孤海画廊，复用 styles JSON 生态）
     "sf_id_clothing", "sf_id_clothing_lib",
+    # 角色三分镜家族（单选画廊：脸部特写/半身像/全身像）
+    "sf_character", "sf_character_lib",
     # 公共弹层三件套
     "sf_popup",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）

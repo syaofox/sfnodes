@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -464,3 +464,21 @@
 - **测试桩打错命名空间**：节点模块 `from .styles_selector import _load_styles` 是绑定时拷贝，`monkeypatch styles._load_styles` 影响不到 `mod._load_styles`——4 个失败全因此起。桩必须打在被测模块命名空间（`mod._load_styles/mod._styles_dirs/mod.style_library_names`）。
 - **torch/PIL 頂层 import 会污染测试**：`image_convert` 拉 `torch/comfy`（本机无），张量化与占位函数一律函数内 import，模块 import 只需 `aiohttp/server` 双 mock（`test_styles_selector.py` 同款）；execute 的张量路径测试用哨兵对象打桩 `_load_template_tensor/_placeholder_tensor`。
 - **lib 单文件可拷测约束**：`sf_id_clothing_lib.js` 自包含、不 import `sf_styles_selector_lib.js`（tests 把单文件拷 `/tmp` 直跑，相对 import 会断）。30 行解析/过滤重复是故意的，与 `sf_common` 禁止内联是两回事（纯逻辑跨文件 import 在此场景下不可测）。
+
+---
+
+## 47. SFCharacterSelect：角色三分镜单选器（脸/半身/全身三路独立输出）
+
+> 背景：角色管理需求——每角色含脸部特写/半身像/全身像，输出提示词 + 选中图片（展示挑选用途）。路线确认为独立新节点（单节点多角色切换），否决硬改 `SFStylesSelector`（§46 同款理由：多选拼接 vs 单选直出语义冲突，且 styles 归一化会丢弃 face/half/full 未知字段）。
+
+### 1. 分层与契约
+
+- **数据层**：`character_` 前缀 JSON（内置 `data/characters/` + 用户 `<user>/sfnodes/characters/` 同名覆盖，styles 双源范式）；条目 `{name, prompt?, face?, half?, full?}`；图放 `samples_id_chara/<库>/` 独立目录。包内仅 `README.md` + `character_example.json` 格式骨架（无二进制）。
+- **路由新建**（本域必需）：`/api/sfnodes/characters?name=`（列表，库名强制 `character_` 前缀防串库读盘）+ `/api/sfnodes/characters/image?path=`（`commonpath` 钳位，styles 双路由 1:1 写法）。
+- **最大复用**：图片→张量/占位直接 import `id_clothing._load_template_tensor/_placeholder_tensor`（同包，不拷贝）；落盘解析复用 `id_clothing.resolve_thumbnail_path`（通用函数，与域无关）；值通道/草稿/VALIDATE/IS_CHANGED 照抄 id_clothing 形状。
+- **输出**：`(prompt, face, half, full)`，单分镜缺失仅该路占位（execute 逐分镜 try/except + 独立回退）。
+
+### 2. 踩坑
+
+- **`from` 绑定命名空间桩位**（§46 同款再现）：`character.py` 已 `from .id_clothing import _load_template_tensor`，桩打 `id_clothing` 模块无效，必须打 `character` 模块——首测即抓出（`No module named 'torch'` 实锤走了真函数）。
+- **无有效选择自动首选**：空选输出全占位曾被误报为 bug（用户未点卡）。修法为库就绪后 `coerceSelection` 收敛（有效保留、空/失效回落首项并清草稿），纯函数可单测；configure 恢复读 live 值故恢复值不受影响。注意显式取消选择不再跨重载保留（重载回落首项），与"默认首选"语义一致。

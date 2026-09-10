@@ -1,0 +1,9 @@
+[
+  {
+    "name": "示例角色",
+    "prompt": "a girl with black long hair, school uniform",
+    "face": "samples_id_chara/character_example/face_01.jpg",
+    "half": "samples_id_chara/character_example/half_01.jpg",
+    "full": "samples_id_chara/character_example/full_01.jpg"
+  }
+]
