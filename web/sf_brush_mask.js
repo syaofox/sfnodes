@@ -6,6 +6,12 @@
 // 节点上直接加载图片（Load Image 按钮 / Browse 图片浏览器 / 拖放文件到
 // 节点 / Ctrl+V 粘贴），画笔在图上直接涂抹遮罩（brush 涂白 / eraser 擦除）。
 //
+// 控件布局向 SFImageCropExpand 看齐：左侧工具竖列（Brush/Eraser 模式 →
+// Clear/Undo → Size±/Opa± 步进 → 双取色块，节点顶直通画布区底）+ 底行
+//（Load Image/Browse 与信息文本同排，实时数值进信息文本）。原版的横向
+// Size/Opacity 拖拽滑块在 30px 竖列里放不下，改为步进器（Size± 步长 2 /
+// Opa± 步长 5%，纯函数在 lib）。
+//
 // 状态真源 node.properties.sfBrushMaskState（JSON 字符串，随工作流保存），
 // 经 graphToPrompt 钩子注入隐藏输入 SFBrushMaskJson（只注入影响结果的
 // lean 字段：src_path/src_w/src_h/brush_size/strokes——预览用的
@@ -27,12 +33,19 @@ import { showImageBrowser } from "./image_browser.js";
 import { parseAnnotatedImageValue } from "./sf_common.js";
 import {
   LAYOUT,
+  TOOL_COL,
+  COL_TOP,
+  COL_W,
+  COL_H,
+  COL_STEP,
   ensureMinSize,
   hitResizeCornerSE,
   computeDisplayMetrics,
   localToImage,
   imageToLocal,
   clampToImage,
+  stepBrushSize,
+  stepOpacity,
 } from "./sf_brush_mask_lib.js";
 
 const CLASS = "SFImageBrushMask";
@@ -174,53 +187,75 @@ function browseImage(node) {
   });
 }
 
-// ── 面板控件（按钮/滑块/色块：绘制与命中共用同一几何）─────────────────────
-// 行1（y=8,h=21）：Load(56) Browse(52) Clear(44) Undo(44) Eraser(52) + 右侧色块列(40)
-// 行2（y=34,h=12+label）：Size(150) Opacity(150)
+// ── 控件（左竖列 + 底行：绘制与命中共用同一几何）──────────────────────────
+// 左竖列（x=shiftLeft, w=30, h=18，步进 22，列顶 16）：Brush/Erase 模式 →
+// Clear/Undo → Size±/Opa± 步进 → BCol/ECol 取色（背景即当前色）。
+// 底行（y 运行时解析为 nodeH-shiftLeft-21）：Load Image/Browse + 信息文本。
+
+function toolText(id) {
+  return {
+    brush: "Brush",
+    erase: "Erase",
+    clear: "Clear",
+    undo: "Undo",
+    sizeMinus: "S−",
+    sizePlus: "S+",
+    opaMinus: "O−",
+    opaPlus: "O+",
+    brushColor: "BCol",
+    eraserColor: "ECol",
+  }[id] || id;
+}
+
+// 底行按钮的 y 标记为 "bottom"：节点高度运行时可变，
+// 绘制/命中时经 buttonRect 动态解析为 nodeH - shiftLeft - h。
+const BOTTOM_Y = "bottom";
+
+function bottomButtonY(node, h) {
+  return node.size[1] - LAYOUT.shiftLeft - h;
+}
+
+// buttonRect(b, node) → [x, y, w, h]（解析 bottom 标记；绘制与命中共用）
+function buttonRect(b, node) {
+  return [b.x, b.y === BOTTOM_Y ? bottomButtonY(node, b.h) : b.y, b.w, b.h];
+}
 
 function buildControls() {
-  return {
-    buttons: [
-      { id: "load", text: "Load", x: 10, y: 8, w: 56, h: 21 },
-      { id: "browse", text: "Browse", x: 70, y: 8, w: 52, h: 21 },
-      { id: "clear", text: "Clear", x: 126, y: 8, w: 44, h: 21 },
-      { id: "undo", text: "Undo", x: 174, y: 8, w: 44, h: 21 },
-      { id: "eraser", text: "Eraser", x: 222, y: 8, w: 52, h: 21, isToggle: true },
-    ],
-    sliders: [
-      { id: "size", label: "Size", x: 10, y: 34, w: 150, h: 12, min: 1, max: 200 },
-      { id: "opacity", label: "Opacity", x: 170, y: 34, w: 150, h: 12, min: 0.1, max: 1.0 },
-    ],
-    colorW: 40,
-  };
+  const buttons = TOOL_COL.map((id, i) => ({
+    id,
+    text: toolText(id),
+    x: LAYOUT.shiftLeft,
+    y: COL_TOP + i * COL_STEP,
+    w: COL_W,
+    h: COL_H,
+    isToggle: id === "brush" || id === "erase",
+    isColor: id === "brushColor" ? "brush" : id === "eraserColor" ? "erase" : null,
+  }));
+  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析）
+  buttons.push(
+    { id: "load", text: "Load Image", x: 10, y: BOTTOM_Y, w: 72, h: 21 },
+    { id: "browse", text: "Browse", x: 87, y: BOTTOM_Y, w: 48, h: 21 },
+  );
+  return buttons;
 }
 
 function buttonAction(node, id) {
+  const st = getState(node);
   if (id === "load") pickFile(node);
   else if (id === "browse") browseImage(node);
-  else if (id === "clear") {
-    setState(node, { strokes: [] });
-    stateChanged(node);
-  } else if (id === "undo") {
-    const st = getState(node);
-    if (st.strokes.length > 0) {
-      setState(node, { strokes: st.strokes.slice(0, -1) });
-      stateChanged(node);
-    }
-  } else if (id === "eraser") {
-    const st = getState(node);
-    setState(node, { brush_mode: st.brush_mode === "erase" ? "brush" : "erase" });
-    stateChanged(node);
-  }
-}
-
-function sliderValue(node, st, id) {
-  return id === "size" ? st.brush_size : st.brush_opacity;
-}
-
-function applySliderValue(node, id, v) {
-  if (id === "size") setState(node, { brush_size: Math.max(1, Math.round(v)) });
-  else setState(node, { brush_opacity: Math.max(0.1, Math.min(1, Math.round(v * 100) / 100)) });
+  else if (id === "brush") setState(node, { brush_mode: "brush" });
+  else if (id === "erase") setState(node, { brush_mode: st.brush_mode === "erase" ? "brush" : "erase" });
+  else if (id === "clear") setState(node, { strokes: [] });
+  else if (id === "undo") {
+    if (st.strokes.length > 0) setState(node, { strokes: st.strokes.slice(0, -1) });
+    else return;
+  } else if (id === "sizeMinus") setState(node, { brush_size: stepBrushSize(st.brush_size, -1) });
+  else if (id === "sizePlus") setState(node, { brush_size: stepBrushSize(st.brush_size, +1) });
+  else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, -1) });
+  else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1) });
+  else if (id === "brushColor") { pickColor(node, "brush"); return; }
+  else if (id === "eraserColor") { pickColor(node, "erase"); return; }
+  else return;
   stateChanged(node);
 }
 
@@ -240,6 +275,21 @@ function pickColor(node, which) {
     stateChanged(node);
   };
   input.click();
+}
+
+// 取色按钮文字按背景亮度取黑/白（CropExpand Color 按钮同款）
+function colorTextStyle(color) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(color || ""));
+  if (!m) {
+    const rgb = String(color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
+    if (rgb.length === 3 && rgb.every((v) => Number.isFinite(v))) {
+      const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+      return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
+    }
+    return "rgba(255,255,255,0.9)";
+  }
+  const brightness = (parseInt(m[1], 16) * 299 + parseInt(m[2], 16) * 587 + parseInt(m[3], 16) * 114) / 1000;
+  return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
 }
 
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────
@@ -271,7 +321,6 @@ function drawStrokePath(ctx, pts, m, lineW, style) {
   ctx.strokeStyle = style;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.beginPath();
   if (pts.length === 1) {
     const p = imageToLocal(pts[0][0], pts[0][1], m);
     // 单点：画一个直径=线宽的圆盘（后端同款：单点印章）
@@ -281,6 +330,7 @@ function drawStrokePath(ctx, pts, m, lineW, style) {
     ctx.fill();
     return;
   }
+  ctx.beginPath();
   for (let i = 0; i < pts.length; i++) {
     const p = imageToLocal(pts[i][0], pts[i][1], m);
     if (i === 0) ctx.moveTo(p.x, p.y);
@@ -290,85 +340,51 @@ function drawStrokePath(ctx, pts, m, lineW, style) {
 }
 
 function setupDrawing(node) {
-  const { shiftLeft, shiftRight, panelH, bottomH } = LAYOUT;
+  const { shiftLeft, shiftRight, bottomH } = LAYOUT;
 
   node.onDrawForeground = (ctx) => {
     if (node.flags.collapsed) return false;
     const nodeW = node.size[0];
     const nodeH = node.size[1];
     const st = getState(node);
-    const ctrls = node._sfBrushCtrls;
     const m = computeDisplayMetrics({ srcW: st.src_w, srcH: st.src_h }, nodeW, nodeH);
     const accent = getSfAccent() || "rgba(100,150,255,0.9)";
 
-    // 顶面板背景
-    const panelW = nodeW - shiftRight - shiftLeft + 8;
+    // 左侧竖列底条（节点顶到画布区底缘，与图片区同高）
+    const colTop = shiftLeft - 4;
+    const colBottom = nodeH - shiftLeft - bottomH;
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
-    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, panelW, panelH, 4);
+    ctx.roundRect(shiftLeft - 4, colTop, LAYOUT.toolColW + 2, colBottom - colTop, 4);
     ctx.fill();
     ctx.strokeStyle = "rgba(100,100,100,0.5)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, panelW, panelH);
+    ctx.strokeRect(shiftLeft - 4, colTop, LAYOUT.toolColW + 2, colBottom - colTop);
 
-    // 按钮行
-    for (const b of ctrls.buttons) {
-      const active = b.isToggle && st.brush_mode === "erase";
-      ctx.fillStyle = active ? accent : "rgba(60,60,60,0.7)";
-      ctx.fillRect(b.x, b.y, b.w, b.h);
+    // 竖列 + 底行按钮
+    for (const b of node._sfBrushCtrls) {
+      const [bx, by, bw, bh] = buttonRect(b, node);
+      if (b.isColor) {
+        const src = b.isColor === "erase" ? st.eraser_color : st.brush_color;
+        const rgb = String(src || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
+        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
+      } else if (b.isToggle && (
+        (b.id === "brush" && st.brush_mode !== "erase") ||
+        (b.id === "erase" && st.brush_mode === "erase"))) {
+        ctx.fillStyle = accent;
+      } else {
+        ctx.fillStyle = "rgba(60,60,60,0.7)";
+      }
+      ctx.fillRect(bx, by, bw, bh);
       ctx.strokeStyle = "rgba(150,150,150,0.6)";
-      ctx.strokeRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = "rgba(220,220,220,0.9)";
-      ctx.font = "11px Arial";
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle = b.isColor
+        ? colorTextStyle(b.isColor === "erase" ? st.eraser_color : st.brush_color)
+        : "rgba(220,220,220,0.9)";
+      ctx.font = b.y === BOTTOM_Y ? "11px Arial" : "10px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(b.text, b.x + b.w / 2, b.y + b.h / 2);
-    }
-
-    // 色块列（右对齐到面板右缘）
-    const groupX = shiftLeft - 4 + panelW - ctrls.colorW - 4;
-    const colorDefs = [
-      { which: "brush", label: "Brush", y: 8, h: 10, color: st.brush_color },
-      { which: "erase", label: "Eraser", y: 19, h: 10, color: st.eraser_color },
-    ];
-    node._sfBrushColorRects = colorDefs.map((c) => ({ ...c, x: groupX, w: ctrls.colorW }));
-    for (const c of node._sfBrushColorRects) {
-      const rgb = String(c.color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
-      ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
-      ctx.fillRect(c.x, c.y, c.w, c.h);
-      ctx.strokeStyle = "rgba(150,150,150,0.6)";
-      ctx.strokeRect(c.x, c.y, c.w, c.h);
-      ctx.fillStyle = "rgba(40,40,40,0.9)";
-      ctx.font = "9px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(c.label, c.x + c.w / 2, c.y + 1);
-    }
-
-    // 滑块行
-    for (const s of ctrls.sliders) {
-      const val = sliderValue(node, st, s.id);
-      const ratio = (val - s.min) / (s.max - s.min);
-      const thumb = 14;
-      const thumbX = s.x + ratio * (s.w - thumb);
-      ctx.fillStyle = "rgba(50,50,50,0.8)";
-      ctx.fillRect(s.x, s.y, s.w, s.h);
-      ctx.strokeStyle = "rgba(100,100,100,0.6)";
-      ctx.strokeRect(s.x, s.y, s.w, s.h);
-      ctx.fillStyle = "rgba(100,150,255,0.4)";
-      ctx.fillRect(s.x, s.y, ratio * s.w, s.h);
-      ctx.fillStyle = "rgba(120,170,255,0.9)";
-      ctx.beginPath();
-      ctx.roundRect(thumbX, s.y - 1, thumb, thumb + 2, 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(150,200,255,1.0)";
-      ctx.strokeRect(thumbX, s.y - 1, thumb, thumb + 2);
-      ctx.fillStyle = "rgba(200,200,200,0.9)";
-      ctx.font = "11px Arial";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      const label = s.id === "size" ? `${s.label}: ${Math.round(val)}` : `${s.label}: ${Math.round(val * 100)}%`;
-      ctx.fillText(label, s.x, s.y + s.h + 2);
+      ctx.fillText(b.text, bx + bw / 2, by + bh / 2);
     }
 
     // 图片区背景 + 网格
@@ -395,22 +411,19 @@ function setupDrawing(node) {
       if ((s.mode || "brush") === "erase") continue;
       drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, brushStyle);
     }
+    const eraserRGB = String(st.eraser_color || "255,50,50").split(",").map((v) => parseInt(String(v).trim(), 10));
+    const eraserStyle = `rgba(${eraserRGB[0]},${eraserRGB[1]},${eraserRGB[2]},${st.brush_opacity})`;
     for (const s of st.strokes) {
       if ((s.mode || "brush") !== "erase") continue;
-      const c = String(st.eraser_color || "255,50,50").split(",").map((v) => parseInt(String(v).trim(), 10));
-      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale,
-        `rgba(${c[0]},${c[1]},${c[2]},${st.brush_opacity})`);
+      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, eraserStyle);
     }
     // 进行中笔触
     if (node._sfBrushCur && node._sfBrushCur.length > 0) {
-      const isErase = st.brush_mode === "erase";
-      const src = isErase ? st.eraser_color : st.brush_color;
-      const c = String(src || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
       drawStrokePath(ctx, node._sfBrushCur, m, st.brush_size * m.scale,
-        `rgba(${c[0]},${c[1]},${c[2]},${st.brush_opacity})`);
+        st.brush_mode === "erase" ? eraserStyle : brushStyle);
     }
 
-    // 底信息行（与 CropExpand 同款：背景条 + 右对齐截断文本）
+    // 底信息行（与 CropExpand 同款：背景条 + 右对齐截断文本，实时数值）
     const bottomY = nodeH - shiftLeft - 21;
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
@@ -421,8 +434,8 @@ function setupDrawing(node) {
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
     ctx.textAlign = "right";
-    const fullText = `Source: ${st.src_w}\u00d7${st.src_h} | Strokes: ${st.strokes.length}`;
-    const maxTextW = nodeW - shiftRight - 6 - 6;
+    const fullText = `Brush ${Math.round(st.brush_size)} · Op ${Math.round(st.brush_opacity * 100)}% · Strokes ${st.strokes.length} · ${st.src_w}\u00d7${st.src_h}`;
+    const maxTextW = nodeW - shiftRight - 6 - (135 + 6); // 底行按钮右缘 135 + 间隙 6
     let label = fullText;
     if (ctx.measureText(fullText).width > maxTextW) {
       while (label.length > 1 && ctx.measureText(label + "\u2026").width > maxTextW) {
@@ -431,7 +444,6 @@ function setupDrawing(node) {
       label += "\u2026";
     }
     ctx.fillText(label, nodeW - shiftRight - 6, bottomY + 21 / 2 + 3.5);
-    void bottomH;
   };
 }
 
@@ -440,20 +452,6 @@ function setupDrawing(node) {
 function metricsOf(node) {
   const st = getState(node);
   return computeDisplayMetrics({ srcW: st.src_w, srcH: st.src_h }, node.size[0], node.size[1]);
-}
-
-function sliderAt(node, lx, ly) {
-  for (const s of node._sfBrushCtrls.sliders) {
-    if (lx >= s.x && lx <= s.x + s.w && ly >= s.y - 5 && ly <= s.y + s.h + 15) return s;
-  }
-  return null;
-}
-
-function updateSliderFromX(node, s, lx) {
-  const thumb = 14;
-  let ratio = (lx - s.x - thumb / 2) / (s.w - thumb);
-  ratio = Math.max(0, Math.min(1, ratio));
-  applySliderValue(node, s.id, s.min + ratio * (s.max - s.min));
 }
 
 function finalizeStroke(node, canvas) {
@@ -481,21 +479,10 @@ function setupInteractions(node) {
     const lp = localPos || [e.canvasX - node.pos[0], e.canvasY - node.pos[1]];
     const [lx, ly] = lp;
 
-    // 面板：滑块优先（拖拽），其次色块，再次按钮
-    const s = sliderAt(node, lx, ly);
-    if (s) {
-      node._sfBrushSlider = s;
-      updateSliderFromX(node, s, lx);
-      return true;
-    }
-    for (const c of node._sfBrushColorRects || []) {
-      if (lx >= c.x && lx <= c.x + c.w && ly >= c.y && ly <= c.y + c.h) {
-        pickColor(node, c.which);
-        return true;
-      }
-    }
-    for (const b of node._sfBrushCtrls.buttons) {
-      if (lx >= b.x && lx <= b.x + b.w && ly >= b.y && ly <= b.y + b.h) {
+    // 控件命中（竖列 + 底行共用 buttonRect 解析）
+    for (const b of node._sfBrushCtrls) {
+      const [bx, by, bw, bh] = buttonRect(b, node);
+      if (lx >= bx && lx <= bx + bw && ly >= by && ly <= by + bh) {
         buttonAction(node, b.id);
         return true;
       }
@@ -517,13 +504,9 @@ function setupInteractions(node) {
   };
 
   node.onMouseMove = (e, localPos) => {
+    if (!node._sfBrushDrawing) return false;
     const lp = localPos || [e.canvasX - node.pos[0], e.canvasY - node.pos[1]];
     const [lx, ly] = lp;
-    if (node._sfBrushSlider) {
-      updateSliderFromX(node, node._sfBrushSlider, lx);
-      return true;
-    }
-    if (!node._sfBrushDrawing) return false;
     const st = getState(node);
     const m = metricsOf(node);
     const p = localToImage(lx, ly, m);
@@ -538,20 +521,13 @@ function setupInteractions(node) {
     return true;
   };
 
-  const up = (_e, _lp, graphCanvas) => {
-    if (node._sfBrushSlider) {
-      node._sfBrushSlider = null;
-      return true;
-    }
-    return finalizeStroke(node, graphCanvas?.canvas);
-  };
-  node.onMouseUp = up;
+  node.onMouseUp = (_e, _lp, graphCanvas) => finalizeStroke(node, graphCanvas?.canvas);
+
   node.onDblClick = () => finalizeStroke(node, null);
 
   // 全局释放兜底：鼠标移出节点区域松开也能落定
   if (!node._sfBrushGlobalUp) {
     node._sfBrushGlobalUp = () => {
-      node._sfBrushSlider = null;
       if (finalizeStroke(node, null)) {
         if (app.graph) app.graph.setDirtyCanvas(true, true);
       }

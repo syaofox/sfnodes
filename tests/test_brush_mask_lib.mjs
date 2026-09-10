@@ -1,7 +1,8 @@
 // SF Image Brush Mask lib 纯函数测试（Node 直接运行：node tests/test_brush_mask_lib.mjs）
-// 覆盖：ensureMinSize / hitResizeCornerSE / computeDisplayMetrics /
-// localToImage-imageToLocal 往返 / clampToImage / parseStroke 三格式兼容
-// （与 sf_utils/brush_mask.py 双端镜像）/ parseBrushData / buildBrushData。
+// 覆盖：TOOL_COL 列定义 / stepBrushSize / stepOpacity / ensureMinSize /
+// hitResizeCornerSE / computeDisplayMetrics / localToImage-imageToLocal 往返 /
+// clampToImage / parseStroke 三格式兼容（与 sf_utils/brush_mask.py 双端镜像）/
+// parseBrushData / buildBrushData。
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,25 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 (async () => {
   const L = await import(tmpUrl);
 
+  // ── TOOL_COL（左竖列顺序：模式 → 破坏性 → 步进 → 取色）──
+  check("竖列 10 项", L.TOOL_COL.length === 10);
+  check("竖列顺序", JSON.stringify(L.TOOL_COL) === JSON.stringify(
+    ["brush", "erase", "clear", "undo", "sizeMinus", "sizePlus", "opaMinus", "opaPlus", "brushColor", "eraserColor"]));
+  check("列几何", L.COL_TOP === 16 && L.COL_W === 30 && L.COL_H === 18 && L.COL_STEP === 22);
+
+  // ── stepBrushSize（步长 2，钳制 1..200）──
+  check("size +", L.stepBrushSize(80, +1) === 82);
+  check("size -", L.stepBrushSize(80, -1) === 78);
+  check("size 下限钳制", L.stepBrushSize(1, -1) === 1);
+  check("size 上限钳制", L.stepBrushSize(200, +1) === 200);
+  check("size 非法兜底", L.stepBrushSize("x", +1) === 2);
+
+  // ── stepOpacity（步长 5%，钳制 0.1..1.0）──
+  check("opa +", approx(L.stepOpacity(0.5, +1), 0.55));
+  check("opa -", approx(L.stepOpacity(0.5, -1), 0.45));
+  check("opa 下限钳制", L.stepOpacity(0.1, -1) === 0.1);
+  check("opa 上限钳制", L.stepOpacity(1.0, +1) === 1.0);
+
   // ── ensureMinSize ──
   check("低于下限抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([L.MIN_NODE_WIDTH, L.MIN_NODE_HEIGHT]));
   check("高于下限放行", JSON.stringify(L.ensureMinSize(800, 600)) === JSON.stringify([800, 600]));
@@ -31,12 +51,13 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("右下角命中", L.hitResizeCornerSE(410, 310, 420, 320) === true);
   check("区外未命中", L.hitResizeCornerSE(100, 100, 420, 320) === false);
 
-  // ── computeDisplayMetrics ──
-  // 节点 420×320，源图 512×512：areaW=420-80-10=330，areaH=320-10-58-22-10=220
+  // ── computeDisplayMetrics（CropExpand 同形公式）──
+  // 节点 420×320，源图 512×512：areaW=420-80-10-34-6=290，areaH=320-10-10-26=274
   const m = L.computeDisplayMetrics({ srcW: 512, srcH: 512 }, 420, 320);
-  check("scale 取 min", approx(m.scale, 220 / 512));
-  check("居中 offsetX", approx(m.offsetX, 10 + (330 - 512 * m.scale) / 2));
-  check("居中 offsetY", approx(m.offsetY, 10 + 58 + (220 - 512 * m.scale) / 2));
+  check("让出竖列+底行", m.areaW === 290 && m.areaH === 274);
+  check("scale 取 min", approx(m.scale, 274 / 512));
+  check("居中 offsetX（含竖列偏移）", approx(m.offsetX, 10 + 34 + 6 + (290 - 512 * m.scale) / 2));
+  check("居中 offsetY", approx(m.offsetY, 10 + (274 - 512 * m.scale) / 2));
 
   // ── 坐标往返 ──
   const p = L.localToImage(m.offsetX + 100 * m.scale, m.offsetY + 200 * m.scale, m);

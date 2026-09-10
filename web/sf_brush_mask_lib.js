@@ -4,20 +4,65 @@
 //
 // 无 app/DOM 依赖（纯模块边界，禁止 import sf_common.js），供主扩展
 // sf_brush_mask.js 使用，也供 tests/ 复制为 .mjs 直接测试。
-// 复刻 ComfyUI-YCNodes_Toolkit js/Loadimage_brushmask.*.js 的面板/绘制数学，
-// 并按 SFImageCropExpand（sf_crop_expand_lib.js §37/§44）收敛三处修复：
-// 最小尺寸钳制（computeSize 包装一处生效）、右下角 cursor 命中判定、
-// 显示坐标系与图片坐标系互算。
+// 布局向 SFImageCropExpand 看齐（§37/§44 同款）：左侧工具竖列（模式/
+// 破坏性操作/数值步进/取色，节点顶直通画布区底）+ 底行（Load/Browse 与
+// 信息文本同排）；显示坐标系公式与 sf_crop_expand_lib.js 同形。
+// 原版 YCNodes 的横向 Size/Opacity 拖拽滑块在 30px 竖列里放不下，改为
+// 步进器（Size± 步长 2 / Opa± 步长 5%，纯函数 stepBrushSize/stepOpacity），
+// 实时数值进底行信息文本。
 // ==========================================================================
 
-// 顶部控制面板（按钮行 + 滑块行）与底部信息行高度。面板内容：
-// 行1 Load/Browse/Clear/Undo/Eraser + 双色块，行2 Size/Opacity 滑块。
-export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelH: 58, bottomH: 22 };
+// 布局常量（与 sf_crop_expand_lib.js LAYOUT 同形）：左侧工具列
+// （toolColW + toolColGap 由图片区让宽）从节点顶直通画布区底；底行
+//（Load/Browse + 信息文本）占 bottomH。
+export const LAYOUT = { shiftLeft: 10, shiftRight: 80, toolColW: 34, toolColGap: 6, bottomH: 26 };
+
+// 左侧竖列按钮（从上到下）：模式 → 破坏性操作 → 数值步进 → 取色。
+// 列按钮几何：w=30、h=18、步进 22、列顶 = shiftLeft+6（主扩展 buildControls）。
+export const TOOL_COL = [
+  "brush",
+  "erase",
+  "clear",
+  "undo",
+  "sizeMinus",
+  "sizePlus",
+  "opaMinus",
+  "opaPlus",
+  "brushColor",
+  "eraserColor",
+];
+
+export const COL_TOP = 16;
+export const COL_W = 30;
+export const COL_H = 18;
+export const COL_GAP = 4;
+export const COL_STEP = COL_H + COL_GAP;
+
+// 步进器步长/边界（与后端域一致：size 1..200，opacity 0.1..1.0）。
+export const SIZE_MIN = 1;
+export const SIZE_MAX = 200;
+export const SIZE_STEP = 2;
+export const OPA_MIN = 0.1;
+export const OPA_MAX = 1.0;
+export const OPA_STEP = 0.05;
+
+// stepBrushSize(cur, dir) → 新笔刷直径（dir=+1/-1，钳制 1..200 取整）
+export function stepBrushSize(cur, dir) {
+  const v = (Number(cur) || 0) + (dir >= 0 ? SIZE_STEP : -SIZE_STEP);
+  return Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(v)));
+}
+
+// stepOpacity(cur, dir) → 新预览透明度（dir=+1/-1，钳制 0.1..1.0，保留 2 位小数）
+export function stepOpacity(cur, dir) {
+  const v = (Number(cur) || 0) + (dir >= 0 ? OPA_STEP : -OPA_STEP);
+  return Math.max(OPA_MIN, Math.min(OPA_MAX, Math.round(v * 100) / 100));
+}
 
 // 节点最小宽高（控件不溢出前提下的下限）：
-// - 宽度：行1 五按钮（Load 56/Browse 52/Clear 44/Undo 44/Eraser 52 + 间隙）
-//   + 右侧色块列 40 ≈ 300，面板可用宽 = W-82 → W≥400 取整 420；
-// - 高度：panelH 58 + bottomH 22 + 上下边距 20 + 画布最小 200 → 300，取 320。
+// - 宽度：底行 Load(72)/Browse(48)（右缘 135）+ 最小文本窗（信息文本溢出
+//   时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 与 CropExpand 同款 420；
+// - 高度：竖列 10 项（列顶 16 起，步进 22，底 =16+10*22-4=232）+ 底行 26 +
+//   上下边距 → 取整 320。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
 // 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。
@@ -41,19 +86,19 @@ export function hitResizeCornerSE(localX, localY, w, h, handleSize = RESIZE_HAND
 }
 
 // computeDisplayMetrics(state, nodeW, nodeH) → 显示坐标系
-// state: {srcW, srcH}；显示区为节点内让出顶面板与底信息行后的矩形，
-// 源图按 min(scaleX, scaleY) 等比居中。
+// state: {srcW, srcH}；显示区为节点内让出左工具列与底信息行后的矩形，
+// 源图按 min(scaleX, scaleY) 等比居中（公式与 sf_crop_expand_lib.js 同形）。
 export function computeDisplayMetrics(state, nodeW, nodeH) {
-  const { shiftLeft, shiftRight, panelH, bottomH } = LAYOUT;
-  const areaW = Math.max(1, nodeW - shiftRight - shiftLeft);
-  const areaH = Math.max(1, nodeH - shiftLeft - panelH - bottomH - shiftLeft);
+  const { shiftLeft, shiftRight, toolColW, toolColGap, bottomH } = LAYOUT;
+  const areaW = Math.max(1, nodeW - shiftRight - shiftLeft - toolColW - toolColGap);
+  const areaH = Math.max(1, nodeH - shiftLeft - shiftLeft - bottomH);
   const srcW = Math.max(1, state.srcW || 512);
   const srcH = Math.max(1, state.srcH || 512);
   const scale = Math.min(areaW / srcW, areaH / srcH);
   const scaledW = srcW * scale;
   const scaledH = srcH * scale;
-  const offsetX = shiftLeft + (areaW - scaledW) / 2;
-  const offsetY = shiftLeft + panelH + (areaH - scaledH) / 2;
+  const offsetX = shiftLeft + toolColW + toolColGap + (areaW - scaledW) / 2;
+  const offsetY = shiftLeft + (areaH - scaledH) / 2;
   return { scale, offsetX, offsetY, scaledW, scaledH, areaW, areaH };
 }
 

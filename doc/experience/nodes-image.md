@@ -420,3 +420,9 @@
 - `web/sf_brush_mask_lib.js`：`LAYOUT/MIN/ensureMinSize/hitResizeCornerSE/computeDisplayMetrics/localToImage/imageToLocal/clampToImage/parseStroke/parseBrushData/buildBrushData`（禁 import sf_common）。
 - `web/sf_brush_mask.js`：主扩展（`sfnodes.BrushMask`，复用 `CropAPI.uploadSrc`/`installPasteHandler`/`showImageBrowser` 选择器/`buildSourceURL`/`sfToast`/`getSfAccent`）。
 - 数据契约：`SFBrushMaskJson`（hidden STRING，graphToPrompt 注入 lean JSON）；`properties.sfBrushMaskState`（全量，含预览字段）；`sfnodes_crop` subfolder（与 Crop 共用目录，前缀 `brushmask_` + 时间戳防撞名）。
+
+### 7. 控件 CropExpand 化（2026-09，用户确认改版）
+
+- **布局**：初版顶面板（按钮行 + Size/Opacity 横向滑块 + 色块）改为 CropExpand 同形——左工具竖列 `TOOL_COL` 10 项（Brush/Erase 模式 → Clear/Undo → Size±/Opa± → BCol/ECol）+ 底行 Load Image/Browse 与信息文本同排。`LAYOUT` 与 `computeDisplayMetrics` 公式与 `sf_crop_expand_lib.js` 逐字同形（竖列 `toolColW/toolColGap` 让宽、底行 `bottomH` 让高），`buttonRect` 的 `BOTTOM_Y` 运行时解析亦同款。
+- **滑块→步进器**：30px 竖列放不下横向拖拽滑块，改为纯函数步进（`stepBrushSize` 步长 2 钳制 1..200 / `stepOpacity` 步长 5% 钳制 0.1..1.0，lib 可测）；实时数值进底行信息文本（`Brush 80 · Op 50% · Strokes 3 · 512×512`，超宽截断 `…`）。取色按钮背景即当前色、文字按亮度取黑/白（CropExpand Color 按钮同款）。
+- **影响面**：纯前端（lib + 主扩展 + mjs 测试 + 本节/架构一行）；后端、隐藏输入契约、`tests/test_brush_mask.py` 零改动。
