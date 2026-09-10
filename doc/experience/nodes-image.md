@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -378,3 +378,45 @@
 - 纯函数 `ensureMinSize(w,h)` 收敛 lib（computeSize 包装与 clampNodeSize 共用，避免双份 Math.max）。⚠ 底部信息文本超界与节点大小无关：`computeDisplayMetrics` 的 areaH 原本未预留文本行，显示区填满画布时文本基线 y = nodeH+5 **恒超界 5px**（抬 MIN 无效，曾误判为"368 够用"）——修法是画布区高度让出 `TEXT_RESERVE=20`（基线 +15 + 字形余量），此后基线最坏 y = nodeH-15 恒在界内。
 - 已保存工作流恢复（configure 直接赋 size 不走 computeSize）仍由 onConfigure 的 clampNodeSize 兜底；工作流里偏小的存量 size 会被抬到 MIN（可接受的显示修正）。
 - **右下角 resize cursor 视觉修正**：拖动命中区维持原生 15×15（`resizeHandleSize`，用户确认无需扩大）；问题是 cursor 几乎不显示——`pointer.resizeDirection` 被**两处反复清空**（诊断栈：①`updateMouseOverNodes` hover 判定切换时无条件清，右下角边缘 over 判定与命中区不重合时闪清；②**第三方扩展重放 `processMouseMove`**——如 `Comfyui_LG_Tools/queue_shortcut.js` 包装后每次物理移动跑 ≥2 遍，第二遍清掉刚设的 dir；帧尾 `updateCursorStyle` 读到空即写回 default）。修法：扩展注册一个后执行的 `window mousemove` listener，原生 15×15 区内**直接写 `canvas.style.cursor="nwse-resize"`**（dir→帧尾 updateCursorStyle→css 的间接链路被清空/时序问题拖垮，直接写绕开；同时补写 `pointer.resizeDirection="SE"` 双保险），区外仅在 cursor 是自己写入时恢复 `""`（`_sfCursorOwned` 标志，不覆盖槽 grab 等原生 cursor），`pointer.eDown` 时跳过——诊断手段：包装属性 setter（`Object.defineProperty` + 打印 set 调用栈）定位"状态被谁清"；曾试过包装 `findResizeDirection` 扩大到 30×30，被清空问题依旧（清空与命中区大小无关），按用户要求回退。
+
+---
+
+## 45. SFImageBrushMask：节点内画笔遮罩（复刻 YCNodes Load Image Brush Mask）
+
+> 背景：`nodes/image/brush_mask.py:SFImageBrushMask` + `sf_utils/brush_mask.py` 纯逻辑 + `web/sf_brush_mask_lib.js`（纯几何/解析）+ `web/sf_brush_mask.js`（主扩展）。复刻 ComfyUI-YCNodes_Toolkit `ycimagebrushmask`：节点上加载图片后画笔直接涂抹二值遮罩（brush 涂白 / eraser 擦除），输出源图 + 遮罩 + 宽高 + filename。
+
+### 1. 与原版的确认差异（开工前拍板：5 输出 / 纯手动 / 预览语义保留 / 复用 crop 路由 / 隐藏 JSON）
+
+- **图片持久化**：原版 base64 进 widget（工作流巨大，作者 README 自述"导出前先清图片重建节点"）+ 会话内 `Map` 缓存（刷新即丢图）。本实现复用 `crop.py` 的 `/api/sfnodes/crop/upload_src` 落盘 `input/sfnodes_crop/`（`CropAPI.uploadSrc` 前端束 + `_safe_join` 后端守卫），状态只存 `src_path`，重载经 `/view` 恢复预览——**零新增后端路由**（§37 同款）。
+- **状态收敛**：原版 5 个 widget（brush_data/brush_size/image_base64/image_width/image_height，`widgets_start_y=-4.8e8` hack 藏件 + `onSerialize` 清空 base64）→ 单个 `properties.sfBrushMaskState` JSON + graphToPrompt 注入隐藏输入 `SFBrushMaskJson`（§37 outpaint 先例；**无隐藏 widget 创建**——注入即通道，properties 随工作流保存即恢复通道）。
+- **输出 +1**：原版 4 输出（IMAGE/MASK/INT/INT）→ 加 `filename` STRING（src_path 原样，可直连 LoadImage，未加载空串；§37 同款）。
+- **mask 恒二值**：Opacity/取色仅前端预览叠加透明度/颜色，后端忽略（与原版语义一致——原版解析 opacity/color 后丢弃；DESCRIPTION 注明，避免"调了没效果"的误报）。
+
+### 2. 颜色误判 bug（原版真 bug，复刻时修复）
+
+- **症状**：旧格式多点笔触 `brush:20:1.0:10,10;20,20` 中 `parts[3]="10,10;20,20"`，`split(",").length===3` 被当成 `r,g,b` 颜色——JS `parseInt("10;20")→10` 静默截断不抛错，`(10,10,20)` 通过 RGB 校验 → 整笔点列被吃掉（`pointsStr=""`），该笔凭空消失。Python 侧 `int(float("10;20"))` 抛 ValueError 反而幸免——**双端行为分叉**。
+- **修法**：颜色判定加严格形态检查——三段必须全匹配 `/^\s*\d+\s*$/`（`sf_brush_mask_lib.js::parseStroke`），`"255,0,0"` 走颜色分支，`"10,10;20,20"` 走点列分支。Python 侧 `int(float())` 天然严格，无需改动。回归用例：新无色多点格式双端同期望锁定。
+
+### 3. lean 注入（改预览不重跑）
+
+- graphToPrompt 注入载荷经 `leanState()` 过滤：只含 `src_path/src_w/src_h/brush_size/strokes`；`brush_opacity/brush_color/eraser_color/brush_mode` 不进 prompt——改颜色/透明度不改变 prompt 输入哈希。`IS_CHANGED` 的 `_lean_key` 同口径（`|` 分隔 strokes JSON + brush_size + src），预览字段双重排除（测试锁定：改三预览字段键不变）。
+- 笔触落定时坐标 `Math.round` 取整存 strokes（后端 `int(float())` 同语义，双端镜像）。
+
+### 4. 前端移植要点（§37/§44 同款修复全套）
+
+- 面板几何：顶面板（Load/Browse/Clear/Undo/Eraser + 右对齐双色块 + Size/Opacity 双滑块）与绘制/命中共用 `buildControls()` 几何；`MIN_NODE_WIDTH/HEIGHT=420×320` 按按钮行宽（≈300 + shiftRight 80 + 边距）推导，注释留推导过程；底信息行文本 `measureText` 溢出截断 `…`（§37 同款）。
+- 绘制：`computeSize` 包装 + 创建/恢复 `clampNodeSize`（§44）；右下角 cursor 后注册 mousemove 补写（§44，独立 `_sfBrushMaskCursorPatch` 标志——与 CropExpand 的 patch 各扫自家 `comfyClass`，共存无干扰）；`installPasteHandler`（`comfyClass:hook` 键已防多类互斥）+ 拖放 + Browse 选择器模式共用 `loadAndStoreImage` 单链路；换图清空 strokes（原版语义）。
+- 落笔：`onMouseDown` 面板命中（滑块 > 色块 > 按钮）→ 画布区左键起笔（`clampToImage` 钳制，与原版 `valueUpdate` 一致）→ `onMouseMove` 距离 >1px 追加（降噪）→ `onMouseUp` + 全局 mouseup 兜底落定（移出节点松开也落笔）。进行中笔触只进内存 `_sfBrushCur`（不写 properties），落定才追加 strokes 写回——拖拽中途不污染可序列化状态。
+
+### 5. 测试
+
+- `tests/test_brush_mask.py`：mock torch（numpy 代理，`[None,]`/`.shape` 原生支持）/aiohttp/folder_paths（先加载 crop.py 满足同包 `_safe_join` 导入）；覆盖结构 + 注册键文本断言 + `_parse_state` + 纯逻辑三格式/越界/往返 + 栅格化（单点/线段连续/erase 清零/空笔全黑）+ execute 磁盘源与缺源退化 + IS_CHANGED（含预览字段不进键）。
+- `tests/test_brush_mask_lib.mjs`：lib 拷 `.mjs` 直跑——MIN/cursor 判定/显示坐标往返/钳制/三格式解析/build 往返（含 §2 颜色误判回归）。
+
+### 6. 模块边界
+
+- `sf_utils/brush_mask.py`：`parse_strokes`（旧串→裁剪笔触）/`parse_state_strokes`（state 结构化→裁剪笔触）/`build_brush_data`（往返/兼容）/`rasterize_strokes` + `_draw/_erase_circle/_stamp_line`（仅 numpy）。
+- `nodes/image/brush_mask.py`：`SFImageBrushMask` + `_parse_state`/`_lean_key`（5 输出，`filename`=src_path 原样）。
+- `web/sf_brush_mask_lib.js`：`LAYOUT/MIN/ensureMinSize/hitResizeCornerSE/computeDisplayMetrics/localToImage/imageToLocal/clampToImage/parseStroke/parseBrushData/buildBrushData`（禁 import sf_common）。
+- `web/sf_brush_mask.js`：主扩展（`sfnodes.BrushMask`，复用 `CropAPI.uploadSrc`/`installPasteHandler`/`showImageBrowser` 选择器/`buildSourceURL`/`sfToast`/`getSfAccent`）。
+- 数据契约：`SFBrushMaskJson`（hidden STRING，graphToPrompt 注入 lean JSON）；`properties.sfBrushMaskState`（全量，含预览字段）；`sfnodes_crop` subfolder（与 Crop 共用目录，前缀 `brushmask_` + 时间戳防撞名）。
