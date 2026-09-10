@@ -39,14 +39,16 @@ export const LAYOUT = { shiftLeft: 10, shiftRight: 80, ratioColW: 34, ratioColGa
 export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
-// 节点最小宽高：左侧竖列（11 项）+ 画布区 + 底行（Load Image/Browse 按钮
-// + 信息文本同排，宽度由两者之和驱动）所需空间。双端拖拽 resize 的最小值都
-// 取自 node.computeSize()（前端包实测 onDrag 里 clamp 到 computeSize）——主
-// 扩展包装 computeSize 返回 ensureMinSize 结果钳住拖拽；创建/恢复两处
-// clampNodeSize 兜底。加载图片不改节点大小（显示区 scale 动态适配现有画布
-// 区域）。
-export const MIN_NODE_WIDTH = 480;
-export const MIN_NODE_HEIGHT = 368;
+// 节点最小宽高（控件不溢出前提下的下限）：
+// - 高度：竖列 11 项（colTop=16 起，步进 22，底 ≈254）+ 底行 26 + 上下边距
+// - 宽度：底行 Load Image/Browse（右缘 135）+ 最小文本窗 120（信息文本溢出
+//   时截断 "…"，节点拉宽即恢复全文）+ 间隙与 shiftRight
+// 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
+// clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
+// 钳住拖拽；创建/恢复两处 clampNodeSize 兜底。加载图片不改节点大小（显示
+// 区 scale 动态适配现有画布区域）。
+export const MIN_NODE_WIDTH = 360;
+export const MIN_NODE_HEIGHT = 300;
 
 // ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，
 // 非 0 数值原样放行）。computeSize 包装与 clampNodeSize 共用。

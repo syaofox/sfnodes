@@ -121,13 +121,12 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("RATIO_PRESETS_COL free 置顶 + 预设", JSON.stringify(L.RATIO_PRESETS_COL) === JSON.stringify(["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
   check("LAYOUT 字段", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.ratioColW === 34 && L.LAYOUT.ratioColGap === 6 && L.LAYOUT.bottomH === 26);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
-  // 最小节点尺寸：左侧竖列（11 项：free+7 预设+Custom/Reset/Color）+ 画布区 +
-  // 底行（Load Image/Browse 按钮 150 + 信息文本 ~240 同排）
+  // 最小节点尺寸（控件不溢出下限）：竖列 11 项（free+7 预设+Custom/Reset/Color）
+  // + 底行（按钮右缘 135 + 最小文本窗 120，信息文本溢出截断 "…"）
   const colRows = L.RATIO_PRESETS_COL.length + 3; // + Custom/Reset/Color
-  const colNeedH = 6 + colRows * 22 - 4;
-  check("MIN_NODE高度覆盖竖列与底行", L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft + colNeedH + L.LAYOUT.bottomH + L.LAYOUT.shiftLeft + 20);
-  // 底行布置：按钮右缘 150 + 间隙 6 + 文本 ~200（右对齐至 nodeW-shiftRight-6）
-  check("MIN_NODE宽度覆盖底行按钮+文本", L.MIN_NODE_WIDTH >= L.LAYOUT.shiftRight + 6 + 200 + 6 + 150);
+  const colNeedH = 6 + colRows * 22 - 4; // colTop=shiftLeft+6 起，步进 22
+  check("MIN_NODE高度覆盖竖列与底行", L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft + colNeedH + L.LAYOUT.bottomH + L.LAYOUT.shiftLeft);
+  check("MIN_NODE宽度覆盖底行按钮+文本窗", L.MIN_NODE_WIDTH >= L.LAYOUT.shiftRight + 6 + 120 + 6 + 135);
 
   // ── 画布区与底行不重叠（bottomH 预留恒等式）──
   {

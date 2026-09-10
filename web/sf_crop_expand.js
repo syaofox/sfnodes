@@ -219,10 +219,11 @@ function buildButtons(node) {
       action: () => pickFillColor(node),
     }),
   );
-  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析）
+  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析；按钮右缘 135，
+  // 其右为信息文本窗——MIN 宽度下文本不足时截断，见 setupDrawing）
   buttons.push(
-    { text: "Load Image", x: 10, y: BOTTOM_Y, w: 80, h: 21, action: () => pickFile(node) },
-    { text: "Browse", x: 95, y: BOTTOM_Y, w: 55, h: 21, action: () => browseImage(node) },
+    { text: "Load Image", x: 10, y: BOTTOM_Y, w: 72, h: 21, action: () => pickFile(node) },
+    { text: "Browse", x: 87, y: BOTTOM_Y, w: 48, h: 21, action: () => browseImage(node) },
   );
   return buttons;
 }
@@ -560,18 +561,23 @@ function setupDrawing(node) {
 
     drawButtons(ctx, node);
 
-    // 信息文本（与底行按钮同排，右对齐到输出槽区前）
+    // 信息文本（与底行按钮同排，右对齐到输出槽区前；空间不足时截断 "…"）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
     ctx.textAlign = "right";
     const ext = isExtended(
       { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, st.src_w, st.src_h)
       ? " (Extended)" : "";
-    ctx.fillText(
-      `Source: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}`,
-      nodeW - shiftRight - 6,
-      bottomY + BTN_H / 2 + 3.5,
-    );
+    const fullText = `Source: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}`;
+    const maxTextW = nodeW - shiftRight - 6 - (135 + 6); // 底行按钮右缘 135 + 间隙 6
+    let label = fullText;
+    if (ctx.measureText(fullText).width > maxTextW) {
+      while (label.length > 1 && ctx.measureText(label + "\u2026").width > maxTextW) {
+        label = label.slice(0, -1);
+      }
+      label += "\u2026";
+    }
+    ctx.fillText(label, nodeW - shiftRight - 6, bottomY + BTN_H / 2 + 3.5);
   };
 }
 
