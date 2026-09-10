@@ -434,3 +434,53 @@
 - **排查**：先怀疑帧间因素——分段 console 诊断（205 次 `onDrawForeground` 调用：size 恒 420×320、ds 恒定、零重入、零同帧多画、`clear_background=true`+`dirty_area=null`）一锤排除（诊断脚本见 §45 配套：包装计数 `size/ds` 分布 + 重入 + 同毫秒多画，四个假说一次证伪）。帧间静态 + 逐帧全清 ⇒ 只能是**单帧内画序错**。
 - **根因**：底栏背景（`rgba(40,40,40,0.9)`）画在底行按钮**之后**——后画盖先画，按钮以一成亮度透出：发虚的按钮 + 按钮边框与底栏边框错层 = "多重边框"。CropExpand 是先底栏后 `drawButtons`，合并循环时把顺序搞反了。
 - **修法**：底栏背景块移到按钮循环之前（`tests/test_brush_mask_smoke.js` 锁定：FakeCtx 记录 op 流，断言底行按钮 fill 在底栏 fill 之后；已验证旧错序 FAIL/新顺序 PASS）。**教训：同节点多层半透明 chrome 必须按"背景→控件→文本"分层绘制，写循环合并时保持层序**——冒烟断言时注意同色复用陷阱（底栏与竖列底条同 `rgba(40,40,40,0.9)`，必须用 `roundRect(高29)` 定位底栏，不能按色取第一个 fill）。
+
+### 9. SAM 右键图层：核心 SAM3_Detect 委托（2026-09）
+
+> 背景：刷子节点右键菜单用文本 prompt 跑 SAM 分割，结果与手绘笔触取并集。`nodes/image/brush_mask_sam.py`（委托链 + 三路由）+ `brush_mask.py`（状态/并集/IS_CHANGED）+ `web/sf_brush_mask.js`（菜单/对话框/叠加预览）。
+
+### 1. 只调核心，不碰第三方（此前走弯路的教训）
+
+- 初版调研误判 core 无 SAM（只搜了 `comfy/`，漏了 `comfy_extras/`），一度计划复用 GPL-3.0 的 ComfyUI-RMBG 包（拷贝传染 / 自研 safetensors 权重桥 / iopath-ftfy 依赖链全是坑）。用户指正后确认：**core 0.35 `comfy_extras/nodes_sam3.py:SAM3_Detect` + `comfy/ldm/sam3/` + 判型 `SAM31` 全套原生支持**，`models/checkpoints/sam3.1_multiplex_fp16.safetensors` 三 marker 全中。结论：**新模型先查 `comfy/model_detection.py` + `supported_models.py` 再谈复用第三方**。
+- 委托链（与手写工作流等价，全 core API）：`get_full_path_or_raise("checkpoints")` → `load_checkpoint_guess_config(output_vae=False)` 同文件拆 MODEL+CLIP → `CLIPTextEncode.encode(clip, prompt or "object")` → `SAM3_Detect.execute(model, image, conditioning, threshold, refine_iterations=2, individual_masks=False)` → `out[0]`（`NodeOutput` 支持下标）。MODEL/CLIP 按 checkpoint 常驻缓存（core 自带 `cached_patcher_init` 之外再包一层防重复拆文件）；全部 import 函数内 lazy，旧版 core 缺席时节点照常加载、点击才报中文错。
+
+### 2. 位图→笔触鸿沟走覆盖层，不转矢量
+
+- SAM 输出位图，转矢量笔触有损且复杂。状态加 `sam_mask_path`（落盘灰度 PNG）+ `sam_prompt`/`sam_threshold`（对话框记忆，不进注入）；`execute()` 输出 `max(笔触, SAM)` 并集，无层退化为纯笔触（零回归）；`IS_CHANGED` 加 SAM 文件 `(mtime,size)` 键；lean 注入加路径（内容变化走文件键）。
+- 前端预览：SAM 灰度图离屏染白（fill 白 + destination-in），`globalAlpha 0.5` 叠加在源图上、笔触之下；信息文本追 `· SAM:<词>`；换图/清除层同步清叠加（`loadSamOverlay` 有路径竞态守卫）。
+
+### 3. 右键菜单与对话框
+
+- `getExtraMenuOptions` 原型包装（any_pack 先例）：「SAM 蒙版：文本选择…」（无源图先 toast 拦）/「清除 SAM 蒙版」（有层才显示）/「卸载 SAM 模型」（清缓存 + `empty_cache`）。对话框仿 CropExpand Custom 比例弹窗（Enter 确认/Esc 关闭/放行组合键）。
+- 门禁诊断路由 `GET …/sam_status`（core/模型/已加载三态）；`POST …/sam(_unload)` 走 `api.fetchApi + sfApiUrl`（托管基址/鉴权，crop_core 同款）。
+
+### 4. 测试
+
+- `tests/test_brush_mask_sam.py`：mock torch（numpy 代理 + 链式 FakeTensor）/comfy.sd/nodes/CLIPTextEncode/comfy_extras SAM3_Detect——委托链（空 prompt→object/阈值钳制/refine=2/union 参数）/缓存单拆/缺模型报错/unload/`_handle_sam`（400/200 落盘/500）/execute 并集与退化/IS_CHANGED 含 SAM 键。
+- smoke 扩展：菜单三项存在性 + 无层/有层清除项显隐；`/scripts/api.js` 绝对导入同步进改写表（漏改会 `ERR_MODULE_NOT_FOUND`，已踩）。
+
+### 5. 路由外推理必关进度钩子（2026-09，真机报错）
+
+- **症状**：`[SFImageBrushMask:sam] inference failed: 'PromptServer' object has no attribute 'last_prompt_id'`——模型/CLIP 加载日志全正常，死在 `SAM3_Detect.execute` 内。
+- **根因**：新版 core 的 `PROGRESS_BAR_HOOK` 在广播进度时读 `PromptServer.last_prompt_id`（该属性只在队列执行上下文中存在）；SAM 路由跑在执行之外，`ProgressBar(B)` 首次 `update` 即炸。**凡在路由/后台线程里调 core 节点 execute，都要先处理进度上下文**。
+- **修法**：推理期 `comfy.utils.PROGRESS_BAR_HOOK = None` + `finally` 还原（`ProgressBar` 为 None 时跳过广播分支，core 源码确认）。不写 server 状态（并发执行的已创建 bar 持有旧引用不受影响）；mock 测试锁“期内置空 + 事后还原”。
+
+### 6. SAM 叠加槽串扰源图槽（2026-09，真机白屏）
+
+- **症状**：SAM 蒙版显示为全屏白色遮罩。
+- **根因**：`loadSamOverlay`/`clearSamLayer` 错用源图槽 `_sfSamImg`（加载时把蒙版图写进源图槽并清空源预览，清除时再清空一次）——照片被蒙版顶替 + 白色叠加 = 满屏白。**教训：同节点多图层预览必须一层一槽（源图/笔触/SAM 各自独立属性），命名即注释槽位归属**。
+- **修法**：SAM 专用 `_sfSamMaskImg` 槽，smoke 锁“恢复/清除不碰源图槽”。另加覆盖率回传（`coverage` 进 toast）：若覆盖 ~100% 则是 prompt/阈值问题（检测框罩全图），非显示 bug——显示与内容二分法的第一手证据。
+
+### 7. 叠加预览：亮度蒙版 ≠ 透明蒙版（2026-09，满屏白）
+
+- **症状**：后端输出 mask 正常，节点上 SAM 叠加层满屏白。
+- **根因**：染白用 `destination-in` 想按蒙版裁形状——但该算子按 **alpha** 合成，灰度 PNG 无 alpha 通道（全像素 alpha=255），整张白底一像素都没被裁。错把“亮度蒙版”当“透明蒙版”（inpaint 的 `destination-in` 操作的是自带 alpha 的 RGBA 遮罩画布，两码事）。
+- **修法**：逐像素把亮度搬到 alpha（白 RGB + alpha=亮度，inpaint `_loadMaskFromURL` 同款转换，灰度取三通道均值保渐变）。smoke 锁：4×2 半白蒙版桩 → putImageData 的 alpha 通道必须白区 255/黑区 0。**教训：canvas 合成前先问“形状载体是 alpha 还是亮度”**——排查时顺带抓到 harness 旧桩残留（`globalThis.Image = class {}` 把新桩覆盖，`new Image()` 静默走空类，属“测试桩自覆盖”一类，改桩后 grep 全文件确认无残留）。
+- **附带**：`sam_status` 门禁 + 成功 toast 带覆盖率，分流“内容问题（prompt/阈值）vs 显示问题”。
+
+### 8. SAM 转矢量 fill 笔触，不再区分图层（2026-09，用户拍板）
+
+- **动因**：覆盖层链路连环出显示 bug（槽串扰源图槽 §6、亮度/alpha 误用 §7），且位图层与笔触是两套心智（清除/撤销/擦除语义分叉）。改为：SAM 结果经轮廓追踪转为 fill 笔触直接并入列表——添加/擦除/撤销/Clear 全通用，覆盖层/并集/文件键整类删除。
+- **管线**：`mask_to_fill_strokes`（`cv2.findContours` RETR_EXTERNAL + `approxPolyDP(eps=1.5)` + 面积 <16px 丢弃 + 只留最大 64 个，一轮廓一笔，Undo 以物体为粒度）→ 后端 `rasterize_strokes` fill 分支（PIL `ImageDraw.polygon` 整体填充，无需 cv2，本地可真测）→ 前端 `drawStrokePath` fill 分支（`closePath+fill`，擦除笔触按画序覆盖）。`parse_state_strokes` 放行 `fill` 模式；旧串格式无 fill（只走 state）。
+- **契约**：路由回 `{strokes, count, coverage}`（不落盘）；`sam_mask_path` 退出状态（旧工作流残留被忽略）；lean/IS_CHANGED 回归纯笔触键。空结果回 `strokes: []` + warn toast（笔触不变）。
+- **测试**：cv2 用行为桩（方框轮廓 + 鞋带面积 + approx 恒等——测我方管线：点序/面积过滤/数量上限/格式，而非 cv2 本体）+ PIL 真实像素断言（fill 块内外/erase 可擦 fill）+ smoke（菜单两项 + fill 触发 `fill` op）。

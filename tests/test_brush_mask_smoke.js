@@ -19,8 +19,7 @@ function check(name, cond) {
 globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
 globalThis.window = { addEventListener() {} };
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: {} };
-globalThis.Image = class {};
-
+ 
 // ── FakeCtx：记录 op + 调用时 fillStyle ──
 function makeCtx(ops) {
   const state = {};
@@ -43,9 +42,11 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
-    `export const sfToast = () => {}; export const buildSourceURL = () => null; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null;\n`);
+    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p;\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     `export function showImageBrowser() {}\n`);
+  fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
+    `export const api = { fetchApi: async () => ({ ok: true, json: async () => ({}) }) };\n`);
   // 纯库用真实实现
   fs.copyFileSync(path.join(webDir, "sf_brush_mask_lib.js"), path.join(tmpDir, "sf_brush_mask_lib.js"));
 
@@ -53,10 +54,11 @@ function makeCtx(ops) {
   let code = fs.readFileSync(path.join(webDir, "sf_brush_mask.js"), "utf8");
   code = code
     .replace('from "/scripts/app.js"', 'from "./stub_app.js"')
+    .replace('from "/scripts/api.js"', 'from "./stub_api.js"')
     .replace('from "./sf_crop_core.js"', 'from "./stub_core.js"')
     .replaceAll('from "./sf_common.js"', 'from "./stub_common.js"')
     .replace('from "./image_browser.js"', 'from "./stub_browser.js"');
-  check("import 改写无残留", !code.includes("/scripts/app.js") && !code.includes("sf_crop_core.js"));
+  check("import 改写无残留", !code.includes("/scripts/app.js") && !code.includes("/scripts/api.js") && !code.includes("sf_crop_core.js"));
   fs.writeFileSync(path.join(tmpDir, "sf_brush_mask.js"), code);
   await import(path.join(tmpDir, "sf_brush_mask.js"));
 
@@ -102,6 +104,26 @@ function makeCtx(ops) {
     .filter(({ o }) => o.op === "fillRect" && o.fill === "rgba(60,60,60,0.7)" && o.args[1] >= 285 && o.args[1] <= 295)
     .map(({ i }) => i);
   check("底行按钮画在底栏背景之后（§45.8）", btnIdx.length === 2 && btnIdx.every((i) => i > barIdx));
+
+  const opts = [];
+  node.getExtraMenuOptions({}, opts);
+  check("菜单有 SAM 蒙版项", opts.some((o) => o.content.includes("SAM 蒙版")));
+  check("菜单有卸载 SAM 项", opts.some((o) => o.content.includes("卸载 SAM")));
+  check("菜单仅两项（无覆盖层清除项）", opts.length === 2);
+
+  // fill 笔触绘制：整体填充闭合多边形（SAM 并入，§45.9）
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, strokes: [
+      { mode: "fill", size: 0, points: [[10, 10], [50, 10], [50, 50], [10, 50]] },
+    ],
+    brush_opacity: 0.5, brush_color: "255,255,255", eraser_color: "255,50,50", brush_mode: "brush",
+    sam_prompt: "person", sam_threshold: 0.5,
+  });
+  const ops2 = [];
+  node.onDrawForeground(makeCtx(ops2));
+  const fills = ops2.filter((o) => o.op === "fill");
+  check("fill 笔触触发填充", fills.length >= 1);
+  check("fill 用画笔色半透明", fills.some((o) => o.fill === "rgba(255,255,255,0.5)"));
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

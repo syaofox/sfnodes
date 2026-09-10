@@ -27,8 +27,9 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
+import { api } from "/scripts/api.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent, installPasteHandler } from "./sf_common.js";
+import { sfToast, buildSourceURL, getSfAccent, installPasteHandler, sfApiUrl } from "./sf_common.js";
 import { showImageBrowser } from "./image_browser.js";
 import { parseAnnotatedImageValue } from "./sf_common.js";
 import {
@@ -66,6 +67,9 @@ const DEFAULT_STATE = {
   brush_color: "255,255,255",
   eraser_color: "255,50,50",
   brush_mode: "brush",
+  // SAM 对话框记忆（不进 lean 注入；SAM 结果即 fill 笔触进 strokes）
+  sam_prompt: "",
+  sam_threshold: 0.5,
 };
 
 // ── 状态读写 ──────────────────────────────────────────────────────────────
@@ -84,7 +88,8 @@ function setState(node, patch) {
   return next;
 }
 
-// lean 注入载荷：只含影响结果的字段（改 opacity/颜色/模式不重跑）
+// lean 注入载荷：只含影响结果的字段（改 opacity/颜色/模式/记忆项不重跑；
+// SAM 结果即 fill 笔触，随 strokes 进键）
 function leanState(st) {
   return {
     src_path: st.src_path || "",
@@ -295,6 +300,149 @@ function colorTextStyle(color) {
   return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
 }
 
+// ── SAM（右键菜单 → 核心 SAM3_Detect → fill 笔触并入列表统一管理）────────
+// 后端见 nodes/image/brush_mask_sam.py（三路由 sam/sam_unload/sam_status）。
+
+async function samPost(path, body) {
+  const res = await api.fetchApi(sfApiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* 非 JSON 回退 */ }
+  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  return data || {};
+}
+
+async function runSamMask(node, prompt, threshold) {
+  const st = getState(node);
+  if (!st.src_path) {
+    sfToast({ summary: "SF Brush Mask", detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: "SF Brush Mask" });
+    return;
+  }
+  sfToast({ summary: "SF Brush Mask", detail: `SAM 推理中：${prompt || "object"}…（首次需加载 1.7GB 模型）`, severity: "info", life: 5000, fallbackTag: "SF Brush Mask" });
+  try {
+    const data = await samPost("/api/sfnodes/brush_mask/sam", {
+      src_path: st.src_path, prompt, threshold,
+    });
+    const incoming = Array.isArray(data && data.strokes) ? data.strokes : [];
+    if (!incoming.length) {
+      setState(node, { sam_prompt: prompt, sam_threshold: threshold });
+      stateChanged(node);
+      sfToast({ summary: "SF Brush Mask", detail: "SAM 未检出目标（空结果，笔触不变）", severity: "warn", fallbackTag: "SF Brush Mask" });
+      return;
+    }
+    setState(node, {
+      strokes: [...st.strokes, ...incoming],
+      sam_prompt: prompt,
+      sam_threshold: threshold,
+    });
+    stateChanged(node);
+    const cov = data.coverage != null ? `覆盖 ${Math.round(data.coverage * 100)}%，` : "";
+    sfToast({ summary: "SF Brush Mask", detail: `SAM 并入 ${incoming.length} 个填充笔触（${cov}可擦除/撤销）`, severity: "success", fallbackTag: "SF Brush Mask" });
+  } catch (err) {
+    console.error("[SF Brush Mask] sam failed:", err);
+    sfToast({ summary: "SF Brush Mask", detail: `SAM 失败：${(err && err.message) || err}`, severity: "error", life: 6000, fallbackTag: "SF Brush Mask" });
+  }
+}
+
+async function unloadSamModel() {
+  try {
+    const data = await samPost("/api/sfnodes/brush_mask/sam_unload", {});
+    sfToast({
+      summary: "SF Brush Mask",
+      detail: data && data.unloaded ? "SAM 模型已卸载，显存已释放" : "SAM 模型未在驻留，无需卸载",
+      severity: "info", fallbackTag: "SF Brush Mask",
+    });
+  } catch (err) {
+    console.error("[SF Brush Mask] sam unload failed:", err);
+    sfToast({ summary: "SF Brush Mask", detail: `卸载失败：${(err && err.message) || err}`, severity: "error", fallbackTag: "SF Brush Mask" });
+  }
+}
+
+// SAM prompt 对话框（prompt 文本 + threshold；Enter 确认 / Esc 关闭；
+// 放行 ctrl/meta/alt 组合键。样式同 CropExpand Custom 比例弹窗。）
+function openSamDialog(node) {
+  const st = getState(node);
+  if (!st.src_path) {
+    sfToast({ summary: "SF Brush Mask", detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: "SF Brush Mask" });
+    return;
+  }
+  if (document.getElementById("sf-brush-mask-sam-overlay")) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "sf-brush-mask-sam-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;";
+
+  const dialog = document.createElement("div");
+  dialog.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);" +
+    "background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:12px 14px;" +
+    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:300px;box-sizing:border-box;";
+  const lastPrompt = st.sam_prompt || "";
+  const lastThr = st.sam_threshold ?? 0.5;
+  dialog.innerHTML = `
+    <div style="color:#ddd;font-size:13px;margin-bottom:10px;font-weight:bold;">SAM 蒙版：文本选择</div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Prompt（英文，如 person / car，为空按 object）</label>
+      <input type="text" id="sf-bm-sam-prompt" value="${String(lastPrompt).replace(/"/g, "&quot;")}" placeholder="person"
+        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Threshold（0-1，越低越多）</label>
+      <input type="number" id="sf-bm-sam-thr" value="${lastThr}" min="0" max="1" step="0.05"
+        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="sf-bm-sam-cancel" style="padding:5px 12px;background:#444;border:none;border-radius:3px;color:#ddd;cursor:pointer;font-size:12px;">Cancel</button>
+      <button id="sf-bm-sam-ok" style="padding:5px 12px;background:#4a90e2;border:none;border-radius:3px;color:white;cursor:pointer;font-size:12px;">Run SAM</button>
+    </div>`;
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    overlay.remove();
+  };
+  overlay.addEventListener("pointerdown", (e) => { if (e.target === overlay) close(); });
+  window.addEventListener("keydown", function esc(e) {
+    if (e.key === "Escape") { close(); window.removeEventListener("keydown", esc); }
+  });
+
+  const promptInput = dialog.querySelector("#sf-bm-sam-prompt");
+  const thrInput = dialog.querySelector("#sf-bm-sam-thr");
+  setTimeout(() => promptInput.focus(), 100);
+
+  const apply = () => {
+    let thr = parseFloat(thrInput.value);
+    if (!Number.isFinite(thr)) thr = 0.5;
+    thr = Math.max(0, Math.min(1, thr));
+    const p = promptInput.value || "";
+    close();
+    runSamMask(node, p, thr);
+  };
+  dialog.querySelector("#sf-bm-sam-ok").onclick = apply;
+  dialog.querySelector("#sf-bm-sam-cancel").onclick = close;
+  for (const el of [promptInput, thrInput]) {
+    el.onkeydown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Enter") {
+        // 吞掉回车：否则 keydown 上浮到 window，会触发全局键位
+        // （如用户自绑的 Enter 队列）导致与对话框无关的报错
+        e.preventDefault();
+        e.stopPropagation();
+        apply();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    };
+  }
+}
+
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────
 
 // 钳制节点尺寸不低于最小值（创建/恢复兜底；拖拽路径由 computeSize 包装钳住）
@@ -318,8 +466,29 @@ function drawPlaceholder(ctx, x, y, w, h, scale) {
   }
 }
 
-function drawStrokePath(ctx, pts, m, lineW, style) {
+function drawStrokePath(ctx, pts, m, lineW, style, fill) {
   if (!pts || pts.length === 0) return;
+  // fill 笔触（SAM 并入）：整体填充闭合多边形
+  if (fill) {
+    if (pts.length === 1) {
+      const p = imageToLocal(pts[0][0], pts[0][1], m);
+      ctx.fillStyle = style;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(1, lineW / 2), 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    ctx.fillStyle = style;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const p = imageToLocal(pts[i][0], pts[i][1], m);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
   ctx.lineWidth = Math.max(1, lineW);
   ctx.strokeStyle = style;
   ctx.lineCap = "round";
@@ -418,12 +587,12 @@ function setupDrawing(node) {
       drawPlaceholder(ctx, m.offsetX, m.offsetY, m.scaledW, m.scaledH, m.scale);
     }
 
-    // 已落笔触：先刷后擦（与原版同序；擦以红色预览叠加）
+    // 已落笔触：先刷后擦（与原版同序；擦以红色预览叠加；fill 整体填充）
     const brushRGB = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
     const brushStyle = `rgba(${brushRGB[0]},${brushRGB[1]},${brushRGB[2]},${st.brush_opacity})`;
     for (const s of st.strokes) {
       if ((s.mode || "brush") === "erase") continue;
-      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, brushStyle);
+      drawStrokePath(ctx, s.points, m, (s.size || st.brush_size) * m.scale, brushStyle, (s.mode || "brush") === "fill");
     }
     const eraserRGB = String(st.eraser_color || "255,50,50").split(",").map((v) => parseInt(String(v).trim(), 10));
     const eraserStyle = `rgba(${eraserRGB[0]},${eraserRGB[1]},${eraserRGB[2]},${st.brush_opacity})`;
@@ -771,6 +940,21 @@ app.registerExtension({
         document.removeEventListener("mouseup", this._sfBrushGlobalUp);
         this._sfBrushGlobalUp = null;
       }
+    };
+
+    // 右键菜单（any_pack.js 同款 getExtraMenuOptions 包装）
+    const origMenu = nodeType.prototype.getExtraMenuOptions;
+    nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
+      if (origMenu) origMenu.apply(this, arguments);
+      if (!Array.isArray(options)) return;
+      options.push({
+        content: "SAM 蒙版：文本选择…",
+        callback: () => openSamDialog(this),
+      });
+      options.push({
+        content: "卸载 SAM 模型",
+        callback: () => unloadSamModel(),
+      });
     };
   },
 });

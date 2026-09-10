@@ -14,6 +14,10 @@ Opacity/颜色仅预览语义，后端忽略），抽为无 torch/ComfyUI 依赖
 
 其中 ``points`` 为 ``x,y`` 以 ``;`` 分隔。坐标以源图像素为单位，
 越界点丢弃（与原版一致）。
+
+结构化 state 笔触另有第三种模式 ``fill``（SAM 等算法写入）：``points`` 为
+闭合多边形顶点（像素整数），后端整体填充、前端整体填充绘制——与
+brush/erase 同一列表统一管理（添加/擦除/撤销全通用，见 §45.9）。
 """
 
 import numpy as np
@@ -155,7 +159,7 @@ def parse_state_strokes(state, default_size=80):
         if not isinstance(item, dict):
             continue
         mode = item.get("mode", "brush")
-        if mode not in ("brush", "erase"):
+        if mode not in ("brush", "erase", "fill"):
             mode = "brush"
         try:
             size = int(float(item.get("size", size_default)))
@@ -186,6 +190,52 @@ def build_brush_data(strokes):
         pts = ";".join(f"{x},{y}" for x, y in st.get("points", []))
         parts.append(f"{st.get('mode', 'brush')}:{int(st.get('size', 80))}:1.0:{pts}")
     return "|".join(parts)
+
+
+def _fill_polygon(mask, pts):
+    """Fill a closed polygon with 1 (PIL, no cv2 needed — locally testable)."""
+    from PIL import Image as _PILImage
+    from PIL import ImageDraw as _ImageDraw
+    h, w = mask.shape
+    img = _PILImage.fromarray((np.clip(mask, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), mode="L")
+    _ImageDraw.Draw(img).polygon([(int(x), int(y)) for x, y in pts], fill=255)
+    filled = np.array(img).astype(np.float32) / 255.0
+    mask[:, :] = np.maximum(mask, filled)
+
+
+def mask_to_fill_strokes(mask_arr, eps=1.5, min_area=16.0, max_contours=64):
+    """Trace a binary (H, W) float mask into fill strokes (one per contour).
+
+    每个轮廓独立一笔（Undo 以物体为粒度）。小碎斑（面积 < min_area）丢弃，
+    只保留最大的 max_contours 个。顶点为像素整数。cv2 缺席时返回 []。
+    """
+    try:
+        import cv2 as _cv2
+    except Exception:
+        return []
+    m = np.asarray(mask_arr)
+    if m.ndim != 2 or m.shape[0] <= 0 or m.shape[1] <= 0:
+        return []
+    bw = ((m > 0.5).astype(np.uint8)) * 255
+    if not bw.any():
+        return []
+    contours, _ = _cv2.findContours(bw, _cv2.RETR_EXTERNAL, _cv2.CHAIN_APPROX_SIMPLE)
+    items = []
+    for cnt in contours:
+        try:
+            area = float(_cv2.contourArea(cnt))
+        except Exception:
+            continue
+        if area < min_area:
+            continue
+        approx = _cv2.approxPolyDP(cnt, eps, True)
+        poly = approx.reshape(-1, 2)
+        if len(poly) < 3:
+            continue
+        items.append((area, [[int(x), int(y)] for x, y in poly]))
+    items.sort(key=lambda t: t[0], reverse=True)
+    items = items[:max(1, int(max_contours))]
+    return [{"mode": "fill", "size": 0, "points": pts} for _, pts in items]
 
 
 def _draw_circle(mask, x, y, radius):
@@ -267,6 +317,11 @@ def rasterize_strokes(strokes, width, height):
     for st in strokes or []:
         pts = st.get("points", []) or []
         if not pts:
+            continue
+        # fill 笔触：整体填充多边形（size 无意义，SAM 写入 0）
+        if st.get("mode") == "fill":
+            if len(pts) >= 3:
+                _fill_polygon(mask, pts)
             continue
         try:
             radius = max(1, int(st.get("size", 80)) // 2)
