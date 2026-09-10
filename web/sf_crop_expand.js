@@ -4,7 +4,8 @@
 //
 // 复刻 ComfyUI-YCNodes_Toolkit ycImageCrop（Load Image Crop Expand）：节点上
 // 直接加载图片（Load Image 按钮 / 拖放文件到节点），拖拽一个可出界的裁剪框，
-// 面板提供比例按钮（Free/预设/Custom）与填充色按钮。
+// 左侧竖列提供比例按钮（Free 置顶/预设/Custom）与填充色/重置按钮；底行为
+// Load Image/Browse 与信息文本同排。
 //
 // 状态真源 node.properties.sfCropExpandState（JSON 字符串，随工作流保存），
 // 经 graphToPrompt 钩子注入隐藏输入 SFCropExpandJson（只注入不剪枝，同
@@ -23,7 +24,6 @@ import {
   ASPECT_RATIOS,
   RATIO_PRESETS_COL,
   LAYOUT,
-  TEXT_RESERVE,
   ratioFromAspect,
   computeDisplayMetrics,
   ensureMinSize,
@@ -177,18 +177,25 @@ function ratioLabel(key) {
   return ASPECT_RATIOS.find((r) => r.key === key)?.label || key;
 }
 
+// 底行按钮（Load Image/Browse）的 y 标记为 "bottom"：节点高度运行时可变，
+// 绘制/命中时经 buttonRect 动态解析为 nodeH - shiftLeft - h。
+const BOTTOM_Y = "bottom";
+
+function bottomButtonY(node, h) {
+  return node.size[1] - LAYOUT.shiftLeft - h;
+}
+
+// buttonRect(b, node) → [x, y, w, h]（解析 bottom 标记；绘制与命中共用）
+function buttonRect(b, node) {
+  return [b.x, b.y === BOTTOM_Y ? bottomButtonY(node, b.h) : b.y, b.w, b.h];
+}
+
 function buildButtons(node) {
-  const y1 = 10;
-  const h1 = 21;
-  const buttons = [
-    { text: "Load Image", x: 10, y: y1, w: 80, h: h1, action: () => pickFile(node) },
-    { text: "Browse", x: 95, y: y1, w: 55, h: h1, action: () => browseImage(node) },
-    { text: "Color", x: 10, y: y1 + h1 + 5, w: 50, h: h1, isColor: true, action: () => pickFillColor(node) },
-  ];
-  // 左侧竖列：Free 置顶 + 7 预设 + Custom/Reset 收尾（与图片区同高）
+  const buttons = [];
+  // 左侧竖列：Free 置顶 + 7 预设 + Custom/Reset/Color 收尾（从节点顶直通画布区底）
   const colH = 18;
   const colGap = 4;
-  const colTop = LAYOUT.shiftLeft + LAYOUT.panelHeight + 6;
+  const colTop = LAYOUT.shiftLeft + 6;
   const colButton = (i, b) => ({ ...b, x: LAYOUT.shiftLeft, y: colTop + i * (colH + colGap), w: 30, h: colH });
   RATIO_PRESETS_COL.forEach((key, i) => {
     buttons.push(colButton(i, {
@@ -199,12 +206,23 @@ function buildButtons(node) {
   });
   buttons.push(
     colButton(RATIO_PRESETS_COL.length, {
+      text: ratioLabel("custom"),
       isRatio: true, ratioKey: "custom",
       action: () => openCustomRatioDialog(node),
     }),
     colButton(RATIO_PRESETS_COL.length + 1, {
+      text: "Reset",
       action: () => resetCrop(node),
     }),
+    colButton(RATIO_PRESETS_COL.length + 2, {
+      text: "Color", isColor: true,
+      action: () => pickFillColor(node),
+    }),
+  );
+  // 底行：Load Image/Browse（与信息文本同排，y 运行时解析）
+  buttons.push(
+    { text: "Load Image", x: 10, y: BOTTOM_Y, w: 80, h: 21, action: () => pickFile(node) },
+    { text: "Browse", x: 95, y: BOTTOM_Y, w: 55, h: 21, action: () => browseImage(node) },
   );
   return buttons;
 }
@@ -360,6 +378,7 @@ function drawButtons(ctx, node) {
   const st = getState(node);
   const accent = getSfAccent() || "rgba(100,150,255,0.8)";
   for (const b of node._sfExpandButtons) {
+    const [bx, by, bw, bh] = buttonRect(b, node);
     if (b.isRatio && b.ratioKey === st.aspect_ratio) {
       ctx.fillStyle = accent;
     } else if (b.isColor) {
@@ -367,10 +386,10 @@ function drawButtons(ctx, node) {
     } else {
       ctx.fillStyle = "rgba(60,60,60,0.7)";
     }
-    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillRect(bx, by, bw, bh);
     ctx.strokeStyle = "rgba(150,150,150,0.6)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(b.x, b.y, b.w, b.h);
+    ctx.strokeRect(bx, by, bw, bh);
 
     if (b.isColor) {
       // 颜色按钮文字按背景亮度取黑/白
@@ -393,7 +412,7 @@ function drawButtons(ctx, node) {
     if (b.ratioKey === "custom" && st.aspect_ratio === "custom") {
       text = `${st.custom_w || 1}:${st.custom_h || 1}`;
     }
-    ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
+    ctx.fillText(text, bx + bw / 2, by + bh / 2);
   }
 }
 
@@ -453,7 +472,8 @@ function drawCropBox(ctx, node, m) {
 }
 
 function setupDrawing(node) {
-  const { shiftLeft, shiftRight, panelHeight } = LAYOUT;
+  const { shiftLeft, shiftRight } = LAYOUT;
+  const BTN_H = 21; // 底行按钮高（与 buildButtons 底行一致）
 
   node.onDrawForeground = (ctx) => {
     if (node.flags.collapsed) return false;
@@ -463,29 +483,21 @@ function setupDrawing(node) {
     const dragging = !!node._sfExpandDrag;
     const st = getState(node);
 
-    // 控制面板背景（两行按钮，右缘盖住行内容即可）
-    ctx.fillStyle = "rgba(40,40,40,0.9)";
-    ctx.beginPath();
-    ctx.roundRect(shiftLeft - 4, shiftLeft - 4, 148, panelHeight, 4);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(100,100,100,0.5)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(shiftLeft - 4, shiftLeft - 4, 148, panelHeight);
-
     const m = computeDisplayMetrics(
       { cropX: st.crop_x, cropY: st.crop_y, cropW: st.crop_w, cropH: st.crop_h, srcW: st.src_w, srcH: st.src_h },
       nodeW, nodeH,
       dragging ? node._sfExpandDrag.frozen : null,
     );
 
-    // 比例竖列底条（面板下缘到画布区底缘，与图片区同高）
-    const colTop = shiftLeft + panelHeight - 1;
-    const colBottom = shiftLeft + panelHeight + (nodeH - shiftLeft - shiftLeft - panelHeight - TEXT_RESERVE);
+    // 比例竖列底条（节点顶到画布区底缘，与图片区同高）
+    const colTop = shiftLeft - 4;
+    const colBottom = nodeH - shiftLeft - LAYOUT.bottomH;
     ctx.fillStyle = "rgba(40,40,40,0.9)";
     ctx.beginPath();
     ctx.roundRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop, 4);
     ctx.fill();
     ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.lineWidth = 1;
     ctx.strokeRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop);
 
     // 扩展区背景 + 网格
@@ -536,19 +548,29 @@ function setupDrawing(node) {
     ctx.setLineDash([]);
 
     drawCropBox(ctx, node, m);
+
+    // 底行背景条（Load Image/Browse 按钮与信息文本同排）
+    const bottomY = nodeH - shiftLeft - BTN_H;
+    ctx.fillStyle = "rgba(40,40,40,0.9)";
+    ctx.beginPath();
+    ctx.roundRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, BTN_H + 8, 4);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.strokeRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, BTN_H + 8);
+
     drawButtons(ctx, node);
 
-    // 信息文本
+    // 信息文本（与底行按钮同排，右对齐到输出槽区前）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
-    ctx.textAlign = "center";
+    ctx.textAlign = "right";
     const ext = isExtended(
       { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, st.src_w, st.src_h)
       ? " (Extended)" : "";
     ctx.fillText(
       `Source: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}`,
-      nodeW / 2,
-      m.offsetY + m.scaledDisplayHeight + 15,
+      nodeW - shiftRight - 6,
+      bottomY + BTN_H / 2 + 3.5,
     );
   };
 }
@@ -569,8 +591,9 @@ function finalizeDrag(node, canvas) {
 function setupInteractions(node) {
   node.onMouseDown = (e, localPos) => {
     for (const b of node._sfExpandButtons) {
-      if (localPos[0] >= b.x && localPos[0] <= b.x + b.w &&
-          localPos[1] >= b.y && localPos[1] <= b.y + b.h) {
+      const [bx, by, bw, bh] = buttonRect(b, node);
+      if (localPos[0] >= bx && localPos[0] <= bx + bw &&
+          localPos[1] >= by && localPos[1] <= by + bh) {
         b.action();
         return true;
       }

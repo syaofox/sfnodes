@@ -366,7 +366,7 @@
 - `image_browser.js:showImageBrowser(node)` 原与 LoadImage 系的 `image` widget 强耦合（选中高亮/定位/写入）。参数化加可选 `opts.onPick(value, item, type)` **选择器模式**：传入后 `imageWidget` 置 null，widget 写入路径整体跳过，选中项交宿主回调，「定位当前」按钮一并隐藏（无 widget 值可定位）——SF Load Image Browser 原行为零改动（不传 opts 时走原 widget 路径）。
 - SFImageCropExpand 的 Browse 按钮走选择器模式：onPick 里 `parseAnnotatedImageValue` + `buildSourceURL`（output 项自带 `[output]` 注解）→ fetch `/view` 原始字节 → FileReader dataURL → 既有 `loadAndStoreImage`（落盘 + 满框 + 状态同步）。零后端改动。
 - ⚠ 跨模块 import 的 `image_browser.js` 必须入 `check_web_imports.py` MODS（否则 MISSING MODULE 报错）。
-- **布局改版（2026-09，用户草图）**：面板收窄为两行（行1 Load Image/Browse，行2 Color），比例按钮改**画布区左侧竖列**（`RATIO_PRESETS_COL`，Free 置顶 + 7 预设 + Custom/Reset 收尾，`LAYOUT.ratioColW/ratioColGap` 由图片区让宽），`MIN_NODE_WIDTH` 相应 460→320（原 row1 横排 6 键至 x≈350 的 400→460 约束不再存在）。
+- **布局改版（2026-09，用户草图）**：比例按钮改**画布区左侧竖列**（`RATIO_PRESETS_COL`，Free 置顶 + 7 预设 + Custom/Reset/Color 收尾，节点顶直通画布区底，`LAYOUT.ratioColW/ratioColGap` 由图片区让宽）；Load Image/Browse 移**底行**与信息文本同排（右对齐到输出槽区前；按钮 y 标记 `BOTTOM_Y="bottom"` 经 `buttonRect` 运行时解析——节点高度可变，坐标不能在 buildButtons 固定）；`MIN_NODE_WIDTH` 460→320 后因底行"按钮+文本同排"回升 480。
 
 ## 44. 画布节点拖拽缩小外溢：computeSize 包装钳最小尺寸（2026-09）
 

@@ -37,13 +37,13 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   // 状态：源图 512×512，裁剪框 (-256,-256,1024,1024) → 显示区 -256..768 = 1024²
   const st = { cropX: -256, cropY: -256, cropW: 1024, cropH: 1024, srcW: 512, srcH: 512 };
   const m = L.computeDisplayMetrics(st, 500, 400, null);
-  // 区面积：x 500-80-10-34-6=370，y 400-10-10-58-20(TEXT_RESERVE)=302 → scale = min(370/1024, 302/1024)
-  check("动态 scale", approx(m.scale, 302 / 1024));
+  // 区面积：x 500-80-10-34-6=370，y 400-10-10-26(bottomH)=354 → scale = min(370/1024, 354/1024)
+  check("动态 scale", approx(m.scale, 354 / 1024));
   check("动态 displayMin", m.displayMinX === -256 && m.displayMinY === -256);
-  check("动态 scaled 尺寸", approx(m.scaledDisplayWidth, 302) && approx(m.scaledDisplayHeight, 302));
-  // 显示区居中（让出比例列后起 x=50）：offsetX = 50 + (370 - 302)/2
-  check("动态 offsetX 居中", approx(m.offsetX, 10 + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap + (370 - 302) / 2));
-  check("动态 offsetY 居中", approx(m.offsetY, 10 + 58 + 0));
+  check("动态 scaled 尺寸", approx(m.scaledDisplayWidth, 354) && approx(m.scaledDisplayHeight, 354));
+  // 显示区居中（让出比例列后起 x=50）：offsetX = 50 + (370 - 354)/2
+  check("动态 offsetX 居中", approx(m.offsetX, 10 + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap + (370 - 354) / 2));
+  check("动态 offsetY 居中", approx(m.offsetY, 10 + 0));
 
   // 框在图内不越界：displayMin = 0
   const m2 = L.computeDisplayMetrics({ cropX: 0, cropY: 0, cropW: 512, cropH: 512, srcW: 512, srcH: 512 }, 500, 400, null);
@@ -119,20 +119,24 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
   // ── 常量 ──
   check("RATIO_PRESETS_COL free 置顶 + 预设", JSON.stringify(L.RATIO_PRESETS_COL) === JSON.stringify(["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
-  check("LAYOUT 字段", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.panelHeight === 58 && L.LAYOUT.ratioColW === 34 && L.LAYOUT.ratioColGap === 6);
+  check("LAYOUT 字段", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.ratioColW === 34 && L.LAYOUT.ratioColGap === 6 && L.LAYOUT.bottomH === 26);
   check("ASPECT_RATIOS 含 12 项", L.ASPECT_RATIOS.length === 12);
-  // 最小节点尺寸：面板两行（行1 至 x≈150）+ 比例竖列 + 画布区 + 信息文本
-  check("MIN_NODE尺寸覆盖布局", L.MIN_NODE_WIDTH >= L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap + 150 + L.LAYOUT.shiftRight
-    && L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft * 2 + L.LAYOUT.panelHeight + 100);
+  // 最小节点尺寸：左侧竖列（11 项：free+7 预设+Custom/Reset/Color）+ 画布区 +
+  // 底行（Load Image/Browse 按钮 150 + 信息文本 ~240 同排）
+  const colRows = L.RATIO_PRESETS_COL.length + 3; // + Custom/Reset/Color
+  const colNeedH = 6 + colRows * 22 - 4;
+  check("MIN_NODE高度覆盖竖列与底行", L.MIN_NODE_HEIGHT >= L.LAYOUT.shiftLeft + colNeedH + L.LAYOUT.bottomH + L.LAYOUT.shiftLeft + 20);
+  // 底行布置：按钮右缘 150 + 间隙 6 + 文本 ~200（右对齐至 nodeW-shiftRight-6）
+  check("MIN_NODE宽度覆盖底行按钮+文本", L.MIN_NODE_WIDTH >= L.LAYOUT.shiftRight + 6 + 200 + 6 + 150);
 
-  // ── 信息文本不超界（底部预留 TEXT_RESERVE 后恒等式）──
-  // 文本基线最坏 y = 10+panelHeight+areaH+15 = nodeH - 15 ≤ nodeH
+  // ── 画布区与底行不重叠（bottomH 预留恒等式）──
   {
     const H = L.MIN_NODE_HEIGHT;
     const tallSt = { cropX: 0, cropY: 0, cropW: 512, cropH: 1024, srcW: 512, srcH: 1024 }; // 高瘦显示区 → 高度约束
     const mFill = L.computeDisplayMetrics(tallSt, L.MIN_NODE_WIDTH, H, null); // 画布区被填满的最坏比例
-    const yText = mFill.offsetY + mFill.scaledDisplayHeight + 15;
-    check("信息文本基线不超界", yText <= H && approx(yText, H - 15));
+    const canvasBottom = mFill.offsetY + mFill.scaledDisplayHeight;
+    check("画布区底不压底行", canvasBottom <= H - L.LAYOUT.shiftLeft - L.LAYOUT.bottomH
+      && approx(canvasBottom, H - L.LAYOUT.shiftLeft - L.LAYOUT.bottomH));
   }
 
   // ── ensureMinSize ──

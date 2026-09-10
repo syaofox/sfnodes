@@ -28,25 +28,24 @@ export const ASPECT_RATIOS = [
 // 竖列预设比例（画布区左侧一列，free 置顶；预设 key 集合与原版行2 一致）
 export const RATIO_PRESETS_COL = ["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
 
-// 节点内边距布局。面板两行（行1 Load Image/Browse，行2 Color）+ 左侧竖列
-// （Free 置顶 + 预设 + Custom/Reset 收尾），ratioColW + ratioColGap 由图片
-// 区让出。
-export const LAYOUT = { shiftLeft: 10, shiftRight: 80, panelHeight: 58, ratioColW: 34, ratioColGap: 6 };
+// 节点内边距布局。左侧竖列（Free 置顶 + 预设 + Custom/Reset/Color 收尾）
+// 从节点顶直通画布区底（ratioColW + ratioColGap 由图片区让出）；Load Image/
+// Browse 按钮贴节点底部一行左侧，与信息文本同排（bottomH 为底行高度）。
+export const LAYOUT = { shiftLeft: 10, shiftRight: 80, ratioColW: 34, ratioColGap: 6, bottomH: 26 };
 
-// 底部信息文本预留高度（基线 +15 + 字形余量）。画布区高度必须让出这一行：
-// 否则显示区填满时文本基线 y = nodeH+5，无论节点多高都恒超界 5px。
-export const TEXT_RESERVE = 20;
+// 底部行高度由 LAYOUT.bottomH 承担（Load Image/Browse 按钮行 h21 + 余量，
+// 按钮与信息文本同排）。画布区高度必须让出这一行，否则显示区底缘压到按钮。
 
 export const MIN_SIZE = 10;
 export const HANDLE_SIZE = 10;
 
-// 节点最小宽高：面板按钮两行（行1 至 x≈150）+ 比例竖列 + 画布区（含
-// TEXT_RESERVE 底部信息文本行）所需空间。双端拖拽 resize 的最小值都取自
-// node.computeSize()（前端包实测 onDrag 里 clamp 到 computeSize）——主扩展
-// 包装 computeSize 返回 ensureMinSize 结果钳住拖拽；创建/恢复两处
-// clampNodeSize 兜底。加载图片不改节点大小（显示区 scale 动态适配现有画
-// 布区域）。
-export const MIN_NODE_WIDTH = 320;
+// 节点最小宽高：左侧竖列（11 项）+ 画布区 + 底行（Load Image/Browse 按钮
+// + 信息文本同排，宽度由两者之和驱动）所需空间。双端拖拽 resize 的最小值都
+// 取自 node.computeSize()（前端包实测 onDrag 里 clamp 到 computeSize）——主
+// 扩展包装 computeSize 返回 ensureMinSize 结果钳住拖拽；创建/恢复两处
+// clampNodeSize 兜底。加载图片不改节点大小（显示区 scale 动态适配现有画布
+// 区域）。
+export const MIN_NODE_WIDTH = 480;
 export const MIN_NODE_HEIGHT = 368;
 
 // ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，
@@ -84,7 +83,7 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
       scaledDisplayHeight: frozen.scaledDisplayHeight,
     };
   }
-  const { shiftLeft, shiftRight, panelHeight } = LAYOUT;
+  const { shiftLeft, shiftRight } = LAYOUT;
   const displayMinX = Math.min(0, state.cropX);
   const displayMinY = Math.min(0, state.cropY);
   const displayMaxX = Math.max(state.srcW, state.cropX + state.cropW);
@@ -93,12 +92,12 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
   const displayHeight = Math.max(1, displayMaxY - displayMinY);
 
   const areaW = nodeW - shiftRight - shiftLeft - LAYOUT.ratioColW - LAYOUT.ratioColGap;
-  const areaH = nodeH - shiftLeft - shiftLeft - panelHeight - TEXT_RESERVE;
+  const areaH = nodeH - shiftLeft - shiftLeft - LAYOUT.bottomH;
   const scale = Math.min(areaW / displayWidth, areaH / displayHeight);
   const scaledDisplayWidth = displayWidth * scale;
   const scaledDisplayHeight = displayHeight * scale;
   const offsetX = shiftLeft + LAYOUT.ratioColW + LAYOUT.ratioColGap + (areaW - scaledDisplayWidth) / 2;
-  const offsetY = shiftLeft + panelHeight + (areaH - scaledDisplayHeight) / 2;
+  const offsetY = shiftLeft + (areaH - scaledDisplayHeight) / 2;
 
   return { displayMinX, displayMinY, scale, offsetX, offsetY, scaledDisplayWidth, scaledDisplayHeight };
 }
