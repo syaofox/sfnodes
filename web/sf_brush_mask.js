@@ -70,6 +70,7 @@ const DEFAULT_STATE = {
   // SAM 对话框记忆（不进 lean 注入；SAM 结果即 fill 笔触进 strokes）
   sam_prompt: "",
   sam_threshold: 0.5,
+  sam_refine: 2,
 };
 
 // ── 状态读写 ──────────────────────────────────────────────────────────────
@@ -315,7 +316,7 @@ async function samPost(path, body) {
   return data || {};
 }
 
-async function runSamMask(node, prompt, threshold) {
+async function runSamMask(node, prompt, threshold, refine) {
   const st = getState(node);
   if (!st.src_path) {
     sfToast({ summary: "SF Brush Mask", detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: "SF Brush Mask" });
@@ -324,11 +325,11 @@ async function runSamMask(node, prompt, threshold) {
   sfToast({ summary: "SF Brush Mask", detail: `SAM 推理中：${prompt || "object"}…（首次需加载 1.7GB 模型）`, severity: "info", life: 5000, fallbackTag: "SF Brush Mask" });
   try {
     const data = await samPost("/api/sfnodes/brush_mask/sam", {
-      src_path: st.src_path, prompt, threshold,
+      src_path: st.src_path, prompt, threshold, refine_iterations: refine,
     });
     const incoming = Array.isArray(data && data.strokes) ? data.strokes : [];
     if (!incoming.length) {
-      setState(node, { sam_prompt: prompt, sam_threshold: threshold });
+      setState(node, { sam_prompt: prompt, sam_threshold: threshold, sam_refine: refine });
       stateChanged(node);
       sfToast({ summary: "SF Brush Mask", detail: "SAM 未检出目标（空结果，笔触不变）", severity: "warn", fallbackTag: "SF Brush Mask" });
       return;
@@ -337,6 +338,7 @@ async function runSamMask(node, prompt, threshold) {
       strokes: [...st.strokes, ...incoming],
       sam_prompt: prompt,
       sam_threshold: threshold,
+      sam_refine: refine,
     });
     stateChanged(node);
     const cov = data.coverage != null ? `覆盖 ${Math.round(data.coverage * 100)}%，` : "";
@@ -381,16 +383,23 @@ function openSamDialog(node) {
     "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:300px;box-sizing:border-box;";
   const lastPrompt = st.sam_prompt || "";
   const lastThr = st.sam_threshold ?? 0.5;
+  const lastRefine = st.sam_refine ?? 2;
   dialog.innerHTML = `
     <div style="color:#ddd;font-size:13px;margin-bottom:10px;font-weight:bold;">SAM 蒙版：文本选择</div>
     <div style="margin-bottom:10px;">
       <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Prompt（英文，如 person / car，为空按 object）</label>
       <input type="text" id="sf-bm-sam-prompt" value="${String(lastPrompt).replace(/"/g, "&quot;")}" placeholder="person"
         style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+      <div style="color:#777;font-size:10px;margin-top:3px;">多人用 person:3（:N = 每类最多 N 个），多类用逗号分隔</div>
     </div>
     <div style="margin-bottom:10px;">
       <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Threshold（0-1，越低越多）</label>
       <input type="number" id="sf-bm-sam-thr" value="${lastThr}" min="0" max="1" step="0.05"
+        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Refine（0-5，SAM 解码精修轮数，0=用粗蒙版）</label>
+      <input type="number" id="sf-bm-sam-refine" value="${lastRefine}" min="0" max="5" step="1"
         style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -413,19 +422,23 @@ function openSamDialog(node) {
 
   const promptInput = dialog.querySelector("#sf-bm-sam-prompt");
   const thrInput = dialog.querySelector("#sf-bm-sam-thr");
+  const refineInput = dialog.querySelector("#sf-bm-sam-refine");
   setTimeout(() => promptInput.focus(), 100);
 
   const apply = () => {
     let thr = parseFloat(thrInput.value);
     if (!Number.isFinite(thr)) thr = 0.5;
     thr = Math.max(0, Math.min(1, thr));
+    let refine = parseInt(refineInput.value, 10);
+    if (!Number.isFinite(refine)) refine = 2;
+    refine = Math.max(0, Math.min(5, refine));
     const p = promptInput.value || "";
     close();
-    runSamMask(node, p, thr);
+    runSamMask(node, p, thr, refine);
   };
   dialog.querySelector("#sf-bm-sam-ok").onclick = apply;
   dialog.querySelector("#sf-bm-sam-cancel").onclick = close;
-  for (const el of [promptInput, thrInput]) {
+  for (const el of [promptInput, thrInput, refineInput]) {
     el.onkeydown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "Enter") {

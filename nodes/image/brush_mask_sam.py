@@ -19,7 +19,7 @@ SAM 层与手绘层，见 §45.9）。位图→矢量的轮廓追踪在
 点击菜单才报清晰中文错误。
 
 路由（副作用注册，改动需重启容器；与 crop.py 同款 try/except 包裹）：
-  POST /api/sfnodes/brush_mask/sam         {src_path, prompt, threshold}
+  POST /api/sfnodes/brush_mask/sam         {src_path, prompt, threshold, refine_iterations}
   POST /api/sfnodes/brush_mask/sam_unload  {}
   GET  /api/sfnodes/brush_mask/sam_status  （门禁诊断：core/模型/已加载三态）
 """
@@ -94,7 +94,7 @@ def unload_sam():
     return had
 
 
-def run_sam_mask(image_tensor, prompt, threshold=0.5):
+def run_sam_mask(image_tensor, prompt, threshold=0.5, refine_iterations=2):
     """对 [1,H,W,3] 张量跑 SAM，返回 (H, W) float32 并集遮罩。"""
     from nodes import CLIPTextEncode
     from comfy_extras.nodes_sam3 import SAM3_Detect
@@ -106,6 +106,11 @@ def run_sam_mask(image_tensor, prompt, threshold=0.5):
     except Exception:
         thr = 0.5
     thr = max(0.0, min(1.0, thr))
+    try:
+        refine = int(float(refine_iterations))
+    except Exception:
+        refine = 2
+    refine = max(0, min(5, refine))
 
     cond = CLIPTextEncode().encode(clip, text)[0]
     # 路由跑在队列执行上下文之外：新版 core 的 PROGRESS_BAR_HOOK 会读
@@ -117,7 +122,7 @@ def run_sam_mask(image_tensor, prompt, threshold=0.5):
     comfy.utils.PROGRESS_BAR_HOOK = None
     try:
         out = SAM3_Detect.execute(model, image_tensor, conditioning=cond,
-                                  threshold=thr, refine_iterations=2,
+                                  threshold=thr, refine_iterations=refine,
                                   individual_masks=False)
     finally:
         comfy.utils.PROGRESS_BAR_HOOK = prev_hook
@@ -141,7 +146,8 @@ def _handle_sam(data):
     arr = np.array(pil).astype(np.float32) / 255.0
     image = torch.from_numpy(arr)[None,]
     try:
-        mask_arr = run_sam_mask(image, data.get("prompt", ""), data.get("threshold", 0.5))
+        mask_arr = run_sam_mask(image, data.get("prompt", ""), data.get("threshold", 0.5),
+                                data.get("refine_iterations", 2))
     except Exception as e:
         print(f"[SFImageBrushMask:sam] inference failed: {e}")
         return 500, {"error": f"SAM 推理失败：{e}"}

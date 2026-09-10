@@ -437,26 +437,26 @@
 
 ### 9. SAM 右键图层：核心 SAM3_Detect 委托（2026-09）
 
-> 背景：刷子节点右键菜单用文本 prompt 跑 SAM 分割，结果与手绘笔触取并集。`nodes/image/brush_mask_sam.py`（委托链 + 三路由）+ `brush_mask.py`（状态/并集/IS_CHANGED）+ `web/sf_brush_mask.js`（菜单/对话框/叠加预览）。
+> 背景：刷子节点右键菜单用文本 prompt 跑 SAM 分割，结果转 fill 矢量笔触并入统一管理。`nodes/image/brush_mask_sam.py`（委托链 + 三路由）+ `brush_mask.py`（fill 栅格化接入）+ `web/sf_brush_mask.js`（菜单/对话框/fill 绘制）。
 
 ### 1. 只调核心，不碰第三方（此前走弯路的教训）
 
 - 初版调研误判 core 无 SAM（只搜了 `comfy/`，漏了 `comfy_extras/`），一度计划复用 GPL-3.0 的 ComfyUI-RMBG 包（拷贝传染 / 自研 safetensors 权重桥 / iopath-ftfy 依赖链全是坑）。用户指正后确认：**core 0.35 `comfy_extras/nodes_sam3.py:SAM3_Detect` + `comfy/ldm/sam3/` + 判型 `SAM31` 全套原生支持**，`models/checkpoints/sam3.1_multiplex_fp16.safetensors` 三 marker 全中。结论：**新模型先查 `comfy/model_detection.py` + `supported_models.py` 再谈复用第三方**。
-- 委托链（与手写工作流等价，全 core API）：`get_full_path_or_raise("checkpoints")` → `load_checkpoint_guess_config(output_vae=False)` 同文件拆 MODEL+CLIP → `CLIPTextEncode.encode(clip, prompt or "object")` → `SAM3_Detect.execute(model, image, conditioning, threshold, refine_iterations=2, individual_masks=False)` → `out[0]`（`NodeOutput` 支持下标）。MODEL/CLIP 按 checkpoint 常驻缓存（core 自带 `cached_patcher_init` 之外再包一层防重复拆文件）；全部 import 函数内 lazy，旧版 core 缺席时节点照常加载、点击才报中文错。
+- 委托链（与手写工作流等价，全 core API）：`get_full_path_or_raise("checkpoints")` → `load_checkpoint_guess_config(output_vae=False)` 同文件拆 MODEL+CLIP → `CLIPTextEncode.encode(clip, prompt or "object")` → `SAM3_Detect.execute(model, image, conditioning, threshold, refine_iterations（对话框 0-5，默认 2）, individual_masks=False)` → `out[0]`（`NodeOutput` 支持下标）。MODEL/CLIP 按 checkpoint 常驻缓存（core 自带 `cached_patcher_init` 之外再包一层防重复拆文件）；全部 import 函数内 lazy，旧版 core 缺席时节点照常加载、点击才报中文错。
 
-### 2. 位图→笔触鸿沟走覆盖层，不转矢量
+### 2. 位图→矢量 fill 笔触，不设覆盖层（现状；决策见 §8）
 
-- SAM 输出位图，转矢量笔触有损且复杂。状态加 `sam_mask_path`（落盘灰度 PNG）+ `sam_prompt`/`sam_threshold`（对话框记忆，不进注入）；`execute()` 输出 `max(笔触, SAM)` 并集，无层退化为纯笔触（零回归）；`IS_CHANGED` 加 SAM 文件 `(mtime,size)` 键；lean 注入加路径（内容变化走文件键）。
-- 前端预览：SAM 灰度图离屏染白（fill 白 + destination-in），`globalAlpha 0.5` 叠加在源图上、笔触之下；信息文本追 `· SAM:<词>`；换图/清除层同步清叠加（`loadSamOverlay` 有路径竞态守卫）。
+- SAM 输出位图，经 `mask_to_fill_strokes` 转 fill 笔触直接并入列表——添加/擦除/撤销/Clear 全通用。`sam_prompt`/`sam_threshold`/`sam_refine` 仅对话框记忆，不进注入；`sam_mask_path` 已退出状态（旧工作流残留被忽略）；lean/IS_CHANGED 回归纯笔触键。
+- 前端 `drawStrokePath` fill 分支整体填充；后端 `rasterize_strokes` fill 分支 PIL 多边形填充。
 
 ### 3. 右键菜单与对话框
 
-- `getExtraMenuOptions` 原型包装（any_pack 先例）：「SAM 蒙版：文本选择…」（无源图先 toast 拦）/「清除 SAM 蒙版」（有层才显示）/「卸载 SAM 模型」（清缓存 + `empty_cache`）。对话框仿 CropExpand Custom 比例弹窗（Enter 确认/Esc 关闭/放行组合键）。
+- `getExtraMenuOptions` 原型包装（any_pack 先例）：「SAM 蒙版：文本选择…」（无源图先 toast 拦）/「卸载 SAM 模型」（清缓存 + `empty_cache`）。对话框仿 CropExpand Custom 比例弹窗（prompt + 阈值 + refine 0-5，Enter 确认/Esc 关闭/放行组合键，记住上次）。
 - 门禁诊断路由 `GET …/sam_status`（core/模型/已加载三态）；`POST …/sam(_unload)` 走 `api.fetchApi + sfApiUrl`（托管基址/鉴权，crop_core 同款）。
 
 ### 4. 测试
 
-- `tests/test_brush_mask_sam.py`：mock torch（numpy 代理 + 链式 FakeTensor）/comfy.sd/nodes/CLIPTextEncode/comfy_extras SAM3_Detect——委托链（空 prompt→object/阈值钳制/refine=2/union 参数）/缓存单拆/缺模型报错/unload/`_handle_sam`（400/200 落盘/500）/execute 并集与退化/IS_CHANGED 含 SAM 键。
+- `tests/test_brush_mask_sam.py`：mock torch（numpy 代理 + 链式 FakeTensor）/comfy.sd/nodes/CLIPTextEncode/comfy_extras SAM3_Detect——委托链（空 prompt→object/阈值钳制/refine 上下限与非法兜底/union 参数）/缓存单拆/缺模型报错/unload/`_handle_sam`（400/回 strokes+coverage/空结果/500）/轮廓转换（点序/面积过滤/数量上限）/fill 栅格化真实像素/execute 忽略旧残留。
 - smoke 扩展：菜单三项存在性 + 无层/有层清除项显隐；`/scripts/api.js` 绝对导入同步进改写表（漏改会 `ERR_MODULE_NOT_FOUND`，已踩）。
 
 ### 5. 路由外推理必关进度钩子（2026-09，真机报错）

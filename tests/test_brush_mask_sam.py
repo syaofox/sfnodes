@@ -253,6 +253,12 @@ check("空 prompt 回退 object", _FakeCLIPTextEncode.last["text"] == "object")
 check("阈值/refine/union 参数", _FakeSAM3Detect.last["threshold"] == 0.5
       and _FakeSAM3Detect.last["refine_iterations"] == 2
       and _FakeSAM3Detect.last["individual_masks"] is False)
+sam.run_sam_mask(img, "person", 0.5, 9)
+check("refine 上限钳制 5", _FakeSAM3Detect.last["refine_iterations"] == 5)
+sam.run_sam_mask(img, "person", 0.5, -3)
+check("refine 下限钳制 0", _FakeSAM3Detect.last["refine_iterations"] == 0)
+sam.run_sam_mask(img, "person", 0.5, "x")
+check("refine 非法兜底 2", _FakeSAM3Detect.last["refine_iterations"] == 2)
 check("返回中央块遮罩", mask.shape == (8, 6) and mask[4, 3] == 1.0 and mask[0, 0] == 0.0)
 check("推理期 hook 置空", _FakeSAM3Detect.last["hook_during_run"] is None)
 check("hook 事后还原", sys.modules["comfy.utils"].PROGRESS_BAR_HOOK == "ORIG_HOOK")
