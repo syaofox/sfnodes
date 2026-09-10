@@ -32,6 +32,7 @@ import { CropAPI } from "./sf_crop_core.js";
 import { sfToast, buildSourceURL, getSfAccent, installPasteHandler, sfApiUrl } from "./sf_common.js";
 import { showImageBrowser } from "./image_browser.js";
 import { parseAnnotatedImageValue } from "./sf_common.js";
+import { getSelectedNodes } from "./sf_canvas_align_lib.js";
 import {
   LAYOUT,
   TOOL_COL,
@@ -952,6 +953,49 @@ if (!app._sfBrushMaskWheelPatch) {
   }, { passive: false, capture: true });
 }
 
+// ── 笔刷 shortcut [ ] ─────────────────────────────────────────────────────
+// 选中本类节点时 [ 缩小 / ] 放大（步长同 S± 步进器；OS 自动连发按住连调，
+// 故不做 inpaint 式的按住加速）。双通道互补：
+//   ① 官方通道——画布 processKey 把 keydown 分发给选中节点的 onKeyDown；
+//   ② window 冒泡监听——焦点在 body 等画布收不到的场景兜底。
+// 同一物理按键会走两遍，经 e.timeStamp 去重只执行一次（多选同理：首个
+// 节点的 onKeyDown 全量调整后，其余同戳调用直接跳过）。
+// 输入框内 / 修饰键 / 全屏编辑器打开时跳过（sf-px-overlay 存活意味着
+// crop/inpaint 编辑器自家 handler 接管按键）。
+
+let _sfBrushLastKey = { t: -1, k: "" };
+
+function brushKeyStep(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (e.key !== "[" && e.key !== "]") return false;
+  if (e.timeStamp === _sfBrushLastKey.t && e.key === _sfBrushLastKey.k) return true;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return false;
+  if (typeof document !== "undefined" && document.querySelector && document.querySelector(".sf-px-overlay")) return false;
+  _sfBrushLastKey = { t: e.timeStamp, k: e.key };
+  const dir = e.key === "]" ? 1 : -1;
+  let hit = false;
+  for (const n of getSelectedNodes(app)) {
+    if (n.comfyClass !== CLASS && n.type !== CLASS) continue;
+    if (!n.properties) continue;
+    const st = getState(n);
+    setState(n, { brush_size: stepBrushSize(st.brush_size, dir) });
+    if (app.graph) app.graph.setDirtyCanvas(true, true);
+    hit = true;
+  }
+  return hit;
+}
+
+if (!app._sfBrushMaskKeysPatch) {
+  app._sfBrushMaskKeysPatch = true;
+  window.addEventListener("keydown", (e) => {
+    if (brushKeyStep(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+}
+
 // ── 注册 ──────────────────────────────────────────────────────────────────
 
 app.registerExtension({
@@ -1008,6 +1052,14 @@ app.registerExtension({
         document.removeEventListener("mouseup", this._sfBrushGlobalUp);
         this._sfBrushGlobalUp = null;
       }
+    };
+
+    // 官方快捷键通道：画布 processKey 把 keydown 分发给选中节点的 onKeyDown。
+    // core 的 addNodeKeyHandler 会再包一层（`=== false` 表示已处理），链式兼容。
+    const origKeyDown = nodeType.prototype.onKeyDown;
+    nodeType.prototype.onKeyDown = function (e) {
+      if (brushKeyStep(e)) return false;
+      if (origKeyDown) return origKeyDown.apply(this, arguments);
     };
 
     // 右键菜单（any_pack.js 同款 getExtraMenuOptions 包装）

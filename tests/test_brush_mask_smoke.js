@@ -17,9 +17,17 @@ function check(name, cond) {
 
 // ── 全局桩（模块顶层即用）──
 globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
-globalThis.window = { addEventListener() {} };
+globalThis.__bmKeys = {}; // window 监听捕获（type -> [fn]）
+globalThis.window = {
+  addEventListener(type, fn) { (globalThis.__bmKeys[type] ??= []).push(fn); },
+  removeEventListener() {},
+};
 globalThis.__bmCanvas = { node_over: null }; // 画布桩（import 时被 stub_app 引用，可变）
+globalThis.__bmGraph = null; // 图桩（快捷键用例按需注入）
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: {} };
+globalThis.__bmEditorOpen = false; // 为 true 时 querySelector(".sf-px-overlay") 命中（编辑器互斥用例）
+globalThis.document.querySelector = (sel) => (
+  sel === ".sf-px-overlay" && globalThis.__bmEditorOpen ? {} : null);
 // 离屏画布工厂（遮罩合成用）：每画布独立 op 流，调用与属性赋值全记录
 const createdCanvases = [];
 function makeFullCtx(ops) {
@@ -57,7 +65,7 @@ function makeCtx(ops) {
 
   // 桩模块
   fs.writeFileSync(path.join(tmpDir, "stub_app.js"),
-    `export const app = { graph: null, canvas: globalThis.__bmCanvas || null, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
+    `export const app = { get graph() { return globalThis.__bmGraph || null; }, canvas: globalThis.__bmCanvas || null, graphToPrompt: async function () { return {}; }, registerExtension(ext) { globalThis.__bmExt = ext; } };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
@@ -68,6 +76,7 @@ function makeCtx(ops) {
     `export const api = { fetchApi: async () => ({ ok: true, json: async () => ({}) }) };\n`);
   // 纯库用真实实现
   fs.copyFileSync(path.join(webDir, "sf_brush_mask_lib.js"), path.join(tmpDir, "sf_brush_mask_lib.js"));
+  fs.copyFileSync(path.join(webDir, "sf_canvas_align_lib.js"), path.join(tmpDir, "sf_canvas_align_lib.js"));
 
   // 主扩展：改写 import 指向桩
   let code = fs.readFileSync(path.join(webDir, "sf_brush_mask.js"), "utf8");
@@ -205,6 +214,55 @@ function makeCtx(ops) {
   const ops5 = [];
   node.onDrawForeground(makeCtx(ops5));
   check("非悬停不画光环", !ops5.some((o) => o.op === "arc"));
+
+  // 笔刷 shortcut [ ]：选中本类节点才生效
+  const sizeOf = () => JSON.parse(node.properties.sfBrushMaskState).brush_size;
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, strokes: [],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  const decoy = { comfyClass: "Other", type: "Other", properties: {}, size: [100, 100], pos: [0, 0], flags: {} };
+  node.comfyClass = "SFImageBrushMask";
+  node.type = "SFImageBrushMask";
+  globalThis.__bmGraph = { _nodes: [node, decoy], setDirtyCanvas() {} };
+  globalThis.__bmCanvas.selected_nodes = { 12: node, 13: decoy };
+  let __ts = 1000;
+  const fireKey = (key, extra = {}) => {
+    for (const fn of globalThis.__bmKeys.keydown || []) {
+      fn({ key, timeStamp: __ts++, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {}, ...extra });
+    }
+  };
+  fireKey("]");
+  check("] 放大", sizeOf() === 82);
+  fireKey("[");
+  check("[ 缩小", sizeOf() === 80);
+  fireKey("a");
+  check("无关键不动", sizeOf() === 80);
+  fireKey("]", { target: { tagName: "INPUT" } });
+  check("输入框内不动", sizeOf() === 80);
+  fireKey("]", { ctrlKey: true });
+  check("修饰键不动", sizeOf() === 80);
+  globalThis.__bmEditorOpen = true;
+  fireKey("]");
+  check("编辑器打开时不动", sizeOf() === 80);
+  globalThis.__bmEditorOpen = false;
+  globalThis.__bmCanvas.selected_nodes = {};
+  fireKey("]");
+  check("未选中不动", sizeOf() === 80);
+
+  // 官方通道 onKeyDown（画布 processKey 分发）+ 同物理按键去重
+  globalThis.__bmCanvas.selected_nodes = { 12: node };
+  const ev1 = { key: "]", timeStamp: 5000, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {} };
+  check("onKeyDown 放大", node.onKeyDown(ev1) === false && sizeOf() === 82);
+  node.onKeyDown(ev1);
+  check("同戳去重（官方通道内）", sizeOf() === 82);
+  for (const fn of globalThis.__bmKeys.keydown || []) fn(ev1);
+  check("同戳去重（跨通道）", sizeOf() === 82);
+  const ev2 = { key: "[", timeStamp: 5001, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {} };
+  node.onKeyDown(ev2);
+  check("onKeyDown 缩小", sizeOf() === 80);
+  check("非快捷键放行", node.onKeyDown({ key: "a", timeStamp: 5002 }) === undefined);
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

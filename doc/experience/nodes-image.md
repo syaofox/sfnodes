@@ -496,3 +496,10 @@
 
 - **做法**：`onMouseMove` 常驻记录图片区内光标（画与不画都记，区外置空）；`onDrawForeground` 经 `canvas.node_over === node` 门控画环——离开节点后无额外监听，靠 hover 切换自带重绘消环。半径 `size/2×scale` 随缩放/步进/滚轮实时生效；brush 强调色实线 + 圆点、erase 白虚线 + 圆点（inpaint `_drawCursor` 同款）。
 - **测试**：smoke 断言位置记录/区外清空/hover 时 arc 半径（100px 图在 420×320 节点下 scale=2.74，80 笔刷环半径 109.6）/非 hover 无 arc；app 桩 canvas 改为测试可注入的 `__bmCanvas` 对象。
+
+### 11. 笔刷 shortcut [ ]（2026-09）
+
+- **做法**：选中本类节点时 `[` 缩小/`]` 放大，步长同 S± 步进器；OS 自动连发即按住连调，故不做 inpaint 式按住加速。选中集复用 `sf_canvas_align_lib.js::getSelectedNodes`（四形态兼容），`e.repeat` 放行。（初版误判无官方钩子只写 window 通道，见下“实测无效复修”。）
+- **互斥**：输入框内 / 修饰键 / 全屏编辑器打开（`.sf-px-overlay` 存活，crop/inpaint 自家 handler 接管）时跳过；命中才 `preventDefault+stopPropagation`，不干扰画布其他按键。
+- **测试**：smoke 升级 window 桩为捕获型 + `__bmGraph` 可注入伪图/伪选中——放大/缩小/无关键/输入框/修饰键/编辑器互斥/未选中七用例；新 import 的 `sf_canvas_align_lib.js`（零依赖纯模块）同步进改写表拷贝。
+- **实测无效复修（2026-09）**：初版 window 通道在用户环境无响应。排查确认两点：① 快捷键代码当时未进 HEAD（工作区未提交，部署侧无此代码）；② 发现官方通道——画布 `processKey` 把 keydown 分发给选中节点的 `onKeyDown`（core `addNodeKeyHandler` 再包一层，`=== false` 表已处理，链式兼容）。改为双通道：`nodeType.prototype.onKeyDown` 主办 + window 冒泡兜底（焦点在 body 时画布收不到），同物理按键经 `e.timeStamp` 去重（多选同戳亦然，首个节点全量调整后其余跳过）。smoke 加官方通道/同戳/跨通道去重/放行四用例。**教训：先查引擎有无官方钩子（`processKey`/`addNode*Handler`），再写全局监听；未提交代码先查部署差再查 bug**。
