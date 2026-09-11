@@ -182,13 +182,19 @@ function findByText(root, text) {
     return null;
 }
 // 菜单项：label 的 click 在真实 DOM 冒泡到父 .it（监听所在）；mock 不冒泡，
-// 因此直接找 .it 容器在其上触发。
+// 因此直接找 .it 容器在其上触发。预设项在可滚列表区内，需递归查找。
 function findItem(menu, text) {
-    for (const c of menu.children || []) {
-        if (String(c.className || "").includes("it") && findByText(c, text)) return c;
-    }
-    return null;
+    const walk = (root) => {
+        for (const c of root.children || []) {
+            if (String(c.className || "").split(/\s+/).includes("it") && findByText(c, text)) return c;
+            const f = walk(c);
+            if (f) return f;
+        }
+        return null;
+    };
+    return walk(menu);
 }
+const menuIsOpen = (c) => hasClass(c, "sf-ls-menu");
 const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
 
 (async () => {
@@ -245,31 +251,39 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
 
     const readLoras = () => JSON.parse(node.properties.loraStackState).loras;
 
-    // ── 打开预设菜单 ──
+    // ── 打开预设菜单（内联列表已删：只有 Save + Manage，取用走大面板）──
     const presetsBtn = makeEl();
     presetsBtn.className = "sf-ls-presets";
     presetsBtn.dataset.act = "presets";
     presetsBtn.closest = () => presetsBtn;
     widgetEl.emit("click", { target: presetsBtn, clientX: 40, clientY: 60 });
     await tick(); await tick();
-    const menu = menuChildren().find((c) => c.className === "sf-ls-menu");
-    check("预设菜单已打开", !!menu && menu._text !== "Loading presets…");
+    const menu = menuChildren().find(menuIsOpen);
+    check("预设菜单已打开", !!menu);
     check("菜单含 Save 项", !!findByText(menu, "Save current as preset…"));
-    const powerItem = findItem(menu, "power-style");
-    check("菜单列出预设", !!powerItem);
+    check("菜单含 Manage 项", !!findByText(menu, "Manage Presets…"));
+    check("菜单不内联列预设", !findItem(menu, "power-style"));
+    check("菜单无文本输入框", !(function hasTextInput(root) {
+        for (const c of root.children || []) {
+            if (c.type === "text" && c.placeholder) return true;
+            if (hasTextInput(c)) return true;
+        }
+        return false;
+    })(menu));
+    check("菜单无滚动列表区", !findByClass(menu, "sf-ls-preset-list"));
 
-    // ── 载入预设：点预设名 -> 确认框 -> Load ──
+    // ── 载入预设（Manager onSelect 同款入口 applyPresetRows，无二次确认）──
+    check("applyPresetRows 导出", typeof I.applyPresetRows === "function");
+    const refreshLog = [];
+    const applyRefresh = (structural) => {
+        R.renderNode(node);
+        refreshLog.push(!!structural);
+    };
     const beforeState = node.properties.loraStackState;
-    powerItem.emit("click", { target: powerItem });
+    const applied = await I.applyPresetRows(node, "power-style",
+        serverPresets["power-style"], applyRefresh);
     await tick(); await tick();
-    const mask = bodyChildren[bodyChildren.length - 1];
-    check("确认框出现", mask.className === "sf-ls-confirm-mask");
-    check("确认框标题", findByClass(mask, "sf-ls-confirm-t")._text === "Load preset?");
-    check("确认框注入 CSS（不依赖信息面板已打开）", headStyles.some((s) => s.id === "sf-ls-info-css"));
-    const loadBtn = findByClass(mask, "b pri");
-    check("确认框 Load 按钮", !!loadBtn);
-    loadBtn.emit("click", { target: loadBtn });
-    await tick(); await tick();
+    check("载入返回 true", applied === true);
 
     const loras = readLoras();
     check("载入后行数 = 2", loras.length === 2);
@@ -278,8 +292,13 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     check("载入后开关正确", loras[0].on === true && loras[1].on === false);
     check("载入后触发词清空", loras[0].triggers.length === 0);
     check("载入后新 id", loras[0].id !== "l1" && loras[0].id !== "l2");
-    check("refresh(true) 已调用", refreshCalls[refreshCalls.length - 1] === true);
+    check("refresh(true) 已调用", refreshLog[refreshLog.length - 1] === true);
     check("状态已变化", node.properties.loraStackState !== beforeState);
+    // 空行预设拒绝写入
+    const beforeEmpty = node.properties.loraStackState;
+    check("空行预设返回 false",
+        (await I.applyPresetRows(node, "empty", { loras: [{ lora: "" }] }, applyRefresh)) === false);
+    check("空行预设状态不变", node.properties.loraStackState === beforeEmpty);
     // 真实 renderNode 渲染新行：root > inner(.sf-ls-inner) > [band, (badge), rows]，
     // badge 在加载预设后出现，需按 class 查找 rows
     const inner = node._sfLsRoot.children[0];
@@ -297,23 +316,10 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     check("有自定义信息的行 i 高亮", String(infoX.className).split(/\s+/).includes("net"));
     check("无自定义信息的行不高亮", !String(infoY.className).split(/\s+/).includes("net"));
 
-    // ── Cancel 路径：再开菜单 -> 点预设 -> Cancel -> 状态不变 ──
-    widgetEl.emit("click", { target: presetsBtn, clientX: 40, clientY: 60 });
-    await tick(); await tick();
-    const menu2 = menuChildren().find((c) => c.className === "sf-ls-menu");
-    const powerItem2 = findItem(menu2, "power-style");
-    const before2 = node.properties.loraStackState;
-    powerItem2.emit("click", { target: powerItem2 });
-    await tick(); await tick();
-    const mask2 = bodyChildren[bodyChildren.length - 1];
-    findByClass(mask2, "b gh").emit("click", { target: findByClass(mask2, "b gh") });
-    await tick();
-    check("Cancel 后状态不变", node.properties.loraStackState === before2);
-
     // ── 保存预设：菜单 -> Save current as preset… -> 输入名 -> Save ──
     widgetEl.emit("click", { target: presetsBtn, clientX: 40, clientY: 60 });
     await tick(); await tick();
-    const menu3 = menuChildren().find((c) => c.className === "sf-ls-menu");
+    const menu3 = menuChildren().find(menuIsOpen);
     findItem(menu3, "Save current as preset…").emit("click", { target: findItem(menu3, "Save current as preset…") });
     await tick();
     const inp = menu3.children[0].children[0];   // .in > input
@@ -323,40 +329,13 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     check("POST 已发送", lastPost && lastPost.name === "my-stack");
     check("POST 数据形状兼容 Power", lastPost && lastPost.data.loras[0].lora === "dirA/x.safetensors"
         && lastPost.data.loras[0].strength === 0.9 && lastPost.data.loras[0].strengthTwo === 0.7);
-    check("保存后菜单列出新预设", !!findByText(menu3, "my-stack"));
-
-    // ── 删除预设：hover ✕ 点击 -> 二次确认 -> 删除 ──
-    const myItem = findItem(menu3, "my-stack");
-    const delBtn = findByClass(myItem, "del");
-    check("预设项有删除 ✕", !!delBtn);
-    delBtn.emit("click", { target: delBtn });
-    await tick(); await tick();
-    const delMask = bodyChildren[bodyChildren.length - 1];
-    check("删除确认框出现", delMask.className === "sf-ls-confirm-mask");
-    const delOk = findByClass(delMask, "b pri");
-    check("删除确认框 Delete 按钮", !!delOk);
-    delOk.emit("click", { target: delOk });
-    await tick(); await tick();
-    check("DELETE 后列表移除", !findByText(menu3, "my-stack") && !serverPresets["my-stack"]);
-    // 取消路径：再次保存后点击 ✕ -> Cancel 不删除
-    // 重新保存一个用于取消测试
-    // 保存 my-stack-2
-    findItem(menu3, "Save current as preset…").emit("click", { target: findItem(menu3, "Save current as preset…") });
-    await tick();
-    const inp2 = menu3.children[0].children[0];
-    inp2.value = "my-stack-2";
-    findByClass(menu3, "ok pri").emit("click", { target: findByClass(menu3, "ok pri") });
-    await tick(); await tick();
-    const myItem2 = findItem(menu3, "my-stack-2");
-    const delBtn2 = findByClass(myItem2, "del");
-    delBtn2.emit("click", { target: delBtn2 });
-    await tick(); await tick();
-    const delMask2 = bodyChildren[bodyChildren.length - 1];
-    findByClass(delMask2, "b gh").emit("click", { target: findByClass(delMask2, "b gh") });
-    await tick();
-    check("Cancel 后保留", !!findByText(menu3, "my-stack-2") && !!serverPresets["my-stack-2"]);
+    check("保存后菜单恢复骨架", !!findItem(menu3, "Save current as preset…")
+        && !!findItem(menu3, "Manage Presets…"));
+    // 保存的预设改名/删除统一走 Manage 大面板（菜单内联列表已删）；
+    // 后端仍在库中，可供面板取用
+    check("保存后后端有新预设", !!serverPresets["my-stack"]);
     // 清理
-    delete serverPresets["my-stack-2"];
+    delete serverPresets["my-stack"];
 
     // ── preset 输入连接（SF_LORA_PRESET）：自动加载预设到行 ──
     const upstream = {
@@ -399,6 +378,17 @@ const menuChildren = () => bodyChildren.filter((c) => c.removed !== true);
     const rows3 = JSON.parse(stack2.properties.loraStackState).loras;
     check("上游切换自动重载", rows3.length === 1 && rows3[0].name === "d.safetensors" && rows3[0].sm === 0.4);
     check("上游切换 refresh(true)", refresh3[refresh3.length - 1] === true);
+
+    // ── 菜单骨架（内联列表已删：条目再多也不出界）──
+    widgetEl.emit("click", { target: presetsBtn, clientX: 40, clientY: 660 });
+    await tick(); await tick();
+    const menuL = menuChildren().find(menuIsOpen);
+    check("菜单只有 Save + Manage 两项",
+        (menuL.children || []).filter((c) =>
+            String(c.className || "").split(/\s+/).includes("it")).length === 2);
+    check("菜单无内联预设项", !findItem(menuL, "power-style"));
+    check("菜单无滚动列表区", !findByClass(menuL, "sf-ls-preset-list"));
+    check("菜单位置已钳制", typeof menuL.style.top === "string" && menuL.style.top.endsWith("px"));
 
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -12,7 +12,7 @@ import { openLoraDropdown } from "./sf_lora_stack_dropdown.js";
 import { openInfoPanel, confirmDialog } from "./sf_lora_stack_info.js";
 import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 import { openLoraPanel } from "./sf_lora_stack_settings.js";
-import { loadPresets, savePreset, deletePreset, renamePreset } from "./sf_lora_stack_api.js";
+import { loadPresets, savePreset } from "./sf_lora_stack_api.js";
 
 let _menu = null;
 let _menuCleanup = null;
@@ -37,17 +37,6 @@ export function injectMenuCSS() {
     .sf-ls-menu .it.danger:hover { background:#e2504a; }
     .sf-ls-menu .it.dis { opacity:.35; pointer-events:none; }
     .sf-ls-menu .sep { height:1px; background:#1b1b1b; margin:3px 0; }
-    /* 预设菜单：行尾编辑 ✎（蓝）/ 删除 ✕（红）——常显 pill 样式，色彩与背景强区分 */
-    .sf-ls-menu .del { margin-left:auto; flex:none; color:#ff9a8a; background:rgba(220,70,50,0.18);
-      border:1px solid rgba(220,70,50,0.38); border-radius:4px; padding:2px 6px;
-      font-size:10px; cursor:pointer; opacity:0.92; }
-    .sf-ls-menu .edit { flex:none; color:#8cc8ff; background:rgba(70,130,220,0.18);
-      border:1px solid rgba(70,130,220,0.38); border-radius:4px; padding:2px 6px;
-      font-size:10px; cursor:pointer; opacity:0.92; }
-    .sf-ls-menu .it:hover .del { opacity:1; background:rgba(220,70,50,0.28); border-color:rgba(220,70,50,0.55); }
-    .sf-ls-menu .it:hover .edit { opacity:1; background:rgba(70,130,220,0.28); border-color:rgba(70,130,220,0.55); }
-    .sf-ls-menu .it .del:hover { color:#fff; background:rgba(220,70,50,0.38); }
-    .sf-ls-menu .it .edit:hover { color:#fff; background:rgba(70,130,220,0.38); }
     .sf-ls-menu .in { display:flex; align-items:center; gap:6px; padding:6px 8px; }
     .sf-ls-menu .in input { flex:1; min-width:0; box-sizing:border-box; background:#161616;
       border:1px solid #4a4a4a; border-radius:5px; color:#fff; font:11px 'Segoe UI',sans-serif;
@@ -68,9 +57,7 @@ export function injectMenuCSS() {
     .sf-ls-save textarea:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-save .acts { display:flex; gap:6px; justify-content:flex-end; }
     .sf-ls-save .hint { font:10px 'Segoe UI'; color:#6f6f6f; }
-    .sf-ls-preset-pos { flex:1; min-width:0; font:10px 'Segoe UI'; color:#7a9a7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:8px; }
-    .sf-ls-menu .it .l.has-pos { flex:0 1 auto; }
-    .sf-ls-menu .it.sf-ls-preset-active { background:color-mix(in srgb, var(--acc, var(--sf-acc, #f66744)) 22%, transparent); }
+
   `);
 }
 
@@ -147,144 +134,69 @@ function openRowMenu(node, id, x, y, refresh) {
     showMenu(menu, x, y);
 }
 
-// ── 预设菜单（参考 SFLoraPreset：存/取整个栈，机器级存储）────────────
-// 与行菜单同 DOM 骨架（.sf-ls-menu），共享 closeRowMenu/showMenu。列表异步
-// 加载（GET 预设），失败显示占位消息。保存命名在菜单内联输入（无
-// app.canvas.prompt 依赖，Vue/Classic 双环境可用）。
+// ── 预设菜单（参考 SFLoraPreset：存整个栈，机器级存储）──────────────────
+// 菜单内不列预设（条目再多也不出界）：取用统一走 "Manage Presets…" 大面板
+// （自带搜索 + 滚动）。与行菜单同 DOM 骨架，共享 closeRowMenu/showMenu。
+// 保存命名在菜单内联输入（无 app.canvas.prompt 依赖，Vue/Classic 双环境可用）。
+// 预设应用（菜单内联列表已删，由 Manager 面板经 onSelect 调用）：
+// 空行保护 + 写状态 + refresh(true)。与旧内联项行为一致（直接应用，无二次确认）。
+export async function applyPresetRows(node, name, preset, refresh) {
+    const rows = presetToRows(preset);
+    if (!rows.length) {
+        console.warn("[SF LoRA Stack] preset has no valid LoRA rows:", name, JSON.stringify(preset).slice(0, 200));
+        return false;
+    }
+    const st = readState(node);
+    writeState(node, { ...st, loras: rows, positive: presetPositive(preset), activePreset: name });
+    refresh(true);
+    return true;
+}
+
 async function openPresetsMenu(node, x, y, refresh) {
     closeRowMenu();
     injectMenuCSS();
     const menu = document.createElement("div");
     menu.className = "sf-ls-menu";
     menu.style.setProperty("--acc", accentOf(node));
-    let presets = {};
-    let msg = "";
-
-    menu.appendChild(makeMenuItem("", "Loading presets…", null, { dis: true }));
     showMenu(menu, x, y);
-    const res = await loadPresets();
-    if (!menu.isConnected) return;
-    if (res.ok) presets = res.presets;
-    else msg = res.message || "Could not load presets.";
     renderPresetsMenu();
 
+    function openManagerPanel() {
+        closeRowMenu();
+        import("./sf_lora_preset_manager.js").then(m => m.openLoraPresetManager({
+            node,
+            getActive: () => { try { return readState(node).activePreset; } catch { return ""; } },
+            onSelect: async (name) => {
+                const r = await loadPresets();
+                const p = r.ok && r.presets[name];
+                if (!p) return;
+                await applyPresetRows(node, name, p, refresh);
+            },
+        }));
+    }
+
     function renderPresetsMenu(extraMsg) {
-        if (extraMsg) msg = extraMsg;
         menu.textContent = "";
         menu.append(
             makeMenuItem("", "Save current as preset…", enterPresetName, { keepOpen: true }),
             menuSep(),
         );
-        if (msg) menu.appendChild(makeMenuItem("", msg, null, { dis: true }));
-        const names = Object.keys(presets).sort();
-        if (!names.length) {
-            menu.appendChild(makeMenuItem("", "(no presets yet)", null, { dis: true }));
-            return;
-        }
-        const active = readState(node).activePreset;
-        for (const nm of names) {
-            const it = makeMenuItem("", nm, () => applyPreset(nm));
-            if (nm === active) it.classList.add("sf-ls-preset-active");
-            // 预设 positive 预览（不与 triggers 拼接，经 SFLoraPreset 输出）
-            const pos = sanitizePositive(presets[nm]?.positive);
-            if (pos) {
-                const pv = pos.length > 60 ? pos.slice(0, 60) + "…" : pos;
-                const sub = document.createElement("span");
-                sub.className = "sf-ls-preset-pos";
-                sub.textContent = pv;
-                sub.title = pos;
-                it.querySelector(".l")?.classList.add("has-pos");
-                it.appendChild(sub);
-            } else {
-                it.title = "No positive prompt saved";
-            }
-            const edit = document.createElement("span");
-            edit.className = "edit";
-            edit.textContent = "✎";
-            edit.title = "Edit this preset (rename / positive)";
-            edit.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                enterEditPreset(nm);
-            });
-            it.appendChild(edit);
-            const del = document.createElement("span");
-            del.className = "del";
-            del.textContent = "✕";
-            del.title = "Delete this preset";
-            del.addEventListener("click", async (ev) => {
-                ev.stopPropagation();
-                const ok = await confirmDialog({
-                    title: "Delete preset?",
-                    message: `Delete preset "${nm}"? This cannot be undone.`,
-                    okLabel: "Delete",
-                    cancelLabel: "Cancel",
-                    accent: accentOf(node),
-                });
-                if (!ok) return;
-                const r = await deletePreset(nm);
-                if (!r?.ok && r?.error) {
-                    renderPresetsMenu(r.message || "Could not delete.");
-                    return;
-                }
-                delete presets[nm];
-                // 若删除的是当前徽标指向的预设，同步清除 activePreset 与 positive 输出
-                try {
-                    const cur = readState(node);
-                    if (cur.activePreset === nm) {
-                        writeState(node, { ...cur, activePreset: "", positive: "" });
-                        refresh(false);
-                    }
-                } catch {}
-                if (menu.isConnected) renderPresetsMenu();
-            });
-            it.appendChild(del);
-            menu.appendChild(it);
-        }
-        // 独立大面板入口（同步）
-        menu.append(menuSep(), makeMenuItem("", "Manage Presets…", () => {
-            closeRowMenu();
-            import("./sf_lora_preset_manager.js").then(m => m.openLoraPresetManager({
-                node,
-                getActive: () => { try { return readState(node).activePreset; } catch { return ""; } },
-                onSelect: async (name) => {
-                    const p = presets[name];
-                    if (!p) {
-                        // 若大面板内刚改名，本地 map 旧键已删，需重拉
-                        const r = await loadPresets();
-                        if (r.ok && r.presets[name]) {
-                            const st = readState(node);
-                            const rows = presetToRows(r.presets[name]);
-                            if (rows.length) {
-                                writeState(node, { ...st, loras: rows, positive: presetPositive(r.presets[name]), activePreset: name });
-                                refresh(true);
-                            }
-                        }
-                        return;
-                    }
-                    const st = readState(node);
-                    const rows = presetToRows(p);
-                    if (!rows.length) return;
-                    writeState(node, { ...st, loras: rows, positive: presetPositive(p), activePreset: name });
-                    refresh(true);
-                }
-            }));
-        }, { keepOpen: true }));
-        // 当前预设底色高亮并滚动可见
-        try {
-            const doScroll = () => {
-                const a = menu.querySelector(".sf-ls-preset-active");
-                if (a?.scrollIntoView) a.scrollIntoView({ block: "nearest" });
-            };
-            if (typeof requestAnimationFrame === "function") requestAnimationFrame(doScroll);
-            else setTimeout(doScroll, 0);
-        } catch {}
+        if (extraMsg) menu.appendChild(makeMenuItem("", extraMsg, null, { dis: true }));
+        menu.append(menuSep(), makeMenuItem("", "Manage Presets…", openManagerPanel, { keepOpen: true }));
     }
 
     // 保存命名输入模式：菜单内容换成 name + positive + Save/Cancel。Enter 提交、
     // Esc 取消。同设置面板 key 编辑器的交互。positive 可选，空串不存。
     // 结构保持首子为 .in（旧 smoke 测试 `menu.children[0].children[0]` 取 input）
     // 以维持兼容，新增 positive 区置于其后。
-    function enterPresetName() {
+    async function enterPresetName() {
+        // 内联列表已删，重名确认与 positive 预填改为进表单时拉一次（失败则降级：直接保存）
+        let known = {};
+        try {
+            const r = await loadPresets();
+            if (r.ok) known = r.presets;
+        } catch {}
+        if (!menu.isConnected) return;
         menu.textContent = "";
         // 首行保持旧结构：div.in > input（smoke 用 children[0].children[0] 定位）
         const row = document.createElement("div");
@@ -325,7 +237,7 @@ async function openPresetsMenu(node, x, y, refresh) {
         // 若重名覆盖，预填该预设的 positive 便于增量编辑
         const prefill = () => {
             const nm = inp.value.trim();
-            const ex = presets[nm];
+            const ex = known[nm];
             if (ex && typeof ex.positive === "string") ta.value = ex.positive;
         };
         inp.addEventListener("input", prefill);
@@ -339,7 +251,7 @@ async function openPresetsMenu(node, x, y, refresh) {
                 renderPresetsMenu("Nothing to save - add a LoRA first.");
                 return;
             }
-            if (presets[nm]) {
+            if (known[nm]) {
                 const replace = await confirmDialog({
                     title: "Replace preset?",
                     message: `A preset named "${nm}" already exists. Replace it?`,
@@ -351,14 +263,12 @@ async function openPresetsMenu(node, x, y, refresh) {
             }
             const r = await savePreset(nm, data);
             if (!r?.ok) { renderPresetsMenu((r && r.message) || "Could not save."); return; }
-            presets[nm] = data;
             // 同步更新栈自身 positive 与 activePreset，使栈侧输出与刚保存的预设一致且徽标可见
             try {
                 const cur = readState(node);
                 writeState(node, { ...cur, positive: pos, activePreset: nm });
                 refresh(true);
             } catch {}
-            msg = "";
             renderPresetsMenu();
         };
         const cancel = () => renderPresetsMenu();
@@ -382,120 +292,6 @@ async function openPresetsMenu(node, x, y, refresh) {
         inp.select();
     }
 
-    function enterEditPreset(oldName) {
-        const oldData = presets[oldName];
-        if (!oldData) return;
-        menu.textContent = "";
-        const row = document.createElement("div");
-        row.className = "in";
-        const inp = document.createElement("input");
-        inp.type = "text";
-        inp.placeholder = "Preset name…";
-        inp.maxLength = 64;
-        inp.value = oldName;
-        installWheelZoomPassthrough(inp);
-        row.appendChild(inp);
-        const ok = document.createElement("span");
-        ok.className = "ok pri";
-        ok.textContent = "Save";
-        const no = document.createElement("span");
-        no.className = "ok";
-        no.textContent = "Cancel";
-        row.append(ok, no);
-        menu.appendChild(row);
-        const wrap = document.createElement("div");
-        wrap.className = "sf-ls-save";
-        wrap.style.padding = "6px 8px";
-        const posLab = document.createElement("div");
-        posLab.className = "lab";
-        posLab.textContent = "Positive prompt (optional)";
-        const ta = document.createElement("textarea");
-        ta.placeholder = "masterpiece, 1girl, ...  (saved with strengths, triggers stay separate)";
-        ta.maxLength = 8000;
-        ta.value = oldData.positive || "";
-        installWheelZoomPassthrough(ta);
-        const hint = document.createElement("div");
-        hint.className = "hint";
-        hint.textContent = "Edit preset name and positive prompt.";
-        wrap.append(posLab, ta, hint);
-        menu.appendChild(wrap);
-        const commit = async () => {
-            const newName = inp.value.trim();
-            if (!newName) return;
-            const newPos = sanitizePositive(ta.value);
-            if (newName !== oldName && presets[newName]) {
-                renderPresetsMenu(`A preset named "${newName}" already exists.`);
-                return;
-            }
-            // 原子重命名 + positive 更新
-            const r = await renamePreset(oldName, newName, newPos);
-            if (!r?.ok) {
-                const m = r?.error === "already exists" ? `A preset named "${newName}" already exists.` : (r?.message || r?.error || "Could not save.");
-                renderPresetsMenu(m);
-                return;
-            }
-            // 同步前端 map：若 positive 空则后端已移除该字段，保持一致
-            const updated = { ...oldData };
-            if (newPos) updated.positive = newPos;
-            else delete updated.positive;
-            if (oldName !== newName) delete presets[oldName];
-            presets[newName] = updated;
-            // 若编辑的是当前徽标预设，同步更新栈的 activePreset/positive
-            try {
-                const cur = readState(node);
-                if (cur.activePreset === oldName) {
-                    writeState(node, { ...cur, activePreset: newName, positive: newPos });
-                    refresh(false);
-                }
-            } catch {}
-            msg = "";
-            renderPresetsMenu();
-        };
-        const cancel = () => renderPresetsMenu();
-        ok.addEventListener("click", commit);
-        no.addEventListener("click", cancel);
-        const kd = (ev) => {
-            ev.stopPropagation();
-            if (ev.key === "Escape") { ev.preventDefault(); cancel(); }
-            if (ev.target === inp && ev.key === "Enter") { ev.preventDefault(); commit(); }
-        };
-        inp.addEventListener("keydown", kd);
-        ta.addEventListener("keydown", kd);
-        try {
-            const mw = menu.offsetWidth, mh = menu.offsetHeight;
-            menu.style.left = Math.max(6, Math.min(x, window.innerWidth - mw - 6)) + "px";
-            menu.style.top = Math.max(6, Math.min(y, window.innerHeight - mh - 6)) + "px";
-        } catch {}
-        inp.focus();
-        inp.select();
-    }
-
-    // 载入 = 替换整个栈（触发词随旧行丢弃，词本身在文件级存储，可重勾）。
-    // 确认框防误点丢掉精心调好的配置。positive 亦同步写入栈状态，使栈侧 positive 输出生效。
-    async function applyPreset(nm) {
-        const preset = presets[nm];
-        if (!preset) return;
-        const st = readState(node);
-        const rows = presetToRows(preset);
-        if (!rows.length) {
-            // 预设里没有合法行（如所有 lora 名为空/缺失）——菜单已关，静默
-            // 关闭会让用户以为载入失败，这里至少留一条可查的日志。
-            console.warn("[SF LoRA Stack] preset has no valid LoRA rows:", nm, JSON.stringify(preset).slice(0, 200));
-            closeRowMenu();
-            return;
-        }
-        const ok = await confirmDialog({
-            title: "Load preset?",
-            message: `Load "${nm}"? This replaces the current stack.`,
-            okLabel: "Load",
-            cancelLabel: "Cancel",
-            accent: accentOf(node),
-        });
-        if (!ok) return;
-        writeState(node, { ...st, loras: rows, positive: presetPositive(preset), activePreset: nm });
-        refresh(true);
-        closeRowMenu();
-    }
 }
 
 function rowIdOf(target) {

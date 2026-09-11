@@ -2,9 +2,6 @@
 // 2026-08 扩展：预设含可选 positive 提示词（与 triggers 分离），经额外 STRING 输出流通
 // 2026-08 管理：独立 Manage 按钮 + 弹窗编辑/删除（改名+positive 原子化）
 import { app } from "/scripts/app.js";
-import { loadPresets, deletePreset, renamePreset } from "./sf_lora_stack_api.js";
-import { confirmDialog } from "./sf_lora_stack_info.js";
-import { injectCSSOnce, installWheelZoomPassthrough } from "./sf_common.js";
 
 const NODE_TYPE = "SFLoraPreset";
 const API = "/api/sfnodes/lora_presets";
@@ -71,24 +68,6 @@ function refreshTooltip(node, widget) {
         // LiteGraph 的 widget tooltip 需重绘才可见
         if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
     });
-}
-
-function injectMgrCSS() {
-    injectCSSOnce("sf-lora-preset-mgr-css", `
-    .sf-ls-menu .edit { flex:none; color:#8cc8ff; background:rgba(70,130,220,0.18); border:1px solid rgba(70,130,220,0.38); border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; opacity:0.92; }
-    .sf-ls-menu .it:hover .edit { opacity:1; background:rgba(70,130,220,0.28); border-color:rgba(70,130,220,0.55); }
-    .sf-ls-menu .it .edit:hover { color:#fff; background:rgba(70,130,220,0.38); }
-    .sf-ls-menu .del { margin-left:auto; flex:none; color:#ff9a8a; background:rgba(220,70,50,0.18); border:1px solid rgba(220,70,50,0.38); border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; opacity:0.92; }
-    .sf-ls-menu .it:hover .del { opacity:1; background:rgba(220,70,50,0.28); border-color:rgba(220,70,50,0.55); }
-    .sf-ls-menu .it .del:hover { color:#fff; background:rgba(220,70,50,0.38); }
-    .sf-ls-save { display:flex; flex-direction:column; gap:6px; padding:6px 8px; }
-    .sf-ls-save .lab { font:10px 'Segoe UI'; color:#8a8a8a; letter-spacing:.04em; text-transform:uppercase; }
-    .sf-ls-save textarea { width:100%; box-sizing:border-box; min-height:58px; max-height:120px; resize:vertical; background:#161616; border:1px solid #4a4a4a; border-radius:5px; color:#fff; font:11px 'Segoe UI',sans-serif; padding:5px 7px; outline:none; }
-    .sf-ls-save textarea:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-ls-save .hint { font:10px 'Segoe UI'; color:#6f6f6f; }
-    .sf-ls-preset-pos { flex:1; min-width:0; font:10px 'Segoe UI'; color:#7a9a7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-left:8px; }
-    .sf-ls-menu .it .l.has-pos { flex:0 1 auto; }
-    `);
 }
 
 async function openPresetManager(node, widget) {

@@ -545,3 +545,11 @@
 - **§39.6.1 Markdown 报告 + 设置建议（2026-09）**：输出改为四节 Markdown（配置回显/映射表/警告/参数设置建议）；新增 `flush_totals`（齐平数列 k=1..8，L=21/O=4 得 81/149/217/285…即 `68a+13`，算出而非硬编码）与 `suggest_settings`（总数就近两档齐平值、槽数=窗数、schedule/窗长/重叠原则性建议；cond 数只判形状不代设）。多窗复用同一段属正常不警告（表格自明），避免警告 blindness。
 
 
+
+### §39.10 SFLoraStack 预设菜单出界：删内联列表（2026-09）
+
+> 背景：预设 20+ 后下拉菜单无高度上限（`.sf-ls-menu` 无 max-height 且 `overflow:hidden`），加之 `showMenu` 只在"Loading…"空菜单时量过一次高度，异步填入后位置不再重算——底部条目漫出视口且无滚动，点不到。另有同源显示 bug：条目行名/✎✕按钮被 60 字 positive 预览挤出 360px 菜单（名 `flex:0 1 auto` 坍缩到 0，按钮 `flex:none` 被推出裁掉，整行只剩绿字）。
+
+- **修法（第一版：滚动区 + 过滤 + 重钳制，已废弃）**：曾给菜单加 flex 纵列可滚区 + 过滤框 + `reclampMenu`，冒烟全绿；但用户指出内联列表本就没有存在的必要——"Manage Presets…" 大面板（自带搜索 + 滚动 + 改名/删除）已覆盖全部取用场景。
+- **修法（终版：删列表）**：菜单只剩 Save + Manage 两项（条目再多也不出界）；取用统一走大面板 `onSelect`，经新导出 `applyPresetRows`（与旧内联项同语义：空行保护 + 写状态 + `refresh(true)`，无二次确认——与旧大面板行为一致）；保存流的重名确认/positive 预填改为进表单时拉一次；删 `enterEditPreset`/`applyPreset` 旧函数、`filterPresets`/`reclampMenu` 引入、内联列表 CSS（`.sf-ls-preset-list` 等）及 `sf_lora_preset.js` 内从未被调用的 `injectMgrCSS` 整函数 + 三个死 import。
+- **测试**：`test_lora_stack_presets_smoke.js` 改菜单骨架断言（两项/无内联项/无过滤框/无列表区/位置钳制）+ `applyPresetRows` 直测（写入正确/空行拒绝）；删内联删除/取消/长列表段落（改名/删除归大面板）。`findItem` 保留递归版（兼容深层结构）。
