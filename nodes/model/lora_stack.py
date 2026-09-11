@@ -21,6 +21,12 @@ import comfy.utils
 
 from ...sf_utils import lora_reader as R
 from ...sf_utils.logger import get_logger
+try:
+    from .lora_preset import PRESET_TYPE
+except Exception:
+    # 单测 thin mock 环境下 lora_preset 的重依赖（aiohttp/路由）不可用；
+    # 类型字符串是稳定的 ComfyUI 连线契约，降级为字面量（运行时恒走 import）。
+    PRESET_TYPE = "SF_LORA_PRESET"
 
 logger = get_logger(__name__)
 
@@ -42,30 +48,35 @@ class SFLoraStack:
         "预设的顺序、强度与 positive 加载到行上，执行时预设优先（行上勾选的"
         "触发词仍保留）。齿轮里的 Stacking method 可切换叠加方式：Sequential"
         "（标准，逐行相加）或 Orthogonal（Gram-Schmidt 输入空间正交化，减少相似"
-        " LoRA 之间的干扰；行顺序即优先级——第一个 LoRA 保持原样、后续让位、"
-        "可能损失幅度；仅 UNet 层正交化，CLIP 仍按顺序叠加）。"
+         " LoRA 之间的干扰；行顺序即优先级——第一个 LoRA 保持原样、后续让位、"
+         "可能损失幅度；仅 UNet 层正交化，CLIP 仍按顺序叠加）。第 5 输出 "
+         "preset_export 把本次实际生效的行（含开关与强度）以 SFLoraPreset 形状"
+         "导出，可直连 SFWanWindowLoRA 的 window_N 槽（一栈两用：主业做静态 base，"
+         "副业供某窗口位置）。model 输入悬空时为纯配置源模式：不读文件不打补丁，"
+         "只输出 triggers/positive/preset_export。"
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
-                "model": ("MODEL", {"tooltip": "每个开着的 LoRA 都将应用到的扩散模型。"}),
-            },
+            "required": {},
             "optional": {
+                "model": ("MODEL", {"tooltip": "每个开着的 LoRA 都将应用到的扩散模型。悬空时为纯配置源模式：不读文件不打补丁，只输出 triggers/positive/preset_export。"}),
                 "clip": ("CLIP", {"tooltip": "LoRA 应用到的 CLIP（文本编码器）。可选但建议连接（checkpoint CLIP 进这里，CLIP 输出再去你的文本编码），这样 LoRA 也能调整触发词如何被读取。仅模型设置时可留空。"}),
                 "preset": ("SF_LORA_PRESET", {"tooltip": "SFLoraPreset 的选择输出。连接后自动把预设的顺序与强度加载到行上；执行时预设优先（行状态仅保留同名行的触发词勾选）。"}),
             },
             "hidden": {"LoraLoaderState": ("STRING", {"default": "{}"})},
         }
 
-    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING")
-    RETURN_NAMES = ("MODEL", "CLIP", "triggers", "positive")
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING", PRESET_TYPE)
+    RETURN_NAMES = ("MODEL", "CLIP", "triggers", "positive", "preset_export")
     OUTPUT_TOOLTIPS = (
         "按行顺序应用了每个开着 LoRA 的模型。",
         "应用了每个开着 LoRA 的 CLIP（未接 CLIP 时原样直通）。",
         "你勾选、且所在行处于开启状态的触发词，按分隔符连接的纯文本。",
         "预设保存的正向提示词（与 triggers 分离，不自动拼接）；无预设或无 positive 时为空。",
+        "本栈实际生效的行（SFLoraPreset 形状，可直连 SFWanWindowLoRA 的 window_N 槽）；"
+        "行开关/强度与本次执行一致，触发词不携带（仍走 triggers 输出）。",
     )
     FUNCTION = "apply"
     CATEGORY = _CATEGORY
@@ -94,7 +105,20 @@ class SFLoraStack:
         self._cache[path] = (lora, meta)
         return (lora, meta)
 
-    def apply(self, model, clip=None, preset=None, LoraLoaderState="{}"):
+    @staticmethod
+    def _export_preset(resolved, positive):
+        """resolved 行 → SFLoraPreset 形状（两条返回路径共用同一组装）。"""
+        return {
+            "loras": [
+                {"lora": e.get("name", ""), "on": True,
+                 "strength": float(e.get("sm", 0.0)),
+                 "strengthTwo": float(e.get("sc", e.get("sm", 0.0)))}
+                for e in resolved
+            ],
+            "positive": positive,
+        }
+
+    def apply(self, model=None, clip=None, preset=None, LoraLoaderState="{}"):
         state = R.parse_state(LoraLoaderState)
         if isinstance(preset, dict):
             # 预设优先：preset 覆盖行与 positive，触发词继承自行状态。
@@ -102,6 +126,20 @@ class SFLoraStack:
         cache_mode = state.get("cacheMode", "last")
         # 行解析（文件存在性/强度/override/零强度语义）两路径共用同一过滤。
         plan = self._build_plan(state, clip)
+        # positive 来自状态（预设优先已在 preset_override 中处理，与 triggers 分离）
+        positive = state.get("positive", "")
+        if not isinstance(positive, str):
+            positive = ""
+
+        if model is None:
+            # 纯配置源模式：不读文件、不打补丁（毫秒级零 IO）。
+            # 文件损坏类失败无法检出（需读文件），仅做存在性过滤；
+            # 其余语义（开关/强度/触发词/positive）与接 MODEL 时一致。
+            resolved = [entry for entry, _path, _sm, _sc, _zero in plan]
+            triggers = R.collect_triggers({"loras": resolved, "sep": state.get("sep", ", ")})
+            preset_export = self._export_preset(resolved, positive)
+            logger.info("[SFLoraStack] model input unconnected; exporting preset only (no files read).")
+            return (None, None, triggers, positive, preset_export)
 
         if state.get("mergeMethod") == "ortho_gs":
             result = self._apply_ortho(model, clip, plan)
@@ -117,16 +155,16 @@ class SFLoraStack:
         # resolved 行都是开的，所以去重连接它们勾选的词）。
         triggers = R.collect_triggers({"loras": resolved, "sep": state.get("sep", ", ")})
 
-        # positive 来自状态（预设优先已在 preset_override 中处理，与 triggers 分离）
-        positive = state.get("positive", "")
-        if not isinstance(positive, str):
-            positive = ""
-
         # 按用户的内存模式修剪（见 __init__）。
         self._trim_cache(cache_mode, used_paths, last_this_run)
 
+        # preset 导出：实际生效的行（SFLoraPreset 形状），供 SFWanWindowLoRA
+        # 的 window_N 槽直连。strengthTwo（CLIP 强度）原样携带，下游 DiT-only
+        # 路径忽略它（与 SFLoraPreset 既有语义一致）。
+        preset_export = self._export_preset(resolved, positive)
+
         logger.info("[SFLoraStack] applied {} LoRA(s).".format(applied))
-        return (model, clip, triggers, positive)
+        return (model, clip, triggers, positive, preset_export)
 
     def _build_plan(self, state, clip):
         """把状态解析为执行计划 [(entry, path, sm, sc, zero)]。

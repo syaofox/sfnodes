@@ -524,6 +524,16 @@
 - **教训**：第三方回调机制必须端到端打通验证（注册→触发→ effect），"无报错"在回调链路上恒为阴性证据。本案三次"静默通过"（注册成功、窗照算、matched 全绿）无一能证明 effect——唯一阳性证据是 effect 本体（出图语义 / `done` 行）。
 - **测试**：单测 dispatch 改走 reader 真实契约（`["callbacks"]` 分支），直接形状断言保留（未来兼容）；连续同槽只计一次。
 
+### §39.9 SFLoraStack 第 5 输出 preset_export（2026-09）
+
+> 背景：窗口槽只吃 `SF_LORA_PRESET` 连线，配 preset 要另起 `SFLoraPreset` 节点；用户要直接连 Stack（所见即所得的行编辑器）。
+
+- **实现**：`lora_stack.py` 尾部追加输出（`RETURN_TYPES/NAMES/TOOLTIPS` +1，旧 4 槽序号不动，旧工作流安全）；导出内容 = 本次 `resolved` 行转 preset 形状（`name/sm/sc → lora/strength/strengthTwo`，`positive` 透传；关的行已剔除，零强度行保留由窗口槽过滤；触发词不携带，仍走 `triggers` 输出）。窗口节点零改动（槽类型本来就是 preset）。
+- **用法**：双用模式——Stack 照常串主线做静态 base，`preset_export` 另分一根进某 `window_N`；纯当配置源用则 MODEL/CLIP 悬空（`apply` 照跑，属已知浪费，不做下游感知优化）。
+- **兼容教训**：新增输出导致两处旧单测按 4 元组解包/断言（`test_lora_ortho.py` 12 处、`test_lora_reader.py` 结构断言），同步更新；另发现 `lora_stack → lora_preset → lora_presets(aiohttp)` 重导入边会冲掉 thin mock，`PRESET_TYPE` 按本文件既有防御风格 try/except 降级字面量。
+- **测试**：`tests/test_lora_stack_preset.py` 新建（旧 4 输出不动、第 5 输出形状、preset 输入优先透传、空栈、窗口槽契约）。
+- **§39.9.1 model 输入 optional（2026-09）**：`model` 移入 optional，悬空即纯配置源——跳过读文件/打补丁全套（毫秒零 IO，对比接 MODEL 时每文件秒级读盘 + GB 峰值），仅 `parse_state` + 存在性过滤 + `collect_triggers` + 组 preset；MODEL/CLIP 回空。实测空跑导出与接 MODEL **逐字节一致**（`resolved` 存 state 行而非 plan 重算值，`strengthTwo` 都一样——比预期还好）。旧单测两处同步（`test_lora_reader` 结构断言改 optional、`test_lora_ortho` 已在 §39.9 修过解包）。结论：当配置源用时 MODEL 悬空即可，无需"随便连一个"。
+
 ### §39.6 SFWanWindowPlanner：只算不跑的映射表（2026-09）
 
 > 背景：窗/段/槽三套时钟对齐全靠手算（61÷21/4→4 窗、region 钳制、slot 取模），配错一次重跑几小时。固化成排队前看一眼的工具。

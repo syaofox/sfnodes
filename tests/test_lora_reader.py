@@ -589,12 +589,13 @@ node = mod.SFLoraStack()
 check("CATEGORY", node.CATEGORY == "sfnodes/model")
 check("DESCRIPTION 存在", isinstance(node.DESCRIPTION, str) and len(node.DESCRIPTION) > 0)
 it = node.INPUT_TYPES()
-check("INPUT_TYPES model", it["required"]["model"][0] == "MODEL")
+check("INPUT_TYPES model 可选（纯配置源可悬空）", it["optional"]["model"][0] == "MODEL"
+      and "model" not in it["required"])
 check("INPUT_TYPES clip 可选", it["optional"]["clip"][0] == "CLIP")
 check("INPUT_TYPES preset 可选", it["optional"]["preset"][0] == "SF_LORA_PRESET")
 check("INPUT_TYPES hidden LoraLoaderState", it["hidden"]["LoraLoaderState"][1]["default"] == "{}")
-check("RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "CLIP", "STRING", "STRING"))
-check("RETURN_NAMES", node.RETURN_NAMES == ("MODEL", "CLIP", "triggers", "positive"))
+check("RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "CLIP", "STRING", "STRING", "SF_LORA_PRESET"))
+check("RETURN_NAMES", node.RETURN_NAMES == ("MODEL", "CLIP", "triggers", "positive", "preset_export"))
 check("FUNCTION = apply", node.FUNCTION == "apply")
 
 # ── preset_override（Power 预设形状 -> 行形状，预设优先）──
