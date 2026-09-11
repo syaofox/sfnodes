@@ -268,8 +268,9 @@ fire_evaluate(handler, 3)
 check("eval w3 越界轮回 slot0", patcher.patches[MODEL_B][0][0] == 1.0
       and len(patcher.patches[MODEL_B]) == 2)
 
-# ── CLEANUP 复位 ───────────────────────────────────────────────────────────
+# ── CLEANUP 复位 + 换槽计数 ──────────────────────────────────────────────────
 fire_evaluate(handler, 2)
+check("swap 计数（w0/w1/w2/w3/w2 共 5 次）", patcher._sf_window_session.swap_count == 5)
 fire_cleanup(handler)
 check("cleanup: A 复位初始", patcher.patches[MODEL_A][0] is BASE_T
       and len(patcher.patches[MODEL_A]) == 2)

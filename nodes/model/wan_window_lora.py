@@ -149,6 +149,7 @@ class _PatchSwapSession:
         self.full = full
         self.initial = initial
         self.n = n_slots
+        self.swap_count = 0  # EVALUATE 触发的换槽次数（cleanup 时汇总打点）
 
     def _clear_stale_prepared(self):
         """防御性清理：异常中断的 forward 可能留下 prepared_patches 快照
@@ -178,6 +179,7 @@ class _PatchSwapSession:
         for k, lst in lists.items():
             P[k] = lst
         self._clear_stale_prepared()
+        self.swap_count += 1
 
     def reset_initial(self):
         P = self.patcher.patches
@@ -342,6 +344,10 @@ class SFWanWindowLoRA:
             full.append(table)
 
         session = _PatchSwapSession(patched, dm, full, initial, len(slot_rows))
+        try:
+            patched._sf_window_session = session  # 诊断可达（换槽计数等）
+        except Exception:
+            pass
 
         def _on_evaluate(handler, model_arg, x_in, conds, timestep, model_options,
                          window_idx, window, *rest):
@@ -355,6 +361,9 @@ class SFWanWindowLoRA:
 
         def _on_cleanup(handler, model_arg, x_in, conds, timestep, model_options):
             session.reset_initial()
+            if session.swap_count:
+                logger.info("[SFWanWindowLoRA] done | %d window evaluations across %d slot(s).",
+                            session.swap_count, session.n)
 
         handler = None
         try:
