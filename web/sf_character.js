@@ -37,6 +37,8 @@ function injectCSS() {
 .sf-ch-search{flex:1;min-width:0;resize:none;font:12px sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:4px 6px;height:28px;box-sizing:border-box;outline:none;}
 .sf-ch-reset{flex:0 0 auto;font:11px sans-serif;color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);border:1px solid color-mix(in srgb, var(--sf-acc, #f66744) 45%, transparent);border-radius:5px;padding:0 10px;cursor:pointer;height:28px;}
 .sf-ch-reset:hover{background:color-mix(in srgb, var(--sf-acc, #f66744) 22%, transparent);}
+.sf-ch-countbtn{flex:0 0 auto;font:11px sans-serif;color:#c8c8c8;background:#2a2a2a;border:1px solid #444;border-radius:5px;padding:0 10px;cursor:pointer;height:28px;white-space:nowrap;}
+.sf-ch-countbtn:hover{background:#3a3a3a;}
 .sf-ch-viewseg{flex:0 0 auto;display:flex;border:1px solid #444;border-radius:5px;overflow:hidden;height:28px;}
 .sf-ch-viewseg button{font:11px sans-serif;color:#c8c8c8;background:#2a2a2a;border:none;padding:0 8px;cursor:pointer;}
 .sf-ch-viewseg button:hover{background:#3a3a3a;}
@@ -301,7 +303,34 @@ function renderShotsBar(ctx) {
   }
 }
 
+// 计数按钮文案：已选 N/M（M 为当前角色图片总数，无角色时 0/0）
+function renderCountBtn(ctx) {
+  const { node, countBtn, roles } = ctx;
+  if (!countBtn) return;
+  const sel = lib.coerceSelection(roles || [], readRawState(node));
+  const total = lib.entryImages(lib.entryOf(roles || [], sel.role)).length;
+  const n = sel.role ? sel.shots.length : 0;
+  countBtn.textContent = isZh() ? `已选 ${n}/${total}` : `${n}/${total} selected`;
+}
+
+// 计数按钮点击：未全选→全选当前角色（恢复），已全选→清空分镜（保留角色）。
+// 加载期门控点击防覆盖刚恢复的选择。
+function toggleSelectAll(node, ctx) {
+  if (isGraphLoading()) return;
+  const sel = lib.coerceSelection(ctx.roles || [], readRawState(node));
+  if (!sel.role) return;
+  const total = lib.entryImages(lib.entryOf(ctx.roles || [], sel.role)).length;
+  if (sel.shots.length < total) {
+    const entry = lib.entryOf(ctx.roles || [], sel.role);
+    writeState(node, sel.role, lib.entryImages(entry).map((i) => i.label));
+  } else {
+    writeState(node, sel.role, []);
+  }
+  renderAll(ctx);
+}
+
 function renderAll(ctx) {
+  renderCountBtn(ctx);
   renderShotsBar(ctx);
   renderList(ctx);
   renderPrompt(ctx);
@@ -453,6 +482,10 @@ function setupNode(node) {
   resetBtn.className = "sf-ch-reset";
   resetBtn.textContent = isZh() ? "重置" : "Reset";
   resetBtn.title = isZh() ? "清空已选角色" : "Clear selected character";
+  const countBtn = document.createElement("button");
+  countBtn.className = "sf-ch-countbtn";
+  countBtn.textContent = isZh() ? "已选 0/0" : "0/0 selected";
+  countBtn.title = isZh() ? "切换全选/清空当前角色图片" : "Toggle select all / clear shots";
   const searchEl = document.createElement("textarea");
   searchEl.className = "sf-ch-search";
   searchEl.rows = 1;
@@ -486,7 +519,7 @@ function setupNode(node) {
   viewBtn("list", "☰", zh ? "列表视图" : "List view");
   syncViewBtns();
 
-  tools.append(resetBtn, searchEl, viewSeg);
+  tools.append(resetBtn, countBtn, searchEl, viewSeg);
 
   // 提示词编辑框：手改写入草稿 widget（空=回落分镜拼接）
   const promptEl = document.createElement("textarea");
@@ -531,11 +564,14 @@ function setupNode(node) {
     searchEl,
     promptEl,
     shotsBar,
+    countBtn,
     popEl,
     roles: null,
     name: null,
     pending: null,
   };
+
+  countBtn.onclick = () => toggleSelectAll(node, ctx);
 
   resetBtn.onclick = () => {
     if (isGraphLoading()) return;
