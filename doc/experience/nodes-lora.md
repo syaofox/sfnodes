@@ -512,7 +512,7 @@
 
 > 背景：实测射精 LoRA（纯 LoRA 键、matched 全绿、分段直拼正常）在逐窗路径下无感。根因：官方 `load()` 对全载模块把补丁**烘焙**进权重且不再装函数（`model_patcher.py:1061-1080 → patch_weight_to_device:917-926`），`lowvram patches: 0` 即"全走烘焙"的旁证；换表只对流式键有效，97% 全载下后两窗近乎全死。§39.5 的"四项 SAFE"漏验了全载分支（`1220` 的 append 在 `partially_unload` 内，不在 `load` 内）——教训：验证"何时装函数"必须分全载/半载两条路径分别举证。
 
-- **修法**：`patcher.patches` 只读（base 烘焙/流式命运走官方）；槽内容进**独立槽表**；首次 `EVALUATE` 为并集键**后装** `LowVramPatch(key, 槽表)` 进模块 `weight/bias_function`（forward 经 `ops.cast_bias_weight:413-435` 现场读，与静态 Stack 同路径同开销）；已有官方表函数则不管，旧会话僵尸按表身份清除；无 handler 回退官方 `add_patches(slot0)` 静态。
+- **修法**：`patcher.patches` 只读（base 烘焙/流式命运走官方）；槽内容进**独立槽表**；首次 `EVALUATE` 为并集键**后装** `LowVramPatch(key, 槽表)` 进模块 `weight/bias_function`（forward 经 `ops.cast_bias_weight:413-435` 现场读，与静态 Stack 同路径同开销）；已有官方表函数则不管（§39.11 起已改为官方保留 + 我方叠加——此前跳过是 bug），旧会话僵尸按表身份清除；无 handler 回退官方 `add_patches(slot0)` 静态。
 - **幂等**：二次 `_ensure` 不得重复追加（单测抓到的真 bug：`official=False` 无条件 append → 双重应用；现以"已装本表函数"为存在判据）。
 - **测试**：54 断言（mock 官方流式装配：后装绑定独立表、官方函数保留、僵尸清除、重入唯一、无函数属性模块建表、base 烘焙假设下分表隔离无双重计数、回退逐行 `add_patches`）。
 

@@ -33,8 +33,8 @@
   - 本节点必须接在 Wan Context Windows **之后**（需要它建好的
     `model.model_options["context_handler"]` 来注册回调）；链错顺序则
     warning + 回退官方 `add_patches(slot0)` 静态（短视频/无回调同理）。
-  - 上游静态补丁（SFLoraStack 等）原样保留并与每槽叠加（base 烘焙态 +
-    本槽流式态，顺序 = base 先、本槽后，与串联一致）。
+  - 上游静态补丁（SFLoraStack 等）原样保留并与每槽叠加（base 烘焙/
+    张量附着态 + 本槽注入态，生效顺序 = base 先、本槽后，与串联一致）。
   - preset 行的 `strengthTwo`（CLIP 强度）被忽略，只用 `strength`（模型侧）；
     CLIP 本体不在逐窗路径内。
   - 要严格"第 k 段 = 槽 k"请用 STATIC_STANDARD 或 BATCHED schedule；
@@ -349,7 +349,8 @@ class SFWanWindowLoRA:
     FUNCTION = "apply"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("SF Wan Window LoRA：每窗口位置连一个 SFLoraPreset（槽内多 LoRA），"
-                   "按 window_idx 轮换官方补丁注入，接在原生 Wan Context Windows 之后使用。"
+                   "按 window_idx 逐窗轮换注入官方格式补丁（普通层流式函数、"
+                   "GGUF 量化层张量 patches），接在原生 Wan Context Windows 之后使用。"
                    "空槽（未连接）= 该窗口位置只跑上游补丁。严格分段请用 STATIC/BATCHED schedule。"
                    "仅 DiT 侧生效（preset 的 CLIP 强度被忽略）。")
 
