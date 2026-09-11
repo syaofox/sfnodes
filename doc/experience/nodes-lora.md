@@ -450,4 +450,62 @@
 - `web/krea2_interrogator.js` `afterConfigureGraph` 改为重排后按名自愈（`user_prompt` string/`vision` number/`seed` int/`control` enum/`thinking` bool/`min_p`→0.05/`presence_penalty`→0.0/`use_default_template`→true），旧注释“追加末尾”更新为“已授权重排破兼容”。
 - 测试：`test_interrogator_control.py` 重写分区顺序断言（`user_prompt` 紧邻 `prompt`、`min_p/presence_penalty/thinking` 在 `required`、`use_default_template` 在 `optional` 末位、`max_length 8192`）；`test_interrogator_optional.py` 扩展 `min_p/presence_penalty` 透传与 `use_default_template=False` 裸模板分支。
 
+---
+
+## 39. SFWanWindowLoRA：逐窗口轮换动作 LoRA（context_window wrapper 注入，2026-09）
+
+> 背景：原生 `WanContextWindowsManual` 按 `context_schedule` 切窗逐窗 forward 再融合，无逐窗 LoRA 概念。用户要"每个窗口不同动作 LoRA、追求连贯"，定案为全新 SF 节点、固定 2-4 路、零前端原型。落地为 `nodes/model/wan_window_lora.py`（节点 + `DIFFUSION_MODEL` wrapper）+ `sf_utils/window_lora.py`（槽位路由纯逻辑）。
+
+- **不改原生文件**：`WanContextWindowsManual` 只配参，`IndexListContextHandler.evaluate_context_windows` 每窗写 `transformer_options["context_window"] = window` 后调 `calc_cond_batch`；Wan forward 经 `WrappersMP.DIFFUSION_MODEL` 分发——wrapper 在此读 window 切换，全链路复用，ComfyUI 升级不丢代码。
+- **注入方式选 Regional 同款激活增量**（`(x @ down.T) @ up.T` forward hook），不合并权重：fp8/量化安全、可与静态 LoRA 补丁共存、切换开销小。补丁交换方案（逐窗 add_patches）开销大且采样中途改 patch 不安全，否决。
+- **window 序号推导**（`window_lora.py::WindowSlotTracker`）：`transformer_options` 只有 window 对象无序号，且每窗调两次 forward（pos+neg）——按 `(timestep 标量, index_list)` 分组，同 step 首次出现的 key 按序分配 order，复访复用同一 slot，`slot = order % n`；无 window 回退 slot 0；预留 `sf_window_idx` 直通（将来给 handler 打补丁时写）。
+- **只切 DiT 侧**：CLIP 编码只做一次不在逐窗 forward 内，触发词保持全局一致；同一 LoRA 勿再经 Stack/Loader 静态加载（双重应用）。
+- **schedule 约束**：严格"第 k 段 = LoRA k"必须 `STATIC_STANDARD`/`BATCHED`；`UNIFORM` 系每步 `ordered_halving` 漂移窗口划分，轮换逐 step 错位——重叠区原生 fuse（建议 `overlap-linear`）混合保证动作连贯，info 输出注明。
+- 测试：`tests/test_wan_window_lora.py`（Tracker 纯路由 + 节点 mock：slot 独有层断言路由、pos/neg 去重、step 重置、0 匹配/加载失败/零强度/无 active 全覆盖）。
+
+### §39.1 位置式 + 每槽多 LoRA + 槽数动态（2026-09）
+
+- **接口 redesigned**：固定 `lora_1..4` combo（压紧轮换，空位被吞、表达不了"某窗留白"）→ 动态 `window_N` 连线槽（`SF_LORA_PRESET` 类型，每槽连一个 `SFLoraPreset` 即多 LoRA）。槽位即窗口位置，`slot = order % N`（N 含空槽），空槽基模直通。
+- **后端灵活 schema**：`_WindowPresetInputs(dict)`（`__contains__` 恒 True + `__getitem__` 回 `PRESET_TYPE` 常量，复刻 `conditioning_combine` 模式）+ `VALIDATE_INPUTS → True`；槽序复用 `conditioning_combine.conditioning_slot_key`（禁内联副本）；类型字符串复用 `lora_preset.PRESET_TYPE`。
+- **槽内叠加 = 增量求和**：`layer_map` 改为 `{name: (mod, {slot: [fn...]})}`，hook 内对 active slot 的 fns 求和（等价顺序叠加一阶效果，满足交换律故槽内无顺序概念）；强度只取 preset 行的 `strength`（`strengthTwo` 是 CLIP 侧、逐窗路径用不到，解析时忽略并测试锁定）。
+- **前端**：`web/sf_wan_window_lora.js`（combine 克隆：`installDynamicSlots` 初始 2/上限 10 + `onAfterGraphConfigured` 补齐回收），`check_web_imports.py` MODS 加项。
+- **mock  fidelity 教训**：`FakeTensor.__mul__` 起初返回 self 致强度系数被吞、求和断言 128≠96——mock 必须让标量乘法真实生效，否则测不出 strength 语义。
+
+### §39.2 显存按需驻留（12GB + Wan-14B GGUF 实测 OOM，2026-09）
+
+- **症状**：12GB 显存、Wan2.2-14B-Q4、244 帧，不加 LoRA/静态 Stack 都能过，加本节点（3 槽 1+1+2 共 4 个 LoRA）一起跑就爆——旧实现 `_prepare` 把全槽位权重 bf16 拷 GPU 常驻（单份约 0.5~1GB，4 份 ≈ 3~6GB），成为压垮骆驼的最后一根稻草。
+- **修法**：窗口逐个求值、同一时刻仅一槽参与计算——`_WindowSession` 改按需驻留：`_gpu` 缓存只留 active 槽，`run()` 切槽时先逐出旧槽（`del` + `cuda.empty_cache`，try 包裹防 mock/无 cuda 环境）再搬运新槽；CPU 侧 mats 全程保留作搬运数据源。峰值 N 槽 → 1 槽，代价是每切槽一次 H2D 搬运。
+- **测试**：`wrapper.session` 暴露会话（诊断可达），断言切槽后 `_gpu.keys()` 恒为单元素、重搬运钩挂与数值（96）不变、空槽记录为空映射。
+
+### §39.3 半卸载模型 OOM：跨 run 残留 + hook 瞬时量（2026-09）
+
+> 症状：high（Wan2.2-14B-Q4）跑完切 low 模型跑，`slot 0 resident (400 layers)` 后 `Allocation … would exceed allowed memory (Requested 270MB, Free 36MB)` 逐层刷屏。low 模型半卸载（8796/8874MB 在卡上），余量只剩几十 MB。
+
+- **两处病灶**：① high run 会话的 GPU 拷贝在切模型后仍被旧 patcher 引用而残留；② hook 的 `x.to(bf16)` 整层拷贝 + 全层 delta（Wan ffn 层 21 帧窗口约 270MB 级）一次即爆——且 hook 内 try/except 会吞掉逐层退化为空跑（只刷 ERROR，无 LoRA 效果）。
+- **修法三件套**（`nodes/model/wan_window_lora.py`）：① 模块级 weakref 会话注册表，新 `apply()` 先 `_evict_all_sessions()`；② `patched.add_callback(ON_CLEANUP, …)`（签名 `callback(patcher)`，`model_patcher.py:1316`；单测环境无 comfy 时回退字符串 `"on_cleanup"`）；③ hook 改分块原地累加（`_HOOK_CHUNK_TOKENS=4096`，`narrow` 切片 + `add_` 写回，零全尺寸临时量）。
+- **mock 补课**：`FakeTensor` 加 `narrow`（numpy view 写透语义）+ `add_`，否则新 hook 在单测里跑不动。
+- **测试**：长 seq（5000>4096）分块数值仍全 96 且原地写回同一对象；跨 apply 旧会话 `_gpu` 被清空；ON_CLEANUP 回调触发逐出。
+
+### §39.4 容量协同：预检降级 + 去热路径 empty_cache + 跟随模型 dtype/设备（2026-09）
+
+> 背景：low 半卸载模型（8796/8874MB 在卡、余 36MB）上 `resident` 成功后 forward 爆——官方按"模型+0.8G 保底"做半卸载，我方常驻+瞬时是账外支出，把保底吃穿。对比官方 `model_management.get_free_memory/minimum_inference_memory`（`comfy/model_management.py:876,1765`）、`partially_load`（`model_patcher.py:982`）、`ops.cast_bias_weight` 缓冲复用后定的修复。
+
+- **预检 + 整槽跳过（fail-safe）**：`_slot_bytes` 用 CPU 端已知形状精确预估（`Σ numel×cdt字节`，仅 plan 命中层）；`_ensure_slot` 对照官方 `get_free_memory + minimum_inference_memory`（拿不到则跳过预检保旧行为），不够就整槽跳过 warning、该窗跑基模——全有全无，绝不半槽应用；搬运期真 OOM 同样路径降级。
+- **删热路径 `empty_cache`**：`_evict_others` 只 `del` 让 caching allocator 复用（官方亦只在卸载边界 `soft_empty_cache`）；`empty_cache` 仅留 `_evict_all_sessions` 边界与 OOM 恢复路径。
+- **跟随模型 dtype/设备**：`_prepare` 探首参数 dtype（fp16/fp32 量化模型不再被硬编码 bf16 拖累，每层每 chunk 省两次转换）；`_ensure_slot(si, dev=x.device)`，设备变化即全逐出重搬（半卸载下模块设备会迁移，旧 `_dev` 快照 bug）。
+- **自适应分块**：hook 内 OOM 则块减半（4096→512 下限）重试到底，仍爆才整层跳过；此前已算出的块会残留部分增量（fail-safe 降级，好过整卡中断）。
+- **测试**：`FakeTensor` 补 `numel/element_size` + mock 三 dtype；fp16 探到 fp16、未知回退 bf16；块=3 多轮全 96；OOM/非 OOM hook 都保底直通；fake `comfy.model_management`（余 1B）下零 hook + `skipped` 缓存 + 预估 256B；无官方包时不拦截；dev 迁移更新。
+- **运维旋钮**：`--reserve-vram` 可加大官方保底，间接给我方留余量；仍不够就降 `context_length`/总帧数（原生累加器全长常驻是同一池子的另一大户，动不了）。
+
+### §39.5 patch-swap 重构：零 GPU 常驻的根治（2026-09）
+
+> 背景：low 半卸载模型（8796/8874MB 在卡）上，`slot 0 resident` 成功后 forward 爆 `Requested 270MB / Free 36MB`——定性为官方低显存流式给**模型自身** ffn.2 权重分页（fp16 141M×2B≈282MB 状如），我方 0.5GB 常驻把分页余量吃光。hook scratch 再小也救不了分页失败，遂废弃整个激活注入架构。
+
+- **新架构**：官方 `LoraLoader` 同款路径（`convert_lora→load_lora→add_patches` 元组 `(sm, data, 1.0, None, None)`）为每槽预建补丁列表；采样时原生 `EVALUATE_CONTEXT_WINDOWS` 回调（逐窗逐 step，自带 `window_idx`，`context_windows.py:671`）把当窗表换进 `ModelPatcher.patches`，`EXECUTE_CLEANUP` 复位。`window_lora.py` 路由模块随之删除。
+- **为何安全（四项全 SAFE，均有行号证据）**：① 同形 LoRA 加载期走 `LowVramPatch` 延迟合并，`weight_function` 持 `patcher.patches` live 引用（`model_patcher.py:1027`），换列表即时生效；② KSampler 标准链路无 `clone`（`samplers.py:1404/1189` 存引用），不断链；③ `prepare/clear_prepared` 逐层配对（`ops.py:242/388` + prefetch pop），另加防御性清理防异常残留；④ forward 热路径零读 `current_weight_patches_uuid`，换表不 bump 也无 stale 缓存。
+- **加载期落点**：`load()` 只给当时在表中的键装 `LowVramPatch`——并集键必须在场：初始态 = base + slot0 + 他槽独占键的**零强度占位**（同形数据借位；短视频/无回调时零生效 = slot0 语义，自动回退正确）。
+- **上游补丁保留**：`base = {k: list(v)}` 快照，每窗表 = base + 本槽行——SFLoraStack 上游与本节点**可共存**（旧 hook 架构要求二选一，现解除）。
+- **VRAM 账**：补丁数据 CPU 侧（官方 pin/流式），GPU 额外 ≈ 0（合并 scratch 已计入官方 `low_vram_patch_estimate`）；`torch` 导入、`_SESSIONS`、chunk/cdt/预检整套删除，节点文件零 torch 依赖。
+- **测试**：mock 官方链路（`comfy.lora/convert/context_windows` + key_map），43 断言：行序拼接与强度元组、零占位、空槽纯 base、window_idx 取模（含越界轮回）、CLEANUP 复位、无 handler 静态 slot0、失败原因进 info（`empty (…: 0 model keys)`）。
+
 

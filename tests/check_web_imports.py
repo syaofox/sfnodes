@@ -90,6 +90,8 @@ MODS = [
     "sf_conditioning_combine",
     # Conditioning Concat（多路拼接；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_conditioning_concat",
+    # Wan Window LoRA（逐窗位置 preset 槽；复用 sf_dynamic_slots.installDynamicSlots）
+    "sf_wan_window_lora",
 ]
 
 EXPORT_RE = re.compile(
