@@ -373,7 +373,7 @@
 
 > 背景：SFImageCropExpand 用户手动把节点拖到 `MIN_NODE_WIDTH/HEIGHT` 以下，固定像素布局的按钮行外溢出节点。`clampNodeSize` 只在 onNodeCreated/onConfigure 钩一次，管不住后续拖拽。
 
-- **双端拖拽 resize 的最小值都取自 `node.computeSize()`**（前端包 1.51.10 实测 onDrag 处理：`let l=node.computeSize(); c.width<l[0]&&(c.width=l[0]); c.height<l[1]&&(c.height=l[1]); node.setSize(c.size)`；legacy litegraph 同款）——**包装 `nodeType.prototype.computeSize` 返回 `max(原值, MIN)` 一处改动同时钳住两条路径**，且只抬不降（`expandToFitContent`/初始 sizing 均安全）。
+- **双端拖拽 resize 的最小值都取自 `node.computeSize()`**（前端包 1.51.10 实测，当时版本：onDrag 处理 `let l=node.computeSize(); c.width<l[0]&&(c.width=l[0]); c.height<l[1]&&(c.height=l[1]); node.setSize(c.size)`；legacy litegraph 同款）——**包装 `nodeType.prototype.computeSize` 返回 `max(原值, MIN)` 一处改动同时钳住两条路径**，且只抬不降（`expandToFitContent`/初始 sizing 均安全）。
 - ⚠ **`node.onResize` 是 legacy-only**：Vue 前端（1.x）拖拽 resize 与布局同步路径均不触发（容器内实测仅 widget finalize 与 DOM 尺寸回写各一处调用）；sf_find_replace/sf_lora_plot 等先例的 onResize 钳制都显式 `isVueNodes()` 守卫。新钳制需求优先选 computeSize 包装。
 - 纯函数 `ensureMinSize(w,h)` 收敛 lib（computeSize 包装与 clampNodeSize 共用，避免双份 Math.max）。⚠ 底部信息文本超界与节点大小无关：`computeDisplayMetrics` 的 areaH 原本未预留文本行，显示区填满画布时文本基线 y = nodeH+5 **恒超界 5px**（抬 MIN 无效，曾误判为"368 够用"）——修法是画布区高度让出 `TEXT_RESERVE=20`（基线 +15 + 字形余量），此后基线最坏 y = nodeH-15 恒在界内。
 - 已保存工作流恢复（configure 直接赋 size 不走 computeSize）仍由 onConfigure 的 clampNodeSize 兜底；工作流里偏小的存量 size 会被抬到 MIN（可接受的显示修正）。

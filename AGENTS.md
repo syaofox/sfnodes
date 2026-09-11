@@ -12,7 +12,8 @@ ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，含 `comfy/`
 sfnodes/
 ├── __init__.py      # 注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS + WEB_DIRECTORY="web"
 ├── requirements.txt # Python 依赖（仅声明，不在本机安装）
-├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
+├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ video/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
+├── tools/           # 一次性脚本（extract_lora_diff.py 模型差异提 LoRA，自带 README，不进 requirements.txt）
 ├── sf_utils/        # 共享工具库（无状态纯函数为主）：image/mask 转换、lora_* 系列、resize_engine / dropdown / regional_engine / krea2_presets / disk_state / prompt_reader 等纯逻辑模块
 ├── web/             # 前端 JS Widget：sf_common.js（公共小工具/微工具 injectCSSOnce·sfToast·el·hideJsonWidget/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
 ├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、CSV/字体等）
@@ -26,7 +27,7 @@ sfnodes/
 
 根 `__init__.py` 两字典同步注册：
 
-- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（历史键可能无 SF 前缀如 `LoadImages`，新增一律带前缀）
+- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（现 171 键全部带 SF 前缀；新增一律带前缀）
 - `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，显示名 `"SF <Display Name>"`
 
 ```python
@@ -127,6 +128,8 @@ class SFMyNode:
 - **SFImageInterrogator seed**（lora §35）：`seed` 必须显式声明 `control_after_generate` 或显式移除，禁止依赖前端隐式追加；隐式追加导致 `widgets_values` 位置敏感错位 `control=1`；自愈需全覆盖 `seed/control/vision/thinking` 四槽。
 - **SFImageInterrogator 三模态可选**（lora §38）：`image/video/audio` 均 `optional` 对齐原生 `Generate Text`，无图时纯文本生成；`video` 为 `IMAGE` batch 24→1FPS 抽帧逐帧缩放、多帧按 `Picture N:` 前缀；`user_prompt` 紧邻 `prompt` 重排（破兼容，文本→视觉→采样→模板分区），`min_p/presence_penalty/use_default_template` 对齐原生 `sampling_mode`，`max_length` 放宽至 `8192`；`_scale_image None→[]` 防御。
 - **LoRA 数据统一网关**（lora §19/§36）：lora_triggers.json 单一真源 `{words,description,selected,fp}`（lora_notes 只做形状转换）；跨节点缓存失效经 sfnodes.lora-data-changed 事件桥；信息对话框与 Stack 面板同一数据语义；触发词勾选全局默认 `selected` 仅空行回填（工作流触发词覆盖全局）。
+- **SFWanWindowLoRA 逐窗 LoRA**（lora §39/§39.11）：EVALUATE 回调按 `window_idx % N` 换槽（空槽=上游直通）；独立槽表永不写 `patcher.patches`，普通层后装 LowVramPatch 进 `weight_function`，GGUF 量化层改写张量 `patches`（GGMLOps 绕过 `weight_function`，duck-typing 探测）；上游补丁保留叠加；回调双形状注册（上游 reader 只认 `["callbacks"]` 分支）。
+- **SFWanWindowPlanner + preset 直连**（lora §39.6/§39.9）：Planner 只算不跑，直调原生 schedule/region 出窗 latent·实帧区间 × cond 段 × slot 对照表；SFLoraStack 第 5 输出 `preset_export` 转 SFLoraPreset 形状直连窗槽（model 悬空即零 IO 纯配置源）。
 - **Civitai 页面抓取**（lora §21 / patterns §27）：页面是 Next.js SSR，数据在 `__NEXT_DATA__` 按 queryKey 定位勿碰 DOM；**TLS 指纹被 Cloudflare 拦截——curl_cffi impersonate="chrome"，Chrome UA 的 aiohttp 也 403**；描述统一 _html_to_markdown 幂等保护（无 `<` 输入只轻清洗原样放行）。
 - **值通道模式**（lora §25/§28）：hidden STRING 真源随 workflow 保存 + DOM widget 纯交互不承担值传输（regional_lora/styles_selector 同款）；加载期 isGraphLoading 门控点击防覆盖刚恢复的选择。
 - **复刻去重与磁盘链路**（patterns §17）：磁盘源执行必须输出源帧 ui_payload 否则前端预览停留旧图；编辑器 Reset≠Clear 语义一一对应。

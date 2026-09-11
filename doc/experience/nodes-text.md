@@ -131,7 +131,7 @@
 
 ### 3. 状态与预览持久化（数据载体模式）
 
-- 规则状态存 `node.properties.findReplaceState`（{version, caseSensitive, wholeWord, regex, tidy, rules:[{id, enabled, find, replace}]}），`graphToPrompt` hook 经 `readState` 规范化后注入隐藏 `FindReplaceState` 输入（Pattern #9，随 workflow 保存、在缓存键中，规则变化自动失效下游，Python 侧不设 IS_CHANGED——SFPauseText 的 NaN 踩坑同款）。id 用 Date+counter+random 保证跨刷新唯一（删除/排序的键）。
+- 规则状态存 `node.properties.findReplaceState`（{version, caseSensitive, wholeWord, regex, tidy, rules:[{id, enabled, find, replace}]}），`graphToPrompt` hook 经 `readState` 规范化后注入隐藏 `FindReplaceState` 输入（数据载体模式：随 workflow 保存、在缓存键中，规则变化自动失效下游，Python 侧不设 IS_CHANGED——SFPauseText 的 NaN 踩坑同款）。id 用 Date+counter+random 保证跨刷新唯一（删除/排序的键）。
 - **预览样本与规则状态分离**：输入样本存 `node.properties.findReplacePreview`（{input, truncated}，4000 字符自我保护上限）**绝不注入 prompt**——否则每次 Run 的文本会膨胀工作流文件与 websocket 负载。预览 = 上次运行输入 × 当前规则实时重算：Run 一次后编辑任意规则，前后对比即时刷新（diff 高亮是预览的卖点）。`readState` 只在畸形时重写（加载不脏），`onNodeCreated` 时深拷贝 state 防粘贴/克隆节点共享 rules 数组引用。
 - executed 回填：Python 返回 `{"ui": {"sf_find_replace": [{input, output, truncated, warnings}]}}` → 前端 `onExecuted` 读 `message.sf_find_replace[0]` → `setPreviewInput` + 重绘预览。**onExecuted 不调整节点尺寸**（Run 不改变规则数，每次 setSize 会把普通 Run 误标 modified）。
 
@@ -158,7 +158,7 @@
 ### 1. lean 注入形状作缓存键（改行名不重跑）
 
 - 前端 `graphToPrompt` 注入 `{"version": 1, "type": ..., "value": ...}`（**只有选中行的值 + 类型**），Python `selected_value` 接受两种形状：**LEAN**（`{"type","value"}`，浏览器注入，键判断 `"value" in state` 而非真值——空串/0/False 都是合法值）与 **FULL**（`{"type","index","options"}`，工作流存储形状，兜底手写 API 文件）。
-- **注入字符串即缓存键**：只含影响结果的部分。行名、列表其余行、模式、任何 UI 标志都是显示用——改行名/重排/改未选中行/切模式都不触发重跑。这是 Pattern #9 的"缓存键最小化"原则，与 SFPromptTags 的注入同款。
+- **注入字符串即缓存键**：只含影响结果的部分。行名、列表其余行、模式、任何 UI 标志都是显示用——改行名/重排/改未选中行/切模式都不触发重跑。这是 lean 注入的"缓存键最小化"原则，与 SFPromptTags 的注入同款。
 - 隐藏输入必须声明为 Python `INPUT_TYPES` 的 `hidden`（required STRING 会在 Vue 前端同时显示为 widget 和可转换输入点）；键名 PascalCase（`DropdownState`），node.properties 键 camelCase（`dropdownState`），两者刻意不同——第二个打错 Python 永远看到默认值、节点"无视一切修改"。
 
 ### 2. 运行游标：pending 持有 + commitPick（存节点内存而非设置）

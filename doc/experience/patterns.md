@@ -84,7 +84,7 @@
 
 ### 2. 公共弹层三件套 `web/sf_popup.js`（新弹层优先使用）
 
-- 13+ 个浮动弹层各自重复"外部点击/Esc/滚轮三关闭 + 定位钳位"，且踩坑记录在 §15.6（canvas 缩放定位）与 §19（确认框豁免宿主面板捕获监听）。收敛为：
+- 13+ 个浮动弹层各自重复"外部点击/Esc/滚轮三关闭 + 定位钳位"，且踩坑记录在 §15.4（popup 缩放跟随定位）与 §19（确认框豁免宿主面板捕获监听）。收敛为：
   - `attachPopupDismiss(overlay, { onClose, exempt })`：外部 pointerdown / Esc / wheel 三关闭，capture 阶段 document 监听，`exempt(e)` 豁免（面板风确认框场景），返回幂等 detach。
   - `clampToViewport(el, { margin, scale })`：viewport 四向钳位，`scale` 折算边距（position:fixed 弹层在 canvas 缩放下 root font-size 已缩放）。
 - **验证迁移**：`text_replace.js` 的 marker 菜单（原手写三关闭 + Math.min/max 钳位）改为调用 sf_popup，行为等价。**存量 12 个弹层不强制迁移**（dropdown 弹层与分类弹层耦合深、lora 面板含 dirty 语义），新弹层优先用 sf_popup。
@@ -130,7 +130,7 @@
 - 新公共函数 `sanitize_filename(raw, fallback)`：保留 Unicode/空格，拒绝绝对路径/`..`/`.`/空段（**在任何清洗之前检查**——清洗会把 `..` 吃掉）、路径分隔符拍平为 `_`、Windows 非法字符替换、边沿剥离、隐藏文件拒绝、保留设备名加 `_` 后缀、截断 128。hyperlora 的 `char_name`（自由 STRING → 路径穿越写 `models/hyper_lora/chars/`）与 SFExtractLUT 的 `filename`（→ `user/sfnodes/lut/`）共用。
 - 教训：**节点里"自由 STRING → 文件路径"是路径穿越高危点**（hyperlora/lut 两处原实现都直接 `os.path.join`）；新写这类节点必须净化。
 
-### 4. cropstitch 多帧必崩 + 设备不匹配（cropstitch.py）
+### 4. cropstitch 多帧必崩 + 设备不匹配（nodes/inpaint/cropstitch.py）
 
 - 顶部/底部镜像填充用了**整批 `image`** 写进单帧 `new_image`（batch>1 形状失配 RuntimeError）——必须用 `one_image`。
 - `torch.zeros`/`torch.ones` 画布**未指定 device**（默认 CPU），CUDA 输入在赋值点设备不匹配崩——一律 `device=one_image.device`。
@@ -157,7 +157,7 @@
 - **logic.py**：SFMathInt divide/modulo 除零回退 0 + 告警（b 默认 0）；power 负指数/`0**-1` 兜底。SFBatchAnything 张量分支改 `and` 双端判断（None 直通由末尾兜底），末尾 `try: any_1+any_2 except TypeError: return ([any_1,any_2],)`。
 - **lut.py**：SFLoadLUT.IS_CHANGED 文件缺失 `float("NaN")` → `f"missing:{file_name}"`；SFExtractLUT 文件名净化 + 强制 `.cube`。
 - **replace.py / prompt_batcher.py**：`refresh`/`load_always` 的 `float("NaN")` → `str(time.time_ns())`（NaN 折叠祖先缓存反模式）；prompt_batcher 的 IS_CHANGED 聚合目录 txt `(name, mtime)`（修"新增文件不感知"陈旧）；空目录/无匹配 `raise` → 空列表降级；`_resolve_folder` 加 realpath 二次校验（防 symlink 逃逸）。
-- **analysis.py**：两处 `torch.where(mask)` 判空兜底（mask_process 腐蚀/裁剪清空遮罩时 `x.min()` 崩）——照抄 `landmarks is None` 的全零占位模式保持 batch 对齐。
+- **nodes/face/analysis.py**：两处 `torch.where(mask)` 判空兜底（mask_process 腐蚀/裁剪清空遮罩时 `x.min()` 崩）——照抄 `landmarks is None` 的全零占位模式保持 batch 对齐。
 - **seed.py**：-2/-3 继承语义实现（实例属性 `_sf_last_seed` 跨 run 保留，首次随机起点；IS_CHANGED 每次随机保证重跑）。
 - **image_convert.py**：CAS 补 `_min_tensors`/`_max_tensors`（原 `min_`/`max_` 未定义，开锐化必 NameError）。
 - **lora_routes.py / lora_presets.py / workflow_routes.py**：`asyncio.get_event_loop()` → `get_running_loop()`（3.12 弃用告警、3.14 移除），闭包内冗余 `import asyncio` 删除；`.tmp` 临时名带 `threading.get_ident()`（并发写同文件互覆盖）；预设 POST/DELETE 加 `asyncio.Lock`。

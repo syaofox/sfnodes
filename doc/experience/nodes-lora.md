@@ -353,23 +353,23 @@
 
 - 保存入口复用栈内 `Presets` 按钮菜单（`sf_lora_stack_interaction.js: openPresetsMenu`）：`rowsToPreset(st, positive)` 第二参可选，空串不存；保存表单在原 `div.in > input` 首行后追加 `textarea`（`sf-ls-save` 区），`name` 输入 `input` 事件预填已有预设的 `positive` 便于增量编辑，`Save` 前 `sanitizePositive`。
 - 结构兼容：首子保持 `div.in > input`（`tests/test_lora_stack_presets_smoke.js` 用 `menu.children[0].children[0]` 定位），新增区置于其后，`findByClass("ok pri")` 定位 `Save` 按钮不受影响。
-- 载入：菜单列出预设时 `positive` 长 60 字符截断预览于行尾 `.sf-ls-preset-pos`，`SFLoraPreset` 节点 `sf_lora_preset.js` 的 `preset` combo `tooltip` 同步刷新（选中预设的 `positive` 前 120 字符，`beforeRegisterNodeDef onConfigure` + `callback` 包装）。
+- 载入：取用统一走 "Manage Presets…" 大面板（§39.10 起菜单内不再列预设）：行内 `positive` 预览 + `onSelect` 经 `applyPresetRows` 直接应用（空行保护 + 写状态 + `refresh(true)`，无二次确认）；`SFLoraPreset` 节点 `sf_lora_preset.js` 的 `preset` combo `tooltip` 同步刷新（选中预设的 `positive` 前 120 字符，`beforeRegisterNodeDef onConfigure` + `callback` 包装）。
 
 ### 4. 编辑/删除与原子重命名
 
-- 编辑=改名+`positive`（不含 `loras`，`loras` 通过“载入→改栈→另存”闭环）。栈内 `Presets` 每行 `📚名 [positive 60字] ✎ ✕`，`✎` 进同表单预填旧值（`input` 事件预填 `positive`），`✕` 二次确认（`confirmDialog` 标题 `Delete preset?`），`Save` 时若改名走原子 `POST /api/sfnodes/lora_presets/rename`（`from/to/positive` 同锁内 RMW，409 已存在、404 未找到），否则 `savePreset` 覆盖；`SFLoraPreset` 独立 `⚙ Manage Presets` 按钮复用同一弹窗（无栈上下文，仅名/`positive`，选中行可直接设值）。
+- 编辑=改名+`positive`（不含 `loras`，`loras` 通过“载入→改栈→另存”闭环），统一在 "Manage Presets…" 大面板内完成（§39.10 起栈内菜单不再列条目）：行内改名 + `positive` 编辑（预填旧值），删除经 `confirmDialog` 二次确认；改名走原子 `POST /api/sfnodes/lora_presets/rename`（`from/to/positive` 同锁内 RMW，409 已存在、404 未找到）；`SFLoraPreset` 独立 `Manage Presets` 按钮复用同一弹窗（无栈上下文，仅名/`positive`，选中行可直接设值）。
 - 原子性：`_presets_lock` 内 `load→check→copy→save`，避免并发 `POST new + DELETE old` 交错覆盖；前端 `renamePreset(from,to,positive)` 薄封装，空串 `positive` 则后端 `pop` 字段保持精简。
 
 ### 5. 测试与回归
 
-- `tests/test_lora_stack_presets_smoke.js` 首行结构断言仍绿（见上节兼容），`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设；删除改为二次确认（`confirmDialog`），测试中需点击确认；新增需手工验证往返：保存含 `positive` → `SFLoraPreset` 的 `positive` 输出与 `tooltip` 一致 → 旧预设不带 `positive` 仍可载入 → 编辑改名/`positive` 原子化 → 删除二次确认。
+- `tests/test_lora_stack_presets_smoke.js`：菜单骨架断言（仅 Save + Manage 两项）+ `applyPresetRows` 直测（写入正确/空行拒绝）+ Save 表单往返（`menu.children[0].children[0]` 定位兼容）；改名/删除归大面板（§39.10），面板内删除确认仍走 `confirmDialog`；`POST` 形状 `lora/strength/strengthTwo` 兼容 `Power` 旧预设。
 
 ### 6. 独立大面板搜索（名 + LoRA 文件名，高亮 + n/total，2026-08）
 
 - **动机**：预设量 `>20` 后小浮层滚动翻找低效，需独立大面板（`560px` 居中，`64vh` 滚动）按 `预设名 / 关联 LoRA 文件名` 子串即时过滤，`positive` 不参与检索（按需仅展示 60 字预览），命中 `mark` 高亮、头部 `n/total` 计数
 - **纯逻辑** `web/sf_lora_preset_filter.js`（无 `app` 依赖，`filterPresets(presets,q)` 大小写不敏感 `includes`，`highlight(text,q)` 转义后包 `mark`），拷 `.mjs` 单测 `tests/test_lora_preset_filter.mjs`
 - **大面板** `web/sf_lora_preset_manager.js`（`sf_popup` 三件套 + `filterPresets/highlight` + `loadPresets/deletePreset/renamePreset` + `sanitizePositive`），栈与预设节点共用 `openLoraPresetManager({node,widget,getActive,onSelect})`，`onSelect` 对栈走 `presetToRows/writeState`，对节点走 `widget.value/callback`
-- **同步**：两入口共用同一 `allPresets` 引用过滤，`rename/delete` 后原地更新 `allPresets` 并同步 `activePreset`（`readState` 清空或更新），小浮层下次打开重拉即同步
+- **同步**：两入口共用同一 `allPresets` 引用过滤，`rename/delete` 后原地更新 `allPresets` 并同步 `activePreset`（`readState` 清空或更新）；取用走 `onSelect` 即时应用，无小浮层缓存问题
 
 ---
 
