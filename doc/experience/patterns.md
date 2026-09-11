@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -259,3 +259,22 @@
 
 - 槽位增删复用 `sf_dynamic_slots.js::installDynamicSlots`（`inputType:"CONDITIONING"`，`initialInputs:2` 对齐原生 2 路）；**不复用** `any_pack` 着色三件套——CONDITIONING 是固定类型，无改型需求；不做自动重命名——槽序即拼接语义，改名破坏可读性。
 - `onAfterGraphConfigured` 恢复须做**槽数补齐/回收**（读实际链接数 `linked`，补到 `min(max(linked+1, INITIAL), MAX)`），而不只是 §43 式的重算类型——configure 直赋 links 不触发 `onConnectionsChange`，光靠公共库的连接时增删，工作流重载后多出的已连槽无空闲后继、新节点无法续接。
+
+---
+
+## 50. SFConditioningConcat 多路拼接：to/from 槽角色与原生对齐（2026-09）
+
+> 背景：原生 Conditioning (Concat) 只支持 2 路（`nodes.py::ConditioningConcat.concat`：from 仅取首条沿 dim=1 拼到 to 每条之后，多条即 warning），新增 `nodes/model/conditioning_concat.py::SFConditioningConcat` + `web/sf_conditioning_concat.js` 实现 N 路动态拼接（初始 2、上限 20）。
+
+### 1. N 路语义：slot1=to 被拼接方，2..N=from 拼接源
+
+- `conditioning_1` 为 to：逐条保留、`dict` 上下文逐条 `.copy()`（原生逐行对齐）；`conditioning_2` 起为 from：各取首条 `[0][0]` 沿 dim=1 依次拼接。与链式串联多个原生 Concat 等价（dim1 拼接满足结合律，一次拼完还少中间临时张量）。
+- from 多条目：仅取首条 + `logging.warning` 点名该槽（原生同款警告，不发明展平语义）。
+- `conditioning_1` 未连接：抛 `ValueError` 明示（原生此时是晦涩 TypeError，fail-fast 改进）；from 侧 None/空列表跳过，无 from 时 to 原样透传。
+- embedding 维度不一致：由 `torch.cat` 原生抛错，不发明 padding；pooled_output 沿用 to 方原样（原生不做加权混合）。
+
+### 2. 同包复用（§49 的延续）
+
+- 槽名前缀/上下限常量、灵活 schema 小类、槽序排序键全部 `from .conditioning_combine import`（语义同为 conditioning_N 动态多槽，禁止内联副本）；为此把 combine 内嵌的排序闭包提升为模块级 `conditioning_slot_key`（等价重构，`test_conditioning_combine.py` 13 断言 unchanged 验证）。
+- 前端为 combine JS 的同构薄配置（§49 三条结论延续：固定类型免着色、不自动重命名、恢复按链接数补齐/回收）。
+- 本机无 torch：测试注入 stub `torch.cat`（嵌套 list 行内拼接）+ 相对导入改写绝对后 exec（`test_any_to_string.py` 先例），16 断言；warning 路径会打印一行预期日志，非失败。

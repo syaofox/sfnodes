@@ -88,6 +88,8 @@ MODS = [
     "sf_any_switch",
     # Conditioning Combine（多路拼接；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_conditioning_combine",
+    # Conditioning Concat（多路拼接；复用 sf_dynamic_slots.installDynamicSlots）
+    "sf_conditioning_concat",
 ]
 
 EXPORT_RE = re.compile(

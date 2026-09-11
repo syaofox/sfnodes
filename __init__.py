@@ -93,6 +93,7 @@ from .nodes.model.lora_preset import SFLoraPreset
 from .nodes.model.lora_stack import SFLoraStack
 from .nodes.model.load_diffusion_model import SFLoadDiffusionModel
 from .nodes.model.conditioning_combine import SFConditioningCombine
+from .nodes.model.conditioning_concat import SFConditioningConcat
 from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.regional_lora import SFRegionalLoRA
@@ -293,6 +294,7 @@ NODE_CLASS_MAPPINGS = {
     # 扩散模型加载
     "SFLoadDiffusionModel": SFLoadDiffusionModel,
     "SFConditioningCombine": SFConditioningCombine,
+    "SFConditioningConcat": SFConditioningConcat,
     # 图片对比节点
     "SFImageCompare": ImageCompare,
     "SFPauseImage": SFPauseImage,
@@ -494,6 +496,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 扩散模型加载
     "SFLoadDiffusionModel": "SF Load Diffusion Model",
     "SFConditioningCombine": "SF Conditioning Combine",
+    "SFConditioningConcat": "SF Conditioning Concat",
     # 图片对比节点
     "SFImageCompare": "SF Image Compare",
     "SFPauseImage": "SF Pause Image",

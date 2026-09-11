@@ -24,6 +24,9 @@ class _ConditioningCombineInputs(dict):
     复刻 nodes/logic.py _AnySwitchInputs 的模式（__contains__ 恒 True 让
     get_input_info / 前端 validatePrompt 放行，__getitem__ 回退返回类型），
     仅把类型参数换成 CONDITIONING——不可直接复用该类（它硬编码 any_type）。
+
+    本模块的常量与本类由 SFConditioningConcat（conditioning_concat.py）
+    同包复用：语义同为 conditioning_N 动态多槽，不再各写一份。
     """
 
     def __contains__(self, key):
@@ -31,6 +34,17 @@ class _ConditioningCombineInputs(dict):
 
     def __getitem__(self, key):
         return ("CONDITIONING",)
+
+
+def conditioning_slot_key(key):
+    """conditioning_N 槽名排序键：按数字后缀排，非数字后缀沉底。
+
+    combine 与 concat 共用（kwargs 迭代序≠槽序，不可直接迭代）。
+    """
+    try:
+        return (int(key.rsplit("_", 1)[1]), key)
+    except (ValueError, IndexError):
+        return (1 << 30, key)
 
 
 class SFConditioningCombine:
@@ -53,14 +67,8 @@ class SFConditioningCombine:
         return True
 
     def execute(self, **kwargs):
-        def _slot_index(key):
-            try:
-                return int(key.rsplit("_", 1)[1])
-            except (ValueError, IndexError):
-                return 1 << 30
-
         out = []
-        for key in sorted(kwargs, key=lambda k: (_slot_index(k), k)):
+        for key in sorted(kwargs, key=conditioning_slot_key):
             if not key.startswith(CONDITIONING_PREFIX):
                 continue
             value = kwargs[key]
