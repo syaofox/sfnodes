@@ -356,8 +356,8 @@ class SFWanWindowLoRA:
                     content.setdefault(mk, []).append((sm, adapter, 1.0, None, None))
                     matched += 1
                 total = _file_lora_keys(sd)
-                logger.info("[SFWanWindowLoRA] slot %d '%s': matched %d model keys (%d lora keys)",
-                            i, name, matched, total)
+                logger.info("[SFWanWindowLoRA] slot %d '%s' (strength %.2f): matched %d model keys (%d lora keys)",
+                            i, name, sm, matched, total)
                 if matched == 0:
                     logger.warning("[SFWanWindowLoRA] slot %d '%s': 0 model keys matched -- "
                                    "this LoRA will NOT take effect (wrong architecture).", i, name)
