@@ -56,6 +56,9 @@ const ROLES = [
   check("displayPrompt 拼接回落", L.displayPrompt(ROLES, '{"role":"主角A","shots":["脸","身"]}', "") === "p-face, hero");
   check("displayPrompt 草稿整体覆盖", L.displayPrompt(ROLES, '{"role":"主角A","shots":["脸"]}', "hand") === "hand");
   check("displayPrompt 空选回落首图", L.displayPrompt(ROLES, '{"role":"","shots":[]}', "") === "p-face");
+  check("displayRolePrompt 草稿优先", L.displayRolePrompt(ROLES, '{"role":"主角A","shots":["脸"]}', "hand") === "hand");
+  check("displayRolePrompt 回落原词", L.displayRolePrompt(ROLES, '{"role":"主角A","shots":["脸"]}', "") === "hero");
+  check("displayRolePrompt 空选回落首角", L.displayRolePrompt(ROLES, '{"role":"","shots":[]}', "") === "hero");
 
   // ── filterAndSort ──
   let items = L.filterAndSort(ROLES, "", "主角A", false);

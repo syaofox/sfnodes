@@ -238,8 +238,8 @@ class SFCharacterSelect:
         # 多选收敛：角色有效保留并取交集分镜，否则回落首角首图（旧 ["名"] 数组态迁移首图）
         sel = _lib.coerce_selection(data, SFCharacterState)
         entry = _lib.find_role(data, sel["role"])
-        role_prompt = _lib.role_prompt(entry)
         draft = str(SFCharacterPrompt) if SFCharacterPrompt is not None else ""
+        role_prompt = _lib.resolve_role_prompt(entry, draft)
         prompt = _lib.resolve_prompt(entry, sel["shots"], draft)
         images = None
         if entry is not None and sel["shots"]:

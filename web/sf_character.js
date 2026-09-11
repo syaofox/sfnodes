@@ -18,12 +18,13 @@ const NODE_TYPE = "SFCharacterSelect";
 const LIST_H = 150; // 角色列表固定高度（滚动容器）
 const TOOLS_H = 34; // 工具条 + 与列表的 gap
 const PROMPT_H = 64; // 提示词编辑框固定高度
+const ROLE_H = 48; // 角色级 prompt 展示框固定高度（可编辑、不回写）
 const SHOTS_MIN = 150; // shots 网格最小高度（flex 拉伸占满节点剩余空间）
 const GAP = 6;
 const ROOT_PAD = 8; // root padding 上下各 4
 // 声称高度必须 ≥ 内容实际高度——低于内容时节点边框按声称高度绘制、
 // 底部内容溢出被裁（对齐 sf_styles_selector.js §18.6 注释）
-const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + SHOTS_MIN + GAP * 3 + ROOT_PAD + 4;
+const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + ROLE_H + SHOTS_MIN + GAP * 4 + ROOT_PAD + 4;
 const MIN_W = 300;
 const VIEW_PROP = "sfCharacterView"; // Grid/List 显示模式（随 workflow 保存，不注入 prompt）
 const POP_PREVIEW_MAX = 6; // hover 浮窗大图上限
@@ -44,6 +45,7 @@ function injectCSS() {
 .sf-ch-viewseg button:hover{background:#3a3a3a;}
 .sf-ch-viewseg button.sf-ch-viewon{background:color-mix(in srgb, var(--sf-acc, #f66744) 25%, transparent);color:#fff;}
 .sf-ch-prompt{flex:0 0 auto;width:100%;height:${PROMPT_H}px;min-height:${PROMPT_H}px;max-height:${PROMPT_H}px;resize:none;font:12px/1.5 sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
+.sf-ch-role{flex:0 0 auto;width:100%;height:${ROLE_H}px;min-height:${ROLE_H}px;max-height:${ROLE_H}px;resize:none;font:12px/1.5 sans-serif;color:#9ecfa8;background:#1a1a1a;border:1px dashed #3a5a40;border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
 .sf-ch-shotsbar{flex:1 1 auto;min-height:${SHOTS_MIN}px;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:max-content;gap:6px;align-content:start;overflow-x:hidden;overflow-y:auto;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:6px;box-sizing:border-box;}
 .sf-ch-shotpick{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:3px;border-radius:4px;border:1px solid transparent;min-width:0;}
 .sf-ch-shotpick img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#111;display:block;}
@@ -262,6 +264,16 @@ function renderPrompt(ctx) {
   if (promptEl.value !== text) promptEl.value = text;
 }
 
+// 角色级 prompt 展示框：显示值同 role_prompt 路输出（草稿优先）；可编辑但不回写
+// 任何 widget（纯本地草稿本）；聚焦编辑中跳过同步，防击键被重渲染吞掉
+function renderRole(ctx) {
+  const { node, roleEl, roles } = ctx;
+  if (!roleEl) return;
+  if (document.activeElement === roleEl) return;
+  const text = lib.displayRolePrompt(roles || [], readRawState(node), readDraft(node));
+  if (roleEl.value !== text) roleEl.value = text;
+}
+
 // shots 复选横条：当前角色的全部图片（库内顺序），勾选态 = 已选分镜
 function renderShotsBar(ctx) {
   const { node, shotsBar, roles } = ctx;
@@ -335,6 +347,7 @@ function renderAll(ctx) {
   renderShotsBar(ctx);
   renderList(ctx);
   renderPrompt(ctx);
+  renderRole(ctx);
 }
 
 function makeTag(item, ctx) {
@@ -531,6 +544,14 @@ function setupNode(node) {
   promptEl.addEventListener("keydown", (e) => e.stopPropagation());
   installWheelZoomPassthrough(promptEl);
 
+  // 角色级 prompt 展示框：同款可编辑交互，输入不回写任何 widget
+  // （声明必须在 root.append/ctx 组装之前，const 有 TDZ，滞后声明会抛 ReferenceError）
+  const roleEl = document.createElement("textarea");
+  roleEl.className = "sf-ch-role";
+  roleEl.placeholder = isZh() ? "角色级提示词 ..." : "Role-level prompt ...";
+  roleEl.addEventListener("keydown", (e) => e.stopPropagation());
+  installWheelZoomPassthrough(roleEl);
+
   // shots 复选横条：当前角色的全部图片
   const shotsBar = document.createElement("div");
   shotsBar.className = "sf-ch-shotsbar";
@@ -556,7 +577,7 @@ function setupNode(node) {
   popText.append(popName, popPos);
   popEl.append(popShots, popText);
 
-  root.append(tools, promptEl, shotsBar, listEl, popEl);
+  root.append(tools, promptEl, roleEl, shotsBar, listEl, popEl);
 
   const ctx = {
     node,
@@ -564,6 +585,7 @@ function setupNode(node) {
     listEl,
     searchEl,
     promptEl,
+    roleEl,
     shotsBar,
     countBtn,
     popEl,
@@ -588,10 +610,10 @@ function setupNode(node) {
   // 高度全部确定性：角色列表固定高，shots 网格 flex 拉伸占满剩余空间，
   // 无需 ResizeObserver（flex 容器自行分配，min-height 兜底）。
 
-  // 内容高度测量：工具条实测 + 提示词框 + shots 网格最小高 + 列表固定高 + padding/gap
+  // 内容高度测量：工具条实测 + 提示词框 + 角色框 + shots 网格最小高 + 列表固定高 + padding/gap
   const measureContentHeight = () => {
     const toolsH = tools.offsetHeight || TOOLS_H - 6;
-    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + SHOTS_MIN + GAP + LIST_H;
+    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + ROLE_H + GAP + SHOTS_MIN + GAP + LIST_H;
   };
 
   const widget = node.addDOMWidget(lib.DOM_WIDGET, lib.DOM_WIDGET, root, {

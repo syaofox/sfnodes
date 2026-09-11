@@ -95,6 +95,13 @@ export function coerceSelection(roles, state) {
   return { role, shots };
 }
 
+// role_prompt 路显示值：草稿非空优先，否则角色原词（后端 resolve_role_prompt 同语义）
+export function displayRolePrompt(roles, state, draft) {
+  if (draft != null && String(draft) !== "") return String(draft);
+  const sel = coerceSelection(roles, state);
+  return rolePromptOf(entryOf(Array.isArray(roles) ? roles : [], sel.role));
+}
+
 // 显示用提示词：草稿非空整体覆盖，否则选中分镜 prompt 逗号拼接
 // （单项空回落角色级 prompt，保库内顺序）
 export function displayPrompt(roles, state, draft) {

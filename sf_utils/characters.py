@@ -104,11 +104,18 @@ def image_entries(entry):
 
 
 def role_prompt(entry):
-    """角色级 prompt 原样输出（不受草稿影响，缺省 ""）。"""
+    """角色级 prompt 原值（缺省 ""；是否叠草稿由 resolve_role_prompt 决定）。"""
     if not isinstance(entry, dict):
         return ""
     prompt = entry.get("prompt", "")
     return str(prompt) if prompt is not None else ""
+
+
+def resolve_role_prompt(entry, draft=""):
+    """role_prompt 路输出决策：手改草稿非空优先，否则角色原词，缺省 ""。"""
+    if draft is not None and str(draft) != "":
+        return str(draft)
+    return role_prompt(entry)
 
 
 def coerce_selection(roles, state):

@@ -146,6 +146,9 @@ check("空库回落空", pure.coerce_selection([], "[]") == {"role": "", "shots"
 check("拼接回落角色词", pure.join_prompts(NEW, ["脸", "身"]) == "p1, R")
 check("草稿整体覆盖", pure.resolve_prompt(NEW, ["脸"], "hand") == "hand")
 check("角色级 prompt", pure.role_prompt(NEW) == "R" and pure.role_prompt(None) == "")
+check("role_prompt 草稿优先", pure.resolve_role_prompt(NEW, "hand") == "hand")
+check("role_prompt 回落原词", pure.resolve_role_prompt(NEW, "") == "R")
+check("role_prompt 空角色空串", pure.resolve_role_prompt(None, "") == "")
 
 # ── 双源目录与加载 ──
 _orig_user, _orig_builtin = mod._user_characters_dir, mod._builtin_characters_dir
@@ -199,7 +202,7 @@ try:
         check("batch 形状首图归一", r[2].shape == (2, 64, 48, 3) and r[2].tag == "cat")
         check("归一调尺寸到首图", rescaled == [("half", 48, 64)])
         r = node.execute(library="character_b", SFCharacterState=st, SFCharacterPrompt="hand")
-        check("草稿覆盖拼接路", r[0] == "hand" and r[1] == "hero")
+        check("草稿覆盖双路", r[0] == "hand" and r[1] == "hand")
         n_rescaled = len(rescaled)
         r = node.execute(library="character_b",
                          SFCharacterState='{"role": "主角", "shots": ["脸"]}', SFCharacterPrompt="")

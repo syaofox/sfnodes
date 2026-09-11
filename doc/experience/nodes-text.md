@@ -493,9 +493,10 @@
 
 - **数据双读**：新 `{images: [{label, file, prompt}]}` + 旧 `{face,half,full}`（映射 label 脸部特写/半身像/全身像，prompt 回落角色词）均由 `image_entries` 归一；旧 `["名"]` 状态迁移首图。已验证用户既有 `character_jingjing.json` 零修改可用。
 - **拼装**：`torch.cat` 沿 batch 维，尺寸归一到首选图（`image_convert.rescale_image` lanczos）；空选 1×1 占位（batch 维为 0 非法）。单张与 batch 同属 IMAGE 类型，无需动态输出。
-- **prompt 双路解耦**：拼接路（草稿整体覆盖）vs 角色级路（恒输出角色原词，不受草稿影响）。
+- **prompt 双路同覆盖**：拼接路与角色级路均草稿优先（`resolve_prompt`/`resolve_role_prompt`），后改为双路一致。
 - **前端**：角色卡 + shots 复选横条（batch 顺序按库内顺序，不随点击顺序漂移）；搜索扩到各图 prompt；`parseState` 曾漏对象 JSON 字符串分支（字符串只走了旧数组解析）——首测抓出。
 
 ### 2. 踩坑
 
 - **测试期望与收敛语义对齐**：空/失效选择按设计回落首角首图——"空选占位"断言本身违背既定语义，改断言而非改代码；先怀疑检查脚本再怀疑代码（patterns §3 同款）。
+- **TDZ 致节点建不出且语法检查哑火**：`roleEl` 在 `root.append` 之后才 `const` 声明 → `setupNode` 抛 `ReferenceError`，用户侧"节点加载不出来"，而 `node --check` 全绿。修法之外新增 `tests/test_character_smoke.js`（FakeDOM + FakeNode 真跑 `setupNode`：扩展名前缀、双隐藏 widget 补建、roles 载入渲染、自动首图、切库清空、onConfigure），注毒验证可抓获；桩注意三点：`addWidget(type, name, value)` 参数序与 LiteGraph 一致、`innerHTML=""` 要清 children（真 DOM 语义）、`fetch` 桩给固定角色库。
