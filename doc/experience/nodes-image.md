@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -514,3 +514,11 @@
 
 - **做法**：底行按钮 `Load Image`(72)→`Load`(44)，Browse 移 x58（右缘 135→106）；信息文本窗同步收窄（溢出截断逻辑不变）；`MIN_NODE_WIDTH` 420→320（推导见 lib 注释），高度不动。显示坐标系公式自适应（areaW 随节点宽），cursor/MIN 高度/滚轮/快捷键均不受影响。
 - **测试**：既有 mjs/smoke 用例与具体 MIN 值解耦（`ensureMinSize` 断言用 `MIN_*` 常量本身），零用例改动，全套通过即回归。
+
+---
+
+## 51. SFImageBatchRange：批次区间切片（复刻 KJ GetImageRangeFromBatch，2026-09）
+
+- **动因**：`SFImageBatchIndex` 只能取单张（`num_frames=1` 特例），视频帧/遮罩序列需要 `start_index+num_frames` 任意区间；KJ 原版在 `ComfyUI-KJNodes/nodes/image_nodes.py:GetImageRangeFromBatch`，语义是 `images[start:end]` / `masks[start:end]` 双路可选、`start_index=-1` 取尾部 N 帧、尾部超出截断。
+- **做法**：新建 `nodes/image/batch_range.py::SFImageBatchRange`（不动 `batch_index.py`，最小改动）——required `start_index(INT,min -1)` + `num_frames(INT,min 1)`，optional 双路 `images(IMAGE)/masks(MASK)`，`RETURN_TYPES=(IMAGE,MASK)`；区间解析抽模块级纯函数 `_resolve_range(count,start,num)`（`-1→max(0,n-num)`、`end=min(start+num,n)`、start 越界抛中文错），双路独立调用；IMAGE 要求 ndim==4、MASK 要求 ndim∈(2,3)，双空抛错。无前端 JS（无动态槽位，`check_web_imports.py` MODS 不加行）。后续 `SFImageBatchIndex` 亦补 `-1` 取尾帧（`index` min 0→-1，`-1→B-1`，其余负值抛错，与本节点一致）。
+- **测试**：`tests/test_batch_range.py`（FakeTensor numpy 代理切片语义，零 torch 依赖）：结构 + 双字典一致 + `_resolve_range` 六用例（正常/截断/-1/-1 不足/越界/负值）+ execute 双路切片/单路透传/-1/截断/双空/ndim 非法。
