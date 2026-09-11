@@ -15,18 +15,17 @@ import { applyAdaptiveCanvasOnly, hideJsonWidget, injectCSSOnce, installWheelZoo
 import * as lib from "./sf_character_lib.js";
 
 const NODE_TYPE = "SFCharacterSelect";
-const LIST_H = 300; // 列表固定高度（滚动容器）
+const LIST_H = 150; // 角色列表固定高度（滚动容器）
 const TOOLS_H = 34; // 工具条 + 与列表的 gap
 const PROMPT_H = 64; // 提示词编辑框固定高度
-const SHOTS_H = 64; // shots 复选横条高度
+const SHOTS_MIN = 150; // shots 网格最小高度（flex 拉伸占满节点剩余空间）
 const GAP = 6;
 const ROOT_PAD = 8; // root padding 上下各 4
 // 声称高度必须 ≥ 内容实际高度——低于内容时节点边框按声称高度绘制、
 // 底部内容溢出被裁（对齐 sf_styles_selector.js §18.6 注释）
-const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + SHOTS_H + GAP * 3 + ROOT_PAD + 4;
+const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + SHOTS_MIN + GAP * 3 + ROOT_PAD + 4;
 const MIN_W = 300;
 const VIEW_PROP = "sfCharacterView"; // Grid/List 显示模式（随 workflow 保存，不注入 prompt）
-const CARD_PREVIEW_MAX = 4; // 角色卡内预览总格数：超量时 3 图 + 1 个 "+N" 格，全正方形省空间
 const POP_PREVIEW_MAX = 6; // hover 浮窗大图上限
 const EMPTY_IMG =
   "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
@@ -43,26 +42,22 @@ function injectCSS() {
 .sf-ch-viewseg button:hover{background:#3a3a3a;}
 .sf-ch-viewseg button.sf-ch-viewon{background:color-mix(in srgb, var(--sf-acc, #f66744) 25%, transparent);color:#fff;}
 .sf-ch-prompt{flex:0 0 auto;width:100%;height:${PROMPT_H}px;min-height:${PROMPT_H}px;max-height:${PROMPT_H}px;resize:none;font:12px/1.5 sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
-.sf-ch-shotsbar{flex:0 0 auto;display:flex;gap:6px;align-items:center;height:${SHOTS_H}px;min-height:${SHOTS_H}px;max-height:${SHOTS_H}px;overflow-x:auto;overflow-y:hidden;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:4px 6px;box-sizing:border-box;}
-.sf-ch-shotpick{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:2px;border-radius:4px;border:1px solid transparent;}
-.sf-ch-shotpick img{width:40px;height:40px;object-fit:cover;border-radius:4px;background:#111;display:block;}
-.sf-ch-shotpick i{font:9px sans-serif;font-style:normal;color:#888;max-width:52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-ch-shotsbar{flex:1 1 auto;min-height:${SHOTS_MIN}px;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:max-content;gap:6px;align-content:start;overflow-x:hidden;overflow-y:auto;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:6px;box-sizing:border-box;}
+.sf-ch-shotpick{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:3px;border-radius:4px;border:1px solid transparent;min-width:0;}
+.sf-ch-shotpick img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#111;display:block;}
+.sf-ch-shotpick i{font:10px sans-serif;font-style:normal;color:#888;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 .sf-ch-shotpick:hover{border-color:#555;}
 .sf-ch-shotpick.sf-ch-picked{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
 .sf-ch-shotpick.sf-ch-picked i{color:#fff;}
 .sf-ch-shotsempty{font:11px sans-serif;color:#666;white-space:nowrap;}
-.sf-ch-list{flex:0 0 auto;min-height:150px;height:calc(100% - 12px);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:6px;padding:2px;box-sizing:border-box;}
-.sf-ch-list.sf-ch-grid{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;padding:4px 0;}
+.sf-ch-list{flex:0 0 auto;height:auto;min-height:0;max-height:${LIST_H}px;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:6px;padding:2px;box-sizing:border-box;}
+.sf-ch-list.sf-ch-grid{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;padding:4px 0;}
 .sf-ch-card{display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:6px;cursor:pointer;background:#222;border:1px solid #3a3a3a;overflow:hidden;flex:0 0 auto;}
 .sf-ch-card:hover{border-color:#555;}
 .sf-ch-cardsel{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
-.sf-ch-shots{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;}
-.sf-ch-shot{display:flex;flex-direction:column;gap:2px;min-width:0;}
-.sf-ch-shot img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
-.sf-ch-shot i{font:9px sans-serif;font-style:normal;color:#888;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-ch-card img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
 .sf-ch-card span.sf-ch-name{font:11px sans-serif;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;user-select:none;}
 .sf-ch-cardsel span.sf-ch-name{color:#fff;}
-.sf-ch-more{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;background:#1a1a1a;border-radius:4px;font:11px sans-serif;color:#888;}
 .sf-ch-tag{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:4px;cursor:pointer;font:12px sans-serif;color:#ccc;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
 .sf-ch-tag input{flex:0 0 auto;accent-color:var(--sf-acc, #f66744);pointer-events:none;}
 .sf-ch-tag span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -281,21 +276,6 @@ function renderAll(ctx) {
   renderPrompt(ctx);
 }
 
-function shotCell(url, label) {
-  const cell = document.createElement("div");
-  cell.className = "sf-ch-shot";
-  const img = document.createElement("img");
-  img.loading = "lazy";
-  img.src = thumbSrc(url);
-  img.onerror = () => {
-    img.src = EMPTY_IMG;
-  };
-  const tag = document.createElement("i");
-  tag.textContent = label;
-  cell.append(img, tag);
-  return cell;
-}
-
 function makeTag(item, ctx) {
   const { node } = ctx;
   const label = document.createElement("label");
@@ -322,28 +302,24 @@ function makeTag(item, ctx) {
   return label;
 }
 
-// Grid 视图卡片：前 N 张缩略图 + 名字（loading="lazy" 避免大库一次性拉取）
+// Grid 视图卡片：首图缩略图 + 名字(计数)，紧凑单列（loading="lazy" 避免大库一次性拉取；
+// 细节辨认走 hover 大预览，卡片只承担定位）
 function makeCard(item, ctx) {
   const { node } = ctx;
   const card = document.createElement("div");
   card.className = "sf-ch-card" + (item.selected ? " sf-ch-cardsel" : "") + (item.hidden ? " sf-ch-hide" : "");
-  const shots = document.createElement("div");
-  shots.className = "sf-ch-shots";
   const imgs = lib.entryImages(item.raw || {});
-  const shown = imgs.length > CARD_PREVIEW_MAX ? imgs.slice(0, CARD_PREVIEW_MAX - 1) : imgs;
-  for (const shot of shown) shots.append(shotCell(shot.url, shot.label));
-  if (imgs.length === 0) shots.append(shotCell("", ""));
-  if (imgs.length > CARD_PREVIEW_MAX) {
-    const more = document.createElement("div");
-    more.className = "sf-ch-more";
-    more.textContent = `+${imgs.length - (CARD_PREVIEW_MAX - 1)}`;
-    shots.append(more);
-  }
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.src = thumbSrc(imgs.length ? imgs[0].url : "");
+  img.onerror = () => {
+    img.src = EMPTY_IMG;
+  };
   const span = document.createElement("span");
   span.className = "sf-ch-name";
   span.textContent = `${item.label} (${imgs.length})`;
   span.title = item.label;
-  card.append(shots, span);
+  card.append(img, span);
   card.onclick = () => {
     toggleRole(node, ctx, item.name);
   };
@@ -538,20 +514,13 @@ function setupNode(node) {
     writeDraft(node, promptEl.value);
   };
 
-  // 列表高度显式管理：不用 CSS 百分比（父容器高度不确定时 calc 失效）
-  const fitListHeight = () => {
-    if (!root.clientHeight) return;
-    const toolsH = tools.offsetHeight || TOOLS_H - 6;
-    const h = Math.max(150, root.clientHeight - toolsH - PROMPT_H - SHOTS_H - GAP * 3 - ROOT_PAD);
-    listEl.style.height = h + "px";
-  };
-  const listRo = new ResizeObserver(fitListHeight);
-  listRo.observe(root);
+  // 高度全部确定性：角色列表固定高，shots 网格 flex 拉伸占满剩余空间，
+  // 无需 ResizeObserver（flex 容器自行分配，min-height 兜底）。
 
-  // 内容高度测量：工具条实测 + 提示词框 + shots 横条 + 列表固定高 + padding/gap
+  // 内容高度测量：工具条实测 + 提示词框 + shots 网格最小高 + 列表固定高 + padding/gap
   const measureContentHeight = () => {
     const toolsH = tools.offsetHeight || TOOLS_H - 6;
-    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + SHOTS_H + GAP + LIST_H;
+    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + SHOTS_MIN + GAP + LIST_H;
   };
 
   const widget = node.addDOMWidget(lib.DOM_WIDGET, lib.DOM_WIDGET, root, {
