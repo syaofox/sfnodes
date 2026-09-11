@@ -5,19 +5,20 @@
 槽位即窗口位置：`slot = window_idx % N`，N 为当前动态槽总数（含未连接
 的空槽）。空槽（未连接 preset）= 该窗口位置只跑上游补丁（通常即基模）。
 
-原理（patch-swap，见 experience/nodes-lora.md §39.5）：不合并权重、不做
-激活注入——按官方 `LoraLoader` 同款路径（`convert_lora` → `load_lora` →
-`add_patches` 元组语义）为每槽预建补丁列表，采样时经原生 context handler
-的 `EVALUATE_CONTEXT_WINDOWS` 回调（逐窗、逐 step 触发，自带 `window_idx`）
-把当窗槽位的补丁列表换进 `ModelPatcher.patches`，`EXECUTE_CLEANUP` 时复位。
+原理（patch-swap + 后装流式，见 experience/nodes-lora.md §39.5/§39.7）：
+按官方 `LoraLoader` 同款路径（`convert_lora` → `load_lora`）为每槽预建
+补丁列表，存**独立槽表**（绝不写入 `ModelPatcher.patches`，上游 base 的
+烘焙/流式命运原封不动）；采样时经原生 context handler 的
+`EVALUATE_CONTEXT_WINDOWS` 回调（逐窗、逐 step 触发，自带 `window_idx`）
+把当窗槽位的列表换进槽表。首次换槽前为并集键装上
+`LowVramPatch(key, 槽表, …)` 并追加进各模块的 `weight/bias_function`
+（forward 经 `ops.cast_bias_weight` 现场读取，与静态 Stack 同代码路径、
+同开销）；`EXECUTE_CLEANUP` 只打换槽计数，不复位（无可复位之物）。
 
-为何是 patch-swap 而非 forward-hook 注入（§39.1-39.4 的旧架构，已删除）：
-同形 LoRA 在官方加载期走 `LowVramPatch` 延迟合并（`model_patcher.py`），
-`weight_function` 持有 `patcher.patches` 的 live 引用、forward 时现算——
-补丁数据走官方低显存流式（pin + cast_buffer + 按 `lowvram_model_memory`
-逐层搬运），GPU 额外常驻 ≈ 0；而 hook 注入需自建 bf16 常驻（N 槽则 N 份）
-+ 270MB 级瞬时量，在半卸载模型上正是 OOM 主凶。uuid 在 forward 热路径
-零读取（仅 load 路径用），中途换列表不 bump 也安全。
+为何是这套（§39.7 血泪）：官方 `load()` 对全载模块把补丁**烘焙**进权重
+且不再装函数——往 `patcher.patches` 里换表对烘焙层完全无效（§39.5 旧
+架构的死因，`lowvram patches: 0` 即全载计数的旁证）。独立表 + 后装函数
+绕开烘焙，上游 base 烘焙态也不受影响（分表隔离，无双重计数）。
 
 动态槽（SFConditioningCombine §49 同款）：后端灵活 optional schema
 （`_WindowPresetInputs`，任意 `window_N` 槽名按 SF_LORA_PRESET 放行，
@@ -28,9 +29,9 @@
 约束：
   - 本节点必须接在 Wan Context Windows **之后**（需要它建好的
     `model.model_options["context_handler"]` 来注册回调）；链错顺序则
-    warning + 全程静态 slot0。
-  - 上游静态补丁（SFLoraStack 等）会被保留并与每槽叠加（官方列表语义），
-    与旧 hook 架构"二选一"不同，现在可共存。
+    warning + 回退官方 `add_patches(slot0)` 静态（短视频/无回调同理）。
+  - 上游静态补丁（SFLoraStack 等）原样保留并与每槽叠加（base 烘焙态 +
+    本槽流式态，顺序 = base 先、本槽后，与串联一致）。
   - preset 行的 `strengthTwo`（CLIP 强度）被忽略，只用 `strength`（模型侧）；
     CLIP 本体不在逐窗路径内。
   - 要严格"第 k 段 = 槽 k"请用 STATIC_STANDARD 或 BATCHED schedule；
@@ -52,14 +53,20 @@ try:
     import comfy.lora as _lora
     import comfy.lora_convert as _lora_convert
     from comfy.context_windows import IndexListCallbacks as _CB
+    from comfy.model_patcher import LowVramPatch as _LowVramPatch
+    from comfy.model_patcher import get_key_weight as _get_key_weight
     _EVALUATE = _CB.EVALUATE_CONTEXT_WINDOWS
     _CLEANUP = _CB.EXECUTE_CLEANUP
+    _HAS_STREAM = True
 except Exception:
     _lora = None
     _lora_convert = None
+    _LowVramPatch = None
+    _get_key_weight = None
     # 回退字面量（comfy/context_windows.py 的稳定 API 名）
     _EVALUATE = "evaluate_context_windows"
     _CLEANUP = "execute_cleanup"
+    _HAS_STREAM = False
 
 _CATEGORY = "sfnodes/model"
 
@@ -67,6 +74,7 @@ WINDOW_PREFIX = "window_"
 INITIAL_WINDOW_INPUTS = 2
 MAX_WINDOW_INPUTS = 10
 CALLBACK_KEY = "sf_wan_window_lora"
+FN_TAG = "_sf_window_lora_stream"
 
 logger = get_logger(__name__)
 
@@ -137,54 +145,123 @@ def _file_lora_keys(sd):
 class _PatchSwapSession:
     """逐窗补丁交换会话（纯 CPU 数据操作，无 torch 依赖）。
 
-    full[si]: 槽 si 的完整补丁表 {model_key: [(sm, data, 1.0, None, None)...]}
-     （含上游 base + 本槽行；空槽 = 纯 base）。set_slot() 整键替换
-      `patcher.patches` 内容（dict 对象本身不动，LowVramPatch 的 live
-      引用持续有效；uuid 不 bump——forward 热路径不读它）。
+    tables: 独立槽表 {model_key: [(sm, data, 1.0, None, None)...]}，键集恒为
+      并集（含空槽位，空表 [] 占位——LowVramPatch 读表不存在的键会 KeyError）。
+    set_slot() 只替换本表列表对象，不碰 patcher.patches。
+    _ensure_stream_functions() 在首次换槽前为并集键装流式函数：
+      已有绑定官方表的函数则不管（base 流式态共存）；清掉绑定旧会话表的
+      僵尸函数（clone 共享模块，旧函数会残留 → 不清则双重应用）；缺失则追加。
     """
 
-    def __init__(self, patcher, dm, full, initial, n_slots):
+    def __init__(self, patcher, model_root, slot_tables, n_slots):
         self.patcher = patcher
-        self._dm = dm
-        self.full = full
-        self.initial = initial
+        self._root = model_root
+        # tables 只定并集键集（全 [] 占位，LowVramPatch 读表不存在的键会 KeyError）；
+        # 各槽内容独立存 _slot_tables，set_slot() 逐键填写。
+        self.tables = {}
+        for table in slot_tables:
+            if table:
+                for k in table:
+                    self.tables.setdefault(k, [])
+        self._slot_tables = slot_tables  # per slot: {key: [tuples]} or None
         self.n = n_slots
-        self.swap_count = 0  # EVALUATE 触发的换槽次数（cleanup 时汇总打点）
+        self.swap_count = 0  # 实际切换次数（同槽重复命中不计）
+        self._last_si = None
+        self._stream_ready = False
 
-    def _clear_stale_prepared(self):
-        """防御性清理：异常中断的 forward 可能留下 prepared_patches 快照
-       （正常路径官方逐层配对清理，此处只处理异常残留）。"""
+    def _iter_target_modules(self):
         try:
-            mods = self._dm.named_modules()
+            mods = self._root.named_modules()
         except Exception:
             return
-        for _, mod in mods:
+        for name, mod in mods:
+            yield name, mod
+
+    def _fn_list(self, mod, key):
+        if key.endswith(".bias"):
+            return getattr(mod, "bias_function", None)
+        return getattr(mod, "weight_function", None)
+
+    def _ensure_stream_functions(self):
+        if self._stream_ready:
+            return
+        for name, mod in self._iter_target_modules():
+            for suffix, attr in ((".weight", "weight_function"),
+                                 (".bias", "bias_function")):
+                key = f"{name}{suffix}"
+                if key not in self.tables:
+                    continue
+                fns = getattr(mod, attr, None)
+                if not isinstance(fns, list):
+                    # 非 comfy ops 模块可能没有该属性；建一个
+                    #（forward 经 cast_bias_weight 现场读此表）。
+                    fns = []
+                    try:
+                        setattr(mod, attr, fns)
+                    except Exception:
+                        continue
+                # 清僵尸（旧会话表）+ 判官方表已覆盖 + 本会话幂等
+                kept = []
+                official = False
+                mine = False
+                for fn in fns:
+                    tag = getattr(fn, FN_TAG, None)
+                    if tag is not None:
+                        if getattr(fn, "patches", None) is self.tables:
+                            if not mine:
+                                kept.append(fn)  # 本会话已装：只留一个
+                                mine = True
+                            # 重复的本会话函数：丢弃（二次 ensure 不双重应用）
+                        continue  # 旧会话僵尸：丢弃
+                    kept.append(fn)
+                    if fn.__class__ is _LowVramPatch and getattr(fn, "key", None) == key:
+                        try:
+                            if fn.patches is self.patcher.patches:
+                                official = True
+                        except Exception:
+                            pass
+                if not official and not mine:
+                    try:
+                        _, set_func, convert_func = _get_key_weight(self._root, key)
+                    except Exception:
+                        set_func, convert_func = None, None
+                    try:
+                        fn = _LowVramPatch(key, self.tables, convert_func, set_func)
+                        setattr(fn, FN_TAG, True)
+                        kept.append(fn)
+                    except Exception as e:
+                        logger.warning("[SFWanWindowLoRA] stream fn install failed for %s (%s).",
+                                       key, e)
+                        continue
+                if len(kept) != len(fns):
+                    try:
+                        setattr(mod, attr, kept)
+                    except Exception:
+                        pass
+        self._stream_ready = True
+
+    def _clear_stale_prepared(self):
+        """防御性清理：异常中断的 forward 可能留下 prepared_patches 快照。"""
+        for _, mod in self._iter_target_modules():
             try:
                 for attr in ("weight_function", "bias_function"):
                     for fn in list(getattr(mod, attr, None) or []):
                         clear = getattr(fn, "clear_prepared", None)
                         if clear is not None:
                             clear()
-                for attr in dir(mod):
-                    if attr.endswith("_lowvram_function"):
-                        clear = getattr(getattr(mod, attr, None), "clear_prepared", None)
-                        if clear is not None:
-                            clear()
             except Exception:
                 continue
 
     def set_slot(self, si):
-        lists = self.full[si]
-        P = self.patcher.patches
-        for k, lst in lists.items():
-            P[k] = lst
+        self._ensure_stream_functions()
+        content = self._slot_tables[si] if self._slot_tables[si] else {}
+        for k in self.tables:
+            lst = content.get(k)
+            self.tables[k] = list(lst) if lst else []
         self._clear_stale_prepared()
-        self.swap_count += 1
-
-    def reset_initial(self):
-        P = self.patcher.patches
-        for k, lst in self.initial.items():
-            P[k] = lst
+        if si != self._last_si:
+            self.swap_count += 1
+            self._last_si = si
 
 
 class SFWanWindowLoRA:
@@ -224,7 +301,6 @@ class SFWanWindowLoRA:
             slot_rows.append((key, rows if rows else None))
 
         patched = model.clone()
-        dm = getattr(patched.model, "diffusion_model", patched.model)
         try:
             key_map = _lora.model_lora_keys_unet(patched.model, {})
         except Exception:
@@ -232,26 +308,20 @@ class SFWanWindowLoRA:
         try:
             model_keys = set(patched.model.state_dict().keys())
         except Exception:
-            try:
-                model_keys = set(dm.state_dict().keys())
-            except Exception:
-                model_keys = set()
+            model_keys = set()
 
-        # 上游静态补丁快照（SFLoraStack 等）：每窗列表 = base + 本槽行
-        try:
-            base = {k: list(v) for k, v in patched.patches.items()}
-        except Exception:
-            base = {}
-
-        file_cache = {}  # path -> (converted_sd, loaded {model_key: adapter})
-        slot_content = []  # per slot: {model_key: [(sm, data, 1.0, None, None)]} or None
+        file_cache = {}  # path -> (sd, loaded {model_key: adapter})
+        slot_tables = []  # per slot: {model_key: [(sm, data, 1.0, None, None)]} or None
+        slot_files = []  # per slot: [(loaded, sm)] 回退静态用
         info_slots = []
         for i, (key, rows) in enumerate(slot_rows):
             if rows is None:
-                slot_content.append(None)
+                slot_tables.append(None)
+                slot_files.append([])
                 info_slots.append({"slot": i, "key": key, "status": "empty (upstream patches only)"})
                 continue
             content = {}
+            raws = []
             entries = []
             failed = []
             for name, sm in rows:
@@ -293,94 +363,83 @@ class SFWanWindowLoRA:
                                    "this LoRA will NOT take effect (wrong architecture).", i, name)
                     failed.append(f"{name}: 0 model keys")
                     continue
+                raws.append((loaded, sm))
                 entries.append({"lora": name, "strength": sm,
                                 "model_keys_matched": matched, "lora_keys_total": total})
             if not content:
-                slot_content.append(None)
+                slot_tables.append(None)
+                slot_files.append([])
                 reason = "; ".join(failed) if failed else "all LoRAs failed"
                 info_slots.append({"slot": i, "key": key, "status": f"empty ({reason})"})
             else:
-                slot_content.append(content)
+                slot_tables.append(content)
+                slot_files.append(raws)
                 info_slots.append({"slot": i, "key": key, "loras": entries})
 
-        # 全并集键（加载期 hook 落点）：base ∪ 各槽。slot0 之外独占键用零强度
-        # 占位（同形数据借位，仅为让官方装上 LowVramPatch；短视频/无回调时
-        # 这些占位零生效，行为 = base + slot0）。
-        union_keys = set(base)
-        for content in slot_content:
-            if content:
-                union_keys.update(content)
-        placeholder_data = {}
-        for content in slot_content:
-            if not content:
-                continue
-            for mk, tuples in content.items():
-                if mk not in placeholder_data and tuples:
-                    placeholder_data[mk] = tuples[0][1]
-        initial = {}
-        slot0 = slot_content[0] if slot_content else None
-        for k in union_keys:
-            lst = list(base.get(k, []))
-            if slot0 and k in slot0:
-                lst = lst + list(slot0[k])
-            elif k not in base and k in placeholder_data:
-                lst = lst + [(0.0, placeholder_data[k], 1.0, None, None)]
-            initial[k] = lst
-        for k, lst in initial.items():
-            try:
-                patched.patches[k] = lst
-            except Exception:
-                pass
-
-        # 每槽完整表 = base + 本槽行（空槽 = 纯 base）
-        full = []
-        for content in slot_content:
-            table = {}
-            for k in union_keys:
-                lst = list(base.get(k, []))
-                if content and k in content:
-                    lst = lst + list(content[k])
-                table[k] = lst
-            full.append(table)
-
-        session = _PatchSwapSession(patched, dm, full, initial, len(slot_rows))
+        session = _PatchSwapSession(patched, patched.model, slot_tables, len(slot_rows))
         try:
             patched._sf_window_session = session  # 诊断可达（换槽计数等）
         except Exception:
             pass
-
-        def _on_evaluate(handler, model_arg, x_in, conds, timestep, model_options,
-                         window_idx, window, *rest):
-            if not session.n:
-                return
-            try:
-                session.set_slot(int(window_idx) % session.n)
-            except Exception as e:
-                logger.warning("[SFWanWindowLoRA] window %s swap failed (%s).",
-                               window_idx, e)
-
-        def _on_cleanup(handler, model_arg, x_in, conds, timestep, model_options):
-            session.reset_initial()
-            if session.swap_count:
-                logger.info("[SFWanWindowLoRA] done | %d window evaluations across %d slot(s).",
-                            session.swap_count, session.n)
 
         handler = None
         try:
             handler = (patched.model_options or {}).get("context_handler")
         except Exception:
             handler = None
-        if handler is None or not hasattr(handler, "callbacks"):
-            logger.warning("[SFWanWindowLoRA] no context_handler on MODEL "
-                           "(put this node AFTER Wan Context Windows); running static slot 0.")
+        use_stream = bool(handler is not None and hasattr(handler, "callbacks")) and _HAS_STREAM
+        if not use_stream:
+            # 回退：官方静态 slot0（短视频/链错顺序/旧版无流式类时行为 = 普通 LoRA 加载）
+            if slot_tables and slot_tables[0]:
+                for loaded, sm in slot_files[0]:
+                    try:
+                        patched.add_patches(loaded, sm)
+                    except Exception as e:
+                        logger.warning("[SFWanWindowLoRA] static fallback add_patches failed (%s).", e)
+                        break
+                logger.warning("[SFWanWindowLoRA] no context_handler on MODEL "
+                               "(put this node AFTER Wan Context Windows); running static slot 0.")
+            else:
+                logger.warning("[SFWanWindowLoRA] no context_handler on MODEL and slot 0 empty; "
+                               "passing model through unchanged.")
         else:
+            def _on_evaluate(handler_arg, model_arg, x_in, conds, timestep, model_options,
+                             window_idx, window, *rest):
+                if not session.n:
+                    return
+                try:
+                    session.set_slot(int(window_idx) % session.n)
+                except Exception as e:
+                    logger.warning("[SFWanWindowLoRA] window %s swap failed (%s).",
+                                   window_idx, e)
+
+            def _on_cleanup(handler_arg, model_arg, x_in, conds, timestep, model_options):
+                if session.swap_count:
+                    logger.info("[SFWanWindowLoRA] done | %d window evaluations across %d slot(s).",
+                                session.swap_count, session.n)
+
+            # 原生 get_all_callbacks(call_type, handler.callbacks) 内部按
+            # transformer_options 形状再取 ["callbacks"]（§39.8：直接形状永远
+            # 读不到——上游 reader/shape 错配，所有 handler 回调天然全哑）。
+            # 双形状注册：当前 reader 走 ["callbacks"] 分支；若上游日后修正，
+            # 直接分支生效——set_slot 幂等，双重触发无害。
             try:
-                handler.callbacks.setdefault(_EVALUATE, {}).setdefault(
-                    CALLBACK_KEY, []).append(_on_evaluate)
-                handler.callbacks.setdefault(_CLEANUP, {}).setdefault(
-                    CALLBACK_KEY, []).append(_on_cleanup)
+                cbs = handler.callbacks
+                if not isinstance(cbs, dict):
+                    raise TypeError("handler.callbacks is not a dict")
+                for root in (cbs, cbs.setdefault("callbacks", {})):
+                    root.setdefault(_EVALUATE, {}).setdefault(
+                        CALLBACK_KEY, []).append(_on_evaluate)
+                    root.setdefault(_CLEANUP, {}).setdefault(
+                        CALLBACK_KEY, []).append(_on_cleanup)
             except Exception as e:
                 logger.warning("[SFWanWindowLoRA] callback register failed (%s); running static slot 0.", e)
+                if slot_tables and slot_tables[0]:
+                    for loaded, sm in slot_files[0]:
+                        try:
+                            patched.add_patches(loaded, sm)
+                        except Exception:
+                            break
 
         n_loras = sum(len(r) for _, r in slot_rows if r)
         info = json.dumps({
