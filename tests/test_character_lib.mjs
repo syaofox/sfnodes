@@ -1,6 +1,6 @@
 // SFCharacterSelect lib 纯函数测试（Node 直接运行：node tests/test_character_lib.mjs）
-// 覆盖：parseState/serializeSingle/firstSelected 单选收敛、resolveLabel 语言化、
-// shotUrl 分镜取值、entryOf/displayPrompt 草稿优先、filterAndSort 单选置顶/搜索
+// 覆盖：parseState 新旧两态/serializeSelection/coerceSelection 收敛、
+// entryImages/rolePrompt/displayPrompt、filterAndSort 搜索（含图 prompt）
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,8 +18,12 @@ function check(name, cond) {
 }
 
 const ROLES = [
-  { name: "主角A", name_cn: "主角A", prompt: "a girl with black hair", face: "/api/sfnodes/characters/image?path=samples_id_chara/x/face.jpg", half: "samples_id_chara/x/half.jpg", full: "https://h/full.jpg" },
-  { name: "Hero B", prompt: "a boy", face: "f.jpg" },
+  { name: "主角A", name_cn: "主角A", prompt: "hero",
+    images: [
+      { label: "脸", url: "/api/x/face.jpg", prompt: "p-face" },
+      { label: "身", url: "https://h/body.jpg", prompt: "" },
+    ] },
+  { name: "Hero B", prompt: "a boy", images: [{ label: "脸", url: "f.jpg", prompt: "pb" }] },
   { name: "NoShot", prompt: "p" },
 ];
 
@@ -32,50 +36,43 @@ const ROLES = [
   check("DOM_WIDGET 契约", L.DOM_WIDGET === "sf_character_panel");
   check("CHARACTERS_API 契约", L.CHARACTERS_API === "/api/sfnodes/characters");
   check("LIB_PREFIX 契约", L.LIB_PREFIX === "character_");
-  check("SHOTS 三分镜", JSON.stringify(L.SHOTS) === '["face","half","full"]');
 
-  // ── 状态解析/单选收敛 ──
-  check("parseState 正常 JSON", JSON.stringify(L.parseState('["A","B"]')) === '["A","B"]');
-  check("parseState 坏 JSON 容错", L.parseState("{bad").length === 0);
-  check("parseState 空串容错", L.parseState("").length === 0);
-  check("serializeSingle 有名", L.serializeSingle("A") === '["A"]');
-  check("serializeSingle 空名", L.serializeSingle("") === "[]");
-  check("firstSelected 取首个", L.firstSelected('["A","B"]') === "A");
-  check("firstSelected 空", L.firstSelected("[]") === "");
-  check("coerceSelection 有效保留", L.coerceSelection(ROLES, '["Hero B"]') === "Hero B");
-  check("coerceSelection 空回落首项", L.coerceSelection(ROLES, "[]") === "主角A");
-  check("coerceSelection 失效回落首项", L.coerceSelection(ROLES, '["不存在"]') === "主角A");
-  check("coerceSelection 空库回落空", L.coerceSelection([], '["A"]') === "");
-
-  // ── 语言化/分镜取值 ──
-  check("中文环境优先 name_cn", L.resolveLabel("Hero B", "英雄B", true) === "英雄B");
-  check("英文环境用原名", L.resolveLabel("Hero B", "英雄B", false) === "Hero B");
-  check("shotUrl 脸部", L.shotUrl(ROLES[0], "face") === "/api/sfnodes/characters/image?path=samples_id_chara/x/face.jpg");
-  check("shotUrl 数组取首项", L.shotUrl({ face: ["a.jpg", "b.jpg"] }, "face") === "a.jpg");
-  check("shotUrl 缺省空串", L.shotUrl(ROLES[2], "full") === "");
-  check("isRemoteThumb http", L.isRemoteThumb("https://h/full.jpg") === true);
-  check("isRemoteThumb 本地路由", L.isRemoteThumb("/api/sfnodes/characters/image?path=a.jpg") === false);
+  // ── 状态解析/序列化/收敛 ──
+  check("parseState 新态", JSON.stringify(L.parseState('{"role":"A","shots":["x"]}')) === '{"role":"A","shots":["x"],"_legacy":false}');
+  check("parseState 去重不过滤（保序）", L.parseState('{"role":"A","shots":["x","x"]}').shots.join(",") === "x,x");
+  check("parseState 旧数组迁移标记", L.parseState('["A"]')._legacy === true && L.parseState('["A"]').role === "A");
+  check("parseState 坏输入容错", L.parseState("{bad").role === "" && L.parseState(42).role === "");
+  check("serializeSelection 去重保序", L.serializeSelection("A", ["y", "x", "y"]) === '{"role":"A","shots":["y","x"]}');
+  check("coerceSelection 有效交集保序", JSON.stringify(L.coerceSelection(ROLES, '{"role":"主角A","shots":["身","脸","无"]}')) === '{"role":"主角A","shots":["脸","身"]}');
+  check("coerceSelection 旧数组收敛首图", JSON.stringify(L.coerceSelection(ROLES, '["Hero B"]')) === '{"role":"Hero B","shots":["脸"]}');
+  check("coerceSelection 空回落首图", JSON.stringify(L.coerceSelection(ROLES, "[]")) === '{"role":"主角A","shots":["脸"]}');
+  check("coerceSelection 失效回落首图", JSON.stringify(L.coerceSelection(ROLES, '{"role":"X","shots":["脸"]}')) === '{"role":"主角A","shots":["脸"]}');
+  check("coerceSelection 空库", JSON.stringify(L.coerceSelection([], "[]")) === '{"role":"","shots":[]}');
 
   // ── 条目与显示提示词 ──
-  check("entryOf 命中", L.entryOf(ROLES, "主角A") === ROLES[0]);
-  check("entryOf 未命中 null", L.entryOf(ROLES, "不存在") === null);
-  check("displayPrompt 角色原词", L.displayPrompt(ROLES, "主角A", "") === "a girl with black hair");
-  check("displayPrompt 草稿优先", L.displayPrompt(ROLES, "主角A", "hand") === "hand");
-  check("displayPrompt 无选择空串", L.displayPrompt(ROLES, "", "") === "");
+  check("entryImages 顺序", L.entryImages(ROLES[0]).map((i) => i.label).join(",") === "脸,身");
+  check("entryImages 缺省空", L.entryImages(ROLES[2]).length === 0);
+  check("entryOf/rolePromptOf", L.entryOf(ROLES, "主角A") === ROLES[0] && L.rolePromptOf(ROLES[0]) === "hero");
+  check("displayPrompt 拼接回落", L.displayPrompt(ROLES, '{"role":"主角A","shots":["脸","身"]}', "") === "p-face, hero");
+  check("displayPrompt 草稿整体覆盖", L.displayPrompt(ROLES, '{"role":"主角A","shots":["脸"]}', "hand") === "hand");
+  check("displayPrompt 空选回落首图", L.displayPrompt(ROLES, '{"role":"","shots":[]}', "") === "p-face");
 
-  // ── filterAndSort：单选置顶 + 搜索 ──
-  let items = L.filterAndSort(ROLES, "", '["Hero B"]', false);
-  check("选中置顶", items[0].name === "Hero B");
-  check("选中标记唯一", items.filter((i) => i.selected).length === 1);
-  check("raw 携带原条目", items[0].raw === ROLES[1]);
-  items = L.filterAndSort(ROLES, "black hair", "[]", false);
-  check("搜索 prompt 命中", items.filter((i) => !i.hidden).map((i) => i.name).join(",") === "主角A");
+  // ── filterAndSort ──
+  let items = L.filterAndSort(ROLES, "", "主角A", false);
+  check("选中置顶", items[0].name === "主角A");
+  check("raw 携带原条目", items[0].raw === ROLES[0]);
+  items = L.filterAndSort(ROLES, "p-face", "[]", false);
+  check("搜索图 prompt 命中", items.filter((i) => !i.hidden).map((i) => i.name).join(",") === "主角A");
   items = L.filterAndSort(ROLES, "主角", "[]", false);
-  check("搜索 name 命中", items.filter((i) => !i.hidden).map((i) => i.name).join(",") === "主角A");
-  items = L.filterAndSort(ROLES, "nomatch", '["NoShot"]', false);
+  check("搜索 name 命中", items.filter((i) => !i.hidden).length === 1);
+  items = L.filterAndSort(ROLES, "nomatch", "NoShot", false);
   check("选中项搜索时永不隐藏", items.find((i) => i.name === "NoShot").hidden === false);
   items = L.filterAndSort(ROLES, "   ", "[]", false);
   check("空白查询不隐藏", items.every((i) => !i.hidden));
+
+  // ── 远程判定 ──
+  check("isRemoteThumb http", L.isRemoteThumb("https://h/body.jpg") === true);
+  check("isRemoteThumb 本地路由", L.isRemoteThumb("/api/x/face.jpg") === false);
 
   console.log();
   if (failures.length) {

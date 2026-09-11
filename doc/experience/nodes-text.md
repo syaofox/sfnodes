@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -481,4 +481,21 @@
 ### 2. 踩坑
 
 - **`from` 绑定命名空间桩位**（§46 同款再现）：`character.py` 已 `from .id_clothing import _load_template_tensor`，桩打 `id_clothing` 模块无效，必须打 `character` 模块——首测即抓出（`No module named 'torch'` 实锤走了真函数）。
-- **无有效选择自动首选**：空选输出全占位曾被误报为 bug（用户未点卡）。修法为库就绪后 `coerceSelection` 收敛（有效保留、空/失效回落首项并清草稿），纯函数可单测；configure 恢复读 live 值故恢复值不受影响。注意显式取消选择不再跨重载保留（重载回落首项），与"默认首选"语义一致。
+- **无有效选择自动首选**：空选输出全占位曾被误报为 bug（用户未点卡）。修法为库就绪后 `coerceSelection` 收敛（有效保留、空/失效回落首项并清草稿），纯函数可单测；configure 恢复读 live 值故恢复值不受影响。注意显式取消选择不再跨重载保留（重载回落首项首图），与"默认首图"语义一致。后改为默认只选首图（全选 batch 改手动勾选），收敛规则同步为回落首图。
+
+---
+
+## 48. SFCharacterSelect v2：角色内多选图 → images batch（破兼容 4 路变 3 路）
+
+> 背景：角色内不限数量图片 + 多选 + batch 输出（单选即单张），另加一路角色级 prompt。输出从 `(prompt, face, half, full)` 变 `(prompt, role_prompt, images)`——老工作流三根连线失效，用户已确认接受，不做迁移 shim。
+
+### 1. 分层与契约
+
+- **数据双读**：新 `{images: [{label, file, prompt}]}` + 旧 `{face,half,full}`（映射 label 脸部特写/半身像/全身像，prompt 回落角色词）均由 `image_entries` 归一；旧 `["名"]` 状态迁移首图。已验证用户既有 `character_jingjing.json` 零修改可用。
+- **拼装**：`torch.cat` 沿 batch 维，尺寸归一到首选图（`image_convert.rescale_image` lanczos）；空选 1×1 占位（batch 维为 0 非法）。单张与 batch 同属 IMAGE 类型，无需动态输出。
+- **prompt 双路解耦**：拼接路（草稿整体覆盖）vs 角色级路（恒输出角色原词，不受草稿影响）。
+- **前端**：角色卡 + shots 复选横条（batch 顺序按库内顺序，不随点击顺序漂移）；搜索扩到各图 prompt；`parseState` 曾漏对象 JSON 字符串分支（字符串只走了旧数组解析）——首测抓出。
+
+### 2. 踩坑
+
+- **测试期望与收敛语义对齐**：空/失效选择按设计回落首角首图——"空选占位"断言本身违背既定语义，改断言而非改代码；先怀疑检查脚本再怀疑代码（patterns §3 同款）。

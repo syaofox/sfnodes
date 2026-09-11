@@ -1,6 +1,7 @@
 # SFCharacterSelect 后端逻辑测试（Python 直接运行：python3 tests/test_character.py）
-# 覆盖：节点元信息、character_ 库过滤、单选收敛、草稿优先、三分镜独立输出
-# （单分镜缺失仅该路占位）、未知库降级、角色路由形状/前缀隔离/穿越防护
+# 覆盖：节点元信息（3 输出）、character_ 库过滤、新旧双读、单选多选收敛、
+# 草稿整体覆盖、角色级 prompt、batch 拼装（首图归一/空选占位）、未知库降级、
+# 角色路由形状/前缀隔离/穿越防护
 import importlib.util
 import json
 import os
@@ -48,6 +49,30 @@ fake_server = types.ModuleType("server")
 fake_server.PromptServer = types.SimpleNamespace(instance=types.SimpleNamespace(routes=_FakeRoutes()))
 sys.modules["server"] = fake_server
 
+# ── mock torch（本机无；batch 拼装只用 zeros/cat，形状可断言）──
+fake_torch = types.ModuleType("torch")
+fake_torch.float32 = "float32"
+
+
+class _FakeTensor:
+    def __init__(self, shape, tag=""):
+        self.shape = tuple(shape)
+        self.tag = tag
+
+
+def _fake_zeros(shape, dtype=None):
+    return _FakeTensor(shape, tag="zeros")
+
+
+def _fake_cat(tensors, dim=0):
+    b = sum(t.shape[0] for t in tensors)
+    return _FakeTensor((b,) + tensors[0].shape[1:], tag="cat")
+
+
+fake_torch.zeros = _fake_zeros
+fake_torch.cat = _fake_cat
+sys.modules["torch"] = fake_torch
+
 # ── 包桩（相对 import 解析用；不执行根 __init__ 重依赖）──
 for _name in ["sfnodes", "sfnodes.nodes", "sfnodes.nodes.text", "sfnodes.sf_utils"]:
     _m = types.ModuleType(_name)
@@ -83,8 +108,8 @@ def check(name, cond):
 node = mod.SFCharacterSelect()
 check("CATEGORY", node.CATEGORY == "sfnodes/text")
 check("DESCRIPTION 存在", isinstance(node.DESCRIPTION, str) and len(node.DESCRIPTION) > 0)
-check("RETURN_TYPES", node.RETURN_TYPES == ("STRING", "IMAGE", "IMAGE", "IMAGE"))
-check("RETURN_NAMES", node.RETURN_NAMES == ("prompt", "face", "half", "full"))
+check("RETURN_TYPES", node.RETURN_TYPES == ("STRING", "STRING", "IMAGE"))
+check("RETURN_NAMES", node.RETURN_NAMES == ("prompt", "role_prompt", "images"))
 check("FUNCTION = execute", node.FUNCTION == "execute")
 
 it = node.INPUT_TYPES()
@@ -101,20 +126,28 @@ try:
 finally:
     mod.character_library_names = _orig_names
 
-# ── 纯逻辑 ──
-check("SHOTS 三分镜", pure.SHOTS == ("face", "half", "full"))
-check("首个有效名", pure.first_selected('["A","B"]') == "A")
-check("空状态", pure.first_selected("[]") == "")
-check("畸形状态容错", pure.first_selected("{bad") == "")
-check("单选序列化", pure.serialize_single("A") == '["A"]' and pure.serialize_single("") == "[]")
-check("模板原词", pure.resolve_prompt([{"name": "A", "prompt": "pA"}], "A", "") == "pA")
-check("草稿优先", pure.resolve_prompt([{"name": "A", "prompt": "pA"}], "A", "hand") == "hand")
-check("未选中空串", pure.resolve_prompt([], "A", "") == "")
-check("分镜取值", pure.shot_thumbnail({"face": "f.jpg", "half": ["h1.jpg", "h2.jpg"]}, "face") == "f.jpg")
-check("分镜数组取首项", pure.shot_thumbnail({"half": ["h1.jpg", "h2.jpg"]}, "half") == "h1.jpg")
-check("分镜缺省空串", pure.shot_thumbnail({}, "full") == "")
+# ── 纯逻辑：双读/收敛/拼接 ──
+NEW = {"name": "A", "prompt": "R", "images": [
+    {"label": "脸", "file": "f.jpg", "prompt": "p1"},
+    {"label": "身", "file": "b.jpg"},
+]}
+OLD = {"name": "B", "prompt": "R2", "face": "f2.jpg", "half": "", "full": "u.jpg"}
+check("新形状解析", pure.image_entries(NEW) == [
+    {"label": "脸", "file": "f.jpg", "prompt": "p1"},
+    {"label": "身", "file": "b.jpg", "prompt": ""}])
+check("旧形状映射", pure.image_entries(OLD) == [
+    {"label": "脸部特写", "file": "f2.jpg", "prompt": "R2"},
+    {"label": "全身像", "file": "u.jpg", "prompt": "R2"}])
+check("旧数组态迁移首图", pure.coerce_selection([NEW], '["A"]') == {"role": "A", "shots": ["脸"]})
+check("多选交集保序", pure.coerce_selection([NEW], '{"role": "A", "shots": ["身", "脸", "无"]}') == {"role": "A", "shots": ["脸", "身"]})
+check("空态回落首角首图", pure.coerce_selection([NEW], "[]") == {"role": "A", "shots": ["脸"]})
+check("失效角色回落首图", pure.coerce_selection([NEW], '{"role": "X", "shots": ["身"]}') == {"role": "A", "shots": ["脸"]})
+check("空库回落空", pure.coerce_selection([], "[]") == {"role": "", "shots": []})
+check("拼接回落角色词", pure.join_prompts(NEW, ["脸", "身"]) == "p1, R")
+check("草稿整体覆盖", pure.resolve_prompt(NEW, ["脸"], "hand") == "hand")
+check("角色级 prompt", pure.role_prompt(NEW) == "R" and pure.role_prompt(None) == "")
 
-# ── 双源目录与加载（用户优先/同名覆盖/mtime 缓存）──
+# ── 双源目录与加载 ──
 _orig_user, _orig_builtin = mod._user_characters_dir, mod._builtin_characters_dir
 try:
     with tempfile.TemporaryDirectory() as user_dir, tempfile.TemporaryDirectory() as builtin_dir:
@@ -124,63 +157,60 @@ try:
             json.dump([{"name": "Builtin", "prompt": "b"}], f)
         with open(os.path.join(user_dir, "character_a.json"), "w", encoding="utf-8") as f:
             json.dump([{"name": "User", "prompt": "u"}], f)
-        with open(os.path.join(user_dir, "character_b.json"), "w", encoding="utf-8") as f:
-            json.dump([{"name": "Mine", "prompt": "m", "face": "samples_id_chara/character_b/face_01.jpg"}], f)
-        check("库名枚举用户+内置", set(mod.character_library_names()) == {"character_a", "character_b"})
         check("同名库用户覆盖内置", mod._load_characters("character_a") == [{"name": "User", "prompt": "u"}])
         check("未知库空列表", mod._load_characters("nope") == [])
 finally:
     mod._user_characters_dir, mod._builtin_characters_dir = _orig_user, _orig_builtin
 
-# ── execute（三张量打桩为哨兵，避开本机 torch/PIL；
-# 注意桩打在被测模块命名空间：character.py 已 from .id_clothing import 绑定，
-# 打 id_clothing 模块影响不到它，见 §46 同款踩坑）──
-_FAKE = {s: object() for s in ("face", "half", "full")}
-_PLACEHOLDER = object()
+# ── execute（张量/尺寸函数打桩；形状可断言）──
+_FACE, _HALF = _FakeTensor((1, 64, 48, 3), "face"), _FakeTensor((1, 128, 96, 3), "half")
 _orig_load, _orig_ph = mod._load_template_tensor, mod._placeholder_tensor
-calls = []
+mod._load_template_tensor = lambda path: _FACE if "face" in path else _HALF
+mod._placeholder_tensor = lambda: _FakeTensor((1, 1, 1, 3), "ph")
+rescaled = []
 
 
-def _fake_load(path):
-    calls.append(path)
-    for shot, obj in _FAKE.items():
-        if f"/{shot}_" in path or path.endswith(f"{shot}.jpg"):
-            return obj
-    return _FAKE["face"]
+def _fake_rescale(t, w, h):
+    rescaled.append((t.tag, w, h))
+    return _FakeTensor((1, h, w, 3), t.tag + ">")
 
 
-mod._load_template_tensor = _fake_load
-mod._placeholder_tensor = lambda: _PLACEHOLDER
+# rescale_image 经 sys.modules 预置桩（character._batch_tensors 内惰性 import 落到此桩，
+# 真实 image_convert 拉 torch，本机无——此处不断言桩模块本身，只断言调用参数与形状）
+sys.modules["sfnodes.sf_utils.image_convert"] = types.SimpleNamespace(rescale_image=_fake_rescale)
 _orig_cls_load, _orig_cls_dirs = mod._load_characters, mod._characters_dirs
 try:
     with tempfile.TemporaryDirectory() as user_dir:
         samples = os.path.join(user_dir, "samples_id_chara", "character_b")
         os.makedirs(samples)
-        for shot in ("face", "half"):
-            with open(os.path.join(samples, f"{shot}_01.jpg"), "wb") as f:
+        for fn in ("face_01.jpg", "half_01.jpg"):
+            with open(os.path.join(samples, fn), "wb") as f:
                 f.write(b"jpgdata")
-        # 注：full 缺文件 → 仅 full 路占位
         mod._characters_dirs = lambda: [user_dir]
         mod._load_characters = lambda name: [
-            {"name": "主角", "prompt": "hero prompt",
-             "face": "samples_id_chara/character_b/face_01.jpg",
-             "half": "samples_id_chara/character_b/half_01.jpg",
-             "full": "samples_id_chara/character_b/full_01.jpg"},
+            {"name": "主角", "prompt": "hero",
+             "images": [{"label": "脸", "file": "samples_id_chara/character_b/face_01.jpg", "prompt": "p-face"},
+                        {"label": "身", "file": "samples_id_chara/character_b/half_01.jpg"}]},
         ] if name == "character_b" else []
 
+        st = '{"role": "主角", "shots": ["脸", "身"]}'
+        r = node.execute(library="character_b", SFCharacterState=st, SFCharacterPrompt="")
+        check("拼接+角色词", r[0] == "p-face, hero" and r[1] == "hero")
+        check("batch 形状首图归一", r[2].shape == (2, 64, 48, 3) and r[2].tag == "cat")
+        check("归一调尺寸到首图", rescaled == [("half", 48, 64)])
+        r = node.execute(library="character_b", SFCharacterState=st, SFCharacterPrompt="hand")
+        check("草稿覆盖拼接路", r[0] == "hand" and r[1] == "hero")
+        n_rescaled = len(rescaled)
+        r = node.execute(library="character_b",
+                         SFCharacterState='{"role": "主角", "shots": ["脸"]}', SFCharacterPrompt="")
+        check("单选单张", r[0] == "p-face" and r[2].shape == (1, 64, 48, 3))
+        check("单张同尺寸免归一", len(rescaled) == n_rescaled)
+        r = node.execute(library="character_b", SFCharacterState='{"role": "", "shots": []}', SFCharacterPrompt="")
+        check("显式空态回落首图", r[0] == "p-face" and r[2].shape == (1, 64, 48, 3))
         r = node.execute(library="character_b", SFCharacterState='["主角"]', SFCharacterPrompt="")
-        check("选中输出角色词+三分镜", r[0] == "hero prompt" and r[1] is _FAKE["face"]
-              and r[2] is _FAKE["half"] and r[3] is _PLACEHOLDER)
-        r = node.execute(library="character_b", SFCharacterState='["主角"]', SFCharacterPrompt="hand")
-        check("草稿优先", r[0] == "hand")
-        r = node.execute(library="character_b", SFCharacterState="[]", SFCharacterPrompt="")
-        check("无选择全占位", r == ("", _PLACEHOLDER, _PLACEHOLDER, _PLACEHOLDER))
-        r = node.execute(library="character_b", SFCharacterState='["不存在"]', SFCharacterPrompt="")
-        check("未知角色降级", r == ("", _PLACEHOLDER, _PLACEHOLDER, _PLACEHOLDER))
-        r = node.execute(library="character_b", SFCharacterState="{bad", SFCharacterPrompt="")
-        check("畸形状态容错", r == ("", _PLACEHOLDER, _PLACEHOLDER, _PLACEHOLDER))
-        r = node.execute(library="no_such_library", SFCharacterState='["主角"]', SFCharacterPrompt="")
-        check("未知库降级", r == ("", _PLACEHOLDER, _PLACEHOLDER, _PLACEHOLDER))
+        check("旧数组态迁移首图", r[0] == "p-face" and r[2].shape == (1, 64, 48, 3))
+        r = node.execute(library="no_such_library", SFCharacterState=st, SFCharacterPrompt="")
+        check("未知库降级", r[0] == "" and r[1] == "" and r[2].shape == (1, 1, 1, 3))
 finally:
     mod._load_template_tensor, mod._placeholder_tensor = _orig_load, _orig_ph
     mod._load_characters, mod._characters_dirs = _orig_cls_load, _orig_cls_dirs
@@ -190,17 +220,22 @@ check("VALIDATE_INPUTS 恒 True", node.VALIDATE_INPUTS(library="stale_value") is
 check("IS_CHANGED 空库返回 0", node.IS_CHANGED(library="") == 0)
 check("IS_CHANGED 未知库返回 0", node.IS_CHANGED(library="nope") == 0)
 
-# ── 归一化 ──
+# ── 归一化（新形状直通 + 旧形状映射）──
 norm = mod.normalize_role_list([
-    {"name": "A", "prompt": "p", "face": "samples_id_chara/x/face.jpg", "half": "https://h/half.jpg"},
-    {"name": "B"},
+    {"name": "A", "prompt": "p",
+     "images": [{"label": "脸", "file": "samples_id_chara/x/face.jpg", "prompt": "pf"},
+                {"label": "坏", "file": ""}]},
+    {"name": "B", "prompt": "r2", "face": "samples_id_chara/x/f.jpg", "full": "https://h/u.jpg"},
+    {"name": "C"},
     {"name": 123},
 ])
-check("归一化保留 prompt", norm[0]["prompt"] == "p")
-check("归一化本地转路由", norm[0]["face"] == "/api/sfnodes/characters/image?path=samples_id_chara/x/face.jpg")
-check("归一化远程原样", norm[0]["half"] == "https://h/half.jpg")
-check("归一化缺图不带键", all(k not in norm[1] for k in ("face", "half", "full")))
-check("归一化非 name 条目跳过", len(norm) == 2)
+check("归一化 images 直通", norm[0]["images"] == [
+    {"label": "脸", "url": "/api/sfnodes/characters/image?path=samples_id_chara/x/face.jpg", "prompt": "pf"}])
+check("归一化旧形状映射", norm[1]["images"] == [
+    {"label": "脸部特写", "url": "/api/sfnodes/characters/image?path=samples_id_chara/x/f.jpg", "prompt": "r2"},
+    {"label": "全身像", "url": "https://h/u.jpg", "prompt": "r2"}])
+check("归一化空图 images 空数组", norm[2]["images"] == [])
+check("归一化非 name 条目跳过", len(norm) == 3)
 
 # ── 路由 handler（捕获注册）──
 check("路由已注册 /api/sfnodes/characters", "/api/sfnodes/characters" in handlers)
@@ -222,13 +257,14 @@ with tempfile.TemporaryDirectory() as user_dir, tempfile.TemporaryDirectory() as
     mod._user_characters_dir = lambda: user_dir
     mod._builtin_characters_dir = lambda: builtin_dir
     with open(os.path.join(user_dir, "character_x.json"), "w", encoding="utf-8") as f:
-        json.dump([{"name": "R", "prompt": "p", "face": "samples_id_chara/character_x/face.jpg"}], f)
+        json.dump([{"name": "R", "prompt": "p",
+                    "images": [{"label": "脸", "file": "samples_id_chara/character_x/face.jpg"}]}], f)
     os.makedirs(os.path.join(user_dir, "samples_id_chara", "character_x"))
     with open(os.path.join(user_dir, "samples_id_chara", "character_x", "face.jpg"), "wb") as f:
         f.write(b"jpgdata")
 
     resp = asyncio.run(_run(handlers["/api/sfnodes/characters"], _FakeRequest({"name": "character_x"})))
-    check("列表路由返回条目", len(resp) == 1 and resp[0]["name"] == "R")
+    check("列表路由返回条目", len(resp) == 1 and resp[0]["images"][0]["label"] == "脸")
     check("列表路由缺 name 400", asyncio.run(_run(handlers["/api/sfnodes/characters"], _FakeRequest({}))).status == 400)
     check("列表路由非前缀 400", asyncio.run(_run(handlers["/api/sfnodes/characters"],
                                                          _FakeRequest({"name": "fooocus_styles"}))).status == 400)

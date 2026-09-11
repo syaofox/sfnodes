@@ -2,8 +2,22 @@
   {
     "name": "示例角色",
     "prompt": "a girl with black long hair, school uniform",
-    "face": "samples_id_chara/character_example/face_01.jpg",
-    "half": "samples_id_chara/character_example/half_01.jpg",
-    "full": "samples_id_chara/character_example/full_01.jpg"
+    "images": [
+      {
+        "label": "脸部特写",
+        "file": "samples_id_chara/character_example/face_01.jpg",
+        "prompt": "close-up portrait, black long hair"
+      },
+      {
+        "label": "半身像",
+        "file": "samples_id_chara/character_example/half_01.jpg",
+        "prompt": "half body, school uniform"
+      },
+      {
+        "label": "全身像",
+        "file": "samples_id_chara/character_example/full_01.jpg",
+        "prompt": "full body, standing"
+      }
+    ]
   }
 ]

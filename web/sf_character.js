@@ -1,12 +1,14 @@
-// SFCharacterSelect 前端（角色三分镜单选画廊）
-// - 隐藏 SFCharacterState/SFCharacterPrompt STRING widget 为值真源（Python
-//   "hidden" 声明，标准 widget 收集进 prompt，随 workflow 保存）；DOM widget
-//   纯交互不承担值传输（规避 Vue DOMWidget value setter 链，见 experience/nodes-image.md §11）
-// - 单选画廊：角色卡内并排脸部特写/半身像/全身像三缩略图；搜索过滤 / Reset
-//   清空 / 选中置顶 / 悬停三图大预览（CSS 类前缀 sf-ch- 隔离）
-// - 提示词可手改：编辑框输入写入草稿 widget（空=回落角色原词，切换角色即清空，
-//   对齐 SFTextPreset text_override 语义）；后端草稿优先输出
-// - 纯逻辑（解析/单选/过滤/语言化）在 sf_character_lib.js
+// SFCharacterSelect 前端（角色多选图库，batch 输出）
+// - 隐藏 SFCharacterState（{"role", "shots"} JSON）/SFCharacterPrompt STRING
+//   widget 为值真源（Python "hidden" 声明，标准 widget 收集进 prompt，随
+//   workflow 保存）；DOM widget 纯交互不承担值传输（规避 Vue DOMWidget value
+//   setter 链，见 experience/nodes-image.md §11）
+// - 单节点多角色切换：角色卡选中角色，shots 横条复选该角色不限数量图片，
+//   batch 顺序按库内顺序；搜索过滤 / Reset 清空 / 选中置顶 / 悬停大预览
+//   （CSS 类前缀 sf-ch- 隔离）
+// - 提示词可手改：编辑框输入写入草稿 widget（空=回落分镜拼接；切换角色或改选
+//   即清空，对齐 SFTextPreset text_override 语义）；后端草稿整体覆盖拼接路
+// - 纯逻辑在 sf_character_lib.js
 
 import { app } from "/scripts/app.js";
 import { applyAdaptiveCanvasOnly, hideJsonWidget, injectCSSOnce, installWheelZoomPassthrough, isGraphLoading, isVueNodes, sfApiUrl } from "./sf_common.js";
@@ -16,13 +18,16 @@ const NODE_TYPE = "SFCharacterSelect";
 const LIST_H = 300; // 列表固定高度（滚动容器）
 const TOOLS_H = 34; // 工具条 + 与列表的 gap
 const PROMPT_H = 64; // 提示词编辑框固定高度
+const SHOTS_H = 64; // shots 复选横条高度
 const GAP = 6;
 const ROOT_PAD = 8; // root padding 上下各 4
 // 声称高度必须 ≥ 内容实际高度——低于内容时节点边框按声称高度绘制、
 // 底部内容溢出被裁（对齐 sf_styles_selector.js §18.6 注释）
-const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + GAP * 2 + ROOT_PAD + 4;
+const WIDGET_H = LIST_H + TOOLS_H + PROMPT_H + SHOTS_H + GAP * 3 + ROOT_PAD + 4;
 const MIN_W = 300;
 const VIEW_PROP = "sfCharacterView"; // Grid/List 显示模式（随 workflow 保存，不注入 prompt）
+const CARD_PREVIEW_MAX = 4; // 角色卡内预览总格数：超量时 3 图 + 1 个 "+N" 格，全正方形省空间
+const POP_PREVIEW_MAX = 6; // hover 浮窗大图上限
 const EMPTY_IMG =
   "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
@@ -38,17 +43,26 @@ function injectCSS() {
 .sf-ch-viewseg button:hover{background:#3a3a3a;}
 .sf-ch-viewseg button.sf-ch-viewon{background:color-mix(in srgb, var(--sf-acc, #f66744) 25%, transparent);color:#fff;}
 .sf-ch-prompt{flex:0 0 auto;width:100%;height:${PROMPT_H}px;min-height:${PROMPT_H}px;max-height:${PROMPT_H}px;resize:none;font:12px/1.5 sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
+.sf-ch-shotsbar{flex:0 0 auto;display:flex;gap:6px;align-items:center;height:${SHOTS_H}px;min-height:${SHOTS_H}px;max-height:${SHOTS_H}px;overflow-x:auto;overflow-y:hidden;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:4px 6px;box-sizing:border-box;}
+.sf-ch-shotpick{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:2px;border-radius:4px;border:1px solid transparent;}
+.sf-ch-shotpick img{width:40px;height:40px;object-fit:cover;border-radius:4px;background:#111;display:block;}
+.sf-ch-shotpick i{font:9px sans-serif;font-style:normal;color:#888;max-width:52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-ch-shotpick:hover{border-color:#555;}
+.sf-ch-shotpick.sf-ch-picked{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
+.sf-ch-shotpick.sf-ch-picked i{color:#fff;}
+.sf-ch-shotsempty{font:11px sans-serif;color:#666;white-space:nowrap;}
 .sf-ch-list{flex:0 0 auto;min-height:150px;height:calc(100% - 12px);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:6px;padding:2px;box-sizing:border-box;}
 .sf-ch-list.sf-ch-grid{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;padding:4px 0;}
 .sf-ch-card{display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:6px;cursor:pointer;background:#222;border:1px solid #3a3a3a;overflow:hidden;flex:0 0 auto;}
 .sf-ch-card:hover{border-color:#555;}
 .sf-ch-cardsel{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
-.sf-ch-shots{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.sf-ch-shots{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;}
 .sf-ch-shot{display:flex;flex-direction:column;gap:2px;min-width:0;}
-.sf-ch-shot img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
+.sf-ch-shot img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
 .sf-ch-shot i{font:9px sans-serif;font-style:normal;color:#888;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-ch-card span.sf-ch-name{font:11px sans-serif;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;user-select:none;}
 .sf-ch-cardsel span.sf-ch-name{color:#fff;}
+.sf-ch-more{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;background:#1a1a1a;border-radius:4px;font:11px sans-serif;color:#888;}
 .sf-ch-tag{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:4px;cursor:pointer;font:12px sans-serif;color:#ccc;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
 .sf-ch-tag input{flex:0 0 auto;accent-color:var(--sf-acc, #f66744);pointer-events:none;}
 .sf-ch-tag span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -96,14 +110,14 @@ function promptWidget(node) {
   return (node.widgets || []).find((w) => w.name === lib.PROMPT_WIDGET) || null;
 }
 
-function readSelection(node) {
+function readRawState(node) {
   const w = stateWidget(node);
-  return lib.firstSelected(w ? w.value : "");
+  return w ? w.value : "";
 }
 
-function writeSelection(node, name) {
+function writeState(node, role, shots) {
   const w = stateWidget(node);
-  if (w) w.value = lib.serializeSingle(name);
+  if (w) w.value = lib.serializeSelection(role, shots);
 }
 
 function readDraft(node) {
@@ -132,27 +146,45 @@ function setViewMode(node, mode) {
   node.properties[VIEW_PROP] = mode;
 }
 
-// 单选切换：点已选项=取消（输出空），点新项=选中并清空草稿（切换即弃，
-// 对齐 SFTextPreset text_override 语义）；加载期门控点击防覆盖刚恢复的选择
-function toggleSelect(node, ctx, name) {
+// 角色切换：点已选角色=取消整个选择；点新角色=选中其首图并清空草稿
+// （默认首图语义，手动勾选更多走 shots 横条）。
+// 改选分镜：复选框切换单图。
+// 加载期门控点击防覆盖刚恢复的选择。
+function toggleRole(node, ctx, name) {
   if (isGraphLoading()) return;
-  const cur = readSelection(node);
-  if (cur === name) {
-    writeSelection(node, "");
+  const sel = lib.coerceSelection(ctx.roles || [], readRawState(node));
+  if (sel.role === name) {
+    writeState(node, "", []);
   } else {
-    writeSelection(node, name);
+    const entry = lib.entryOf(ctx.roles || [], name);
+    writeState(node, name, lib.entryImages(entry).slice(0, 1).map((i) => i.label));
     writeDraft(node, "");
   }
-  renderPrompt(ctx);
-  renderList(ctx);
+  renderAll(ctx);
 }
 
-function thumbSrc(raw, shot) {
-  const t = lib.shotUrl(raw || {}, shot);
-  return t ? (lib.isRemoteThumb(t) ? t : sfApiUrl(t)) : EMPTY_IMG;
+function toggleShot(node, ctx, label) {
+  if (isGraphLoading()) return;
+  const sel = lib.coerceSelection(ctx.roles || [], readRawState(node));
+  if (!sel.role) return;
+  const shots = sel.shots.slice();
+  const i = shots.indexOf(label);
+  if (i >= 0) shots.splice(i, 1);
+  else {
+    // 按库内顺序插入（batch 顺序确定性，不随点击顺序漂移）
+    const order = lib.entryImages(lib.entryOf(ctx.roles || [], sel.role)).map((x) => x.label);
+    shots.push(label);
+    shots.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  }
+  writeState(node, sel.role, shots);
+  renderAll(ctx);
 }
 
-// hover 信息浮窗（三分镜大图 + 名称 + 提示词）
+function thumbSrc(url) {
+  return url ? (lib.isRemoteThumb(url) ? url : sfApiUrl(url)) : EMPTY_IMG;
+}
+
+// hover 信息浮窗（分镜大图 + 名称 + 提示词）
 const POP_W = 334;
 const POP_H = 240;
 
@@ -171,18 +203,25 @@ function placePop(pop, root, e) {
 
 function showPop(ctx, item, e) {
   const { popEl, root } = ctx;
-  const raw = item.raw || {};
-  for (const shot of lib.SHOTS) {
-    const img = popEl.querySelector(`.sf-ch-popshots img[data-shot="${shot}"]`);
-    const src = thumbSrc(raw, shot);
-    if (img.dataset.src !== src) {
-      img.dataset.src = src;
-      img.src = src;
-    }
+  const shots = popEl.querySelector(".sf-ch-popshots");
+  shots.innerHTML = "";
+  const imgs = lib.entryImages(item.raw || {}).slice(0, POP_PREVIEW_MAX);
+  for (const shot of imgs) {
+    const img = document.createElement("img");
+    img.src = thumbSrc(shot.url);
+    img.onerror = () => {
+      img.src = EMPTY_IMG;
+    };
+    shots.append(img);
+  }
+  if (!imgs.length) {
+    const img = document.createElement("img");
+    img.src = EMPTY_IMG;
+    shots.append(img);
   }
   popEl.querySelector(".sf-ch-popname").textContent = item.label;
   const pos = popEl.querySelector(".sf-ch-poppos");
-  const prompt = raw.prompt ? String(raw.prompt) : "";
+  const prompt = item.raw && item.raw.prompt ? String(item.raw.prompt) : "";
   pos.style.display = prompt ? "" : "none";
   if (prompt) pos.querySelector("span").textContent = prompt;
   placePop(popEl, root, e);
@@ -193,26 +232,66 @@ function hidePop(ctx) {
   ctx.popEl.style.display = "none";
 }
 
-// 提示词编辑框显示值：草稿非空优先，否则选中角色原词（后端同语义镜像）
+// 提示词编辑框显示值：草稿非空整体覆盖，否则选中分镜拼接（后端同语义镜像）
 function renderPrompt(ctx) {
   const { node, promptEl, roles } = ctx;
   if (!promptEl) return;
-  const sel = readSelection(node);
-  const text = lib.displayPrompt(roles || [], sel, readDraft(node));
+  const text = lib.displayPrompt(roles || [], readRawState(node), readDraft(node));
   if (promptEl.value !== text) promptEl.value = text;
 }
 
-function shotCell(raw, shot) {
+// shots 复选横条：当前角色的全部图片（库内顺序），勾选态 = 已选分镜
+function renderShotsBar(ctx) {
+  const { node, shotsBar, roles } = ctx;
+  if (!shotsBar) return;
+  shotsBar.innerHTML = "";
+  const sel = lib.coerceSelection(roles || [], readRawState(node));
+  const entry = lib.entryOf(roles || [], sel.role);
+  const imgs = lib.entryImages(entry);
+  if (!sel.role || !imgs.length) {
+    const hint = document.createElement("span");
+    hint.className = "sf-ch-shotsempty";
+    hint.textContent = isZh() ? "未选择角色" : "No character selected";
+    shotsBar.append(hint);
+    return;
+  }
+  const picked = {};
+  for (const s of sel.shots) picked[s] = true;
+  for (const shot of imgs) {
+    const cell = document.createElement("div");
+    cell.className = "sf-ch-shotpick" + (picked[shot.label] ? " sf-ch-picked" : "");
+    cell.title = shot.label + (shot.prompt ? `\n${shot.prompt}` : "");
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.src = thumbSrc(shot.url);
+    img.onerror = () => {
+      img.src = EMPTY_IMG;
+    };
+    const tag = document.createElement("i");
+    tag.textContent = shot.label;
+    cell.append(img, tag);
+    cell.onclick = () => toggleShot(node, ctx, shot.label);
+    shotsBar.append(cell);
+  }
+}
+
+function renderAll(ctx) {
+  renderShotsBar(ctx);
+  renderList(ctx);
+  renderPrompt(ctx);
+}
+
+function shotCell(url, label) {
   const cell = document.createElement("div");
   cell.className = "sf-ch-shot";
   const img = document.createElement("img");
   img.loading = "lazy";
-  img.src = thumbSrc(raw, shot);
+  img.src = thumbSrc(url);
   img.onerror = () => {
     img.src = EMPTY_IMG;
   };
   const tag = document.createElement("i");
-  tag.textContent = lib.SHOT_LABELS[shot] || shot;
+  tag.textContent = label;
   cell.append(img, tag);
   return cell;
 }
@@ -232,7 +311,7 @@ function makeTag(item, ctx) {
     // 阻止 label 默认激活 checkbox：默认行为会合成 input.click() 并冒泡回
     // label，造成 onclick 二次触发（选中又取消、表现"点不动"）
     e.preventDefault();
-    toggleSelect(node, ctx, item.name);
+    toggleRole(node, ctx, item.name);
   };
 
   label.onmouseenter = (e) => showPop(ctx, item, e);
@@ -243,21 +322,30 @@ function makeTag(item, ctx) {
   return label;
 }
 
-// Grid 视图卡片：三分镜缩略图 + 名字（loading="lazy" 避免大库一次性拉取）
+// Grid 视图卡片：前 N 张缩略图 + 名字（loading="lazy" 避免大库一次性拉取）
 function makeCard(item, ctx) {
   const { node } = ctx;
   const card = document.createElement("div");
   card.className = "sf-ch-card" + (item.selected ? " sf-ch-cardsel" : "") + (item.hidden ? " sf-ch-hide" : "");
   const shots = document.createElement("div");
   shots.className = "sf-ch-shots";
-  for (const shot of lib.SHOTS) shots.append(shotCell(item.raw || {}, shot));
+  const imgs = lib.entryImages(item.raw || {});
+  const shown = imgs.length > CARD_PREVIEW_MAX ? imgs.slice(0, CARD_PREVIEW_MAX - 1) : imgs;
+  for (const shot of shown) shots.append(shotCell(shot.url, shot.label));
+  if (imgs.length === 0) shots.append(shotCell("", ""));
+  if (imgs.length > CARD_PREVIEW_MAX) {
+    const more = document.createElement("div");
+    more.className = "sf-ch-more";
+    more.textContent = `+${imgs.length - (CARD_PREVIEW_MAX - 1)}`;
+    shots.append(more);
+  }
   const span = document.createElement("span");
   span.className = "sf-ch-name";
-  span.textContent = item.label;
+  span.textContent = `${item.label} (${imgs.length})`;
   span.title = item.label;
   card.append(shots, span);
   card.onclick = () => {
-    toggleSelect(node, ctx, item.name);
+    toggleRole(node, ctx, item.name);
   };
   card.onmouseenter = (e) => showPop(ctx, item, e);
   card.onmousemove = (e) => {
@@ -271,8 +359,8 @@ function renderList(ctx) {
   const { node, listEl, searchEl, roles } = ctx;
   if (!listEl) return;
   listEl.className = "sf-ch-list" + (viewMode(node) === "grid" ? " sf-ch-grid" : "");
-  const sel = readSelection(node);
-  const items = lib.filterAndSort(roles || [], searchEl.value, sel, isZh());
+  const sel = lib.coerceSelection(roles || [], readRawState(node));
+  const items = lib.filterAndSort(roles || [], searchEl.value, sel.role, isZh());
   listEl.innerHTML = "";
   const make = viewMode(node) === "grid" ? makeCard : makeTag;
   for (const item of items) {
@@ -280,16 +368,20 @@ function renderList(ctx) {
   }
 }
 
-// 库就绪后收敛选择：恢复值有效则保留，空/失效自动首选并清空草稿。
+// 库就绪后收敛选择：恢复值有效则保留，空/失效回落首角首图并清空草稿。
 // configure 恢复发生在 widget 赋值之后，读到的是恢复后的 live 值，
-// 故恢复的有效选择不会被覆盖；仅"空/失效"时推进到首项。
+// 故恢复的有效选择不会被覆盖。
 function ensureSelection(ctx) {
-  const w = stateWidget(ctx.node);
-  const raw = w ? w.value : "";
+  const raw = readRawState(ctx.node);
   const next = lib.coerceSelection(ctx.roles || [], raw);
-  if (lib.firstSelected(raw) !== next) {
-    writeSelection(ctx.node, next);
-    writeDraft(ctx.node, "");
+  const cur = lib.parseState(raw);
+  const curRole = cur.role || "";
+  const curShots = cur._legacy ? null : cur.shots.slice().sort().join("\n");
+  const nextShots = next.shots.slice().sort().join("\n");
+  if (curRole !== next.role || curShots !== nextShots) {
+    // 旧数组态恒迁移（shots: null → 首图），显式空在重载时回落首图（§47 同款语义）
+    writeState(ctx.node, next.role, next.shots);
+    if (curRole !== next.role) writeDraft(ctx.node, "");
   }
 }
 
@@ -297,8 +389,7 @@ function ensureLoaded(ctx) {
   const name = currentLibraryName(ctx.node);
   if (ctx.name === name && ctx.roles) {
     ensureSelection(ctx);
-    renderList(ctx);
-    renderPrompt(ctx);
+    renderAll(ctx);
     return;
   }
   if (ctx.pending) {
@@ -306,8 +397,7 @@ function ensureLoaded(ctx) {
       if (currentLibraryName(ctx.node) !== ctx.name) ensureLoaded(ctx); // 加载期间库被切换：重新加载
       else {
         ensureSelection(ctx);
-        renderList(ctx);
-        renderPrompt(ctx);
+        renderAll(ctx);
       }
     });
     return;
@@ -318,8 +408,7 @@ function ensureLoaded(ctx) {
     ctx.name = name;
     ctx.roles = data;
     ensureSelection(ctx);
-    renderList(ctx);
-    renderPrompt(ctx);
+    renderAll(ctx);
   });
 }
 
@@ -329,7 +418,7 @@ function setupNode(node) {
   // ── 隐藏真源 widget（Python hidden 声明，自动存在；缺则补建）──
   let sw = stateWidget(node);
   if (!sw) {
-    sw = node.addWidget("STRING", lib.STATE_WIDGET, "[]", () => {});
+    sw = node.addWidget("STRING", lib.STATE_WIDGET, '{"role": "", "shots": []}', () => {});
     sw.hidden = true;
     sw.computeSize = () => [0, -4];
     if (!sw.options) sw.options = {};
@@ -392,32 +481,27 @@ function setupNode(node) {
 
   tools.append(resetBtn, searchEl, viewSeg);
 
-  // 提示词编辑框：手改写入草稿 widget（空=回落角色原词）
+  // 提示词编辑框：手改写入草稿 widget（空=回落分镜拼接）
   const promptEl = document.createElement("textarea");
   promptEl.className = "sf-ch-prompt";
   promptEl.placeholder = isZh()
-    ? "角色提示词（选中后自动填入，可手改；清空=回落角色原词）..."
-    : "Character prompt (auto-filled on select; edit to override; clear to fall back) ...";
+    ? "拼接提示词（选中后自动填入，可手改整体覆盖；清空=回落分镜拼接）..."
+    : "Joined prompt (auto-filled on select; edit to override; clear to fall back) ...";
   promptEl.addEventListener("keydown", (e) => e.stopPropagation());
   installWheelZoomPassthrough(promptEl);
+
+  // shots 复选横条：当前角色的全部图片
+  const shotsBar = document.createElement("div");
+  shotsBar.className = "sf-ch-shotsbar";
 
   const listEl = document.createElement("div");
   listEl.className = "sf-ch-list";
 
-  // hover 信息浮窗（三分镜 + 名称 + 提示词）
+  // hover 信息浮窗（分镜大图 + 名称 + 提示词）
   const popEl = document.createElement("div");
   popEl.className = "sf-ch-pop";
   const popShots = document.createElement("div");
   popShots.className = "sf-ch-popshots";
-  for (const shot of lib.SHOTS) {
-    const img = document.createElement("img");
-    img.dataset.shot = shot;
-    img.src = EMPTY_IMG;
-    img.onerror = () => {
-      img.src = EMPTY_IMG;
-    };
-    popShots.append(img);
-  }
   const popName = document.createElement("span");
   popName.className = "sf-ch-popname";
   const popPos = document.createElement("div");
@@ -428,7 +512,7 @@ function setupNode(node) {
   popPos.append(popPosB, popPosT);
   popEl.append(popShots, popName, popPos);
 
-  root.append(tools, promptEl, listEl, popEl);
+  root.append(tools, promptEl, shotsBar, listEl, popEl);
 
   const ctx = {
     node,
@@ -436,6 +520,7 @@ function setupNode(node) {
     listEl,
     searchEl,
     promptEl,
+    shotsBar,
     popEl,
     roles: null,
     name: null,
@@ -444,10 +529,9 @@ function setupNode(node) {
 
   resetBtn.onclick = () => {
     if (isGraphLoading()) return;
-    writeSelection(node, "");
+    writeState(node, "", []);
     writeDraft(node, "");
-    renderPrompt(ctx);
-    renderList(ctx);
+    renderAll(ctx);
   };
   searchEl.oninput = () => renderList(ctx);
   promptEl.oninput = () => {
@@ -458,16 +542,16 @@ function setupNode(node) {
   const fitListHeight = () => {
     if (!root.clientHeight) return;
     const toolsH = tools.offsetHeight || TOOLS_H - 6;
-    const h = Math.max(150, root.clientHeight - toolsH - PROMPT_H - GAP * 2 - ROOT_PAD);
+    const h = Math.max(150, root.clientHeight - toolsH - PROMPT_H - SHOTS_H - GAP * 3 - ROOT_PAD);
     listEl.style.height = h + "px";
   };
   const listRo = new ResizeObserver(fitListHeight);
   listRo.observe(root);
 
-  // 内容高度测量：工具条实测 + 提示词框 + 列表固定高 + padding/gap
+  // 内容高度测量：工具条实测 + 提示词框 + shots 横条 + 列表固定高 + padding/gap
   const measureContentHeight = () => {
     const toolsH = tools.offsetHeight || TOOLS_H - 6;
-    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + LIST_H;
+    return ROOT_PAD + toolsH + GAP + PROMPT_H + GAP + SHOTS_H + GAP + LIST_H;
   };
 
   const widget = node.addDOMWidget(lib.DOM_WIDGET, lib.DOM_WIDGET, root, {
@@ -489,11 +573,11 @@ function setupNode(node) {
     const origCb = libW.callback;
     libW.callback = function () {
       const r = origCb?.apply(this, arguments);
-      writeSelection(node, "");
+      writeState(node, "", []);
       writeDraft(node, "");
       ctx.roles = null; // 强制重拉
       ctx.name = null;
-      renderPrompt(ctx);
+      renderAll(ctx);
       ensureLoaded(ctx);
       return r;
     };
@@ -501,7 +585,7 @@ function setupNode(node) {
 
   node._sfCharacterCtx = ctx;
   ensureLoaded(ctx);
-  renderPrompt(ctx);
+  renderAll(ctx);
 }
 
 app.registerExtension({

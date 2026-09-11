@@ -1,14 +1,14 @@
-"""SFCharacterSelect：角色三分镜单选器（脸部特写/半身像/全身像 + 提示词）。
+"""SFCharacterSelect：角色多选图库（角色内多选 → images batch 输出）。
 
 数据层：角色库即 `character_` 前缀 JSON（内置 `data/characters/*.json` +
 用户 `<user>/sfnodes/characters/*.json` 同名用户覆盖，styles_selector.py 同款
-双源范式）；条目 `{name, prompt?, face?, half?, full?}`，三图为相对路径
-（`samples_id_chara/<库>/...` 独立目录防混放）。
-列表/原图路由为本域新建 `/api/sfnodes/characters*`（styles 的
-normalize 会丢弃 face/half/full 未知字段，复用即语义污染，故独立，
-守卫写法与 styles 双路由 1:1：commonpath 钳位 + query quote）。
-单选语义 + 草稿优先 + 三路独立 IMAGE 输出；图片→张量复用
-id_clothing._load_template_tensor/_placeholder_tensor（同包 import，不拷贝）。
+双源范式）；条目新形状 `{name, prompt?, images?: [{label, file, prompt?}]}`，
+旧 `{prompt, face/half/full}` 形状双读兼容（见 sf_utils/characters.py）；
+图放 `samples_id_chara/<库>/` 独立目录防混放。
+列表/原图路由为本域 `/api/sfnodes/characters*`（库名前缀隔离 + commonpath 钳位）。
+输出 3 路：拼接 prompt STRING（草稿整体覆盖）+ 角色级 prompt STRING +
+images IMAGE（单选 [1,H,W,C]／多选 batch／空选 1×1 占位；尺寸归一到首选图）。
+图片→张量/占位/尺寸归一复用 id_clothing 同包与 image_convert（不拷贝）。
 """
 
 import json
@@ -33,7 +33,7 @@ def _package_root():
 
 
 def _builtin_characters_dir():
-    """内置角色库目录（随包分发的只读数据，如 data/characters/example.json）。"""
+    """内置角色库目录（随包分发的只读数据，如 data/characters/character_example.json）。"""
     return os.path.join(_package_root(), "data", "characters")
 
 
@@ -111,7 +111,7 @@ def _character_file_sig(name):
 def _load_characters(name):
     """加载角色库（线程安全；用户目录同名文件覆盖内置；mtime+size 变化自动重载）。
 
-    返回角色条目列表：[{name, prompt?, face?, half?, full?}]。
+    返回角色条目列表（新旧两形状原样返回，归一由 sf_utils/characters.py 负责）。
     """
     sig = _character_file_sig(name)
     if not sig:
@@ -133,30 +133,40 @@ def _load_characters(name):
         return data
 
 
-def _thumbnail_url(thumb):
-    """缩略图 → 前端可直接使用的 URL：http(s) 原样，本地路径转角色图片路由。"""
-    if isinstance(thumb, list):
-        return _thumbnail_url(thumb[0]) if thumb else None
-    if isinstance(thumb, str) and thumb.startswith(("http://", "https://")):
-        return thumb
-    if isinstance(thumb, str) and thumb:
-        return f"/api/sfnodes/characters/image?path={urllib.parse.quote(thumb, safe='/')}"
+def _thumbnail_url(file):
+    """分镜图 → 前端可直接使用的 URL：http(s) 原样，本地路径转角色图片路由。"""
+    if isinstance(file, list):
+        return _thumbnail_url(file[0]) if file else None
+    if isinstance(file, str) and file.startswith(("http://", "https://")):
+        return file
+    if isinstance(file, str) and file:
+        return f"/api/sfnodes/characters/image?path={urllib.parse.quote(file, safe='/')}"
     return None
 
 
 def normalize_role_list(data):
-    """路由输出形状：前端展示字段（name/prompt/face/half/full，图为可用 URL）。"""
+    """路由输出形状：[{name, prompt?, images: [{label, prompt?, url}]}]。
+
+    旧三分镜形状在此归一为 images 数组（label 取中文分镜名），前端只认新形状。
+    """
     out = []
     for d in data:
         if not isinstance(d, dict) or not isinstance(d.get("name"), str) or not d["name"].strip():
             continue
         nd = {"name": d["name"]}
-        if d.get("prompt"):
-            nd["prompt"] = d["prompt"]
-        for shot in _lib.SHOTS:
-            url = _thumbnail_url(d.get(shot))
-            if url:
-                nd[shot] = url
+        role_prompt = d.get("prompt")
+        if role_prompt:
+            nd["prompt"] = role_prompt
+        images = []
+        for item in _lib.image_entries(d):
+            url = _thumbnail_url(item["file"])
+            if not url:
+                continue
+            shot = {"label": item["label"], "url": url}
+            if item.get("prompt"):
+                shot["prompt"] = item["prompt"]
+            images.append(shot)
+        nd["images"] = images
         out.append(nd)
     return out
 
@@ -165,6 +175,22 @@ def _character_libraries():
     """角色库下拉选项（character_ 前缀子集；空库时给 [""] 占位，前端引导用户）。"""
     names = _lib.filter_libraries(character_library_names())
     return names or [""]
+
+
+def _batch_tensors(paths):
+    """多图路径 → images batch（首选图尺寸归一 lanczos，单张即 [1,H,W,C]）。"""
+    import torch
+
+    from ...sf_utils.image_convert import rescale_image
+
+    tensors = [_load_template_tensor(p) for p in paths]
+    ref_h, ref_w = tensors[0].shape[1], tensors[0].shape[2]
+    normed = []
+    for t in tensors:
+        if (t.shape[1], t.shape[2]) != (ref_h, ref_w):
+            t = rescale_image(t, ref_w, ref_h)
+        normed.append(t)
+    return torch.cat(normed, dim=0)
 
 
 class SFCharacterSelect:
@@ -176,21 +202,21 @@ class SFCharacterSelect:
                     _character_libraries(),
                     {
                         "default": _character_libraries()[0],
-                        "tooltip": "角色库：内置 data/characters/*.json + 用户 <user>/sfnodes/characters/*.json（同名用户覆盖内置），每角色含脸部特写/半身像/全身像三图",
+                        "tooltip": "角色库：内置 data/characters/*.json + 用户 <user>/sfnodes/characters/*.json（同名用户覆盖内置），每角色不限数量图片",
                     },
                 ),
             },
             "hidden": {
-                "SFCharacterState": ("STRING", {"default": "[]"}),
+                "SFCharacterState": ("STRING", {"default": '{"role": "", "shots": []}'}),
                 "SFCharacterPrompt": ("STRING", {"default": "", "multiline": True}),
             },
         }
 
-    RETURN_TYPES = ("STRING", "IMAGE", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("prompt", "face", "half", "full")
+    RETURN_TYPES = ("STRING", "STRING", "IMAGE")
+    RETURN_NAMES = ("prompt", "role_prompt", "images")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "角色三分镜单选器：前端画廊单选角色（卡内并排脸部特写/半身像/全身像，无有效选择时自动首选首个角色）；输出角色提示词 STRING + 三路独立 IMAGE（可按需取用）；角色库为 character_ 前缀 JSON（内置 data/characters + 用户 user/sfnodes/characters 同名覆盖）；编辑框手改优先输出（切换角色即清空，不写库）"
+    DESCRIPTION = "角色多选图库：单节点多角色切换，角色内勾选不限数量图片，输出拼接提示词 STRING + 角色级提示词 STRING + images batch IMAGE（单选即单张）；尺寸归一到首选图；角色库为 character_ 前缀 JSON（内置 data/characters + 用户 user/sfnodes/characters 同名覆盖）；编辑框手改整体覆盖拼接路（切换角色/改选即清空，不写库）"
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
@@ -207,30 +233,36 @@ class SFCharacterSelect:
             return 0
         return (sig[1], sig[2])  # (mtime, size)：角色库文件变化时重跑
 
-    def execute(self, library="", SFCharacterState="[]", SFCharacterPrompt=""):
+    def execute(self, library="", SFCharacterState="", SFCharacterPrompt=""):
         data = _load_characters(library or "")
-        # 单选收敛：状态同形数组只取首个（旧多值数据向前兼容）
-        selected = _lib.first_selected(SFCharacterState)
-        entry = _lib.find_role(data, selected)
-        if entry is None:
-            selected = ""
+        # 多选收敛：角色有效保留并取交集分镜，否则回落首角首图（旧 ["名"] 数组态迁移首图）
+        sel = _lib.coerce_selection(data, SFCharacterState)
+        entry = _lib.find_role(data, sel["role"])
+        role_prompt = _lib.role_prompt(entry)
         draft = str(SFCharacterPrompt) if SFCharacterPrompt is not None else ""
-        prompt = _lib.resolve_prompt(data, selected, draft)
-        images = []
-        for shot in _lib.SHOTS:
-            image = None
-            if entry is not None:
-                path = resolve_thumbnail_path(_lib.shot_thumbnail(entry, shot), _characters_dirs())
+        prompt = _lib.resolve_prompt(entry, sel["shots"], draft)
+        images = None
+        if entry is not None and sel["shots"]:
+            by_label = {i["label"]: i for i in _lib.image_entries(entry)}
+            paths = []
+            for label in sel["shots"]:
+                item = by_label.get(label)
+                if item is None:
+                    continue
+                path = resolve_thumbnail_path(item["file"], _characters_dirs())
                 if path is not None:
-                    try:
-                        image = _load_template_tensor(path)
-                    except Exception as e:
-                        print(f"[SFCharacterSelect] 角色图加载失败 {path}: {e}")
-                        image = None
-            if image is None:
-                image = _placeholder_tensor()
-            images.append(image)
-        return (prompt, images[0], images[1], images[2])
+                    paths.append(path)
+                else:
+                    print(f"[SFCharacterSelect] 角色图缺失跳过 {item['file']}")
+            if paths:
+                try:
+                    images = _batch_tensors(paths)
+                except Exception as e:
+                    print(f"[SFCharacterSelect] batch 拼装失败: {e}")
+                    images = None
+        if images is None:
+            images = _placeholder_tensor()
+        return (prompt, role_prompt, images)
 
 
 def _register_characters_routes():
