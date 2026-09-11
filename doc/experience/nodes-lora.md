@@ -508,4 +508,14 @@
 - **VRAM 账**：补丁数据 CPU 侧（官方 pin/流式），GPU 额外 ≈ 0（合并 scratch 已计入官方 `low_vram_patch_estimate`）；`torch` 导入、`_SESSIONS`、chunk/cdt/预检整套删除，节点文件零 torch 依赖。
 - **测试**：mock 官方链路（`comfy.lora/convert/context_windows` + key_map），43 断言：行序拼接与强度元组、零占位、空槽纯 base、window_idx 取模（含越界轮回）、CLEANUP 复位、无 handler 静态 slot0、失败原因进 info（`empty (…: 0 model keys)`）。
 
+### §39.6 SFWanWindowPlanner：只算不跑的映射表（2026-09）
+
+> 背景：窗/段/槽三套时钟对齐全靠手算（61÷21/4→4 窗、region 钳制、slot 取模），配错一次重跑几小时。固化成排队前看一眼的工具。
+
+- **保真**：窗口切分直调原生 schedule 函数（`func(总长, handler, opts)`，`_StubHandler` 只供五属性），region 走原生 `IndexListContextWindow.get_region_index`；slot=`order%N` 与 patch-swap 的 `window_idx` 同一时钟。原生改算法自动跟进。
+- **输入实帧**（81/16 风格，内部 `(L−1)//4+1` 换算），输出双显 latent 区间（对日志）+ 实帧区间（对时间轴）× cond 段 × slot，单 STRING。
+- **警告三类**：窗数≠槽数（回绕/闲槽）、cond 段闲置、schedule 警告（UNIFORM 漂移/BATCHED 硬切）；多窗复用同一段（STATIC 尾窗）属正常不警告，表格自明。
+- **测试**：`tests/test_wan_window_planner.py` 44 断言（mock 原生 schedule + 窗类；用户真实配置 241/81/16/static/4槽/3段端到端出表；非法 schedule 抛错）。
+- **§39.6.1 Markdown 报告 + 设置建议（2026-09）**：输出改为四节 Markdown（配置回显/映射表/警告/参数设置建议）；新增 `flush_totals`（齐平数列 k=1..8，L=21/O=4 得 81/149/217/285…即 `68a+13`，算出而非硬编码）与 `suggest_settings`（总数就近两档齐平值、槽数=窗数、schedule/窗长/重叠原则性建议；cond 数只判形状不代设）。多窗复用同一段属正常不警告（表格自明），避免警告 blindness。
+
 

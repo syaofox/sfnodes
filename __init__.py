@@ -99,6 +99,7 @@ from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
 from .nodes.model.regional_lora import SFRegionalLoRA
 from .nodes.model.wan_window_lora import SFWanWindowLoRA
+from .nodes.model.wan_window_planner import SFWanWindowPlanner
 from .nodes.model.sage_attention import SFPatchSageAttention
 from .nodes.image.compare import ImageCompare
 from .nodes.image.pause_image import SFPauseImage
@@ -290,6 +291,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoraStack": SFLoraStack,
     "SFRegionalLoRA": SFRegionalLoRA,
     "SFWanWindowLoRA": SFWanWindowLoRA,
+    "SFWanWindowPlanner": SFWanWindowPlanner,
     "SFLoraPlot": SFLoraPlot,
     "SFLoraPlotImageSaver": SFLoraPlotImageSaver,
     "SFLoraLoader": LoraLoader,
@@ -494,6 +496,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoraStack": "SF LoRA Stack",
     "SFRegionalLoRA": "SF Regional LoRA (Multi-Character)",
     "SFWanWindowLoRA": "SF Wan Window LoRA",
+    "SFWanWindowPlanner": "SF Wan Window Planner",
     "SFLoraPlot": "SF LoRA Plot",
     "SFLoraPlotImageSaver": "SF LoRA Plot Image Saver",
     "SFLoraLoader": "SF LoRA Loader",
