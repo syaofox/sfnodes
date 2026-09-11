@@ -64,11 +64,14 @@ function injectCSS() {
 .sf-ch-tag:hover{background:#2c2c2c;}
 .sf-ch-sel{background:color-mix(in srgb, var(--sf-acc, #f66744) 16%, transparent);color:#fff;}
 .sf-ch-hide{display:none;}
-.sf-ch-pop{position:absolute;display:none;pointer-events:none;width:330px;border-radius:8px;border:1px solid #4a4a4a;background:#202020;box-shadow:0 8px 22px rgba(0,0,0,.65);z-index:10;padding:6px;box-sizing:border-box;}
-.sf-ch-popshots{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
-.sf-ch-popshots img{width:100%;height:130px;object-fit:cover;background:#131313;border-radius:6px;display:block;}
-.sf-ch-popname{display:block;font:12px sans-serif;color:#fff;margin:5px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sf-ch-poppos{font:10px/1.4 sans-serif;margin:2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-wrap:break-word;}
+.sf-ch-pop{position:absolute;display:none;pointer-events:none;width:360px;border-radius:8px;border:1px solid #4a4a4a;background:#202020;box-shadow:0 8px 22px rgba(0,0,0,.65);z-index:10;padding:6px;box-sizing:border-box;flex-direction:row;gap:8px;align-items:flex-start;}
+.sf-ch-popshots{flex:0 0 150px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px;min-width:0;}
+.sf-ch-popshots img{width:100%;height:70px;object-fit:contain;background:#131313;border-radius:6px;display:block;}
+.sf-ch-popshots.sf-ch-popsingle{grid-template-columns:1fr;}
+.sf-ch-popshots.sf-ch-popsingle img{height:180px;}
+.sf-ch-poptext{flex:1;min-width:0;}
+.sf-ch-popname{display:block;font:12px sans-serif;color:#fff;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-ch-poppos{font:10px/1.4 sans-serif;margin:2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;word-wrap:break-word;}
 .sf-ch-poppos b{color:#7bd88f;}
 .sf-ch-poppos span{color:#9ecfa8;}`);
 }
@@ -180,7 +183,7 @@ function thumbSrc(url) {
 }
 
 // hover 信息浮窗（分镜大图 + 名称 + 提示词）
-const POP_W = 334;
+const POP_W = 364;
 const POP_H = 240;
 
 function placePop(pop, root, e) {
@@ -200,6 +203,7 @@ function showPop(ctx, item, e) {
   const { popEl, root } = ctx;
   const shots = popEl.querySelector(".sf-ch-popshots");
   shots.innerHTML = "";
+  shots.classList.remove("sf-ch-popsingle");
   const imgs = lib.entryImages(item.raw || {}).slice(0, POP_PREVIEW_MAX);
   for (const shot of imgs) {
     const img = document.createElement("img");
@@ -216,15 +220,36 @@ function showPop(ctx, item, e) {
   }
   popEl.querySelector(".sf-ch-popname").textContent = item.label;
   const pos = popEl.querySelector(".sf-ch-poppos");
-  const prompt = item.raw && item.raw.prompt ? String(item.raw.prompt) : "";
+  const prompt = raw.prompt ? String(raw.prompt) : "";
   pos.style.display = prompt ? "" : "none";
   if (prompt) pos.querySelector("span").textContent = prompt;
   placePop(popEl, root, e);
-  popEl.style.display = "block";
+  popEl.style.display = "flex";
 }
 
 function hidePop(ctx) {
   ctx.popEl.style.display = "none";
+}
+
+// 单图悬停预览（shots 复选格）：缩略图原比例 + 文件名 + 提示词
+function showShotPop(ctx, roleLabel, shot, rolePrompt, e) {
+  const { popEl, root } = ctx;
+  const shots = popEl.querySelector(".sf-ch-popshots");
+  shots.innerHTML = "";
+  shots.classList.add("sf-ch-popsingle");
+  const img = document.createElement("img");
+  img.src = thumbSrc(shot.url);
+  img.onerror = () => {
+    img.src = EMPTY_IMG;
+  };
+  shots.append(img);
+  popEl.querySelector(".sf-ch-popname").textContent = `${roleLabel} / ${shot.label}`;
+  const pos = popEl.querySelector(".sf-ch-poppos");
+  const prompt = shot.prompt || rolePrompt || "";
+  pos.style.display = prompt ? "" : "none";
+  if (prompt) pos.querySelector("span").textContent = prompt;
+  placePop(popEl, root, e);
+  popEl.style.display = "flex";
 }
 
 // 提示词编辑框显示值：草稿非空整体覆盖，否则选中分镜拼接（后端同语义镜像）
@@ -252,6 +277,7 @@ function renderShotsBar(ctx) {
   }
   const picked = {};
   for (const s of sel.shots) picked[s] = true;
+  const roleFallback = entry && entry.prompt ? String(entry.prompt) : "";
   for (const shot of imgs) {
     const cell = document.createElement("div");
     cell.className = "sf-ch-shotpick" + (picked[shot.label] ? " sf-ch-picked" : "");
@@ -266,6 +292,11 @@ function renderShotsBar(ctx) {
     tag.textContent = shot.label;
     cell.append(img, tag);
     cell.onclick = () => toggleShot(node, ctx, shot.label);
+    cell.onmouseenter = (e) => showShotPop(ctx, sel.role, shot, roleFallback, e);
+    cell.onmousemove = (e) => {
+      if (ctx.popEl.style.display !== "none") placePop(ctx.popEl, ctx.root, e);
+    };
+    cell.onmouseleave = () => hidePop(ctx);
     shotsBar.append(cell);
   }
 }
@@ -486,7 +517,10 @@ function setupNode(node) {
   popPosB.textContent = "Prompt: ";
   const popPosT = document.createElement("span");
   popPos.append(popPosB, popPosT);
-  popEl.append(popShots, popName, popPos);
+  const popText = document.createElement("div");
+  popText.className = "sf-ch-poptext";
+  popText.append(popName, popPos);
+  popEl.append(popShots, popText);
 
   root.append(tools, promptEl, shotsBar, listEl, popEl);
 
