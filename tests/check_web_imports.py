@@ -86,6 +86,8 @@ MODS = [
     "any_pack",
     # Any Switch（复刻 rgthree；复用 any_pack.setSlotType/slotLinkTypes）
     "sf_any_switch",
+    # Conditioning Combine（多路拼接；复用 sf_dynamic_slots.installDynamicSlots）
+    "sf_conditioning_combine",
 ]
 
 EXPORT_RE = re.compile(

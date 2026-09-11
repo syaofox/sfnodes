@@ -136,6 +136,7 @@ class SFMyNode:
 - **number widget 整数/小数切换**（patterns §40）：SFNumber 切 INT/FLOAT/PERCENT 只改 `value.options` 四键（step+step2+round+precision 双代前端兼容；**step2 是前端创建 widget 时按 step 派生的精调步进，派生一次性不随 step 联动须一并覆盖**），**不换 widget type**；切档换算以 FLOAT 语义量为规范值 q（PERCENT 显示值 = q×100），**仅 callback 路径换算、configure 恢复路径只应用档位不换算存量值**；输出单槽 any 化（随档位输出真类型值，旧工作流 float 槽 1 链接丢弃已确认接受）；PERCENT 后端 ÷100 百分数语义（150→1.5），PERCENT 存量直通值语义突变已确认接受。
 - **combo→输出槽类型前端改型**（patterns §41）：SFConvert Anything（复刻 easy convertAnything）后端 `RETURN_TYPES=(any_type,)` 静态声明，输出槽类型+槽名同步是纯前端职责——复用 `any_pack.js::setSlotType`（已 export，patch 参数附带 name/localized_name；Vue reactive 数组必须**元素替换**非原地改）；挂点 = callback 包装（参数即新值）+ `onAfterGraphConfigured` 恢复（nodeCreated 早于值恢复）；None 输入直通（原件对 None 转 int 直接崩）；Function-eval 测试 strip 正则须同剥 `import` 语句与 `export ` 关键字；跨模块 import 的模块必须入 check_web_imports MODS。
 - **灵活 optional schema 与 Any Switch**（patterns §43）：SFAnySwitch（复刻 rgthree）前端动态输入靠 dict 子类 `_AnySwitchInputs`（`__contains__` 恒 True + `__getitem__` 回退 any_type）放行 schema 外输入——`_CropOptionalInputs` 缺 `__contains__` 不可复用；灵活 schema 下前端 0 初始槽由 nodeCreated 补齐（固定 20 先例靠 schema 提供槽位）；着色复用 `any_pack.js` export 的 `setSlotType/slotLinkTypes/unionType`（输出跟随第一个非 `*` 输入，label 同步类型名）；不做 reroute 穿透着色（经 reroute 保持 `*`）；setSlotType 类型未变时提前返回，patch 的 label 不应用。
+- **固定类型动态多槽 SFConditioningCombine**（patterns §49）：N 路 CONDITIONING 按槽序拼接（原生 Combine 串联语义）；灵活 schema 类型参数化独立小类（`_AnySwitchInputs` 硬编码 any_type 不可直复）；固定类型免着色+免重命名；`onAfterGraphConfigured` 按链接数补齐/回收槽数（configure 不触发 onConnectionsChange，重载后须补空闲后继）。
 
 ## Code Discovery
 

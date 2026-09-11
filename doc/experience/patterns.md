@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -241,3 +241,21 @@
 - 着色复用 `any_pack.js::setSlotType/slotLinkTypes/unionType`（本次起 export）：每输入按自身连线类型独立着色（unionType 并集），输出跟随**第一个非 "\*" 的输入类型**（= 选择优先序），label 同步类型名、全断开复位；`onAfterGraphConfigured` 恢复重算（§41 同款挂点）。**有意简化**：不做 rgthree 的 reroute 穿透推断（followConnectionUntilType），经 reroute 时 link.type 为 "\*" 保持不着色——any_pack 同样接受此限制。
 - `setSlotType` 在类型未变时提前返回（diff 门控），**patch 里的 label 也不会应用**——初始态/未变态的 label 由槽位自身 localized_name（RETURN_NAMES）提供，不要依赖 patch。
 - 包装顺序：nodeCreated 先挂类型重算 wrapper，再 `installDynamicSlots`（它会再包装一层，槽位增删先发生、着色后执行，读到的是最终槽集）。
+
+---
+
+## 49. 固定类型动态多槽：SFConditioningCombine（§43 的定型变体，2026-09）
+
+> 背景：原生 Conditioning (Combine) 只支持 2 路（`nodes.py::ConditioningCombine.combine` 实为 `conditioning_1 + conditioning_2` 列表拼接），新增 `nodes/model/conditioning_combine.py::SFConditioningCombine` + `web/sf_conditioning_combine.js` 实现 N 路动态合并（初始 2、上限 20）。
+
+### 1. 后端：灵活 schema 类型参数化
+
+- 复用 §43 的 `_AnySwitchInputs` 模式（`__contains__` 恒 True + `__getitem__` 回退），但**不可直接复用该类**——它硬编码返回 `(any_type,)`，CONDITIONING 需独立小类 `_ConditioningCombineInputs` 返回 `("CONDITIONING",)`。模式复用、类型参数不同。
+- 叠加 `VALIDATE_INPUTS -> True` 接管校验（§4 ComboSelector 先例）：动态重建的槽名超出静态 schema 时默认 "Value not in list" 校验会拦截。
+- 执行语义：按槽名数字后缀排序后依次 `out + list(v)` 拼接（kwargs 迭代序≠槽序，不可直接迭代），`conditioning_` 前缀外键忽略、None 槽跳过、全空返回 `([],)` 不抛错（抛错会中断整图）。无 lazy（combine 本就需全输入求值，与 Switch 的 `check_lazy_status` 差异点）。
+- 文件位置：`nodes/model/conditioning_combine.py`（CATEGORY=`sfnodes/model`，与动态槽位家族 `nodes/logic.py` 解耦——CATEGORY 与文件目录解耦在项目中有先例）。
+
+### 2. 前端：固定类型免着色 + 恢复补齐
+
+- 槽位增删复用 `sf_dynamic_slots.js::installDynamicSlots`（`inputType:"CONDITIONING"`，`initialInputs:2` 对齐原生 2 路）；**不复用** `any_pack` 着色三件套——CONDITIONING 是固定类型，无改型需求；不做自动重命名——槽序即拼接语义，改名破坏可读性。
+- `onAfterGraphConfigured` 恢复须做**槽数补齐/回收**（读实际链接数 `linked`，补到 `min(max(linked+1, INITIAL), MAX)`），而不只是 §43 式的重算类型——configure 直赋 links 不触发 `onConnectionsChange`，光靠公共库的连接时增删，工作流重载后多出的已连槽无空闲后继、新节点无法续接。
