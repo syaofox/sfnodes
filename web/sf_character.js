@@ -279,8 +279,9 @@ function renderShotsBar(ctx) {
   }
   const picked = {};
   for (const s of sel.shots) picked[s] = true;
-  const roleFallback = entry && entry.prompt ? String(entry.prompt) : "";
-  for (const shot of imgs) {
+  // 已选分组置顶（组内均保库内顺序，与 batch 输出顺序一致），方便取消勾选
+  const ordered = imgs.filter((shot) => picked[shot.label]).concat(imgs.filter((shot) => !picked[shot.label]));
+  for (const shot of ordered) {
     const cell = document.createElement("div");
     cell.className = "sf-ch-shotpick" + (picked[shot.label] ? " sf-ch-picked" : "");
     cell.title = shot.label + (shot.prompt ? `\n${shot.prompt}` : "");
