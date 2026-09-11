@@ -10,10 +10,13 @@
 补丁列表，存**独立槽表**（绝不写入 `ModelPatcher.patches`，上游 base 的
 烘焙/流式命运原封不动）；采样时经原生 context handler 的
 `EVALUATE_CONTEXT_WINDOWS` 回调（逐窗、逐 step 触发，自带 `window_idx`）
-把当窗槽位的列表换进槽表。首次换槽前为并集键装上
+把当窗槽位的列表换进槽表。普通层在首次换槽前为并集键装上
 `LowVramPatch(key, 槽表, …)` 并追加进各模块的 `weight/bias_function`
 （forward 经 `ops.cast_bias_weight` 现场读取，与静态 Stack 同代码路径、
-同开销）；`EXECUTE_CLEANUP` 只打换槽计数，不复位（无可复位之物）。
+同开销）；GGUF 量化层走第二通道（见 §39.11：ComfyUI-GGUF
+`get_weight` 只读张量 `patches`、绕过 `weight_function`），逐窗改写
+`weight.patches = base + [(本槽行, key)]`；`EXECUTE_CLEANUP` 只打换槽
+计数，不复位（无可复位之物）。
 
 为何是这套（§39.7 血泪）：官方 `load()` 对全载模块把补丁**烘焙**进权重
 且不再装函数——往 `patcher.patches` 里换表对烘焙层完全无效（§39.5 旧
@@ -75,6 +78,23 @@ INITIAL_WINDOW_INPUTS = 2
 MAX_WINDOW_INPUTS = 10
 CALLBACK_KEY = "sf_wan_window_lora"
 FN_TAG = "_sf_window_lora_stream"
+# GGUF 张量上挂载的上游 base 快照属性（跨会话复用，换槽重建时剔除我方旧条目）。
+_GGUF_BASE_ATTR = "_sf_window_lora_base"
+
+
+def _is_ggml_quantized(mod):
+    """GGUF 量化层判定（ComfyUI-GGUF 的 GGMLLayer.is_ggml_quantized）。
+
+    duck-typing 探测，不 import 外部自定义节点；核心 ComfyUI 模块无此方法
+    恒为 False。量化层走张量 patches 通道，非量化（F16/F32）走 weight_function。
+    """
+    try:
+        probe = getattr(mod, "is_ggml_quantized", None)
+        if callable(probe):
+            return bool(probe())
+    except Exception:
+        pass
+    return False
 
 logger = get_logger(__name__)
 
@@ -148,9 +168,15 @@ class _PatchSwapSession:
     tables: 独立槽表 {model_key: [(sm, data, 1.0, None, None)...]}，键集恒为
       并集（含空槽位，空表 [] 占位——LowVramPatch 读表不存在的键会 KeyError）。
     set_slot() 只替换本表列表对象，不碰 patcher.patches。
-    _ensure_stream_functions() 在首次换槽前为并集键装流式函数：
-      已有绑定官方表的函数则不管（base 流式态共存）；清掉绑定旧会话表的
-      僵尸函数（clone 共享模块，旧函数会残留 → 不清则双重应用）；缺失则追加。
+    _ensure_stream_functions() 在首次换槽前为并集键装注入点，双通道：
+      - 普通层：模块 weight/bias_function 追加 LowVramPatch（绑定独立槽表）；
+        官方表函数原样保留（base 流式态 + 本槽流式态叠加）、旧会话僵尸清除、
+        本会话幂等（二次 ensure 不双重应用）。
+      - GGUF 量化层（ComfyUI-GGUF GGMLOps）：其 forward 经 get_weight 只读
+        张量 patches、完全绕过 weight_function，故登记到 self._gguf、改由
+        set_slot() 逐窗改写 `weight.patches = base + [(本槽行, key)]`
+        （GGUF 自产条目同形；上游 base 首次写入前快照到 _GGUF_BASE_ATTR，
+        换槽恒从 base 重建，不累积、不丢 base）。
     """
 
     def __init__(self, patcher, model_root, slot_tables, n_slots):
@@ -164,6 +190,7 @@ class _PatchSwapSession:
                 for k in table:
                     self.tables.setdefault(k, [])
         self._slot_tables = slot_tables  # per slot: {key: [tuples]} or None
+        self._gguf = {}  # {key: (module, param_name)} GGUF 量化键的张量通道
         self.n = n_slots
         self.swap_count = 0  # 实际切换次数（同槽重复命中不计）
         self._last_si = None
@@ -186,10 +213,18 @@ class _PatchSwapSession:
         if self._stream_ready:
             return
         for name, mod in self._iter_target_modules():
-            for suffix, attr in ((".weight", "weight_function"),
-                                 (".bias", "bias_function")):
+            for suffix, attr, pname in ((".weight", "weight_function", "weight"),
+                                        (".bias", "bias_function", "bias")):
                 key = f"{name}{suffix}"
                 if key not in self.tables:
+                    continue
+                if _is_ggml_quantized(mod):
+                    # GGUF 量化层：get_weight 只读张量 patches，weight_function
+                    # 永不被调用——改登记张量通道（内容由 set_slot 逐窗填写）。
+                    if getattr(mod, pname, None) is None:
+                        continue  # 该层无此参数（如 Linear bias=None）
+                    if key not in self._gguf:
+                        self._gguf[key] = (mod, pname)
                     continue
                 fns = getattr(mod, attr, None)
                 if not isinstance(fns, list):
@@ -200,9 +235,8 @@ class _PatchSwapSession:
                         setattr(mod, attr, fns)
                     except Exception:
                         continue
-                # 清僵尸（旧会话表）+ 判官方表已覆盖 + 本会话幂等
+                # 清僵尸（旧会话表）+ 官方表函数保留共存 + 本会话幂等
                 kept = []
-                official = False
                 mine = False
                 for fn in fns:
                     tag = getattr(fn, FN_TAG, None)
@@ -214,13 +248,7 @@ class _PatchSwapSession:
                             # 重复的本会话函数：丢弃（二次 ensure 不双重应用）
                         continue  # 旧会话僵尸：丢弃
                     kept.append(fn)
-                    if fn.__class__ is _LowVramPatch and getattr(fn, "key", None) == key:
-                        try:
-                            if fn.patches is self.patcher.patches:
-                                official = True
-                        except Exception:
-                            pass
-                if not official and not mine:
+                if not mine:
                     try:
                         _, set_func, convert_func = _get_key_weight(self._root, key)
                     except Exception:
@@ -239,6 +267,42 @@ class _PatchSwapSession:
                     except Exception:
                         pass
         self._stream_ready = True
+        if self._gguf:
+            logger.info("[SFWanWindowLoRA] %d GGUF quantized key(s) injected via "
+                        "tensor.patches (ComfyUI-GGUF get_weight path).",
+                        len(self._gguf))
+
+    def _swap_gguf_slot(self):
+        """把当前 tables 内容写进 GGUF 张量的 patches（逐窗唯一写点）。
+
+        entries 恒从首次快照的 base 重建：`[(base…), ([本槽行], key)]`，
+        空槽即纯 base——base 永不被污染、旧窗条目永不累积。首次写入前才
+        快照 base（param 换过对象则自动重拍，跨会话 marker 常驻同一 param）。
+        """
+        for key, ref in self._gguf.items():
+            try:
+                mod, pname = ref
+                param = getattr(mod, pname, None)
+                if param is None:
+                    continue
+                base = getattr(param, _GGUF_BASE_ATTR, None)
+                if base is None:
+                    base = list(getattr(param, "patches", None) or [])
+                    try:
+                        setattr(param, _GGUF_BASE_ATTR, base)
+                    except Exception:
+                        pass
+                entries = list(base)
+                ours = self.tables.get(key) or []
+                if ours:
+                    entries.append((list(ours), key))
+                try:
+                    param.patches = entries
+                except Exception as e:
+                    logger.warning("[SFWanWindowLoRA] gguf patch swap failed for %s (%s).",
+                                   key, e)
+            except Exception:
+                continue
 
     def _clear_stale_prepared(self):
         """防御性清理：异常中断的 forward 可能留下 prepared_patches 快照。"""
@@ -258,6 +322,7 @@ class _PatchSwapSession:
         for k in self.tables:
             lst = content.get(k)
             self.tables[k] = list(lst) if lst else []
+        self._swap_gguf_slot()
         self._clear_stale_prepared()
         if si != self._last_si:
             self.swap_count += 1

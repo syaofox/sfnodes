@@ -553,3 +553,13 @@
 - **修法（第一版：滚动区 + 过滤 + 重钳制，已废弃）**：曾给菜单加 flex 纵列可滚区 + 过滤框 + `reclampMenu`，冒烟全绿；但用户指出内联列表本就没有存在的必要——"Manage Presets…" 大面板（自带搜索 + 滚动 + 改名/删除）已覆盖全部取用场景。
 - **修法（终版：删列表）**：菜单只剩 Save + Manage 两项（条目再多也不出界）；取用统一走大面板 `onSelect`，经新导出 `applyPresetRows`（与旧内联项同语义：空行保护 + 写状态 + `refresh(true)`，无二次确认——与旧大面板行为一致）；保存流的重名确认/positive 预填改为进表单时拉一次；删 `enterEditPreset`/`applyPreset` 旧函数、`filterPresets`/`reclampMenu` 引入、内联列表 CSS（`.sf-ls-preset-list` 等）及 `sf_lora_preset.js` 内从未被调用的 `injectMgrCSS` 整函数 + 三个死 import。
 - **测试**：`test_lora_stack_presets_smoke.js` 改菜单骨架断言（两项/无内联项/无过滤框/无列表区/位置钳制）+ `applyPresetRows` 直测（写入正确/空行拒绝）；删内联删除/取消/长列表段落（改名/删除归大面板）。`findItem` 保留递归版（兼容深层结构）。
+
+### §39.11 SFWanWindowLoRA 的 GGUF 双通道：量化层走张量 patches（2026-09）
+
+> 背景：用户 GGUF 工作流（`UnetLoaderGGUF` 高低双模）下全窗无感，而回调照发（`done | 9 window evaluations`）、`matched` 全绿——§39.7/§39.8 的修法在 GGUF 上集体失效。
+
+- **根因**：ComfyUI-GGUF 的 `GGMLOps` 量化层 forward 经 `GGMLLayer.get_weight`，LoRA 只从 `GGMLTensor.patches` 读取，**完全绕过 `module.weight_function`**；且 `GGUFModelPatcher.load(force_patch_weights=True)` 致 `lowvram patches: 0`（bake/张量附着，无官方流式函数）——我方的 `LowVramPatch`/`weight_function` 注入在量化层（LoRA 目标的 q/k/v、ffn 等 Q4_K/Q6_K）上恒为空跑。仅 F16/F32 层仍走 core `cast_bias_weight` 读 `weight_function`。
+- **修法（双通道，`wan_window_lora.py::_PatchSwapSession`）**：普通层维持 `LowVramPatch` 追加 `weight_function`；量化层登记张量通道，`set_slot()` 逐窗改写 `weight.patches = base + [(本槽行, key)]`（GGUF 自产条目 `(补丁列表, key)` 同形；空槽即纯 base）。**duck-typing 探测** `_is_ggml_quantized()`（调模块的 `is_ggml_quantized()`，核心模型无此方法恒 False）——**不 import 外部自定义节点**。上游 base 首次写入前快照到张量属性 `_sf_window_lora_base`，换槽恒从 base 重建（不累积、不丢 base；param 换对象自动重拍；跨会话 marker 常驻同一 param）。
+- **附带修 official 跳过**：`_ensure_stream_functions` 原 `if not official and not mine:` 在半载+上游同层 LoRA 时跳过逐窗函数，违背"与上游补丁共存"设计 → 改为 `if not mine:`（官方函数保留共存）。**mock 保真度教训**：旧单测用 `MockLowVramPatch` 子类模拟官方函数，而判定是 `fn.__class__ is _LowVramPatch` 精确类——`official` 分支恒 False，compose 断言意外通过；现改用精确类实例覆盖共存回归。
+- **测试**：`tests/test_wan_window_lora.py` 加 GGUF mock（`FakeGGMLModule.is_ggml_quantized→True` + 带上游 base 的 `weight.patches`）：量化登记/不装函数/w0=base+本槽/base 原样/空槽纯 base/回槽不累积/跨会话不累积。
+- **局限**：本机无 torch/GGUF 运行环境，mock 只锁契约；容器实测确认生效（窗口间动作分化）仍需用户跑一次。

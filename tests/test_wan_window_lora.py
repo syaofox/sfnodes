@@ -9,6 +9,9 @@
 #   - 换槽：EVALUATE 按 window_idx 取模改表内容、空槽 []、越界轮回；
 #     CLEANUP 计数；无 handler 回退官方 add_patches(slot0)
 #   - 双重计数 guard：同一键 base 烘焙/流式 + 本槽流式各算一次
+#     （official 用精确类 mock：覆盖"官方占位不跳过我方"的共存回归）
+#   - GGUF 双通道（§39.11）：量化层不装 weight_function，走张量 patches；
+#     base 快照保留/换槽重建/空槽纯 base/跨会话不累积
 #   - 异常路径：加载失败/零匹配跳过、全空直通、超上限截断
 import importlib.util
 import json
@@ -36,14 +39,16 @@ RAW_C, MODEL_C = "net.C", "diffusion_model.blocks.0.mlp.gate.weight"
 RAW_D, MODEL_D = "net.D", "diffusion_model.blocks.1.attn.wq.weight"
 RAW_Y, MODEL_Y = "net.Y", "diffusion_model.blocks.9.ghost.weight"  # state 无此键
 RAW_X = "net.X"  # key_map 无此键
+RAW_G, MODEL_G = "net.G", "diffusion_model.blocks.2.attn.wq.weight"  # GGUF 专用键
 RAW2MODEL = {RAW_A: MODEL_A, RAW_B: MODEL_B, RAW_C: MODEL_C,
-             RAW_D: MODEL_D, RAW_Y: MODEL_Y}
-MODEL_STATE_KEYS = [MODEL_A, MODEL_B, MODEL_C, MODEL_D]
+             RAW_D: MODEL_D, RAW_Y: MODEL_Y, RAW_G: MODEL_G}
+MODEL_STATE_KEYS = [MODEL_A, MODEL_B, MODEL_C, MODEL_D, MODEL_G]
 MOD_BASENAME = {
     MODEL_A: "diffusion_model.blocks.0.attn.wq",
     MODEL_B: "diffusion_model.blocks.0.attn.wk",
     MODEL_C: "diffusion_model.blocks.0.mlp.gate",
     MODEL_D: "diffusion_model.blocks.1.attn.wq",
+    MODEL_G: "diffusion_model.blocks.2.attn.wq",
 }
 
 
@@ -60,6 +65,7 @@ SD_BY_PATH = {
     "/loras/a.safetensors": _make_raw([RAW_A, RAW_B]),
     "/loras/b.safetensors": _make_raw([RAW_B, RAW_C]),
     "/loras/c.safetensors": _make_raw([RAW_D]),
+    "/loras/g.safetensors": _make_raw([RAW_G]),
     "/loras/y.safetensors": _make_raw([RAW_Y]),
     "/loras/x.safetensors": _make_raw([RAW_X]),
 }
@@ -141,7 +147,8 @@ class MockLowVramPatch:
 
 
 class OfficialFn(MockLowVramPatch):
-    """上游 base 的流式函数（非我方类，用于'官方已覆盖'判定）。"""
+    """上游 base 流式函数 mock 的子类形态（pre_official 预装用；精确类形态
+    见 compose 用例的 official_fn，覆盖与上游共存回归）。"""
 
 
 mp_mod = types.ModuleType("comfy.model_patcher")
@@ -236,6 +243,47 @@ class FakePatcher:
         for k, v in patches.items():
             self.patches.setdefault(k, []).append((strength_patch, v, strength_model, None, None))
         return list(patches)
+
+
+class FakeGGMLWeight:
+    """模拟 ComfyUI-GGUF 的量化张量：补丁只经 `.patches` 生效。"""
+
+    def __init__(self, patches=None):
+        self.patches = list(patches or [])
+
+
+class FakeGGMLModule:
+    """模拟 GGMLLayer：is_ggml_quantized() 为真，无 weight_function 消耗。"""
+
+    def __init__(self, patches=None):
+        self.weight = FakeGGMLWeight(patches)
+        self.bias = None
+
+    def is_ggml_quantized(self, *a, **k):
+        return True
+
+
+class FakeGGMLRoot:
+    """MODEL_G 单键 GGUF 根（base 即上游 base 注入的张量条目）。"""
+
+    def __init__(self, base=None):
+        self._mods = [(MOD_BASENAME[MODEL_G], FakeGGMLModule(base))]
+
+    def named_modules(self):
+        return list(self._mods)
+
+    def state_dict(self):
+        return {k: None for k in MODEL_STATE_KEYS}
+
+
+class FakeGGMLPatcher:
+    def __init__(self, handler=None, base=None):
+        self.model = FakeGGMLRoot(base)
+        self.patches = {}
+        self.model_options = {"context_handler": handler} if handler is not None else {}
+
+    def clone(self):
+        return self
 
 
 MODEL_NAMES = [MODEL_A, MODEL_B, MODEL_C, MODEL_D]
@@ -342,29 +390,24 @@ check("tables w0: B 行序拼接",
       [t[0] for t in sess.tables[MODEL_B]] == [1.0, 0.5])
 
 # ── forward 语义：base（官方表）+ 本槽（独立表）各算一次 ────────────────────
-# 模拟：官方 base 列表 + 我方函数 live 读表
-official_seen, ours_seen = [], []
-
-
-class ProbeOfficial(OfficialFn):
-    def __call__(self, weight):
-        official_seen.append(list(self.patches[self.key]) if isinstance(self.patches, dict) else "base-list")
-        return official_seen[-1]
-
-
+# 模拟：官方 base 列表 + 我方函数 live 读表。
+# official_fn 必须用精确类（回归 §39.11：旧代码 `fn.__class__ is LowVramPatch`
+# 的 official 跳过分支只对精确类生效，子类 mock 永远测不到它）。
 patcher2 = FakePatcher(MODEL_NAMES, base_patches={MODEL_A: [BASE_T]}, handler=FakeHandler())
 mods2 = dict(patcher2.model.named_modules())
-mods2[MOD_BASENAME[MODEL_A]].weight_function.append(ProbeOfficial(MODEL_A, patcher2.patches))
+official_fn = MockLowVramPatch(MODEL_A, patcher2.patches)
+mods2[MOD_BASENAME[MODEL_A]].weight_function.append(official_fn)
 node.apply(model=patcher2,
            window_1=preset(row("a.safetensors", strength=1.0)),
            window_2=None)
 fire_evaluate(patcher2.model_options["context_handler"], 0)
 got = live_strengths(patcher2, MODEL_A)
-check("compose: 官方函数仍在", any(isinstance(f, ProbeOfficial) for f in mods2[MOD_BASENAME[MODEL_A]].weight_function))
-check("compose: 我方函数追加", any(getattr(f, nmod.FN_TAG, None) for f in mods2[MOD_BASENAME[MODEL_A]].weight_function))
-check("compose: 本槽强度可见", [1.0] in got)
-check("compose: base 与本槽分表（无双重计数）",
-      official_seen == [[BASE_T]] and [1.0] in got and len(got) == 2)
+check("compose: 官方函数仍在", official_fn in mods2[MOD_BASENAME[MODEL_A]].weight_function)
+check("compose: 我方函数追加（官方占位不跳过）",
+      any(getattr(f, nmod.FN_TAG, None) for f in mods2[MOD_BASENAME[MODEL_A]].weight_function))
+check("compose: base 与本槽都可见",
+      [t[0] for t in patcher2.patches[MODEL_A]] in got and [1.0] in got)
+check("compose: 无双重（恰两个函数）", len(got) == 2)
 
 # ── 空槽与轮回 ─────────────────────────────────────────────────────────────
 fire_evaluate(handler, 1)
@@ -460,6 +503,46 @@ patcher_k = FakePatcher(MODEL_NAMES, handler=FakeHandler())
 out_k = node.apply(model=patcher_k, window_1=preset(row("b.safetensors")),
                    model_extra=None)
 check("kwargs: 非 window_ 键忽略", json.loads(out_k[1])["n_slots"] == 1)
+
+# ── GGUF 双通道（§39.11）：量化层走张量 patches，不装 weight_function ─────────
+# 模拟 ComfyUI-GGUF：GGMLLayer.forward 经 get_weight 只读 weight.patches，
+# weight_function 永不被调用。base 为上游注入的张量条目，必须原样保留。
+GGUF_BASE_T = ("base-strength", "base-data", 1.0, None, None)
+handler_g = FakeHandler()
+pg = FakeGGMLPatcher(handler=handler_g, base=[([GGUF_BASE_T], MODEL_G)])
+out_g = node.apply(model=pg,
+                   window_1=preset(row("g.safetensors", strength=2.0)),
+                   window_2=None)
+sess_g = pg._sf_window_session
+gmod = dict(pg.model.named_modules())[MOD_BASENAME[MODEL_G]]
+check("gguf: 探测命中", nmod._is_ggml_quantized(gmod) is True)
+fire_evaluate(handler_g, 0)
+# _gguf 登记发生在首次 EVALUATE 的 _ensure（load 之后），apply 时尚未登记
+check("gguf: 量化键登记张量通道", MODEL_G in sess_g._gguf)
+check("gguf: 不装 weight_function", not any(
+    getattr(f, nmod.FN_TAG, None) for f in getattr(gmod, "weight_function", [])))
+expected_g = [(2.0, ("adapter", RAW_G), 1.0, None, None)]
+check("gguf: w0 = base + 本槽",
+      gmod.weight.patches == [([GGUF_BASE_T], MODEL_G), (expected_g, MODEL_G)])
+check("gguf: base 条目原样保留",
+      gmod.weight.patches[0] == ([GGUF_BASE_T], MODEL_G))
+check("gguf: base 快照已记",
+      getattr(gmod.weight, nmod._GGUF_BASE_ATTR, None) == [([GGUF_BASE_T], MODEL_G)])
+fire_evaluate(handler_g, 1)  # 空槽
+check("gguf: 空槽只剩 base",
+      gmod.weight.patches == [([GGUF_BASE_T], MODEL_G)])
+fire_evaluate(handler_g, 0)
+check("gguf: 回槽不累积",
+      gmod.weight.patches == [([GGUF_BASE_T], MODEL_G), (expected_g, MODEL_G)])
+# 跨会话：新 apply + 新 handler；marker 常驻旧 param，base 复用不累积
+handler_g2 = FakeHandler()
+pg.model_options = {"context_handler": handler_g2}
+node.apply(model=pg,
+           window_1=preset(row("g.safetensors", strength=2.0)),
+           window_2=None)
+fire_evaluate(handler_g2, 0)
+check("gguf: 跨会话不累积",
+      gmod.weight.patches == [([GGUF_BASE_T], MODEL_G), (expected_g, MODEL_G)])
 
 print()
 if failures:
