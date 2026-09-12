@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 
 class AnyType(str):
@@ -64,6 +65,20 @@ def lora_stem(lora_name):
     lora_loader / lora_loader_model_only / lora_selector 三处逐字相同。
     """
     return os.path.splitext(os.path.basename(lora_name))[0]
+
+
+def collect_indexed(kwargs, prefix):
+    """从 kwargs 收集形如 prefix+数字（如 image1、mask2）的输入，返回 {编号: 值}。
+
+    动态槽位节点（Krea2 / Painter Flux Edit）后端统一入口：None 值忽略、非匹配名忽略。
+    """
+    pattern = re.compile(r"^{}(\d+)$".format(re.escape(prefix)))
+    out = {}
+    for key, value in kwargs.items():
+        match = pattern.match(key)
+        if match is not None and value is not None:
+            out[int(match.group(1))] = value
+    return out
 
 
 def valid_name(name, max_len=None):

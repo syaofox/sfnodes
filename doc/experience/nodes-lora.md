@@ -1,4 +1,4 @@
-# 经验归档：LoRA / Civitai / Krea2 预设生态（§5、§19、§20、§21、§25、§28、§31、§33）
+# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -572,3 +572,37 @@
 - **安全**：widget 名 `_info` + `serialize:false`，不进 workflow；`configure` 包装先剔除旧 `_info` 再重挂，工作流重载不叠加；禁用本包仅图标消失，官方执行路径毫发无损。
 - **测试**：新建 `tests/test_official_info_smoke.js`（静态三文件 NODE_TYPES 断言 + `setupLoaderInfoWidget` 在 `lora_name`/`unet_name` 假节点上装配与 configure 幂等）。
 - **开关 sfnodes.OfficialInfo.Enabled（默认开，2026-09）**：ComfyUI Settings boolean 项，注册收敛于 `sf_lora_info.registerOfficialInfoSettingOnce`（`globalThis` 守卫，三节点模块 `init()` 各调一次只落地一项）；`setupLoaderInfoWidget` 新增可选 `enabledOf` 门控（缺省恒 true——SF 节点恒挂载，官方节点传 `() => isOfficialInfoEnabled()`，初挂与 configure 重挂双门控 + 存在性守卫，重复 setup 亦幂等）；`onChange` 经 `setTimeout(0)` 推迟读值（Accent 时序教训：回调时 store 尚未更新），按 `registerOfficialInfoSpec` 登记（classes/comboName/opts，dmodel 侧闭包由登记方提供，避免循环 import）即时增删图中官方节点 `_info`，SF 节点跳过。
+
+---
+
+## 59. SFPainterFluxImageEdit：Flux2 图编一体编码（复刻 PainterFluxImageEdit，动态槽位 + 批次/遮罩/参数修正，2026-09）
+
+> 背景：复刻 `princepainter/Comfyui-PainterFluxImageEdit` 的单节点 `PainterFluxImageEdit`——把 Flux2(Klein) 的「文本 CLIP 编码 + 每张参考图 VL/VAE 编码 + reference_latents 注入」合并，直连采样器。原版纯后端、无 JS，靠 `mode` combo（1_image..10_image）+ 固定 image1..image10 选择张数。本包改为前端动态槽位（用户拍板去 mode），并修复/增强若干批次、遮罩、可控性问题。
+
+### 1. 与原版的有意差异
+
+- **去 mode，动态槽位**：后端 schema 只声明 `image1`（+ 固定 `image1_mask`），`web/sf_painter_flux_edit.js` 复用 `sf_dynamic_slots.installDynamicSlots` 在 image1 连接后追加 image2..image10。`installDynamicSlots` 必须传 `inputMatch: /^image\d+$/`——否则默认前缀匹配会把 `image1_mask` 也当作动态槽（名字以 `image` 开头），引发 trim/回收错乱。`nameFor` 显式给 `image<n>`（默认 nameFor 无 prefix 时退化成纯数字名）。
+- **P0-1 不再复制 conditioning 到 batch_size 份**：原版 `positive = positive * batch_size` 是错的——ComfyUI 的 batch 靠 latent 的 batch 维，条件由 `get_area_and_mult → process_cond(batch_size=x_in.shape[0])` 自动广播（`comfy/samplers.py:97`）；手动把 conditioning 列表复制 N 份后，N 个相同 cond 会被 `to_batch` 归并、`cond_cat` 沿 batch 拼接（`comfy/samplers.py:308`），得到 **N² batch** 送进模型（N=64 时慢 64 倍、可能 OOM）。标准 `EmptyLatentImage` 从不复制条件即反证。修复：删掉乘法，仅在 latent/noise_mask 上 `repeat_to_batch_size`。
+- **P0-2 batch 用 repeat_to_batch_size**：原版 `samples.repeat([B]+[1]*(dim-1))` 是"乘法"——源 batch=4、`batch_size=3` 会得到 12 而非 3；源 batch=4、`batch_size=1` 则被忽略。改用 `comfy.utils.repeat_to_batch_size`（大于切片、小于复制），noise_mask 同理。
+- **P0-3 width/height step 8→16**：Flux2 `latent_formats.Flux2.spacial_downscale_ratio=16`，官方 `EmptyFlux2LatentImage` step=16。VAE `crop_input=True` 时 `vae_encode_crop_pixels`（`comfy/sd.py:1106`）会把**非 16 倍数静默中心裁剪**——设 1032 实出 1024。step 改 16。
+- **遮罩 latent 对齐（非 bug，是消除冗余插值）**：原版把 `image1_mask` 缩放到 `width//8, height//8` 当 noise_mask。**更正早前 §59 的"实机失效"结论**：`comfy.sampler_helpers.prepare_mask → reshape_mask`（`comfy/utils.py:1348`）会把**任意尺寸**遮罩 `F.interpolate` 到 latent 尺寸、移到设备并按 batch 归一，所以原版其实可用，只是多一次插值。本节点直接从 latent `shape[-2:]` 生成，语义更直白。
+- **P2 可控性新增**（默认值保守，保持原版语义）：`negative_prompt`（required，默认空串，替代原版恒空）；`use_reference_latent_as_init`（默认 True = 原版"有图以首图 latent 为起点"）；`reference_latents_method`（默认 "" = 模型默认，Flux2 为 `index`/scale=10，见 `model_detection.py`）；`encode_vision`（默认 **False**，见下条）。
+- **P2 VL 视觉通路默认关闭**：当前 ComfyUI 的 Flux2 走 `KleinTokenizer`（Qwen3，`sd.py:1919` 注释 "visual unused"），`clip.tokenize(..., images=vl_images)` 的 `images` 会被 SD1Tokenizer 静默忽略，真正图像条件是 `reference_latents`。原版仍计算 VL 缩放并在提示词插 `<|vision_start|>…` 前缀——纯浪费且可能喂入未训练的特殊 token。故 `encode_vision=False` 默认跳过，保留 True 以兼容未来支持视觉的版本。
+
+### 2. 结构
+
+- 纯逻辑 `sf_utils/flux_edit.py::encode_painter_flux(...)`（新增 negative_prompt / reference_latents_method / use_reference_latent_as_init / encode_vision 参数）；节点壳 `nodes/utils/painter_flux_edit.py::SFPainterFluxImageEdit`（`sfnodes/model`）。
+- 复用 `sf_utils/qwen_edit.py` 的 `process_vl_image`（VL 面积缩放与原版逐字一致：384²/`area`/`center`）与 `set_reference_latents`；另新增公共 `set_conditioning_values(conditioning, values, append)`，`set_reference_latents` 变其 `append=True` 薄封装（供注入 `reference_latents_method` 复用，避免内联副本）。
+- 动态槽位输入收集（`imageN`）的 `_collect_indexed` 从 `nodes/model/krea2.py` 提升为 `sf_utils/common.py::collect_indexed` 单一实现，krea2 以 `_collect_indexed = staticmethod(collect_indexed)` 保留类属性（既有测试引用 `TextEncodeKrea2._collect_indexed`）。注意 krea2 的 `...sf_utils` 相对导入在「以顶层包 `nodes.model.krea2` 导入」的测试里会越界，需 try/except 回退绝对导入 `sf_utils.common`。
+
+### 3. 行为要点
+
+- 参考图：`common_upscale(samples, width, height, "lanczos", "center")`——中心裁剪到输出宽高比后缩放到输出尺寸（非单纯拉伸），再 VAE 编码；`use_reference_latent_as_init=True` 时有图则以 `ref_latents[0]` 为去噪起点，否则 `vae.encode(torch.zeros(1,height,width,3))` 空 latent。
+- reference_latents 同时 append 到 positive 与 negative；`reference_latents_method` 非空时一并注入两者。
+- `encode_vision=True` 时前缀格式带编号：`image{i}: <|vision_start|><|image_pad|><|vision_end|> `（与原 Krea2/Qwen 的 `Picture N:` 不同）。
+- batch：`latent.samples` / `noise_mask` 经 `repeat_to_batch_size` 对齐 `batch_size`；conditioning 不复制。
+- 遮罩仅作用于首张已提供图；`vae` 为 optional 但执行时缺省抛 `RuntimeError`。
+
+### 4. 测试
+
+- `tests/test_painter_flux_edit.py`（mock torch/comfy.utils/comfy.model_management/node_helpers + FakeTensor/FakeVae/FakeClip）：VL 面积/方法（encode_vision=True）、默认无 vision 前缀、编号前缀、正负条件的 reference_latents、`reference_latents_method` 注入正负两侧、起点开关（ref latent=1 vs 空 latent=2，用 FakeVae 填充调用序号区分）、noise_mask 形状 = latent 空间（16x）、**batch 不复制 conditioning**、源 batch>目标切片、negative_prompt、纯文本路径、缺 VAE 抛错、节点壳动态 imageN 收集与 step=16。

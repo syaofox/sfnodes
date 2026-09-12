@@ -94,6 +94,8 @@ MODS = [
     "sf_conditioning_combine",
     # Conditioning Concat（多路拼接；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_conditioning_concat",
+    # Painter Flux Image Edit（参考图动态槽位；复用 sf_dynamic_slots.installDynamicSlots）
+    "sf_painter_flux_edit",
     # Wan Window LoRA（逐窗位置 preset 槽；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_wan_window_lora",
     # Universal Slider（复刻孤海万能滑条 Canvas 大滑条；复用 sf_common/sf_popup/any_pack.setSlotType）

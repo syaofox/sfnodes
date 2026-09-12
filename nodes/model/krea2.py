@@ -30,6 +30,13 @@ try:
 except Exception:  # pragma: no cover - 移植性兜底
     _krea2_presets = None
 
+# 动态槽位输入收集的唯一实现（sf_utils/common.collect_indexed）。测试以
+# `nodes.model.krea2` 顶层包导入时 `...` 越界，回退绝对导入。
+try:
+    from ...sf_utils.common import collect_indexed as _collect_indexed
+except Exception:  # pragma: no cover - 测试/移植性兜底
+    from sf_utils.common import collect_indexed as _collect_indexed
+
 
 def _merged_presets(kind, builtin):
     """当前生效的合并预设 {name: text}（内置 + 用户覆盖/墓碑）。失败回退内置。"""
@@ -280,16 +287,9 @@ class TextEncodeKrea2:
                    "每张参考图可选遮罩裁剪到遮罩区域；透明通道按黑底合成，多帧 batch 取首帧。"
                    "不使用 VAE（Krea2 无 reference-latent 通路）")
 
-    @staticmethod
-    def _collect_indexed(kwargs, prefix):
-        """从 kwargs 中收集形如 prefix + 数字（如 image1、mask2）的输入，返回 {编号: 值}。"""
-        pattern = re.compile(r"^{}(\d+)$".format(prefix))
-        out = {}
-        for key, value in kwargs.items():
-            match = pattern.match(key)
-            if match is not None and value is not None:
-                out[int(match.group(1))] = value
-        return out
+    # 动态槽位输入收集：唯一实现收敛在 sf_utils/common.collect_indexed
+    # （Painter Flux Edit 同款复用；保留类属性以兼容既有测试与调用点）。
+    _collect_indexed = staticmethod(_collect_indexed)
 
     @staticmethod
     def _crop_to_mask(image, mask, padding=0.0):

@@ -197,13 +197,26 @@ def encode_qwen_edit(clip, vae, prompt, entries, ref_upscale="lanczos",
     return conditioning, latent_out, custom_output, main_image, noise_mask
 
 
-def _set_reference_latents(conditioning, ref_latents):
-    """向 conditioning 追加 reference_latents（node_helpers.conditioning_set_values 的宽松封装）。"""
+def set_conditioning_values(conditioning, values, append=False):
+    """向 conditioning 写入附加字段（node_helpers.conditioning_set_values 的宽松封装）。
+
+    node_helpers 在部分运行环境不可用时静默降级为原样返回，供 Qwen Edit 与
+    Painter Flux Edit 等纯逻辑共用；append=True 时列表字段追加而非覆盖。
+    """
     try:
         import node_helpers
-        return node_helpers.conditioning_set_values(conditioning, {"reference_latents": ref_latents}, append=True)
+        return node_helpers.conditioning_set_values(conditioning, values, append=append)
     except Exception:
         return conditioning
+
+
+def set_reference_latents(conditioning, ref_latents):
+    """向 conditioning 追加 reference_latents（append 语义）。"""
+    return set_conditioning_values(conditioning, {"reference_latents": ref_latents}, append=True)
+
+
+# qwen 内部调用点保留原名（与公共别名等价）。
+_set_reference_latents = set_reference_latents
 
 
 def mask_matches(mask, image):
