@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -300,3 +300,19 @@
 - `RETURN_NAMES` 是类静态属性，不能随 `output_type` 动态切换——后端固定 `("value",)`（`SFNumber` 先例），前端随 `sliderType` 把输出槽类型+槽名 patch 为 `INT/int` 或 `FLOAT/float`（`setSlotType` patch 含 `name/localized_name`，§41 同款；创建/callback 经 `syncOutputType`、恢复经 `configure` + `onAfterGraphConfigured` 双钩子）。
 - 测试坑：Function-eval 剥离 import 的正则必须行首锚定（`/^import[^;]+;/gm`）——纯模块边界注释里含 `import xxx.js` 字样，非锚定正则会从注释一路吃到下一个分号、吞掉真实代码（`DEFAULTS is not defined` 误报）；拖拽断言前须先跑一次 `draw` 确立轨道几何（`ds.trackW` 按 `W-ml-mr` 计算，不跑 draw 还是初始值 192）。
 - 弹窗按钮必须调包装后的 `ov.remove()`（解绑监听 + 移出 DOM）——裸 `detach()` 只解绑 document 监听，弹窗留在页面上关不掉（确定/取消点击无反应坑，已补开/关断言锁定）。
+
+---
+
+## 53. SFBooleanSwitch 布尔开关：孤海 Canvas 开关复刻（2026-09）
+
+> 背景：复刻孤海 `布尔孤海`（后端 `布尔开关.py` + 前端 `BOOLEAN.js`），新节点 `nodes/utils/boolean_switch.py::SFBooleanSwitch`（`sfnodes/utils`，与 SimpleMathBoolean 同组）+ `web/sf_boolean_switch_lib.js` 纯逻辑 + `web/sf_boolean_switch.js` 主扩展。后端除 widget 名中文 `开关`→英文 `value` 外与原版 1:1（BOOLEAN default True + 单 BOOLEAN 输出直通）；与 SimpleMathBoolean 的差异是单口直通（无 INT 副口）+ Canvas 大开关 UI + 双击改标签。
+
+### 1. 复用与新增边界
+
+- 后端无复用点（BOOLEAN 原生类型，SimpleMathBoolean 同文件亦零导入）；前端复用 `sf_common.js::el`（标签编辑浮层输入框创建）。
+- 新增：`TOGGLE` 常量（tw 72/th 28/m 10/xOff 6/clickPad 14）统一绘制与命中——原版两处魔法数字各写一份（draw 侧 `_w-72-10-6`、mouse 侧 `_w-72-10-20`），收敛后 `toggleHit(posX,W) ≡ posX > W-102` 与原版逐字等价（lib 测试锁定）；`normalizeLabel`（去空回落）/`ellipsisText`（measure 注入可测）；命中宽度直接读 `node.size[0]`（不依赖 draw 先跑，原版靠闭包 `_w` 初值 200 同理回退）。
+
+### 2. 规范化改动（相对原版）
+
+- 原型补丁改 `nodeCreated` 实例装配；import 改绝对路径；扩展名 `sfnodes.BooleanSwitch`；自定义 widget `toggle_custom/guhai_toggle`→`sf_boolean_switch/sf_bool_ui`；标签 properties 键 `guhai_label`→`sfBoolLabel`、默认标签 `开关`→`value`（widget 改名口径一致）；配色 `#4F4047/#493C42` 保留（仅创建时设色，configure 不覆盖用户改色——原版同语义）。
+- 补原版缺失的 `setDirtyCanvas`（切换/改名/回填三处，原版靠画布偶然重绘刷新）；`configure` 重抓 widgets 引用 + 开关态同步 + 编辑中输入框落盘；`onWidgetChanged` 回填同步。
