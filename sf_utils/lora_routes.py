@@ -25,6 +25,7 @@ _notes_async_lock = asyncio.Lock()
 
 from .logger import get_logger
 from . import lora_reader as R
+from .disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 logger = get_logger(__name__)
 
@@ -77,23 +78,6 @@ def _lora_dirs():
         return list(folder_paths.get_folder_paths("loras"))
     except Exception:
         return []
-
-
-def _sf_user_dir():
-    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录。"""
-    base = None
-    try:
-        base = folder_paths.get_user_directory()
-    except Exception:
-        base = None
-    if not base:
-        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user")
-    d = os.path.join(base, "sfnodes")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except Exception:
-        pass
-    return d
 
 
 def _civitai_account_file():

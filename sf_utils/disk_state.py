@@ -108,3 +108,27 @@ def decode_image(b64: str):
         return img
     except Exception:
         return None
+
+
+def sf_user_dir() -> str:
+    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录。
+
+    krea2_presets / text_presets / lora_routes / character / styles_selector
+    曾各持一份逻辑相同的 _sf_user_dir（注释互相点名"同款"），现收敛为单一
+    实现。folder_paths 惰性导入（测试环境无 ComfyUI 时回落包内 user/）。
+    """
+    base = None
+    try:
+        import folder_paths
+
+        base = folder_paths.get_user_directory()
+    except Exception:
+        base = None
+    if not base:
+        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user")
+    d = os.path.join(base, "sfnodes")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        pass
+    return d

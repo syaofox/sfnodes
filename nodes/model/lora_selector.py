@@ -1,6 +1,6 @@
-import os
-
 import folder_paths
+
+from ...sf_utils.common import lora_stem
 
 _CATEGORY = "sfnodes/model"
 
@@ -24,5 +24,5 @@ class LoraSelector:
     CATEGORY = _CATEGORY
 
     def execute(self, lora_name):
-        stem = os.path.splitext(os.path.basename(lora_name))[0]
+        stem = lora_stem(lora_name)
         return (lora_name, stem)

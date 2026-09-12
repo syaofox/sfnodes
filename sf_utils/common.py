@@ -1,3 +1,7 @@
+import json
+import os
+
+
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
         return False
@@ -18,3 +22,65 @@ def _parse_fill_color(fill_color):
             int(hex_color[4:6], 16),
         )
     return tuple(fill_color)
+
+
+def json_safe(obj):
+    """清洗 NaN/Inf 使对象保持合法 JSON（非法 float 转字符串）。
+
+    快照 PNG 嵌入整个 prompt，其中任何节点的 IS_CHANGED 返回 NaN 都会贡献
+    `is_changed: [NaN]`——不是合法 JSON，前端 JSON.parse 会抛错并丢弃整个
+    payload。pause_image / pause_mask / preview_routes 曾各持一份逐字相同的
+    内联副本，现收敛为单一实现。
+    """
+    if isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_safe(v) for v in obj]
+    if isinstance(obj, float):
+        if obj != obj or obj in (float("inf"), float("-inf")):
+            return str(obj)
+    return obj
+
+
+def parse_json_dict(raw):
+    """把隐藏 STRING 真源解析为 dict，任何失败返回 {}。
+
+    brush_mask / crop_expand 曾各持一份逐字相同的 _parse_state，现收敛。
+    """
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def lora_stem(lora_name):
+    """LoRA 文件名去路径去扩展（只留 stem）。
+
+    lora_loader / lora_loader_model_only / lora_selector 三处逐字相同。
+    """
+    return os.path.splitext(os.path.basename(lora_name))[0]
+
+
+def valid_name(name, max_len=None):
+    """预设/库条目名合法性：非空字符串、无路径分隔符、无控制字符。
+
+    krea2_presets 与 text_presets 的 _valid_name 仅长度上限不同（后者限
+    200），max_len 参数化后收敛为单一实现。
+    """
+    if not isinstance(name, str):
+        return False
+    name = name.strip()
+    if not name:
+        return False
+    if max_len is not None and len(name) > max_len:
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    if any(ord(c) < 32 for c in name):
+        return False
+    return True

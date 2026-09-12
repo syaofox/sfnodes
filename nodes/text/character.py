@@ -20,6 +20,7 @@ from aiohttp import web
 
 from .id_clothing import _load_template_tensor, _placeholder_tensor
 from ...sf_utils import characters as _lib
+from ...sf_utils.disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 from ...sf_utils.id_clothing import resolve_thumbnail_path
 
 _CATEGORY = "sfnodes/text"
@@ -35,25 +36,6 @@ def _package_root():
 def _builtin_characters_dir():
     """内置角色库目录（随包分发的只读数据，如 data/characters/character_example.json）。"""
     return os.path.join(_package_root(), "data", "characters")
-
-
-def _sf_user_dir():
-    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录（与 styles 同约定）。"""
-    base = None
-    try:
-        import folder_paths
-
-        base = folder_paths.get_user_directory()
-    except Exception:
-        base = None
-    if not base:
-        base = os.path.join(_package_root(), "user")
-    d = os.path.join(base, "sfnodes")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except Exception:
-        pass
-    return d
 
 
 def _user_characters_dir():

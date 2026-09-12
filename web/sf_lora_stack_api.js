@@ -174,13 +174,22 @@ export async function getCivitaiAccount() {
 /** Patch {key, host, adultThumbs} 任意项。省略字段即不动；key:"" 移除 key。
  *  以服务器存储的状态应答，面板按服务器实际收下的重绘。 */
 export async function setCivitaiAccount(patch) {
+    return _post("/api/sfnodes/civitai/account", patch || {}, { invalidate: false });
+}
+
+// POST 样板收敛（与 sf_dmodel_api.js::_post 同构）：JSON 请求体 + 服务端
+// 不可达兜底；成功时默认清 info 缓存并广播跨节点失效（deleteCivitai /
+// setCivitaiAccount 等调用方自管缓存的用 { invalidate: false }）。
+async function _post(route, body, { invalidate = true, name = "" } = {}) {
     try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/civitai/account"), {
+        const r = await fetch(sfApiUrl(route), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch || {}),
+            body: JSON.stringify(body),
         });
-        return await r.json();
+        const j = await r.json();
+        if (j?.ok && invalidate) { invalidateInfo(name); broadcastDataChanged(name); }
+        return j;
     } catch {
         return { ok: false, message: "Could not reach the server." };
     }
@@ -190,68 +199,26 @@ export async function setCivitaiAccount(patch) {
 // 名键控）。它们曾只活在行上，所以行换 LoRA 再换回来就丢，别的节点也看不到。
 // 发送空数组移除该 LoRA 的条目。
 export async function saveCustomTriggers(name, words) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/custom_triggers"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, words }),
-        });
-        const j = await r.json();
-        // 面板从缓存 info 读自定义词，陈旧缓存会在下次打开时撤销保存。
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    // 面板从缓存 info 读自定义词，陈旧缓存会在下次打开时撤销保存。
+    return _post("/api/sfnodes/lora/custom_triggers", { name, words }, { name });
 }
 
 // 保存这个 LoRA 的全局默认勾选（新建行默认值，工作流覆盖它）。
 // 空数组清除默认。
 export async function saveCustomSelected(name, selected) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/custom_selected"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, selected }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/custom_selected", { name, selected }, { name });
 }
 
 // 删除保存的 Civitai 侧车（<base>.civitai.info），info 回到文件自己的词。
 // 调用方随后应 invalidateInfo(name)。
 export async function deleteCivitai(name) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai_delete"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-        });
-        return await r.json();
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/civitai_delete", { name }, { invalidate: false });
 }
 
 // 保存这个 LoRA 文件的用户自定义描述（覆盖 Civitai/文件的说明）。与自定义
 // 词同存储（ComfyUI user 目录）。空字符串清除它，回到 Civitai/文件原文。
 export async function saveCustomDescription(name, description) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/custom_description"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, description }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/custom_description", { name, description }, { name });
 }
 
 // ── 用户自己的预览图 ───────────────────────────────────────────────────────
@@ -263,85 +230,30 @@ export async function saveCustomDescription(name, description) {
 /** 保存一张图作为该 LoRA 的预览。`dataUrl` 是面板降采样后的 jpeg（服务端
  *  仍查大小与 magic bytes）。 */
 export async function saveLoraPreview(name, dataUrl) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/preview"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, dataUrl }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/preview", { name, dataUrl }, { name });
 }
 
 /** 移除它，自动图回来。 */
 export async function deleteLoraPreview(name) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/preview_delete"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/preview_delete", { name }, { name });
 }
 
 /** 把侧车里的 Civitai 缩略图下载并覆盖保存为本地预览。两种用途：
  *  1) 用户确认覆盖自己的预览图后（查询时因已有自定义预览被跳过保存）；
  *  2) 文件移动后封面 hash 失配的静默恢复（无自定义预览时）。 */
 export async function saveCivitaiThumb(name) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/civitai_thumb_save"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/civitai_thumb_save", { name }, { name });
 }
 
 /** 文件被移动/改名后，把旧路径键下的自定义数据（词/描述/预览图）迁移到
  *  当前 LoRA 名。`oldKey` 来自孤儿检测结果（info.orphan_key）。 */
 export async function migrateLoraData(name, oldKey) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/migrate"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, old_key: oldKey || "" }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/migrate", { name, old_key: oldKey || "" }, { name });
 }
 
 /** 旧键有数据且新键已有数据时，把旧数据合并到新键（词并集、描述拼接）。 */
 export async function mergeLoraData(name, oldKey) {
-    try {
-        const r = await fetch(sfApiUrl("/api/sfnodes/lora/merge"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, old_key: oldKey || "" }),
-        });
-        const j = await r.json();
-        if (j?.ok) { invalidateInfo(name); broadcastDataChanged(name); }
-        return j;
-    } catch {
-        return { ok: false, message: "Could not reach the server." };
-    }
+    return _post("/api/sfnodes/lora/merge", { name, old_key: oldKey || "" }, { name });
 }
 
 // ── 跨节点缓存失效（2026-08 统一存储）──────────────────────────────────────

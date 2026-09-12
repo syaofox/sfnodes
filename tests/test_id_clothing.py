@@ -64,6 +64,7 @@ def _load(full, path):
 
 
 pure = _load("sfnodes.sf_utils.id_clothing", os.path.join(root, "sf_utils", "id_clothing.py"))
+_load("sfnodes.sf_utils.disk_state", os.path.join(root, "sf_utils", "disk_state.py"))
 styles = _load("sfnodes.nodes.text.styles_selector", os.path.join(root, "nodes", "text", "styles_selector.py"))
 mod = _load("sfnodes.nodes.text.id_clothing", os.path.join(root, "nodes", "text", "id_clothing.py"))
 

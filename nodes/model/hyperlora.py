@@ -3,12 +3,9 @@ import os
 import folder_paths
 from PIL import Image
 from typing import Dict, Iterable, Tuple
-import torch
-import numpy as np
-from typing import List
 
 import comfy.utils
-from ...sf_utils.image_convert import images2tensor
+from ...sf_utils.image_convert import images2tensor, tensor2images
 from ...sf_utils.disk_state import sanitize_filename
 from safetensors.torch import load_file, save_file
 from ...sf_utils.logger import get_logger
@@ -30,15 +27,6 @@ def image_field(name: str = "image") -> Tuple[str, Tuple]:
 
 def custom_field(name: str = "custom", type_name: str = "CUSTOM") -> Tuple[str, Tuple]:
     return name, (type_name,)
-
-
-def tensor2images(tensor: torch.Tensor) -> List[Image.Image]:
-    images = []
-    for i in range(tensor.shape[0]):
-        image = tensor[i].cpu().numpy()
-        image = (image.clip(0.0, 1.0) * 255.0).astype(np.uint8)
-        images.append(Image.fromarray(image))
-    return images
 
 
 def inputs_def(required: Iterable = [], optional: Iterable = []) -> Dict[str, Dict]:

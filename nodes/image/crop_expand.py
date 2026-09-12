@@ -16,14 +16,13 @@
 纯函数 _parse_state / _clamp_crop / _compose_expand 无 torch 依赖，可裸测。
 """
 
-import json
 import os
 
 import numpy as np
 import torch
 from PIL import Image
 
-from ...sf_utils.common import _parse_fill_color
+from ...sf_utils.common import _parse_fill_color, parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
 from .crop import _safe_join
 
 _CATEGORY = "sfnodes/image"
@@ -31,19 +30,6 @@ _CATEGORY = "sfnodes/image"
 # 与原版 ycImageCrop 的输入域一致
 _XY_LIMIT = 4096
 _DIM_MAX = 8192
-
-
-def _parse_state(raw):
-    """Parse the hidden SFCropExpandJson STRING into a dict ({} on failure)."""
-    if isinstance(raw, dict):
-        return raw
-    if not isinstance(raw, str) or not raw.strip():
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def _clamp_int(v, lo, hi, default=0):

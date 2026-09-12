@@ -354,3 +354,27 @@
 - 编辑器测试开闭成对（`createTextEditor` 起 16ms 坐标跟随定时器，`removeTextEditor`/finish 统一清，否则挂起进程）。
 - 测试 stub 坑（测试 bug、产品代码无辜）：dblclick 假事件必须包成 `{target,...}` 真结构（中继读 `e.target`）。
 - 残留风险（本机不可验，需真机确认）：Vue 下前端独占类型能否经 palette/菜单正常添加、workflow 重载是否保留（见 §1 入口与序列化说明）；验证步骤：画布右键 Add SF Note → 双击出工具条 → 改字号保存 → 存工作流重载对文本。
+
+---
+
+## 57. 纯函数单源收敛与测试桩同步（2026-09）
+
+> 背景：全仓扫描出的逐字重复纯函数（`tensor2images`/`_json_safe`/`_decode_image`/`_sf_user_dir`/`_valid_name`/隐藏状态解析/LoRA stem/hex 颜色/`canvasBackingScale`/`escapeHTML`/POST 样板）收敛到 `sf_utils/common.py`、`sf_utils/disk_state.py`、`sf_common.js` 与文件内 `_post`。零行为差是硬要求：每个替换点先逐行对照再删副本。
+
+### 1. 收敛手法（调用点零改动优先）
+
+- import 别名保持本地名：`from ...sf_utils.common import json_safe as _json_safe`（pause_image/pause_mask/preview_routes/pause_latent）、`parse_json_dict as _parse_state`（brush_mask/crop_expand）、`decode_image as _decode_image`（preview_routes）、`sf_user_dir as _sf_user_dir`（5 处）、`valid_name as _valid_name`（krea2）、`lora_stem`（三 LoRA 加载器，去掉变无用的 `import os`）。已有 `_parse_fill_color`/`_safe_join` 同款先例。
+- 语义差必须参数化而非强合：`_valid_name` 两处差长度上限 → `valid_name(name, max_len=None)`（text_presets 传 200）；`load_image_resize._parse_state` 多一行 malformed 日志 → 保留校验包装，合并逻辑委托 `resize_engine.parse_resize_state`（精确等价：空/坏 JSON/非 dict/未知键四路行为不变，`tests/test_load_image_resize.py` 原三项断言全过）。
+- 前端：`sf_outpaint.js` 删本地 `canvasBackingScale` 改 import（`sf_common.js` 注释早已点名"×2 复制是 bug 温床"）；`sf_prompt_tags.js` 删本地 `escapeHTML` 改 `escapeHtml as escapeHTML`（新版转义引号，对属性上下文更安全）；`sf_lora_stack_api.js` 抽文件内 `_post`（照抄 `sf_dmodel_api.js`，成功侧 `invalidateInfo+broadcast`，`deleteCivitai`/`setCivitaiAccount` 用 `{ invalidate: false }` 保原语义）。
+
+### 2. 测试桩必须同步（本次真坑）
+
+- 被测模块新增相对导入时，三种测试桩反应不同：真实路径桩（`test_load_image_resize.py` 先例）自动解析，无需改；`__path__ = []` 桩（character/id_clothing 先例）必须预加载新依赖子模块（`_load("sfnodes.sf_utils.disk_state", ...)`）；裸 spec 无桩（pause_* / styles_selector）直接炸（`attempted relative import`/`No module named`），补真实路径桩。
+- `sf_utils/__init__.py` 为空，真实路径桩执行它无重依赖，安全。
+- 新增 `tests/test_common_pure.py` 锁定新纯函数（`json_safe`/`parse_json_dict`/`lora_stem`/`valid_name`/`_parse_fill_color`/`sf_user_dir`），纳入后端回归循环。
+
+### 3. 否决项（查到但不动）
+
+- `sf_load_image_resize.js` 的 `openSimpleColorPicker`：该文件零 import、刻意不依赖 app.js 可单测，移入 `sf_common` 会破坏设计。
+- 路径包含性 7 实现：`commonpath` vs `startswith`、跨盘回退、`exists` 语义各异且各有测试锁定，不盲合。
+- 纯模块边界（`*_lib.js` 不得 import `sf_common`）、数值取整三契约、ReDoS 双端镜像：故意不共享（见 §26 与 AGENTS）。

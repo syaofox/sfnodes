@@ -31,25 +31,13 @@ import torch
 from PIL import Image
 
 from ...sf_utils.brush_mask import parse_state_strokes
+from ...sf_utils.common import parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
 from .crop import _safe_join
 from . import brush_mask_sam  # noqa: F401  # 副作用注册 /api/sfnodes/brush_mask/* 路由
 
 _CATEGORY = "sfnodes/image"
 
 _HIDDEN_INPUT = "SFBrushMaskJson"
-
-
-def _parse_state(raw):
-    """Parse the hidden SFBrushMaskJson STRING into a dict ({} on failure)."""
-    if isinstance(raw, dict):
-        return raw
-    if not isinstance(raw, str) or not raw.strip():
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def _lean_key(meta):

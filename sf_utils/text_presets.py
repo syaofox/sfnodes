@@ -20,6 +20,8 @@ import threading
 from aiohttp import web
 
 from .logger import get_logger
+from .common import valid_name
+from .disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 logger = get_logger(__name__)
 
@@ -32,25 +34,6 @@ _cache = {"sig": None, "data": []}
 
 _NAME_MAX_LEN = 200
 _TEXT_MAX_LEN = 20000
-
-
-def _sf_user_dir():
-    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录（krea2_presets 同款）。"""
-    base = None
-    try:
-        import folder_paths
-
-        base = folder_paths.get_user_directory()
-    except Exception:
-        base = None
-    if not base:
-        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user")
-    d = os.path.join(base, "sfnodes")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except Exception:
-        pass
-    return d
 
 
 def _store_path():
@@ -126,16 +109,7 @@ def find_text(name):
 
 
 def _valid_name(name) -> bool:
-    if not isinstance(name, str):
-        return False
-    name = name.strip()
-    if not name or len(name) > _NAME_MAX_LEN:
-        return False
-    if "/" in name or "\\" in name:
-        return False
-    if any(ord(c) < 32 for c in name):
-        return False
-    return True
+    return valid_name(name, max_len=_NAME_MAX_LEN)
 
 
 def _valid_text(text) -> bool:

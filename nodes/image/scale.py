@@ -29,6 +29,7 @@ from ...sf_utils.resize_engine import (
     make_even,
     total_pixels_to_wh,
 )
+from ...sf_utils.common import _parse_fill_color  # 填充色解析（单源，见 common）
 
 
 class GetImageSize:
@@ -825,13 +826,7 @@ class ImageResizePlus:
 
             if method == "pad":
                 if pad_left > 0 or pad_right > 0 or pad_top > 0 or pad_bottom > 0:
-                    if isinstance(pad_color, str):
-                        hex_color = pad_color.lstrip("#")
-                        pad_color_r = int(hex_color[0:2], 16)
-                        pad_color_g = int(hex_color[2:4], 16)
-                        pad_color_b = int(hex_color[4:6], 16)
-                    else:
-                        pad_color_r, pad_color_g, pad_color_b = pad_color
+                    pad_color_r, pad_color_g, pad_color_b = _parse_fill_color(pad_color)
 
                     if (pad_color_r, pad_color_g, pad_color_b) == (0, 0, 0):
                         outputs = F.pad(

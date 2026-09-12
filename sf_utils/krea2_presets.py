@@ -20,6 +20,8 @@ import threading
 from aiohttp import web
 
 from .logger import get_logger
+from .common import valid_name as _valid_name  # 预设名校验（单源，见 common）
+from .disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 logger = get_logger(__name__)
 
@@ -36,26 +38,6 @@ _protected = {}
 
 # 轻量缓存：{kind: ((mtime, size), store)}，文件变化自动重载（prompt_preset 范式）。
 _store_cache = {}
-
-
-def _sf_user_dir():
-    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录（styles_selector 同款本地镜像，
-    避免拉入 lora_routes 的重依赖）。"""
-    base = None
-    try:
-        import folder_paths
-
-        base = folder_paths.get_user_directory()
-    except Exception:
-        base = None
-    if not base:
-        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "user")
-    d = os.path.join(base, "sfnodes")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except Exception:
-        pass
-    return d
 
 
 def _store_path(kind):
@@ -113,16 +95,6 @@ def save_store(kind, store):
     except OSError:
         pass
     logger.info("Saved krea2 presets: %s (%s)", path, kind)
-
-
-def _valid_name(name) -> bool:
-    if not isinstance(name, str) or not name.strip():
-        return False
-    if "/" in name or "\\" in name:
-        return False
-    if any(ord(c) < 32 for c in name):
-        return False
-    return True
 
 
 def _valid_text(text) -> bool:

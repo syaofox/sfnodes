@@ -21,19 +21,9 @@ import numpy as np
 import torch
 from PIL import Image
 
+from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
+
 _CATEGORY = "sfnodes/mask"
-
-
-# _json_safe 清洗 NaN/Inf 使 ui payload 保持合法 JSON（同 pause_image.py）
-def _json_safe(obj):
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    if isinstance(obj, float):
-        if obj != obj or obj in (float("inf"), float("-inf")):
-            return str(obj)
-    return obj
 
 
 def _mask_to_pil(frame):

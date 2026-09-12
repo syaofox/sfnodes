@@ -25,7 +25,8 @@ import numpy as np
 import safetensors.torch as sf
 import torch
 
-from .pause_image import _json_safe, _tensor_to_pil
+from .pause_image import _tensor_to_pil
+from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
 
 _CATEGORY = "sfnodes/image"
 

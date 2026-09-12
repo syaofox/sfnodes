@@ -21,7 +21,7 @@ sfnodes/
 │   ├── workflow_routes.py # 工作流面板后端路由（/api/sfnodes/workflows/*）
 │   └── logic.py         # 逻辑：索引切换、Any Switch（SFAnySwitch 复刻 rgthree——灵活 optional schema 任意输入名放行，输出第一个非 None 的 any_*，见 patterns.md §43）、Any 打包/解包、遮罩判空、类型转换（SFConvertAnything 复刻 easy convertAnything，输出槽前端改型见 patterns.md §41）、循环（For/While Loop）
 ├── sf_utils/            # 共享工具库
-│   ├── common.py        # AnyType 通用类型 + _parse_fill_color 填充色解析（hex→(r,g,b)，SFMaskFill 与 SFImageCropExpand 共用，masks.py 同源导入）
+│   ├── common.py        # AnyType 通用类型 + _parse_fill_color 填充色解析（hex→(r,g,b)，SFMaskFill 与 SFImageCropExpand 共用，masks.py 同源导入）+ 跨模块收敛纯函数：json_safe（NaN/Inf 清洗，pause_image/pause_mask/preview_routes 共用）、parse_json_dict（隐藏状态解析，brush_mask/crop_expand 共用）、lora_stem（去路径去扩展，三 LoRA 加载器共用）、valid_name（预设名校验，krea2/text_presets 共用，max_len 参数化）
 │   ├── image_convert.py # tensor/pil/numpy/mask 互转
 │   ├── mask_utils.py    # 遮罩工具
 │   ├── inpaint_helpers.py # 局部修复辅助（裁剪/拼接/缩放，无 ComfyUI 依赖）
@@ -59,7 +59,7 @@ sfnodes/
 │   ├── scene_detect.py  # 镜头切分纯逻辑（缩略灰度直方图/像素差 + 黑白场连续段 + 溶解滑窗累积，无 ComfyUI 依赖，SFImageSceneSplit 用）
 │   ├── brush_mask.py    # 画笔遮罩纯逻辑（旧串三格式解析 parse_strokes/state 结构化解析 parse_state_strokes/往返 build_brush_data/向量化栅格化 rasterize_strokes brush 置1 erase 置0，仅 numpy，SFImageBrushMask 用，见 experience/nodes-image.md §45）
 │   ├── qwen_edit.py     # Qwen Edit 编码纯逻辑（复刻 EditUtils EditTextEncode 引擎 qwen 路径：longest_edge 缩放/pad 画布/center/disabled 三 crop + 主图 mask→noise_mask/pad_info + VL 面积缩放 + conditioning/latent/custom_output 组装，SFQwenEditTextEncode 用；依赖 torch/comfy.utils）
-│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化）
+│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化；sf_user_dir 用户数据统一目录，krea2/text_presets/lora_routes/character/styles_selector 共用）
 │   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志

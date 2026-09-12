@@ -5,6 +5,8 @@ import urllib.parse
 
 from aiohttp import web
 
+from ...sf_utils.disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
+
 _CATEGORY = "sfnodes/text"
 
 # Fooocus 官方样式样例图（fooocus_styles 库无本地 samples 缩略图时的远程兜底）
@@ -21,25 +23,6 @@ def _package_root():
 def _builtin_styles_dir():
     """内置样式库目录（随包分发的只读数据，如 data/styles/fooocus_styles.json）。"""
     return os.path.join(_package_root(), "data", "styles")
-
-
-def _sf_user_dir():
-    """<ComfyUI user dir>/sfnodes —— 本项目用户数据统一目录（与 lora_routes 同约定）。"""
-    base = None
-    try:
-        import folder_paths
-
-        base = folder_paths.get_user_directory()
-    except Exception:
-        base = None
-    if not base:
-        base = os.path.join(_package_root(), "user")
-    d = os.path.join(base, "sfnodes")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except Exception:
-        pass
-    return d
 
 
 def _user_styles_dir():

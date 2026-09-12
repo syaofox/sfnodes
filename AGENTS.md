@@ -135,6 +135,7 @@ class SFMyNode:
 - **Civitai 页面抓取**（lora §21 / patterns §27）：页面是 Next.js SSR，数据在 `__NEXT_DATA__` 按 queryKey 定位勿碰 DOM；**TLS 指纹被 Cloudflare 拦截——curl_cffi impersonate="chrome"，Chrome UA 的 aiohttp 也 403**；描述统一 _html_to_markdown 幂等保护（无 `<` 输入只轻清洗原样放行）。
 - **值通道模式**（lora §25/§28）：hidden STRING 真源随 workflow 保存 + DOM widget 纯交互不承担值传输（regional_lora/styles_selector 同款）；加载期 isGraphLoading 门控点击防覆盖刚恢复的选择。
 - **复刻去重与磁盘链路**（patterns §17）：磁盘源执行必须输出源帧 ui_payload 否则前端预览停留旧图；编辑器 Reset≠Clear 语义一一对应。
+- **纯函数单源收敛**（patterns §57）：逐字重复纯函数收敛到 common/disk_state/sf_common（import 别名保调用点零改动，语义差走参数化）；被测模块新增相对导入时裸 spec 测试桩必须同步（真实路径桩 test_load_image_resize 先例，或预加载子模块 character 先例）。
 - **模型下载统一**（patterns §27）：HF resolve URL → hf_hub_download 缓存+copy2 到约定路径；不用 local_dir（子目录破坏平铺拼接）；HF 失败不回退 requests。
 - **输入框键盘/滚轮**（patterns §27）：keydown 必须放行 ctrl/meta/alt 组合键（否则 Ctrl+S 漏成浏览器保存）；DOM widget 输入框不在 Vue wheel 转发路径 → installWheelZoomPassthrough。
 - **静态检查与版本陷阱**（patterns §3/§27）：ast.unparse 输出单引号、literal_eval 遇变量引用抛错——先怀疑检查脚本再怀疑代码；ast.Constant.n 已移除一律写 node.value；__pycache__ 的 cpython-3xx 是本机解释器版本，不代表运行容器。

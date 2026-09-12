@@ -90,6 +90,7 @@ def _load(full, path):
 
 _load("sfnodes.sf_utils.id_clothing", os.path.join(root, "sf_utils", "id_clothing.py"))
 pure = _load("sfnodes.sf_utils.characters", os.path.join(root, "sf_utils", "characters.py"))
+_load("sfnodes.sf_utils.disk_state", os.path.join(root, "sf_utils", "disk_state.py"))
 _load("sfnodes.nodes.text.styles_selector", os.path.join(root, "nodes", "text", "styles_selector.py"))
 _load("sfnodes.nodes.text.id_clothing", os.path.join(root, "nodes", "text", "id_clothing.py"))
 mod = _load("sfnodes.nodes.text.character", os.path.join(root, "nodes", "text", "character.py"))

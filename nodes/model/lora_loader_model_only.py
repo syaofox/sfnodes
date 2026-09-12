@@ -1,9 +1,8 @@
-import os
-
 import folder_paths
 
 from nodes import LoraLoader
 
+from ...sf_utils.common import lora_stem
 from ...sf_utils.lora_notes import get_merged_metadata
 
 _CATEGORY = "sfnodes/model"
@@ -31,7 +30,7 @@ class LoraLoaderModelOnly(LoraLoader):
 
     def load_lora_model_only(self, model, lora_name, strength_model):
         meta = get_merged_metadata(lora_name)
-        stem = os.path.splitext(os.path.basename(lora_name))[0]
+        stem = lora_stem(lora_name)
         return (
             super().load_lora(model, None, lora_name, strength_model, 0)[0],
             meta.get("trigger_words", ""),

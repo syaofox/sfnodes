@@ -19,7 +19,7 @@ from PIL import Image, ImageOps, ImageSequence
 import folder_paths
 import node_helpers
 
-from ...sf_utils.resize_engine import _resize_frame, RESIZE_DEFAULTS
+from ...sf_utils.resize_engine import _resize_frame, RESIZE_DEFAULTS, parse_resize_state
 
 _CATEGORY = "sfnodes/image"
 
@@ -34,16 +34,14 @@ def _parse_state(state_json: str) -> dict:
     """Parse the hidden SFLoadImageResizeState JSON. Falls back to
     DEFAULT_STATE on any parse error (state may be missing or malformed in
     subgraph / partial-prompt cases)."""
-    if not state_json:
-        return dict(DEFAULT_STATE)
-    try:
-        parsed = json.loads(state_json)
-        merged = dict(DEFAULT_STATE)
-        merged.update({k: v for k, v in parsed.items() if k in DEFAULT_STATE})
-        return merged
-    except Exception:
-        print("[SFLoadImageResize] Malformed state JSON, using defaults")
-        return dict(DEFAULT_STATE)
+    if state_json:
+        try:
+            parsed = json.loads(state_json)
+            if not isinstance(parsed, dict):
+                raise ValueError("state is not a dict")
+        except Exception:
+            print("[SFLoadImageResize] Malformed state JSON, using defaults")
+    return parse_resize_state(state_json, DEFAULT_STATE)
 
 
 def _parse_orig_name(state_json: str) -> str:

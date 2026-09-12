@@ -53,7 +53,7 @@ import {
     closeLibraryEditorFor,
 } from "./sf_prompt_tags_editor.js";
 import { pinyinMatch } from "./sf_prompt_tags_pinyin.js";
-import { injectCSSOnce, installWheelZoomPassthrough, sfToast } from "./sf_common.js";
+import { escapeHtml as escapeHTML, injectCSSOnce, installWheelZoomPassthrough, sfToast } from "./sf_common.js";
 
 const STATE_KEY = "promptState";
 const DEFAULT_STATE = { text: "", order: "mine", sep: ", ", showExpanded: true };
@@ -249,9 +249,6 @@ function flashBtnText(btn, label) {
         btn.classList.remove("is-flashing");
         btn._sfFlashTimer = null;
     }, 700);
-}
-function escapeHTML(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function catColor(name) {
     // 两个桶不是真实分类——中性灰

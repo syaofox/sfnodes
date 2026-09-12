@@ -40,6 +40,15 @@ folder_paths = types.ModuleType("folder_paths")
 folder_paths.get_temp_directory = lambda: os.path.join(tmp_root, "temp")
 sys.modules["folder_paths"] = folder_paths
 
+# 注册 sfnodes 包结构，使节点的相对导入（from ...sf_utils.common import）
+# 可解析（test_load_image_resize.py 同款）。
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.mask", "nodes/mask"),
+                   ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules[_pkg] = _m
+
 spec = importlib.util.spec_from_file_location(
     "sfnodes.nodes.mask.pause_mask",
     os.path.join(root, "nodes", "mask", "pause_mask.py"),

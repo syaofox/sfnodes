@@ -16,8 +16,10 @@ import os
 import re
 
 import folder_paths
-from PIL import Image
 from PIL.PngImagePlugin import PngInfo
+
+from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
+from ...sf_utils.disk_state import decode_image as _decode_image  # dataURL 解码（单源，见 disk_state）
 
 
 def _metadata_disabled():
@@ -32,18 +34,6 @@ def _metadata_disabled():
         return bool(getattr(_comfy_cli_args, "disable_metadata", False))
     except Exception:
         return False
-
-
-def _json_safe(obj):
-    """清洗 NaN/Inf 使嵌入 JSON 合法（拖回 ComfyUI 时 JSON.parse 不炸）。"""
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    if isinstance(obj, float):
-        if obj != obj or obj in (float("inf"), float("-inf")):
-            return str(obj)
-    return obj
 
 
 _DISALLOWED_CHAR_RE = re.compile(r'[<>:"|?*\x00-\x1f\x7f]')
@@ -103,19 +93,6 @@ def _safe_prefix(raw):
     if len(result) > _PREFIX_OUTPUT_MAX:
         result = result[:_PREFIX_OUTPUT_MAX].rstrip("/_-")
     return result
-
-
-def _decode_image(image_b64):
-    """data URI base64 PNG -> PIL.Image，失败返回 None。"""
-    if not isinstance(image_b64, str) or not image_b64:
-        return None
-    try:
-        if "," in image_b64:
-            image_b64 = image_b64.split(",", 1)[1]
-        raw = base64.b64decode(image_b64)
-        return Image.open(io.BytesIO(raw))
-    except Exception:
-        return None
 
 
 def _build_pnginfo(prompt=None, workflow=None, parameters=None):

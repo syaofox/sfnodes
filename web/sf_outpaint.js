@@ -12,7 +12,7 @@
 // 纯数学镜像在 sf_outpaint_core.js（可 .mjs 直测），本文件只做 UI。
 
 import { app } from "/scripts/app.js";
-import { applyAdaptiveCanvasOnly, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, canvasBackingScale, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import { injectResizePanelCSS, makeNumericInput } from "./sf_load_image_resize.js";
 import { DEFAULT_RATIOS, DEFAULT_STATE, LIMITS, MAX_PAD, STATE_PROP, anchorAxis, finalSize, padsForState, readState, remapAnchor, sidePad, writeState } from "./sf_outpaint_core.js";;;
@@ -36,18 +36,6 @@ const FLOOR_CAP = 460;
 
 // 工作流加载守卫（wrap app.loadGraphData + 300ms 尾窗）由 sf_common.js
 // 顶层统一安装（幂等单例），此处不再重复包装。
-
-// 画布 backing store 缩放：dpr * 图缩放（Vue 节点体被 CSS transform 缩放，
-// 只按布局像素画会在大图缩放时发糊），长边封顶防深缩放分配巨型画布。
-const CANVAS_BACKING_CAP = 6000;
-function canvasBackingScale(cssW, cssH) {
-  const dpr = window.devicePixelRatio || 1;
-  const zoom = Math.max(1, app.canvas?.ds?.scale || 1);
-  let s = dpr * zoom;
-  const longCss = Math.max(cssW || 0, cssH || 0);
-  if (longCss > 0 && longCss * s > CANVAS_BACKING_CAP) s = CANVAS_BACKING_CAP / longCss;
-  return s;
-}
 
 // 图缩放变化时逐帧重绘（ResizeObserver 对图缩放不触发：布局尺寸没变，只有
 // CSS transform 变了）。每帧只 diff 缩放，无 DOM 读。

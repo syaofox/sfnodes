@@ -20,22 +20,10 @@ import numpy as np
 import torch
 from PIL import Image
 
+from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
+# 本节点已无 IS_CHANGED，但同图的 PreviewImage / XY Plot 仍可能贡献 NaN，清洗保留。
+
 _CATEGORY = "sfnodes/image"
-
-
-# _json_safe 清洗 NaN/Inf 使 ui payload 保持合法 JSON。Save 按钮把整个 prompt
-# 嵌入快照 PNG，其中任何节点的 IS_CHANGED 返回 NaN 都会贡献 `is_changed: [NaN]`，
-# 不是合法 JSON——前端 JSON.parse executed 消息会抛错并丢弃整个 payload。
-# 本节点已无 IS_CHANGED，但同图的 PreviewImage / XY Plot 仍可能有，清洗保留。
-def _json_safe(obj):
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    if isinstance(obj, float):
-        if obj != obj or obj in (float("inf"), float("-inf")):
-            return str(obj)
-    return obj
 
 
 def _tensor_to_pil(frame):

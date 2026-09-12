@@ -68,6 +68,15 @@ sys.modules["safetensors"] = st
 sys.modules["safetensors.torch"] = stt
 
 # ── 加载节点模块（pause_latent 相对导入 .pause_image，先加载它）──
+# 注册 sfnodes 包结构，使 ...sf_utils 相对导入可解析（test_load_image_resize.py 同款）。
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.image", "nodes/image"),
+                   ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules[_pkg] = _m
+
+
 def load_mod(name, rel_path):
     spec = importlib.util.spec_from_file_location(name, os.path.join(root, rel_path))
     mod = importlib.util.module_from_spec(spec)

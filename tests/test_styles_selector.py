@@ -48,6 +48,15 @@ fake_server = types.ModuleType("server")
 fake_server.PromptServer = types.SimpleNamespace(instance=types.SimpleNamespace(routes=_FakeRoutes()))
 sys.modules["server"] = fake_server
 
+# 注册 sfnodes 包结构，使节点的相对导入（from ...sf_utils.disk_state import）
+# 可解析（test_load_image_resize.py 同款）。
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.text", "nodes/text"),
+                   ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules[_pkg] = _m
+
 spec = importlib.util.spec_from_file_location(
     "sfnodes.nodes.text.styles_selector",
     os.path.join(root, "nodes", "text", "styles_selector.py"),
