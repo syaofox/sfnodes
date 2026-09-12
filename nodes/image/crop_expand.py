@@ -23,6 +23,7 @@ import torch
 from PIL import Image
 
 from ...sf_utils.common import _parse_fill_color, parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
+from ...sf_utils import crop_expand_presets as _crop_expand_presets  # noqa: F401 — import 时注册自定义比例预设路由
 from .crop import _safe_join
 
 _CATEGORY = "sfnodes/image"

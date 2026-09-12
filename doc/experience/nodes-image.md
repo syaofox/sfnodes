@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -522,3 +522,27 @@
 - **动因**：`SFImageBatchIndex` 只能取单张（`num_frames=1` 特例），视频帧/遮罩序列需要 `start_index+num_frames` 任意区间；KJ 原版在 `ComfyUI-KJNodes/nodes/image_nodes.py:GetImageRangeFromBatch`，语义是 `images[start:end]` / `masks[start:end]` 双路可选、`start_index=-1` 取尾部 N 帧、尾部超出截断。
 - **做法**：新建 `nodes/image/batch_range.py::SFImageBatchRange`（不动 `batch_index.py`，最小改动）——required `start_index(INT,min -1)` + `num_frames(INT,min 1)`，optional 双路 `images(IMAGE)/masks(MASK)`，`RETURN_TYPES=(IMAGE,MASK)`；区间解析抽模块级纯函数 `_resolve_range(count,start,num)`（`-1→max(0,n-num)`、`end=min(start+num,n)`、start 越界抛中文错），双路独立调用；IMAGE 要求 ndim==4、MASK 要求 ndim∈(2,3)，双空抛错。无前端 JS（无动态槽位，`check_web_imports.py` MODS 不加行）。后续 `SFImageBatchIndex` 亦补 `-1` 取尾帧（`index` min 0→-1，`-1→B-1`，其余负值抛错，与本节点一致）。
 - **测试**：`tests/test_batch_range.py`（FakeTensor numpy 代理切片语义，零 torch 依赖）：结构 + 双字典一致 + `_resolve_range` 六用例（正常/截断/-1/-1 不足/越界/负值）+ execute 双路切片/单路透传/-1/截断/双空/ndim 非法。
+
+---
+
+## 60. SFImageCropExpand 自定义比例预设持久化（2026-09）
+
+> 背景：§37 的 Custom 弹窗只能手输宽高比、不改不存。本次把它改造为**管理窗**：左侧列出全局保存的命名比例定义（单击选中回填字段/双击直接套用），右侧名称+宽/高+Save/Delete，定义持久化到 `user/sfnodes/` 跨工作流共享。
+
+### 1. 后端（零新增依赖）
+
+- 新建 `sf_utils/crop_expand_presets.py`，照 `text_presets.py` 范式：存储 `user/sfnodes/crop_expand_presets.json` 结构 `{"presets": [{"name", "w", "h"}]}`（数组保序）；路由 `GET/POST/DELETE /api/sfnodes/crop_expand_presets`（POST 按名 upsert 不追加），`import` 时注册；复用 `disk_state.atomic_write_json/mtime_size_sig/sf_user_dir` + `common.valid_name(max_len=200)`；`asyncio.Lock` 互斥读改写 + mtime+size 缓存。
+- 校验：`w/h` 必须为正有限数（**bool 显式排除**——`isinstance(True, int)` 为真会混入）且 ≤ 10000；`_normalize_presets` 接受 dict/裸列表、重名保留首个。
+- 路由触发注册：`nodes/image/crop_expand.py` 顶部 `from ...sf_utils import crop_expand_presets`（text_preset.py 同款 import 副作用注册）。
+- 为何不复用 text_presets：项目按数据域各持一模块（lora/krea2/text_presets），仅下沉低层；跨域复用会污染命名空间且 `{name,text}` 与 `{name,w,h}` 语义不同。
+
+### 2. 前端
+
+- `sf_crop_expand_lib.js` 新增纯函数 `normalizeRatioPresets(raw)`（接受裸数组/`{presets}`；name 非空、w/h 正有限数≤10000、重名保序保首个）——与后端同口径前端兜底，可 `.mjs` 直测。
+- `sf_crop_expand.js`：新增 API 束 `fetchRatioPresets/apiSaveRatioPreset/apiDeleteRatioPreset`（走 `sfApiUrl`，后端不可用返回 null → 列表显示 "Preset store unavailable"，**手输照常可用**）；`openCustomRatioDialog` 改造为左右两栏管理窗，保留原 id/Esc·滚轮三关闭（`sf_popup.attachPopupDismiss`）/Enter 应用·放行 ctrl·meta·alt 组合键；单击列表项=选中回填、双击=套用；Save 后 `reload(name)` 重新拉取（后端为真源，不在前端维护本地镜像）；错误反馈统一走 `sfToast`。
+- 状态契约不变：套用仍写 `properties.sfCropExpandState`（`custom_w/custom_h/aspect_ratio:"custom"` + `applyRatioToRect`），随工作流保存；全局库只读用于选择，不随工作流走。
+
+### 3. 测试
+
+- `tests/test_crop_expand_presets.py`（mock aiohttp/server/folder_paths，仿 test_text_presets.py）：路由注册、空库、POST 全量校验（空名/路径分隔符/控制字符/超长名/非数/0/负/超上限/bool/缺字段）、落盘结构、同名覆盖不追加、DELETE 校验/删除、mtime 自动重载、非法 JSON 容错、归一化、`crop_expand.py` 导入行文本断言。
+- `tests/test_crop_expand_js.mjs` 追加 `normalizeRatioPresets` 解包/过滤/去重/非法用例。

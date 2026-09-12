@@ -17,7 +17,7 @@
 
 import { app } from "/scripts/app.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
+import { sfToast, sfApiUrl, buildSourceURL, getSfAccent, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
 import { attachPopupDismiss } from "./sf_popup.js";
 import { showImageBrowser } from "./image_browser.js";
 import {
@@ -35,6 +35,7 @@ import {
   roundRect,
   applyRatioToRect,
   isExtended,
+  normalizeRatioPresets,
 } from "./sf_crop_expand_lib.js";
 
 const CLASS = "SFImageCropExpand";
@@ -266,7 +267,60 @@ function pickFillColor(node) {
   input.click();
 }
 
-// ── Custom 比例弹窗（sf_popup 三关闭 + Enter 确认）────────────────────────
+// ── 自定义比例预设：全局库 user/sfnodes/crop_expand_presets.json（跨工作流）──
+//
+// 真源为全局库（经 /api/sfnodes/crop_expand_presets 读写）；点击已存定义即把
+// 该比例套用到本节点（写 properties 状态，随工作流保存）。后端不可用时列表
+// 降级为空、手输照常可用。
+
+const RATIO_PRESETS_API = "/api/sfnodes/crop_expand_presets";
+
+async function fetchRatioPresets() {
+  try {
+    const r = await fetch(sfApiUrl(RATIO_PRESETS_API), { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    return normalizeRatioPresets(j);
+  } catch (e) {
+    console.warn("[SF Crop Expand] 自定义比例预设库加载失败，手输仍可用:", e);
+    return null; // null = 后端不可用
+  }
+}
+
+async function apiSaveRatioPreset(name, w, h) {
+  try {
+    const r = await fetch(sfApiUrl(RATIO_PRESETS_API), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, w, h }),
+    });
+    return r.ok;
+  } catch (e) {
+    console.warn("[SF Crop Expand]", e);
+    return false;
+  }
+}
+
+async function apiDeleteRatioPreset(name) {
+  try {
+    const r = await fetch(sfApiUrl(`${RATIO_PRESETS_API}?name=${encodeURIComponent(name)}`), { method: "DELETE" });
+    return r.ok;
+  } catch (e) {
+    console.warn("[SF Crop Expand]", e);
+    return false;
+  }
+}
+
+// ── Custom 比例管理弹窗（左已存定义列表 + 右编辑器；sf_popup 三关闭）──────
+
+const _BTN = "padding:5px 12px;border:none;border-radius:3px;cursor:pointer;font-size:12px;";
+const _INPUT = "padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;";
+
+function markRatioFields(wInput, hInput, bad) {
+  const color = bad ? "#e74c3c" : "#555";
+  wInput.style.borderColor = color;
+  hInput.style.borderColor = color;
+}
 
 function openCustomRatioDialog(node) {
   if (document.getElementById("sf-crop-expand-ratio-overlay")) return;
@@ -279,25 +333,42 @@ function openCustomRatioDialog(node) {
   const dialog = document.createElement("div");
   dialog.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);" +
     "background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:12px 14px;" +
-    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:auto;";
+    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:460px;color:#ddd;font-size:13px;box-sizing:border-box;";
   dialog.innerHTML = `
-    <div style="color:#ddd;font-size:13px;margin-bottom:10px;font-weight:bold;">Custom Aspect Ratio</div>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-      <div>
-        <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Width</label>
-        <input type="number" id="sf-ce-ratio-w" value="${st0.custom_w ?? 1}" min="0.1" step="0.1"
-          style="width:100px;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+    <div style="font-weight:bold;margin-bottom:10px;">Custom Aspect Ratio</div>
+    <div style="display:flex;gap:12px;align-items:stretch;">
+      <div style="width:180px;display:flex;flex-direction:column;min-width:0;">
+        <label style="color:#aaa;font-size:10px;margin-bottom:3px;">Saved Definitions</label>
+        <div id="sf-ce-ratio-list" style="flex:1;min-height:150px;max-height:240px;overflow-y:auto;background:#1a1a1a;border:1px solid #555;border-radius:3px;padding:3px;"></div>
       </div>
-      <div style="color:#888;font-size:16px;margin-top:14px;">:</div>
-      <div>
-        <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Height</label>
-        <input type="number" id="sf-ce-ratio-h" value="${st0.custom_h ?? 1}" min="0.1" step="0.1"
-          style="width:100px;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;">
+        <div>
+          <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Name</label>
+          <input type="text" id="sf-ce-ratio-name" placeholder="definition name"
+            style="width:100%;${_INPUT}">
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;">
+          <div>
+            <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Width</label>
+            <input type="number" id="sf-ce-ratio-w" value="${st0.custom_w ?? 1}" min="0.1" step="0.1"
+              style="width:100px;${_INPUT}">
+          </div>
+          <div style="color:#888;font-size:16px;padding-bottom:6px;">:</div>
+          <div>
+            <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Height</label>
+            <input type="number" id="sf-ce-ratio-h" value="${st0.custom_h ?? 1}" min="0.1" step="0.1"
+              style="width:100px;${_INPUT}">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="sf-ce-ratio-save" style="${_BTN}background:#3a5f8a;color:#fff;">Save</button>
+          <button id="sf-ce-ratio-del" style="${_BTN}background:#5a2f2f;color:#f0b0b0;">Delete</button>
+        </div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="sf-ce-ratio-cancel" style="padding:5px 12px;background:#444;border:none;border-radius:3px;color:#ddd;cursor:pointer;font-size:12px;">Cancel</button>
-      <button id="sf-ce-ratio-ok" style="padding:5px 12px;background:#4a90e2;border:none;border-radius:3px;color:white;cursor:pointer;font-size:12px;">OK</button>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+      <button id="sf-ce-ratio-cancel" style="${_BTN}background:#444;color:#ddd;">Cancel</button>
+      <button id="sf-ce-ratio-ok" style="${_BTN}background:#4a90e2;color:white;">Apply</button>
     </div>`;
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
@@ -311,18 +382,27 @@ function openCustomRatioDialog(node) {
   // 三关闭（外部点击 / Esc / 滚轮）复用公共库
   attachPopupDismiss(overlay, { onClose: close });
 
+  const listEl = dialog.querySelector("#sf-ce-ratio-list");
+  const nameInput = dialog.querySelector("#sf-ce-ratio-name");
   const wInput = dialog.querySelector("#sf-ce-ratio-w");
   const hInput = dialog.querySelector("#sf-ce-ratio-h");
-  setTimeout(() => wInput.focus(), 100);
+  const saveBtn = dialog.querySelector("#sf-ce-ratio-save");
+  const delBtn = dialog.querySelector("#sf-ce-ratio-del");
 
-  const apply = () => {
+  let presets = [];
+  let selectedIndex = -1;
+  let routeOk = true;
+
+  const parseFields = () => {
     const w = parseFloat(wInput.value);
     const h = parseFloat(hInput.value);
-    if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) {
-      wInput.style.borderColor = "#e74c3c";
-      hInput.style.borderColor = "#e74c3c";
-      return;
-    }
+    const ok = !isNaN(w) && !isNaN(h) && w > 0 && h > 0;
+    markRatioFields(wInput, hInput, !ok);
+    return ok ? { w, h } : null;
+  };
+
+  // 套用当前字段比例（Apply / 双击列表项共用）
+  const applyRatio = (w, h) => {
     const st = setState(node, { custom_w: w, custom_h: h, aspect_ratio: "custom" });
     const rect = applyRatioToRect(
       { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, w / h);
@@ -331,10 +411,102 @@ function openCustomRatioDialog(node) {
     close();
   };
 
+  const apply = () => {
+    const v = parseFields();
+    if (!v) return;
+    applyRatio(v.w, v.h);
+  };
+
+  const renderList = () => {
+    listEl.replaceChildren();
+    if (presets.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "color:#888;font-size:11px;padding:8px 4px;text-align:center;";
+      empty.textContent = routeOk ? "No saved definitions" : "Preset store unavailable";
+      listEl.appendChild(empty);
+      return;
+    }
+    presets.forEach((p, idx) => {
+      const fmt = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
+      const item = document.createElement("div");
+      item.style.cssText = "padding:4px 6px;border-radius:3px;cursor:pointer;margin-bottom:2px;" +
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;" +
+        (idx === selectedIndex ? "background:#3a5f8a;" : "");
+      item.textContent = `${p.name}  (${fmt(p.w)}:${fmt(p.h)})`;
+      item.title = `${p.name} ${fmt(p.w)}:${fmt(p.h)}`;
+      item.onmouseenter = () => { if (idx !== selectedIndex) item.style.background = "#3a3a3a"; };
+      item.onmouseleave = () => { item.style.background = idx === selectedIndex ? "#3a5f8a" : ""; };
+      // 单击选中并回填字段；双击直接套用
+      item.onclick = () => {
+        selectedIndex = idx;
+        nameInput.value = p.name;
+        wInput.value = p.w;
+        hInput.value = p.h;
+        markRatioFields(wInput, hInput, false);
+        renderList();
+      };
+      item.ondblclick = () => applyRatio(p.w, p.h);
+      listEl.appendChild(item);
+    });
+  };
+
+  const reload = async (selectName) => {
+    const list = await fetchRatioPresets();
+    if (list === null) {
+      routeOk = false;
+      renderList();
+      return;
+    }
+    routeOk = true;
+    presets = list;
+    selectedIndex = selectName ? presets.findIndex((p) => p.name === selectName) : -1;
+    renderList();
+  };
+
+  const save = async () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.style.borderColor = "#e74c3c";
+      sfToast({ summary: "SF Crop Expand", detail: "请填写定义名称", severity: "warn", fallbackTag: "SF Crop Expand" });
+      return;
+    }
+    nameInput.style.borderColor = "#555";
+    const v = parseFields();
+    if (!v) {
+      sfToast({ summary: "SF Crop Expand", detail: "宽度/高度必须为正数", severity: "warn", fallbackTag: "SF Crop Expand" });
+      return;
+    }
+    if (!(await apiSaveRatioPreset(name, v.w, v.h))) {
+      sfToast({ summary: "SF Crop Expand", detail: "保存失败（后端路由不可用？重启 ComfyUI 后重试）", severity: "error", fallbackTag: "SF Crop Expand" });
+      return;
+    }
+    sfToast({ summary: "SF Crop Expand", detail: `已保存定义「${name}」`, fallbackTag: "SF Crop Expand" });
+    await reload(name);
+  };
+
+  const remove = async () => {
+    if (selectedIndex < 0 || selectedIndex >= presets.length) {
+      sfToast({ summary: "SF Crop Expand", detail: "请先在左侧选择要删除的定义", severity: "warn", fallbackTag: "SF Crop Expand" });
+      return;
+    }
+    const name = presets[selectedIndex].name;
+    if (!confirm(`删除定义「${name}」？`)) return;
+    if (!(await apiDeleteRatioPreset(name))) {
+      sfToast({ summary: "SF Crop Expand", detail: "删除失败（后端路由不可用？）", severity: "error", fallbackTag: "SF Crop Expand" });
+      return;
+    }
+    sfToast({ summary: "SF Crop Expand", detail: `已删除定义「${name}」`, fallbackTag: "SF Crop Expand" });
+    nameInput.value = "";
+    await reload();
+  };
+
   dialog.querySelector("#sf-ce-ratio-ok").onclick = apply;
   dialog.querySelector("#sf-ce-ratio-cancel").onclick = close;
-  // Enter 确认 / Esc 关闭；放行 ctrl/meta/alt 组合键（Ctrl+S 不能漏成浏览器行为）
-  for (const el of [wInput, hInput]) {
+  saveBtn.onclick = save;
+  delBtn.onclick = remove;
+
+  // Enter 应用 / Esc 关闭；放行 ctrl/meta/alt 组合键（Ctrl+S 不能漏成浏览器行为）
+  for (const el of [wInput, hInput, nameInput]) {
     el.onkeydown = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "Enter") apply();
@@ -343,8 +515,12 @@ function openCustomRatioDialog(node) {
     el.oninput = () => {
       wInput.style.borderColor = "#555";
       hInput.style.borderColor = "#555";
+      nameInput.style.borderColor = "#555";
     };
   }
+  setTimeout(() => (presets.length ? wInput : nameInput).focus(), 100);
+
+  reload();
 }
 
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────

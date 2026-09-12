@@ -117,6 +117,19 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   check("右侧越界 extended", L.isExtended({ x: 0, y: 0, w: 513, h: 512 }, 512, 512) === true);
   check("底部越界 extended", L.isExtended({ x: 0, y: 0, w: 512, h: 600 }, 512, 512) === true);
 
+  // ── normalizeRatioPresets（自定义比例预设前端归一化，与后端同口径）──
+  check("预设 {presets:[]} 解包", L.normalizeRatioPresets({ presets: [{ name: "A", w: 3, h: 1 }] }).length === 1);
+  check("预设 裸数组", JSON.stringify(L.normalizeRatioPresets([{ name: "A", w: 3, h: 1 }])) === JSON.stringify([{ name: "A", w: 3, h: 1 }]));
+  check("预设 非数组退化空", L.normalizeRatioPresets(null).length === 0 && L.normalizeRatioPresets("x").length === 0);
+  // 空名/重名/非对象/invalid 数值过滤；重名保留首个
+  const np = L.normalizeRatioPresets([
+    { name: "  ", w: 1, h: 1 }, "junk", { name: "A", w: 16, h: 9 },
+    { name: "A", w: 1, h: 1 }, { name: "B", w: 0, h: 1 }, { name: "C", w: -2, h: 1 },
+    { name: "D", w: 1, h: Infinity }, { name: "E", w: 1, h: "2" }, { name: "F", w: 10001, h: 1 },
+  ]);
+  check("预设 过滤+去重保序", JSON.stringify(np) === JSON.stringify([{ name: "A", w: 16, h: 9 }]));
+  check("预设 名去空白", L.normalizeRatioPresets([{ name: " A ", w: 1, h: 1 }])[0].name === "A");
+
   // ── 常量 ──
   check("RATIO_PRESETS_COL free 置顶 + 预设", JSON.stringify(L.RATIO_PRESETS_COL) === JSON.stringify(["free", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"]));
   check("LAYOUT 字段", L.LAYOUT.shiftLeft === 10 && L.LAYOUT.shiftRight === 80 && L.LAYOUT.ratioColW === 34 && L.LAYOUT.ratioColGap === 6 && L.LAYOUT.bottomH === 26);

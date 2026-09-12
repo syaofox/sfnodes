@@ -251,3 +251,24 @@ export function applyRatioToRect(rect, ratio) {
 export function isExtended(rect, srcW, srcH) {
   return rect.x < 0 || rect.y < 0 || rect.x + rect.w > srcW || rect.y + rect.h > srcH;
 }
+
+// normalizeRatioPresets(raw) → [{name, w, h}]
+// 已保存自定义比例定义的前端归一化（与后端 crop_expand_presets._normalize_presets
+// 同口径，前端兜底）：接受数组或 {presets:[...]}；name 非空、w/h 为正有限数且
+// ≤ 10000；重名保留首个。供 Custom 管理窗渲染列表（纯函数，可 .mjs 直测）。
+export function normalizeRatioPresets(raw) {
+  const RATIO_MAX = 10000;
+  const list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.presets) ? raw.presets : [];
+  const valid = (v) => typeof v === "number" && isFinite(v) && v > 0 && v <= RATIO_MAX;
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const name = String(item.name ?? "").trim();
+    if (!name || seen.has(name)) continue;
+    if (!valid(item.w) || !valid(item.h)) continue;
+    seen.add(name);
+    out.push({ name, w: item.w, h: item.h });
+  }
+  return out;
+}
