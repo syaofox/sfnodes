@@ -4,6 +4,8 @@
 //      的 NODE_TYPES 同时包含 SF 类型与官方类型（LoraLoader / LoraLoaderModelOnly / UNETLoader）
 //   2. sf_lora_info.setupLoaderInfoWidget 在官方同款 combo 名（lora_name / unet_name）
 //      上可装配 _info widget，且 configure 重放后不重复（幂等）
+//   3. 官方开关 sfnodes.OfficialInfo.Enabled：默认开（未注册/异常回退 true）；
+//      enabledOf 门控装配与 configure；注册函数幂等；开关切换即时增删官方节点 widget
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -27,8 +29,14 @@ globalThis.document = {
 };
 globalThis.window = { addEventListener() {}, removeEventListener() {}, innerWidth: 1280, innerHeight: 720 };
 globalThis.navigator = { clipboard: { writeText: async () => {} } };
-globalThis.app = { graph: { setDirtyCanvas() {} }, canvas: { ds: { scale: 1 } },
-    api: { fetchApi: async () => ({ ok: false }) }, ui: { settings: { getSettingValue: () => null } } };
+// 设置 mock：值可配，供开关默认/显式断言；addSetting 计数供幂等断言
+const settingsStore = { values: {}, addCalls: [] };
+globalThis.app = { graph: { _nodes: [], setDirtyCanvas() {} }, canvas: { ds: { scale: 1 } },
+    api: { fetchApi: async () => ({ ok: false }) },
+    ui: { settings: {
+        getSettingValue: (id) => (id in settingsStore.values ? settingsStore.values[id] : null),
+        addSetting: (def) => { settingsStore.addCalls.push(def); },
+    } } };
 globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
 globalThis.LGraphCanvas = function () {};
 globalThis.LGraphCanvas.prototype.adjustMouseEvent = function () {};
@@ -72,9 +80,9 @@ const infoCode = src("sf_lora_info.js")
     .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
 fs.writeFileSync(path.join(tmpDir, "sf_lora_info.mjs"), infoCode);
 
-function fakeNode(comboName, value) {
+function fakeNode(comboName, value, comfyClass = "official") {
     const combo = { name: comboName, value, callback: null };
-    return { id: 7, comfyClass: "official", widgets: [combo], configure(info) {},
+    return { id: 7, comfyClass, widgets: [combo], configure(info) {},
         setDirtyCanvas() {} };
 }
 
@@ -94,6 +102,54 @@ function fakeNode(comboName, value) {
     const n2 = fakeNode("unet_name", "checkpoints/b.safetensors");
     mod.setupLoaderInfoWidget(n2, "unet_name", { prefetch: null });
     check("unet_name 装配出 _info", n2.widgets.some((w) => w.name === "_info"));
+
+    // ── 3. 官方开关 ──
+    check("开关默认开（未注册回退 true）", mod.isOfficialInfoEnabled() === true);
+    settingsStore.values[mod.OFFICIAL_INFO_SETTING] = false;
+    check("显式 false 即关", mod.isOfficialInfoEnabled() === false);
+    settingsStore.values[mod.OFFICIAL_INFO_SETTING] = true;
+
+    // enabledOf 门控：关时不装配，configure 亦不补
+    const n3 = fakeNode("lora_name", "test/c.safetensors");
+    mod.setupLoaderInfoWidget(n3, "lora_name", { prefetch: null, enabledOf: () => false });
+    check("enabledOf=false 不装配", !n3.widgets.some((w) => w.name === "_info"));
+    n3.configure({});
+    check("enabledOf=false 时 configure 不补挂", !n3.widgets.some((w) => w.name === "_info"));
+
+    // 重复 setup 仍幂等（开关即时重挂路径）
+    const n4 = fakeNode("lora_name", "test/d.safetensors");
+    mod.setupLoaderInfoWidget(n4, "lora_name", { prefetch: null });
+    mod.setupLoaderInfoWidget(n4, "lora_name", { prefetch: null });
+    n4.configure({});
+    check("重复 setup 后 _info 唯一",
+        n4.widgets.filter((w) => w.name === "_info").length === 1);
+
+    // 注册幂等（三文件各调一次只注册一项）
+    const before = settingsStore.addCalls.length;
+    mod.registerOfficialInfoSettingOnce();
+    mod.registerOfficialInfoSettingOnce();
+    const added = settingsStore.addCalls.slice(before);
+    check("设置只注册一次", added.length === 1);
+    check("设置默认 true", added[0] && added[0].id === mod.OFFICIAL_INFO_SETTING
+        && added[0].type === "boolean" && added[0].defaultValue === true);
+
+    // 即时刷新：挂载 spec 后切开关，官方节点 widget 增删，非官方不动
+    mod.registerOfficialInfoSpec({ classes: ["LoraLoader"], comboName: "lora_name", opts: { prefetch: null } });
+    const off = fakeNode("lora_name", "test/e.safetensors", "LoraLoader");
+    const sf = fakeNode("lora_name", "test/f.safetensors", "SFLoraLoader");
+    mod.setupLoaderInfoWidget(off, "lora_name", { prefetch: null });
+    mod.setupLoaderInfoWidget(sf, "lora_name", { prefetch: null });
+    globalThis.app.graph._nodes = [off, sf];
+    const onChange = settingsStore.addCalls[settingsStore.addCalls.length - 1].onChange;
+    check("onChange 已导出", typeof onChange === "function");
+    settingsStore.values[mod.OFFICIAL_INFO_SETTING] = false;
+    // onChange 经 setTimeout 推迟（Accent 时序先例），此处直调需等一 tick
+    await new Promise((r) => { onChange(); setTimeout(r, 10); });
+    check("关后官方节点 _info 被摘除", !off.widgets.some((w) => w.name === "_info"));
+    check("关后 SF 节点 _info 保留", sf.widgets.some((w) => w.name === "_info"));
+    settingsStore.values[mod.OFFICIAL_INFO_SETTING] = true;
+    await new Promise((r) => { onChange(); setTimeout(r, 10); });
+    check("开后官方节点 _info 恢复", off.widgets.some((w) => w.name === "_info"));
 
     console.log(failures.length ? `\nFAILED: ${failures.length}` : "\nALL PASS");
     fs.rmSync(tmpDir, { recursive: true, force: true });

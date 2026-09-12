@@ -6,17 +6,27 @@
 // ==========================================================================
 import { app } from "/scripts/app.js";
 import {
-    setupLoraInfoWidget,
+    setupLoaderInfoWidget,
     ensureEventHook,
+    isOfficialInfoEnabled,
+    registerOfficialInfoSettingOnce,
+    registerOfficialInfoSpec,
 } from "./sf_lora_info.js";
 
 const NODE_TYPES = ["SFLoraLoader", "LoraLoader"];
+const OFFICIAL_OPTS = { enabledOf: () => isOfficialInfoEnabled() };
 
 app.registerExtension({
     name: "sfnodes.SFLoraLoader",
+    init() {
+        registerOfficialInfoSettingOnce();
+        registerOfficialInfoSpec({ classes: ["LoraLoader"], comboName: "lora_name", opts: OFFICIAL_OPTS });
+    },
     nodeCreated(node) {
         if (!NODE_TYPES.includes(node.comfyClass)) return;
         ensureEventHook();
-        setupLoraInfoWidget(node);
+        // SF 节点恒挂载；官方节点受 sfnodes.OfficialInfo.Enabled 门控。
+        if (node.comfyClass === "LoraLoader") setupLoaderInfoWidget(node, "lora_name", OFFICIAL_OPTS);
+        else setupLoaderInfoWidget(node);
     },
 });

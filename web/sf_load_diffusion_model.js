@@ -10,7 +10,13 @@
 //   autoCivitai:  面板打开即自动匹配（LoRA 面板仍手动 ↻）
 // ==========================================================================
 import { app } from "/scripts/app.js";
-import { setupLoaderInfoWidget, ensureEventHook } from "./sf_lora_info.js";
+import {
+    setupLoaderInfoWidget,
+    ensureEventHook,
+    isOfficialInfoEnabled,
+    registerOfficialInfoSettingOnce,
+    registerOfficialInfoSpec,
+} from "./sf_lora_info.js";
 import { isGraphLoading } from "./sf_common.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { openInfoPanelFor } from "./sf_lora_stack_info.js";
@@ -79,15 +85,24 @@ function openDmodelPanel(node, modelName) {
     openInfoPanelFor(dmodelPanelCtx(node, modelName), modelName);
 }
 
+const DMODEL_OPTS = {
+    prefetch: null,                       // dmodel 无预取网关；info 在面板打开时取
+    hasCustomOf: (name) => _hasData.has(name),
+    onOpen: openDmodelPanel,
+};
+const OFFICIAL_OPTS = { ...DMODEL_OPTS, enabledOf: () => isOfficialInfoEnabled() };
+
 app.registerExtension({
     name: "sfnodes.SFLoadDiffusionModel",
+    init() {
+        registerOfficialInfoSettingOnce();
+        registerOfficialInfoSpec({ classes: ["UNETLoader"], comboName: "unet_name", opts: OFFICIAL_OPTS });
+    },
     nodeCreated(node) {
         if (!NODE_TYPES.includes(node.comfyClass)) return;
         ensureEventHook();
-        setupLoaderInfoWidget(node, "unet_name", {
-            prefetch: null,                       // dmodel 无预取网关；info 在面板打开时取
-            hasCustomOf: (name) => _hasData.has(name),
-            onOpen: openDmodelPanel,
-        });
+        // SF 节点恒挂载；官方节点受 sfnodes.OfficialInfo.Enabled 门控。
+        setupLoaderInfoWidget(node, "unet_name",
+            node.comfyClass === "UNETLoader" ? OFFICIAL_OPTS : DMODEL_OPTS);
     },
 });

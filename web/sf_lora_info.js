@@ -128,6 +128,58 @@ export function showLoraInfoDialog(event, name, meta) {
 }
 
 // ---------------------------------------------------------------------------
+// 官方节点 info 开关（sfnodes.OfficialInfo.Enabled，默认开）
+// SF 自家加载器不受此开关影响；官方三节点（LoraLoader /
+// LoraLoaderModelOnly / UNETLoader）经 enabledOf 门控显隐。
+// ---------------------------------------------------------------------------
+export const OFFICIAL_INFO_SETTING = "sfnodes.OfficialInfo.Enabled";
+
+// 官方节点挂载登记：{ classes:[...], comboName, opts }，由各节点模块
+// 在 init() 注册，供开关 onChange 即时增删 widget（sf_lora_info 持有
+// 装配函数，dmodel 侧 opts 闭包由登记方提供，避免循环 import）。
+const _officialSpecs = [];
+export function registerOfficialInfoSpec(spec) {
+    if (spec && Array.isArray(spec.classes) && spec.comboName) _officialSpecs.push(spec);
+}
+
+export function isOfficialInfoEnabled() {
+    try {
+        return app.ui?.settings?.getSettingValue?.(OFFICIAL_INFO_SETTING) ?? true;
+    } catch { return true; }
+}
+
+function refreshOfficialInfoWidgets() {
+    const on = isOfficialInfoEnabled();
+    let nodes = [];
+    try { nodes = app.graph?._nodes || app.graph?.nodes || []; } catch { return; }
+    for (const n of nodes) {
+        const spec = _officialSpecs.find((s) => s.classes.includes(n.comfyClass));
+        if (!spec) continue;
+        const idx = n.widgets?.findIndex((w) => w.name === "_info") ?? -1;
+        if (on && idx === -1) setupLoaderInfoWidget(n, spec.comboName, spec.opts || {});
+        else if (!on && idx !== -1) n.widgets.splice(idx, 1);
+        try { n.setDirtyCanvas?.(true, true); } catch {}
+    }
+    try { app.graph?.setDirtyCanvas?.(true, true); } catch {}
+}
+
+export function registerOfficialInfoSettingOnce() {
+    if (globalThis.__sfnodesOfficialInfoSetting) return;
+    globalThis.__sfnodesOfficialInfoSetting = true;
+    try {
+        app.ui.settings.addSetting({
+            id: OFFICIAL_INFO_SETTING,
+            name: "SF: show info button on official loader nodes (LoraLoader / LoraLoaderModelOnly / UNETLoader)",
+            type: "boolean",
+            defaultValue: true,
+            // Accent 时序教训：onChange 时 store 尚未更新，推迟到下一 tick
+            // 再读开关值，否则读到的是旧值。
+            onChange: () => { setTimeout(refreshOfficialInfoWidgets, 0); },
+        });
+    } catch {}
+}
+
+// ---------------------------------------------------------------------------
 // Canvas event capture (shared single wrapper)
 // ---------------------------------------------------------------------------
 let _lastCanvasEvent = null;
@@ -286,9 +338,13 @@ function loaderPanelCtx(node, loraName) {
 // opts（SF Load Diffusion Model 等非 LoRA 加载器复用同一装配时序）：
 //   prefetch(value)  combo 选择/恢复后的预取；缺省 = LoRA 元数据网关，
 //                    传 null 关闭预取
+//   enabledOf(node)->bool 挂载门控；缺省恒 true（SF 节点不受官方开关影响，
+//                    官方节点传 () => isOfficialInfoEnabled()）
 //   其余透传 createInfoWidget（hasCustomOf/onOpen）
 export function setupLoaderInfoWidget(node, comboName = "lora_name", opts = {}) {
     const prefetch = "prefetch" in opts ? opts.prefetch : getLoraMetadata;
+    const enabledOf = opts.enabledOf || (() => true);
+    const hasInfo = (n) => n.widgets?.some((w) => w.name === "_info");
     const combo = getComboWidget(node, comboName);
     if (combo) {
         const origCallback = combo.callback;
@@ -305,10 +361,12 @@ export function setupLoaderInfoWidget(node, comboName = "lora_name", opts = {}) 
         if (_origConfigure) _origConfigure.call(this, info);
         const loraName = getComboValue(this, comboName);
         if (prefetch && loraName && loraName !== "None") prefetch(loraName);
-        this.widgets.push(createInfoWidget(comboName, opts));
+        // 存在性守卫：同一节点被 setup 两次（开关即时重挂）时 configure
+        // 包装亦叠加，唯有守卫能保证 _info 恒唯一。
+        if (enabledOf(this) && !hasInfo(this)) this.widgets.push(createInfoWidget(comboName, opts));
     };
 
-    node.widgets.push(createInfoWidget(comboName, opts));
+    if (enabledOf(node) && !hasInfo(node)) node.widgets.push(createInfoWidget(comboName, opts));
 }
 
 export function setupLoraInfoWidget(node, comboName = "lora_name") {
