@@ -277,7 +277,21 @@ check("非本类不装配", other._sfIg === undefined);
     }
 }
 
-// ---- 5. graph.change 只包装一次 + onRemoved 清理 ----
+// ---- 5. 关键词筛选端到端（`|` 多词 OR 经 configure 生效） ----
+{
+    n.properties.sf_ig_filter = "A|B";
+    n.configure({});
+    check("`|` 多关键词显示两组", rowsOf(n).length === 2);
+    n.properties.sf_ig_filter = "A";
+    n.configure({});
+    const rows = rowsOf(n);
+    check("单关键词显示一组", rows.length === 1 && rowTitle(rows[0]) === "A组");
+    n.properties.sf_ig_filter = "";
+    n.configure({});
+    check("清空恢复两组", rowsOf(n).length === 2);
+}
+
+// ---- 6. graph.change 只包装一次 + onRemoved 清理 ----
 {
     const wrappedOnce = fakeGraph.change;
     const n2 = makeNode();

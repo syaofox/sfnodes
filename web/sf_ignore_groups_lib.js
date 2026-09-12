@@ -171,12 +171,24 @@ export function stateSig(entries) {
     .join("\x00");
 }
 
-// ── 列表：空组过滤 + 关键词 + 颜色 + 排序 ──
+// 关键词拆分：`|` 分隔多关键词（OR 匹配），各段去首尾空、弃空段；
+// 无有效段 → []（调用方按“不过滤”处理，与留空一致）
+export function splitKeywords(filter) {
+  return String(filter || "")
+    .split("|")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+}
+
+// ── 列表：空组过滤 + 关键词（`|` 多词 OR） + 颜色 + 排序 ──
 export function filterSortGroups(groups, allGroups, nodes, { filter, colorFilter, sortOrder }) {
   let list = groups.filter((g) => collectNodes(g, allGroups, nodes).length > 0);
-  const kw = (filter || "").trim().toLowerCase();
-  if (kw) {
-    list = list.filter((g) => g.title.toLowerCase().includes(kw));
+  const keys = splitKeywords(filter);
+  if (keys.length) {
+    list = list.filter((g) => {
+      const t = g.title.toLowerCase();
+      return keys.some((k) => t.includes(k));
+    });
   }
   if (colorFilter && colorFilter !== "none") {
     list = list.filter((g) => {

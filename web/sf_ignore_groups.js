@@ -666,7 +666,7 @@ function setupIgnoreGroups(node) {
     const fInput = el("input");
     fInput.type = "text";
     fInput.value = st.filter;
-    fInput.placeholder = "留空 = 显示所有组";
+    fInput.placeholder = "留空=全部，| 分隔多关键词";
     styleInput(fInput);
     pop.appendChild(fInput);
     let filterTimer = null;

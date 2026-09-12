@@ -326,7 +326,7 @@
 ### 1. 复用与新增边界
 
 - 复用 `sf_common.js::el/injectCSSOnce/installWheelZoomPassthrough`（滚轮转发是原版手写版的超集：可滚动的颜色下拉走原生滚动，其余转发画布缩放）与 `sf_popup.js::attachPopupDismiss/clampToViewport`（设置弹窗）；`addDOMWidget` + `setInterval` 轮询是项目既有模式（dropdown/prompt_tags/load_image 先例），无组旁路逻辑可复用。
-- 新增：组几何（`groupBounds/nodeBounds/hit/inside`，折叠节点估宽与原版同式）、颜色归一、嵌套组递归、`groupState` 三态（空组按 true，原版同款）、`filterSortGroups`（空组过滤 + 关键词 + 颜色 + 位置/字母排序）、`toggleTransition` 三模式纯函数（含嵌套连带开关）。
+- 新增：组几何（`groupBounds/nodeBounds/hit/inside`，折叠节点估宽与原版同式）、颜色归一、嵌套组递归、`groupState` 三态（空组按 true，原版同款）、`filterSortGroups`（空组过滤 + 关键词（`|` 分隔多词 OR，`splitKeywords` 去空段、无有效段等同留空） + 颜色 + 位置/字母排序）、`toggleTransition` 三模式纯函数（含嵌套连带开关）。
 
 ### 2. 规范化改动（相对原版）
 
