@@ -161,6 +161,7 @@ from .nodes.utils.qwen_edit import SFQwenEditTextEncode, SFQwenEditOutputExtract
 from .nodes.utils.flux_resolution import FluxResolution
 from .nodes.utils.canvas_size import CanvasSizePreset  # noqa: F401  # 副作用注册 /api/sfnodes/canvas_size_presets 路由
 from .nodes.utils.memory_cleanup import VRAMCleanup, RAMCleanup
+from .nodes.utils import memory_routes  # noqa: F401  # 副作用注册 /api/sfnodes/memory/* 路由
 
 from .nodes.inpaint.cropstitch import InpaintExtendOutpaint
 from .nodes.inpaint.inpaint_editor import SFInpaintCrop, SFInpaintStitch

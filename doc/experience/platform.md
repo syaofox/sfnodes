@@ -203,3 +203,11 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 - 槽圆点画在 `boundingRect` 中心 `u[1]`，槽名文字**统一硬编码** `fillText(label, u[0]±10, u[1]+5)`（输出槽 textAlign=right，输入槽 left），且 draw 内未设 `textBaseline`（继承 alphabetic）→ 文字视觉中心低于圆点约 2-5px。
 - **所有 canvas 渲染节点的输入/输出槽一致如此**（原生节点同款）——节点侧无钩子可修，hack 槽渲染会与其它节点不一致；归因时先对照其它节点确认全局性，勿误判为本节点绘制问题。
+
+### 14. SF Memory 画布菜单清理 VRAM/RAM（做"免节点手动释放"必知）
+
+> 背景：画布背景右键 `SF Memory ▶ Free VRAM / Free RAM`（2026-09，`web/sf_memory_menu.js` + `nodes/utils/memory_routes.py`，`tests/test_memory_menu.py`）：已有 `SFVRAMCleanup/SFRAMCleanup` 节点只能在队列中运行，用户要"不跑工作流点一下就释放"。
+
+- **VRAM 走原生 `POST /free`**（`server.py:1192`，`{unload_models:true, free_memory:true}` → 队列 flag → `main.py:425` 有序执行 `unload_all_models + soft_empty_cache`），与官方释放语义一致——**不要自建 VRAM 路由**（直接调 `unload_all_models` 会与运行中任务竞态，原生走队列 flag 更安全，且随上游维护）。
+- **RAM 必须自建路由**：浏览器 JS 够不着服务端进程内存。`POST /api/sfnodes/memory/ram` 实例化复用 `memory_cleanup.RAMCleanup`（`clean_ram(True,True,True,1)`，`retry_times=1`——菜单点击是交互操作，不按节点默认 3 次 `sleep` 等待），返回 `{ok, before_usage, after_usage, freed_mb}` 供 toast 显示。约 1s 阻塞事件循环（gc + sleep），可接受。
+- **菜单形态**：`getCanvasMenuItems` 无选中门槛（§11 的 `≥2 节点`守卫是"多选操作"专用，内存清理是全局动作，`sf_lora_browser` 同款无条件返回）；子菜单 `has_submenu + submenu.options`（§11 已验证双兼容）；反馈走 `sf_common.sfToast`。
