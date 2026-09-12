@@ -1,5 +1,5 @@
 // ==========================================================================
-// SF Load Diffusion Model - Custom Node
+// SF Load Diffusion Model (+ 官方 UNETLoader) - Custom Node
 // 官方 UNETLoader 同款 combo + weight_dtype，外加 i 信息图标：点击打开
 // SF LoRA Stack 同款浮动信息面板（openInfoPanelFor 宿主适配）。
 //
@@ -16,7 +16,7 @@ import { getNodeRect } from "./sf_lora_stack_settings.js";
 import { openInfoPanelFor } from "./sf_lora_stack_info.js";
 import { dmodelApi } from "./sf_dmodel_api.js";
 
-const NODE_TYPE = "SFLoadDiffusionModel";
+const NODE_TYPES = ["SFLoadDiffusionModel", "UNETLoader"];
 
 // 有用户自定义数据的模型名集合（i 图标高亮）。数据以保存事件驱动：
 // 任一面板/宿主广播 sfnodes.model-data-changed 即标记。会话级记忆，
@@ -82,7 +82,7 @@ function openDmodelPanel(node, modelName) {
 app.registerExtension({
     name: "sfnodes.SFLoadDiffusionModel",
     nodeCreated(node) {
-        if (node.comfyClass !== NODE_TYPE) return;
+        if (!NODE_TYPES.includes(node.comfyClass)) return;
         ensureEventHook();
         setupLoaderInfoWidget(node, "unet_name", {
             prefetch: null,                       // dmodel 无预取网关；info 在面板打开时取

@@ -563,3 +563,11 @@
 - **附带修 official 跳过**：`_ensure_stream_functions` 原 `if not official and not mine:` 在半载+上游同层 LoRA 时跳过逐窗函数，违背"与上游补丁共存"设计 → 改为 `if not mine:`（官方函数保留共存）。**mock 保真度教训**：旧单测用 `MockLowVramPatch` 子类模拟官方函数，而判定是 `fn.__class__ is _LowVramPatch` 精确类——`official` 分支恒 False，compose 断言意外通过；现改用精确类实例覆盖共存回归。
 - **测试**：`tests/test_wan_window_lora.py` 加 GGUF mock（`FakeGGMLModule.is_ggml_quantized→True` + 带上游 base 的 `weight.patches`）：量化登记/不装函数/w0=base+本槽/base 原样/空槽纯 base/回槽不累积/跨会话不累积。
 - **局限**：本机无 torch/GGUF 运行环境，mock 只锁契约；容器实测确认生效（窗口间动作分化）仍需用户跑一次。
+
+### §56 官方加载器 info 图标：前端挂载零核心改动（2026-09）
+
+> 背景：SF 三加载器（SFLoraLoader / SFLoraLoaderModelOnly / SFLoadDiffusionModel）早有 i 图标，但存量工作流多用官方节点（LoraLoader / LoraLoaderModelOnly / UNETLoader），切 SF 版会丢连线重配。需求：在官方节点上同款 info，且不碰官方核心代码。
+
+- **修法（纯前端三行）**：`web/lora_loader.js`、`web/lora_loader_model_only.js`、`web/sf_load_diffusion_model.js` 的 `nodeCreated` 守卫由单类型判等改为 `NODE_TYPES.includes(node.comfyClass)`，分别另挂 `LoraLoader` / `LoraLoaderModelOnly` / `UNETLoader`。官方 combo 名与 SF 版同形（`lora_name` / `unet_name`），`setupLoaderInfoWidget` 工厂与面板 ctx（LoRA 域 `loaderPanelCtx` / dmodel 域四件套）零分支复用；后端零改动（`/api/sfnodes/lora_notes` 与 `/dmodel_*` 路由随本包 import 已注册，与谁打开面板无关）。
+- **安全**：widget 名 `_info` + `serialize:false`，不进 workflow；`configure` 包装先剔除旧 `_info` 再重挂，工作流重载不叠加；禁用本包仅图标消失，官方执行路径毫发无损。
+- **测试**：新建 `tests/test_official_info_smoke.js`（静态三文件 NODE_TYPES 断言 + `setupLoaderInfoWidget` 在 `lora_name`/`unet_name` 假节点上装配与 configure 幂等）。
