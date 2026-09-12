@@ -1,10 +1,9 @@
 // SF 画布聚合菜单测试（Node 直接运行：node tests/test_canvas_menu_js.js）
 // 覆盖（.mjs 拷贝链真实加载，test_lora_browser_smoke.js 同款手法）：
 // - 全包唯一画布入口：有 getCanvasMenuItems 的扩展仅 sfnodes.CanvasMenu
-// - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/便签/内存
+// - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/内存（便签节点保留，仅不占入口）
 // - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（单层平铺 9 动作 + disabled 分组头）
-// - 驱动 Add SF Note 回调 → 落图（LiteGraph 兜底 + 视口中心落点）
-// - 驱动 Align Width→Widest → 两节点同宽
+// - 驱动 Align Width: Widest → 两节点同宽
 // - 驱动 Free VRAM → POST /free{unload_models,free_memory} + 成功 toast
 // - 驱动 Free RAM → POST /api/sfnodes/memory/ram + toast 含释放量
 const fs = require("fs");
@@ -152,10 +151,11 @@ for (const n of MODS) {
     check("顶层唯一项 📦 SF Menu", items.length === 1
         && items[0].content === "📦 SF Menu" && items[0].has_submenu === true);
     let opts = sub();
-    check("0 选中含浏览器/工作流/便签/内存",
+    check("0 选中含浏览器/工作流/内存",
         !!byContent(opts, "📚 SF LoRA Browser") && !!byContent(opts, "🎞 SF Workflows")
-        && !!byContent(opts, "Add SF Note") && !!byContent(opts, "SF Memory"));
+        && !!byContent(opts, "SF Memory"));
     check("0 选中无 SF Align", !byContent(opts, "SF Align"));
+    check("画布菜单无 Add SF Note 入口", !byContent(opts, "Add SF Note"));
 
     // ── 2 选中：对齐出现 ──
     const n1 = { size: [100, 60], pos: [0, 0], setDirtyCanvas() {} };
@@ -181,18 +181,6 @@ for (const n of MODS) {
     widest.callback();
     check("Widest 对齐同宽", n1.size[0] === 150 && n2.size[0] === 150);
     globalThis.app.canvas.selected_nodes = [];
-
-    // ── 驱动 Add SF Note（LiteGraph 兜底）──
-    const noteExt = registered.find((e) => e.name === "sfnodes.Note");
-    noteExt.registerCustomNodes();
-    const before = graphNodes.length;
-    opts = sub();
-    byContent(opts, "Add SF Note").callback();
-    await tick(); await tick();
-    const added = graphNodes[graphNodes.length - 1];
-    check("菜单建便签落图", graphNodes.length === before + 1 && !!added);
-    check("落点在视口中心附近",
-        Math.abs(added.pos[0] - 400) < 100 && Math.abs(added.pos[1] - 300) < 100);
 
     // ── 驱动 Free VRAM ──
     fetchCalls.length = 0; toasts.length = 0;

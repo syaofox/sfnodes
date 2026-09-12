@@ -215,8 +215,8 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 15. 画布菜单聚合（📦 SF Menu 唯一顶层入口，做"新增画布右键项"必知）
 
-> 背景：包内 5 处画布背景菜单（对齐 3 项/浏览器/工作流/便签/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组 + 自定义项内排序靠前），`tests/test_canvas_menu_js.js` 锁定。
+> 背景：包内 4 处画布背景菜单（对齐/浏览器/工作流/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组 + 自定义项内排序靠前），`tests/test_canvas_menu_js.js` 锁定。（便签 SF Note 节点保留可搜索添加，2026-09 起不再占菜单入口。）
 
-- **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 便签 `addNoteFromMenu` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
+- **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
 - **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套；Align 内为单层平铺（9 动作 + disabled 分组头，见 §11 压平备注）。
 - **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。
