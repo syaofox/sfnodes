@@ -1,10 +1,10 @@
 // ==========================================================================
 // sf_canvas_align.js — 画布多选尺寸对齐（菜单项构建器）
 // 选中 ≥2 节点时供聚合菜单（web/sf_canvas_menu.js，📦 SF Menu ▶ SF Align）
-// 提供三入口：
-//   Width  ▶ Widest / Narrowest / First Selected（仅改 size[0]）
-//   Height ▶ Tallest / Shortest / First Selected（仅改 size[1]）
-//   Size   ▶ Widest & Tallest / Narrowest & Shortest / First Selected（两维同改）
+// 提供 9 动作（单层平铺，组间 disabled 分组头 Width/Height/Size 隔开）：
+//   Width  组：Width: Widest / Narrowest / First Selected（仅改 size[0]）
+//   Height 组：Height: Tallest / Shortest / First Selected（仅改 size[1]）
+//   Size   组：Size: Widest & Tallest / Narrowest & Shortest / First Selected（两维同改）
 // 本文件不再自行注册画布菜单（分散入口已收敛到聚合器），只 export 构建器。
 // ==========================================================================
 
@@ -64,39 +64,21 @@ export function buildAlignMenuItems() {
     // LiteGraph 菜单项支持 has_submenu + submenu.options（Classic）；
     // ComfyUI 前端对 getCanvasMenuItems 的返回值会透传给 LiteGraph
     // ContextMenu，两种形态均可。has_submenu 显式标记可提升兼容性。
+    // 单层平铺：分组头用 disabled 项（无 callback，点击无操作 fail-safe），
+    // 动作标签带组前缀以保唯一可区分（测试按 content 直取）。
+    const header = (content) => ({ content, disabled: true });
     return [
-        {
-            content: "SF Align Width",
-            has_submenu: true,
-            submenu: {
-                options: [
-                    { content: "Width \u2192 Widest", callback: () => doAlignWidth("widest") },
-                    { content: "Width \u2192 Narrowest", callback: () => doAlignWidth("narrowest") },
-                    { content: "Width \u2192 First Selected", callback: () => doAlignWidth("first") },
-                ],
-            },
-        },
-        {
-            content: "SF Align Height",
-            has_submenu: true,
-            submenu: {
-                options: [
-                    { content: "Height \u2192 Tallest", callback: () => doAlignHeight("tallest") },
-                    { content: "Height \u2192 Shortest", callback: () => doAlignHeight("shortest") },
-                    { content: "Height \u2192 First Selected", callback: () => doAlignHeight("first") },
-                ],
-            },
-        },
-        {
-            content: "SF Align Size",
-            has_submenu: true,
-            submenu: {
-                options: [
-                    { content: "Size \u2192 Widest & Tallest", callback: () => doAlignSize("widest") },
-                    { content: "Size \u2192 Narrowest & Shortest", callback: () => doAlignSize("shortest") },
-                    { content: "Size \u2192 First Selected", callback: () => doAlignSize("first") },
-                ],
-            },
-        },
+        header("Width"),
+        { content: "Width: Widest", callback: () => doAlignWidth("widest") },
+        { content: "Width: Narrowest", callback: () => doAlignWidth("narrowest") },
+        { content: "Width: First Selected", callback: () => doAlignWidth("first") },
+        header("Height"),
+        { content: "Height: Tallest", callback: () => doAlignHeight("tallest") },
+        { content: "Height: Shortest", callback: () => doAlignHeight("shortest") },
+        { content: "Height: First Selected", callback: () => doAlignHeight("first") },
+        header("Size"),
+        { content: "Size: Widest & Tallest", callback: () => doAlignSize("widest") },
+        { content: "Size: Narrowest & Shortest", callback: () => doAlignSize("shortest") },
+        { content: "Size: First Selected", callback: () => doAlignSize("first") },
     ];
 }

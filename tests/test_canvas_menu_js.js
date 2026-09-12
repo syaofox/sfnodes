@@ -2,7 +2,7 @@
 // 覆盖（.mjs 拷贝链真实加载，test_lora_browser_smoke.js 同款手法）：
 // - 全包唯一画布入口：有 getCanvasMenuItems 的扩展仅 sfnodes.CanvasMenu
 // - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/便签/内存
-// - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align ▶ Width/Height/Size 三组
+// - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（单层平铺 9 动作 + disabled 分组头）
 // - 驱动 Add SF Note 回调 → 落图（LiteGraph 兜底 + 视口中心落点）
 // - 驱动 Align Width→Widest → 两节点同宽
 // - 驱动 Free VRAM → POST /free{unload_models,free_memory} + 成功 toast
@@ -164,13 +164,20 @@ for (const n of MODS) {
     opts = sub();
     const align = byContent(opts, "SF Align");
     check("2 选中出现 SF Align", !!align && align.has_submenu === true);
-    const groups = align ? align.submenu.options.map((o) => o.content) : [];
-    check("Align 含宽/高/等大三组",
-        groups.includes("SF Align Width") && groups.includes("SF Align Height")
-        && groups.includes("SF Align Size"));
-    // 驱动 Width→Widest：两节点同宽（取最宽 150）
-    const wGroup = byContent(align.submenu.options, "SF Align Width");
-    const widest = byContent(wGroup.submenu.options, "Width \u2192 Widest");
+    const flat = align ? align.submenu.options.map((o) => o.content) : [];
+    check("Align 单层平铺 9 动作",
+        ["Width: Widest", "Width: Narrowest", "Width: First Selected",
+            "Height: Tallest", "Height: Shortest", "Height: First Selected",
+            "Size: Widest & Tallest", "Size: Narrowest & Shortest", "Size: First Selected"]
+            .every((c) => flat.includes(c)));
+    check("Align 无三级嵌套", align.submenu.options.every((o) => !o.submenu));
+    check("分组头 Width/Height/Size 置灰不可点",
+        ["Width", "Height", "Size"].every((c) => {
+            const h = byContent(align.submenu.options, c);
+            return h && h.disabled === true && typeof h.callback !== "function";
+        }));
+    // 驱动 Width: Widest：两节点同宽（取最宽 150）
+    const widest = byContent(align.submenu.options, "Width: Widest");
     widest.callback();
     check("Widest 对齐同宽", n1.size[0] === 150 && n2.size[0] === 150);
     globalThis.app.canvas.selected_nodes = [];

@@ -185,6 +185,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **菜单子菜单键名**：LiteGraph `ContextMenu` 认 `has_submenu: true` + `submenu: { options: [...] }`；ComfyUI 前端透传该结构，Classic/Vue 双兼容。仅改对象键名即可修复"子菜单不展开"，零逻辑风险。
 - **尺寸语义**：读 `size[0]/size[1]` 优先，回退 `computeSize()[0/1]`（节点新建时 size 可能未落盘）；写时 `Math.max(target, computeSize()[d])` 钳制到最小尺寸，避免缩到不可渲染；单维对齐保持另一维不变，等大 `alignNodesSize` 同时写两维（分别钳制）。`beforeChange/afterChange + setDirtyCanvas(true,true)` 保证撤销与重绘。
 - **纯逻辑边界**：`sf_canvas_align_lib.js` 无 `app` 依赖，六函数 `getSelectedNodes / calcTargetWidth / calcTargetHeight / alignNodesWidth / alignNodesHeight / alignNodesSize` 可拷 `.mjs` 直测；`sf_canvas_align.js` 仅做接线（`import {app} from "/scripts/app.js"`，满足 `check_web_imports.py` B2/B3）。
+- **菜单压平（2026-09）**：用户嫌 `SF Menu ▶ SF Align ▶ Width/Height/Size ▶ 动作` 四跳太深，`SF Align` 子菜单内改为单层平铺 12 行（3 个 `disabled` 分组头 + 9 动作，标签带组前缀 `Width:/Height:/Size:` 保唯一；分组头无 callback，点击无操作 fail-safe）。§15 的三级嵌套担忧随之消除。
 
 ### 12. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
 
@@ -217,5 +218,5 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 > 背景：包内 5 处画布背景菜单（对齐 3 项/浏览器/工作流/便签/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组 + 自定义项内排序靠前），`tests/test_canvas_menu_js.js` 锁定。
 
 - **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 便签 `addNoteFromMenu` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
-- **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套——**三级嵌套**（SF ▶ Align ▶ Width…）§11 只验证过单级，真机若不展开再拍平。
+- **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套；Align 内为单层平铺（9 动作 + disabled 分组头，见 §11 压平备注）。
 - **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。

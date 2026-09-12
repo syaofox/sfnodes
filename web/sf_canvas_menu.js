@@ -8,8 +8,8 @@
 //   工作流 openWorkflowsPanel（sf_workflows.js）/ 浏览器 openLoraBrowser
 //   （sf_lora_browser.js）。
 // 子菜单结构 has_submenu + submenu.options（sf_canvas_align §11 先例，
-// Classic/Vue 双兼容）；三级嵌套（SF Align 内再分 Width/Height/Size）
-// 需真机验证，见 experience/platform.md §2.15。
+// Classic/Vue 双兼容）；SF Align 内为单层平铺（9 动作 + disabled 分组头），
+// 组内直达无需再展开，见 experience/platform.md §2.15。
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
