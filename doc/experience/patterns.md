@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -334,3 +334,23 @@
 - 全局 `app.graph.change` 逐节点重复包装收敛为守卫单例（`_sfIgPatched` + `_live` 实例集广播 dirty，自切换实例豁免）；定时器/document 监听/style 片段按节点清理（`onRemoved` + 脱图兜底双保险，测试锁定 timer 置空与监听成对移除）。
 - 补原版缺失的切换/恢复后 `setDirtyCanvas`（面板重建只刷自身，画布节点灰化需显式 dirty）。
 - 弹窗坑：overlay 与 pop 同级挂载时 `attachPopupDismiss` 只认 `overlay.contains`，pop 内点击会被误判外部点击关窗——必须传 `exempt: (e) => pop.contains(e.target)`（universal slider 的 panel 是 overlay 子节点，无此问题；测试用 sf_popup 真源锁定：去 exempt 必现面板内点击关窗）。
+
+---
+
+## 55. SF 注释便签：原版纯前端架构 1:1（2026-09）
+
+> 背景：复刻孤海 `孤海注释`。第一版曾按 sfnodes 形态重做（后端 SFNote 节点 + DOM 面板），但 Vue 前端节点覆盖层吞双击导致编辑器打不开；遂改回原版纯前端架构：`web/sf_note.js`（节点类 + 编辑器 + 全局补丁 + 画布菜单入口，无后端、无 hidden 真源）+ `web/sf_note_lib.js` 纯逻辑。状态存节点 properties（随 workflow 保存，原版同款）。
+
+### 1. 移植边界（相对原版 GoohaiNote.js）
+
+- 1:1：节点类（默认样式/尺寸/序列化/链接点击/双击编辑/工具条全套/固定模式/右键菜单）、drawNode/processMouseDown/getNodeOnPos 全局补丁行为、document 鼠标监听、Vue dblclick 中继、CJK 换行引擎语义。
+- 适配集：import 绝对路径；扩展名 `sfnodes.Note`；样式 id 改 `sf-note-*` 前缀；节点类型 `孤海注释`→`SF Note`（与原插件共存不撞槽）；全局补丁加 once 守卫（重复加载不叠包）；换行引擎三函数复用 lib 真源（`wrapCharList` 以 `measure` 注入替代 ctx，其余逐字一致；非 ASCII 正则保持 `\u` 转义原样，勿写字面量）。
+- 新增唯一功能：画布背景菜单 `Add SF Note`（`getCanvasMenuItems`，sf_canvas_align 同款入口）——官方 `Comfy.AddNode` 优先、`LiteGraph.createNode` + `graph.add` 兜底（sf_lora_browser 同款顺序），落点视口中心 + 随机抖动。
+
+### 2. 测试注意
+
+- 主扩展测试需 LiteGraph 全套 mock（`LGraphNode` 基类/`registerNodeType`/`NO_TITLE`/`active_canvas`/原型方法 + `window.open`），模块顶层求值时即需存在；`registerCustomNodes` 显式调用后断言类型注册。
+- 等宽测量（1/字符）锁定引擎语义：英文断词、CJK 整字、禁则回拉形态（`ab，cd` 宽 2 → `a/b，/cd`）均可字面断言；手算期望时注意禁则 `…` 等占宽（§53 同类坑）。
+- 编辑器测试开闭成对（`createTextEditor` 起 16ms 坐标跟随定时器，`removeTextEditor`/finish 统一清，否则挂起进程）。
+- 测试 stub 坑（测试 bug、产品代码无辜）：dblclick 假事件必须包成 `{target,...}` 真结构（中继读 `e.target`）。
+- 残留风险（本机不可验，需真机确认）：Vue 下前端独占类型能否经 palette/菜单正常添加、workflow 重载是否保留（见 §1 入口与序列化说明）；验证步骤：画布右键 Add SF Note → 双击出工具条 → 改字号保存 → 存工作流重载对文本。

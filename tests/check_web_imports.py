@@ -98,6 +98,8 @@ MODS = [
     "sf_boolean_switch", "sf_boolean_switch_lib",
     # Ignore Groups（复刻孤海忽略多组编组开关；复用 sf_common/sf_popup）
     "sf_ignore_groups", "sf_ignore_groups_lib",
+    # Note（复刻孤海注释文本便签；复用 sf_common/sf_popup）
+    "sf_note", "sf_note_lib",
 ]
 
 EXPORT_RE = re.compile(

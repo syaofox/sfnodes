@@ -145,3 +145,4 @@ class SFMyNode:
 - **万能滑条 SFUniversalSlider**（patterns §52）：复刻孤海万能滑条 Canvas 大滑条——后端除 widget 名 `值`→`value` 外 1:1（单 any 输出 + hidden output_type + `round(x,10)` + IS_CHANGED 回显）；RETURN_NAMES 静态不可随档变，后端固定 `("value",)`、前端随档改输出槽类型+槽名（`setSlotType` patch，§41 同款）；去全局 drawNode 补丁/CSS 前缀改 `sf-us-`/相对导入改绝对路径；值数学收敛纯 lib 可 `.mjs` 直测。
 - **布尔开关 SFBooleanSwitch**（patterns §53）：复刻孤海布尔开关 Canvas 开关——后端除 widget 名 `开关`→`value` 外 1:1（BOOLEAN default True + 单口直通，无 INT 副口）；绘制/命中魔法数字收敛 `TOGGLE` 常量（`toggleHit ≡ >W-102` 与原版等价）；单击切换 + 双击改标签（`sfBoolLabel`）+ 配色保留；补原版缺失的 `setDirtyCanvas` 三处。
 - **忽略多组 SFIgnoreGroups**（patterns §54）：复刻孤海忽略多组编组开关——后端空壳 OUTPUT_NODE，前端 DOM 行列表一键旁路/禁用整组（三模式 + 筛选 + 设置弹窗 + 500ms 轮询同步外部改动）；`app.graph.change` 重复包装收敛守卫单例 + 定时器/监听按节点清理；状态键改 `sf_ig_*`。
+- **SF 注释便签**（patterns §55）：复刻孤海注释（原版纯前端架构 1:1：节点类 + 编辑器 + 三全局补丁 + Vue 中继，无后端）——类型改 `SF Note` 防撞、补丁加 once 守卫、引擎复用纯 lib（`measure` 注入替 ctx，正则保 `\u` 转义）；入口为画布菜单 `Add SF Note`（`Comfy.AddNode` 优先 + `LiteGraph` 兜底）。
