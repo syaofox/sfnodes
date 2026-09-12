@@ -152,7 +152,7 @@ for (const n of MODS) {
         && items[0].content === "📦 SF Menu" && items[0].has_submenu === true);
     let opts = sub();
     check("0 选中含浏览器/工作流/内存",
-        !!byContent(opts, "📚 SF LoRA Browser") && !!byContent(opts, "🎞 SF Workflows")
+        !!byContent(opts, "SF LoRA Browser") && !!byContent(opts, "SF Workflows")
         && !!byContent(opts, "SF Memory"));
     check("0 选中无 SF Align", !byContent(opts, "SF Align"));
     check("画布菜单无 Add SF Note 入口", !byContent(opts, "Add SF Note"));

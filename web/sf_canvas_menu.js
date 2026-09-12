@@ -1,6 +1,6 @@
 // ==========================================================================
 // sf_canvas_menu.js — 本包画布背景右键聚合菜单（唯一顶层入口）
-//   📦 SF Menu ▶ 📚 SF LoRA Browser / 🎞 SF Workflows /
+//   📦 SF Menu ▶ SF LoRA Browser / SF Workflows /
 //                 SF Align ▶（≥2 选中节点时）/ SF Memory ▶
 // 各动作实现仍在原特性文件（零逻辑复制），本文件只做组装：
 //   对齐 buildAlignMenuItems（sf_canvas_align.js）/ 内存 buildMemoryMenuItem
@@ -23,8 +23,8 @@ app.registerExtension({
 
     getCanvasMenuItems() {
         const options = [
-            { content: "📚 SF LoRA Browser", callback: openLoraBrowser },
-            { content: "🎞 SF Workflows", callback: openWorkflowsPanel },
+            { content: "SF LoRA Browser", callback: openLoraBrowser },
+            { content: "SF Workflows", callback: openWorkflowsPanel },
         ];
         // 对齐是多选操作：<2 节点不注入（sf_canvas_align 原守卫语义）。
         const align = buildAlignMenuItems();
