@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -316,3 +316,21 @@
 
 - 原型补丁改 `nodeCreated` 实例装配；import 改绝对路径；扩展名 `sfnodes.BooleanSwitch`；自定义 widget `toggle_custom/guhai_toggle`→`sf_boolean_switch/sf_bool_ui`；标签 properties 键 `guhai_label`→`sfBoolLabel`、默认标签 `开关`→`value`（widget 改名口径一致）；配色 `#4F4047/#493C42` 保留（仅创建时设色，configure 不覆盖用户改色——原版同语义）。
 - 补原版缺失的 `setDirtyCanvas`（切换/改名/回填三处，原版靠画布偶然重绘刷新）；`configure` 重抓 widgets 引用 + 开关态同步 + 编辑中输入框落盘；`onWidgetChanged` 回填同步。
+
+---
+
+## 54. SFIgnoreGroups 忽略多组：编组开关面板复刻（2026-09）
+
+> 背景：复刻孤海 `忽略多组`（后端空壳 OUTPUT_NODE + 前端 "nodes pass.js" 约 700 行 DOM 面板），新节点 `nodes/utils/ignore_groups.py::SFIgnoreGroups`（`sfnodes/utils`，与前两个孤海复刻同组）+ `web/sf_ignore_groups_lib.js` 纯逻辑 + `web/sf_ignore_groups.js` 主扩展。后端与原版同形（空 required/空 RETURN_TYPES/OUTPUT_NODE/空执行）；properties 键 `guhai_ig_*`→`sf_ig_*`（8 键，lib 读写）。
+
+### 1. 复用与新增边界
+
+- 复用 `sf_common.js::el/injectCSSOnce/installWheelZoomPassthrough`（滚轮转发是原版手写版的超集：可滚动的颜色下拉走原生滚动，其余转发画布缩放）与 `sf_popup.js::attachPopupDismiss/clampToViewport`（设置弹窗）；`addDOMWidget` + `setInterval` 轮询是项目既有模式（dropdown/prompt_tags/load_image 先例），无组旁路逻辑可复用。
+- 新增：组几何（`groupBounds/nodeBounds/hit/inside`，折叠节点估宽与原版同式）、颜色归一、嵌套组递归、`groupState` 三态（空组按 true，原版同款）、`filterSortGroups`（空组过滤 + 关键词 + 颜色 + 位置/字母排序）、`toggleTransition` 三模式纯函数（含嵌套连带开关）。
+
+### 2. 规范化改动（相对原版）
+
+- 原型补丁改 `nodeCreated` 实例装配；import 绝对路径；扩展名 `sfnodes.IgnoreGroups`；CSS/组件名前缀 `guhai-ig-`→`sf-ig-`；旁路/禁用魔法数字具名为 `MODE_BYPASS=4/MODE_NEVER=2/MODE_ALWAYS=0`。
+- 全局 `app.graph.change` 逐节点重复包装收敛为守卫单例（`_sfIgPatched` + `_live` 实例集广播 dirty，自切换实例豁免）；定时器/document 监听/style 片段按节点清理（`onRemoved` + 脱图兜底双保险，测试锁定 timer 置空与监听成对移除）。
+- 补原版缺失的切换/恢复后 `setDirtyCanvas`（面板重建只刷自身，画布节点灰化需显式 dirty）。
+- 弹窗坑：overlay 与 pop 同级挂载时 `attachPopupDismiss` 只认 `overlay.contains`，pop 内点击会被误判外部点击关窗——必须传 `exempt: (e) => pop.contains(e.target)`（universal slider 的 panel 是 overlay 子节点，无此问题；测试用 sf_popup 真源锁定：去 exempt 必现面板内点击关窗）。

@@ -96,6 +96,8 @@ MODS = [
     "sf_universal_slider", "sf_universal_slider_lib",
     # Boolean Switch（复刻孤海布尔开关 Canvas 开关；复用 sf_common.el）
     "sf_boolean_switch", "sf_boolean_switch_lib",
+    # Ignore Groups（复刻孤海忽略多组编组开关；复用 sf_common/sf_popup）
+    "sf_ignore_groups", "sf_ignore_groups_lib",
 ]
 
 EXPORT_RE = re.compile(

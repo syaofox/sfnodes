@@ -144,3 +144,4 @@ class SFMyNode:
 - **多路拼接 SFConditioningConcat**（patterns §50）：slot1=to 被拼接方逐条保留（dict 逐条 copy），2..N=from 各取首条沿 dim1 拼接（多条 warning，原生对齐）；缺 base 抛 ValueError 明示；槽名前缀/上下限/schema/排序键同包复用 combine 模块；本机无 torch 时测试注入 stub `torch.cat`。
 - **万能滑条 SFUniversalSlider**（patterns §52）：复刻孤海万能滑条 Canvas 大滑条——后端除 widget 名 `值`→`value` 外 1:1（单 any 输出 + hidden output_type + `round(x,10)` + IS_CHANGED 回显）；RETURN_NAMES 静态不可随档变，后端固定 `("value",)`、前端随档改输出槽类型+槽名（`setSlotType` patch，§41 同款）；去全局 drawNode 补丁/CSS 前缀改 `sf-us-`/相对导入改绝对路径；值数学收敛纯 lib 可 `.mjs` 直测。
 - **布尔开关 SFBooleanSwitch**（patterns §53）：复刻孤海布尔开关 Canvas 开关——后端除 widget 名 `开关`→`value` 外 1:1（BOOLEAN default True + 单口直通，无 INT 副口）；绘制/命中魔法数字收敛 `TOGGLE` 常量（`toggleHit ≡ >W-102` 与原版等价）；单击切换 + 双击改标签（`sfBoolLabel`）+ 配色保留；补原版缺失的 `setDirtyCanvas` 三处。
+- **忽略多组 SFIgnoreGroups**（patterns §54）：复刻孤海忽略多组编组开关——后端空壳 OUTPUT_NODE，前端 DOM 行列表一键旁路/禁用整组（三模式 + 筛选 + 设置弹窗 + 500ms 轮询同步外部改动）；`app.graph.change` 重复包装收敛守卫单例 + 定时器/监听按节点清理；状态键改 `sf_ig_*`。

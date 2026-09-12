@@ -132,6 +132,7 @@ from .nodes.utils.simple_math import (
 )
 from .nodes.utils.universal_slider import SFUniversalSlider
 from .nodes.utils.boolean_switch import SFBooleanSwitch
+from .nodes.utils.ignore_groups import SFIgnoreGroups
 from .nodes.text.dropdown_value import ValueDropdown
 from .nodes.text.text_preset import SFTextPreset
 from .nodes.text.replace import SFTextReplace
@@ -344,6 +345,7 @@ NODE_CLASS_MAPPINGS = {
     "SFNumber": SFNumber,
     "SFUniversalSlider": SFUniversalSlider,
     "SFBooleanSwitch": SFBooleanSwitch,
+    "SFIgnoreGroups": SFIgnoreGroups,
     "SFSimpleMathSlider": SimpleMathSlider,
     "SFSimpleMathSliderLowRes": SimpleMathSliderLowRes,
     "SFSimpleMathBoolean": SimpleMathBoolean,
@@ -551,6 +553,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFNumber": "SF Number",
     "SFUniversalSlider": "SF Universal Slider",
     "SFBooleanSwitch": "SF Boolean Switch",
+    "SFIgnoreGroups": "SF Ignore Groups",
     "SFSimpleMathSlider": "SF Simple Math Slider",
     "SFSimpleMathSliderLowRes": "SF Simple Math Slider Low Res",
     "SFSimpleMathBoolean": "SF Simple Math Boolean",
