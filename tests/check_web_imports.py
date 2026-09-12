@@ -92,6 +92,8 @@ MODS = [
     "sf_conditioning_concat",
     # Wan Window LoRA（逐窗位置 preset 槽；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_wan_window_lora",
+    # Universal Slider（复刻孤海万能滑条 Canvas 大滑条；复用 sf_common/sf_popup/any_pack.setSlotType）
+    "sf_universal_slider", "sf_universal_slider_lib",
 ]
 
 EXPORT_RE = re.compile(

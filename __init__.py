@@ -130,6 +130,7 @@ from .nodes.utils.simple_math import (
 
     BatchCount,
 )
+from .nodes.utils.universal_slider import SFUniversalSlider
 from .nodes.text.dropdown_value import ValueDropdown
 from .nodes.text.text_preset import SFTextPreset
 from .nodes.text.replace import SFTextReplace
@@ -340,6 +341,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextListAffix": SFTextListAffix,
     # 简单数学节点
     "SFNumber": SFNumber,
+    "SFUniversalSlider": SFUniversalSlider,
     "SFSimpleMathSlider": SimpleMathSlider,
     "SFSimpleMathSliderLowRes": SimpleMathSliderLowRes,
     "SFSimpleMathBoolean": SimpleMathBoolean,
@@ -545,6 +547,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextListAffix": "SF Text List Affix",
     # 简单数学节点
     "SFNumber": "SF Number",
+    "SFUniversalSlider": "SF Universal Slider",
     "SFSimpleMathSlider": "SF Simple Math Slider",
     "SFSimpleMathSliderLowRes": "SF Simple Math Slider Low Res",
     "SFSimpleMathBoolean": "SF Simple Math Boolean",

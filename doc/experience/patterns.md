@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -278,3 +278,25 @@
 - 槽名前缀/上下限常量、灵活 schema 小类、槽序排序键全部 `from .conditioning_combine import`（语义同为 conditioning_N 动态多槽，禁止内联副本）；为此把 combine 内嵌的排序闭包提升为模块级 `conditioning_slot_key`（等价重构，`test_conditioning_combine.py` 13 断言 unchanged 验证）。
 - 前端为 combine JS 的同构薄配置（§49 三条结论延续：固定类型免着色、不自动重命名、恢复按链接数补齐/回收）。
 - 本机无 torch：测试注入 stub `torch.cat`（嵌套 list 行内拼接）+ 相对导入改写绝对后 exec（`test_any_to_string.py` 先例），16 断言；warning 路径会打印一行预期日志，非失败。
+
+---
+
+## 52. SFUniversalSlider 万能滑条：孤海 Canvas 复刻的规范化收敛（2026-09）
+
+> 背景：复刻孤海 `GoohaiUniversalSlider`（后端 `万能滑条.py` + 前端 `goohai_universal_slider.js`），新节点 `nodes/utils/universal_slider.py::SFUniversalSlider`（`sfnodes/utils`，与 SFNumber/SimpleMath 同组）+ `web/sf_universal_slider_lib.js` 纯逻辑 + `web/sf_universal_slider.js` 主扩展。后端除 widget 名中文 `值`→英文 `value`（用户确认的破兼容点，孤海旧工作流不能直接替换）外与原版 1:1（FLOAT default 0.75/min -999999/max 999999 + hidden `output_type` float/int + `round(x,10)` + int 取整 + 同逻辑 `IS_CHANGED`）。
+
+### 1. 复用清单与新增边界
+
+- 复用 `sf_utils/common.py::AnyType("*")`（替代原文件内联 `AnyType`，禁内联副本）、`sf_common.js::injectCSSOnce/el`（替代原版直接 `<style>` 注入）、`sf_popup.js::attachPopupDismiss/clampToViewport`（替代原版 overlay 点击/Esc 直写）、`any_pack.js::setSlotType`（输出槽改型元素替换，§41 同款）。
+- 新增仅 Canvas 滑条数学（`pct/clamp/snap/fmtVal/castVal/calcValue`）+ 设置归一化（`normalizeSliderSettings`：min/max 对调、step 非法回退、int 档取整——原版分散在设置弹窗 `bOk.onclick`，集中后前后端同测）+ 绘制/拖拽/弹窗装配。不复用 `sf_dynamic_slots`（固定输入）、`sf_crop_framework`（钳制图界无关）、`sf_pause_kit`（闸门无关）。
+
+### 2. 去掉的两个全局副作用
+
+- 原版 `LGraphCanvas.prototype.drawNode` 圆角补丁污染所有节点——删除，仅保留本节点级 `onDrawForeground` 标题重绘（用户确认保留）。
+- 原版 `import ... from "../../../scripts/app.js"` 相对路径违反 `check_web_imports.py B2`——改绝对路径 `/scripts/app.js`；扩展名改 `sfnodes.UniversalSlider`（B3）；CSS 前缀 `ghs-`→`sf-us-`、自定义 widget type `goohai_slider`→`sf_universal_slider`（与原插件共存不冲突）；挂点用 `nodeCreated` + 实例级 `configure`/`onAfterGraphConfigured` 包装（`simple_math.js`/`sf_image_resize_plus.js` 先例），不用原版 `beforeRegisterNodeDef` 原型补丁。
+
+### 3. RETURN_NAMES 静态约束的折中
+
+- `RETURN_NAMES` 是类静态属性，不能随 `output_type` 动态切换——后端固定 `("value",)`（`SFNumber` 先例），前端随 `sliderType` 把输出槽类型+槽名 patch 为 `INT/int` 或 `FLOAT/float`（`setSlotType` patch 含 `name/localized_name`，§41 同款；创建/callback 经 `syncOutputType`、恢复经 `configure` + `onAfterGraphConfigured` 双钩子）。
+- 测试坑：Function-eval 剥离 import 的正则必须行首锚定（`/^import[^;]+;/gm`）——纯模块边界注释里含 `import xxx.js` 字样，非锚定正则会从注释一路吃到下一个分号、吞掉真实代码（`DEFAULTS is not defined` 误报）；拖拽断言前须先跑一次 `draw` 确立轨道几何（`ds.trackW` 按 `W-ml-mr` 计算，不跑 draw 还是初始值 192）。
+- 弹窗按钮必须调包装后的 `ov.remove()`（解绑监听 + 移出 DOM）——裸 `detach()` 只解绑 document 监听，弹窗留在页面上关不掉（确定/取消点击无反应坑，已补开/关断言锁定）。
