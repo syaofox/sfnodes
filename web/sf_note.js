@@ -15,9 +15,10 @@
 // - 节点类型 "孤海注释" → "SF Note"（与原插件共存不撞槽；工作流 JSON 内
 //   类型字符串不同，旧孤海注释节点不受影响）
 // - 全局补丁加 once 守卫（重复加载不叠包；行为与原版一致）
-// - 新增画布背景菜单 "Add SF Note"（getCanvasMenuItems，sf_canvas_align
-//   同款入口）：官方 Comfy.AddNode 优先，LiteGraph.createNode + graph.add
-//   兜底（sf_lora_browser 同款顺序），落点画布视口中心 + 随机抖动
+// - 画布背景菜单 "Add SF Note" 走聚合菜单（web/sf_canvas_menu.js 📦 SF Menu，
+//   入口逻辑 addNoteFromMenu export）：官方 Comfy.AddNode 优先，
+//   LiteGraph.createNode + graph.add 兜底（sf_lora_browser 同款顺序），
+//   落点画布视口中心 + 随机抖动
 // - 换行引擎三函数（parseSegments/buildCharList/wrapCharList）复用
 //   sf_note_lib.js 真源（禁内联副本），tests/test_note_lib.mjs 锁定语义
 // ==========================================================================
@@ -852,17 +853,13 @@ app.registerExtension({
     registerCustomNodes() {
         TextEditorNode.setUp();
     },
-    getCanvasMenuItems() {
-        return [
-            {
-                content: "Add SF Note",
-                callback: () => {
-                    addSFNote().catch((err) => console.error("[SFNote]", err));
-                },
-            },
-        ];
-    },
 });
+
+// 画布菜单动作（供聚合菜单 web/sf_canvas_menu.js 📦 SF Menu 调用；
+// 本扩展不再自行注册 getCanvasMenuItems，分散入口已收敛到聚合器）。
+export function addNoteFromMenu() {
+    addSFNote().catch((err) => console.error("[SFNote]", err));
+}
 
 patchGlobalsOnce();
 installVueDblClickRelayOnce();

@@ -211,3 +211,11 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **VRAM 走原生 `POST /free`**（`server.py:1192`，`{unload_models:true, free_memory:true}` → 队列 flag → `main.py:425` 有序执行 `unload_all_models + soft_empty_cache`），与官方释放语义一致——**不要自建 VRAM 路由**（直接调 `unload_all_models` 会与运行中任务竞态，原生走队列 flag 更安全，且随上游维护）。
 - **RAM 必须自建路由**：浏览器 JS 够不着服务端进程内存。`POST /api/sfnodes/memory/ram` 实例化复用 `memory_cleanup.RAMCleanup`（`clean_ram(True,True,True,1)`，`retry_times=1`——菜单点击是交互操作，不按节点默认 3 次 `sleep` 等待），返回 `{ok, before_usage, after_usage, freed_mb}` 供 toast 显示。约 1s 阻塞事件循环（gc + sleep），可接受。
 - **菜单形态**：`getCanvasMenuItems` 无选中门槛（§11 的 `≥2 节点`守卫是"多选操作"专用，内存清理是全局动作，`sf_lora_browser` 同款无条件返回）；子菜单 `has_submenu + submenu.options`（§11 已验证双兼容）；反馈走 `sf_common.sfToast`。
+
+### 15. 画布菜单聚合（📦 SF Menu 唯一顶层入口，做"新增画布右键项"必知）
+
+> 背景：包内 5 处画布背景菜单（对齐 3 项/浏览器/工作流/便签/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组 + 自定义项内排序靠前），`tests/test_canvas_menu_js.js` 锁定。
+
+- **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 便签 `addNoteFromMenu` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
+- **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套——**三级嵌套**（SF ▶ Align ▶ Width…）§11 只验证过单级，真机若不展开再拍平。
+- **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。

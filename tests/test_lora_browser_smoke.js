@@ -321,7 +321,7 @@ function pathEl(win) {
     check("热键 Alt+Shift+L", ext?.keybindings?.[0]?.combo?.key === "l"
         && ext?.keybindings?.[0]?.combo?.alt === true
         && ext?.keybindings?.[0]?.combo?.shift === true);
-    check("canvas 菜单项", ext?.getCanvasMenuItems?.().length === 1);
+    check("canvas 菜单已移交聚合器", ext?.getCanvasMenuItems === undefined);
     check("openInfoPanelFor 已导出", typeof I.openInfoPanelFor === "function");
     check("openInfoPanel 兼容入口仍在", typeof I.openInfoPanel === "function");
 

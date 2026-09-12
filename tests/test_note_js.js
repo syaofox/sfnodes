@@ -5,7 +5,8 @@
 // - drawMultilineText 链接识别（linkAreas）；onMouseDown 点链接新开窗口
 // - onDblClick 开编辑器；Escape 关编辑器并清定时器
 // - 全局补丁 once（drawNode 背景重绘/链接点击拦截）；二次加载不叠包
-// - 画布菜单 Add SF Note 建节点（LiteGraph 兜底 + 视口中心落点）
+// - 画布菜单已收敛到聚合器（web/sf_canvas_menu.js 📦 SF Menu ▶ Add SF Note，
+//   tests/test_canvas_menu_js.js 覆盖建节点落图；此处只回归本扩展不再注入口）
 // - Vue dblclick 中继：本节点转发 onDblClick，交互元素/它节点忽略
 const fs = require("fs");
 const path = require("path");
@@ -231,63 +232,48 @@ function ctxStub() {
     check("便签节点走背景重绘", drawNodeCalls === before + 1 && n.bgcolor === "transparent");
 }
 
-// ---- 6. 画布菜单建节点（异步命令→回查集合差；兜底分支同步落图） ----
+// ---- 6. 画布菜单已移交聚合器（本扩展不再注入分散入口） ----
 {
-    const items = ext.getCanvasMenuItems();
-    const item = items.find((o) => o && o.content === "Add SF Note");
-    check("画布菜单有 Add SF Note", !!item);
-    var countBeforeMenu = fakeGraph._nodes.length;
-    var menuPromise = item ? item.callback() : Promise.resolve();
-    Promise.resolve(menuPromise)
-        .catch(() => {})
-        .then(() => {
-            const added = fakeGraph._nodes[fakeGraph._nodes.length - 1];
-            check(
-                "菜单建节点落图",
-                fakeGraph._nodes.length === countBeforeMenu + 1 &&
-                    added &&
-                    added.constructor === Cls
-            );
-            check(
-                "落点在视口中心附近",
-                Math.abs(added.pos[0] - 400) < 100 && Math.abs(added.pos[1] - 300) < 100
-            );
+    check("画布菜单已移交聚合器", ext.getCanvasMenuItems === undefined);
+}
 
-            // ---- 7. Vue dblclick 中继 ----
-            added.id = 9;
-            const bodyEl = {
-                getAttribute: (k) => (k === "data-testid" ? "node-body-9" : null),
-            };
-            const otherBodyEl = {
-                getAttribute: (k) => (k === "data-testid" ? "node-body-8" : null),
-            };
-            let dblOpened = false;
-            added.onDblClick = () => {
-                dblOpened = true;
-            };
-            const ev = (testId = "node-body-9", interactive = false) => ({
-                target: {
-                    closest(sel) {
-                        if (sel.startsWith("[data-testid")) {
-                            if (testId == null) return null;
-                            return testId === "other" ? otherBodyEl : bodyEl;
-                        }
-                        return interactive ? {} : null;
-                    },
-                },
-                preventDefault() {},
-                stopPropagation() {},
-            });
-            fireDocument("dblclick", ev());
-            check("中继转发本节点 onDblClick", dblOpened === true);
-            dblOpened = false;
-            fireDocument("dblclick", ev(null, true));
-            check("中继豁免交互元素", dblOpened === false);
-            fireDocument("dblclick", ev("other", false));
-            check("中继忽略它节点", dblOpened === false);
+// ---- 7. Vue dblclick 中继 ----
+{
+    const added = new Cls();
+    added.id = 9;
+    fakeGraph.add(added); // 中继经 graph.getNodeById(9) 定位节点，需先入图
+    const bodyEl = {
+        getAttribute: (k) => (k === "data-testid" ? "node-body-9" : null),
+    };
+    const otherBodyEl = {
+        getAttribute: (k) => (k === "data-testid" ? "node-body-8" : null),
+    };
+    let dblOpened = false;
+    added.onDblClick = () => {
+        dblOpened = true;
+    };
+    const ev = (testId = "node-body-9", interactive = false) => ({
+        target: {
+            closest(sel) {
+                if (sel.startsWith("[data-testid")) {
+                    if (testId == null) return null;
+                    return testId === "other" ? otherBodyEl : bodyEl;
+                }
+                return interactive ? {} : null;
+            },
+        },
+        preventDefault() {},
+        stopPropagation() {},
+    });
+    fireDocument("dblclick", ev());
+    check("中继转发本节点 onDblClick", dblOpened === true);
+    dblOpened = false;
+    fireDocument("dblclick", ev(null, true));
+    check("中继豁免交互元素", dblOpened === false);
+    fireDocument("dblclick", ev("other", false));
+    check("中继忽略它节点", dblOpened === false);
 
-            finish();
-        });
+    finish();
 }
 
 function finish() {

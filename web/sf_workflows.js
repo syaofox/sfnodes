@@ -1403,6 +1403,12 @@ function toggle() {
     syncButton();
 }
 
+// 画布菜单动作（供聚合菜单 web/sf_canvas_menu.js 📦 SF Menu 调用；
+// 本扩展不再自行注册 getCanvasMenuItems，分散入口已收敛到聚合器）。
+export function openWorkflowsPanel() {
+    return toggle();
+}
+
 function syncButton() {
     if (!S.btn) return;
     S.btn.classList.toggle("sf-wb-btn-open", !!S.win?.isOpen());
@@ -1458,9 +1464,8 @@ if (!app._sfWorkflowsRegistered) {
     // 全局去重）。加 Shift 避开
     keybindings: [{ combo: { key: "w", alt: true, shift: true }, commandId: CMD_ID }],
 
-    getCanvasMenuItems() {
-        return [{ content: "🎞 SF Workflows", callback: toggle }];
-    },
+    // 画布背景菜单已收敛到聚合菜单（web/sf_canvas_menu.js 📦 SF Menu），
+    // 本扩展不再注入分散入口（动作经 openWorkflowsPanel export）。
 
     async setup() {
         try {

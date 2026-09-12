@@ -455,6 +455,11 @@ function toggle() {
     syncButton();
 }
 
+// 画布菜单动作（供聚合菜单 web/sf_canvas_menu.js 📦 SF Menu 调用）。
+export function openLoraBrowser() {
+    return toggle();
+}
+
 // ── 工具栏按钮顺序（强保证 Workflows | LoRA | Settings）──────────────────
 // LoRA 的挂载时序与 Workflows 竞态：按文件名 `sf_lora_browser.js` <
 // `sf_workflows.js`，LoRA 更易先挂，`W.before(Settings)` 会把后挂的 W 插到
@@ -576,9 +581,8 @@ if (!app._sfLoraBrowserRegistered) {
         // 小。若第三方包已占用会在注册时报错——换一个修饰键组合即可。
         keybindings: [{ combo: { key: "l", alt: true, shift: true }, commandId: CMD_ID }],
 
-        getCanvasMenuItems() {
-            return [{ content: "📚 SF LoRA Browser", callback: toggle }];
-        },
+        // 画布背景菜单已收敛到聚合菜单（web/sf_canvas_menu.js 📦 SF Menu），
+        // 本扩展不再注入分散入口（动作经 openLoraBrowser export）。
 
         async setup() {
             mountToolbarButton();

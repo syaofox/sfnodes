@@ -80,6 +80,8 @@ MODS = [
     "sf_canvas_align", "sf_canvas_align_lib",
     # 画布内存清理（SF Memory 子菜单：原生 /free + 自建 RAM 路由）
     "sf_memory_menu",
+    # 画布聚合菜单（📦 SF Menu 唯一顶层入口，组装各特性 export 动作）
+    "sf_canvas_menu",
     # 单文件多依赖节点
     "load_images_path", "sf_prompt_reader", "sf_prompt_list", "sf_mask_fill",
     # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）

@@ -1,14 +1,14 @@
 // ==========================================================================
-// sf_memory_menu.js — 画布背景右键 SF Memory 子菜单（无选中门槛，随处可用）
-//   SF Memory ▶ Free VRAM / Free RAM
+// sf_memory_menu.js — 内存清理菜单项构建器
+// 供聚合菜单（web/sf_canvas_menu.js，📦 SF Menu ▶ SF Memory）提供子菜单。
 // VRAM 走 ComfyUI 原生 POST /free（server.py:1192，队列 flag 有序执行卸载 +
 // soft_empty_cache，与官方释放语义一致，零后端改动）；RAM 走自建路由
 // POST /api/sfnodes/memory/ram（复用 nodes/utils/memory_cleanup.py 的
 // RAMCleanup 逻辑——浏览器 JS 无法释放服务端进程内存，必须经后端执行）。
 // 反馈经 sf_common.sfToast（禁止内联副本）。
+// 本文件不再自行注册画布菜单（分散入口已收敛到聚合器），只 export 构建器。
 // ==========================================================================
 
-import { app } from "/scripts/app.js";
 import { sfApiUrl, sfToast } from "./sf_common.js";
 
 const TAG = "SF Memory";
@@ -38,23 +38,17 @@ async function freeRam() {
     }
 }
 
-app.registerExtension({
-    name: "sfnodes.MemoryMenu",
-
-    getCanvasMenuItems() {
-        // sf_canvas_align 同款入口；内存清理无选中门槛，不做节点数守卫
-        // （sf_lora_browser 同款无条件返回）。
-        return [
-            {
-                content: "SF Memory",
-                has_submenu: true,
-                submenu: {
-                    options: [
-                        { content: "Free VRAM", callback: freeVram },
-                        { content: "Free RAM", callback: freeRam },
-                    ],
-                },
-            },
-        ];
-    },
-});
+export function buildMemoryMenuItem() {
+    // sf_canvas_align 同款子菜单结构；内存清理无选中门槛，不做节点数守卫
+    // （sf_lora_browser 同款无条件返回）。
+    return {
+        content: "SF Memory",
+        has_submenu: true,
+        submenu: {
+            options: [
+                { content: "Free VRAM", callback: freeVram },
+                { content: "Free RAM", callback: freeRam },
+            ],
+        },
+    };
+}
