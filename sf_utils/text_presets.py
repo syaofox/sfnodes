@@ -15,12 +15,12 @@
 import asyncio
 import json
 import os
-import threading
 
 from aiohttp import web
 
 from .logger import get_logger
 from .common import valid_name
+from .disk_state import atomic_write_json, mtime_size_sig  # 原子写盘/文件签名（单源，见 disk_state）
 from .disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 logger = get_logger(__name__)
@@ -62,11 +62,7 @@ def _normalize_presets(data):
 def load_presets():
     """读取全局预设列表（mtime+size 变化自动重载，krea2_presets.load_store 范式）。"""
     path = _store_path()
-    try:
-        st = os.stat(path)
-        sig = (st.st_mtime, st.st_size)
-    except OSError:
-        sig = None
+    sig = mtime_size_sig(path)
     if _cache["sig"] == sig:
         return _cache["data"]
     data = []
@@ -82,13 +78,10 @@ def load_presets():
 
 
 def save_presets(presets):
-    """落盘（线程安全：临时名带线程 id，os.replace 原子替换，lora_presets 同款）。"""
+    """落盘（线程安全：disk_state.atomic_write_json 临时文件 + os.replace 原子替换，lora_presets 同款）。"""
     path = _store_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = "{}.{}.tmp".format(path, threading.get_ident())
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"presets": presets}, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    atomic_write_json(path, {"presets": presets})
     try:
         st = os.stat(path)
         _cache["sig"] = (st.st_mtime, st.st_size)

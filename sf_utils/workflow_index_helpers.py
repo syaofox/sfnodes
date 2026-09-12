@@ -12,8 +12,9 @@ import hashlib
 import json
 import os
 import re
-import threading
 from collections import deque
+
+from .disk_state import atomic_write_json  # 原子写盘（单源，见 disk_state）
 
 # 大于此大小的文件几乎不可能是手工工作流，解析会阻塞请求。24MB 远高于
 # 现实中最大的工作流（作者自己文件夹里最大 75KB）。
@@ -330,17 +331,12 @@ def _save_cache(cache_path, entries):
     """先写临时文件再移动到位：崩溃或磁盘满只留下旧缓存，而不是一个必须
     在每次打开时检测并丢弃的坏缓存。临时名带线程 id（跑在线程执行器里，
     共享的 .tmp 会被两次重叠构建写烂）。"""
-    tmp = "%s.%d.tmp" % (cache_path, threading.get_ident())
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"version": _CACHE_VERSION, "entries": entries}, f)
-        os.replace(tmp, cache_path)
+        atomic_write_json(cache_path, {"version": _CACHE_VERSION, "entries": entries},
+                           ensure_ascii=True, indent=None)
     except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+        pass
 
 
 def build_index(root, cache_path):

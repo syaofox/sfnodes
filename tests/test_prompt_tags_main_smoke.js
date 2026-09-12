@@ -91,7 +91,7 @@ globalThis.fetch = async (url) => {
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptg_main_"));
 for (const n of ["sf_prompt_tags_lib.js", "sf_prompt_tags_pinyin.js",
     "sf_prompt_tags_cursors.js",
-    "sf_prompt_tags_store.js", "sf_prompt_tags_guard.js",
+    "sf_prompt_tags_store.js", "sf_crop_undo_guard.js",
     "sf_common.js",
     "sf_prompt_tags_editor.js", "sf_prompt_tags.js"]) {
     const code = fs

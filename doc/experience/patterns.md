@@ -378,3 +378,38 @@
 - `sf_load_image_resize.js` 的 `openSimpleColorPicker`：该文件零 import、刻意不依赖 app.js 可单测，移入 `sf_common` 会破坏设计。
 - 路径包含性 7 实现：`commonpath` vs `startswith`、跨盘回退、`exists` 语义各异且各有测试锁定，不盲合。
 - 纯模块边界（`*_lib.js` 不得 import `sf_common`）、数值取整三契约、ReDoS 双端镜像：故意不共享（见 §26 与 AGENTS）。
+
+---
+
+## 58. 第二批收敛：守卫单源/前缀清洗/原子写盘/样例 kind 参数化（2026-09）
+
+> 背景：§57 审计的 Tier 2 四项（A1 守卫合并、save_image_exact 前缀副本、原子写盘 9 处、B7 样例漏迁移）。共同点：收敛前先证明"同构或参数化后同构"，调用点行为（含日志/返回值/异常类型）逐项对齐。
+
+### 1. A1 graph-undo 守卫合并（真缺陷修复）
+
+- `sf_prompt_tags_guard.js` 与 `sf_crop_undo_guard.js` 逐行等价却各持独立 `_tokens`——引用计数跨模块拆分，关一个编辑器时另一模块可能误判 `_anyAlive()==false` 提前 stand down。删前者，`sf_prompt_tags_editor.js` 改 import（其余两调用点不动）。
+- 删 JS 文件的联动清单：`check_web_imports.py` MODS 去行（规则 A 会扫导入符号存在性）+ 冒烟测试 staging 列表换名（copy→改写 import 后缀机制）+ `architecture.md` + `nodes-text.md` 模块索引。文件名保留 `sf_crop_undo_guard`（改名扩大 churn），头注改为"全编辑器单源"并顺手修正过时用法路径。
+- 合并后引用计数 reunite：crop/inpaint/tags 三编辑器同开同关走同一 `_tokens`，正是注释要求的"单一系统"。
+
+### 2. safe_prefix 收敛（扩展名钩子保留）
+
+- `disk_state.safe_prefix/sanitize_segment` 提升 preview 版；save 的 `_safe_filename` 只剩扩展名剥离 + 二次截断（`_PREFIX_OUTPUT_MAX` 本地留值，`_WIN_RESERVED_NAMES` 本地保留供剥离后二次守卫）。
+- 等价性证明：save 版截断后 `if not result: return ""` 与 preview 版直接返回 rstripped 结果——rstrip 为空时两者同为 `""`，行为一致；`%date:FMT%` 省略说明是 preview 特有知识，随函数迁入共享 docstring，不丢。
+- `import re` 两处随正则定义一并删除（grep 确认无他用）。
+
+### 3. 原子写盘：诚实限界（9→8+1 有意例外）
+
+- 9 处并非完全同构（tmp 命名/dump 参数/makedirs/清理/异常类型/返回值各异），强合需参数爆炸。收敛形状取"抛错上浮 + helper 内清理"：`atomic_write_bytes`（pid+tid 临时名，比 tid 版严格更安全）+ `atomic_write_json(path, obj, *, ensure_ascii=False, indent=2)`；makedirs/日志/返回值/异常处理全留调用点。
+- 字节等价：标准库默认形参的调用点显式传 `ensure_ascii=True, indent=None`（与原 `json.dump(data, f)` 逐字节一致，实测锁定）；bytes 点 `bytes(raw)` 转换保留。
+- `lora_routes` 采样下载的 content-hash 临时名 rationale 不同（同文件并发下载），不迁、记为有意例外；`mtime_size_sig` 只收 text/krea2（character/styles 是三元组键，不硬合）。
+- 迁移后 `threading` 在 lora_presets/krea2/text_presets/workflow_index_helpers/workflow_routes 变无用导入，一并删除（grep 逐文件确认）。
+
+### 4. B7 样例 kind 参数化（零外部调用方是安全前提）
+
+- 动手前先 grep：共享版 5 函数除 stack_info 本地版外**零调用方**，加可选 `kind` 参数不可能回归他人；`fetchSamplesCached` 的 kind 支持已先行存在，只需贯穿 preview/hover/resolve。
+- 面板耦合点：本地 overlay/hover 类（`sf-ls-sample-preview`/`sf-ls-desc-hover`）绑定面板 CSS + 两处 dismiss 豁免引用。共享版行内样式与面板 CSS 值逐字一致，外观不变；dismiss 两处（onKey + onDocClick）同步换类名，死 CSS 删除。共享版多出的 `sfPreviewEsc` 标记只被对话框 cancel 读取，面板无读者，无害。
+- dmodel 冒烟测试（`samplesKind: "diffusion_models"` ctx）直接覆盖 kind 路径。
+
+### 5. 编辑工具卫生（本次连踩两次）
+
+- 用 edit 删除整函数时，`oldString` 不要把被保留的 def 行也包进去——一次误配会整段删掉邻居函数体。删后立即 `py_compile` + `git diff --stat` 确认零误删（本批一次误删 `decode_image`、一次误删 `sf_user_dir`，均当场恢复）。

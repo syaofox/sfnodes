@@ -59,7 +59,7 @@ sfnodes/
 │   ├── scene_detect.py  # 镜头切分纯逻辑（缩略灰度直方图/像素差 + 黑白场连续段 + 溶解滑窗累积，无 ComfyUI 依赖，SFImageSceneSplit 用）
 │   ├── brush_mask.py    # 画笔遮罩纯逻辑（旧串三格式解析 parse_strokes/state 结构化解析 parse_state_strokes/往返 build_brush_data/向量化栅格化 rasterize_strokes brush 置1 erase 置0，仅 numpy，SFImageBrushMask 用，见 experience/nodes-image.md §45）
 │   ├── qwen_edit.py     # Qwen Edit 编码纯逻辑（复刻 EditUtils EditTextEncode 引擎 qwen 路径：longest_edge 缩放/pad 画布/center/disabled 三 crop + 主图 mask→noise_mask/pad_info + VL 面积缩放 + conditioning/latent/custom_output 组装，SFQwenEditTextEncode 用；依赖 torch/comfy.utils）
-│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化；sf_user_dir 用户数据统一目录，krea2/text_presets/lora_routes/character/styles_selector 共用）
+│   ├── disk_state.py    # 磁盘状态共享实现（safe_join/sanitize_id/sanitize_filename/decode_image，crop 与 inpaint 共用；sanitize_filename 供 hyperlora/lut 等"自由 STRING → 文件路径"净化；sf_user_dir 用户数据统一目录，krea2/text_presets/lora_routes/character/styles_selector 共用；safe_prefix/sanitize_segment 多段文件名前缀清洗，preview_routes/save_image_exact 共用；atomic_write_json/atomic_write_bytes 原子写盘 + mtime_size_sig 文件签名，presets/缓存/sidecar/封面 8 处存储共用）
 │   ├── skin.py          # 肤色估计纯逻辑（numpy RGB→LAB 肤色过滤取均值/回退，SFFaceWarp 未连接源图时填充近似肤色用，无 ComfyUI 依赖）
 │   ├── prompt_reader.py # 提示词恢复纯逻辑（PNG tEXt + MP4 keys/ilst + WebM EBML Tags 解析、graph walker 反推 sampler 文本链，无 ComfyUI 依赖）
 │   └── logger.py        # 日志
@@ -88,7 +88,7 @@ sfnodes/
 │   ├── sf_prompt_list.js  # 行号编辑器单模块（SFPromptList：隐藏原生 multiline_text widget 作值真源 + DOM widget 行号栏从 0 起/跳过空白行对齐输出 index/超 500 行虚拟化，值恢复三通道；wrap 开启走镜像测量（mirror 与 textarea 同几何块级 div，行高按行缓存/宽度变化清空，渲染后强制重同步 scrollTop 防浏览器钳制错位）；start_index/max_rows 切片范围高亮跟随——仅裁剪时文本背景块+行号联动，wrap 开时高亮随测量行高展开（与行号同源））
 │   ├── sf_prompt_stack*.js # 动态 Prompt 列表两模块（core 纯逻辑 + 行 UI，SFPromptStack 行动态添加/每条开关/右下角角标拖拽调行高 state.rows[i].h 随工作流保存）
 │   ├── sf_text_preset.js  # 持久化文本预设单模块（全局库 API 读写 + 工作流残留合并 + 编辑框草稿语义 text_override/↧ 保存到预设 + API 失败降级）
-│   ├── sf_prompt_tags*.js # @tag 标签库七模块（lib/store/cursors/guard/editor/pinyin + 主扩展）+ prompt_tags_default.json 内置默认库
+│   ├── sf_prompt_tags*.js # @tag 标签库六模块（lib/store/cursors/editor/pinyin + 主扩展；guard 已合并入 sf_crop_undo_guard.js 全项目单源）+ prompt_tags_default.json 内置默认库
 │   ├── prompt_preset.js   # 预设互斥联动/选中预设说明动态 tooltip
 │   ├── sf_load_image*.js  # 加载图片四模块（SFLoadImageResize）+ load_images_path.js 渐进式目录浏览（SFLoadImagesPath 源切换 input/output/images + 面包屑/按需加载 + 直接输入路径）
 │   ├── sf_lora_stack*.js  # 多行 LoRA 栈模块系列（core/api/render/interaction/dropdown/info/settings + 主扩展；info 面板经宿主 ctx 适配——openInfoPanel(node,id,refresh) 兼容入口保留，新增 openInfoPanelFor(ctx,id) 供 LoRA 浏览器等非节点宿主复用同一编辑面板；ctx 另支持 api 整束注入（路由域替换）/hideTriggers/samplesKind/autoCivitai，SF Load Diffusion Model 复用同一面板；复合预设 positive 经 SFLoraPreset STRING 输出流通；栈内 Presets 菜单仅 Save（内联命名+positive 表单）与 Manage 两项，取用/改名/删除走独立大面板 onSelect（空行保护直接应用，rename 原子化，见 §34.6/§39.10）；触发词勾选全局默认（新建行默认值，工作流覆盖，见 §36），见 experience/nodes-lora.md §34/§36）
@@ -96,7 +96,7 @@ sfnodes/
 │   ├── sf_load_diffusion_model.js # SF Load Diffusion Model + 官方 UNETLoader 单模块（i 信息图标复用 sf_lora_info.js 的 setupLoaderInfoWidget 工厂（prefetch:null/hasCustomOf/onOpen 注入）+ dmodelPanelCtx 宿主适配（api/hideTriggers/samplesKind/autoCivitai 四件套），isGraphLoading 门控点击；NODE_TYPES 双挂零后端改动，见 experience/nodes-lora.md §56）
 │   ├── sf_lora_plot.js    # 批量对比节点单模块（SFLoraPlot：行 UI 全复用 stack 的 core/api/dropdown/菜单/CSS）
 │   ├── sf_lora_info.js    # LoRA 信息对话框（SFLoraLoader/SFLoraLoaderModelOnly 共用，sf_markdown.js 渲染描述；createInfoWidget/setupLoaderInfoWidget 参数化工厂导出供非 LoRA 加载器（SF Load Diffusion Model）复用图标绘制与 configure 时序；lora_loader.js / lora_loader_model_only.js 经 NODE_TYPES 另挂官方 LoraLoader / LoraLoaderModelOnly，见 experience/nodes-lora.md §56；官方开关 sfnodes.OfficialInfo.Enabled（默认开，即时增删官方节点 widget，SF 节点恒挂载）亦归此模块：registerOfficialInfoSettingOnce（globalThis 守卫防三文件重复注册）+ registerOfficialInfoSpec 登记 + enabledOf 门控）
-│   ├── sf_lora_shared_info.js # 样例图网格/预览/hover/markdown 复用内核（Stack 面板与 info 对话框共享；loadWorkflowFromImageUrl(url) PNG 内嵌工作流通用载入——readPngWorkflowData 前端 chunk 解析 + Comfy.NewBlankWorkflow 新标签，loadImageAsWorkflow 是 lora_samples 路径薄包装，image_browser 经 /view 复用；attachSamplePromptCopyButtons(container,notify) 描述内 civitai 样例 prompt 代码块右上角常驻复制按钮——h3 紧邻 pre 判定 + copyText/injectCSSOnce 复用 sf_common）
+│   ├── sf_lora_shared_info.js # 样例图网格/预览/hover/markdown 复用内核（Stack 面板与 info 对话框共享；loadWorkflowFromImageUrl(url) PNG 内嵌工作流通用载入——readPngWorkflowData 前端 chunk 解析 + Comfy.NewBlankWorkflow 新标签，loadImageAsWorkflow 是 lora_samples 路径薄包装，image_browser 经 /view 复用；attachSamplePromptCopyButtons(container,notify) 描述内 civitai 样例 prompt 代码块右上角常驻复制按钮——h3 紧邻 pre 判定 + copyText/injectCSSOnce 复用 sf_common；resolveSampleUrl/openSamplePreview/attachSampleTitleHover/buildSampleMarkdown/insertAtCursor/samplesKindQ 曾散落 stack_info 本地副本，现收敛单源（kind 可选参数，dmodel 宿主传 diffusion_models，LoRA 宿主省略 URL 不变））
 │   ├── sf_markdown.js     # Markdown 渲染纯模块（无 app 依赖，纯模块边界成员——不得 import sf_common）
 │   ├── sf_lora_preset.js # 预设选择节点前端（原 power_lora_preset.js 改名，SFLoraPreset；2026-08 复合预设：positive 提示词额外 STRING 输出 + 选中预设 tooltip 预览 + 独立 Manage 弹窗（改名+positive 原子化，删除二次确认），见 §34）
 │   ├── sf_lora_preset_filter.js # 预设过滤纯逻辑（名 + LoRA 文件名子串，大小写不敏感，高亮命中，见 §34.6）

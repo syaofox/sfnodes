@@ -66,6 +66,14 @@ folder_paths.is_within_directory = is_within_directory
 sys.modules["folder_paths"] = folder_paths
 
 # ── load module ──
+# 注册 sfnodes 包结构，使节点的相对导入（from ...sf_utils.disk_state import）
+# 可解析（test_load_image_resize.py 同款）。
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.image", "nodes/image"),
+                   ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules[_pkg] = _m
 spec = importlib.util.spec_from_file_location(
     "sfnodes.nodes.image.save_image_exact",
     os.path.join(root, "nodes", "image", "save_image_exact.py"),

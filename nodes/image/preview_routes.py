@@ -13,13 +13,13 @@ import base64
 import io
 import json
 import os
-import re
 
 import folder_paths
 from PIL.PngImagePlugin import PngInfo
 
 from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
 from ...sf_utils.disk_state import decode_image as _decode_image  # dataURL 解码（单源，见 disk_state）
+from ...sf_utils.disk_state import safe_prefix as _safe_prefix  # 文件名前缀清洗（单源，见 disk_state）
 
 
 def _metadata_disabled():
@@ -34,65 +34,6 @@ def _metadata_disabled():
         return bool(getattr(_comfy_cli_args, "disable_metadata", False))
     except Exception:
         return False
-
-
-_DISALLOWED_CHAR_RE = re.compile(r'[<>:"|?*\x00-\x1f\x7f]')
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
-_PREFIX_MAX_LEN = 256       # 输入上限（尽早拒绝明显的垃圾）
-_PREFIX_OUTPUT_MAX = 100    # 输出上限
-_WIN_RESERVED_NAMES = frozenset((
-    "CON", "PRN", "AUX", "NUL",
-    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-))
-
-
-def _sanitize_segment(seg):
-    """把 Windows 非法字符换成 '_'，整理边沿，守卫保留设备名。
-
-    调用方须在调用前拒绝 '..'。全部不可用时返回 ""。尾点/尾空格剥离——
-    Windows 创建时本就静默剥离，这里剥离让报告路径与磁盘实际落盘一致。
-    """
-    cleaned = _DISALLOWED_CHAR_RE.sub("_", seg)
-    cleaned = _MULTI_UNDERSCORE_RE.sub("_", cleaned)
-    # 循环到稳定：边沿空白、边沿下划线、尾点/空格会互相遮蔽
-    prev = None
-    while prev != cleaned:
-        prev = cleaned
-        cleaned = cleaned.strip().strip("_").rstrip(". ")
-    if cleaned and cleaned.split(".", 1)[0].upper() in _WIN_RESERVED_NAMES:
-        cleaned += "_"
-    return cleaned
-
-
-def _safe_prefix(raw):
-    """清洗文件名前缀；不可恢复时返回 ""（调用方兜底默认名）。
-
-    管道：逐段只替换 Windows 非法字符（<>:"|?* 与控制字符）为 '_'、折叠重复
-    '_'、剥离边沿空白/下划线/尾点、Windows 保留设备名加 '_' 后缀。其余
-    （非拉丁文字、重音、空格）原样通过，与原生 SaveImage 一致。段以 '/' 分隔。
-    先检查 leading '/' 与 '..' 段（在任何清洗之前——清洗会把 '..' 吃掉，
-    让路径穿越检查失效）。
-    （省略了原版 %date:FMT% token 展开：路由场景前端从不传带 token 的前缀。）
-    """
-    if not isinstance(raw, str):
-        return ""
-    s = raw.strip().replace("\\", "/")
-    if not s or len(s) > _PREFIX_MAX_LEN:
-        return ""
-    if s.startswith("/"):
-        return ""
-    parts = s.split("/")
-    if any(p == ".." for p in parts):
-        return ""
-    cleaned_parts = [_sanitize_segment(p) for p in parts if p]
-    cleaned_parts = [p for p in cleaned_parts if p]
-    if not cleaned_parts:
-        return ""
-    result = "/".join(cleaned_parts)
-    if len(result) > _PREFIX_OUTPUT_MAX:
-        result = result[:_PREFIX_OUTPUT_MAX].rstrip("/_-")
-    return result
 
 
 def _build_pnginfo(prompt=None, workflow=None, parameters=None):

@@ -56,7 +56,7 @@ MODS = [
     "sf_load_image", "sf_load_image_api", "sf_load_image_ui", "sf_load_image_resize",
     # @tag 家族
     "sf_prompt_tags", "sf_prompt_tags_lib", "sf_prompt_tags_cursors",
-    "sf_prompt_tags_guard", "sf_prompt_tags_editor", "sf_prompt_tags_store",
+    "sf_prompt_tags_editor", "sf_prompt_tags_store",
     "sf_prompt_tags_pinyin",
     # 区域 LoRA 家族
     "sf_regional_lora", "sf_regional_lora_lib",

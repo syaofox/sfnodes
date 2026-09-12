@@ -81,8 +81,8 @@ def load_as(name, path):
     spec.loader.exec_module(mod)
     return mod
 
-# lora_reader 纯逻辑（无相对导入）
-reader = load_as("sf_utils_lora_reader", os.path.join(root, "sf_utils", "lora_reader.py"))
+# lora_reader 纯逻辑（包内相对导入，需 sfnodes.sf_utils 包上下文）
+reader = load_as("sfnodes.sf_utils.lora_reader", os.path.join(root, "sf_utils", "lora_reader.py"))
 # lora_routes（import lora_reader；路由注册因无 server 被 try/except 吞掉）
 load_as("sfnodes.sf_utils.lora_routes", os.path.join(root, "sf_utils", "lora_routes.py"))
 # lora_samples（import PIL mock）

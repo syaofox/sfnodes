@@ -49,8 +49,8 @@
 
 ### 7. 模块边界（复用/修改时的快速索引）
 
-- `nodes/image/pause_image.py`：节点（快照/continue 读回/无 IS_CHANGED）+ `_json_safe`。
-- `nodes/image/preview_routes.py`：save/prepare 路由 + `_safe_prefix`/`_sanitize_segment`/`_decode_image`/`_build_pnginfo`/`_metadata_disabled`。
+- `nodes/image/pause_image.py`：节点（快照/continue 读回/无 IS_CHANGED）+ `_json_safe`（已收敛入 `sf_utils/common.py`，见 patterns.md §57）。
+- `nodes/image/preview_routes.py`：save/prepare 路由 + `_build_pnginfo`/`_metadata_disabled`（`_safe_prefix`/`_sanitize_segment`/`_decode_image` 已收敛入 `sf_utils/disk_state.py`，见 patterns.md §57–58）。
 - `web/sf_pause_kit.js::makeGateState`：state 工厂（{gate, frame}，image/mask/latent 共用，仅 stateProp 配置不同）。
 - `web/sf_pause_kit.js::buildPauseBody`：DOM widget 工厂（预览/按钮行/尺寸行 + frameViewUrl /view+缓存戳）。
 - `web/sf_pause_image.js`：薄配置（调 definePauseGate；双钩子/Save 链路/Copy/Open/executed 全在 kit）。
@@ -83,7 +83,7 @@
 
 ### 4. 模块边界（复用/修改时的快速索引）
 
-- `nodes/mask/pause_mask.py`：节点（快照 L 模式/读回 [1,H,W] 防御/无 IS_CHANGED）+ `_json_safe`。
+- `nodes/mask/pause_mask.py`：节点（快照 L 模式/读回 [1,H,W] 防御/无 IS_CHANGED）+ `_json_safe`（已收敛入 `sf_utils/common.py`，见 patterns.md §57）。
 - `web/sf_pause_kit.js`：state/UI/主扩展引擎（image/mask/latent 共用，仅 stateProp="pauseMaskState" 等配置差异）。
 - `web/sf_pause_mask.js`：薄配置（调 definePauseGate）。
 - prune 共享：`web/sf_pause_text_lib.js::applyGateMode`（**三闸门共用**，勿复制）。

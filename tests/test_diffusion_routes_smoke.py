@@ -100,7 +100,7 @@ def load_as(name, path):
     return mod
 
 load_as("sfnodes.sf_utils.logger", os.path.join(root, "sf_utils", "logger.py"))
-reader = load_as("sf_utils_lora_reader", os.path.join(root, "sf_utils", "lora_reader.py"))
+reader = load_as("sfnodes.sf_utils.lora_reader", os.path.join(root, "sf_utils", "lora_reader.py"))
 lr = load_as("sfnodes.sf_utils.lora_routes", os.path.join(root, "sf_utils", "lora_routes.py"))
 ls = load_as("sfnodes.sf_utils.lora_samples", os.path.join(root, "sf_utils", "lora_samples.py"))
 dr = load_as("sfnodes.sf_utils.diffusion_routes", os.path.join(root, "sf_utils", "diffusion_routes.py"))

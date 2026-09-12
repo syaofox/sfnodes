@@ -15,13 +15,13 @@
 // confirmDanger 提问，并尽量提供"先导出备份"。
 //
 // 数据 / 存储见 sf_prompt_tags_lib.js / sf_prompt_tags_store.js，
-// 游标见 sf_prompt_tags_cursors.js，Ctrl+Z 守卫见 sf_prompt_tags_guard.js。
+// 游标见 sf_prompt_tags_cursors.js，Ctrl+Z 守卫见 sf_crop_undo_guard.js（全项目单源）。
 //
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
 import { getSfAccent, injectCSSOnce, sfToast } from "./sf_common.js";
-import { installGraphUndoGuard } from "./sf_prompt_tags_guard.js";
+import { installGraphUndoGuard } from "./sf_crop_undo_guard.js";
 import {
     getLibrary, reloadLibrary, isSameAsStored, commitLibrary, flushLibrary, applyImport,
     fetchDefaultLibrary,

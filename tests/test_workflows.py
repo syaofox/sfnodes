@@ -28,6 +28,12 @@ aiohttp.web = web_mock
 sys.modules["aiohttp"] = aiohttp
 sys.modules["aiohttp.web"] = web_mock
 
+# 相对导入 ..sf_utils / .disk_state 需要包上下文（先注册，后加载）
+_sf_pkg = types.ModuleType("sfnodes"); _sf_pkg.__path__ = [root]
+_sf_utils_pkg = types.ModuleType("sfnodes.sf_utils"); _sf_utils_pkg.__path__ = [os.path.join(root, "sf_utils")]
+sys.modules.setdefault("sfnodes", _sf_pkg)
+sys.modules.setdefault("sfnodes.sf_utils", _sf_utils_pkg)
+
 spec = importlib.util.spec_from_file_location(
     "sfnodes.sf_utils.workflow_index_helpers",
     os.path.join(root, "sf_utils", "workflow_index_helpers.py"),
@@ -150,13 +156,7 @@ check("reserved_part", H.reserved_part(wf_root, os.path.join(wf_root, "NUL")) is
 check("reserved_part 正常", H.reserved_part(wf_root, os.path.join(wf_root, "ok")) is None)
 check("reserved_part 根含保留词不误伤", H.reserved_part("/home/con/workflows", "/home/con/workflows/ok") is None)
 
-# ── 路由纯逻辑（mock folder_paths 已就位）──
-# 相对导入 ..sf_utils 需要包上下文
-_sf_pkg = types.ModuleType("sfnodes"); _sf_pkg.__path__ = [root]
-_sf_utils_pkg = types.ModuleType("sfnodes.sf_utils"); _sf_utils_pkg.__path__ = [os.path.join(root, "sf_utils")]
-sys.modules.setdefault("sfnodes", _sf_pkg)
-sys.modules.setdefault("sfnodes.sf_utils", _sf_utils_pkg)
-
+# ── 路由纯逻辑（mock folder_paths 已就位；包桩见文件头）──
 spec_r = importlib.util.spec_from_file_location(
     "sfnodes.nodes.workflow_routes",
     os.path.join(root, "nodes", "workflow_routes.py"),

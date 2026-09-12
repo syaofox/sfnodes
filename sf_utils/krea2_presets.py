@@ -15,12 +15,12 @@
 import asyncio
 import json
 import os
-import threading
 
 from aiohttp import web
 
 from .logger import get_logger
 from .common import valid_name as _valid_name  # 预设名校验（单源，见 common）
+from .disk_state import atomic_write_json, mtime_size_sig  # 原子写盘/文件签名（单源，见 disk_state）
 from .disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 logger = get_logger(__name__)
@@ -62,11 +62,7 @@ def _normalize_store(data):
 def load_store(kind):
     """读取用户存储（线程安全；mtime+size 变化自动重载）。"""
     path = _store_path(kind)
-    try:
-        st = os.stat(path)
-        sig = (st.st_mtime, st.st_size)
-    except OSError:
-        sig = None
+    sig = mtime_size_sig(path)
     cached = _store_cache.get(kind)
     if cached and cached[0] == sig:
         return cached[1]
@@ -82,13 +78,10 @@ def load_store(kind):
 
 
 def save_store(kind, store):
-    """落盘（线程安全：临时名带线程 id，os.replace 原子替换）。"""
+    """落盘（线程安全：disk_state.atomic_write_json 临时文件 + os.replace 原子替换）。"""
     path = _store_path(kind)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = "{}.{}.tmp".format(path, threading.get_ident())
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(store, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    atomic_write_json(path, store)
     try:
         st = os.stat(path)
         _store_cache[kind] = ((st.st_mtime, st.st_size), _normalize_store(store))

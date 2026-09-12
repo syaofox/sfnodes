@@ -1,5 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  Shared Ctrl+Z / graph-undo guard for Pixaroma fullscreen editors.    ║
+// ║  Shared Ctrl+Z / graph-undo guard for fullscreen editors (single     ║
+// ║  source: crop / inpaint / prompt-tags editors all register here).    ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 //
 // WHAT CTRL+Z ACTUALLY DOES (measured live on frontend 1.47.12, 2026-08-04).
@@ -55,7 +56,7 @@
 //      another owner who claimed it while we were holding it.
 //
 // Usage (per editor) - unchanged, so no call site needs editing:
-//   import { installGraphUndoGuard } from "../shared/graph_undo_guard.mjs";
+//   import { installGraphUndoGuard } from "./sf_crop_undo_guard.js";
 //   this._undoGuardOff = installGraphUndoGuard(() => !!this.overlay?.isConnected);
 //   // in close()/cleanup AND onRemoved:  this._undoGuardOff?.(); this._undoGuardOff = null;
 

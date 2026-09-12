@@ -6,7 +6,7 @@
 import { app } from "/scripts/app.js";
 import { readState, patchLora, accentOf, BRAND } from "./sf_lora_stack_core.js";
 import { renderMarkdown } from "./sf_markdown.js";
-import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath, attachSamplePromptCopyButtons } from "./sf_lora_shared_info.js";
+import { loadImageAsWorkflow, fetchSamplesCached, invalidateSamplesCache, isVideoPath, attachSamplePromptCopyButtons, samplesKindQ, buildSampleMarkdown, insertAtCursor, resolveSampleUrl, openSamplePreview, attachSampleTitleHover } from "./sf_lora_shared_info.js";
 import { loraInfo, thumbUrl, civitaiLookup, invalidateInfo, deleteCivitai, saveCustomTriggers, saveCustomSelected,
     saveCustomDescription, saveLoraPreview, deleteLoraPreview, saveCivitaiThumb, migrateLoraData, mergeLoraData } from "./sf_lora_stack_api.js";
 import { getNodeRect } from "./sf_lora_stack_settings.js";
@@ -143,10 +143,6 @@ function injectCSS() {
     .sf-ls-desc-grid .none { font-size:10px; color:#777; }
     .sf-ls-sample-sec { padding:11px 12px; border-top:1px solid #1c1c1c; }
     .sf-ls-sample-sec h4 { margin:0 0 8px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px; color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-ls-sample-preview { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; cursor:pointer; }
-    .sf-ls-sample-preview img, .sf-ls-sample-preview video { max-width:90vw; max-height:90vh; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,0.6); }
-    .sf-ls-desc-hover { position:fixed; z-index:10060; background:#1e1e1e; border:1px solid #444; border-radius:8px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,0.6); pointer-events:none; }
-    .sf-ls-desc-hover img, .sf-ls-desc-hover video { max-width:320px; max-height:320px; border-radius:6px; display:block; }
     .sf-ls-info-sec h4 { margin:0 0 6px; font:600 9.5px 'Segoe UI'; text-transform:uppercase; letter-spacing:.7px;
       color:var(--acc, var(--sf-acc, #f66744)); display:flex; align-items:center; gap:7px; }
     .sf-ls-info-sec h4 .src { margin-left:auto; font:9px 'Segoe UI'; text-transform:none; letter-spacing:0;
@@ -235,150 +231,8 @@ function injectCSS() {
 // upload 复用，kind 区分 loras / diffusion_models 域），描述里以相对路径
 // `sample/<文件名>` 引用；查看态用 resolveSampleUrl 把它解析回图片 URL
 // （目录改名/移动后按当前模型路径解析，无需修复 markdown 文本）。
-// 插入格式与 sf_lora_info.js 一致。
-
-// samples URL 的域参数后缀：dmodel 宿主传 ctx.samplesKind="diffusion_models"，
-// LoRA 各宿主传空串 → URL 与旧版逐字节一致。
-function samplesKindQ(kind) {
-    return kind ? "&kind=" + encodeURIComponent(kind) : "";
-}
-
-function buildSampleMarkdown(path) {
-    const base = String(path || "").split("/").pop() || "image";
-    const alt = base.replace(/\.[^.]+$/, "");
-    const rel = `sample/${encodeURIComponent(base)}`;
-    return `![${alt}](${rel})`;
-}
-
-function insertAtCursor(textarea, text) {
-    const start = textarea.selectionStart ?? textarea.value.length;
-    const end = textarea.selectionEnd ?? start;
-    textarea.setRangeText(text, start, end, "end");
-    textarea.focus();
-    const pos = start + text.length;
-    textarea.selectionStart = textarea.selectionEnd = pos;
-}
-
-function openSamplePreview(path, allPaths, kind) {
-    const list = Array.isArray(allPaths) && allPaths.length ? allPaths : [path];
-    let idx = list.indexOf(path);
-    if (idx < 0) idx = 0;
-    const overlay = el("div", "sf-ls-sample-preview");
-    let media = null;
-    const kq = samplesKindQ(kind);
-    const render = (i) => {
-        if (i < 0 || i >= list.length) return;
-        idx = i;
-        const p = list[idx];
-        const isVideo = isVideoPath(p);
-        if (media) media.remove();
-        if (isVideo) {
-            media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
-            media.controls = true;
-            media.autoplay = true;
-        } else {
-            media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
-            media.alt = p.split("/").pop();
-        }
-        media.addEventListener("click", close);
-        overlay.appendChild(media);
-    };
-    const close = () => {
-        overlay.remove();
-        document.removeEventListener("keydown", onKey, true);
-    };
-    const onKey = (e) => {
-        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); close(); }
-        else if (e.key === "ArrowLeft") {
-            if (idx > 0) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx - 1); }
-        } else if (e.key === "ArrowRight") {
-            if (idx < list.length - 1) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); render(idx + 1); }
-        }
-    };
-    render(idx);
-    overlay.addEventListener("click", close);
-    document.addEventListener("keydown", onKey, true);
-    document.body.appendChild(overlay);
-}
-
-// 描述里 `sample/xxx.png` 相对路径 -> 图片 URL（基于当前模型的目录）。
-function resolveSampleUrl(rel, loraName, kind) {
-    let r = rel;
-    try { r = decodeURIComponent(rel); } catch { /* 保留原样 */ }
-    const idx = loraName.lastIndexOf("/");
-    const dir = idx === -1 ? "" : loraName.slice(0, idx + 1);
-    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}${samplesKindQ(kind)}`;
-}
-
-function attachSampleTitleHover(container, loraName, kind) {
-    if (!container || !loraName) return;
-    // 标题形如 ### [civitai_00_1a2b3c4d — 140313761](https://civitai.com/images/140313761)
-    // 悬停时显示对应 sample 文件预览（本地 sample/ 原图）
-    const links = container.querySelectorAll("h3 a");
-    if (!links.length) return;
-    let sampleMap = null; // hash -> rel path
-    let hoverEl = null;
-    let hoverTimer = null;
-    const kq = samplesKindQ(kind);
-    const show = async (a, ev) => {
-        const text = a.textContent || "";
-        const m = text.match(/civitai_\d+_([0-9a-f]{8})/i);
-        const hash = m ? m[1] : "";
-        if (!hash) return;
-        if (!sampleMap) {
-            try {
-                const data = await fetchSamplesCached(loraName, kind);
-                const imgs = Array.isArray(data.images) ? data.images : [];
-                sampleMap = new Map();
-                for (const p of imgs) {
-                    const hm = p.match(/_([0-9a-f]{8})\./i);
-                    if (hm) sampleMap.set(hm[1].toLowerCase(), p);
-                }
-            } catch { return; }
-        }
-        const rel = sampleMap.get(hash.toLowerCase());
-        if (!rel) return;
-        const isVideo = isVideoPath(rel);
-        hoverEl = document.createElement("div");
-        hoverEl.className = "sf-ls-desc-hover";
-        let media;
-        if (isVideo) {
-            media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}`;
-            media.autoplay = true;
-            media.muted = true;
-            media.loop = true;
-        } else {
-            media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}&w=512`;
-        }
-        hoverEl.appendChild(media);
-        document.body.appendChild(hoverEl);
-        const rect = a.getBoundingClientRect();
-        const vw = window.innerWidth, vh = window.innerHeight;
-        // 优先显示在标题右侧，超界则翻转
-        let left = rect.right + 12;
-        let top = rect.top;
-        const hr = hoverEl.getBoundingClientRect();
-        if (left + hr.width > vw - 8) left = Math.max(8, rect.left - hr.width - 12);
-        if (top + hr.height > vh - 8) top = Math.max(8, vh - hr.height - 8);
-        hoverEl.style.left = left + "px";
-        hoverEl.style.top = top + "px";
-    };
-    const hide = () => {
-        if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
-        if (hoverEl) { hoverEl.remove(); hoverEl = null; }
-    };
-    for (const a of links) {
-        a.addEventListener("mouseenter", (ev) => {
-            hoverTimer = setTimeout(() => show(a, ev), 220);
-        });
-        a.addEventListener("mouseleave", hide);
-        a.addEventListener("click", hide);
-    }
-}
+// 插入格式与 sf_lora_info.js 一致。（样例 markdown/光标/URL/预览/悬停实现见
+// sf_lora_shared_info.js 单源，本文件只传 kind。）
 
 // ── 右下角拖拽调大小手柄 ───────────────────────────────────────────────────
 // renderBody 每次重建面板时调用（handle 是面板子元素，随 innerHTML 清除）。
@@ -2167,8 +2021,8 @@ export async function openInfoPanelFor(ctx, id) {
     // 确认框（.sf-ls-confirm-mask）挂在 body 上，onKey/onPaste 需豁免。
     const onKey = (e) => {
         if (e.target.closest?.(".sf-ls-confirm-mask")) return;
-        if (e.target.closest?.(".sf-ls-sample-preview")) return;
-        if (document.querySelector(".sf-ls-sample-preview")) return;
+        if (e.target.closest?.(".sf-lora-sample-preview")) return;
+        if (document.querySelector(".sf-lora-sample-preview")) return;
         if (e.key === "Escape") { e.stopPropagation(); closeInfoPanel(); }
     };
     // Ctrl+V 从剪贴板设置 LoRA 的图。CAPTURE 且 stopPropagation：ComfyUI 把
@@ -2202,8 +2056,8 @@ export async function openInfoPanelFor(ctx, id) {
     const onDocClick = (e) => {
         if (!panel.isConnected || _panel !== panel) return;
         if (e.target.closest?.(".sf-ls-confirm-mask")) return;   // 确认框豁免
-        if (e.target.closest?.(".sf-ls-sample-preview")) return; // 预览豁免
-        if (document.querySelector(".sf-ls-sample-preview")) return;
+        if (e.target.closest?.(".sf-lora-sample-preview")) return; // 预览豁免
+        if (document.querySelector(".sf-lora-sample-preview")) return;
         if (panel.contains(e.target)) return;                    // 面板内不关
         if (Math.hypot((e.clientX ?? 0) - _downX, (e.clientY ?? 0) - _downY) > 6) return; // 拖动
         if (desc.dirty) return;                                  // 编辑态保留草稿

@@ -23,6 +23,8 @@ import re
 import struct
 import threading
 
+from .disk_state import atomic_write_bytes, atomic_write_json  # 原子写盘（单源，见 disk_state）
+
 # ── 自定义存储并发锁（进程内线程级，防 RMW 丢失）─────────────────────────────
 # 所有 read+write 组合（set_custom_triggers / set_custom_description /
 # migrate_custom_data）在此锁内完成；write_custom_store 本身也受锁保护。
@@ -1135,17 +1137,10 @@ def write_custom_store(path, store):
                     data[key] = e
                 if len(data) >= _MAX_CUSTOM_LORAS:
                     break
-        tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, path)
+            atomic_write_json(path, data)
             return True
         except Exception:
-            try:
-                os.remove(tmp)
-            except Exception:
-                pass
             return False
 
 
@@ -1557,17 +1552,10 @@ def write_custom_preview(folder, name, raw):
         os.makedirs(str(folder), exist_ok=True)
     except Exception:
         return None
-    tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
     try:
-        with open(tmp, "wb") as f:
-            f.write(bytes(raw))
-        os.replace(tmp, path)
+        atomic_write_bytes(path, bytes(raw))
         return path
     except Exception:
-        try:
-            os.remove(tmp)
-        except Exception:
-            pass
         return None
 
 

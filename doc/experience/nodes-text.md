@@ -55,7 +55,7 @@
 - `sf_prompt_tags_lib.js`：纯函数（normalize/scanTokens/expandAll/reorder/导入导出变换/模式常量）——无 app/DOM，测试 copy 直跑。
 - `sf_prompt_tags_store.js`：库存储（settings 读写/防抖 commit/reload/isSameAsStored/applyImport 包装）。
 - `sf_prompt_tags_cursors.js`：游标（nextIndex/commitPicks/reset/rename，含队列提交语义）。
-- `sf_prompt_tags_guard.js`：Ctrl+Z 守卫（window.app 构造器槽）。
+- Ctrl+Z 守卫：`sf_prompt_tags_guard.js` 已合并入 `sf_crop_undo_guard.js`（全项目单源，见 patterns.md §57.1）。
 - `sf_prompt_tags_editor.js`：全屏编辑器（工作副本、侧栏、卡片、导入导出、confirmDanger）。
 - `sf_prompt_tags_pinyin.js`：内联拼音表 + pinyinMatch（生成脚本一次性，勿手改数据）。
 - `sf_prompt_tags.js`：DOM widget 节点本体 + graphToPrompt/queuePrompt patcher + 右键菜单。

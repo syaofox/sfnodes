@@ -37,13 +37,18 @@ export function insertAtCursor(textarea, text) {
     textarea.selectionStart = textarea.selectionEnd = pos;
 }
 
-// 相对 sample 路径 -> 图片 URL（基于当前 lora 目录，改名后自动跟随）
-export function resolveSampleUrl(rel, loraName) {
+// 相对 sample 路径 -> 图片 URL（基于当前 lora 目录，改名后自动跟随）。
+// kind：dmodel 宿主传 "diffusion_models"，LoRA 各宿主省略（URL 与旧版逐字节一致）。
+export function samplesKindQ(kind) {
+    return kind ? "&kind=" + encodeURIComponent(kind) : "";
+}
+
+export function resolveSampleUrl(rel, loraName, kind) {
     let r = rel;
     try { r = decodeURIComponent(rel); } catch { /* 保留原样 */ }
     const idx = loraName.lastIndexOf("/");
     const dir = idx === -1 ? "" : loraName.slice(0, idx + 1);
-    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}`;
+    return `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(dir + r)}${samplesKindQ(kind)}`;
 }
 
 // 统一视频扩展判定：与 sf_lora_stack_info / lora_routes 保持一致
@@ -76,10 +81,11 @@ export function invalidateSamplesCache(loraName, kind) {
 }
 
 // ── 大图预览（图片/视频，支持方向键切换）──────────────────────────────────
-export function openSamplePreview(path, allPaths) {
+export function openSamplePreview(path, allPaths, kind) {
     const list = Array.isArray(allPaths) && allPaths.length ? allPaths : [path];
     let idx = list.indexOf(path);
     if (idx < 0) idx = 0;
+    const kq = samplesKindQ(kind);
     const overlay = document.createElement("div");
     overlay.className = "sf-lora-sample-preview";
     overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;cursor:pointer;";
@@ -92,13 +98,13 @@ export function openSamplePreview(path, allPaths) {
         if (media) media.remove();
         if (isVideo) {
             media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
             media.controls = true;
             media.autoplay = true;
             media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
         } else {
             media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(p)}${kq}`;
             media.alt = p.split("/").pop();
             media.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);";
         }
@@ -194,13 +200,14 @@ export async function loadImageAsWorkflow(path, onError) {
 }
 
 // ── 标题悬停预览（civitai_00_xxx 标题 -> 对应 sample 原图）──────────────
-export function attachSampleTitleHover(container, loraName) {
+export function attachSampleTitleHover(container, loraName, kind) {
     if (!container || !loraName) return;
     const links = container.querySelectorAll("h3 a");
     if (!links.length) return;
     let sampleMap = null;
     let hoverEl = null;
     let hoverTimer = null;
+    const kq = samplesKindQ(kind);
     const show = async (a) => {
         const text = a.textContent || "";
         const m = text.match(/civitai_\d+_([0-9a-f]{8})/i);
@@ -208,7 +215,7 @@ export function attachSampleTitleHover(container, loraName) {
         if (!hash) return;
         if (!sampleMap) {
             try {
-                const data = await fetchSamplesCached(loraName);
+                const data = await fetchSamplesCached(loraName, kind);
                 const imgs = Array.isArray(data.images) ? data.images : [];
                 sampleMap = new Map();
                 for (const p of imgs) {
@@ -226,13 +233,13 @@ export function attachSampleTitleHover(container, loraName) {
         let media;
         if (isVideo) {
             media = document.createElement("video");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}`;
             media.autoplay = true;
             media.muted = true;
             media.loop = true;
         } else {
             media = document.createElement("img");
-            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}&w=512`;
+            media.src = `/api/sfnodes/lora_samples/image?path=${encodeURIComponent(rel)}${kq}&w=512`;
         }
         media.style.cssText = "max-width:320px;max-height:320px;border-radius:6px;display:block;";
         hoverEl.appendChild(media);

@@ -1,12 +1,12 @@
 import asyncio
 import json
 import os
-import threading
 
 import folder_paths
 from aiohttp import web
 
 from .logger import get_logger
+from .disk_state import atomic_write_json  # 原子写盘（单源，见 disk_state）
 
 logger = get_logger(__name__)
 
@@ -42,12 +42,7 @@ def _load_presets() -> dict:
 def _save_presets(presets: dict) -> None:
     d = os.path.dirname(_PRESETS_PATH)
     os.makedirs(d, exist_ok=True)
-    # 临时名带线程 id：并发写同一文件时抢同一个 .tmp 会写出混杂内容
-    # （lora_reader.write_custom_store 同款做法）。
-    tmp = f"{_PRESETS_PATH}.{threading.get_ident()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"presets": presets}, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, _PRESETS_PATH)
+    atomic_write_json(_PRESETS_PATH, {"presets": presets})
     logger.info(f"Saved lora presets: {_PRESETS_PATH} ({len(presets)} presets)")
 
 

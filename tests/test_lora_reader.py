@@ -86,9 +86,9 @@ logger_mod = importlib.util.module_from_spec(spec_logger)
 sys.modules["sfnodes.sf_utils.logger"] = logger_mod
 spec_logger.loader.exec_module(logger_mod)
 
-# lora_reader 纯逻辑（无相对导入，直接加载）
+# lora_reader 纯逻辑（包内相对导入，需 sfnodes.sf_utils 包上下文）
 spec_utils = importlib.util.spec_from_file_location(
-    "sf_utils_lora_reader",
+    "sfnodes.sf_utils.lora_reader",
     os.path.join(root, "sf_utils", "lora_reader.py"),
 )
 utils = importlib.util.module_from_spec(spec_utils)

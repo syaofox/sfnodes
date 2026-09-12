@@ -19,7 +19,6 @@ import json
 import os
 import re
 import shutil
-import threading
 import time
 
 import folder_paths
@@ -33,6 +32,7 @@ from ..sf_utils.workflow_index_helpers import (
     looks_like_image as _wf_looks_like_image,
     reserved_part as _wf_reserved_part,
 )
+from ..sf_utils.disk_state import atomic_write_bytes, atomic_write_json  # 原子写盘（单源，见 disk_state）
 
 # ── 路径与基础 ────────────────────────────────────────────────────────────
 
@@ -148,19 +148,12 @@ def _wf_read_meta(path):
 
 
 def _wf_write_meta(path, data):
-    # 临时名带线程 id：并发写同一 sidecar 时抢同一个 .tmp 会写出混杂内容
-    # （lora_reader.write_custom_store 同款做法）。
-    tmp = f"{path}.{threading.get_ident()}.tmp"
+    # 原子写盘（disk_state.atomic_write_json；并发写同一 sidecar 时临时名
+    # 唯一，写一半崩溃不留坏文件）。
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-        os.replace(tmp, path)
+        atomic_write_json(path, data, ensure_ascii=True, indent=None)
         return True
     except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
         return False
 
 
@@ -635,17 +628,10 @@ def _register_routes():
             if not _is_path_under(path, folder):
                 return web.json_response({"ok": False, "message": "Bad cover path."})
             # 先写临时文件再移动到位。文件名对给定工作流每次相同，直接覆盖
-            # 会让飞行中的请求读到写了一半的 jpg
-            tmp = "%s.%d.tmp" % (path, threading.get_ident())
+            # 会让飞行中的请求读到写了一半的 jpg（disk_state.atomic_write_bytes）。
             try:
-                with open(tmp, "wb") as f:
-                    f.write(raw)
-                os.replace(tmp, path)
+                atomic_write_bytes(path, raw)
             except OSError as e:
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
                 return web.json_response({"ok": False, "message": str(e)})
 
             async with _WF_META_LOCK:

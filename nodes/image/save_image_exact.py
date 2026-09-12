@@ -20,21 +20,19 @@
 
 import json
 import os
-import re
 
 import folder_paths
 import numpy as np
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
+from ...sf_utils.disk_state import safe_prefix  # 文件名前缀清洗（单源，见 disk_state）
+
 _CATEGORY = "sfnodes/image"
 
-# ── 清洗（复刻 preview_routes._safe_prefix / _sanitize_segment，禁内联副本漂移） ──
+# ── 清洗（前缀段委托 disk_state.safe_prefix；仅保留扩展名剥离与二次截断） ──
 
-_DISALLOWED_CHAR_RE = re.compile(r'[<>:"|?*\x00-\x1f\x7f]')
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
-_PREFIX_MAX_LEN = 256
-_PREFIX_OUTPUT_MAX = 100
+_PREFIX_OUTPUT_MAX = 100  # 与 disk_state._PREFIX_OUTPUT_MAX 同值（剥离扩展名后二次截断用）
 _WIN_RESERVED_NAMES = frozenset((
     "CON", "PRN", "AUX", "NUL",
     "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
@@ -45,44 +43,16 @@ _WIN_RESERVED_NAMES = frozenset((
 _STRIP_EXTS = frozenset((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif"))
 
 
-def _sanitize_segment(seg):
-    cleaned = _DISALLOWED_CHAR_RE.sub("_", seg)
-    cleaned = _MULTI_UNDERSCORE_RE.sub("_", cleaned)
-    prev = None
-    while prev != cleaned:
-        prev = cleaned
-        cleaned = cleaned.strip().strip("_").rstrip(". ")
-    if cleaned and cleaned.split(".", 1)[0].upper() in _WIN_RESERVED_NAMES:
-        cleaned += "_"
-    return cleaned
-
-
 def _safe_filename(raw):
     """清洗 filename（可含子目录），剥离扩展名，返回清洗后的相对路径（无扩展名）或 ""。
 
-    管道与 preview_routes._safe_prefix 1:1：逐段替换 Windows 非法字符、
-    折叠重复 '_'、剥离边沿、守卫保留设备名；先检查 leading '/' 与 '..'。
-    额外：末段剥离已知图片扩展名（.png/.jpg 等），由 format 参数重加。
+    前缀清洗（逐段非法字符替换/折叠/剥离/保留设备名/穿越拒绝/截断）委托
+    disk_state.safe_prefix；额外：末段剥离已知图片扩展名（.png/.jpg 等），
+    由 format 参数重加。
     """
-    if not isinstance(raw, str):
+    result = safe_prefix(raw)
+    if not result:
         return ""
-    s = raw.strip().replace("\\", "/")
-    if not s or len(s) > _PREFIX_MAX_LEN:
-        return ""
-    if s.startswith("/"):
-        return ""
-    parts = s.split("/")
-    if any(p == ".." for p in parts):
-        return ""
-    cleaned_parts = [_sanitize_segment(p) for p in parts if p]
-    cleaned_parts = [p for p in cleaned_parts if p]
-    if not cleaned_parts:
-        return ""
-    result = "/".join(cleaned_parts)
-    if len(result) > _PREFIX_OUTPUT_MAX:
-        result = result[:_PREFIX_OUTPUT_MAX].rstrip("/_-")
-        if not result:
-            return ""
     # 剥离扩展名（仅末段）
     # result 已含子目录，最后一段是文件名
     dirname = os.path.dirname(result)
