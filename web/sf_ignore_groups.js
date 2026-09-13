@@ -231,19 +231,26 @@ function setupIgnoreGroups(node) {
   function applyToGraph(list, nodes) {
     rt.selfChanging = true;
     try {
+      // 两趟式：先统一置 OFF 再置 ON，写入与组排序解耦——重叠/嵌套组下
+      // 激活组的最终态不会被后续组覆盖（顺序敏感会导致激活组反被关掉）
+      const onGroups = [];
       for (const g of list) {
         const isOn =
           st.mode === SWITCH_DEFAULT
             ? st.activeSet.includes(g.title)
             : g.title === st.active;
-        const members = collectNodes(g, list, nodes);
-        for (const m of members) {
-          if (isOn) {
-            m.ref.mode = MODE_ALWAYS;
-            if (m.ref.flags) m.ref.flags.disabled = false;
-          } else {
-            m.ref.mode = st.disable ? MODE_NEVER : MODE_BYPASS;
-          }
+        if (isOn) {
+          onGroups.push(g);
+          continue;
+        }
+        for (const m of collectNodes(g, list, nodes)) {
+          m.ref.mode = st.disable ? MODE_NEVER : MODE_BYPASS;
+        }
+      }
+      for (const g of onGroups) {
+        for (const m of collectNodes(g, list, nodes)) {
+          m.ref.mode = MODE_ALWAYS;
+          if (m.ref.flags) m.ref.flags.disabled = false;
         }
       }
       try {

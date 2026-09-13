@@ -5,8 +5,9 @@
 // 无 app/DOM 依赖（纯模块边界，禁止 import sf_common.js），供主扩展
 // sf_ignore_groups.js 使用，也供 tests/ 复制为 .mjs 直接测试。
 // 原版 "nodes pass.js" 的几何/状态/切换逻辑逐义迁移：LiteGraph 原始对象
-// 只在 gBounds/nBounds/getGroupColor 三处接触，其余函数一律操作 plain
+// 只在 groupBounds/nodeBounds/normalizeColor 三处接触，其余函数一律操作 plain
 // 数据（group:{title,bounds,color}、node:{bounds,mode,disabled}），可直测。
+// 刻意偏离：组员判定用节点左上角锚点（pointIn）而非原版矩形相交，保组间互斥。
 // properties 键原版 guhai_ig_* → sf_ig_*（与布尔/滑条复刻口径一致）。
 // ==========================================================================
 
@@ -115,6 +116,16 @@ export function hit(a, b) {
   );
 }
 
+// 点（取 [x,y,...] 前两位）落在矩形 [x,y,w,h] 内（闭区间）
+export function pointIn(pt, rect) {
+  return (
+    pt[0] >= rect[0] &&
+    pt[0] <= rect[0] + rect[2] &&
+    pt[1] >= rect[1] &&
+    pt[1] <= rect[1] + rect[3]
+  );
+}
+
 export function inside(inner, outer) {
   return (
     inner[0] >= outer[0] &&
@@ -124,7 +135,9 @@ export function inside(inner, outer) {
   );
 }
 
-// 组内节点：命中本组或被本组完全包含的子组矩形的节点
+// 组内节点：节点左上角锚点（bounds 前两位）落在本组或被本组完全
+// 包含的子组矩形内的节点。用锚点而非矩形相交，保证组间互斥（相交判定会
+// 让一个节点同时属于多个重叠组，always_one 等模式无法收敛到唯一组）
 export function collectNodes(group, allGroups, nodes) {
   const rects = [group.bounds];
   for (const ag of allGroups) {
@@ -132,7 +145,7 @@ export function collectNodes(group, allGroups, nodes) {
       rects.push(ag.bounds);
     }
   }
-  return nodes.filter((n) => rects.some((r) => hit(n.bounds, r)));
+  return nodes.filter((n) => rects.some((r) => pointIn(n.bounds, r)));
 }
 
 // 被 parent 完全包含的嵌套组（递归，含多层）

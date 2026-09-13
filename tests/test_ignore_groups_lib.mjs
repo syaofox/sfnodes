@@ -52,6 +52,9 @@ const nodes = [N([10, 10, 50, 50]), N([10, 310, 50, 50], 4), N([900, 900, 50, 50
   check("normalizeColor 未知→空", L.normalizeColor("red") === "" && L.normalizeColor(null) === "");
   check("hit 相交", L.hit([0, 0, 10, 10], [5, 5, 10, 10]) === true);
   check("hit 相邻边不算交", L.hit([0, 0, 10, 10], [10, 0, 10, 10]) === false);
+  check("pointIn 内", L.pointIn([5, 5], [0, 0, 10, 10]) === true);
+  check("pointIn 边界算内", L.pointIn([10, 10], [0, 0, 10, 10]) === true);
+  check("pointIn 外", L.pointIn([11, 5], [0, 0, 10, 10]) === false);
   check("inside 包含", L.inside([2, 2, 5, 5], [0, 0, 10, 10]) === true);
   check("inside 越界 false", L.inside([2, 2, 9, 9], [0, 0, 10, 10]) === false);
 
@@ -65,6 +68,22 @@ const nodes = [N([10, 10, 50, 50]), N([10, 310, 50, 50], 4), N([900, 900, 50, 50
     check("子组矩形并入命中", got2.length === 1);
     check("嵌套组检出", L.nestedGroups(groups[1], all).length === 1);
     check("无嵌套为空", L.nestedGroups(groups[0], groups).length === 0);
+    // 锚点判定：大节点与相邻组矩形相交但锚点只落在其所属组 → 组间互斥
+    // （相交判定下该节点会同时属于两组，导致 always_one 收敛失败）
+    const big = N([10, 10, 400, 120]); // 锚点 (10,10) 在 A组
+    const gA = G("重叠A", [0, 0, 200, 200]);
+    const gB = G("重叠B", [0, 150, 200, 200]); // 与 big 相交，但锚点不在其中
+    const both = [gA, gB];
+    const inA = L.collectNodes(gA, both, [big]);
+    const inB = L.collectNodes(gB, both, [big]);
+    check("锚点组独占", inA.length === 1 && inB.length === 0);
+    // 胶囊态 vs 展开态：pos 相同、size 不同 → 成员判定必须一致（锚点只用 pos，
+    // LiteGraph collapse 只切 flags.collapsed 不动 pos/size）
+    const cap = N([10, 10, 80, 30]);
+    const exp = N([10, 10, 400, 120]);
+    check("胶囊/展开成员一致",
+      L.collectNodes(gA, both, [cap]).length === L.collectNodes(gA, both, [exp]).length
+      && L.collectNodes(gB, both, [cap]).length === L.collectNodes(gB, both, [exp]).length);
   }
 
   // ── 状态 ──

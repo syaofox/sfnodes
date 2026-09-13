@@ -314,6 +314,36 @@ check("非本类不装配", other._sfIg === undefined);
     fakeGraph._nodes = fakeGraph._nodes.filter((x) => x !== n && x !== n2);
 }
 
+// ---- 7. always_one 互斥（锚点判定 + 两趟写入，重叠组回归） ----
+// 两组矩形重叠；nodeX 锚点仅在 A、nodeY 锚点仅在 B（相交判定下互串）。
+// active=A 时旧实现按序 A 开→B 关会把共享节点连带关掉（0 开）；
+// 新实现锚点互斥 + 先全关再激活组开，应恰好 A 开 B 关。
+{
+    const grpA = { title: "重叠A", bounding: [0, 0, 200, 200], color: "" };
+    const grpB = { title: "重叠B", bounding: [20, 0, 300, 200], color: "" };
+    fakeGraph._groups.push(grpA, grpB);
+    // nodeX 锚点在 A；与 B 矩形相交（相交判定下会被 B 牵连）
+    const nodeX = { pos: [10, 10], size: [50, 50], mode: 0, flags: {} };
+    // nodeY 锚点仅在 B
+    const nodeY = { pos: [210, 10], size: [50, 50], mode: 0, flags: {} };
+    fakeGraph._nodes.push(nodeX, nodeY);
+    const n3 = makeNode();
+    n3.addDOMWidget = function (name, type, root, opts) {
+        const w = { el: root };
+        n3._domWidget = w;
+        return w;
+    };
+    n3.properties.sf_ig_mode = "always_one";
+    n3.properties.sf_ig_filter = "重叠";
+    n3.properties.sf_ig_active = "重叠A";
+    ext.nodeCreated(n3);
+    check("always_one 锚点互斥：A 开", nodeX.mode === 0);
+    check("always_one 锚点互斥：B 关（不被共享节点连带）", nodeY.mode === 4);
+    n3.onRemoved();
+    fakeGraph._groups = fakeGraph._groups.filter((g) => g !== grpA && g !== grpB);
+    fakeGraph._nodes = fakeGraph._nodes.filter((x) => x !== n3 && x !== nodeX && x !== nodeY);
+}
+
 if (failures.length) {
     console.log(`\n${failures.length} FAILED: ${failures}`);
     process.exit(1);

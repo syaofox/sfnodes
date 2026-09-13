@@ -326,7 +326,9 @@
 ### 1. 复用与新增边界
 
 - 复用 `sf_common.js::el/injectCSSOnce/installWheelZoomPassthrough`（滚轮转发是原版手写版的超集：可滚动的颜色下拉走原生滚动，其余转发画布缩放）与 `sf_popup.js::attachPopupDismiss/clampToViewport`（设置弹窗）；`addDOMWidget` + `setInterval` 轮询是项目既有模式（dropdown/prompt_tags/load_image 先例），无组旁路逻辑可复用。
-- 新增：组几何（`groupBounds/nodeBounds/hit/inside`，折叠节点估宽与原版同式）、颜色归一、嵌套组递归、`groupState` 三态（空组按 true，原版同款）、`filterSortGroups`（空组过滤 + 关键词（`|` 分隔多词 OR，`splitKeywords` 去空段、无有效段等同留空） + 颜色 + 位置/字母排序）、`toggleTransition` 三模式纯函数（含嵌套连带开关）。
+- 新增：组几何（`groupBounds/nodeBounds/hit/pointIn/inside`，折叠节点估宽与原版同式）、颜色归一、嵌套组递归、`groupState` 三态（空组按 true，原版同款）、`filterSortGroups`（空组过滤 + 关键词（`|` 分隔多词 OR，`splitKeywords` 去空段、无有效段等同留空） + 颜色 + 位置/字母排序）、`toggleTransition` 三模式纯函数（含嵌套连带开关）。
+- **组员判定用节点左上角锚点而非矩形相交**（2026-09 修复）：`collectNodes` 取「节点 `bounds` 前两位（`pos`）落在组（或完全内含子组）矩形内」。相交判定会让一个节点同时属于多个重叠组，`always_one`/`at_most_one` 无法收敛（实测 5 个只覆盖节点左上角的小组框彼此相交 → 出现「开 2 个或 0 个」）；锚点判定保证组间互斥，且**对节点胶囊/展开两态一致**（`collapse()` 只切 `flags.collapsed`，不改 `pos`/`size`，而组框常按胶囊尺寸绘制——这正是相交判定在展开后崩坏的根因）。已确认刻意偏离原版相交语义（ComfyUI 原生 `containsCentre` 按节点中心，对本类「小组框锚在节点左上」布局会全落空/错归 Loader，故不可用）。
+- **`applyToGraph` 两趟写入**：先对可见列表内所有组统一置 OFF，再对激活/选中组置 ON，写入与组排序解耦——相交/嵌套组下顺序敏感的旧写法会让激活组被后续组的 OFF 覆盖（激活组反被关掉）。default 模式同样受益（共享节点归属 ON 组）。
 
 ### 2. 规范化改动（相对原版）
 
