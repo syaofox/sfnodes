@@ -24,43 +24,43 @@ function injectModalStyles() {
             display: flex; align-items: center; justify-content: center;
         }
         .sf-imgbrowser-modal {
-            background: #2a2a2a; border-radius: 8px;
+            background: var(--sf-panel-bg); border-radius: 8px;
             width: 90%; height: 90%; max-width: 1400px;
             display: flex; flex-direction: column;
             box-shadow: 0 4px 24px rgba(0,0,0,0.5);
         }
         .sf-imgbrowser-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 16px; border-bottom: 1px solid #444;
+            padding: 12px 16px; border-bottom: 1px solid var(--sf-border-soft);
         }
         .sf-imgbrowser-header h3 {
-            margin: 0; color: #ddd; font-size: 16px;
+            margin: 0; color: var(--sf-text); font-size: 16px;
         }
         .sf-imgbrowser-close {
-            background: none; border: none; color: #aaa; font-size: 24px;
+            background: none; border: none; color: var(--sf-text-dim); font-size: 24px;
             cursor: pointer; padding: 0 4px;
         }
-        .sf-imgbrowser-close:hover { color: #fff; }
+        .sf-imgbrowser-close:hover { color: var(--sf-text-strong); }
         .sf-imgbrowser-search {
-            padding: 8px 16px; border-bottom: 1px solid #444;
+            padding: 8px 16px; border-bottom: 1px solid var(--sf-border-soft);
         }
         .sf-imgbrowser-search input {
             width: 100%; padding: 6px 10px; border-radius: 4px;
-            border: 1px solid #555; background: #1a1a1a; color: #ddd;
+            border: 1px solid var(--sf-border-soft); background: var(--sf-input-bg); color: var(--sf-text);
             box-sizing: border-box; outline: none;
         }
         .sf-imgbrowser-search input:focus { border-color: #89B; }
         .sf-imgbrowser-pathbar {
             display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-            padding: 6px 16px; border-bottom: 1px solid #333;
-            background: #222; font-size: 13px; min-height: 32px;
+            padding: 6px 16px; border-bottom: 1px solid var(--sf-border-soft);
+            background: var(--sf-panel-bg-2); font-size: 13px; min-height: 32px;
         }
         .sf-imgbrowser-pathbar span {
-            color: #888; cursor: pointer; padding: 2px 6px;
+            color: var(--sf-text-dim); cursor: pointer; padding: 2px 6px;
             border-radius: 3px; white-space: nowrap;
         }
-        .sf-imgbrowser-pathbar span:hover { color: #ddd; background: #333; }
-        .sf-imgbrowser-pathbar .sep { color: #555; cursor: default; padding: 0 2px; }
+        .sf-imgbrowser-pathbar span:hover { color: var(--sf-text); background: var(--sf-surface-hover); }
+        .sf-imgbrowser-pathbar .sep { color: var(--sf-text-faint); cursor: default; padding: 0 2px; }
         .sf-imgbrowser-pathbar span:hover.sep { background: transparent; }
         .sf-imgbrowser-pathbar .current { color: #89B; cursor: default; }
         .sf-imgbrowser-pathbar .current:hover { background: transparent; }
@@ -70,23 +70,23 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-locate {
             margin-left: auto; flex: none;
-            background: none; border: 1px solid #444; color: #888;
+            background: none; border: 1px solid var(--sf-border-soft); color: var(--sf-text-dim);
             padding: 2px 10px; border-radius: 3px; cursor: pointer;
             font-size: 12px; transition: 0.15s;
         }
-        .sf-imgbrowser-locate:hover { border-color: #89B; color: #ddd; }
+        .sf-imgbrowser-locate:hover { border-color: #89B; color: var(--sf-text); }
         .sf-imgbrowser-sortbar {
             display: flex; align-items: center; gap: 4px;
-            padding: 4px 16px; border-bottom: 1px solid #333;
-            background: #1e1e1e; font-size: 12px;
+            padding: 4px 16px; border-bottom: 1px solid var(--sf-border-soft);
+            background: var(--sf-panel-bg-2); font-size: 12px;
         }
-        .sf-imgbrowser-sortbar .label { color: #666; margin-right: 4px; }
+        .sf-imgbrowser-sortbar .label { color: var(--sf-text-faint); margin-right: 4px; }
         .sf-imgbrowser-sortbtn {
-            background: none; border: 1px solid #444; color: #888;
+            background: none; border: 1px solid var(--sf-border-soft); color: var(--sf-text-dim);
             padding: 2px 10px; border-radius: 3px; cursor: pointer;
             font-size: 12px; transition: 0.15s;
         }
-        .sf-imgbrowser-sortbtn:hover { border-color: #89B; color: #ddd; }
+        .sf-imgbrowser-sortbtn:hover { border-color: #89B; color: var(--sf-text); }
         .sf-imgbrowser-sortbtn.active { border-color: #89B; color: #89B; background: rgba(136,153,187,0.1); }
         .sf-imgbrowser-sortbtn .arrow { margin-left: 4px; }
         .sf-imgbrowser-grid {
@@ -97,49 +97,49 @@ function injectModalStyles() {
         .sf-imgbrowser-item {
             width: 140px; flex: 0 0 140px;
             border-radius: 6px; overflow: hidden; cursor: pointer;
-            background: #1a1a1a; border: 2px solid transparent;
+            background: var(--sf-input-bg); border: 2px solid transparent;
             transition: border-color 0.2s;
         }
         .sf-imgbrowser-item:hover { border-color: #89B; }
         .sf-imgbrowser-item img {
             display: block; width: 100%; height: 140px;
-            object-fit: cover; background: #222;
+            object-fit: cover; background: var(--sf-panel-bg-2);
         }
         .sf-imgbrowser-item-label {
-            padding: 4px 6px; font-size: 11px; color: #aaa;
+            padding: 4px 6px; font-size: 11px; color: var(--sf-text);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            background: rgba(0,0,0,0.6);
+            background: color-mix(in srgb, var(--sf-panel-bg) 85%, transparent);
         }
         .sf-imgbrowser-item.selected { border-color: #6af; }
         .sf-imgbrowser-item.selected .sf-imgbrowser-item-label { color: #6af; }
         .sf-imgbrowser-item.folder {
-            border-color: #555; background: #222;
+            border-color: var(--sf-border-soft); background: var(--sf-panel-bg-2);
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             min-height: 162px;
         }
-        .sf-imgbrowser-item.folder:hover { border-color: #89B; background: #2a2a2a; }
+        .sf-imgbrowser-item.folder:hover { border-color: #89B; background: var(--sf-surface-hover); }
         .sf-imgbrowser-folder-icon {
-            font-size: 40px; color: #666; line-height: 1;
+            font-size: 40px; color: var(--sf-text-faint); line-height: 1;
         }
         .sf-imgbrowser-item.folder .sf-imgbrowser-item-label {
-            width: 100%; text-align: center; color: #999;
+            width: 100%; text-align: center; color: var(--sf-text-dim);
             background: transparent;
         }
         .sf-imgbrowser-spinner {
             width: 100%; text-align: center; padding: 40px 0;
-            color: #888; font-size: 14px;
+            color: var(--sf-text-dim); font-size: 14px;
         }
         .sf-imgbrowser-spinner::after {
             content: ""; display: inline-block; width: 24px; height: 24px;
             margin-left: 8px; vertical-align: middle;
-            border: 2px solid #555; border-top-color: #89B;
+            border: 2px solid var(--sf-border-soft); border-top-color: #89B;
             border-radius: 50%; animation: sf-spin 0.8s linear infinite;
         }
         @keyframes sf-spin { to { transform: rotate(360deg); } }
         .sf-imgbrowser-loadmore {
             width: 100%; text-align: center; padding: 16px;
-            color: #888; font-size: 13px;
+            color: var(--sf-text-dim); font-size: 13px;
         }
         .sf-imgbrowser-error {
             width: 100%; text-align: center; padding: 30px;
@@ -147,8 +147,8 @@ function injectModalStyles() {
         }
         .sf-imgbrowser-img-error {
             display: flex; align-items: center; justify-content: center;
-            width: 100%; height: 140px; background: #1a1a1a;
-            color: #555; font-size: 12px;
+            width: 100%; height: 140px; background: var(--sf-input-bg);
+            color: var(--sf-text-faint); font-size: 12px;
         }
         .sf-imgbrowser-item { position: relative; }
         .sf-imgbrowser-del {
@@ -161,22 +161,22 @@ function injectModalStyles() {
         .sf-imgbrowser-item:hover .sf-imgbrowser-del { display: flex; }
         .sf-imgbrowser-del:hover { background: rgba(255,0,0,0.95); }
         .sf-imgbrowser-type-toggle {
-            display: flex; gap: 0; border: 1px solid #555; border-radius: 4px; overflow: hidden;
+            display: flex; gap: 0; border: 1px solid var(--sf-border-soft); border-radius: 4px; overflow: hidden;
         }
         .sf-imgbrowser-typebtn {
-            background: #2a2a2a; border: none; color: #888; padding: 4px 14px;
+            background: var(--sf-panel-bg-2); border: none; color: var(--sf-text-dim); padding: 4px 14px;
             cursor: pointer; font-size: 13px; transition: 0.15s;
         }
-        .sf-imgbrowser-typebtn:hover { color: #ddd; background: #333; }
+        .sf-imgbrowser-typebtn:hover { color: var(--sf-text); background: var(--sf-surface-hover); }
         .sf-imgbrowser-typebtn.active { background: #89B; color: #fff; }
         .sf-imgbrowser-ctxmenu {
             position: fixed; z-index: 100000;
-            background: #2a2a2a; border: 1px solid #555; border-radius: 6px;
+            background: var(--sf-panel-bg); border: 1px solid var(--sf-border-soft); border-radius: 6px;
             padding: 4px; min-width: 150px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.5);
         }
         .sf-imgbrowser-ctxitem {
-            padding: 6px 12px; font-size: 13px; color: #ddd;
+            padding: 6px 12px; font-size: 13px; color: var(--sf-text);
             border-radius: 4px; cursor: pointer; white-space: nowrap;
         }
         .sf-imgbrowser-ctxitem:hover { background: rgba(136,153,187,0.2); color: #fff; }

@@ -176,6 +176,63 @@ export function isGraphLoading() {
 }
 installGraphLoadingGuard();
 
+// ── 主题令牌层（跟随 ComfyUI Color Palette 明暗/自定义主题）──────────────
+// ComfyUI 把选中调色板 comfy_base 的键写成 <html> 内联 CSS 变量
+// （--comfy-menu-bg / --comfy-input-bg / --fg-color / --input-text /
+// --descrip-text / --border-color…），运行时切换即时生效；CSS var() 晚绑定，
+// 因此这里只需一次性把 sfnodes 的语义色别名到这些变量，各 UI 模块改用
+// var(--sf-*) 即自动响应明暗切换。
+// 半透明面用 color-mix(..., var(--fg-color) N%, transparent)：深色主题下
+// --fg-color 为浅色 → 显示为白色蒙层；浅色主题下变黑蒙层，一套定义两端自适。
+// 强调色 --sf-acc、状态色（红/绿/蓝）、黑色遮罩与画布工具色不在此列。
+export const SF_THEME_CSS = `
+:root {
+  --sf-panel-bg: var(--comfy-menu-bg, #242730);
+  --sf-panel-bg-2: var(--comfy-menu-secondary-bg, var(--comfy-menu-bg, #1e1e1e));
+  --sf-input-bg: var(--comfy-input-bg, #222);
+  --sf-text: var(--input-text, var(--fg-color, #ddd));
+  --sf-text-strong: var(--fg-color, #fff);
+  --sf-text-dim: var(--descrip-text, #999);
+  --sf-text-faint: color-mix(in srgb, var(--fg-color, #ddd) 45%, transparent);
+  --sf-border: var(--border-color, #4e4e4e);
+  --sf-border-soft: color-mix(in srgb, var(--fg-color, #ddd) 16%, transparent);
+  --sf-surface: color-mix(in srgb, var(--fg-color, #ddd) 7%, transparent);
+  --sf-surface-hover: color-mix(in srgb, var(--fg-color, #ddd) 13%, transparent);
+}
+`;
+// Node 冒烟测试拷本文件为 .mjs 时无 document，跳过（CSS 仅浏览器需要）。
+if (typeof document !== "undefined") injectCSSOnce("sf-theme-vars", SF_THEME_CSS);
+
+// canvas 绘制取色：CSS var(--sf-*) 多为 var()/color-mix() 令牌，ctx.fillStyle
+// 解析不了；这里直接把调色板写到 <html> 的旧 --comfy-* 实色读出来（含明/暗/
+// 自定义主题），供画布节点随主题取色。每帧调用成本可忽略（computed style 缓存）。
+export function sfThemeColors() {
+  let cs = null;
+  try { cs = getComputedStyle(document.documentElement); } catch { /* 降级 */ }
+  const get = (name, fb) => {
+    const v = cs && cs.getPropertyValue(name).trim();
+    return v || fb;
+  };
+  const panel = get("--comfy-menu-bg", "#242730");
+  const text = get("--input-text", get("--fg-color", "#ddd"));
+  return {
+    panel,
+    panel2: get("--comfy-menu-secondary-bg", panel),
+    surface: get("--comfy-input-bg", panel),
+    border: get("--border-color", "#4e4e4e"),
+    text,
+    textStrong: get("--fg-color", text),
+    textDim: get("--descrip-text", "#999"),
+    // 面板底色亮度判定明暗（canvas 无 CSS 类可查时兜底）
+    light: (() => {
+      const m = String(panel).match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/i);
+      if (!m) return false;
+      const [r, g, b] = [1, 2, 3].map((i) => parseInt(m[i], 16));
+      return (r * 299 + g * 587 + b * 114) / 255000 > 0.5;
+    })(),
+  };
+}
+
 // ── 滚轮缩放透传（仅 Classic 渲染器；增强版：滚动容器穿透检测）───────
 // 根内部有可滚动区域（面板列表、编辑器等）时让容器滚动而非缩放画布；
 // 无滚动容器时行为等价于直接转发（简单版），是后者的功能超集。

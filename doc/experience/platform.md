@@ -220,3 +220,14 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
 - **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套；Align 内为单层平铺（9 动作 + disabled 分组头，见 §11 压平备注）。
 - **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。
+
+### 16. 主题令牌层：sfnodes DOM UI 跟随 ComfyUI Color Palette（做"自定义弹层/面板适配明暗"必知）
+
+> 背景：包内 DOM 弹层/node widget（LoRA Stack 家族、图片浏览器、LoRA 浏览器、预设管理器）长期硬编码深色（`#1a1a1a`/`#161616`/`rgba(255,255,255,.05)`），在 ComfyUI 亮色/自定义主题下始终黑底（2026-09）。`web/sf_common.js` 顶层注入 id `sf-theme-vars` 的 `SF_THEME_CSS`，各模块改用 `var(--sf-*)`。
+
+- **ComfyUI 主题机制（前端包 1.52.7 实证，升级后以容器实测为准）**：选中调色板的 `comfy_base` 由 `loadComfyColorPalette` 逐键写成 `<html>` **内联 CSS 变量**（`--comfy-menu-bg / --comfy-menu-secondary-bg / --comfy-input-bg / --fg-color / --input-text / --descrip-text / --border-color / --content-* / --tr-*-bg-color`），含自定义主题、运行时切换即时生效；另有 `.dark-theme` 类驱动的新设计令牌（`--interface-*`）但只区分亮/暗。**跟随面板走旧 `--comfy-*` 全集最稳**。
+- **令牌层单源**：`sf_common.js` 顶层 `injectCSSOnce("sf-theme-vars", SF_THEME_CSS)` 定义 `--sf-panel-bg / --sf-panel-bg-2 / --sf-input-bg / --sf-text / --sf-text-strong / --sf-text-dim / --sf-text-faint / --sf-border / --sf-border-soft / --sf-surface / --sf-surface-hover / --sf-shadow`，逐项映射 `--comfy-*` 并带兜底。只改 `sf_common.js` 一处即可全局调色。
+- **半透明面用 `color-mix(in srgb, var(--fg-color) N%, transparent)`**：深色主题 `--fg-color` 浅 → 白蒙层，亮色主题 → 黑蒙层，一套定义两端自适；替代所有 `rgba(255,255,255,.05/.12/.14)`。`color-mix` 前端早已在 LoRA Stack 使用，无兼容风险。
+- **保留不动的颜色**：强调色 `--sf-acc`、状态色（红/绿/蓝/警告橙）、黑色遮罩 `rgba(0,0,0,.55)`、缩略图占位渐变、canvas 节点体配色（布尔开关/万能滑条/便签是节点自身设计色，非弹层主题）。
+- **canvas 取色**：DOM 的 CSS `var()` 自动响应主题；canvas 绘制用 `sf_common.sfThemeColors()`（读旧 `--comfy-*` **实色**返回 `{panel,panel2,surface,border,text,textStrong,textDim,light}`——`--sf-*` 令牌多为 var()/color-mix() 字符串，`ctx.fillStyle` 解析不了）。sf_crop_expand 的画布按钮/底条/扩展区改用它（明暗两端一致）；需要读单个 CSS 变量时 `getComputedStyle(document.documentElement).getPropertyValue("--sf-panel-bg")`（自定义属性 computed 阶段已替换 `var()`，如 sf_lora_stack_info 的 JPEG 透明底合成）。
+- **Node 冒烟测试守卫**：`tests/test_*.js` 会把 `sf_common.js` 拷成 `.mjs` 裸跑，顶层注入无 `document` 会崩——调用必须包 `if (typeof document !== "undefined")`（纯逻辑模块不得 import sf_common 的边界依旧）。

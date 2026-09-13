@@ -15,55 +15,55 @@ function canvasScale() {
 function injectCSS() {
     injectCSSOnce("sf-lora-preset-manager-css", `
     .sf-lpm-overlay{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;}
-    .sf-lpm{width:560px;max-width:92vw;max-height:78vh;background:#222;border:1px solid #444;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;}
-    .sf-lpm-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #333;background:#1e1e1e;}
+    .sf-lpm{width:560px;max-width:92vw;max-height:78vh;background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;}
+    .sf-lpm-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--sf-border-soft);background:var(--sf-panel-bg-2);}
     .sf-lpm-title{font:600 13px 'Segoe UI',sans-serif;color:var(--acc,var(--sf-acc,#f66744));}
-    .sf-lpm-x{cursor:pointer;color:#999;padding:0 6px;font-size:14px;}
-    .sf-lpm-x:hover{color:#fff;}
-    .sf-lpm-search{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2a;background:#1a1a1a;}
-    .sf-lpm-search input{flex:1;min-width:0;background:#111;border:1px solid #444;border-radius:6px;color:#eee;padding:6px 8px;font:12px 'Segoe UI',sans-serif;outline:none;}
+    .sf-lpm-x{cursor:pointer;color:var(--sf-text-dim);padding:0 6px;font-size:14px;}
+    .sf-lpm-x:hover{color:var(--sf-text-strong);}
+    .sf-lpm-search{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--sf-border-soft);background:var(--sf-panel-bg-2);}
+    .sf-lpm-search input{flex:1;min-width:0;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:6px;color:var(--sf-text);padding:6px 8px;font:12px 'Segoe UI',sans-serif;outline:none;}
     .sf-lpm-search input:focus{border-color:var(--acc,var(--sf-acc,#f66744));}
-    .sf-lpm-cnt{font:11px 'Segoe UI',sans-serif;color:#888;white-space:nowrap;}
-    .sf-lpm-clear{cursor:pointer;color:#aaa;font-size:11px;padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);}
-    .sf-lpm-clear:hover{color:#fff;border-color:var(--acc,var(--sf-acc,#f66744));}
-    .sf-lpm-save{padding:8px 12px;border-bottom:1px solid #2a2a2a;background:#1e1e1e;display:flex;flex-direction:column;gap:8px;}
+    .sf-lpm-cnt{font:11px 'Segoe UI',sans-serif;color:var(--sf-text-dim);white-space:nowrap;}
+    .sf-lpm-clear{cursor:pointer;color:var(--sf-text-dim);font-size:11px;padding:4px 8px;border-radius:4px;background:var(--sf-surface);border:1px solid var(--sf-border-soft);}
+    .sf-lpm-clear:hover{color:var(--sf-text-strong);border-color:var(--acc,var(--sf-acc,#f66744));}
+    .sf-lpm-save{padding:8px 12px;border-bottom:1px solid var(--sf-border-soft);background:var(--sf-panel-bg-2);display:flex;flex-direction:column;gap:8px;}
     .sf-lpm-save-head{display:flex;align-items:center;justify-content:space-between;}
-    .sf-lpm-save-title{font:600 12px 'Segoe UI',sans-serif;color:#ccc;}
+    .sf-lpm-save-title{font:600 12px 'Segoe UI',sans-serif;color:var(--sf-text-dim);}
     .sf-lpm-save-form{display:flex;flex-direction:column;gap:8px;}
     .sf-lpm-save-row{display:flex;gap:8px;align-items:center;}
     .sf-lpm-save-row input{flex:1;}
-    .sf-lpm-autocomplete{max-height:120px;overflow-y:auto;border:1px solid #444;border-radius:6px;background:#111;margin-top:4px;display:none;}
+    .sf-lpm-autocomplete{max-height:120px;overflow-y:auto;border:1px solid var(--sf-border-soft);border-radius:6px;background:var(--sf-input-bg);margin-top:4px;display:none;}
     .sf-lpm-autocomplete.show{display:block;}
-    .sf-lpm-autocomplete div{padding:6px 8px;cursor:pointer;font:12px 'Segoe UI',sans-serif;color:#ccc;}
-    .sf-lpm-autocomplete div:hover{background:rgba(255,255,255,0.08);color:#fff;}
-    .sf-lpm-autocomplete div.active{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 18%, #111);color:#fff;}
+    .sf-lpm-autocomplete div{padding:6px 8px;cursor:pointer;font:12px 'Segoe UI',sans-serif;color:var(--sf-text-dim);}
+    .sf-lpm-autocomplete div:hover{background:var(--sf-surface-hover);color:var(--sf-text-strong);}
+    .sf-lpm-autocomplete div.active{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 18%, var(--sf-input-bg));color:var(--sf-text-strong);}
     .sf-lpm-list{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}
-    .sf-lpm-row{border:1px solid #3a3a3a;border-radius:8px;padding:8px 10px;display:flex;gap:10px;align-items:flex-start;background:#1e1e1e;cursor:pointer;}
-    .sf-lpm-row:hover{border-color:#555;background:#252525;}
-    .sf-lpm-row.active{border-color:var(--acc,var(--sf-acc,#f66744));background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 18%, #1e1e1e);}
+    .sf-lpm-row{border:1px solid var(--sf-border-soft);border-radius:8px;padding:8px 10px;display:flex;gap:10px;align-items:flex-start;background:var(--sf-panel-bg-2);cursor:pointer;}
+    .sf-lpm-row:hover{border-color:var(--sf-border);background:var(--sf-surface-hover);}
+    .sf-lpm-row.active{border-color:var(--acc,var(--sf-acc,#f66744));background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 18%, var(--sf-panel-bg-2));}
     .sf-lpm-info{flex:1;min-width:0;}
-    .sf-lpm-name{font:600 12px 'Segoe UI',sans-serif;color:#e8e8e8;word-break:break-word;}
-    .sf-lpm-name mark{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 35%, transparent);color:#fff;border-radius:2px;padding:0 2px;}
-    .sf-lpm-loras{font:11px 'Segoe UI',sans-serif;color:#aaa;margin-top:4px;word-break:break-word;white-space:pre-wrap;}
-    .sf-lpm-loras mark{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 35%, transparent);color:#fff;border-radius:2px;padding:0 2px;}
+    .sf-lpm-name{font:600 12px 'Segoe UI',sans-serif;color:var(--sf-text);word-break:break-word;}
+    .sf-lpm-name mark{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 35%, transparent);color:var(--sf-text-strong);border-radius:2px;padding:0 2px;}
+    .sf-lpm-loras{font:11px 'Segoe UI',sans-serif;color:var(--sf-text-dim);margin-top:4px;word-break:break-word;white-space:pre-wrap;}
+    .sf-lpm-loras mark{background:color-mix(in srgb, var(--acc,var(--sf-acc,#f66744)) 35%, transparent);color:var(--sf-text-strong);border-radius:2px;padding:0 2px;}
     .sf-lpm-positive{font:11px 'Segoe UI',sans-serif;color:#7a9a7a;margin-top:4px;white-space:pre-wrap;word-break:break-word;max-height:60px;overflow:hidden;}
     .sf-lpm-ops{display:flex;gap:6px;flex-shrink:0;align-items:center;}
-    .sf-lpm-btn{cursor:pointer;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#ccc;border-radius:5px;padding:4px 8px;font:11px 'Segoe UI',sans-serif;}
-    .sf-lpm-btn:hover{border-color:var(--acc,var(--sf-acc,#f66744));color:#fff;}
+    .sf-lpm-btn{cursor:pointer;background:var(--sf-surface);border:1px solid var(--sf-border-soft);color:var(--sf-text-dim);border-radius:5px;padding:4px 8px;font:11px 'Segoe UI',sans-serif;}
+    .sf-lpm-btn:hover{border-color:var(--acc,var(--sf-acc,#f66744));color:var(--sf-text-strong);}
     .sf-lpm-btn.edit{color:#8cc8ff;border-color:rgba(70,130,220,0.3);background:rgba(70,130,220,0.14);}
     .sf-lpm-btn.edit:hover{background:rgba(70,130,220,0.22);}
     .sf-lpm-btn.del{color:#ff9a8a;border-color:rgba(220,70,50,0.35);background:rgba(220,70,50,0.14);}
     .sf-lpm-btn.del:hover{background:rgba(220,70,50,0.22);}
-    .sf-lpm-empty{color:#777;text-align:center;padding:20px;font:12px 'Segoe UI',sans-serif;}
-    .sf-lpm-foot{display:flex;justify-content:flex-end;padding:8px 12px;border-top:1px solid #333;background:#1e1e1e;}
-    .sf-lpm-foot .close{cursor:pointer;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#ccc;border-radius:5px;padding:5px 10px;font:11px 'Segoe UI',sans-serif;}
-    .sf-lpm-foot .close:hover{border-color:var(--acc,var(--sf-acc,#f66744));color:#fff;}
+    .sf-lpm-empty{color:var(--sf-text-faint);text-align:center;padding:20px;font:12px 'Segoe UI',sans-serif;}
+    .sf-lpm-foot{display:flex;justify-content:flex-end;padding:8px 12px;border-top:1px solid var(--sf-border-soft);background:var(--sf-panel-bg-2);}
+    .sf-lpm-foot .close{cursor:pointer;background:var(--sf-surface);border:1px solid var(--sf-border-soft);color:var(--sf-text-dim);border-radius:5px;padding:5px 10px;font:11px 'Segoe UI',sans-serif;}
+    .sf-lpm-foot .close:hover{border-color:var(--acc,var(--sf-acc,#f66744));color:var(--sf-text-strong);}
     .sf-lpm-form{padding:12px;display:flex;flex-direction:column;gap:8px;}
-    .sf-lpm-form label{font:11px 'Segoe UI',sans-serif;color:#aaa;}
-    .sf-lpm-form input,.sf-lpm-form textarea{width:100%;box-sizing:border-box;background:#111;border:1px solid #444;border-radius:6px;color:#eee;padding:6px 8px;font:12px 'Segoe UI',sans-serif;outline:none;}
+    .sf-lpm-form label{font:11px 'Segoe UI',sans-serif;color:var(--sf-text-dim);}
+    .sf-lpm-form input,.sf-lpm-form textarea{width:100%;box-sizing:border-box;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:6px;color:var(--sf-text);padding:6px 8px;font:12px 'Segoe UI',sans-serif;outline:none;}
     .sf-lpm-form input:focus,.sf-lpm-form textarea:focus{border-color:var(--acc,var(--sf-acc,#f66744));}
     .sf-lpm-form textarea{min-height:80px;resize:vertical;}
-    .sf-lpm-form .hint{font:11px 'Segoe UI',sans-serif;color:#666;}
+    .sf-lpm-form .hint{font:11px 'Segoe UI',sans-serif;color:var(--sf-text-faint);}
     .sf-lpm-form .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
     `);
 }
@@ -144,7 +144,7 @@ export async function openLoraPresetManager(ctx = {}) {
         saveForm.appendChild(saveAuto);
         const posLabel = el("label", "", "Positive prompt (optional)");
         posLabel.style.fontSize = "11px";
-        posLabel.style.color = "#aaa";
+        posLabel.style.color = "var(--sf-text-dim)";
         savePosTa = el("textarea", "");
         savePosTa.placeholder = "masterpiece, 1girl, ...";
         savePosTa.maxLength = 8000;
@@ -156,7 +156,7 @@ export async function openLoraPresetManager(ctx = {}) {
         installWheelZoomPassthrough(savePosTa);
         const hint = el("div", "hint", "Select an existing preset below to overwrite, or type a new name.");
         hint.style.fontSize = "11px";
-        hint.style.color = "#666";
+        hint.style.color = "var(--sf-text-faint)";
         saveForm.append(posLabel, savePosTa, hint);
         // 切换展开/收起
         saveToggle.addEventListener("click", () => {

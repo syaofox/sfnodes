@@ -229,7 +229,7 @@ export function attachSampleTitleHover(container, loraName, kind) {
         const isVideo = isVideoPath(rel);
         hoverEl = document.createElement("div");
         hoverEl.className = "sf-lora-sample-hover";
-        hoverEl.style.cssText = "position:fixed;z-index:10060;background:#1e1e1e;border:1px solid #444;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.6);pointer-events:none;";
+        hoverEl.style.cssText = "position:fixed;z-index:10060;background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.6);pointer-events:none;";
         let media;
         if (isVideo) {
             media = document.createElement("video");
@@ -272,9 +272,9 @@ export function attachSampleTitleHover(container, loraName, kind) {
 const _PROMPT_COPY_CSS = `
 .sf-ls-desc-copybtn { position:absolute; top:4px; right:4px; width:18px; height:18px;
   display:flex; align-items:center; justify-content:center; padding:0;
-  border:1px solid #444; border-radius:4px; background:#242428;
+  border:1px solid var(--sf-border-soft); border-radius:4px; background:var(--sf-panel-bg-2);
   cursor:pointer; opacity:0.55; z-index:2; }
-.sf-ls-desc-copybtn:hover { opacity:1; border-color:var(--acc, var(--sf-acc, #f66744)); background:#32302e; }
+.sf-ls-desc-copybtn:hover { opacity:1; border-color:var(--acc, var(--sf-acc, #f66744)); background:var(--sf-surface-hover); }
 `;
 export function attachSamplePromptCopyButtons(container, notify) {
     if (!container || !container.children) return;

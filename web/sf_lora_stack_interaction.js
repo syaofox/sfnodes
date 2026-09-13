@@ -27,36 +27,36 @@ function closeRowMenu() {
 export function injectMenuCSS() {
     injectCSSOnce("sf-ls-menu-css", `
     .sf-ls-menu { position:fixed; z-index:10030; min-width:178px; max-width:360px;
-      background:#2b2b2b; border:1px solid #4a4a4a; border-radius:8px;
+      background:var(--sf-panel-bg); border:1px solid var(--sf-border); border-radius:8px;
       box-shadow:0 12px 34px rgba(0,0,0,0.65); overflow:hidden;
-      font:12px 'Segoe UI',system-ui,sans-serif; color:#e0e0e0; padding:3px 0; }
+      font:12px 'Segoe UI',system-ui,sans-serif; color:var(--sf-text); padding:3px 0; }
     .sf-ls-menu .it { display:flex; align-items:center; gap:9px; padding:7px 12px; cursor:pointer; }
-    .sf-ls-menu .it .k { width:14px; text-align:center; color:#8a8a8a; flex:none; }
+    .sf-ls-menu .it .k { width:14px; text-align:center; color:var(--sf-text-dim); flex:none; }
     .sf-ls-menu .it .l { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .sf-ls-menu .it:hover { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; } .sf-ls-menu .it:hover .k { color:#fff; }
     .sf-ls-menu .it.danger:hover { background:#e2504a; }
     .sf-ls-menu .it.dis { opacity:.35; pointer-events:none; }
-    .sf-ls-menu .sep { height:1px; background:#1b1b1b; margin:3px 0; }
+    .sf-ls-menu .sep { height:1px; background:var(--sf-border-soft); margin:3px 0; }
     .sf-ls-menu .in { display:flex; align-items:center; gap:6px; padding:6px 8px; }
-    .sf-ls-menu .in input { flex:1; min-width:0; box-sizing:border-box; background:#161616;
-      border:1px solid #4a4a4a; border-radius:5px; color:#fff; font:11px 'Segoe UI',sans-serif;
+    .sf-ls-menu .in input { flex:1; min-width:0; box-sizing:border-box; background:var(--sf-input-bg);
+      border:1px solid var(--sf-border); border-radius:5px; color:var(--sf-text-strong); font:11px 'Segoe UI',sans-serif;
       padding:5px 7px; outline:none; }
     .sf-ls-menu .in input:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-menu .in .ok { flex:0 0 auto; padding:4px 8px; border-radius:4px; font-size:11px;
-      color:#ccc; cursor:pointer; user-select:none; }
-    .sf-ls-menu .in .ok:hover { color:#fff; background:rgba(255,255,255,0.08); }
+      color:var(--sf-text-dim); cursor:pointer; user-select:none; }
+    .sf-ls-menu .in .ok:hover { color:var(--sf-text-strong); background:var(--sf-surface-hover); }
     .sf-ls-menu .in .ok.pri { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; font-weight:600; }
     .sf-ls-menu .in .ok.pri:hover { filter:brightness(1.1); }
     .sf-ls-menu .msg { padding:6px 12px; font-size:11px; color:#c98a6a; }
     /* 预设保存：positive 提示词输入 */
     .sf-ls-save { display:flex; flex-direction:column; gap:6px; padding:6px 8px; }
-    .sf-ls-save .lab { font:10px 'Segoe UI'; color:#8a8a8a; letter-spacing:.04em; text-transform:uppercase; }
+    .sf-ls-save .lab { font:10px 'Segoe UI'; color:var(--sf-text-dim); letter-spacing:.04em; text-transform:uppercase; }
     .sf-ls-save textarea { width:100%; box-sizing:border-box; min-height:58px; max-height:120px; resize:vertical;
-      background:#161616; border:1px solid #4a4a4a; border-radius:5px; color:#fff;
+      background:var(--sf-input-bg); border:1px solid var(--sf-border); border-radius:5px; color:var(--sf-text-strong);
       font:11px 'Segoe UI',sans-serif; padding:5px 7px; outline:none; }
     .sf-ls-save textarea:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
     .sf-ls-save .acts { display:flex; gap:6px; justify-content:flex-end; }
-    .sf-ls-save .hint { font:10px 'Segoe UI'; color:#6f6f6f; }
+    .sf-ls-save .hint { font:10px 'Segoe UI'; color:var(--sf-text-faint); }
 
   `);
 }

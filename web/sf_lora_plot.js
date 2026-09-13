@@ -90,8 +90,8 @@ function injectPlotCSS() {
     .sf-plot-band { display:flex; align-items:stretch; gap:6px; height:${BAND_H}px; }
     .sf-plot-band .sf-ls-add { flex:1; width:auto; }
     .sf-plot-del { flex:0 0 auto; width:22px; height:22px; border-radius:5px;
-      border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05);
-      color:#a8a8a8; cursor:pointer; display:flex; align-items:center;
+      border:1px solid var(--sf-border-soft); background:var(--sf-surface);
+      color:var(--sf-text-dim); cursor:pointer; display:flex; align-items:center;
       justify-content:center; font-size:10px; user-select:none; }
     .sf-plot-del:hover { border-color:#e2504a; color:#fff; background:rgba(226,80,74,0.15); }
   `);

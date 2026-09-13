@@ -17,7 +17,7 @@
 
 import { app } from "/scripts/app.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, sfApiUrl, buildSourceURL, getSfAccent, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
+import { sfToast, sfApiUrl, buildSourceURL, getSfAccent, sfThemeColors, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
 import { attachPopupDismiss } from "./sf_popup.js";
 import { showImageBrowser } from "./image_browser.js";
 import {
@@ -314,10 +314,10 @@ async function apiDeleteRatioPreset(name) {
 // ── Custom 比例管理弹窗（左已存定义列表 + 右编辑器；sf_popup 三关闭）──────
 
 const _BTN = "padding:5px 12px;border:none;border-radius:3px;cursor:pointer;font-size:12px;";
-const _INPUT = "padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;";
+const _INPUT = "padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;";
 
 function markRatioFields(wInput, hInput, bad) {
-  const color = bad ? "#e74c3c" : "#555";
+  const color = bad ? "#e74c3c" : "var(--sf-border-soft)";
   wInput.style.borderColor = color;
   hInput.style.borderColor = color;
 }
@@ -332,30 +332,30 @@ function openCustomRatioDialog(node) {
 
   const dialog = document.createElement("div");
   dialog.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);" +
-    "background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:12px 14px;" +
-    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:460px;color:#ddd;font-size:13px;box-sizing:border-box;";
+    "background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:6px;padding:12px 14px;" +
+    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:460px;color:var(--sf-text);font-size:13px;box-sizing:border-box;";
   dialog.innerHTML = `
     <div style="font-weight:bold;margin-bottom:10px;">Custom Aspect Ratio</div>
     <div style="display:flex;gap:12px;align-items:stretch;">
       <div style="width:180px;display:flex;flex-direction:column;min-width:0;">
-        <label style="color:#aaa;font-size:10px;margin-bottom:3px;">Saved Definitions</label>
-        <div id="sf-ce-ratio-list" style="flex:1;min-height:150px;max-height:240px;overflow-y:auto;background:#1a1a1a;border:1px solid #555;border-radius:3px;padding:3px;"></div>
+        <label style="color:var(--sf-text-dim);font-size:10px;margin-bottom:3px;">Saved Definitions</label>
+        <div id="sf-ce-ratio-list" style="flex:1;min-height:150px;max-height:240px;overflow-y:auto;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;padding:3px;"></div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;">
         <div>
-          <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Name</label>
+          <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Name</label>
           <input type="text" id="sf-ce-ratio-name" placeholder="definition name"
             style="width:100%;${_INPUT}">
         </div>
         <div style="display:flex;gap:10px;align-items:flex-end;">
           <div>
-            <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Width</label>
+            <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Width</label>
             <input type="number" id="sf-ce-ratio-w" value="${st0.custom_w ?? 1}" min="0.1" step="0.1"
               style="width:100px;${_INPUT}">
           </div>
-          <div style="color:#888;font-size:16px;padding-bottom:6px;">:</div>
+          <div style="color:var(--sf-text-faint);font-size:16px;padding-bottom:6px;">:</div>
           <div>
-            <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Height</label>
+            <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Height</label>
             <input type="number" id="sf-ce-ratio-h" value="${st0.custom_h ?? 1}" min="0.1" step="0.1"
               style="width:100px;${_INPUT}">
           </div>
@@ -367,7 +367,7 @@ function openCustomRatioDialog(node) {
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-      <button id="sf-ce-ratio-cancel" style="${_BTN}background:#444;color:#ddd;">Cancel</button>
+      <button id="sf-ce-ratio-cancel" style="${_BTN}background:var(--sf-surface);color:var(--sf-text);">Cancel</button>
       <button id="sf-ce-ratio-ok" style="${_BTN}background:#4a90e2;color:white;">Apply</button>
     </div>`;
   overlay.appendChild(dialog);
@@ -421,7 +421,7 @@ function openCustomRatioDialog(node) {
     listEl.replaceChildren();
     if (presets.length === 0) {
       const empty = document.createElement("div");
-      empty.style.cssText = "color:#888;font-size:11px;padding:8px 4px;text-align:center;";
+      empty.style.cssText = "color:var(--sf-text-faint);font-size:11px;padding:8px 4px;text-align:center;";
       empty.textContent = routeOk ? "No saved definitions" : "Preset store unavailable";
       listEl.appendChild(empty);
       return;
@@ -434,7 +434,7 @@ function openCustomRatioDialog(node) {
         (idx === selectedIndex ? "background:#3a5f8a;" : "");
       item.textContent = `${p.name}  (${fmt(p.w)}:${fmt(p.h)})`;
       item.title = `${p.name} ${fmt(p.w)}:${fmt(p.h)}`;
-      item.onmouseenter = () => { if (idx !== selectedIndex) item.style.background = "#3a3a3a"; };
+      item.onmouseenter = () => { if (idx !== selectedIndex) item.style.background = "var(--sf-surface-hover)"; };
       item.onmouseleave = () => { item.style.background = idx === selectedIndex ? "#3a5f8a" : ""; };
       // 单击选中并回填字段；双击直接套用
       item.onclick = () => {
@@ -470,7 +470,7 @@ function openCustomRatioDialog(node) {
       sfToast({ summary: "SF Crop Expand", detail: "请填写定义名称", severity: "warn", fallbackTag: "SF Crop Expand" });
       return;
     }
-    nameInput.style.borderColor = "#555";
+    nameInput.style.borderColor = "var(--sf-border-soft)";
     const v = parseFields();
     if (!v) {
       sfToast({ summary: "SF Crop Expand", detail: "宽度/高度必须为正数", severity: "warn", fallbackTag: "SF Crop Expand" });
@@ -513,9 +513,9 @@ function openCustomRatioDialog(node) {
       else if (e.key === "Escape") close();
     };
     el.oninput = () => {
-      wInput.style.borderColor = "#555";
-      hInput.style.borderColor = "#555";
-      nameInput.style.borderColor = "#555";
+      wInput.style.borderColor = "var(--sf-border-soft)";
+      hInput.style.borderColor = "var(--sf-border-soft)";
+      nameInput.style.borderColor = "var(--sf-border-soft)";
     };
   }
   setTimeout(() => (presets.length ? wInput : nameInput).focus(), 100);
@@ -554,6 +554,7 @@ function drawPlaceholder(ctx, x, y, width, height, scale) {
 
 function drawButtons(ctx, node) {
   const st = getState(node);
+  const th = sfThemeColors();
   const accent = getSfAccent() || "rgba(100,150,255,0.8)";
   for (const b of node._sfExpandButtons) {
     const [bx, by, bw, bh] = buttonRect(b, node);
@@ -562,10 +563,10 @@ function drawButtons(ctx, node) {
     } else if (b.isColor) {
       ctx.fillStyle = st.fill_color || "#000000";
     } else {
-      ctx.fillStyle = "rgba(60,60,60,0.7)";
+      ctx.fillStyle = th.surface;
     }
     ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = "rgba(150,150,150,0.6)";
+    ctx.strokeStyle = th.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(bx, by, bw, bh);
 
@@ -580,7 +581,7 @@ function drawButtons(ctx, node) {
         ctx.fillStyle = "rgba(255,255,255,0.9)";
       }
     } else {
-      ctx.fillStyle = "rgba(220,220,220,0.9)";
+      ctx.fillStyle = th.textStrong;
     }
 
     ctx.font = b.isRatio ? "10px Arial" : "11px Arial";
@@ -660,6 +661,7 @@ function setupDrawing(node) {
     const nodeH = node.size[1];
     const dragging = !!node._sfExpandDrag;
     const st = getState(node);
+    const th = sfThemeColors();
 
     const m = computeDisplayMetrics(
       { cropX: st.crop_x, cropY: st.crop_y, cropW: st.crop_w, cropH: st.crop_h, srcW: st.src_w, srcH: st.src_h },
@@ -670,20 +672,22 @@ function setupDrawing(node) {
     // 比例竖列底条（节点顶到画布区底缘，与图片区同高）
     const colTop = shiftLeft - 4;
     const colBottom = nodeH - shiftLeft - LAYOUT.bottomH;
-    ctx.fillStyle = "rgba(40,40,40,0.9)";
+    ctx.fillStyle = th.panel2;
     ctx.beginPath();
     ctx.roundRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop, 4);
     ctx.fill();
-    ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.strokeStyle = th.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(shiftLeft - 4, colTop, LAYOUT.ratioColW + 2, colBottom - colTop);
 
     // 扩展区背景 + 网格
-    ctx.fillStyle = "rgba(60,60,60,0.8)";
+    ctx.fillStyle = th.surface;
     ctx.beginPath();
     ctx.roundRect(m.offsetX - 4, m.offsetY - 4, m.scaledDisplayWidth + 8, m.scaledDisplayHeight + 8, 4);
     ctx.fill();
-    ctx.strokeStyle = "rgba(80,80,80,0.3)";
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = th.border;
     ctx.lineWidth = 1;
     const gridSize = 32 * m.scale;
     for (let x = m.offsetX; x <= m.offsetX + m.scaledDisplayWidth; x += gridSize) {
@@ -698,6 +702,7 @@ function setupDrawing(node) {
       ctx.lineTo(m.offsetX + m.scaledDisplayWidth, y);
       ctx.stroke();
     }
+    ctx.restore();
 
     // 源图
     const sourceX = m.offsetX + (0 - m.displayMinX) * m.scale;
@@ -729,11 +734,11 @@ function setupDrawing(node) {
 
     // 底行背景条（Load/Browse 按钮与信息文本同排）
     const bottomY = nodeH - shiftLeft - BTN_H;
-    ctx.fillStyle = "rgba(40,40,40,0.9)";
+    ctx.fillStyle = th.panel2;
     ctx.beginPath();
     ctx.roundRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, BTN_H + 8, 4);
     ctx.fill();
-    ctx.strokeStyle = "rgba(100,100,100,0.5)";
+    ctx.strokeStyle = th.border;
     ctx.strokeRect(shiftLeft - 4, bottomY - 4, nodeW - shiftRight - (shiftLeft - 4) - 2, BTN_H + 8);
 
     drawButtons(ctx, node);

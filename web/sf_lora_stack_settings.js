@@ -17,56 +17,56 @@ let _userMoved = false;  // 用户拖过面板，停止跟随
 
 function injectCSS() {
     injectCSSOnce("sf-lsp-css", `
-    .sf-lsp { position:fixed; z-index:10010; width:290px; max-width:94vw; background:#1a1a1a;
-      border:1px solid #4a4a4a; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
-      color:#d8d8d8; font:12px 'Segoe UI',system-ui,sans-serif; overflow:hidden; }
-    .sf-lsp-t { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#232323;
-      border-bottom:1px solid #333; cursor:grab; user-select:none; color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-lsp-t .x { margin-left:auto; color:#8a8a8a; cursor:pointer; padding:0 4px; }
-    .sf-lsp-t .x:hover { color:#fff; }
+    .sf-lsp { position:fixed; z-index:10010; width:290px; max-width:94vw; background:var(--sf-panel-bg);
+      border:1px solid var(--sf-border); border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,0.6);
+      color:var(--sf-text); font:12px 'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+    .sf-lsp-t { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--sf-panel-bg-2);
+      border-bottom:1px solid var(--sf-border-soft); cursor:grab; user-select:none; color:var(--acc, var(--sf-acc, #f66744)); }
+    .sf-lsp-t .x { margin-left:auto; color:var(--sf-text-dim); cursor:pointer; padding:0 4px; }
+    .sf-lsp-t .x:hover { color:var(--sf-text-strong); }
     .sf-lsp-b { padding:12px; display:flex; flex-direction:column; gap:11px; max-height:64vh; overflow-y:auto; }
     .sf-lsp-row { display:flex; align-items:center; gap:10px; }
-    .sf-lsp-row .lab { flex:1; color:#c2c2c2; }
-    .sf-lsp-row .hint { display:block; font-size:10px; color:#7a7a7a; margin-top:1px; }
-    .sf-lsp-num { width:66px; box-sizing:border-box; background:#161616; border:1px solid #4a4a4a;
-      border-radius:6px; color:#fff; text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
+    .sf-lsp-row .lab { flex:1; color:var(--sf-text); }
+    .sf-lsp-row .hint { display:block; font-size:10px; color:var(--sf-text-faint); margin-top:1px; }
+    .sf-lsp-num { width:66px; box-sizing:border-box; background:var(--sf-input-bg); border:1px solid var(--sf-border);
+      border-radius:6px; color:var(--sf-text-strong); text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
     .sf-lsp-num:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-lsp-txt { width:70px; box-sizing:border-box; background:#161616; border:1px solid #4a4a4a;
-      border-radius:6px; color:#fff; text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
+    .sf-lsp-txt { width:70px; box-sizing:border-box; background:var(--sf-input-bg); border:1px solid var(--sf-border);
+      border-radius:6px; color:var(--sf-text-strong); text-align:center; font:12px monospace; padding:6px 4px; outline:none; }
     .sf-lsp-txt:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-lsp-sw { flex:0 0 auto; width:34px; height:18px; border-radius:99px; background:#3a3a3a;
-      position:relative; cursor:pointer; border:1px solid #000; }
+    .sf-lsp-sw { flex:0 0 auto; width:34px; height:18px; border-radius:99px; background:var(--sf-surface-hover);
+      position:relative; cursor:pointer; border:1px solid var(--sf-border-soft); }
     .sf-lsp-sw::after { content:""; position:absolute; top:1px; left:1px; width:14px; height:14px;
-      border-radius:50%; background:#8a8a8a; transition:left .14s, background .14s; }
+      border-radius:50%; background:var(--sf-text-dim); transition:left .14s, background .14s; }
     .sf-lsp-sw.on { background:var(--acc, var(--sf-acc, #f66744)); } .sf-lsp-sw.on::after { left:17px; background:#fff; }
-    .sf-lsp-swatch { width:30px; height:22px; border-radius:5px; border:1px solid #555; cursor:pointer; flex:0 0 auto; }
-    .sf-lsp-swatch:hover { border-color:#fff; }
-    .sf-lsp-seg { flex:0 0 auto; display:flex; background:rgba(0,0,0,0.25); border:1px solid #444;
+    .sf-lsp-swatch { width:30px; height:22px; border-radius:5px; border:1px solid var(--sf-border); cursor:pointer; flex:0 0 auto; }
+    .sf-lsp-swatch:hover { border-color:var(--sf-text-strong); }
+    .sf-lsp-seg { flex:0 0 auto; display:flex; background:var(--sf-surface); border:1px solid var(--sf-border-soft);
       border-radius:6px; overflow:hidden; }
-    .sf-lsp-segb { padding:5px 9px; font:11px 'Segoe UI',sans-serif; color:#aaa; cursor:pointer;
+    .sf-lsp-segb { padding:5px 9px; font:11px 'Segoe UI',sans-serif; color:var(--sf-text-dim); cursor:pointer;
       user-select:none; }
-    .sf-lsp-segb:hover { color:#ddd; background:rgba(255,255,255,0.08); }
+    .sf-lsp-segb:hover { color:var(--sf-text); background:var(--sf-surface-hover); }
     .sf-lsp-segb.on { background:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
-    .sf-lsp-f { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #333; background:#1f1f1f; }
-    .sf-lsp-btn { border:1px solid #444; background:rgba(255,255,255,0.04); color:#d8d8d8; border-radius:5px;
+    .sf-lsp-f { display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--sf-border-soft); background:var(--sf-panel-bg-2); }
+    .sf-lsp-btn { border:1px solid var(--sf-border-soft); background:var(--sf-surface); color:var(--sf-text); border-radius:5px;
       padding:6px 12px; font:12px 'Segoe UI',sans-serif; cursor:pointer; }
-    .sf-lsp-btn:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
+    .sf-lsp-btn:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:var(--sf-text-strong); }
     .sf-lsp-push { margin-left:auto; }
     /* Civitai 块。其上方都是每节点；这些只在本机存一次，用一条规则和一个
        标题说明这一点。 */
-    .sf-lsp-head { margin-top:2px; padding-top:11px; border-top:1px solid #333;
+    .sf-lsp-head { margin-top:2px; padding-top:11px; border-top:1px solid var(--sf-border-soft);
       color:var(--acc, var(--sf-acc, #f66744)); font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
     .sf-lsp-head .sub { display:block; margin-top:3px; text-transform:none; letter-spacing:0;
-      color:#7a7a7a; font-size:10px; line-height:1.4; }
-    .sf-lsp-key { flex:1; min-width:0; box-sizing:border-box; background:#161616;
-      border:1px solid #4a4a4a; border-radius:6px; color:#fff; font:12px monospace;
+      color:var(--sf-text-faint); font-size:10px; line-height:1.4; }
+    .sf-lsp-key { flex:1; min-width:0; box-sizing:border-box; background:var(--sf-input-bg);
+      border:1px solid var(--sf-border); border-radius:6px; color:var(--sf-text-strong); font:12px monospace;
       padding:6px 8px; outline:none; }
     .sf-lsp-key:focus { border-color:var(--acc, var(--sf-acc, #f66744)); }
-    .sf-lsp-mini { flex:0 0 auto; border:1px solid #444; background:rgba(255,255,255,0.04);
-      color:#d8d8d8; border-radius:5px; padding:5px 9px; font:11px 'Segoe UI',sans-serif;
+    .sf-lsp-mini { flex:0 0 auto; border:1px solid var(--sf-border-soft); background:var(--sf-surface);
+      color:var(--sf-text); border-radius:5px; padding:5px 9px; font:11px 'Segoe UI',sans-serif;
       cursor:pointer; user-select:none; }
-    .sf-lsp-mini:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:#fff; }
-    .sf-lsp-state { flex:1; font-size:11px; color:#7a7a7a; }
+    .sf-lsp-mini:hover { border-color:var(--acc, var(--sf-acc, #f66744)); color:var(--sf-text-strong); }
+    .sf-lsp-state { flex:1; font-size:11px; color:var(--sf-text-faint); }
     .sf-lsp-state.set { color:#3ec371; }
     .sf-lsp-msg { font-size:10px; line-height:1.4; color:#c98a6a; }
   `);
