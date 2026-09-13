@@ -1,4 +1,4 @@
-"""SFPauseImage 保存路由（/api/sfnodes/preview/save + /prepare + /flip）。
+"""SFPauseImage 保存路由（/api/sfnodes/preview/save + /prepare + /flip + /pause/load）。
 
 复刻 Pixaroma 的 /pixaroma/api/preview/save 与 /prepare（拖回重建元数据用）：
 - save：把 base64 PNG 存到 ComfyUI output/ 目录，嵌入 workflow/prompt PNG 块
@@ -6,6 +6,8 @@
 - prepare：嵌入元数据后返回 data URI + 建议文件名（Save to Disk 用）
 - flip：把 temp 闸门快照 PNG 原地水平镜像（SF Pause Image 的 Flip 开关；就地
   镜像让预览 / Continue / Copy / Save / Open 全部一致，无需重跑上游）
+- pause/load：把 input/ 里的外载图物化成 temp 快照（Load/Browse/拖放/粘贴，
+  见 web/sf_pause_source.js；Pause/Pass 仍优先接线图）
 
 注册方式沿用 sf_utils/lora_notes.py 的 _register_routes 先例：模块导入时
 （__init__.py import）副作用注册，try/except 包裹，环境异常时降级不注册。
@@ -23,6 +25,7 @@ from PIL.PngImagePlugin import PngInfo
 from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
 from ...sf_utils.disk_state import decode_image as _decode_image  # dataURL 解码（单源，见 disk_state）
 from ...sf_utils.disk_state import safe_prefix as _safe_prefix  # 文件名前缀清洗（单源，见 disk_state）
+from .pause_image import _snapshot_path  # 外载图物化目标（temp 快照路径单源）
 
 
 def _metadata_disabled():
@@ -81,6 +84,51 @@ def _mirror_png(path):
         parameters=info.get("parameters"),
     )
     mirrored.save(path, "PNG", pnginfo=pnginfo)
+
+
+def _resolve_input_path(src_path):
+    """把 "subfolder/file.png" 安全解析到 input/ 下的绝对路径；越界返回 None。
+
+    只接受相对路径（拒绝绝对路径与 ".."）；realpath + commonpath 双重包含检查，
+    防符号链接逃逸（folder_paths.is_within_directory 同款语义，独立实现以兼容
+    旧运行时）。
+    """
+    rel = str(src_path or "").replace("\\", "/").strip()
+    if not rel or rel.startswith("/"):
+        return None
+    parts = [p for p in rel.split("/") if p]
+    if not parts or any(p == ".." for p in parts):
+        return None
+    try:
+        input_dir = os.path.realpath(folder_paths.get_input_directory())
+        path = os.path.realpath(os.path.join(input_dir, *parts))
+        if os.path.commonpath((input_dir, path)) != input_dir:
+            return None
+    except ValueError:
+        return None
+    return path
+
+
+def materialize_pause_snapshot(unique_id, src_path, flip=False):
+    """读 input/ 源图 →（flip 时水平镜像）→ 写入该节点的 temp 快照。
+
+    返回 frame dict（Continue/预览链路直接消费）。源图不存在或路径越界抛
+    FileNotFoundError。文本块经 _build_pnginfo 保留（尊重 --disable-metadata）。
+    """
+    path = _resolve_input_path(src_path)
+    if not path or not os.path.isfile(path):
+        raise FileNotFoundError("source not found")
+    with Image.open(path) as snap:
+        info = dict(snap.info)
+        img = ImageOps.mirror(snap) if flip else snap.copy()
+    dest = _snapshot_path(unique_id)
+    pnginfo = _build_pnginfo(
+        prompt=info.get("prompt"),
+        workflow=info.get("workflow"),
+        parameters=info.get("parameters"),
+    )
+    img.save(dest, "PNG", pnginfo=pnginfo)
+    return {"filename": os.path.basename(dest), "subfolder": "", "type": "temp"}
 
 
 def _register_routes():
@@ -204,7 +252,37 @@ def _register_routes():
                 return web.json_response({"error": f"flip failed: {e}"}, status=500)
             return web.json_response({"status": "success"})
 
-        print("[sfnodes] preview routes registered (/api/sfnodes/preview/save, /prepare, /flip)")
+        @routes.post("/api/sfnodes/pause/load")
+        async def api_pause_load(request):
+            """把 input/ 里的外载图物化成本节点的 temp 快照（Load/Browse/拖放/粘贴）。
+
+            Request JSON: { unique_id, src_path, flip }
+            Response: { status, frame:{filename,subfolder,type} } 或 { error }
+
+            Pause/Pass 仍优先接线图；本路由产物供 Continue 提交与预览显示。
+            """
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({"error": "invalid JSON"}, status=400)
+            if not isinstance(data, dict):
+                data = {}
+            unique_id = data.get("unique_id")
+            if unique_id is None:
+                return web.json_response({"error": "missing unique_id"}, status=400)
+            try:
+                frame = materialize_pause_snapshot(
+                    unique_id, data.get("src_path", ""), bool(data.get("flip"))
+                )
+            except FileNotFoundError:
+                return web.json_response({"error": "source not found"}, status=404)
+            except ValueError as e:
+                return web.json_response({"error": str(e)}, status=400)
+            except Exception as e:
+                return web.json_response({"error": f"load failed: {e}"}, status=500)
+            return web.json_response({"status": "success", "frame": frame})
+
+        print("[sfnodes] preview routes registered (/api/sfnodes/preview/save, /prepare, /flip, /pause/load)")
     except Exception as e:
         print(f"[sfnodes] preview routes registration failed: {e}")
 

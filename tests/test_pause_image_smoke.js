@@ -94,6 +94,9 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_kit.js",
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
         .replaceAll('import { api } from "/scripts/api.js";', "const api = globalThis.api;")
+        // 外载图模块单独在 test_pause_source_smoke.js 覆盖，这里桩掉保持引擎冒烟
+        .replace(/import \{ attachSourceControls \} from "\.\/sf_pause_source\.js";/g,
+            "const attachSourceControls = () => {};")
         .replace(/from "\.\/([a-z_]+)\.js"/g, 'from "./$1.mjs"');
     fs.writeFileSync(path.join(tmpDir, n.replace(/\.js$/, ".mjs")), code);
 }

@@ -453,7 +453,7 @@ export function getUpstreamImageURL(node, cachedUrl) {
 // 多个类各自要一个监听器（去重为单一布尔曾让后注册的类粘贴静默失效——
 // 同节点类多实例的重复安装仍幂等）。
 const _pasteHandlerKeys = new Set();
-export function installPasteHandler({ comfyClass, hook, onPasteImage, allowPaste }) {
+export function installPasteHandler({ comfyClass, hook, onPasteImage, allowPaste, disconnectInput = true }) {
   const key = `${comfyClass}:${hook || ""}`;
   if (_pasteHandlerKeys.has(key)) return;
   _pasteHandlerKeys.add(key);
@@ -476,10 +476,13 @@ export function installPasteHandler({ comfyClass, hook, onPasteImage, allowPaste
     // If upstream wire is connected, disconnect it — pasting an image is an
     // unambiguous "use this image now" override. Without this, Python would
     // keep using the upstream tensor and the paste would have no effect on
-    // workflow output.
-    const imgInputIdx = (node.inputs || []).findIndex((i) => i.name === "image");
-    if (imgInputIdx >= 0 && node.inputs[imgInputIdx].link != null) {
-      try { node.disconnectInput(imgInputIdx); } catch {}
+    // workflow output. disconnectInput:false 用于"粘贴只替换显示/快照、接线
+    // 照常参与 Run"的宿主（如 SFPauseImage 的外载图，见 sf_pause_source.js）。
+    if (disconnectInput) {
+      const imgInputIdx = (node.inputs || []).findIndex((i) => i.name === "image");
+      if (imgInputIdx >= 0 && node.inputs[imgInputIdx].link != null) {
+        try { node.disconnectInput(imgInputIdx); } catch {}
+      }
     }
 
     // Snapshot existing graph node IDs so we can remove any LoadImage that

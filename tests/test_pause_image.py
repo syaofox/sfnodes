@@ -44,6 +44,7 @@ sys.modules["torch"] = torch
 tmp_root = tempfile.mkdtemp(prefix="sf_pause_img_test_")
 folder_paths = types.ModuleType("folder_paths")
 folder_paths.get_temp_directory = lambda: os.path.join(tmp_root, "temp")
+folder_paths.get_input_directory = lambda: os.path.join(tmp_root, "input")
 sys.modules["folder_paths"] = folder_paths
 
 # 注册 sfnodes 包结构，使节点的相对导入（from ...sf_utils.common/disk_state
@@ -234,6 +235,39 @@ mod_r._mirror_png(_mp)
 with Image.open(_mp) as _mim2:
     _mpx2 = np.array(_mim2.convert("RGB"))
 check("_mirror_png 两次还原", _mpx2[0, 0, 0] == 255 and _mpx2[0, 3, 0] == 0)
+
+# ── preview_routes.materialize_pause_snapshot：外载图 → temp 快照 ──
+sarr = np.zeros((1, 2, 4, 3), dtype=np.float32)
+sarr[0, 0, 0, :] = [1.0, 0.0, 0.0]  # 最左像素红
+_src_rel = "sfnodes_crop/src_test.png"
+_src_abs = os.path.join(tmp_root, "input", "sfnodes_crop", "src_test.png")
+os.makedirs(os.path.dirname(_src_abs), exist_ok=True)
+Image.fromarray((sarr[0] * 255).astype(np.uint8)).save(_src_abs)
+
+_fr = mod_r.materialize_pause_snapshot("matA", _src_rel, False)
+check("materialize 返回 temp frame", _fr["filename"] == "sf_pause_matA.png" and _fr["type"] == "temp")
+with Image.open(snap_path("matA")) as _im:
+    _px = np.array(_im.convert("RGB"))
+check("materialize 未翻转（红在左）", _px[0, 0, 0] == 255 and _px[0, 3, 0] == 0)
+
+_fr2 = mod_r.materialize_pause_snapshot("matB", _src_rel, True)
+check("materialize flip 返回 frame", _fr2["filename"] == "sf_pause_matB.png")
+with Image.open(snap_path("matB")) as _im2:
+    _px2 = np.array(_im2.convert("RGB"))
+check("materialize flip 红跑到最右", _px2[0, 3, 0] == 255 and _px2[0, 0, 0] == 0)
+
+for _bad in ("../x.png", "/abs/x.png", "sfnodes_crop/../../x.png", ""):
+    try:
+        mod_r.materialize_pause_snapshot("matBad", _bad, False)
+        check(f"materialize 越界拒绝 {_bad!r}", False)
+    except FileNotFoundError:
+        check(f"materialize 越界拒绝 {_bad!r}", True)
+
+# ── pause 无接线回退：读 temp 外载图（不重复翻转） ──
+r = node.run(image=None, PauseState='{"mode": "pause"}', unique_id="matA")
+check("pause 无接线回退外载图", bool((r["result"][0].numpy() == sarr).all()))
+r = node.run(image=None, PauseState='{"mode": "pause", "flip": true}', unique_id="matB")
+check("pause 无接线回退已镜像快照不重复翻转", bool((r["result"][0].numpy() == np.flip(sarr, axis=2)).all()))
 
 print("\nFAILURES:", len(failures))
 sys.exit(1 if failures else 0)

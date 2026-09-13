@@ -72,11 +72,14 @@ export function buildPauseBody(cfg) {
         cssId, cssPrefix, elsProp, flashProp, busyProp, hasSnapProp,
         emptyText, contTitle, regenTitle, toolNoun, getState,
         flip = false, flipTitle = "水平翻转预览图（左右镜像）；翻转后下游收到的是镜像后的图",
+        // 外部模块在预览上方插入的额外控件行高度（如 sf_pause_source 的
+        // Load/Browse/Clear），预留进 NODE_MIN_H 保住预览最小高度
+        extraHeight = 0,
     } = cfg;
     // NODE_MIN_W：4 按钮工具行容纳所需。NODE_MIN_H 用固定数字——每次保存/
     // 加载字节一致，node.size 不抖动，工作流不会被误标"已修改"
     const NODE_MIN_W = 300;
-    const NODE_MIN_H = HEADER_H + PREVIEW_MIN_H + DIMS_H;
+    const NODE_MIN_H = HEADER_H + extraHeight + PREVIEW_MIN_H + DIMS_H;
 
     function injectCSS() {
         injectCSSOnce(cssId, `
@@ -205,7 +208,7 @@ export function buildPauseBody(cfg) {
         node[elsProp] = {
             segPause, segPass, status,
             btnContinue, btnRegen, btnFlip, btnCopy, btnSaveDisk, btnSaveOut, btnOpen,
-            img, empty, dims,
+            preview, img, empty, dims,
         };
         return root;
     }
@@ -357,7 +360,7 @@ export function definePauseGate(cfg) {
         frameEventKey,
         logTag, injectName, captureMsg,
         cssId, cssPrefix, emptyText, contTitle, regenTitle, toolNoun,
-        flip = false, flipTitle,
+        flip = false, flipTitle, extraHeight = 0,
     } = cfg;
 
     const state = makeGateState(stateProp);
@@ -370,7 +373,7 @@ export function definePauseGate(cfg) {
         busyProp: propPrefix + "Busy",
         hasSnapProp: propPrefix + "HasSnapshot",
         emptyText, contTitle, regenTitle, toolNoun,
-        flip, flipTitle,
+        flip, flipTitle, extraHeight,
         getState,
     });
     const { buildPauseWidget, renderPause, showFrame, frameViewUrl, NODE_MIN_W, NODE_MIN_H } = body;

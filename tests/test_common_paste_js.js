@@ -88,6 +88,30 @@ globalThis.FileReader = class {
     firePaste(null);
     check("无选中节点不触发任何处理", cropPastes.length === 1 && inpaintPastes.length === 1);
 
+    // disconnectInput:false 不断开接线（SF Pause Image 外载图宿主）；
+    // 默认 true 保持既有"粘贴即覆盖"行为
+    const noDiscNode = {
+        id: 3, comfyClass: "SFNoDisc", inputs: [{ name: "image", link: 7 }],
+        _sfNoDiscPaste: () => {}, disconnectInput() { this._discCalled = true; },
+    };
+    const discNode = {
+        id: 4, comfyClass: "SFDisc", inputs: [{ name: "image", link: 8 }],
+        _sfDiscPaste: () => {}, disconnectInput() { this._discCalled = true; },
+    };
+    graphNodes.push(noDiscNode, discNode);
+    mod.installPasteHandler({
+        comfyClass: "SFNoDisc", hook: "_sfNoDiscPaste", disconnectInput: false,
+        onPasteImage: () => {},
+    });
+    mod.installPasteHandler({
+        comfyClass: "SFDisc", hook: "_sfDiscPaste", onPasteImage: () => {},
+    });
+    firePaste(noDiscNode);
+    firePaste(discNode);
+    await new Promise((r) => setTimeout(r, 60));
+    check("disconnectInput:false 不断线", !noDiscNode._discCalled);
+    check("默认 disconnectInput 断线", discNode._discCalled === true);
+
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });
     process.exit(failures.length ? 1 : 0);

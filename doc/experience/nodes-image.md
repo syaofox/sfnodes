@@ -570,3 +570,33 @@
 
 - `tests/test_pause_image.py`：mock `torch.flip`；flip pause/pass 输出镜像、快照字节镜像（红像素跑到最右）、continue 读回镜像、flip=false 不翻转；`_mirror_png` 原地镜像 + 两次还原。
 - `tests/test_pause_image_js.js` / `_smoke.js`：flip 默认值与布尔规范化、`extraState` 在 pause/pass/continue 三模式注入、Flip 按钮构建、剪枝后仍保留 flip 注入。
+
+## 63. SFPauseImage 外载图（Load/Browse/拖放/粘贴，Design D，2026-09）
+
+> 背景：用户正常用接线图，但希望"不断开接线的前提下，加载一张图后点 Continue 让这张显示的图作为输出"。据此定为 Design D：外载图只替换 Continue 提交的 temp 快照，Pause/Pass 仍走接线。
+
+### 1. 语义（Design D）
+
+- **Pause/Pass（Run）**：优先接线图；未接线时才回退读 temp 快照（`pause_image.run` 里 `image is None` 分支，读回后 `flip=False`——快照已是最终产物，重复翻转会翻回去）。
+- **Load / Browse / 拖放到预览 / Ctrl+V**：`CropAPI.uploadSrc("pause_"+ts, dataURL)` 落盘 `input/sfnodes_crop/` → `POST /api/sfnodes/pause/load {unique_id, src_path, flip}` 物化写入该节点 temp 快照 → 预览显示。**不动接线**。
+- **Continue**：读 temp 快照 → 输出显示的外载图；接线保持连接。
+- **Clear**：清标记 + `state.frame=null` + 预览复位 + Continue 禁用。
+- 标记 `node._sfPauseSrcPath` **仅内存、不自动恢复**（temp 本就随重启清空，避免与"最后一次 Run 结果"语义冲突——用户拍板）。
+
+### 2. 复用与边界
+
+- 独立模块 `web/sf_pause_source.js`：把 `image_browser`/`CropAPI` 重依赖隔离，**不进 `sf_pause_kit.js`**（kit 是 image/mask/latent 共享引擎，且其 `_js`/smoke 测试只桩 `sf_common`，引重依赖会连带改一堆测试）。复用 `installPasteHandler`/`parseAnnotatedImageValue`/`buildSourceURL`/`showImageBrowser`/`CropAPI.uploadSrc`，零新增落盘路由。
+- kit 只加两个无依赖接入点：`cfg.extraHeight`（把外插行高度算进 `NODE_MIN_H`）+ `els.preview`（供 `preview.before(row)` 插行与挂原生 `dragover/drop`）。
+- `sf_pause_source` 注册**第二个** extension，在 kit 之后链式包装 `onNodeCreated/onConfigure`（source 的 wrapper 在 kit 之后跑，故 `els` 已就绪；`origCreated?.apply` 先跑 kit 的 setup）。
+- 粘贴传 `installPauseHandler({disconnectInput:false})`：落实"加载不断线"。为此给 `sf_common.installPasteHandler` 加可选 `disconnectInput=true`（默认值保持既有四类调用行为不变，仅断开块加条件）。
+- 后端 `preview_routes.materialize_pause_snapshot` 抽出可测（读 input → 按 flip 镜像 → 写 `pause_image._snapshot_path`），`_resolve_input_path` 拒绝绝对路径/`..`/symlink 逃逸（realpath+commonpath）。
+- 拖放挂 DOM 预览区（`sf_inpaint.js` 先例）——本节点预览是 DOM `<img>`，无需 canvas 的 `onDragOver/onDragDrop`。
+- mask/latent 未纳入：kit 改动向后兼容，两闸门不传 `extraHeight`/不接 source 模块，行为零变化。
+
+### 3. 测试
+
+- `tests/test_pause_image.py`：mock `folder_paths.get_input_directory`；`materialize_pause_snapshot` 未翻转/翻转/越界拒绝；pause 无接线回退外载图、已镜像快照不重复翻转。
+- `tests/test_pause_source_smoke.js`（新增，stub image_browser/crop_core/sf_common）：按钮行构建并插预览前、拖放/粘贴接线（`disconnectInput:false`）、`loadSource` 调 uploadSrc + load 路由并回填 frame/预览、Clear 复位。
+- `tests/test_common_paste_js.js`：`disconnectInput:false` 不断线、默认 true 仍断线。
+- `tests/test_pause_image_smoke.js`：把新增的 `attachSourceControls` import 桩掉（保持引擎冒烟，外载图由专门 smoke 覆盖）。
+- `tests/check_web_imports.py` MODS 增 `sf_pause_source`。

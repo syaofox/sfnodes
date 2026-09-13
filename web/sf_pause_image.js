@@ -15,13 +15,15 @@
 //
 // 与 Pixaroma 原件差异（已确认范围）：无 accent 颜色设置、无 Vue
 // ResizeObserver 撑高（保留 onResize clamp）、无 canvas zoom 辅助；
-// 新增原件没有的水平翻转开关（flip:true，见配置注释）。
+// 新增原件没有的水平翻转开关（flip:true，见配置注释）与外载图
+// （Load/Browse/拖放/粘贴，见 sf_pause_source.js）。
 //
 // ==========================================================================
 
 import { definePauseGate } from "./sf_pause_kit.js";
+import { attachSourceControls } from "./sf_pause_source.js";
 
-definePauseGate({
+const gate = definePauseGate({
     classy: "SFPauseImage",
     extensionName: "sfnodes.PauseImage",
     widgetType: "sf_pause_image_ui",
@@ -50,4 +52,17 @@ definePauseGate({
     // /api/sfnodes/preview/flip 就地镜像 temp PNG，无快照时后端按 PauseState 的
     // flip 字段在捕获/输出时翻转。
     flip: true,
+    // 给 sf_pause_source 插入的 Load/Browse/Clear 行预留高度
+    extraHeight: 32,
+});
+
+// 外载图（Load / Browse / 拖放 / Ctrl+V）：只替换 Continue 提交的 temp 快照，
+// Pause/Pass 照常用接线图；独立模块隔离 image_browser/CropAPI 重依赖。
+attachSourceControls({
+    gate,
+    classy: "SFPauseImage",
+    propPrefix: "_sfPauseImage",
+    cssPrefix: "sf-pi-",
+    emptyText: "Press Run to preview the image here",
+    logTag: "SF Pause Image",
 });

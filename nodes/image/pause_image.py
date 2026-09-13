@@ -9,6 +9,10 @@ Pause 模式：工作流停在此节点并显示图片；节点把快照存到 C
 再存快照与输出，Continue 直接读回镜像后的快照。已有快照时前端调
 /api/sfnodes/preview/flip 就地镜像 temp PNG，避免为了翻转重跑上游。
 
+外载图（可选）：前端 Load/Browse/拖放/粘贴经 /api/sfnodes/pause/load 落盘到
+input/ 并物化到本节点的 temp 快照；Continue 读回它。Pause/Pass 仍优先接线图，
+仅在未接线时回退读 temp 快照（视作最终产物，不重复翻转）。
+
 决策在前端 JS（Pattern #9，与 SFPauseText 同款双钩子）：app.graphToPrompt hook 注入
 生效模式到隐藏 PauseState 并在提交时剪枝。本节点只对交给它的模式做出反应。
 
@@ -148,11 +152,23 @@ class SFPauseImage:
                 ) from e
             return {"ui": {"sf_pause_frame": frame}, "result": (out,)}
 
-        # Pause 或 Pass：图片已接线。
+        # Pause 或 Pass：优先接线图；未接线时回退到节点内加载的外载图
+        # （sf_pause_source 已把它物化到 temp 快照）。快照文件本身即最终产物
+        # （可能已被 Flip 就地镜像），读回后不得再翻转。
         if image is None:
-            raise RuntimeError(
-                "SF Pause Image: 输入未连接图片。"
-            )
+            if not os.path.isfile(path):
+                raise RuntimeError(
+                    "SF Pause Image: 输入未连接图片，且节点未加载图片。"
+                )
+            try:
+                with Image.open(path) as snap:
+                    image = _pil_to_tensor(snap)
+            except Exception as e:
+                raise RuntimeError(
+                    "SF Pause Image: 已加载的图片无法读取（可能不完整）。"
+                    "请重新加载。"
+                ) from e
+            flip = False  # 快照已是最终产物（含镜像），勿重复翻转
 
         # 水平翻转（前端 Flip 开关随 PauseState 注入）：先翻转再快照/输出，于是
         # Continue 读回的快照、预览、下游、Save/Copy 拿到的是同一张镜像图。

@@ -44,6 +44,7 @@ MODS = [
     "sf_pause_kit",
     "sf_pause_text", "sf_pause_text_lib", "sf_pause_text_ui",
     "sf_pause_image", "sf_pause_mask", "sf_pause_latent",
+    "sf_pause_source",
     # 值下拉家族
     "sf_dropdown", "sf_dropdown_lib", "sf_dropdown_ui", "sf_dropdown_settings",
     # 查找替换家族
