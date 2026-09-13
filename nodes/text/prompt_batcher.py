@@ -9,7 +9,7 @@ _CATEGORY = "sfnodes/text"
 
 
 def _get_prompt_base_dir() -> str:
-    base = os.path.join(folder_paths.get_user_directory(), "sfnodes", "prompt")
+    base = os.path.join(folder_paths.get_output_directory(), "prompt")
     os.makedirs(base, exist_ok=True)
     return base
 
@@ -49,7 +49,7 @@ class SFLoadPromptsFromFolder:
         folders = _list_subdirs() or ["default"]
         return {
             "required": {
-                "folder": (folders, {"tooltip": "从 user/sfnodes/prompt/ 下选择提示词子目录，加载其中全部 txt 文件"}),
+                "folder": (folders, {"tooltip": "从 output/prompt/ 下选择提示词子目录，加载其中全部 txt 文件"}),
             },
             "optional": {
                 "file_prefix": ("STRING", {"default": "", "tooltip": "仅加载以此前缀开头的 txt 文件"}),
@@ -64,7 +64,7 @@ class SFLoadPromptsFromFolder:
     OUTPUT_IS_LIST = (True, True)
     FUNCTION = "load_prompts"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从 user/sfnodes/prompt/ 下的子目录中批量加载 txt 提示词文件，输出提示词列表与文件路径列表，支持前缀筛选、数量限制与起始索引"
+    DESCRIPTION = "从 output/prompt/ 下的子目录中批量加载 txt 提示词文件，输出提示词列表与文件路径列表，支持前缀筛选、数量限制与起始索引"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -151,7 +151,7 @@ class SFSaveTextToFiles:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True, "tooltip": "多行文本，每行将保存为一个单独的 txt 文件"}),
-                "folder": (folders, {"tooltip": "保存到 user/sfnodes/prompt/ 下的该子目录"}),
+                "folder": (folders, {"tooltip": "保存到 output/prompt/ 下的该子目录"}),
             },
             "optional": {
                 "new_folder": ("STRING", {"default": "", "tooltip": "非空时优先：自动创建该子目录并保存到其中"}),
@@ -164,7 +164,7 @@ class SFSaveTextToFiles:
     RETURN_NAMES = ("output_path", "file_prefix")
     FUNCTION = "save_text_to_files"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "将多行文本的每一行保存为 user/sfnodes/prompt/ 子目录下的独立 txt 文件；连接 filenames 列表时按行顺序用指定文件名保存（直接覆盖），无指定文件名的行自动递增不覆盖已有文件"
+    DESCRIPTION = "将多行文本的每一行保存为 output/prompt/ 子目录下的独立 txt 文件；连接 filenames 列表时按行顺序用指定文件名保存（直接覆盖），无指定文件名的行自动递增不覆盖已有文件"
     OUTPUT_NODE = True
     INPUT_IS_LIST = True
 

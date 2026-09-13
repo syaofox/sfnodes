@@ -1,4 +1,4 @@
-// SF Prompt Batcher 前端扩展：刷新 user/sfnodes/prompt/ 子目录列表
+// SF Prompt Batcher 前端扩展：刷新 output/prompt/ 子目录列表
 
 import { app } from "/scripts/app.js";
 
