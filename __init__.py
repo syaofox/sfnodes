@@ -24,6 +24,7 @@ from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
 from .nodes.image.batch import SFImageBatch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.batch_range import SFImageBatchRange
+from .nodes.image.invert_track import SFInvertTrackData
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
     GetImageSize,
@@ -230,6 +231,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageBatchIndex": SFImageBatchIndex,
     "SFImageBatch": SFImageBatch,
     "SFImageBatchRange": SFImageBatchRange,
+    "SFInvertTrackData": SFInvertTrackData,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -439,6 +441,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageBatchIndex": "SF Image Batch Index",
     "SFImageBatch": "SF Image Batch",
     "SFImageBatchRange": "SF Image Batch Range",
+    "SFInvertTrackData": "SF Invert Track Data",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",

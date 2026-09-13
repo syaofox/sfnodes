@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -600,3 +600,26 @@
 - `tests/test_common_paste_js.js`：`disconnectInput:false` 不断线、默认 true 仍断线。
 - `tests/test_pause_image_smoke.js`：把新增的 `attachSourceControls` import 桩掉（保持引擎冒烟，外载图由专门 smoke 覆盖）。
 - `tests/check_web_imports.py` MODS 增 `sf_pause_source`。
+
+## 64. SFInvertTrackData：SAM3 追踪数据反转（跨核心封闭类型，2026-09）
+
+> 背景：SCAIL-2 工作流里 `SAM3_VideoTrack` prompt 写 `person` 得到人物追踪；需求是"追踪 person 以外区域"，且结果要接 `SCAIL2ColoredMask.driving_track_data`。
+
+### 1. 为什么必须在 track_data 层反转
+
+- `SAM3_TRACK_DATA` 是核心 `comfy_extras/nodes_sam3.py` 定义的封闭类型（`io.Custom("SAM3_TRACK_DATA")`，实为 `{packed_masks, n_frames, scores, orig_size}`）。
+- `SCAIL2ColoredMask.driving_track_data` **只接受 track_data**（只有 `ref_track_data` 的 MultiType 兼容普通 MASK）。所以"先 `SAM3_TrackToMask` 再 `InvertMask`"的常规做法喂不进 driving，**必须在 track_data（位打包）层取反**。
+- 位打包：`comfy.ldm.sam3.tracker.pack_masks/unpack_masks`（`[T,N,H,W//8] uint8` ↔ bool），`packed[:, indices]` 选中对象 → `unpack_masks().any(dim=1)` 取并集 → `~` 取反 → `pack_masks().unsqueeze(1)` 还原单身份。
+
+### 2. 语义与边界（节点 `nodes/image/invert_track.py`）
+
+- 反转粒度 = **选中对象并集的反集**（多对象各自反集会重叠，语义混乱）。
+- **逐帧空遮罩 → 全选**：`any` 全 False 的帧取反即整帧身份；为一致性，`packed_masks=None`（整条无对象）也按 `orig_size` 补全帧（W 补到 8 的倍数再打包），而非返回空——否则同一节点在不同帧上语义分叉。
+- 显式给了 `object_indices` 但全部非法（越界/非数字）→ 返回空身份（尊重用户的显式选择，不偷偷变全屏）。
+- `dict(track_data)` 浅拷贝输出，保留 `orig_size/n_frames`，`scores` 重置为 `[1.0]`，不改写输入。
+- lazy import `comfy.ldm.sam3.tracker`，核心缺席时节点仍可加载。
+
+### 3. 测试
+
+- `tests/test_invert_track.py`：numpy 严格复刻位序的 pack/unpack 桩 + `FakeArr`（支持 `any(dim=)`/`~`/索引/`unsqueeze`）注入 `invert_track_data`；覆盖单对象/多对象并集/子集/空帧全选/非法索引空/packed None 全帧/键保留 + execute 集成（stub `torch` 与 `comfy.ldm.sam3.tracker`）。
+- 用 numpy 而非 mock 位运算，保证位序与核心一致，能抓打包错误。
