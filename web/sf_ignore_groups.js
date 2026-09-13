@@ -85,7 +85,7 @@ function injectCSS() {
     CSS_ID,
     `
 .sf-ig{position:relative;width:100%;box-sizing:border-box;overflow:hidden;user-select:none;pointer-events:auto;margin-top:-10px;padding-bottom:10px}
-.sf-ig-empty{color:#888;text-align:center;padding:20px 16px;font-size:13px}
+.sf-ig-empty{color:var(--sf-text-faint);text-align:center;padding:20px 16px;font-size:13px}
 .sf-ig-gear svg{width:13px;height:13px}
 `
   );
@@ -194,12 +194,12 @@ function setupIgnoreGroups(node) {
 .${uid} .sf-ig-header{height:${HEADER_H}px;display:flex;justify-content:flex-end;align-items:center;padding:0 6px}
 .${uid} .sf-ig-gear{width:16px;height:16px;cursor:pointer;opacity:.6;display:flex;align-items:center;justify-content:center;pointer-events:auto}
 .${uid} .sf-ig-gear:hover{opacity:1}
-.${uid} .sf-ig-row{display:flex;align-items:center;justify-content:space-between;height:${rH}px;margin:0 ${pX}px ${ROW_GAP}px;padding:0 ${rPR}px 0 ${rPL}px;background:#2B2F38;border:1px solid #6E7581;border-radius:${bR}px;cursor:pointer;box-sizing:border-box;pointer-events:auto}
-.${uid} .sf-ig-row:hover{border-color:#8E95A1}
+.${uid} .sf-ig-row{display:flex;align-items:center;justify-content:space-between;height:${rH}px;margin:0 ${pX}px ${ROW_GAP}px;padding:0 ${rPR}px 0 ${rPL}px;background:var(--sf-panel-bg-2);border:1px solid var(--sf-border);border-radius:${bR}px;cursor:pointer;box-sizing:border-box;pointer-events:auto}
+.${uid} .sf-ig-row:hover{border-color:var(--sf-text-dim)}
 .${uid} .sf-ig-row:last-child{margin-bottom:5px}
 .${uid} .sf-ig-label{font-weight:bold;font-size:${fS}px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:10px}
-.${uid} .sf-ig-toggle{width:${tW}px;height:${tH}px;border-radius:${tH / 2}px;background:#606060;position:relative;flex-shrink:0}
-.${uid} .sf-ig-knob{width:${kD}px;height:${kD}px;border-radius:50%;background:rgb(128,128,128);position:absolute;top:${knobPad}px;left:${knobOffL}px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.${uid} .sf-ig-toggle{width:${tW}px;height:${tH}px;border-radius:${tH / 2}px;background:var(--sf-surface-hover);position:relative;flex-shrink:0}
+.${uid} .sf-ig-knob{width:${kD}px;height:${kD}px;border-radius:50%;background:var(--sf-text-dim);position:absolute;top:${knobPad}px;left:${knobOffL}px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .${uid} .sf-ig-toggle.on .sf-ig-knob{left:${knobOnL}px;background:rgb(230,230,230)}`;
     let s = document.getElementById(styleId);
     if (!s) {
@@ -385,7 +385,7 @@ function setupIgnoreGroups(node) {
         label.style.color = effectiveColor;
         label.style.opacity = isOn ? "1" : "0.5";
         const toggle = el("div", "sf-ig-toggle" + (isOn ? " on" : ""));
-        toggle.style.background = isOn ? effectiveColor : "#606060";
+        toggle.style.background = isOn ? effectiveColor : "var(--sf-surface-hover)";
         toggle.style.boxShadow = isOn
           ? "0 0 8px " + hexToRgba(effectiveColor, 0.35)
           : "none";

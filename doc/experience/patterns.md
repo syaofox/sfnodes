@@ -294,6 +294,7 @@
 
 - 原版 `LGraphCanvas.prototype.drawNode` 圆角补丁污染所有节点——删除，仅保留本节点级 `onDrawForeground` 标题重绘（用户确认保留）。
 - 原版 `import ... from "../../../scripts/app.js"` 相对路径违反 `check_web_imports.py B2`——改绝对路径 `/scripts/app.js`；扩展名改 `sfnodes.UniversalSlider`（B3）；CSS 前缀 `ghs-`→`sf-us-`、自定义 widget type `goohai_slider`→`sf_universal_slider`（与原插件共存不冲突）；挂点用 `nodeCreated` + 实例级 `configure`/`onAfterGraphConfigured` 包装（`simple_math.js`/`sf_image_resize_plus.js` 先例），不用原版 `beforeRegisterNodeDef` 原型补丁。
+- **节点体配色跟随主题（2026-09）**：不再写死 `node.color/bgcolor="#2D384D"`，交主题默认（用户右键 Colors 覆盖仍由工作流保存）；canvas 标题底/文字、轨道底、名称文字改 `sfThemeColors()` 实色（`--sf-*` 令牌 ctx 解析不了，见 platform §2.16）。
 
 ### 3. RETURN_NAMES 静态约束的折中
 
@@ -314,7 +315,8 @@
 
 ### 2. 规范化改动（相对原版）
 
-- 原型补丁改 `nodeCreated` 实例装配；import 改绝对路径；扩展名 `sfnodes.BooleanSwitch`；自定义 widget `toggle_custom/guhai_toggle`→`sf_boolean_switch/sf_bool_ui`；标签 properties 键 `guhai_label`→`sfBoolLabel`、默认标签 `开关`→`value`（widget 改名口径一致）；配色 `#4F4047/#493C42` 保留（仅创建时设色，configure 不覆盖用户改色——原版同语义）。
+- 原型补丁改 `nodeCreated` 实例装配；import 改绝对路径；扩展名 `sfnodes.BooleanSwitch`；自定义 widget `toggle_custom/guhai_toggle`→`sf_boolean_switch/sf_bool_ui`；标签 properties 键 `guhai_label`→`sfBoolLabel`、默认标签 `开关`→`value`（widget 改名口径一致）。
+- **节点配色跟随主题（2026-09）**：不再写死 `node.color/bgcolor="#4F4047/#493C42"`（交主题默认，用户右键 Colors 覆盖仍随工作流保存）；canvas 标签文字 `#e0e0e0`→`sfThemeColors().text`、关态轨道 `#606060`→`.surface`、关态旋钮 `#999`→`.textDim`（开态绿 `#4CAF50`/白旋钮为状态色，保留）；标签编辑 DOM 输入框改 `var(--sf-*)`。
 - 补原版缺失的 `setDirtyCanvas`（切换/改名/回填三处，原版靠画布偶然重绘刷新）；`configure` 重抓 widgets 引用 + 开关态同步 + 编辑中输入框落盘；`onWidgetChanged` 回填同步。
 
 ---

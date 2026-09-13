@@ -7,7 +7,7 @@
 // - onAfterGraphConfigured 输出槽恢复；右键菜单注入设置项且不吞原菜单；
 //   onWidgetChanged 回填 dirty；拖拽 mouse 按 calcValue 更新值
 // 复用 any_pack.js setSlotType + sf_universal_slider_lib.js 真源；
-// sf_common/sf_popup 仅 stub（injectCSSOnce/el/attachPopupDismiss/clampToViewport）。
+// sf_common/sf_popup 仅 stub（injectCSSOnce/el/sfThemeColors/attachPopupDismiss/clampToViewport）。
 const fs = require("fs");
 const path = require("path");
 
@@ -55,6 +55,11 @@ const el = (tag, cls, text) => {
 };
 const attachPopupDismiss = () => () => {};
 const clampToViewport = () => {};
+// canvas 绘制取主题实色 stub（panel2/text/textDim/surface 等）
+const sfThemeColors = () => ({
+    panel: "#171718", panel2: "#292929", surface: "#222", border: "#4e4e4e",
+    text: "#ddd", textStrong: "#fff", textDim: "#999", textFaint: "#777", light: false,
+});
 const bodyStub = {
     children: [],
     appendChild(c) { c._parent = this; this.children.push(c); return c; },
@@ -83,9 +88,9 @@ const combined =
     stripImports("sf_universal_slider_lib.js") + "\n" +
     stripImports("sf_universal_slider.js");
 new Function(
-    "app", "el", "injectCSSOnce", "attachPopupDismiss", "clampToViewport", "document",
+    "app", "el", "injectCSSOnce", "sfThemeColors", "attachPopupDismiss", "clampToViewport", "document",
     combined
-)(app, el, injectCSSOnce, attachPopupDismiss, clampToViewport, globalThis.document);
+)(app, el, injectCSSOnce, sfThemeColors, attachPopupDismiss, clampToViewport, globalThis.document);
 
 check("扩展已注册 sfnodes.UniversalSlider", ext && ext.name === "sfnodes.UniversalSlider");
 
@@ -127,7 +132,7 @@ check("输出槽名 float（含 localized_name）", n.outputs[0].name === "float
 check("自定义 widget 注册", n._custom && n._custom.type === "sf_universal_slider"
     && typeof n._custom.draw === "function" && typeof n._custom.mouse === "function");
 check("最小宽度 300", n.size[0] === 300);
-check("节点配色", n.color === "#2D384D" && n.bgcolor === "#2D384D");
+check("节点配色不写死（跟随主题）", n.color === undefined && n.bgcolor === undefined);
 
 // 非本类节点不受影响
 const other = { comfyClass: "SFOther" };

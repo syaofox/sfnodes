@@ -18,7 +18,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { el } from "./sf_common.js";
+import { el, sfThemeColors } from "./sf_common.js";
 import {
   DEFAULT_LABEL,
   TOGGLE,
@@ -66,9 +66,9 @@ function startLabelEdit(node, st, clientX, clientY) {
     top: clientY - 14 * scale + "px",
     fontSize: Math.max(12, Math.round(20 * scale)) + "px",
     fontWeight: "bold",
-    color: "#e0e0e0",
-    background: "#2a2a2a",
-    border: "1px solid #555",
+    color: "var(--sf-text)",
+    background: "var(--sf-panel-bg)",
+    border: "1px solid var(--sf-border-soft)",
     borderRadius: "4px",
     padding: "2px 6px",
     outline: "none",
@@ -117,11 +117,8 @@ function setupSwitch(node) {
   if (!boolWidget) return;
   boolWidget.hidden = true;
 
-  // 节点配色（原版，仅首次创建时；configure 恢复不覆盖用户改色——
-  // 原版同样只在 onNodeCreated 设色，工作流存色优先）
-  node.color = "#4F4047";
-  node.bgcolor = "#493C42";
-
+  // 节点配色不写死：跟随 ComfyUI 主题（用户右键 Colors 覆盖的颜色由工作流
+  // 保存，configure 恢复逐字还原，节点级不干预）。
   const st = {
     widget: boolWidget,
     isOn: !!boolWidget.value,
@@ -140,6 +137,7 @@ function setupSwitch(node) {
       name: "sf_bool_ui",
       type: "sf_boolean_switch",
       draw(ctx, n, widgetWidth, y, H) {
+        const tl = sfThemeColors();
         const labelText = getLabel(n);
         const { tw, th, m } = TOGGLE;
         const tx = trackX(widgetWidth);
@@ -150,7 +148,7 @@ function setupSwitch(node) {
         const textAreaCenter = (m + textAreaRight) / 2;
         const maxTextW = textAreaRight - m;
         ctx.font = "bold 24px sans-serif";
-        ctx.fillStyle = "#e0e0e0";
+        ctx.fillStyle = tl.text;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(
@@ -166,7 +164,7 @@ function setupSwitch(node) {
           ctx.shadowBlur = 10;
           ctx.fillStyle = "#4CAF50";
         } else {
-          ctx.fillStyle = "#606060";
+          ctx.fillStyle = tl.surface;
         }
         rrect(ctx, tx, ty, tw, th, th / 2);
         ctx.fill();
@@ -179,7 +177,7 @@ function setupSwitch(node) {
         ctx.save();
         ctx.shadowColor = "rgba(0,0,0,0.3)";
         ctx.shadowBlur = 4;
-        ctx.fillStyle = st.isOn ? "#ffffff" : "#999999";
+        ctx.fillStyle = st.isOn ? "#ffffff" : tl.textDim;
         ctx.beginPath();
         ctx.arc(kx, ky, kr, 0, Math.PI * 2);
         ctx.fill();

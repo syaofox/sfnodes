@@ -18,7 +18,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { el, injectCSSOnce } from "./sf_common.js";
+import { el, injectCSSOnce, sfThemeColors } from "./sf_common.js";
 import { attachPopupDismiss, clampToViewport } from "./sf_popup.js";
 import { setSlotType } from "./any_pack.js";
 import {
@@ -262,13 +262,12 @@ function setupSlider(node) {
     outputTypeWidget.mouse = function () {};
   }
 
-  // 节点外观（原版配色）
-  node.color = "#2D384D";
-  node.bgcolor = "#2D384D";
-
+  // 节点外观：不写死配色，跟随 ComfyUI 主题（用户可在右键 Colors 覆盖
+  // node.color，此时标题重绘按深底配浅字）。
   // 标题重绘（用户确认保留；节点级实现，不碰全局 drawNode）
   const origFG = node.onDrawForeground;
   node.onDrawForeground = function (ctx) {
+    const tl = sfThemeColors();
     const th = (typeof LiteGraph !== "undefined" && LiteGraph.NODE_TITLE_HEIGHT) || 30;
     const r = (typeof LiteGraph !== "undefined" && LiteGraph.NODE_ROUND_RADIUS) || 8;
     const w = this.size[0];
@@ -282,13 +281,13 @@ function setupSlider(node) {
     ctx.lineTo(0, -th + r);
     ctx.arcTo(0, -th, r, -th, r);
     ctx.closePath();
-    ctx.fillStyle = this.color || "#2D384D";
+    ctx.fillStyle = this.color || tl.panel2;
     ctx.fill();
     ctx.restore();
 
     ctx.save();
     ctx.font = "20px 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#E3E3E3";
+    ctx.fillStyle = this.color ? "#E3E3E3" : tl.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.fillText(this.title || "", w / 2, -th + 10);
@@ -322,6 +321,7 @@ function setupSlider(node) {
         const vIsInt = pp.sliderType === "int";
         const ratio = clamp(pct(v, pp.sliderMin, pp.sliderMax), 0, 100);
         const color = pp.sliderColor;
+        const tl = sfThemeColors();
 
         const ml = 14;
         const mr = 24;
@@ -346,7 +346,7 @@ function setupSlider(node) {
         ctx.shadowBlur = 3;
         ctx.shadowOffsetY = 1;
         ctx.font = nameFont;
-        ctx.fillStyle = "#B2B7BD";
+        ctx.fillStyle = tl.textDim;
         ctx.fillText(nameText, lx, ly);
         ctx.font = valFont;
         ctx.fillStyle = color;
@@ -362,7 +362,7 @@ function setupSlider(node) {
         ctx.shadowBlur = 2;
         ctx.shadowOffsetY = 1;
         rrect(ctx, ml, trackY, ds.trackW, trackH, trackR);
-        ctx.fillStyle = "#1a1a1a";
+        ctx.fillStyle = tl.surface;
         ctx.fill();
         ctx.restore();
 

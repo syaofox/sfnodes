@@ -62,10 +62,16 @@ globalThis.document = {
 };
 globalThis.requestAnimationFrame = (fn) => fn();
 
+// canvas 绘制取主题实色 stub
+const sfThemeColors = () => ({
+    panel: "#171718", panel2: "#292929", surface: "#222", border: "#4e4e4e",
+    text: "#ddd", textStrong: "#fff", textDim: "#999", textFaint: "#777", light: false,
+});
+
 const combined =
     stripImports("sf_boolean_switch_lib.js") + "\n" +
     stripImports("sf_boolean_switch.js");
-new Function("app", "el", "document", combined)(app, el, globalThis.document);
+new Function("app", "el", "sfThemeColors", "document", combined)(app, el, sfThemeColors, globalThis.document);
 
 check("扩展已注册 sfnodes.BooleanSwitch", ext && ext.name === "sfnodes.BooleanSwitch");
 
@@ -103,7 +109,7 @@ const n = makeNode(true);
 ext.nodeCreated(n);
 check("标签 properties 默认 value", n.properties.sfBoolLabel === "value");
 check("原生 widget 隐藏", n.widgets[0].hidden === true);
-check("节点配色", n.color === "#4F4047" && n.bgcolor === "#493C42");
+check("节点配色不写死（跟随主题）", n.color === undefined && n.bgcolor === undefined);
 check("自定义 widget 注册", n._custom && n._custom.type === "sf_boolean_switch");
 check("开关初态跟随 True", n._sfBool && n._sfBool.isOn === true);
 
