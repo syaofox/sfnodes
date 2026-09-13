@@ -350,7 +350,7 @@ function injectCSS() {
 .sf-k2p-btn:hover{background:var(--sf-surface-hover)}
 .sf-k2p-btn.pri{background:var(--acc,var(--sf-acc,#f66744));color:#fff;border-color:transparent}
 .sf-k2p-btn.danger{color:#e57373;border-color:#7a3a3a}
-.sf-k2p-msg{padding:0 10px 6px;color:#7bd88f;font-size:12px}
+.sf-k2p-msg{padding:0 10px 6px;color:var(--sf-positive);font-size:12px}
 .sf-k2p-list{padding:0 10px 10px;display:flex;flex-direction:column;gap:6px}
 .sf-k2p-empty{color:var(--sf-text-faint);padding:6px;text-align:center}
 .sf-k2p-row{border:1px solid var(--sf-border-soft);border-radius:6px;padding:6px 8px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
@@ -358,7 +358,7 @@ function injectCSS() {
 .sf-k2p-name{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sf-k2p-badge{font-size:10px;padding:0 5px;border-radius:3px}
 .sf-k2p-badge.b{background:var(--sf-surface-hover);color:var(--sf-text-dim)}
-.sf-k2p-badge.u{background:rgba(123,216,143,.18);color:#7bd88f}
+.sf-k2p-badge.u{background:var(--sf-positive-soft);color:var(--sf-positive)}
 .sf-k2p-text{color:var(--sf-text-dim);margin-top:2px;word-break:break-word;white-space:pre-wrap;max-height:60px;overflow:hidden}
 .sf-k2p-ops{display:flex;gap:4px;flex-shrink:0}
 .sf-k2p-form{padding:10px;display:flex;flex-direction:column;gap:6px}

@@ -198,6 +198,11 @@ export const SF_THEME_CSS = `
   --sf-border-soft: color-mix(in srgb, var(--fg-color, #ddd) 16%, transparent);
   --sf-surface: color-mix(in srgb, var(--fg-color, #ddd) 7%, transparent);
   --sf-surface-hover: color-mix(in srgb, var(--fg-color, #ddd) 13%, transparent);
+  /* 正向提示词绿 / 负向提示词红：与 --fg-color 混合使深色主题偏亮、亮色主题偏深，两端可读 */
+  --sf-positive: color-mix(in srgb, #4caf50 62%, var(--fg-color, #ddd));
+  --sf-positive-soft: color-mix(in srgb, var(--sf-positive) 55%, transparent);
+  --sf-negative: color-mix(in srgb, #e05a4a 62%, var(--fg-color, #ddd));
+  --sf-negative-soft: color-mix(in srgb, var(--sf-negative) 55%, transparent);
 }
 `;
 // Node 冒烟测试拷本文件为 .mjs 时无 document，跳过（CSS 仅浏览器需要）。

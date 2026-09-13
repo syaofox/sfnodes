@@ -56,8 +56,8 @@ function injectCSS() {
 .sf-idc-popimg{width:100%;height:118px;object-fit:contain;background:#131313;border-radius:6px;display:block;}
 .sf-idc-popname{display:block;font:12px sans-serif;color:var(--sf-text-strong);margin:5px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-idc-poppos{font:10px/1.4 sans-serif;margin:2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-wrap:break-word;}
-.sf-idc-poppos b{color:#7bd88f;}
-.sf-idc-poppos span{color:#9ecfa8;}`);
+.sf-idc-poppos b{color:var(--sf-positive);}
+.sf-idc-poppos span{color:var(--sf-positive);}`);
 }
 
 // 模板库列表缓存（promise 级，避免加载期重复请求；失败缓存空列表会话内不重试）

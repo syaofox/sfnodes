@@ -45,7 +45,7 @@ function injectCSS() {
 .sf-ch-viewseg button:hover{background:var(--sf-surface-hover);}
 .sf-ch-viewseg button.sf-ch-viewon{background:color-mix(in srgb, var(--sf-acc, #f66744) 25%, transparent);color:#fff;}
 .sf-ch-prompt{flex:0 0 auto;width:100%;height:${PROMPT_H}px;min-height:${PROMPT_H}px;max-height:${PROMPT_H}px;resize:none;font:12px/1.5 sans-serif;color:var(--sf-text);background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
-.sf-ch-role{flex:0 0 auto;width:100%;height:${ROLE_H}px;min-height:${ROLE_H}px;max-height:${ROLE_H}px;resize:none;font:12px/1.5 sans-serif;color:#9ecfa8;background:var(--sf-input-bg);border:1px dashed #3a5a40;border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
+.sf-ch-role{flex:0 0 auto;width:100%;height:${ROLE_H}px;min-height:${ROLE_H}px;max-height:${ROLE_H}px;resize:none;font:12px/1.5 sans-serif;color:var(--sf-positive);background:var(--sf-input-bg);border:1px dashed var(--sf-positive-soft);border-radius:5px;padding:6px 8px;box-sizing:border-box;outline:none;overflow-y:auto;}
 .sf-ch-shotsbar{flex:1 1 auto;min-height:${SHOTS_MIN}px;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:max-content;gap:6px;align-content:start;overflow-x:hidden;overflow-y:auto;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:5px;padding:6px;box-sizing:border-box;}
 .sf-ch-shotpick{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:3px;border-radius:4px;border:1px solid transparent;min-width:0;}
 .sf-ch-shotpick img{width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:4px;background:#111;display:block;}
@@ -76,8 +76,8 @@ function injectCSS() {
 .sf-ch-poptext{flex:1;min-width:0;}
 .sf-ch-popname{display:block;font:12px sans-serif;color:var(--sf-text-strong);margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-ch-poppos{font:10px/1.4 sans-serif;margin:2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;word-wrap:break-word;}
-.sf-ch-poppos b{color:#7bd88f;}
-.sf-ch-poppos span{color:#9ecfa8;}`);
+.sf-ch-poppos b{color:var(--sf-positive);}
+.sf-ch-poppos span{color:var(--sf-positive);}`);
 }
 
 // 角色库列表缓存（promise 级，避免加载期重复请求；失败缓存空列表会话内不重试）
