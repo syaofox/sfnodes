@@ -1,7 +1,7 @@
 # SFLoadImagesPath 后端测试（Node/Python 直接运行：python tests/test_load_images_path.py）
 # 覆盖：
-#   - _resolve_folder：default / images 根 / input / output / 前缀子目录 / 绝对路径
-#   - _list_folders：三源根 + 一级子目录（含新增的 "images" 根）
+#   - _resolve_folder：default（→input 根）/ input / output / 前缀子目录 / 绝对路径
+#   - _list_folders：两源根（input/output）+ 一级子目录
 #   - VALIDATE_INPUTS：目录存在校验
 # mock：torch / aiohttp / folder_paths / comfy.utils（numpy/PIL 本机真实可用）
 import importlib.util
@@ -72,29 +72,25 @@ sys.modules[spec.name] = mod
 spec.loader.exec_module(mod)
 
 # ── 目录准备 ──
-images_base = os.path.join(tmp_user, "sfnodes", "images")
-os.makedirs(os.path.join(images_base, "default"), exist_ok=True)
-os.makedirs(os.path.join(images_base, "anime"), exist_ok=True)
 os.makedirs(os.path.join(tmp_in, "faces"), exist_ok=True)
 os.makedirs(os.path.join(tmp_out, "render"), exist_ok=True)
 
 # ── _list_folders ──
 folders = mod._list_folders()
 check("列表含 default", "default" in folders)
-check("列表含 images 根", "images" in folders)
-check("列表含 images/anime", "images/anime" in folders)
+check("列表无 images 源", "images" not in folders and not any(f.startswith("images/") for f in folders))
 check("列表含 input/output 根", "input" in folders and "output" in folders)
 check("列表含 input/faces", "input/faces" in folders)
 check("列表含 output/render", "output/render" in folders)
 
 # ── _resolve_folder ──
 rf = mod._resolve_folder
-check("default 解析到 images/default", rf("default") == os.path.join(images_base, "default"))
-check("images 根解析", rf("images") == os.path.normpath(images_base))
+check("default 解析到 input 根", rf("default") == os.path.normpath(tmp_in))
+check("空值解析到 input 根", rf("") == os.path.normpath(tmp_in))
 check("input 根解析", rf("input") == os.path.normpath(tmp_in))
 check("output 根解析", rf("output") == os.path.normpath(tmp_out))
 check("input/faces 子目录", rf("input/faces") == os.path.join(tmp_in, "faces"))
-check("images/anime 子目录", rf("images/anime") == os.path.join(images_base, "anime"))
+check("裸名走 input 相对解析", rf("faces") == os.path.join(tmp_in, "faces"))
 abs_dir = os.path.join(tmp_in, "faces")
 check("绝对路径直通", rf(abs_dir) == os.path.normpath(abs_dir))
 check("绝对路径不存在的目录也直通（校验层提示）", rf(os.path.join(tmp_in, "nope")) == os.path.normpath(os.path.join(tmp_in, "nope")))
@@ -129,8 +125,7 @@ check("子层列一级（多级路径）", mod._list_subdirs("input/faces") == [
 check("隐藏目录跳过", ".hidden" not in mod._list_subdirs("input/faces"))
 check("三层路径", mod._list_subdirs("output/render") == ["deep"])
 check("不存在的目录返回空", mod._list_subdirs("input/nope") == [])
-check("越界路径返回空", mod._list_subdirs("../../etc") == [])
-check("images 根列子目录", mod._list_subdirs("images") == ["anime", "default"])
+check("越界路径钳制到 input 根（无逃逸）", mod._list_subdirs("../../etc") == mod._list_subdirs("input"))
 
 print()
 if failures:

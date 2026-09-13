@@ -2,7 +2,7 @@
 // 用 mock DOM/app/api 真实加载模块，验证：
 //   - 模块加载 / 扩展注册
 //   - nodeCreated：folder combo 隐藏（值仍是数据通道）、DOM widget 添加
-//   - 源切换三档（input/output/images）写 folder 值 + 按需 fetch 当前层
+//   - 源切换两档（input/output）写 folder 值 + 按需 fetch 当前层
 //   - 下拉选择子目录 = 进入（面包屑前进 + 值更新 + fetch 下一层）
 //   - 左右快速步进：当前层子目录循环（进入所选）
 //   - 面包屑回退（祖先段点击）
@@ -98,7 +98,6 @@ const SUBDIR_TREE = {
     "input": ["faces", "empty"],
     "input/faces": ["sub1", "sub2"],
     "output": ["render"],
-    "images": ["anime", "default"],
 };
 let subdirCalls = [];
 globalThis.fetch = async (url) => {
@@ -176,6 +175,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
     const root = node.widgets.find((w) => w.name === "lip_ui").element;
     const folderWidget = node.widgets[0];
+    check("源切换两档（input/output）", root.children[0].children.length === 2);
 
     // 初始默认值 "default" → fetch 根层
     await wait(20);
@@ -272,9 +272,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     root.children[4].children[1]._handlers.click();
     check("路径输入应用写值", folderWidget.value === "/data/images/custom");
 
-    // 切回目录模式：路径值不在目录列表 → 回默认源根
+    // 切回目录模式：路径值不在目录列表 → 回默认源根（input）
     root.children[1].children[0]._handlers.click();
-    check("切回目录模式回源根", folderWidget.value === "images");
+    check("切回目录模式回源根", folderWidget.value === "input");
     await wait(20);
 
     // ── onConfigure 恢复：外部改值（如工作流加载）→ DOM 状态同步 + fetch 当前层 ──

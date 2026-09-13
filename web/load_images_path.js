@@ -1,6 +1,6 @@
 // ============================================================
 // SF Load Images Path — 目录切换前端（Pixaroma 风格）
-// 源切换三档（input / output / images）+ 渐进式目录浏览（面包屑 +
+// 源切换两档（input / output）+ 渐进式目录浏览（面包屑 +
 // 当前层子目录下拉 + 左右快速步进）+ 直接输入路径模式。
 // 数据通道：隐藏的 folder combo widget（值随 workflow 保存、graphToPrompt
 // 自动收集；目录不存在由后端 VALIDATE_INPUTS 校验提示）。
@@ -10,20 +10,20 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { applyAdaptiveCanvasOnly, injectCSSOnce, sfApiUrl } from "./sf_common.js";
 
-const SOURCES = ["input", "output", "images"];
+const SOURCES = ["input", "output"];
 const WIDGET_TYPE = "sf_lip_ui";
-const MIN_W = 320; // 源三档按钮行 + 面包屑行容纳所需的最小节点宽度
+const MIN_W = 320; // 源两档按钮行 + 面包屑行容纳所需的最小节点宽度
 
 // ── folder 值解析 ─────────────────────────────────────────────────────────
-// 目录模式判定只依赖前缀（input/output/images 或 default）——不检查列表
+// 目录模式判定只依赖前缀（input/output 或 default）——不检查列表
 // 包含性，否则目录列表尚未加载时（工作流恢复初期）目录值会被误判为路径
 // 模式；带前缀的值在后端语义上本就是目录值。
 function parseFolderValue(value) {
     const v = String(value || "").trim();
-    if (!v) return { mode: "dir", source: "images", sub: "" };
-    const m = v.match(/^(input|output|images)(?:\/(.*))?$/);
+    if (!v) return { mode: "dir", source: "input", sub: "" };
+    const m = v.match(/^(input|output)(?:\/(.*))?$/);
     if (m) return { mode: "dir", source: m[1], sub: m[2] || "" };
-    if (v === "default") return { mode: "dir", source: "images", sub: "default" };
+    if (v === "default") return { mode: "dir", source: "input", sub: "" };
     return { mode: "path", path: v };
 }
 
@@ -369,7 +369,7 @@ app.registerExtension({
             if (app.graph) app.graph.setDirtyCanvas(true, true);
         };
 
-        // ── 源切换（三档）──
+        // ── 源切换（两档）──
         const srcRow = document.createElement("div");
         srcRow.className = "sf-lip-row";
         for (const s of SOURCES) {
@@ -378,7 +378,7 @@ app.registerExtension({
             b.className = "sf-lip-btn";
             b.dataset.role = "src";
             b.dataset.src = s;
-            b.textContent = s === "input" ? "IN · input" : s === "output" ? "OUT · output" : "IMAGES";
+            b.textContent = s === "input" ? "IN · input" : "OUT · output";
             b.addEventListener("click", () => {
                 // 点源按钮 = 切到目录模式并回到该源根
                 setMode("dir");
@@ -402,7 +402,7 @@ app.registerExtension({
                 if (m[0] === "dir") {
                     setMode("dir");
                     const cur = parseFolderValue(currentValue());
-                    setValue(cur.mode === "dir" ? currentValue() : dirValue("images", ""));
+                    setValue(cur.mode === "dir" ? currentValue() : dirValue("input", ""));
                 } else {
                     setMode("path");
                     setValue(currentValue());
@@ -468,7 +468,7 @@ app.registerExtension({
         input.type = "text";
         input.className = "sf-lip-input";
         input.dataset.role = "path-input";
-        input.placeholder = "绝对路径 或 input/... · output/... · images/...";
+        input.placeholder = "绝对路径 或 input/... · output/...";
         const applyBtn = document.createElement("button");
         applyBtn.type = "button";
         applyBtn.className = "sf-lip-btn";

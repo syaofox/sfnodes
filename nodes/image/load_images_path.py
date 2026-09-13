@@ -15,10 +15,8 @@ _CATEGORY = "sfnodes/image"
 _DEFAULT_FOLDER = "default"
 
 
-def _get_images_base_dir() -> str:
-    base = os.path.join(folder_paths.get_user_directory(), "sfnodes", "images")
-    os.makedirs(base, exist_ok=True)
-    return base
+def _get_input_base_dir() -> str:
+    return os.path.normpath(folder_paths.get_input_directory())
 
 
 def _list_one_level_subdirs(root: str) -> list:
@@ -33,9 +31,6 @@ def _list_one_level_subdirs(root: str) -> list:
 
 def _list_folders() -> list:
     folders = [_DEFAULT_FOLDER]
-    images_base = _get_images_base_dir()
-    folders += ["images"]
-    folders += ["images/" + d for d in _list_one_level_subdirs(images_base) if d != _DEFAULT_FOLDER]
     for prefix, root in (
         ("input", folder_paths.get_input_directory()),
         ("output", folder_paths.get_output_directory()),
@@ -56,32 +51,28 @@ def _resolve_under(root: str, rel: str) -> str:
         rel = rel.lstrip("/\\")
     target = os.path.normpath(os.path.join(root, rel))
     if target != root and not target.startswith(root + os.sep):
-        return os.path.join(_get_images_base_dir(), _DEFAULT_FOLDER)
+        return _get_input_base_dir()
     return target
 
 
 def _resolve_folder(folder: str) -> str:
     name = (folder or _DEFAULT_FOLDER).strip()
     if not name or name == _DEFAULT_FOLDER:
-        return os.path.join(_get_images_base_dir(), _DEFAULT_FOLDER)
+        return _get_input_base_dir()
 
     # 直接输入路径模式：绝对路径原样使用（用户主动输入的任意目录）。
     if os.path.isabs(name):
         return os.path.normpath(name)
 
-    if name == "images":
-        return _get_images_base_dir()
     if name == "input":
         return os.path.normpath(folder_paths.get_input_directory())
     if name == "output":
         return os.path.normpath(folder_paths.get_output_directory())
-    if name.startswith("images/"):
-        return _resolve_under(_get_images_base_dir(), name[len("images/"):])
     if name.startswith("input/"):
         return _resolve_under(folder_paths.get_input_directory(), name[len("input/"):])
     if name.startswith("output/"):
         return _resolve_under(folder_paths.get_output_directory(), name[len("output/"):])
-    return _resolve_under(_get_images_base_dir(), name)
+    return _resolve_under(_get_input_base_dir(), name)
 
 
 def _sort_key(filename):
@@ -108,7 +99,7 @@ class SFLoadImagesPath:
         folders = _list_folders()
         return {
             "required": {
-                "folder": (folders, {"tooltip": "选择图片目录：input / output 目录及其子目录，或 user/sfnodes/images/ 下子目录，批量加载其中全部图片"}),
+                "folder": (folders, {"tooltip": "选择图片目录：input / output 目录及其子目录，批量加载其中全部图片"}),
             },
             "optional": {
                 "image_load_cap": ("INT", {"default": 0, "min": 0, "max": 100000, "step": 1, "tooltip": "限制加载的图片数量（0 = 无限制）"}),
@@ -123,7 +114,7 @@ class SFLoadImagesPath:
     OUTPUT_TOOLTIPS = ("图片批次", "遮罩批次", "加载的图片数量", "文件名列表（不含路径）", "完整文件路径列表")
     FUNCTION = "load_images"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "从 input / output 目录或其子目录、user/sfnodes/images/ 下子目录批量加载图片，统一尺寸后输出图片批次、遮罩与文件名列表，用作反推等批量图片输入"
+    DESCRIPTION = "从 input / output 目录或其子目录批量加载图片，统一尺寸后输出图片批次、遮罩与文件名列表，用作反推等批量图片输入"
     OUTPUT_NODE = False
 
     @classmethod
