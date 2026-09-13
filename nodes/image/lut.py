@@ -12,17 +12,13 @@ from colour.algebra import table_interpolation_tetrahedral
 from colour.io import write_LUT
 
 from ...sf_utils.disk_state import sanitize_filename
+from ...sf_utils.disk_state import sf_user_dir as _sf_user_dir  # 用户数据统一目录（单源，见 disk_state）
 
 _CATEGORY = "sfnodes/image"
 
 
 def _get_luts_dir():
-    try:
-        import folder_paths
-        luts_dir = os.path.join(folder_paths.base_path, "user", "sfnodes", "lut")
-    except Exception:
-        luts_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "user", "sfnodes", "lut")
-        luts_dir = os.path.abspath(luts_dir)
+    luts_dir = os.path.join(_sf_user_dir(), "lut")
     os.makedirs(luts_dir, exist_ok=True)
     return luts_dir
 
