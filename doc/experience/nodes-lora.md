@@ -1,4 +1,4 @@
-# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59）
+# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59、§61）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -606,3 +606,15 @@
 ### 4. 测试
 
 - `tests/test_painter_flux_edit.py`（mock torch/comfy.utils/comfy.model_management/node_helpers + FakeTensor/FakeVae/FakeClip）：VL 面积/方法（encode_vision=True）、默认无 vision 前缀、编号前缀、正负条件的 reference_latents、`reference_latents_method` 注入正负两侧、起点开关（ref latent=1 vs 空 latent=2，用 FakeVae 填充调用序号区分）、noise_mask 形状 = latent 空间（16x）、**batch 不复制 conditioning**、源 batch>目标切片、negative_prompt、纯文本路径、缺 VAE 抛错、节点壳动态 imageN 收集与 step=16。
+
+---
+
+## 61. 全局 combo 树形下拉：multi_lora_tree 从 SF 双节点放宽到全部系统下拉（2026-09）
+
+> 背景：`web/multi_lora_tree.js` 的树形下拉最初只对 `SFLoraLoader/SFLoraLoaderModelOnly` 的 `lora_name` 生效（三重门：`current_node` 存在 + comfyClass 白名单 + widget 名正则）。需求：同一设置对原生节点与其他节点的系统下拉框都生效。
+
+- **原生 LoRA 下拉与自家同形，无需新逻辑**：原生 `LoraLoader/LoraLoaderModelOnly`（`nodes.py:721,760`）的 widget 名同样是 `lora_name`，值同样是 `folder_paths.get_filename_list("loras")` 的相对路径（含 `/` 子目录）。`createTree` 按 `data-value` 切分，与节点类型无关——放宽门控即生效。
+- **全量门控用启发式代替名单**：不限 comfyClass/widget 名，TREE 模式下仅当菜单至少一项 `data-value||textContent` 含 `/|\` 才分组。sampler/scheduler 等无斜杠菜单天然 no-op，比枚举 `ckpt_name/vae_name/…` 名单更鲁棒（第三方节点命名各异，名单必漏）。
+- **两个必加的守卫**：① 原生 combo 分组头 `--xxx--`（只显示不可选）跳过分组逻辑——分组头文本若含 `/` 会被误拆成文件夹，原位保留；② 无路径菜单早退，连 `maxHeight` 调整都跳过，避免对无关菜单的副作用（LIST 模式全程不碰 DOM，一键回退）。
+- **设置 id 随分组一起搬走**：设置面板的子分组标题由 id 中段派生（`sfnodes.LoraLoader.*` 即挂 `LoraLoader` 分组下），只改显示名去不掉标题。故 id 换为 `sfnodes.Combo.DisplayMode`（常量 `DISPLAY_SETTING_ID`，另两处读写同源引用）；旧 id 直接废弃不做迁移——默认值即 Tree，曾手动设为 List 的用户升级后重设一次即可。
+- **变换纯 DOM 重排**：只移动 `.litemenu-entry` 节点、不改 widget 值；过滤输入有文本时既有 CSS `:has(input:not(:placeholder-shown))` 自动退化为扁平全路径。同一 `litecontextmenu` 钩子继续复用，不新增前端版本风险。

@@ -1,13 +1,16 @@
 // ==========================================================================
-// SF LoRA Loader - Folder Tree View for Dropdown
+// SF Combo Dropdown - Folder Tree View
 // ==========================================================================
 //
 // Description:
-// JavaScript extension that provides folder tree view for LoRA dropdown menus
-// in SFLoraLoader and SFLoraLoaderModelOnly nodes.
+// JavaScript extension that provides folder tree view for combo dropdown menus
+// across all nodes (native LoRA/checkpoint pickers, third-party nodes, SF
+// nodes): values containing "/" or "\" are grouped into collapsible folders.
+// Menus without path-like values (e.g. sampler/scheduler names) and LIST mode
+// leave the menu untouched.
 //
 // Features:
-// - Displays LoRA files in a collapsible folder tree structure
+// - Displays path values in a collapsible folder tree structure
 // - Supports nested subfolders (e.g., "sdxl/beauty.safetensors")
 // - Toggle between List mode and Tree mode via settings
 // - Collapsible folders with expand/collapse functionality
@@ -24,6 +27,11 @@ const DISPLAY_MODE = {
     TREE: 1
 };
 
+// 设置 id：sfnodes.Combo.* 自成分组，不再挂 LoraLoader 分组下。
+// 旧 id（sfnodes.LoraLoader.DisplayMode）已废弃，不做迁移——默认值即 Tree，
+// 曾手动设为 List 的用户升级后重设一次即可。
+const DISPLAY_SETTING_ID = "sfnodes.Combo.DisplayMode";
+
 app.registerExtension({
     name: "sfnodes.LoraLoader.TreeView",
 
@@ -34,15 +42,15 @@ app.registerExtension({
         };
 
         app.ui.settings.addSetting({
-            id: "sfnodes.LoraLoader.DisplayMode",
-            name: "SF LoRa Loader: dropdown display mode (flat list / folder tree)",
+            id: DISPLAY_SETTING_ID,
+            name: "SF: combo dropdown display mode (flat list / folder tree)",
             defaultValue: DISPLAY_MODE.TREE,
             type: "combo",
             options: () => {
                 return Object.entries(displayOptions).map(([text, value]) => ({
                     value,
                     text,
-                    selected: app.ui.settings.getSettingValue("sfnodes.LoraLoader.DisplayMode") == value
+                    selected: app.ui.settings.getSettingValue(DISPLAY_SETTING_ID) == value
                 }));
             },
             onChange: () => {
@@ -95,25 +103,13 @@ app.registerExtension({
 
     setup() {
         const mutationObserver = new MutationObserver((mutations) => {
-            const node = app.canvas.current_node;
-            
-            if (!node) return;
-            
-            const isLoraLoader = node.comfyClass === "SFLoraLoader" ||
-                               node.comfyClass === "SFLoraLoaderModelOnly";
-            if (!isLoraLoader) return;
-
             for (const mutation of mutations) {
                 for (const added of mutation.addedNodes) {
                     if (added.classList?.contains("litecontextmenu")) {
-                        const overWidget = app.canvas.getWidgetAtCursor();
-                        
-                        if (overWidget?.name?.match(/^lora(?:_\d+)?_name$/)) {
-                            requestAnimationFrame(() => {
-                                if (!added.querySelector(".comfy-context-menu-filter")) return;
-                                updateMenu(added, overWidget);
-                            });
-                        }
+                        requestAnimationFrame(() => {
+                            if (!added.querySelector(".comfy-context-menu-filter")) return;
+                            updateMenu(added);
+                        });
                         return;
                     }
                 }
@@ -122,16 +118,28 @@ app.registerExtension({
 
         mutationObserver.observe(document.body, { childList: true, subtree: false });
 
-        const updateMenu = (menu, widget) => {
-            const displayMode = app.ui.settings.getSettingValue("sfnodes.LoraLoader.DisplayMode");
-            
+        const updateMenu = (menu) => {
+            const displayMode = app.ui.settings.getSettingValue(DISPLAY_SETTING_ID);
+            if (displayMode !== DISPLAY_MODE.TREE) return;
+
+            // 非路径型菜单（选项值都不含子目录分隔符，如 sampler/scheduler 名）
+            // 无分组意义，直接放行，避免无意义 DOM 重排
+            const entries = menu.querySelectorAll(".litemenu-entry");
+            let hasPath = false;
+            for (const entry of entries) {
+                const v = entry.getAttribute("data-value") ?? entry.textContent ?? "";
+                if (v.includes("/") || v.includes("\\")) {
+                    hasPath = true;
+                    break;
+                }
+            }
+            if (!hasPath) return;
+
             const position = menu.getBoundingClientRect();
             const maxHeight = window.innerHeight - position.top - 20;
             menu.style.maxHeight = `${maxHeight}px`;
 
-            if (displayMode === DISPLAY_MODE.TREE) {
-                createTree(menu);
-            }
+            createTree(menu);
         };
 
         const createTree = (menu) => {
@@ -144,7 +152,11 @@ app.registerExtension({
             const itemsSymbol = Symbol("items");
 
             for (const item of items) {
-                const path = (item.getAttribute("data-value") || item.textContent || "").split(splitBy);
+                const raw = item.getAttribute("data-value") || item.textContent || "";
+                // ComfyUI 原生 combo 分组头（"--xxx--" 只显示不可选）：原位保留，
+                // 不参与树分组（分组头文本若含 "/" 会被误拆成文件夹）
+                if (/^--.*--$/.test(raw.trim())) continue;
+                const path = raw.split(splitBy);
 
                 item.textContent = path[path.length - 1];
                 if (path.length > 1) {
