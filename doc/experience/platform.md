@@ -223,7 +223,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 16. 主题令牌层：sfnodes DOM UI 跟随 ComfyUI Color Palette（做"自定义弹层/面板适配明暗"必知）
 
-> 背景：包内 DOM 弹层/node widget（LoRA Stack 家族、图片浏览器、LoRA 浏览器、预设管理器）长期硬编码深色（`#1a1a1a`/`#161616`/`rgba(255,255,255,.05)`），在 ComfyUI 亮色/自定义主题下始终黑底（2026-09）。`web/sf_common.js` 顶层注入 id `sf-theme-vars` 的 `SF_THEME_CSS`，各模块改用 `var(--sf-*)`。
+> 背景：包内 DOM 弹层/node widget（LoRA Stack 家族、浏览器、加载/尺寸、提示词/@tag/查找替换、选择器/图库、闸门暂停、裁剪编辑器框架、工作流/预设面板等**全部 DOM UI**）长期硬编码深色（`#1a1a1a`/`#161616`/`rgba(255,255,255,.05)`），在 ComfyUI 亮色/自定义主题下始终黑底（2026-09）。`web/sf_common.js` 顶层注入 id `sf-theme-vars` 的 `SF_THEME_CSS`，各模块改用 `var(--sf-*)`；canvas 节点体/画布工具色不属此列（保留）。
 
 - **ComfyUI 主题机制（前端包 1.52.7 实证，升级后以容器实测为准）**：选中调色板的 `comfy_base` 由 `loadComfyColorPalette` 逐键写成 `<html>` **内联 CSS 变量**（`--comfy-menu-bg / --comfy-menu-secondary-bg / --comfy-input-bg / --fg-color / --input-text / --descrip-text / --border-color / --content-* / --tr-*-bg-color`），含自定义主题、运行时切换即时生效；另有 `.dark-theme` 类驱动的新设计令牌（`--interface-*`）但只区分亮/暗。**跟随面板走旧 `--comfy-*` 全集最稳**。
 - **令牌层单源**：`sf_common.js` 顶层 `injectCSSOnce("sf-theme-vars", SF_THEME_CSS)` 定义 `--sf-panel-bg / --sf-panel-bg-2 / --sf-input-bg / --sf-text / --sf-text-strong / --sf-text-dim / --sf-text-faint / --sf-border / --sf-border-soft / --sf-surface / --sf-surface-hover / --sf-shadow`，逐项映射 `--comfy-*` 并带兜底。只改 `sf_common.js` 一处即可全局调色。

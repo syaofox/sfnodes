@@ -35,14 +35,14 @@ function showMarkerMenu(x, y, onSelect) {
         "position:fixed",
         "z-index:99999",
         "min-width:230px",
-        "background:#2c2c2c",
-        "border:1px solid #555",
+        "background:var(--sf-panel-bg)",
+        "border:1px solid var(--sf-border-soft)",
         "border-radius:4px",
         "box-shadow:0 4px 12px rgba(0,0,0,0.5)",
         "padding:4px 0",
         "font-family:sans-serif",
         "font-size:13px",
-        "color:#ddd",
+        "color:var(--sf-text)",
         "user-select:none",
     ].join(";");
 
@@ -55,7 +55,7 @@ function showMarkerMenu(x, y, onSelect) {
     for (const item of MARKER_MENU_ITEMS) {
         if (item === null) {
             const sep = document.createElement("div");
-            sep.style.cssText = "height:1px;background:#555;margin:4px 8px;";
+            sep.style.cssText = "height:1px;background:var(--sf-border-soft);margin:4px 8px;";
             menuEl.appendChild(sep);
             continue;
         }
@@ -63,7 +63,7 @@ function showMarkerMenu(x, y, onSelect) {
         row.textContent = item.label;
         row.style.cssText = "padding:5px 12px;cursor:pointer;white-space:nowrap;";
         row.addEventListener("mouseenter", () => {
-            row.style.background = "#4a4a4a";
+            row.style.background = "var(--sf-surface-hover)";
         });
         row.addEventListener("mouseleave", () => {
             row.style.background = "transparent";

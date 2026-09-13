@@ -309,7 +309,7 @@ export class CropEditor {
     const secAlign = createPanel("Alignment");
     this._alignSelect = document.createElement("select");
     this._alignSelect.style.cssText =
-      "width:100%;background:#1d1d1d;color:#ccc;border:1px solid #666;" +
+      "width:100%;background:var(--sf-panel-bg);color:var(--sf-text);border:1px solid var(--sf-border);" +
       "border-radius:4px;outline:0;padding:6px 6px;font-size:12px;" +
       "font-family:inherit;cursor:pointer;text-align:center;text-align-last:center;";
     for (const a of ALIGNMENTS) {

@@ -49,7 +49,7 @@ const PANEL_CSS = `
   padding: 5px 8px;
   font-family: 'Segoe UI', sans-serif;
   font-size: 11px;
-  color: #ccc;
+  color: var(--sf-text);
   user-select: none;
   box-sizing: border-box;
   width: 100%;
@@ -59,8 +59,8 @@ const PANEL_CSS = `
 .sf-cropp-row { display: flex; gap: 5px; align-items: stretch; }
 .sf-cropp-cell {
   flex: 1;
-  background: #1d1d1d;
-  border: 1px solid #666;
+  background: var(--sf-panel-bg);
+  border: 1px solid var(--sf-border);
   border-radius: 4px;
   padding: 4px 8px;
   display: flex;
@@ -70,17 +70,17 @@ const PANEL_CSS = `
   box-sizing: border-box;
   transition: border-color 0.08s;
 }
-.sf-cropp-cell:hover { border-color: #888; }
+.sf-cropp-cell:hover { border-color: var(--sf-text-faint); }
 .sf-cropp-cell label {
   font-size: 10px;
-  color: #777;
+  color: var(--sf-text-faint);
   letter-spacing: 0.4px;
   flex: 0 0 auto;
 }
 .sf-cropp-cell input[type=text] {
   flex: 1;
   background: transparent;
-  color: #fff;
+  color: var(--sf-text-strong);
   border: 0;
   outline: 0;
   width: 100%;
@@ -93,9 +93,9 @@ const PANEL_CSS = `
 .sf-cropp-combo {
   flex: 1;
   min-width: 0;
-  background: #1d1d1d;
-  color: #ccc;
-  border: 1px solid #666;
+  background: var(--sf-panel-bg);
+  color: var(--sf-text);
+  border: 1px solid var(--sf-border);
   border-radius: 4px;
   outline: 0;
   padding: 4px 4px;
@@ -110,7 +110,7 @@ const PANEL_CSS = `
   white-space: nowrap;
   overflow: hidden;
 }
-.sf-cropp-combo:hover { border-color: #888; }
+.sf-cropp-combo:hover { border-color: var(--sf-text-faint); }
 `;
 
 function injectCSS() {

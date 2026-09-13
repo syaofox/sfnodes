@@ -13,7 +13,7 @@ import {
 } from "./sf_load_image_ui.js";
 import { pickAndUploadFile, pasteFromClipboard, uploadImageToInput, setSelectedImage, updateNativePreview, previewMatches, splitFilenameSubfolder, splitTypeAnnotation } from "./sf_load_image_api.js";
 import { buildModePanel, previewResize } from "./sf_load_image_resize.js";
-import { applyAdaptiveCanvasOnly, canvasBackingScale, hideJsonWidget, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading, isVueNodes, sfAccent, sfApiUrl } from "./sf_common.js";
+import { applyAdaptiveCanvasOnly, canvasBackingScale, hideJsonWidget, injectCSSOnce, installCanvasZoomPassthrough, isGraphLoading, isVueNodes, sfAccent, sfApiUrl, sfThemeColors } from "./sf_common.js";
 
 // 品牌主色（原版 var(--pix-acc)，本项目固定）
 
@@ -276,6 +276,7 @@ function getCardInfo(node) {
 function paintCardsInto(ctx, node, leftPad, midY, pairW) {
   const info = getCardInfo(node);
   const acc = sfAccent();   // 全局强调色（sfnodes.Accent 设置）；未设置回品牌橙
+  const th = sfThemeColors();  // 主题实色（canvas 无法解析 CSS var()/color-mix 令牌）
   const fam = "ui-sans-serif, system-ui, sans-serif";
   ctx.save();
   ctx.textBaseline = "middle";
@@ -286,7 +287,7 @@ function paintCardsInto(ctx, node, leftPad, midY, pairW) {
     const bw = tw + 24, bh = 26;
     const bx = leftPad, by = midY - bh / 2;
     roundRectPathLi(ctx, bx, by, bw, bh, 8);
-    ctx.fillStyle = "#1d1d1d"; ctx.fill();
+    ctx.fillStyle = th.panel; ctx.fill();
     ctx.textAlign = "left"; ctx.fillStyle = acc;
     ctx.fillText(info.text, bx + 12, midY);
     ctx.restore();
@@ -319,14 +320,14 @@ function paintCardsInto(ctx, node, leftPad, midY, pairW) {
   ctx.lineTo(L1 + R, Bm); ctx.arcTo(L1, Bm, L1, Bm - R, R);
   ctx.lineTo(L1, T + R); ctx.arcTo(L1, T, L1 + R, T, R);
   ctx.closePath();
-  ctx.fillStyle = "#1d1d1d"; ctx.fill();
-  ctx.strokeStyle = "#444"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = th.panel; ctx.fill();
+  ctx.strokeStyle = th.border; ctx.lineWidth = 1; ctx.stroke();
 
   const drawContent = (x, label, w, h, accent) => {
     const ccx = x + cardW / 2;
     ctx.textAlign = "center";
     const maxTxt = cardW - 8;
-    ctx.font = `9px ${fam}`; ctx.fillStyle = "#9a9a9a";
+    ctx.font = `9px ${fam}`; ctx.fillStyle = th.textDim;
     ctx.fillText(label, ccx, cardY + 18, maxTxt);
     ctx.font = `bold 11px ${fam}`; ctx.fillStyle = acc;
     ctx.fillText(`${w}×${h}`, ccx, cardY + 36, maxTxt);
@@ -337,9 +338,9 @@ function paintCardsInto(ctx, node, leftPad, midY, pairW) {
     // previous fillStyle (the opaque accent) in place - the wash then paints as
     // a solid block instead of a 20% tint.
     if (accent) { ctx.fillStyle = "rgba(246,103,68,0.20)"; ctx.fillRect(rx, ry, rw, rh); }
-    ctx.strokeStyle = accent ? acc : "rgba(200,200,200,0.7)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = accent ? acc : th.textDim; ctx.lineWidth = 1;
     ctx.strokeRect(rx, ry, rw, rh);
-    ctx.font = `8px ${fam}`; ctx.fillStyle = "#9a9a9a";
+    ctx.font = `8px ${fam}`; ctx.fillStyle = th.textDim;
     ctx.fillText(ratioLabelLi(w, h), ccx, cardY + 104, maxTxt);
   };
 
@@ -347,7 +348,7 @@ function paintCardsInto(ctx, node, leftPad, midY, pairW) {
   drawContent(L1, "INPUT", info.inW, info.inH, false);
   drawContent(L2, "OUTPUT", info.outW, info.outH, changed);
 
-  ctx.strokeStyle = "#9a9a9a"; ctx.lineWidth = 1;
+  ctx.strokeStyle = th.textDim; ctx.lineWidth = 1;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(arrowCx - 2.5, midY - 4);
@@ -410,7 +411,7 @@ function renderLoadPreviewCanvas(node) {
       const scale = Math.min((cssW - 16) / im.naturalWidth, imgAreaH / im.naturalHeight, 1);
       const w = Math.round(im.naturalWidth * scale), h = Math.round(im.naturalHeight * scale);
       ctx.drawImage(im, Math.round((cssW - w) / 2), Math.round((imgAreaH - h) / 2), w, h);
-      ctx.fillStyle = "#9a9a9a";
+      ctx.fillStyle = sfThemeColors().textDim;
       ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(`${im.naturalWidth} × ${im.naturalHeight}`, cssW / 2, cssH - DIMS_H / 2);

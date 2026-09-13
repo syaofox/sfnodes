@@ -146,9 +146,9 @@ function injectCSS() {
       width: 100%;
       box-sizing: border-box;
       padding: 8px;
-      background: #2a2a2a;
+      background: var(--sf-panel-bg);
       border-radius: 4px;
-      color: #ddd;
+      color: var(--sf-text);
       font-family: ui-sans-serif, system-ui, sans-serif;
       font-size: 11px;
       display: flex;
@@ -162,7 +162,7 @@ function injectCSS() {
       border-radius: 4px;
       padding: 9px 8px;
       font-size: 11px;
-      color: #fff;
+      color: var(--sf-text-strong);
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -181,10 +181,10 @@ function injectCSS() {
     }
     .sf-pr-filerow .sf-pr-dropdown { flex: 1; min-width: 0; }
     .sf-pr-srcbtn {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       font-size: 9px;
       font-weight: 700;
       cursor: pointer;
@@ -197,13 +197,13 @@ function injectCSS() {
       transition: background 0.08s, border-color 0.08s, color 0.08s;
     }
     .sf-pr-srcbtn:hover { border-color: var(--sf-acc, #f66744); color: var(--sf-acc, #f66744); }
-    .sf-pr-srcbtn-active { background: var(--sf-acc, #f66744); border-color: var(--sf-acc, #f66744); color: #fff; }
-    .sf-pr-srcbtn-active:hover { color: #fff; }
+    .sf-pr-srcbtn-active { background: var(--sf-acc, #f66744); border-color: var(--sf-acc, #f66744); color: var(--sf-text-strong); }
+    .sf-pr-srcbtn-active:hover { color: var(--sf-text-strong); }
     .sf-pr-nav {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       font-size: 12px;
       font-weight: 700;
       cursor: pointer;
@@ -216,10 +216,10 @@ function injectCSS() {
       flex-shrink: 0;
     }
     .sf-pr-nav:hover:not(.disabled) { border-color: var(--sf-acc, #f66744); color: var(--sf-acc, #f66744); }
-    .sf-pr-nav:active:not(.disabled) { background: var(--sf-acc, #f66744); color: #fff; }
+    .sf-pr-nav:active:not(.disabled) { background: var(--sf-acc, #f66744); color: var(--sf-text-strong); }
     .sf-pr-nav.disabled { opacity: 0.3; cursor: default; }
     .sf-pr-dropdown .counter {
-      color: #777;
+      color: var(--sf-text-faint);
       font-size: 9px;
       margin-left: 6px;
       flex-shrink: 0;
@@ -227,17 +227,17 @@ function injectCSS() {
     .sf-pr-popup-section {
       padding: 4px 10px 3px;
       font-size: 9px;
-      color: #777;
+      color: var(--sf-text-faint);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      background: #161616;
-      border-bottom: 1px solid #2a2a2a;
+      background: var(--sf-input-bg);
+      border-bottom: 1px solid var(--sf-border-soft);
       user-select: none;
     }
-    .sf-pr-popup-section:not(:first-child) { border-top: 1px solid #2a2a2a; }
+    .sf-pr-popup-section:not(:first-child) { border-top: 1px solid var(--sf-border-soft); }
     .sf-pr-hint {
       font-size: 9px;
-      color: #777;
+      color: var(--sf-text-faint);
       text-align: center;
       letter-spacing: 0.3px;
       margin-top: -3px;
@@ -250,19 +250,19 @@ function injectCSS() {
     .sf-pr-wired .sf-pr-filerow { opacity: 0.45; }
     .sf-pr-hint.sf-pr-wired-hint { color: var(--sf-acc, #f66744); font-weight: 600; }
     .sf-pr-dropdown {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
       padding: 6px 8px;
       font-size: 11px;
-      color: #ccc;
+      color: var(--sf-text-dim);
       cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       user-select: none;
     }
-    .sf-pr-dropdown:hover { border-color: #666; }
+    .sf-pr-dropdown:hover { border-color: var(--sf-border); }
     .sf-pr-dropdown .name {
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
@@ -272,22 +272,22 @@ function injectCSS() {
       align-items: center;
       gap: 6px;
       font-size: 10px;
-      color: #888;
+      color: var(--sf-text-faint);
       padding: 0 2px;
     }
     .sf-pr-status-dot {
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #555;
+      background: var(--sf-border);
       flex-shrink: 0;
     }
     .sf-pr-status.found .sf-pr-status-dot { background: var(--sf-acc, #f66744); }
-    .sf-pr-status.empty .sf-pr-status-dot { background: #555; }
+    .sf-pr-status.empty .sf-pr-status-dot { background: var(--sf-border); }
     .sf-pr-status-label { flex: 1; }
     .sf-pr-copy {
       background: var(--sf-acc, #f66744);
       border: 1px solid var(--sf-acc, #f66744);
-      color: #fff;
+      color: var(--sf-text-strong);
       font-weight: 600;
       border-radius: 3px;
       padding: 2px 10px;
@@ -304,11 +304,11 @@ function injectCSS() {
     .sf-pr-readout {
       width: 100%;
       box-sizing: border-box;
-      background: #1d1d1d;
-      border: 1px solid #333;
+      background: var(--sf-input-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
       padding: 8px;
-      color: #ddd;
+      color: var(--sf-text);
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       font-size: 11px;
       line-height: 1.45;
@@ -320,32 +320,32 @@ function injectCSS() {
       word-break: break-word;
     }
     .sf-pr-readout.empty {
-      color: #777;
+      color: var(--sf-text-faint);
       font-style: italic;
       font-family: inherit;
     }
     .sf-pr-popup {
       position: fixed;
       z-index: 99999;
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.4);
       max-height: 300px;
       overflow-y: auto;
       font-size: 11px;
       font-family: ui-sans-serif, system-ui, sans-serif;
-      color: #ccc;
+      color: var(--sf-text-dim);
       min-width: 200px;
     }
     .sf-pr-popup-item {
       padding: 6px 10px;
       cursor: pointer;
-      border-bottom: 1px solid #2a2a2a;
+      border-bottom: 1px solid var(--sf-border-soft);
     }
-    .sf-pr-popup-item:hover { background: #2a2a2a; }
+    .sf-pr-popup-item:hover { background: var(--sf-surface-hover); }
     .sf-pr-popup-item.active { color: var(--sf-acc, #f66744); font-weight: 600; }
-    .sf-pr-popup-empty { padding: 8px; color: #666; }
+    .sf-pr-popup-empty { padding: 8px; color: var(--sf-text-faint); }
   `);
 }
 

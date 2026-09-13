@@ -41,23 +41,23 @@ function injectCSS() {
     CSS_ID,
     `
 .sf-us-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:100000;display:flex;justify-content:center;align-items:center}
-.sf-us-panel{background:#1c1c1e;border:1px solid #333;border-radius:14px;padding:28px 32px;min-width:380px;box-shadow:0 24px 80px rgba(0,0,0,.6);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;--sf-us-c:#e8c547}
-.sf-us-ptitle{font-size:16px;font-weight:700;color:#eee;margin-bottom:22px}
+.sf-us-panel{background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:14px;padding:28px 32px;min-width:380px;box-shadow:0 24px 80px rgba(0,0,0,.6);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;--sf-us-c:#e8c547}
+.sf-us-ptitle{font-size:16px;font-weight:700;color:var(--sf-text-strong);margin-bottom:22px}
 .sf-us-row{display:flex;align-items:center;margin-bottom:14px}
-.sf-us-rlbl{width:72px;font-size:12.5px;color:#999;flex-shrink:0}
-.sf-us-inp{flex:1;background:#2a2a2c;border:1px solid #3a3a3c;border-radius:8px;padding:8px 12px;color:#eee;font-size:13px;outline:none;font-family:inherit}
+.sf-us-rlbl{width:72px;font-size:12.5px;color:var(--sf-text-dim);flex-shrink:0}
+.sf-us-inp{flex:1;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:8px;padding:8px 12px;color:var(--sf-text);font-size:13px;outline:none;font-family:inherit}
 .sf-us-inp:focus{border-color:var(--sf-us-c)}
-.sf-us-clr{width:48px;height:34px;padding:2px;border-radius:8px;border:1px solid #3a3a3c;background:#2a2a2c;cursor:pointer}
+.sf-us-clr{width:48px;height:34px;padding:2px;border-radius:8px;border:1px solid var(--sf-border-soft);background:var(--sf-input-bg);cursor:pointer}
 .sf-us-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
 .sf-us-btn{padding:8px 22px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:500;font-family:inherit}
-.sf-us-bx{background:#2a2a2c;color:#aaa;border:1px solid #3a3a3c}
-.sf-us-bx:hover{background:#333;color:#ccc}
+.sf-us-bx{background:var(--sf-surface);color:var(--sf-text-dim);border:1px solid var(--sf-border-soft)}
+.sf-us-bx:hover{background:var(--sf-surface-hover);color:var(--sf-text)}
 .sf-us-bok{background:var(--sf-us-c);color:#111;font-weight:600}
 .sf-us-bok:hover{filter:brightness(1.12)}
 .sf-us-radio-wrap{flex:1;display:flex;gap:20px;align-items:center}
-.sf-us-radio-label{display:flex;align-items:center;gap:6px;cursor:pointer;color:#eee;font-size:13px;padding:6px 12px;border-radius:6px;background:#2a2a2c;border:1px solid #3a3a3c}
+.sf-us-radio-label{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--sf-text);font-size:13px;padding:6px 12px;border-radius:6px;background:var(--sf-surface);border:1px solid var(--sf-border-soft)}
 .sf-us-radio-label:hover{border-color:var(--sf-us-c)}
-.sf-us-radio-label input[type="radio"]{appearance:none;-webkit-appearance:none;width:16px;height:16px;border:2px solid #555;border-radius:50%;cursor:pointer;position:relative}
+.sf-us-radio-label input[type="radio"]{appearance:none;-webkit-appearance:none;width:16px;height:16px;border:2px solid var(--sf-border);border-radius:50%;cursor:pointer;position:relative}
 .sf-us-radio-label input[type="radio"]:checked{border-color:var(--sf-us-c)}
 .sf-us-radio-label input[type="radio"]:checked::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:var(--sf-us-c)}
     `

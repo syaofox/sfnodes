@@ -184,8 +184,8 @@ function buildCanvasWidget(node) {
 
   const loadBtn = document.createElement("button");
   loadBtn.textContent = "↻ Load latest output";
-  loadBtn.style.cssText = "font-size:11px;padding:3px 8px;cursor:pointer;background:#2a2a32;"
-    + "color:#ddd;border:1px solid #444;border-radius:4px;";
+  loadBtn.style.cssText = "font-size:11px;padding:3px 8px;cursor:pointer;background:var(--sf-surface);"
+    + "color:var(--sf-text);border:1px solid var(--sf-border-soft);border-radius:4px;";
   loadBtn.onclick = async (e) => {
     e.stopPropagation();
     loadBtn.textContent = "…";
@@ -199,7 +199,7 @@ function buildCanvasWidget(node) {
   };
 
   const autoLabel = document.createElement("label");
-  autoLabel.style.cssText = "font-size:11px;color:#999;display:flex;align-items:center;gap:4px;cursor:pointer;";
+  autoLabel.style.cssText = "font-size:11px;color:var(--sf-text-dim);display:flex;align-items:center;gap:4px;cursor:pointer;";
   const autoCheckbox = document.createElement("input");
   autoCheckbox.type = "checkbox";
   autoLabel.appendChild(autoCheckbox);

@@ -47,12 +47,12 @@ function injectCSS() {
   injectCSSOnce("sf-styles-selector-css", `
 .sf-ss-root{display:flex;flex-direction:column;gap:6px;height:100%;box-sizing:border-box;padding:4px 6px;position:relative;overflow:visible;}
 .sf-ss-tools{display:flex;gap:6px;flex:0 0 auto;}
-.sf-ss-search{flex:1;min-width:0;resize:none;font:12px sans-serif;color:#ddd;background:#1d1d1d;border:1px solid #333;border-radius:5px;padding:4px 6px;height:28px;box-sizing:border-box;outline:none;}
+.sf-ss-search{flex:1;min-width:0;resize:none;font:12px sans-serif;color:var(--sf-text);background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:5px;padding:4px 6px;height:28px;box-sizing:border-box;outline:none;}
 .sf-ss-reset{flex:0 0 auto;font:11px sans-serif;color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);border:1px solid color-mix(in srgb, var(--sf-acc, #f66744) 45%, transparent);border-radius:5px;padding:0 10px;cursor:pointer;height:28px;}
 .sf-ss-reset:hover{background:color-mix(in srgb, var(--sf-acc, #f66744) 22%, transparent);}
-.sf-ss-viewseg{flex:0 0 auto;display:flex;border:1px solid #444;border-radius:5px;overflow:hidden;height:28px;}
-.sf-ss-viewseg button{font:11px sans-serif;color:#c8c8c8;background:#2a2a2a;border:none;padding:0 8px;cursor:pointer;}
-.sf-ss-viewseg button:hover{background:#3a3a3a;}
+.sf-ss-viewseg{flex:0 0 auto;display:flex;border:1px solid var(--sf-border-soft);border-radius:5px;overflow:hidden;height:28px;}
+.sf-ss-viewseg button{font:11px sans-serif;color:var(--sf-text-dim);background:var(--sf-surface);border:none;padding:0 8px;cursor:pointer;}
+.sf-ss-viewseg button:hover{background:var(--sf-surface-hover);}
 .sf-ss-viewseg button.sf-ss-viewon{background:color-mix(in srgb, var(--sf-acc, #f66744) 25%, transparent);color:#fff;}
 /* 列表区域：min-height 兜底 + 自身滚动（裁剪只发生在列表容器，root 不裁）*/
 .sf-ss-list{flex:0 0 auto;min-height:150px;height:calc(100% - 12px);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;padding:2px;box-sizing:border-box;}
@@ -61,26 +61,26 @@ function injectCSS() {
    grid 容器高度确定时 auto 行会收缩到 min-content（flex 卡片的 min-content
    高度 ≈ 0 → 行高 10px、缩略图溢出被裁成细条），max-content 强制按内容撑开 */
 .sf-ss-list.sf-ss-grid{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;padding:4px 0;}
-.sf-ss-card{display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:6px;cursor:pointer;background:#222;border:1px solid #3a3a3a;overflow:hidden;flex:0 0 auto;}
+.sf-ss-card{display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:6px;cursor:pointer;background:var(--sf-panel-bg-2);border:1px solid var(--sf-border-soft);overflow:hidden;flex:0 0 auto;}
 /* 完整展示缩略图（不裁切）：contain 整图可见；aspect-ratio 1/1（实测
    672 张缩略图全部为正方形）让图区高度随列宽联动且零留白——列少卡片宽
    则图高、列多卡片窄则图矮。行高由 grid-auto-rows:max-content 按内容
    撑开（见 .sf-ss-list.sf-ss-grid 注释） */
 .sf-ss-card img{width:100%;height:auto;aspect-ratio:1/1;object-fit:contain;border-radius:4px;background:#1a1a1a;flex:0 0 auto;display:block;}
-.sf-ss-card span{font:11px sans-serif;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;user-select:none;}
-.sf-ss-card:hover{border-color:#555;}
+.sf-ss-card span{font:11px sans-serif;color:var(--sf-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;user-select:none;}
+.sf-ss-card:hover{border-color:var(--sf-border);}
 .sf-ss-cardsel{border-color:var(--sf-acc, #f66744);background:color-mix(in srgb, var(--sf-acc, #f66744) 12%, transparent);}
 .sf-ss-cardsel span{color:#fff;}
-.sf-ss-tag{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:4px;cursor:pointer;font:12px sans-serif;color:#ccc;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
+.sf-ss-tag{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:4px;cursor:pointer;font:12px sans-serif;color:var(--sf-text-dim);user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
 .sf-ss-tag input{flex:0 0 auto;accent-color:var(--sf-acc, #f66744);pointer-events:none;}
 .sf-ss-tag span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sf-ss-tag:hover{background:#2c2c2c;}
+.sf-ss-tag:hover{background:var(--sf-surface-hover);}
 .sf-ss-sel{background:color-mix(in srgb, var(--sf-acc, #f66744) 16%, transparent);color:#fff;}
 .sf-ss-hide{display:none;}
 /* hover 信息浮窗（对齐 Easy-Use v2 previewer：缩略图 + 名称 + 正/负提示词）*/
-.sf-ss-pop{position:absolute;display:none;pointer-events:none;width:210px;border-radius:8px;border:1px solid #4a4a4a;background:#202020;box-shadow:0 8px 22px rgba(0,0,0,.65);z-index:10;padding:6px;box-sizing:border-box;}
+.sf-ss-pop{position:absolute;display:none;pointer-events:none;width:210px;border-radius:8px;border:1px solid var(--sf-border-soft);background:var(--sf-panel-bg);box-shadow:0 8px 22px rgba(0,0,0,.65);z-index:10;padding:6px;box-sizing:border-box;}
 .sf-ss-popimg{width:100%;height:118px;object-fit:contain;background:#131313;border-radius:6px;display:block;}
-.sf-ss-popname{display:block;font:12px sans-serif;color:#fff;margin:5px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-ss-popname{display:block;font:12px sans-serif;color:var(--sf-text-strong);margin:5px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-ss-poppos,.sf-ss-popneg{font:10px/1.4 sans-serif;margin:2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-wrap:break-word;}
 .sf-ss-poppos b{color:#7bd88f;}
 .sf-ss-poppos span{color:#9ecfa8;}

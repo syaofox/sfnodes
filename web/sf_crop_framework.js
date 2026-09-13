@@ -50,20 +50,20 @@ export function injectFrameworkStyles() {
 .sf-px-overlay {
   --sf-px-accent: var(--sf-acc, #f66744);
   --sf-px-accent-hover: #e05535;
-  --sf-px-bg-darkest: #131415;
-  --sf-px-bg-dark: #171718;
-  --sf-px-bg-sidebar: #181a1b;
-  --sf-px-bg-panel: #242628;
-  --sf-px-bg-input: #111;
-  --sf-px-bg-btn: #353535;
-  --sf-px-border: #3a3d40;
-  --sf-px-border-subtle: #2a2c2e;
-  --sf-px-border-titlebar: #2e3033;
-  --sf-px-text: #e0e0e0;
-  --sf-px-text-dim: #888;
-  --sf-px-text-dimmer: #666;
-  --sf-px-text-label: #999;
-  --sf-px-select-bg: #2a1800;
+  --sf-px-bg-darkest: var(--sf-panel-bg-2);
+  --sf-px-bg-dark: var(--sf-panel-bg);
+  --sf-px-bg-sidebar: var(--sf-panel-bg-2);
+  --sf-px-bg-panel: var(--sf-panel-bg);
+  --sf-px-bg-input: var(--sf-input-bg);
+  --sf-px-bg-btn: var(--sf-surface);
+  --sf-px-border: var(--sf-border-soft);
+  --sf-px-border-subtle: var(--sf-border-soft);
+  --sf-px-border-titlebar: var(--sf-border-soft);
+  --sf-px-text: var(--sf-text);
+  --sf-px-text-dim: var(--sf-text-dim);
+  --sf-px-text-dimmer: var(--sf-text-faint);
+  --sf-px-text-label: var(--sf-text-dim);
+  --sf-px-select-bg: color-mix(in srgb, var(--sf-acc, #f66744) 18%, transparent);
   --sf-px-select-border: var(--sf-acc, #f66744);
   --sf-px-multi-bg: #0a1a2a;
   --sf-px-multi-border: #0ea5e9;
@@ -91,7 +91,7 @@ export function injectFrameworkStyles() {
   flex-shrink: 0; height: 38px;
 }
 .sf-px-title {
-  color: #fff; font-size: 13px; font-weight: bold;
+  color: var(--sf-text-strong); font-size: 13px; font-weight: bold;
   display: flex; align-items: center; gap: 6px;
   flex-shrink: 0;
 }
@@ -107,7 +107,7 @@ export function injectFrameworkStyles() {
 }
 .sf-px-titlebar-zoom {
   display: flex; align-items: center; gap: 3px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--sf-px-border);
+  background: var(--sf-surface); border: 1px solid var(--sf-px-border);
   border-radius: 5px; padding: 2px 4px;
 }
 .sf-px-titlebar-zoom .sf-px-zoom-label {
@@ -152,7 +152,7 @@ export function injectFrameworkStyles() {
 /* ── Workspace (center canvas area) ─────────────────── */
 .sf-px-workspace {
   flex: 1; position: relative; overflow: hidden;
-  background: #111315;
+  background: var(--sf-input-bg);
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -167,7 +167,7 @@ export function injectFrameworkStyles() {
 /* ── Tool info (floating tooltip in workspace, bottom-left) ── */
 .sf-px-tool-info {
   position: absolute; bottom: 10px; left: 10px;
-  background: rgba(0,0,0,0.75); color: #ccc;
+  background: rgba(0,0,0,0.75); color: var(--sf-text);
   padding: 5px 12px; border-radius: 5px;
   font-size: 10px; font-family: var(--sf-px-font-mono);
   pointer-events: none; z-index: 5;
@@ -199,7 +199,7 @@ export function injectFrameworkStyles() {
 .sf-px-panel.collapsed .sf-px-panel-title-arrow { transform: rotate(-90deg); }
 .sf-px-panel.collapsed .sf-px-panel-content { display: none; }
 .sf-px-panel-title.clickable { cursor: pointer; }
-.sf-px-panel-title.clickable:hover { color: #fff; }
+.sf-px-panel-title.clickable:hover { color: var(--sf-text-strong); }
 
 /* ── Buttons ────────────────────────────────────────── */
 .sf-px-btn, .sf-px-btn-full, .sf-px-btn-sm {
@@ -220,10 +220,10 @@ export function injectFrameworkStyles() {
 }
 
 .sf-px-btn {
-  background: var(--sf-px-bg-btn); color: #ccc;
+  background: var(--sf-px-bg-btn); color: var(--sf-text);
   padding: 6px 14px; font-size: 12px;
 }
-.sf-px-btn:hover { background: #2e3033; color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
+.sf-px-btn:hover { background: var(--sf-surface-hover); color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
 
 .sf-px-btn.sf-px-btn-accent, .sf-px-btn-accent {
   background: var(--sf-px-accent); border-color: var(--sf-px-accent);
@@ -235,7 +235,7 @@ export function injectFrameworkStyles() {
 .sf-px-btn-accent img { filter: brightness(0) invert(1); }
 
 .sf-px-btn.sf-px-btn-danger, .sf-px-btn-full.sf-px-btn-danger, .sf-px-btn-sm.sf-px-btn-danger {
-  background: #1e2022 !important; color: #ccc !important;
+  background: var(--sf-surface) !important; color: #d93523 !important;
   border-color: #d93523 !important;
 }
 .sf-px-btn.sf-px-btn-danger:hover, .sf-px-btn-full.sf-px-btn-danger:hover, .sf-px-btn-sm.sf-px-btn-danger:hover {
@@ -251,22 +251,22 @@ export function injectFrameworkStyles() {
 
 .sf-px-btn-full {
   width: 100%; padding: 7px 10px; font-size: 11px;
-  background: #1e2022; color: #ccc;
+  background: var(--sf-panel-bg); color: var(--sf-text);
 }
-.sf-px-btn-full:hover { background: #2e3033; color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
+.sf-px-btn-full:hover { background: var(--sf-surface-hover); color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
 
 .sf-px-btn-sm {
   min-width: 28px; height: 28px; padding: 0 4px; flex-shrink: 0;
-  background: var(--sf-px-bg-panel); color: #ccc; font-size: 13px;
+  background: var(--sf-px-bg-panel); color: var(--sf-text); font-size: 13px;
 }
-.sf-px-btn-sm:hover { background: #2e3033; color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
+.sf-px-btn-sm:hover { background: var(--sf-surface-hover); color: var(--sf-px-accent); border-color: var(--sf-px-accent); }
 
 .sf-px-btn-icon {
-  background: none; border: none; color: #ccc; padding: 4px;
+  background: none; border: none; color: var(--sf-text); padding: 4px;
   cursor: pointer; font-size: 16px; border-radius: 4px; transition: all .15s;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.sf-px-btn-icon:hover { color: var(--sf-px-accent); background: rgba(255,255,255,0.05); }
+.sf-px-btn-icon:hover { color: var(--sf-px-accent); background: var(--sf-surface); }
 .sf-px-btn-icon:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
 
 .sf-px-btn-row { display: flex; gap: 6px; }
@@ -278,11 +278,11 @@ export function injectFrameworkStyles() {
 /* ── Pill grid ─────────────────────────────────────── */
 .sf-px-pill-grid { display: grid; gap: 4px; }
 .sf-px-pill {
-  font-size: 10px; background: #1e2022; border: 1px solid var(--sf-px-border);
-  color: #aaa; border-radius: 3px; padding: 4px 0; cursor: pointer;
+  font-size: 10px; background: var(--sf-panel-bg); border: 1px solid var(--sf-px-border);
+  color: var(--sf-text-dim); border-radius: 3px; padding: 4px 0; cursor: pointer;
   transition: all .1s; text-align: center; font-family: inherit;
 }
-.sf-px-pill:hover { background: #444; color: #fff; }
+.sf-px-pill:hover { background: var(--sf-surface-hover); color: var(--sf-text-strong); }
 .sf-px-pill.active { background: var(--sf-px-accent); border-color: var(--sf-px-accent); color: #fff; }
 
 /* ── Slider row ─────────────────────────────────────── */
@@ -372,12 +372,12 @@ export function injectFrameworkStyles() {
 .sf-px-tool-btn {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 1px;
-  height: 38px; background: #1c1e1f; border: 1px solid var(--sf-px-border);
-  color: #ccc; border-radius: 4px; cursor: pointer;
+  height: 38px; background: var(--sf-panel-bg); border: 1px solid var(--sf-px-border);
+  color: var(--sf-text); border-radius: 4px; cursor: pointer;
   font-family: inherit; font-size: 10px; transition: all .12s;
   padding: 2px;
 }
-.sf-px-tool-btn:hover { background: #2e3033; color: #fff; border-color: #555; }
+.sf-px-tool-btn:hover { background: var(--sf-surface-hover); color: var(--sf-text-strong); border-color: var(--sf-border); }
 .sf-px-tool-btn.active { background: var(--sf-px-accent); border-color: var(--sf-px-accent); color: #fff; }
 .sf-px-tool-btn-icon { font-size: 14px; line-height: 1; }
 .sf-px-tool-btn-label { font-size: 8px; line-height: 1; }
@@ -435,7 +435,7 @@ export function injectFrameworkStyles() {
   font-size: 11px; transition: background .1s;
   min-height: 30px;
 }
-.sf-px-layer-item:hover { background: rgba(255,255,255,0.04); }
+.sf-px-layer-item:hover { background: var(--sf-surface); }
 .sf-px-layer-item.active {
   background: var(--sf-px-select-bg); border-color: var(--sf-px-select-border);
 }
@@ -464,12 +464,12 @@ export function injectFrameworkStyles() {
 .sf-px-layer-thumb {
   width: 28px; height: 28px; flex-shrink: 0; border-radius: 3px;
   background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 8px 8px;
-  overflow: hidden; border: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden; border: 1px solid var(--sf-border-soft);
 }
 
 /* Layer name */
 .sf-px-layer-name {
-  flex: 1; font-size: 11px; color: #ccc;
+  flex: 1; font-size: 11px; color: var(--sf-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 2px 4px; min-width: 0;
 }
@@ -493,7 +493,7 @@ export function injectFrameworkStyles() {
   border-radius: 4px; cursor: pointer; transition: all .12s;
 }
 .sf-px-layer-action-btn:hover {
-  background: #2e3033; border-color: var(--sf-px-accent);
+  background: var(--sf-surface-hover); border-color: var(--sf-px-accent);
 }
 .sf-px-layer-action-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
 .sf-px-layer-action-btn img {
@@ -540,7 +540,7 @@ export function injectFrameworkStyles() {
 .sf-px-help-overlay {
   display: none; position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  background: #171718; border: 1px solid var(--sf-px-accent);
+  background: var(--sf-panel-bg); border: 1px solid var(--sf-px-accent);
   border-radius: 10px; padding: 0;
   width: 960px; max-width: 95%; max-height: 86vh;
   z-index: 100; overflow: hidden;
@@ -549,13 +549,13 @@ export function injectFrameworkStyles() {
 }
 .sf-px-help-header {
   display: flex; align-items: center; padding: 14px 20px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--sf-border-soft);
 }
 .sf-px-help-header h3 { flex: 1; color: var(--sf-px-accent); font-size: 14px; margin: 0; font-weight: 600; }
 .sf-px-help-content {
   padding: 18px 24px; overflow-y: auto;
   max-height: calc(86vh - 110px);
-  font-size: 11px; line-height: 1.7; color: #ccc;
+  font-size: 11px; line-height: 1.7; color: var(--sf-text);
   column-count: 2; column-gap: 36px;
 }
 .sf-px-help-section {
@@ -571,17 +571,17 @@ export function injectFrameworkStyles() {
   display: grid; grid-template-columns: max-content 1fr;
   gap: 3px 14px;
 }
-.sf-px-help-grid b { color: #eee; white-space: nowrap; font-weight: 600; }
-.sf-px-help-grid span { color: #bbb; }
+.sf-px-help-grid b { color: var(--sf-text-strong); white-space: nowrap; font-weight: 600; }
+.sf-px-help-grid span { color: var(--sf-text-dim); }
 .sf-px-help-content kbd {
-  background: #2a2c2e; border: 1px solid #444; border-radius: 3px;
+  background: var(--sf-panel-bg-2); border: 1px solid var(--sf-border-soft); border-radius: 3px;
   padding: 1px 5px; font-size: 10px; color: var(--sf-px-text);
   font-family: var(--sf-px-font-mono, monospace);
 }
-.sf-px-help-content b { color: #eee; }
+.sf-px-help-content b { color: var(--sf-text-strong); }
 .sf-px-help-footer {
-  padding: 10px 20px; border-top: 1px solid #2a2a2a;
-  font-size: 10px; color: #666; text-align: center; line-height: 1.6;
+  padding: 10px 20px; border-top: 1px solid var(--sf-border-soft);
+  font-size: 10px; color: var(--sf-text-faint); text-align: center; line-height: 1.6;
   flex-shrink: 0;
 }
 .sf-px-help-footer a { color: var(--sf-px-accent); text-decoration: none; }
@@ -592,7 +592,7 @@ export function injectFrameworkStyles() {
   position: absolute; bottom: 8px; left: 50%;
   transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px;
-  background: rgba(20,20,22,0.85); border: 1px solid var(--sf-px-border);
+  background: var(--sf-panel-bg); border: 1px solid var(--sf-px-border);
   border-radius: 6px; padding: 3px 6px;
 }
 .sf-px-zoom-label {
@@ -603,7 +603,7 @@ export function injectFrameworkStyles() {
 /* ── Checkbox ───────────────────────────────────────── */
 .sf-px-check-row {
   display: flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 11px; color: #ccc;
+  font-size: 11px; color: var(--sf-text);
 }
 .sf-px-check-row input[type=checkbox] { accent-color: var(--sf-px-accent); }
 
@@ -615,7 +615,7 @@ export function injectFrameworkStyles() {
 
 /* ── Info text ──────────────────────────────────────── */
 .sf-px-info { font-size: 10px; color: var(--sf-px-text-dim); line-height: 1.6; }
-.sf-px-info b { color: #ccc; font-weight: 600; }
+.sf-px-info b { color: var(--sf-text); font-weight: 600; }
 
 /* ── Canvas Frame (orange border + dimension label + gray masks) ── */
 .sf-px-canvas-frame {
@@ -638,12 +638,12 @@ export function injectFrameworkStyles() {
 .sf-px-canvas-settings { display: flex; flex-direction: column; gap: 6px; }
 .sf-px-ratio-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .sf-px-ratio-btn {
-  font-size: 10px; background: #1e2022; border: 1px solid var(--sf-px-border);
-  color: #aaa; border-radius: 4px; padding: 5px 0; cursor: pointer;
+  font-size: 10px; background: var(--sf-panel-bg); border: 1px solid var(--sf-px-border);
+  color: var(--sf-text-dim); border-radius: 4px; padding: 5px 0; cursor: pointer;
   transition: all .12s; text-align: center; font-family: inherit;
   font-weight: 500;
 }
-.sf-px-ratio-btn:hover { background: #444; color: #fff; border-color: #555; }
+.sf-px-ratio-btn:hover { background: var(--sf-surface-hover); color: var(--sf-text-strong); border-color: var(--sf-border); }
 .sf-px-ratio-btn.active {
   background: var(--sf-px-accent); border-color: var(--sf-px-accent); color: #fff;
 }
@@ -663,7 +663,7 @@ export function injectFrameworkStyles() {
 .sf-px-size-x { font-size: 10px; color: var(--sf-px-text-dimmer); flex-shrink: 0; }
 .sf-px-swap-btn {
   width: 100%; padding: 5px; font-size: 11px; text-align: center;
-  background: #1e2022; border: 1px solid var(--sf-px-border); color: #aaa;
+  background: var(--sf-panel-bg); border: 1px solid var(--sf-px-border); color: var(--sf-text-dim);
   border-radius: 4px; cursor: pointer; transition: all .12s; font-family: inherit;
 }
 .sf-px-swap-btn:hover { background: var(--sf-px-accent); border-color: var(--sf-px-accent); color: #fff; }
@@ -1131,7 +1131,7 @@ export function createCanvasToolbar(config) {
     addRow.className = "sf-px-canvas-toolbar-row";
     addBtn.style.flex = "1";
     const label = document.createElement("span");
-    label.style.cssText = "font-size:10px;color:#888;flex-shrink:0;";
+    label.style.cssText = "font-size:10px;color:var(--sf-text-faint);flex-shrink:0;";
     label.textContent = "BG:";
     colorInput = document.createElement("input");
     colorInput.type = "color";
@@ -1653,11 +1653,11 @@ export function createDummyWidget(titleText, subtitleText, instructionText) {
       justify-content: center;
       gap: 4px;
       padding: 20px;
-      background-color: #121212;
+      background-color: var(--sf-panel-bg);
       border-radius: 8px;
       width: 100%;
       height: 100%;
-      color: #ffffff;
+      color: var(--sf-text-strong);
       font-family: sans-serif;
       text-align: center;
       box-sizing: border-box;
@@ -1685,7 +1685,7 @@ export function createDummyWidget(titleText, subtitleText, instructionText) {
   instruction.innerText = instructionText;
   instruction.style.cssText = `
       font-size: 10px;
-      color: #555555;
+      color: var(--sf-text-faint);
       margin-top: 12px;
       white-space: pre-line;
       line-height: 1.4;

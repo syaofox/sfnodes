@@ -186,7 +186,7 @@ function watchSource(node) {
 function injectCSS() {
   injectCSSOnce("sf-outpaint-css", `
     .sf-op-root { position:relative; width:100%; height:100%; box-sizing:border-box;
-      background:#1d1d1d; border-radius:4px; color:#ddd;
+      background:var(--sf-panel-bg); border-radius:4px; color:var(--sf-text);
       font-family: ui-sans-serif, system-ui, sans-serif; font-size:11px; }
     /* flex 列在这里，绝不在 root 上：ComfyUI 每次重建/折叠都会把 root 强制成
        内联 display:block，会杀掉它。 */
@@ -200,30 +200,30 @@ function injectCSS() {
     .sf-op-chip { flex:1 1 auto; min-width:0; box-sizing:border-box;
       display:flex; align-items:center; justify-content:center;
       padding:6px 4px; border-radius:5px;
-      background:#1d1d1d; border:1px solid #444; color:#aaa;
+      background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); color:var(--sf-text-dim);
       cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       transition:background .08s, border-color .08s, color .08s; }
-    .sf-op-chip:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+    .sf-op-chip:hover { border-color:${"var(--sf-acc, #f66744)"}; color:var(--sf-text); }
     .sf-op-chip.on { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
     /* 没有可点的：无指针、无悬停承诺。 */
     .sf-op-chip.dim { opacity:.4; cursor:default; }
-    .sf-op-chip.dim:hover { border-color:#444; color:#aaa; }
+    .sf-op-chip.dim:hover { border-color:var(--sf-border-soft); color:var(--sf-text-dim); }
     .sf-op-chip.dim.on:hover { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 
     /* 折叠箭头：固定宽，模式芯片拿到每个剩余像素。 */
     .sf-op-sq { flex:0 0 auto; width:30px; padding:6px 0; font-size:14px; line-height:1; }
     .sf-op-alabel { flex:0 0 auto; display:flex; align-items:center;
-      color:#8a8a8a; padding-right:1px; white-space:nowrap; }
+      color:var(--sf-text-faint); padding-right:1px; white-space:nowrap; }
 
     /* By side 的 L/T/R/B 输入。复用共享 makeNumericInput（数学输入 + 键隔离），
        但丢掉其 13px 步进列：四个字段 + 重置在节点最小宽度下只有去掉箭头才
        放得下一行。min-width 让五个一起排一行而非换行。 */
     .sf-op-pad { flex:1 1 0; min-width:44px; min-height:28px; box-sizing:border-box;
       display:flex; align-items:center; gap:3px;
-      background:#1d1d1d; border:1px solid #444; border-radius:5px;
+      background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); border-radius:5px;
       padding:0 4px 0 6px; }
     .sf-op-pad:focus-within { border-color:${"var(--sf-acc, #f66744)"}; }
-    .sf-op-pad-l { flex:0 0 auto; font-size:9px; font-weight:700; color:#8a8a8a;
+    .sf-op-pad-l { flex:0 0 auto; font-size:9px; font-weight:700; color:var(--sf-text-faint);
       letter-spacing:.5px; pointer-events:none; }
     /* 剥掉共享 wrapper 自己的盒子，只让 .sf-op-pad 画一个。 */
     .sf-op-pad .sf-li-numinput { flex:1 1 auto; min-width:0;
@@ -238,8 +238,8 @@ function injectCSS() {
     /* 重置：一键把四边归零。与箭头同款方块，放在它清空的数字旁边。 */
     .sf-op-reset { flex:0 0 auto; width:26px; min-height:28px; box-sizing:border-box;
       display:flex; align-items:center; justify-content:center;
-      background:#1d1d1d; border:1px solid #444; border-radius:5px;
-      color:#aaa; cursor:pointer; padding:0; font:inherit;
+      background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); border-radius:5px;
+      color:var(--sf-text-dim); cursor:pointer; padding:0; font:inherit;
       transition:border-color .08s, color .08s; }
     .sf-op-reset:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:${"var(--sf-acc, #f66744)"}; }
     .sf-op-reset:focus-visible { border-color:${"var(--sf-acc, #f66744)"}; color:${"var(--sf-acc, #f66744)"}; outline:none; }
@@ -251,7 +251,7 @@ function injectCSS() {
 
     /* 填充色 swatch。limit 行上可点（开取色器）。 */
     .sf-op-swatch { flex:0 0 auto; width:26px; border-radius:5px;
-      border:1px solid #444; cursor:default; }
+      border:1px solid var(--sf-border-soft); cursor:default; }
     .sf-op-swatch-btn { cursor:pointer; }
     .sf-op-swatch-btn:hover { border-color:${"var(--sf-acc, #f66744)"}; }
 
@@ -261,7 +261,7 @@ function injectCSS() {
        估计高），预览拒绝收缩、溢出到分类 chip 上。设 0 只会变小，是优雅
        降级而非坏掉的节点。（min-height 默认 auto = 内容高，必须显式设。） */
     .sf-op-prev { position:relative; flex:1 1 0; min-height:0;
-      border-radius:4px; background:#151515; overflow:hidden; }
+      border-radius:4px; background:var(--sf-input-bg); overflow:hidden; }
     /* 按 inset 填充而非 flex：canvas 不关心宿主给父级什么 display。 */
     .sf-op-prev canvas { position:absolute; inset:0; width:100%; height:100%;
       display:block; }

@@ -39,15 +39,15 @@ export function injectResizePanelCSS() {
   _resizePanelCSSInjected = true;
   const css = `
     .sf-li-panel {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
       padding: 8px 10px;
     }
     .sf-li-panel-row { display: flex; align-items: center; gap: 8px; }
     .sf-li-panel-label {
       font-size: 9px;
-      color: #999;
+      color: var(--sf-text-dim);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       text-align: center;
@@ -55,8 +55,8 @@ export function injectResizePanelCSS() {
     }
     .sf-li-panel input[type="range"] { flex: 1; accent-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-panel input[type="text"], .sf-li-panel input[type="number"] {
-      background: #2a2a2a;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 3px;
       padding: 4px 6px;
       color: ${"var(--sf-acc, #f66744)"};
@@ -72,24 +72,24 @@ export function injectResizePanelCSS() {
     }
     .sf-li-panel-readout {
       font-size: 9px;
-      color: #888;
+      color: var(--sf-text-faint);
       font-family: inherit;
       text-align: center;
       margin-top: 6px;
     }
     .sf-li-quickpicks { display: grid; gap: 3px; margin-bottom: 8px; }
     .sf-li-quickpick {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 3px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       padding: 4px 0;
       text-align: center;
       font-size: 10px;
       cursor: pointer;
       font-family: inherit;
     }
-    .sf-li-quickpick:hover { border-color: #666; color: #ddd; }
+    .sf-li-quickpick:hover { border-color: var(--sf-border); color: var(--sf-text); }
     .sf-li-quickpick.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-ratio-chips {
       display: grid;
@@ -98,13 +98,13 @@ export function injectResizePanelCSS() {
       margin-bottom: 8px;
     }
     .sf-li-ratio-chip {
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 3px;
       padding: 4px 0;
       text-align: center;
       font-size: 9px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       cursor: pointer;
       font-family: inherit;
       display: flex;
@@ -112,14 +112,14 @@ export function injectResizePanelCSS() {
       justify-content: center;
       gap: 5px;
     }
-    .sf-li-ratio-chip:hover { border-color: #666; color: #ddd; }
+    .sf-li-ratio-chip:hover { border-color: var(--sf-border); color: var(--sf-text); }
     .sf-li-ratio-chip.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-cropped {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0;
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 3px;
       overflow: hidden;
       margin-bottom: 6px;
@@ -128,16 +128,16 @@ export function injectResizePanelCSS() {
       text-align: center;
       font-size: 10px;
       padding: 5px 0;
-      color: #aaa;
+      color: var(--sf-text-dim);
       cursor: pointer;
       user-select: none;
     }
     .sf-li-cropped > div.active { background: ${"var(--sf-acc, #f66744)"}; color: #fff; }
-    .sf-li-pad-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #888; }
+    .sf-li-pad-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--sf-text-faint); }
     .sf-li-pad-swatch {
       width: 22px; height: 22px;
       border-radius: 3px;
-      border: 1px solid #444;
+      border: 1px solid var(--sf-border-soft);
       cursor: pointer;
     }
     .sf-li-custom-ratio-row {
@@ -153,10 +153,10 @@ export function injectResizePanelCSS() {
       height: auto;
       align-self: stretch;
       min-height: 22px;
-      background: #1d1d1d;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 3px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       cursor: pointer;
       position: relative;
       padding: 0;
@@ -177,8 +177,8 @@ export function injectResizePanelCSS() {
     .sf-li-numinput {
       display: inline-flex;
       align-items: stretch;
-      background: #2a2a2a;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
       overflow: hidden;
       box-sizing: border-box;
@@ -202,21 +202,21 @@ export function injectResizePanelCSS() {
       display: flex;
       flex-direction: column;
       width: 12px;
-      border-left: 1px solid #444;
+      border-left: 1px solid var(--sf-border-soft);
     }
     .sf-li-spin > button {
       flex: 1;
-      background: #232323;
+      background: var(--sf-panel-bg-2);
       border: none;
       padding: 0;
       cursor: pointer;
-      color: #aaa;
+      color: var(--sf-text-dim);
       font-size: 8px;
       line-height: 1;
       position: relative;
     }
-    .sf-li-spin > button:hover { background: #333; color: ${"var(--sf-acc, #f66744)"}; }
-    .sf-li-spin-up { border-bottom: 1px solid #444; }
+    .sf-li-spin > button:hover { background: var(--sf-surface-hover); color: ${"var(--sf-acc, #f66744)"}; }
+    .sf-li-spin-up { border-bottom: 1px solid var(--sf-border-soft); }
     .sf-li-spin-up::before,
     .sf-li-spin-down::before {
       content: "";
@@ -240,7 +240,7 @@ export function injectResizePanelCSS() {
     .sf-li-wh-field { display: flex; flex-direction: column; gap: 3px; }
     .sf-li-wh-label {
       font-size: 9px;
-      color: #888;
+      color: var(--sf-text-faint);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       text-align: center;
@@ -249,10 +249,10 @@ export function injectResizePanelCSS() {
     .sf-li-swap {
       width: 26px;
       height: 22px;
-      background: #2a2a2a;
-      border: 1px solid #444;
+      background: var(--sf-panel-bg);
+      border: 1px solid var(--sf-border-soft);
       border-radius: 4px;
-      color: #aaa;
+      color: var(--sf-text-dim);
       cursor: pointer;
       padding: 0;
       position: relative;
@@ -281,7 +281,7 @@ export function injectResizePanelCSS() {
       border-radius: 2px;
       transition: width 0.12s ease, height 0.12s ease;
     }
-    .sf-li-wh-rect-label { font-size: 9px; color: #999; font-family: inherit; }
+    .sf-li-wh-rect-label { font-size: 9px; color: var(--sf-text-dim); font-family: inherit; }
     /* Fit-inside nested preview: gray target-box frame + orange actual output. */
     .sf-li-wh-frame {
       border: 1px solid rgba(200,200,200,0.45);
@@ -339,12 +339,12 @@ export function injectResizePanelCSS() {
     }
     .sf-li-pad-labeled input { text-align: right !important; padding-right: 6px !important; }
     .sf-li-pad-outdims { font-size: 11px; font-weight: 600; color: ${"var(--sf-acc, #f66744)"}; }
-    .sf-li-pad-outhint { font-size: 8px; color: #777; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.3; }
+    .sf-li-pad-outhint { font-size: 8px; color: var(--sf-text-faint); text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.3; }
     .sf-li-pad-resetcell { grid-column: 1; grid-row: 3; display: flex; align-items: center; justify-content: center; }
     .sf-li-pad-reset {
       display: inline-flex; align-items: center; gap: 5px;
-      background: #1d1d1d; border: 1px solid #444; border-radius: 4px;
-      color: #aaa; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+      background: var(--sf-panel-bg); border: 1px solid var(--sf-border-soft); border-radius: 4px;
+      color: var(--sf-text-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
       padding: 6px 9px; cursor: pointer; white-space: nowrap;
     }
     .sf-li-pad-reset:hover { border-color: ${"var(--sf-acc, #f66744)"}; color: ${"var(--sf-acc, #f66744)"}; }
@@ -356,12 +356,12 @@ export function injectResizePanelCSS() {
     .sf-li-pad-colorcell {
       grid-column: 3; grid-row: 3;
       display: flex; align-items: center; justify-content: center; gap: 6px;
-      background: #1d1d1d; border: 1px solid #444; border-radius: 4px;
+      background: var(--sf-panel-bg); border: 1px solid var(--sf-border-soft); border-radius: 4px;
       padding: 5px 9px; cursor: pointer;
     }
     .sf-li-pad-colorcell:hover { border-color: ${"var(--sf-acc, #f66744)"}; }
     .sf-li-pad-colorcell .sf-li-pad-swatch { width: 16px; height: 16px; }
-    .sf-li-pad-colorlbl { font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+    .sf-li-pad-colorlbl { font-size: 9px; color: var(--sf-text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
   `;
   const s = document.createElement("style");
   s.id = "sf-load-image-resize-css";

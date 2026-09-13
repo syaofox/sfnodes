@@ -507,14 +507,14 @@ function setupIgnoreGroups(node) {
       position: "fixed",
       left: Math.min(x, (globalThis.innerWidth || 1280) - 280) + "px",
       top: Math.min(y, (globalThis.innerHeight || 800) - 620) + "px",
-      background: "#2a2a2a",
-      border: "1px solid #555",
+      background: "var(--sf-panel-bg)",
+      border: "1px solid var(--sf-border-soft)",
       borderRadius: "8px",
       padding: "14px 18px",
       zIndex: "99999",
       minWidth: "250px",
       boxShadow: "0 4px 24px rgba(0,0,0,0.6)",
-      color: "#e0e0e0",
+      color: "var(--sf-text)",
       fontFamily: "inherit",
     });
 
@@ -616,10 +616,10 @@ function setupIgnoreGroups(node) {
         width: "100%",
         padding: "5px 8px",
         fontSize: "13px",
-        background: "#1a1a1a",
-        border: "1px solid #555",
+        background: "var(--sf-input-bg)",
+        border: "1px solid var(--sf-border-soft)",
         borderRadius: "4px",
-        color: "#e0e0e0",
+        color: "var(--sf-text)",
         outline: "none",
         boxSizing: "border-box",
         marginBottom: "14px",
@@ -632,8 +632,8 @@ function setupIgnoreGroups(node) {
       fontSize: "15px",
       fontWeight: "bold",
       marginBottom: "14px",
-      color: "#e0e0e0",
-      borderBottom: "1px solid #444",
+      color: "var(--sf-text)",
+      borderBottom: "1px solid var(--sf-border-soft)",
       paddingBottom: "8px",
     });
     pop.appendChild(titleEl);
@@ -692,10 +692,10 @@ function setupIgnoreGroups(node) {
       width: "100%",
       padding: "5px 8px",
       fontSize: "13px",
-      background: "#1a1a1a",
-      border: "1px solid #555",
+      background: "var(--sf-input-bg)",
+      border: "1px solid var(--sf-border-soft)",
       borderRadius: "4px",
-      color: "#e0e0e0",
+      color: "var(--sf-text)",
       boxSizing: "border-box",
       cursor: "pointer",
       display: "flex",
@@ -709,14 +709,14 @@ function setupIgnoreGroups(node) {
       width: "44px",
       height: "14px",
       borderRadius: "2px",
-      border: "1px solid #555",
+      border: "1px solid var(--sf-border-soft)",
       flexShrink: "0",
     });
     const cdText = el("span");
     const cdArrow = el("span", null, "▾");
     cdArrow.style.marginLeft = "auto";
     cdArrow.style.fontSize = "11px";
-    cdArrow.style.color = "#888";
+    cdArrow.style.color = "var(--sf-text-faint)";
     cdTrigger.appendChild(cdRect);
     cdTrigger.appendChild(cdText);
     cdTrigger.appendChild(cdArrow);
@@ -754,8 +754,8 @@ function setupIgnoreGroups(node) {
         left: "0",
         right: "0",
         top: "calc(100% + 2px)",
-        background: "#1a1a1a",
-        border: "1px solid #555",
+        background: "var(--sf-input-bg)",
+        border: "1px solid var(--sf-border-soft)",
         borderRadius: "4px",
         zIndex: "100001",
         maxHeight: "200px",
@@ -780,14 +780,14 @@ function setupIgnoreGroups(node) {
             width: "44px",
             height: "16px",
             borderRadius: "2px",
-            border: "1px solid #555",
+            border: "1px solid var(--sf-border-soft)",
             background: bg,
             flexShrink: "0",
           });
           item.appendChild(rect);
         }
         const txt = el("span", null, label);
-        txt.style.color = "#fff";
+        txt.style.color = "var(--sf-text-strong)";
         item.appendChild(txt);
         item.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -877,7 +877,7 @@ function setupIgnoreGroups(node) {
     Object.assign(scaleInput.style, {
       flex: "1",
       height: "4px",
-      background: "#555",
+      background: "var(--sf-border)",
       borderRadius: "2px",
       outline: "none",
       cursor: "pointer",
@@ -886,7 +886,7 @@ function setupIgnoreGroups(node) {
     Object.assign(scaleVal.style, {
       minWidth: "36px",
       fontSize: "12px",
-      color: "#aaa",
+      color: "var(--sf-text-dim)",
       textAlign: "right",
     });
     scaleRow.appendChild(scaleInput);
@@ -913,9 +913,9 @@ function setupIgnoreGroups(node) {
       width: "36px",
       height: "28px",
       padding: "0",
-      border: "1px solid #555",
+      border: "1px solid var(--sf-border-soft)",
       borderRadius: "4px",
-      background: "#1a1a1a",
+      background: "var(--sf-input-bg)",
       cursor: "pointer",
     });
     colorRow.appendChild(cInput);
@@ -926,10 +926,10 @@ function setupIgnoreGroups(node) {
       flex: "1",
       padding: "5px 8px",
       fontSize: "13px",
-      background: "#1a1a1a",
-      border: "1px solid #555",
+      background: "var(--sf-input-bg)",
+      border: "1px solid var(--sf-border-soft)",
       borderRadius: "4px",
-      color: "#e0e0e0",
+      color: "var(--sf-text)",
       outline: "none",
       boxSizing: "border-box",
     });

@@ -15,25 +15,25 @@ const API = "/api/sfnodes/text_presets";
 let mgrEl = null;
 const MGR_CSS = `
 .sf-preset-mgr-overlay{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;}
-.sf-preset-mgr{background:#232323;border:1px solid #555;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);width:min(600px,92vw);max-height:82vh;display:flex;flex-direction:column;font-size:12px;color:#ddd;}
-.sf-preset-mgr-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #3a3a3a;font-weight:600;font-size:13px;}
-.sf-preset-mgr-close{background:none;border:none;color:#aaa;font-size:16px;cursor:pointer;padding:0 4px;}
-.sf-preset-mgr-close:hover{color:#fff;}
+.sf-preset-mgr{background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);width:min(600px,92vw);max-height:82vh;display:flex;flex-direction:column;font-size:12px;color:var(--sf-text);}
+.sf-preset-mgr-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--sf-border-soft);font-weight:600;font-size:13px;}
+.sf-preset-mgr-close{background:none;border:none;color:var(--sf-text-dim);font-size:16px;cursor:pointer;padding:0 4px;}
+.sf-preset-mgr-close:hover{color:var(--sf-text-strong);}
 .sf-preset-mgr-body{display:flex;min-height:0;flex:1;}
-.sf-preset-mgr-list{width:42%;border-right:1px solid #3a3a3a;overflow-y:auto;padding:6px 8px;}
-.sf-preset-mgr-empty{padding:20px;text-align:center;color:#888;}
+.sf-preset-mgr-list{width:42%;border-right:1px solid var(--sf-border-soft);overflow-y:auto;padding:6px 8px;}
+.sf-preset-mgr-empty{padding:20px;text-align:center;color:var(--sf-text-faint);}
 .sf-preset-mgr-item{padding:5px 8px;border-radius:4px;cursor:pointer;margin-bottom:2px;border:1px solid transparent;}
-.sf-preset-mgr-item:hover{background:#3a3a3a;}
+.sf-preset-mgr-item:hover{background:var(--sf-surface-hover);}
 .sf-preset-mgr-item.active{background:#3a5f8a;border-color:#4a7ab0;}
 .sf-preset-mgr-item-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sf-preset-mgr-item-summary{font-size:11px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-preset-mgr-item-summary{font-size:11px;color:var(--sf-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-preset-mgr-editor{flex:1;display:flex;flex-direction:column;padding:8px 10px;gap:6px;min-width:0;}
-.sf-preset-mgr-editor label{font-size:11px;color:#aaa;}
-.sf-preset-mgr-input{width:100%;box-sizing:border-box;padding:5px 8px;background:#2c2c2c;border:1px solid #555;border-radius:4px;color:#ddd;font-size:12px;}
-.sf-preset-mgr-textarea{flex:1;min-height:120px;resize:none;box-sizing:border-box;padding:5px 8px;background:#2c2c2c;border:1px solid #555;border-radius:4px;color:#ddd;font-size:12px;font-family:monospace;line-height:1.5;}
+.sf-preset-mgr-editor label{font-size:11px;color:var(--sf-text-dim);}
+.sf-preset-mgr-input{width:100%;box-sizing:border-box;padding:5px 8px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:4px;color:var(--sf-text);font-size:12px;}
+.sf-preset-mgr-textarea{flex:1;min-height:120px;resize:none;box-sizing:border-box;padding:5px 8px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:4px;color:var(--sf-text);font-size:12px;font-family:monospace;line-height:1.5;}
 .sf-preset-mgr-btns{display:flex;gap:6px;}
-.sf-preset-mgr-btn{padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;border:1px solid #555;background:#2c2c2c;color:#ddd;}
-.sf-preset-mgr-btn:hover{background:#3a3a3a;}
+.sf-preset-mgr-btn{padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;border:1px solid var(--sf-border-soft);background:var(--sf-surface);color:var(--sf-text);}
+.sf-preset-mgr-btn:hover{background:var(--sf-surface-hover);}
 .sf-preset-mgr-btn.primary{background:#3a5f8a;border-color:#4a7ab0;color:#fff;}
 .sf-preset-mgr-btn.primary:hover{background:#4a7ab0;}
 .sf-preset-mgr-btn.danger{background:#5a2f2f;border-color:#7a4040;color:#f0b0b0;}

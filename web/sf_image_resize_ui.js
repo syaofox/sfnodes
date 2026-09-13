@@ -15,7 +15,7 @@ import {
   applyInlineLabel, applyWHLayout, applyCoverControls,
   renderGlobalControls, injectCSS as injectLoadImageChromeCSS,
 } from "./sf_load_image_ui.js";
-import { injectCSSOnce, sfAccent } from "./sf_common.js";
+import { injectCSSOnce, sfAccent, sfThemeColors } from "./sf_common.js";
 import {
   readState, writeState, wireInfo, effectiveWiredState, getReadoutInfo,
   ratioLabel, aspectRectDims, roundRectPath,
@@ -48,25 +48,25 @@ const WH_MODES = new Set(["fit_inside", "cover"]);
 
 export function injectCSS() {
   injectCSSOnce("sf-image-resize-css", `
-    .sf-ir-root{width:100%;box-sizing:border-box;padding:2px 8px 8px;background:#2a2a2a;
-      border-radius:4px;color:#ddd;font-family:ui-sans-serif,system-ui,sans-serif;
+    .sf-ir-root{width:100%;box-sizing:border-box;padding:2px 8px 8px;background:var(--sf-panel-bg);
+      border-radius:4px;color:var(--sf-text);font-family:ui-sans-serif,system-ui,sans-serif;
       font-size:11px;display:flex;flex-direction:column;gap:8px;}
     .sf-ir-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
-    .sf-ir-chip{background:#1d1d1d;border:1px solid #444;
-      border-radius:4px;padding:6px 3px;font-size:9.5px;color:#ccc;
+    .sf-ir-chip{background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);
+      border-radius:4px;padding:6px 3px;font-size:9.5px;color:var(--sf-text-dim);
       text-align:center;cursor:pointer;user-select:none;transition:background .08s,border-color .08s;}
-    .sf-ir-chip:hover{border-color:${"var(--sf-acc, #f66744)"};color:#ddd;}
+    .sf-ir-chip:hover{border-color:${"var(--sf-acc, #f66744)"};color:var(--sf-text);}
     .sf-ir-chip.active{background:${"var(--sf-acc, #f66744)"};color:#fff;border-color:${"var(--sf-acc, #f66744)"};}
     /* Disabled while width/height are wired (mode doesn't apply). */
     .sf-ir-chip.disabled{opacity:.32;pointer-events:none;}
     /* Single-wire summary panel: read-only W / H rows. */
     .sf-ir-wirepanel{display:flex;flex-direction:column;gap:6px;}
-    .sf-ir-wirerow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1d1d1d;border:1px solid #444;border-radius:4px;}
+    .sf-ir-wirerow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:4px;}
     .sf-ir-wirelbl{color:${"var(--sf-acc, #f66744)"};font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:14px;flex:none;}
     /* Wide variant for full-word labels (e.g. "LONGEST SIDE"). */
     .sf-ir-wirelbl.is-wide{width:auto;white-space:nowrap;}
-    .sf-ir-wireval{color:#e0e0e0;font-size:13px;font-weight:600;flex:1;}
-    .sf-ir-wiretag{color:#888;font-size:9px;text-transform:uppercase;letter-spacing:.5px;}
+    .sf-ir-wireval{color:var(--sf-text);font-size:13px;font-weight:600;flex:1;}
+    .sf-ir-wiretag{color:var(--sf-text-faint);font-size:9px;text-transform:uppercase;letter-spacing:.5px;}
     /* Shared panels render in a 1fr grid with 1px borders — border-box so the
        border can't push the last column to clip. */
     .sf-ir-root .sf-li-quickpick,
@@ -275,6 +275,7 @@ function isImageWired(node) {
 // the Nodes 2.0 cards canvas (W = canvas width, midY = canvas center).
 export function paintReadout(ctx, info, W, midY) {
   const acc = sfAccent();
+  const th = sfThemeColors();
   const cx = W / 2;
   const fam = "ui-sans-serif, system-ui, sans-serif";
   const capFont = `8px ${fam}`;
@@ -288,7 +289,7 @@ export function paintReadout(ctx, info, W, midY) {
     const tw = ctx.measureText(info.text).width;
     const bw = tw + 26, bh = 28;
     roundRectPath(ctx, cx - bw / 2, midY - bh / 2, bw, bh, 8);
-    ctx.fillStyle = "#1d1d1d"; ctx.fill();
+    ctx.fillStyle = th.panel; ctx.fill();
     ctx.textAlign = "center"; ctx.fillStyle = acc;
     ctx.fillText(info.text, cx, midY);
     ctx.restore();
@@ -334,23 +335,23 @@ export function paintReadout(ctx, info, W, midY) {
   ctx.lineTo(L1, T + R);
   ctx.arcTo(L1, T, L1 + R, T, R);          // INPUT top-left
   ctx.closePath();
-  ctx.fillStyle = "#1d1d1d"; ctx.fill();
-  ctx.strokeStyle = "#444"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = th.panel; ctx.fill();
+  ctx.strokeStyle = th.border; ctx.lineWidth = 1; ctx.stroke();
 
   const drawContent = (x, label, w, h, accent) => {
     const ccx = x + cardW / 2;
     ctx.textAlign = "center";
     const maxTxt = cardW - 8;
-    ctx.font = capFont; ctx.fillStyle = "#9a9a9a";
+    ctx.font = capFont; ctx.fillStyle = th.textDim;
     ctx.fillText(label, ccx, cardY + 15, maxTxt);
     ctx.font = dimsFont; ctx.fillStyle = acc;
     ctx.fillText(`${w}×${h}`, ccx, cardY + 27, maxTxt);
     const { rw, rh } = aspectRectDims(w, h, rectMaxW, rectMaxH);
     const rx = Math.round(ccx - rw / 2) + 0.5, ry = Math.round(cardY + 53 - rh / 2) + 0.5;
     if (accent) { ctx.fillStyle = "rgba(246,103,68,0.20)"; ctx.fillRect(rx, ry, rw, rh); }
-    ctx.strokeStyle = accent ? acc : "rgba(200,200,200,0.7)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = accent ? acc : th.textDim; ctx.lineWidth = 1;
     ctx.strokeRect(rx, ry, rw, rh);
-    ctx.font = ratioFont; ctx.fillStyle = "#9a9a9a";
+    ctx.font = ratioFont; ctx.fillStyle = th.textDim;
     ctx.fillText(ratioLabel(w, h), ccx, cardY + 77, maxTxt);
   };
 
@@ -359,7 +360,7 @@ export function paintReadout(ctx, info, W, midY) {
   drawContent(L2, "OUTPUT", info.outW, info.outH, changed);
 
   // Compact ">" chevron centered on the bridge.
-  ctx.strokeStyle = "#9a9a9a"; ctx.lineWidth = 1;
+  ctx.strokeStyle = th.textDim; ctx.lineWidth = 1;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(arrowCx - 2.5, midY - 4);

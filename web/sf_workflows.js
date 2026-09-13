@@ -492,7 +492,7 @@ function ask({ title, message, value, okLabel = "OK", danger }) {
         back.style.cssText = "position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:8;display:flex;align-items:center;justify-content:center;";
         const box = el("div");
         const listy = (message || "").includes("\n");
-        box.style.cssText = "background:#1d1c1b;border:1px solid #3d3936;border-radius:8px;"
+        box.style.cssText = "background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:8px;"
             + `padding:14px 16px;width:min(${listy ? 460 : 330}px,90%);`
             + "box-shadow:0 12px 30px rgba(0,0,0,.6);";
         box.append(el("div", "sf-wb-cardname", title));

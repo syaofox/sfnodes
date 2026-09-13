@@ -186,11 +186,11 @@ export function injectCSS() {
     flex:0 1 auto; min-width:24px; max-width:84px; overflow:hidden;
     white-space:nowrap; height:${ROW_H - 4}px; box-sizing:border-box;
     display:flex; align-items:center; gap:3px;
-    background:#1d1d1d; border:1px solid #444; border-radius:4px;
-    padding:0 6px; cursor:pointer; color:#aaa;
+    background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); border-radius:4px;
+    padding:0 6px; cursor:pointer; color:var(--sf-text-dim);
     font:11px 'Segoe UI',sans-serif; line-height:1;
   }
-  .sf-dd-cat:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+  .sf-dd-cat:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:var(--sf-text); }
   .sf-dd-cat.open{ border-color:${"var(--sf-acc, #f66744)"}; }
   /* 省略号必须挂在文本 span 上：text-overflow 对 flex 容器的直接文本不生效。 */
   .sf-dd-catlabel{ flex:1 1 auto; min-width:0; overflow:hidden;
@@ -199,16 +199,16 @@ export function injectCSS() {
   .sf-dd-field{
     flex:1 1 auto; min-width:0; height:${ROW_H - 4}px; box-sizing:border-box;
     display:flex; align-items:center; justify-content:space-between; gap:5px;
-    background:#1d1d1d; border:1px solid #444; border-radius:4px;
+    background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); border-radius:4px;
     padding:0 6px; cursor:pointer;
   }
   .sf-dd-field:hover{ border-color:${"var(--sf-acc, #f66744)"}; }
   .sf-dd-field.open{ border-color:${"var(--sf-acc, #f66744)"}; }
   .sf-dd-name{
     flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; color:#ddd; font-size:12px;
+    white-space:nowrap; color:var(--sf-text); font-size:12px;
   }
-  .sf-dd-name.empty{ color:#777; font-style:italic; }
+  .sf-dd-name.empty{ color:var(--sf-text-faint); font-style:italic; }
   .sf-dd-caret{ flex:none; color:${"var(--sf-acc, #f66744)"}; font-size:8px; }
 
   /* 内联 data URI 齿轮，与节点选中工具栏的 ⚙ 一致，而非各平台渲染不同的 emoji。 */
@@ -218,7 +218,7 @@ export function injectCSS() {
   }
   .sf-dd-gear::before{
     content:""; display:block; width:100%; height:100%;
-    background:#aaa; -webkit-mask:url("${GEAR_SVG}") center/contain no-repeat;
+    background:var(--sf-text-dim); -webkit-mask:url("${GEAR_SVG}") center/contain no-repeat;
     mask:url("${GEAR_SVG}") center/contain no-repeat;
   }
   .sf-dd-gear:hover::before{ background:${"var(--sf-acc, #f66744)"}; }
@@ -228,10 +228,10 @@ export function injectCSS() {
   .sf-dd-mode{
     flex:none; width:16px; height:16px; padding:0; box-sizing:border-box;
     display:flex; align-items:center; justify-content:center;
-    border-radius:3px; border:1px solid #4a4a4a; background:none; color:#999;
+    border-radius:3px; border:1px solid var(--sf-border-soft); background:none; color:var(--sf-text-dim);
     font:11px 'Segoe UI',sans-serif; cursor:pointer; line-height:1;
   }
-  .sf-dd-mode:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:#ddd; }
+  .sf-dd-mode:hover{ border-color:${"var(--sf-acc, #f66744)"}; color:var(--sf-text); }
   .sf-dd-mode.on{ background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
   .sf-dd-mode.on:hover{ filter:brightness(1.12); color:#fff; }
 
@@ -245,7 +245,7 @@ export function injectCSS() {
      一起缩放行、间距与内边距。不要把 px 放回行上。 */
   .sf-dd-pop{
     position:fixed; z-index:1200; box-sizing:border-box;
-    background:#1d1d1d; border:1px solid #555; border-radius:6px; padding:.35em;
+    background:var(--sf-panel-bg); border:1px solid var(--sf-border-soft); border-radius:6px; padding:.35em;
     max-height:320px; overflow-y:auto; overflow-x:hidden;
     font:12px 'Segoe UI',sans-serif; box-shadow:0 6px 20px rgba(0,0,0,.45);
   }
@@ -253,17 +253,17 @@ export function injectCSS() {
     display:flex; align-items:baseline; gap:.85em;
     padding:.5em .75em; border-radius:4px; cursor:pointer;
   }
-  .sf-dd-opt:hover{ background:#2a2a2a; }
+  .sf-dd-opt:hover{ background:var(--sf-surface-hover); }
   .sf-dd-opt.sel{ background:${"var(--sf-acc, #f66744)"}; }
   .sf-dd-oname{
     flex:none; max-width:100%; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; color:#ddd; font-size:1em;
+    white-space:nowrap; color:var(--sf-text); font-size:1em;
   }
   .sf-dd-opt.sel .sf-dd-oname{ color:#fff; }
   /* 值读不成类型的行上的警告后缀。 */
   .sf-dd-obad{ flex:none; color:#e0703a; font-size:.9em; }
   .sf-dd-opt.sel .sf-dd-obad{ color:#fff; }
-  .sf-dd-pop-empty{ padding:.7em .85em; color:#777; font-size:.92em; font-style:italic; }
+  .sf-dd-pop-empty{ padding:.7em .85em; color:var(--sf-text-faint); font-size:.92em; font-style:italic; }
 
   /* ── Nodes 2.0 only ─────────────────────────────────────────────────────
      每个 widget 行为输入点预留 12px 列。本节点没有输入，塌掉它，否则行被

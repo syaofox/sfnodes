@@ -41,16 +41,16 @@ function resolveSrcUrl(u, resolveRelative) {
     return resolveUrl(u);
 }
 
-const IMG_STYLE = "max-width:100%;border-radius:6px;display:block;margin:6px 0;border:1px solid #444;";
+const IMG_STYLE = "max-width:100%;border-radius:6px;display:block;margin:6px 0;border:1px solid var(--sf-border-soft);";
 const LINK_STYLE = "color:#7aa2ff;text-decoration:none;word-break:break-all;";
-const CODE_STYLE = "background:#1a1a1e;border:1px solid #3a3a3e;border-radius:4px;padding:0 4px;font-size:0.92em;color:#ffd98a;";
-const PRE_STYLE = "background:#1a1a1e;border:1px solid #3a3a3e;border-radius:6px;padding:8px 10px;overflow-x:auto;font-size:0.92em;";
-const H1_STYLE = "margin:8px 0 4px;font-size:1.3em;color:#fff;";
-const H2_STYLE = "margin:8px 0 4px;font-size:1.15em;color:#fff;";
-const H3_STYLE = "margin:8px 0 4px;font-size:1.05em;color:#fff;";
-const H4_STYLE = "margin:8px 0 4px;font-size:1em;color:#fff;";
-const H5_STYLE = "margin:8px 0 4px;font-size:0.95em;color:#fff;";
-const H6_STYLE = "margin:8px 0 4px;font-size:0.9em;color:#fff;";
+const CODE_STYLE = "background:var(--sf-panel-bg-2);border:1px solid var(--sf-border-soft);border-radius:4px;padding:0 4px;font-size:0.92em;color:#ffd98a;";
+const PRE_STYLE = "background:var(--sf-panel-bg-2);border:1px solid var(--sf-border-soft);border-radius:6px;padding:8px 10px;overflow-x:auto;font-size:0.92em;";
+const H1_STYLE = "margin:8px 0 4px;font-size:1.3em;color:var(--sf-text-strong);";
+const H2_STYLE = "margin:8px 0 4px;font-size:1.15em;color:var(--sf-text-strong);";
+const H3_STYLE = "margin:8px 0 4px;font-size:1.05em;color:var(--sf-text-strong);";
+const H4_STYLE = "margin:8px 0 4px;font-size:1em;color:var(--sf-text-strong);";
+const H5_STYLE = "margin:8px 0 4px;font-size:0.95em;color:var(--sf-text-strong);";
+const H6_STYLE = "margin:8px 0 4px;font-size:0.9em;color:var(--sf-text-strong);";
 const HEADING_STYLES = [H1_STYLE, H2_STYLE, H3_STYLE, H4_STYLE, H5_STYLE, H6_STYLE];
 
 // Inline parsing. Input must already be HTML-escaped; the output is a
@@ -167,7 +167,7 @@ function renderMarkdown(src, options) {
 
         // Horizontal rules
         if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-            out.push('<hr style="border:none;border-top:1px solid #444;margin:8px 0;">');
+            out.push('<hr style="border:none;border-top:1px solid var(--sf-border-soft);margin:8px 0;">');
             i++;
             continue;
         }
@@ -179,7 +179,7 @@ function renderMarkdown(src, options) {
                 buf.push(lines[i].replace(/^&gt;\s?/, ""));
                 i++;
             }
-            out.push(`<blockquote style="margin:6px 0;padding:4px 12px;border-left:3px solid #6af;color:#bbb;">${inline(buf.join("<br>"), resolveRelative)}</blockquote>`);
+            out.push(`<blockquote style="margin:6px 0;padding:4px 12px;border-left:3px solid #6af;color:var(--sf-text-dim);">${inline(buf.join("<br>"), resolveRelative)}</blockquote>`);
             continue;
         }
 

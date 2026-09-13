@@ -425,31 +425,31 @@ function openSamDialog(node) {
 
   const dialog = document.createElement("div");
   dialog.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);" +
-    "background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:12px 14px;" +
+    "background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:6px;padding:12px 14px;" +
     "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:300px;box-sizing:border-box;";
   const lastPrompt = st.sam_prompt || "";
   const lastThr = st.sam_threshold ?? 0.5;
   const lastRefine = st.sam_refine ?? 2;
   dialog.innerHTML = `
-    <div style="color:#ddd;font-size:13px;margin-bottom:10px;font-weight:bold;">SAM 蒙版：文本选择</div>
+    <div style="color:var(--sf-text);font-size:13px;margin-bottom:10px;font-weight:bold;">SAM 蒙版：文本选择</div>
     <div style="margin-bottom:10px;">
-      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Prompt（英文，如 person / car，为空按 object）</label>
+      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Prompt（英文，如 person / car，为空按 object）</label>
       <input type="text" id="sf-bm-sam-prompt" value="${String(lastPrompt).replace(/"/g, "&quot;")}" placeholder="person"
-        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
-      <div style="color:#777;font-size:10px;margin-top:3px;">多人用 person:3（:N = 每类最多 N 个），多类用逗号分隔</div>
+        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
+      <div style="color:var(--sf-text-faint);font-size:10px;margin-top:3px;">多人用 person:3（:N = 每类最多 N 个），多类用逗号分隔</div>
     </div>
     <div style="margin-bottom:10px;">
-      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Threshold（0-1，越低越多）</label>
+      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Threshold（0-1，越低越多）</label>
       <input type="number" id="sf-bm-sam-thr" value="${lastThr}" min="0" max="1" step="0.05"
-        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
     </div>
     <div style="margin-bottom:10px;">
-      <label style="color:#aaa;font-size:10px;display:block;margin-bottom:3px;">Refine（0-5，SAM 解码精修轮数，0=用粗蒙版）</label>
+      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Refine（0-5，SAM 解码精修轮数，0=用粗蒙版）</label>
       <input type="number" id="sf-bm-sam-refine" value="${lastRefine}" min="0" max="5" step="1"
-        style="width:100%;padding:5px;background:#1a1a1a;border:1px solid #555;border-radius:3px;color:#ddd;font-size:13px;box-sizing:border-box;">
+        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="sf-bm-sam-cancel" style="padding:5px 12px;background:#444;border:none;border-radius:3px;color:#ddd;cursor:pointer;font-size:12px;">Cancel</button>
+      <button id="sf-bm-sam-cancel" style="padding:5px 12px;background:var(--sf-surface);border:none;border-radius:3px;color:var(--sf-text);cursor:pointer;font-size:12px;">Cancel</button>
       <button id="sf-bm-sam-ok" style="padding:5px 12px;background:#4a90e2;border:none;border-radius:3px;color:white;cursor:pointer;font-size:12px;">Run SAM</button>
     </div>`;
   overlay.appendChild(dialog);
