@@ -546,3 +546,27 @@
 
 - `tests/test_crop_expand_presets.py`（mock aiohttp/server/folder_paths，仿 test_text_presets.py）：路由注册、空库、POST 全量校验（空名/路径分隔符/控制字符/超长名/非数/0/负/超上限/bool/缺字段）、落盘结构、同名覆盖不追加、DELETE 校验/删除、mtime 自动重载、非法 JSON 容错、归一化、`crop_expand.py` 导入行文本断言。
 - `tests/test_crop_expand_js.mjs` 追加 `normalizeRatioPresets` 解包/过滤/去重/非法用例。
+
+## 62. SFPauseImage 水平翻转开关（复用闸门引擎 opt-in 扩展，2026-09）
+
+> 背景：Pause Image 复查阶段常需要把图左右镜像后再喂给昂贵下游。翻转必须满足"预览所见 = 下游所得 = 保存所得"，且不能为了翻转把上游重跑一遍。
+
+### 1. 语义与机制
+
+- state 加 `flip` 布尔（随 `node.properties` 持久化）；它随既有 `PauseState` JSON 注入后端，是唯一需要后端落地的状态。
+- **已有快照**：点 Flip → 前端 `POST /api/sfnodes/preview/flip`，后端 `ImageOps.mirror` 就地镜像 temp PNG → 之后预览（`/view` 带缓存戳重载）、Continue 读回、Copy/Save/Open 全部天然一致，前端零特判。路由失败则回滚开关（文件与状态保持同步）。
+- **无快照**：只改 state；下次 Pause/Pass 运行时后端按 `flip` 先 `torch.flip(image, dims=[2])`（`[B,H,W,C]` 的 W 维）再存快照与输出。
+- **continue 分支读的文件已是镜像产物**——不能再翻转，否则翻回去。这是"就地镜像文件"方案最容易被忽略的一环。
+- 按钮放第一行 `[⟳ Regenerate] [⇋ Flip] [▶ Continue]`（第二行 4 个工具按钮已挤，5 个会省略号截断）；`.on` 高亮表示开启，任何模式（含 Pass）都可切。
+
+### 2. 复用与边界
+
+- 引擎 opt-in：`definePauseGate`/`buildPauseBody` 新增 `flip`/`flipTitle` 配置，只有 `sf_pause_image.js` 传 `flip:true`，mask/latent 完全不变（`makeGateState` 仅做 `flip` 布尔规范化，对三闸门都安全）。
+- 注入链：`sf_pause_text_lib.applyGateMode` 新增可选 `opts.extraState`，三个模式分支都 `{...extraState}` 合并。**关键坑**：`graphToPrompt` hook 的注入会在 `api.queuePrompt` 提交时被 `applyGateMode` 覆盖，所以 flip 必须同时经 `collectGates().extraState` 传给 applyGateMode，两处共用同一份，保持 INJECT/PRUNE 不分歧。
+- `_mirror_png` 抽成 `preview_routes.py` 模块级纯副作用函数（可测），路由只做文件名安全校验（temp 目录 + basename + `sf_pause` 前缀）。
+- latent 未纳入：快照是 safetensors（非图像），且 latent 空间翻转 ≠ 图像空间翻转。
+
+### 3. 测试
+
+- `tests/test_pause_image.py`：mock `torch.flip`；flip pause/pass 输出镜像、快照字节镜像（红像素跑到最右）、continue 读回镜像、flip=false 不翻转；`_mirror_png` 原地镜像 + 两次还原。
+- `tests/test_pause_image_js.js` / `_smoke.js`：flip 默认值与布尔规范化、`extraState` 在 pause/pass/continue 三模式注入、Flip 按钮构建、剪枝后仍保留 flip 注入。

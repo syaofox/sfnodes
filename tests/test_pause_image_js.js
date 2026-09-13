@@ -46,6 +46,10 @@ function check(name, cond) {
     setGate(node, "bogus");
     check("setGate 非法回退 pause", getState(node).gate === "pause");
     check("getState 容错非对象", getState({ properties: { [STATE_PROP]: "junk" } }).gate === "pause");
+    check("flip 默认 false", getState(node).flip === false);
+    getState(node).flip = true;
+    check("flip 布尔保留", getState(node).flip === true);
+    check("flip 非布尔回退 false", getState({ properties: { [STATE_PROP]: { flip: "yes" } } }).flip === false);
     s.frame = { filename: "sf_pause_1.png", subfolder: "", type: "temp" };
     check("frame 保留", getState(node).frame.filename === "sf_pause_1.png");
 
@@ -61,11 +65,12 @@ function check(name, cond) {
         "7": { class_type: "SaveOther", inputs: { x: ["6", 0] } },
     };
     const entryPause = outPause["3"];
-    applyGateMode(outPause, "3", entryPause, "pause", (c) => c === "SaveImage" || c === "SaveOther" || c === "SFPauseImage", "PauseState", { inputKey: "image" });
+    applyGateMode(outPause, "3", entryPause, "pause", (c) => c === "SaveImage" || c === "SaveOther" || c === "SFPauseImage", "PauseState", { inputKey: "image", extraState: { flip: true } });
     check("pause 删除下游 4/5", !outPause["4"] && !outPause["5"]);
     check("pause 保留上游 0/1/2", outPause["0"] && outPause["1"] && outPause["2"]);
     check("pause 保留无关分支 6/7", outPause["6"] && outPause["7"]);
     check("pause 注入 PauseState", JSON.parse(entryPause.inputs.PauseState).mode === "pause");
+    check("pause 注入 extraState.flip", JSON.parse(entryPause.inputs.PauseState).flip === true);
 
     // ---- pass：不剪 ----
     const outPass = {
@@ -74,9 +79,10 @@ function check(name, cond) {
         "4": { class_type: "Upscale", inputs: { image: ["3", 0] } },
     };
     const entryPass = outPass["3"];
-    applyGateMode(outPass, "3", entryPass, "pass", null, "PauseState", { inputKey: "image" });
+    applyGateMode(outPass, "3", entryPass, "pass", null, "PauseState", { inputKey: "image", extraState: { flip: false } });
     check("pass 不剪", outPass["2"] && outPass["3"] && outPass["4"]);
     check("pass 注入 PauseState", JSON.parse(entryPass.inputs.PauseState).mode === "pass");
+    check("pass 注入 extraState.flip", JSON.parse(entryPass.inputs.PauseState).flip === false);
 
     // ---- continue：删 image 链接 + 菱形重路由 ----
     const outC = {
@@ -91,9 +97,10 @@ function check(name, cond) {
         "8": { class_type: "OtherSrc", inputs: {} },
     };
     const entryC = outC["3"];
-    applyGateMode(outC, "3", entryC, "continue", (c) => c !== "EmptyImage" && c !== "KSampler" && c !== "VAEDecode" && c !== "Upscale" && c !== "OtherSrc" && c !== "SFPauseImage", "PauseState", { inputKey: "image" });
+    applyGateMode(outC, "3", entryC, "continue", (c) => c !== "EmptyImage" && c !== "KSampler" && c !== "VAEDecode" && c !== "Upscale" && c !== "OtherSrc" && c !== "SFPauseImage", "PauseState", { inputKey: "image", extraState: { flip: true } });
     check("continue 删除 image 链接", !("image" in entryC.inputs));
     check("continue 注入 PauseState", JSON.parse(entryC.inputs.PauseState).mode === "continue");
+    check("continue 注入 extraState.flip", JSON.parse(entryC.inputs.PauseState).flip === true);
     check("菱形重路由 ref 改指闸门", JSON.stringify(outC["4"].inputs.ref) === JSON.stringify(["3", 0]));
     check("菱形重路由 image 保持指闸门", JSON.stringify(outC["4"].inputs.image) === JSON.stringify(["3", 0]));
     check("continue 删拉活上游的平行输出 6", !outC["6"]);

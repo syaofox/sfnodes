@@ -1,9 +1,11 @@
-"""SFPauseImage 保存路由（/api/sfnodes/preview/save + /prepare）。
+"""SFPauseImage 保存路由（/api/sfnodes/preview/save + /prepare + /flip）。
 
 复刻 Pixaroma 的 /pixaroma/api/preview/save 与 /prepare（拖回重建元数据用）：
 - save：把 base64 PNG 存到 ComfyUI output/ 目录，嵌入 workflow/prompt PNG 块
   （保存的图片可拖回 ComfyUI 重建同一张图）
 - prepare：嵌入元数据后返回 data URI + 建议文件名（Save to Disk 用）
+- flip：把 temp 闸门快照 PNG 原地水平镜像（SF Pause Image 的 Flip 开关；就地
+  镜像让预览 / Continue / Copy / Save / Open 全部一致，无需重跑上游）
 
 注册方式沿用 sf_utils/lora_notes.py 的 _register_routes 先例：模块导入时
 （__init__.py import）副作用注册，try/except 包裹，环境异常时降级不注册。
@@ -15,6 +17,7 @@ import json
 import os
 
 import folder_paths
+from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 
 from ...sf_utils.common import json_safe as _json_safe  # NaN/Inf 清洗（单源，见 common）
@@ -60,6 +63,24 @@ def _build_pnginfo(prompt=None, workflow=None, parameters=None):
     if parameters:
         pnginfo.add_text("parameters", str(parameters))
     return pnginfo
+
+
+def _mirror_png(path):
+    """把 PNG 文件原地水平镜像（左右翻转）。
+
+    先用 with 打开取出像素与文本块（PIL 惰性解码，需要显式 load 到内存镜像
+    对象），句柄释放后再覆盖保存——否则 Windows 文件锁会让保存失败。文本块
+    经 _build_pnginfo 重建（尊重 --disable-metadata）；闸门快照通常无文本块。
+    """
+    with Image.open(path) as snap:
+        info = dict(snap.info)
+        mirrored = ImageOps.mirror(snap)
+    pnginfo = _build_pnginfo(
+        prompt=info.get("prompt"),
+        workflow=info.get("workflow"),
+        parameters=info.get("parameters"),
+    )
+    mirrored.save(path, "PNG", pnginfo=pnginfo)
 
 
 def _register_routes():
@@ -152,7 +173,38 @@ def _register_routes():
                 return web.json_response({"error": f"prepare failed: {e}"}, status=500)
             return web.json_response({"image_b64": out_b64, "suggested_filename": suggested})
 
-        print("[sfnodes] preview routes registered (/api/sfnodes/preview/save, /prepare)")
+        @routes.post("/api/sfnodes/preview/flip")
+        async def api_preview_flip(request):
+            """把 temp 目录里的闸门快照 PNG 原地水平镜像（Flip 开关用）。
+
+            Request JSON: { filename }
+            Response: { status } 或 { error }
+
+            只接受 temp 目录下的 basename 且限定 sf_pause 前缀（图片/遮罩闸门
+            快照命名），避免该路由被用来改写任意文件；原图已被打开的句柄在 with
+            退出后释放，再覆盖保存（Windows 文件锁）。
+            """
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({"error": "invalid JSON"}, status=400)
+            if not isinstance(data, dict):
+                data = {}
+            raw = str(data.get("filename", ""))
+            filename = os.path.basename(raw)
+            if not filename or filename != raw or not filename.startswith("sf_pause"):
+                return web.json_response({"error": "invalid filename"}, status=400)
+            try:
+                temp_dir = folder_paths.get_temp_directory()
+                path = os.path.join(temp_dir, filename)
+                if not os.path.isfile(path):
+                    return web.json_response({"error": "snapshot not found"}, status=404)
+                _mirror_png(path)
+            except Exception as e:
+                return web.json_response({"error": f"flip failed: {e}"}, status=500)
+            return web.json_response({"status": "success"})
+
+        print("[sfnodes] preview routes registered (/api/sfnodes/preview/save, /prepare, /flip)")
     except Exception as e:
         print(f"[sfnodes] preview routes registration failed: {e}")
 

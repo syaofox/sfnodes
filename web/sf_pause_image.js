@@ -14,7 +14,8 @@
 // nodes/image/pause_image.py 硬编码，两端必须一致。
 //
 // 与 Pixaroma 原件差异（已确认范围）：无 accent 颜色设置、无 Vue
-// ResizeObserver 撑高（保留 onResize clamp）、无 canvas zoom 辅助。
+// ResizeObserver 撑高（保留 onResize clamp）、无 canvas zoom 辅助；
+// 新增原件没有的水平翻转开关（flip:true，见配置注释）。
 //
 // ==========================================================================
 
@@ -43,4 +44,10 @@ definePauseGate({
     contTitle: "从快照运行工作流其余部分",
     regenTitle: "在此处掷一张新图（尊重你的种子）",
     toolNoun: "图片",
+
+    // 水平翻转开关（仅图片闸门；mask/latent 不设此开关）。开启后预览、Continue
+    // 输出、Copy/Save/Open 全部为镜像后的图：已有快照时前端调
+    // /api/sfnodes/preview/flip 就地镜像 temp PNG，无快照时后端按 PauseState 的
+    // flip 字段在捕获/输出时翻转。
+    flip: true,
 });

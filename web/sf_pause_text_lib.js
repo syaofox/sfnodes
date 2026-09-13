@@ -137,10 +137,13 @@ export function addAncestors(output, keep) {
 // extraInputKeys：continue 时一并删除的辅助输入链接（如 SFPauseLatent 的
 // 预览 image 输入）。预览源在闸门上游时，不删会让它的输出仍被本闸门消费、
 // 把被跳过的上游链拉活。
+// extraState：随模式一并注入隐藏输入的额外字段（如 SFPauseImage 的 flip），
+// 三个模式分支都合并；未提供时为空对象，行为不变。
 export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "PauseState", opts = {}) {
     const inputKey = opts.inputKey || "text";
     const editedText = typeof opts.editedText === "string" ? opts.editedText : "";
     const extraInputKeys = Array.isArray(opts.extraInputKeys) ? opts.extraInputKeys : [];
+    const extraState = (opts.extraState && typeof opts.extraState === "object") ? opts.extraState : {};
     entry.inputs = entry.inputs || {};
 
     if (mode === "pause") {
@@ -150,7 +153,7 @@ export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "Pa
         const downstream = collectDownstream(consumers, id);
         for (const d of downstream) delete out[d];
         // 模式旁带上盒子文本：未接线的 pause 保留盒子内容。
-        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "pause", text: editedText });
+        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "pause", text: editedText, ...extraState });
     } else if (mode === "continue") {
         // 完全跳过上游，只从编辑文本跑其余。
         const gateSrc = isLink(entry.inputs[inputKey])
@@ -159,7 +162,7 @@ export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "Pa
 
         delete entry.inputs[inputKey];
         for (const ek of extraInputKeys) delete entry.inputs[ek];
-        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "continue", text: editedText });
+        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "continue", text: editedText, ...extraState });
 
         const consumers = buildConsumers(out);
         const downstream = collectDownstream(consumers, id);
@@ -211,6 +214,6 @@ export function applyGateMode(out, id, entry, mode, isOutput, HIDDEN_INPUT = "Pa
         }
     } else {
         // Pass：不剪，整条工作流照跑。未接线的情况携带盒子文本。
-        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "pass", text: editedText });
+        entry.inputs[HIDDEN_INPUT] = JSON.stringify({ mode: "pass", text: editedText, ...extraState });
     }
 }

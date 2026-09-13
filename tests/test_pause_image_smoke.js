@@ -122,9 +122,11 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_kit.js",
     app.graph._nodes = [gate];
     proto.onNodeCreated.call(gate);
     check("setupNode 完成", !!gate._sfPauseImageEls && !!gate._sfPauseImageEls.img);
+    check("Flip 按钮已构建", !!gate._sfPauseImageEls.btnFlip);
     await new Promise((r) => setTimeout(r, 5));   // queueMicrotask restore 跑完
 
-    // ── graphToPrompt 注入：pause ──
+    // ── graphToPrompt 注入：pause（含 flip 额外状态）──
+    gate.properties.pauseImageState.flip = true;
     promptObj = { output: {
         "1": { class_type: "SFPauseImage", inputs: { image: ["2", 0] } },
         "2": { class_type: "VAEDecode", inputs: {} },
@@ -134,12 +136,14 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_kit.js",
     await app.graphToPrompt();
     let st = JSON.parse(promptObj.output["1"].inputs.PauseState);
     check("注入 pause 模式", st.mode === "pause");
+    check("注入 flip 额外状态", st.flip === true);
     check("注入后不剪", promptObj.output["2"] && promptObj.output["3"] && promptObj.output["4"]);
 
     // ── queuePrompt：pause 剪枝删下游 ──
     await api.queuePrompt(0, promptObj, {});
     check("pause 剪枝删除下游 3/4", !promptObj.output["3"] && !promptObj.output["4"]);
     check("pause 剪枝保留上游 2", promptObj.output["2"] !== undefined);
+    check("pause 剪枝保留 flip 注入", JSON.parse(promptObj.output["1"].inputs.PauseState).flip === true);
 
     // ── pass：不剪 ──
     gate.properties.pauseImageState.gate = "pass";

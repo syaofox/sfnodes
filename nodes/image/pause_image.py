@@ -5,6 +5,10 @@ Pause 模式：工作流停在此节点并显示图片；节点把快照存到 C
 按 Continue 时前端把上游从提交的 prompt 中剪掉，本节点读回快照——只有下游运行，
 精确用你预览过的那张图，昂贵的上游完全跳过。
 
+水平翻转开关：状态随 PauseState 注入 flip 字段；Pause/Pass 捕获时先 torch.flip
+再存快照与输出，Continue 直接读回镜像后的快照。已有快照时前端调
+/api/sfnodes/preview/flip 就地镜像 temp PNG，避免为了翻转重跑上游。
+
 决策在前端 JS（Pattern #9，与 SFPauseText 同款双钩子）：app.graphToPrompt hook 注入
 生效模式到隐藏 PauseState 并在提交时剪枝。本节点只对交给它的模式做出反应。
 
@@ -120,6 +124,7 @@ class SFPauseImage:
         except Exception:
             state = {}
         mode = state.get("mode", "pause")
+        flip = bool(state.get("flip"))
         path = _snapshot_path(unique_id)
 
         frame = [{"filename": os.path.basename(path), "subfolder": "", "type": "temp"}]
@@ -148,6 +153,12 @@ class SFPauseImage:
             raise RuntimeError(
                 "SF Pause Image: 输入未连接图片。"
             )
+
+        # 水平翻转（前端 Flip 开关随 PauseState 注入）：先翻转再快照/输出，于是
+        # Continue 读回的快照、预览、下游、Save/Copy 拿到的是同一张镜像图。
+        # continue 分支读的文件已是镜像产物，故此处无需也无法重复翻转。
+        if flip:
+            image = torch.flip(image, dims=[2])  # [B,H,W,C] 的宽度维
 
         # 快照第一帧供 Continue 回放。（v1 快照 frame 0；大于 1 的 batch 回放
         # 其第一帧。）保存失败（temp 只读、磁盘满）不能弄崩 run——图片照常透传；

@@ -33,6 +33,12 @@ class MockTensor:
         return self._arr
 
 torch.from_numpy = MockTensor
+
+def _mock_flip(t, dims):
+    import numpy as _np
+    return MockTensor(_np.flip(t._arr, axis=tuple(dims)))
+
+torch.flip = _mock_flip
 sys.modules["torch"] = torch
 
 tmp_root = tempfile.mkdtemp(prefix="sf_pause_img_test_")
@@ -142,6 +148,23 @@ r = node.run(image=image, PauseState='{"mode": "pass"}', unique_id="pass1")
 check("pass 有线透传", r["result"][0] is image and "sf_pause_frame" in r["ui"])
 check("pass 也写快照", os.path.isfile(snap_path("pass1")))
 
+# ── flip=true：输出与快照都水平镜像；continue 读回镜像快照 ──
+farr = np.zeros((1, 2, 4, 3), dtype=np.float32)
+farr[0, 0, 0, :] = [1.0, 0.0, 0.0]  # 最左像素红；镜像后应跑到最右
+farr_flipped = np.flip(farr, axis=2)
+fimage = torch.from_numpy(farr)
+r = node.run(image=fimage, PauseState='{"mode": "pause", "flip": true}', unique_id="flipA")
+check("flip pause 输出镜像", bool((r["result"][0].numpy() == farr_flipped).all()))
+with Image.open(snap_path("flipA")) as _fim:
+    _fpx = np.array(_fim.convert("RGB"))
+check("flip 快照镜像（红跑到最右）", _fpx[0, 3, 0] == 255 and _fpx[0, 0, 0] == 0)
+r = node.run(image=None, PauseState='{"mode": "continue"}', unique_id="flipA")
+check("flip continue 读回镜像快照", bool((r["result"][0].numpy() == farr_flipped).all()))
+r = node.run(image=fimage, PauseState='{"mode": "pass", "flip": true}', unique_id="flipB")
+check("flip pass 输出镜像", bool((r["result"][0].numpy() == farr_flipped).all()))
+r = node.run(image=fimage, PauseState='{"mode": "pause", "flip": false}', unique_id="flipC")
+check("flip=false 不翻转", bool((r["result"][0].numpy() == farr).all()))
+
 # ── 模式/状态容错 ──
 r = node.run(image=image, PauseState="not json", unique_id="f1")
 check("非法 JSON 回退 pause（透传）", r["result"][0] is image)
@@ -199,6 +222,18 @@ with Image.open(out_buf) as reopened:
 check("_build_pnginfo 嵌入 prompt（NaN 清洗）", '"n": "nan"' in t.get("prompt", ""))
 check("_build_pnginfo 嵌入 workflow", '"w": 1' in t.get("workflow", ""))
 check("_build_pnginfo 参数块", t.get("parameters") is None)  # 无 parameters 时跳过
+
+# ── preview_routes._mirror_png：原地左右镜像（Flip 路由复用） ──
+_mp = os.path.join(tmp_root, "temp", "sf_pause_mirror.png")
+Image.fromarray(np.array([[[255, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]], dtype=np.uint8)).save(_mp)
+mod_r._mirror_png(_mp)
+with Image.open(_mp) as _mim:
+    _mpx = np.array(_mim.convert("RGB"))
+check("_mirror_png 原地镜像（红跑到最右）", _mpx[0, 3, 0] == 255 and _mpx[0, 0, 0] == 0)
+mod_r._mirror_png(_mp)
+with Image.open(_mp) as _mim2:
+    _mpx2 = np.array(_mim2.convert("RGB"))
+check("_mirror_png 两次还原", _mpx2[0, 0, 0] == 255 and _mpx2[0, 3, 0] == 0)
 
 print("\nFAILURES:", len(failures))
 sys.exit(1 if failures else 0)

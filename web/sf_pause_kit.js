@@ -6,9 +6,10 @@
 //   - state（makeGateState）：node.properties 随工作流保存，加载路径绝不重写
 //     序列化状态（不误标工作流已修改）
 //   - 节点体 UI（buildPauseBody）：Pause/Pass 切换 pill + 状态行 + 两行按钮
-//     （Regenerate/Continue + Copy/Save Disk/Save Output/Open）+ 预览
-//     （object-fit:contain）+ 尺寸行。CSS 类前缀逐字保留（sf-pi-/sf-pm-/
+//     （Regenerate/[可选 Flip]/Continue + Copy/Save Disk/Save Output/Open）+
+//     预览（object-fit:contain）+ 尺寸行。CSS 类前缀逐字保留（sf-pi-/sf-pm-/
 //     sf-pl-——类名前缀与既有插件隔离，见 experience/nodes-text.md §6.3）
+//     cfg.flip=true 时第一行多一个持久 Flip 开关：见 definePauseGate::toggleFlip
 //   - 主扩展（definePauseGate）：快照 Copy/Open/Save 链路、双钩子、executed
 //     回填。队列语义（双钩子，与 SFPauseText 相同推理）：graphToPrompt 只
 //     INJECT {mode}——它也会因 Export (API)/分享/保存运行，在那里剪枝会把
@@ -48,6 +49,8 @@ export function makeGateState(stateProp) {
             node.properties[stateProp] = s;
         }
         if (s.gate !== "pause" && s.gate !== "pass") s.gate = "pause";
+        // flip：仅 SFPauseImage 显示翻转按钮；其余闸门恒 false，永不注入。
+        if (typeof s.flip !== "boolean") s.flip = false;
         return s;
     };
     const setGate = (node, gate) => {
@@ -68,6 +71,7 @@ export function buildPauseBody(cfg) {
     const {
         cssId, cssPrefix, elsProp, flashProp, busyProp, hasSnapProp,
         emptyText, contTitle, regenTitle, toolNoun, getState,
+        flip = false, flipTitle = "水平翻转预览图（左右镜像）；翻转后下游收到的是镜像后的图",
     } = cfg;
     // NODE_MIN_W：4 按钮工具行容纳所需。NODE_MIN_H 用固定数字——每次保存/
     // 加载字节一致，node.size 不抖动，工作流不会被误标"已修改"
@@ -93,6 +97,7 @@ export function buildPauseBody(cfg) {
 .${cssPrefix}btn:hover:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .${cssPrefix}btn.primary:not(:disabled) { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"}; color:#fff; }
 .${cssPrefix}btn.primary:hover:not(:disabled) { background:#ff8a5e; border-color:#ff8a5e; }
+.${cssPrefix}btn.on:not(:disabled) { border-color:${"var(--sf-acc, #f66744)"}; color:#fff; background:rgba(246,103,68,0.20); }
 .${cssPrefix}btn:disabled { opacity:0.45; cursor:default; }
 .${cssPrefix}preview { flex:1 1 0; min-height:0; position:relative; background:#1d1d1d;
   border:1px solid #333; border-radius:4px; overflow:hidden; }
@@ -140,8 +145,17 @@ export function buildPauseBody(cfg) {
         btnRegen.className = `${cssPrefix}btn`;
         btnRegen.textContent = "⟳ Regenerate";
         btnRegen.title = regenTitle;
+        // 可选 Flip 开关（仅 cfg.flip 的闸门，目前只有 SFPauseImage）：水平镜像
+        // 预览图并让下游收到镜像后的图。放第一行（不必挤第二行 4 个工具按钮）
+        let btnFlip = null;
+        if (flip) {
+            btnFlip = document.createElement("button");
+            btnFlip.className = `${cssPrefix}btn`;
+            btnFlip.textContent = "⇋ Flip";
+            btnFlip.title = flipTitle;
+        }
         // Regenerate 在左、Continue 在右（Continue 是主要"提交"动作）
-        btns.append(btnRegen, btnContinue);
+        btns.append(btnRegen, ...(btnFlip ? [btnFlip] : []), btnContinue);
 
         // 第二行：作用于预览图的工具
         const btns2 = document.createElement("div");
@@ -167,6 +181,7 @@ export function buildPauseBody(cfg) {
         // stopPropagation 防止点击到达 canvas（取消选中/拖拽）
         btnContinue.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onContinue(); });
         btnRegen.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onRegenerate(); });
+        btnFlip?.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onFlip(); });
         btnCopy.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onCopy(); });
         btnSaveDisk.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onSaveDisk(); });
         btnSaveOut.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onSaveOutput(); });
@@ -189,7 +204,7 @@ export function buildPauseBody(cfg) {
 
         node[elsProp] = {
             segPause, segPass, status,
-            btnContinue, btnRegen, btnCopy, btnSaveDisk, btnSaveOut, btnOpen,
+            btnContinue, btnRegen, btnFlip, btnCopy, btnSaveDisk, btnSaveOut, btnOpen,
             img, empty, dims,
         };
         return root;
@@ -209,6 +224,8 @@ export function buildPauseBody(cfg) {
         // Continue / Regenerate 只在 Pause 模式有意义；Copy / Open 只要有图就可用
         els.btnRegen.disabled = !paused;
         els.btnContinue.disabled = !paused || !hasSnap;
+        // Flip 是持久开关，任何模式都可切（无快照时只改状态，下次 Run 生效）
+        if (els.btnFlip) els.btnFlip.classList.toggle("on", !!s.flip);
         els.btnCopy.disabled = !hasSnap;
         els.btnSaveDisk.disabled = !hasSnap;
         els.btnSaveOut.disabled = !hasSnap;
@@ -327,7 +344,8 @@ const MODE_RANK = { continue: 0, pause: 1, pass: 2 };
 //        stateProp, propPrefix,
 //        inputKey, extraInputKeys, frameEventKey,
 //        logTag, injectName, captureMsg,
-//        cssId, cssPrefix, emptyText, contTitle, regenTitle, toolNoun }
+//        cssId, cssPrefix, emptyText, contTitle, regenTitle, toolNoun,
+//        flip, flipTitle }
 // 立即执行注册（app.registerExtension + executed 监听 + 双钩子安装），与原
 // 单体模块顶层副作用一致。返回 { app: 扩展对象, ...内部件 }（供测试检视）。
 export function definePauseGate(cfg) {
@@ -339,6 +357,7 @@ export function definePauseGate(cfg) {
         frameEventKey,
         logTag, injectName, captureMsg,
         cssId, cssPrefix, emptyText, contTitle, regenTitle, toolNoun,
+        flip = false, flipTitle,
     } = cfg;
 
     const state = makeGateState(stateProp);
@@ -351,6 +370,7 @@ export function definePauseGate(cfg) {
         busyProp: propPrefix + "Busy",
         hasSnapProp: propPrefix + "HasSnapshot",
         emptyText, contTitle, regenTitle, toolNoun,
+        flip, flipTitle,
         getState,
     });
     const { buildPauseWidget, renderPause, showFrame, frameViewUrl, NODE_MIN_W, NODE_MIN_H } = body;
@@ -430,6 +450,36 @@ export function definePauseGate(cfg) {
         if (!frame?.filename) { flash(node, captureMsg); return; }
         const win = window.open(frameViewUrl(frame), "_blank", "noopener");
         if (!win) flash(node, "Popup blocked");
+    }
+
+    // 水平翻转（仅 cfg.flip 的闸门）。开关持久化；已有快照时让后端把 temp PNG
+    // 原地镜像，于是预览 / Continue / Copy / Save / Open 拿到的全是镜像后的
+    // 图，无需任何特判。无快照时只改状态，下次 Run 捕获时后端按开关翻转。
+    async function toggleFlip(node) {
+        const s = getState(node);
+        const on = !s.flip;
+        const frame = s.frame;
+        if (frame?.filename && node[hasSnapProp]) {
+            try {
+                const resp = await fetch(api.apiURL("/api/sfnodes/preview/flip"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: frame.filename }),
+                });
+                if (!resp.ok) throw new Error(`flip ${resp.status}`);
+            } catch (err) {
+                console.error(`[${logTag}] flip failed`, err);
+                flash(node, "Flip failed - run again");
+                return;  // 路由失败：状态不变，文件与开关保持同步
+            }
+            s.flip = on;
+            showFrame(node, frame);  // 带缓存戳重载预览
+            flash(node, on ? "Flipped" : "Unflipped");
+        } else {
+            s.flip = on;
+            renderPause(node);
+            flash(node, on ? "Flip on - run to preview" : "Flip off");
+        }
     }
 
     // ── Save（走 sfnodes 后端路由 /api/sfnodes/preview/*）──
@@ -538,6 +588,7 @@ export function definePauseGate(cfg) {
             onGate: (gate) => { setGate(node, gate); renderPause(node); },
             onContinue: () => queueWithMode(node, "continue"),
             onRegenerate: () => queueWithMode(node, "pause"),
+            onFlip: () => toggleFlip(node),
             onCopy: () => copySnapshot(node),
             onSaveDisk: () => saveToDisk(node),
             onSaveOutput: () => saveToOutput(node),
@@ -587,7 +638,10 @@ export function definePauseGate(cfg) {
             } else {
                 mode = "pass";
             }
-            gates.push({ id, entry, mode });
+            // 额外状态随模式注入隐藏输入（目前只有 image 闸门的 flip）；
+            // 关闭时为空对象，PauseState 形状与旧版一致。
+            const extraState = flip ? { flip: !!node?.properties?.[STATE_PROP]?.flip } : {};
+            gates.push({ id, entry, mode, extraState });
         }
         return gates;
     }
@@ -666,7 +720,7 @@ export function definePauseGate(cfg) {
                 if (out) {
                     for (const g of collectGates(out)) {
                         g.entry.inputs = g.entry.inputs || {};
-                        g.entry.inputs[hiddenInput] = JSON.stringify({ mode: g.mode });
+                        g.entry.inputs[hiddenInput] = JSON.stringify({ mode: g.mode, ...g.extraState });
                     }
                 }
             } catch (e) {
@@ -698,6 +752,7 @@ export function definePauseGate(cfg) {
                             inputKey,
                             extraInputKeys: extraInputKeys || [],
                             editedText: "",
+                            extraState: g.extraState,
                         });
                     }
                 }
@@ -711,7 +766,7 @@ export function definePauseGate(cfg) {
 
     return {
         ext, state, body,
-        queueWithMode, flash, copySnapshot, openSnapshot,
+        queueWithMode, flash, copySnapshot, openSnapshot, toggleFlip,
         saveToOutput, saveToDisk,
         collectGates,
         props: { submitProp, busyProp, flashProp, flashTimerProp, execMetaProp, hasSnapProp },
