@@ -14,6 +14,21 @@
 //   null                                     解析不到
 
 export const MAX_DEPTH = 12;
+export const RANGE_TYPE = "SFImageBatchRange";
+export const SEC_TYPE = "SeCVideoSegmentation";
+
+function typeOf(node) {
+    return node?.type || node?.comfyClass;
+}
+
+function widgetValue(node, name) {
+    const w = (node?.widgets || []).find((x) => x?.name === name);
+    return w ? w.value : undefined;
+}
+
+export function isRangeNode(node) {
+    return typeOf(node) === RANGE_TYPE;
+}
 
 function linkById(graph, id) {
     if (!graph) return null;
@@ -86,21 +101,49 @@ export function makeGraphApi(graph) {
             }
             return null;
         },
+        linkTarget(linkId) {
+            const link = linkById(graph, linkId);
+            const tid = link?.target_id;
+            if (tid == null) return null;
+            if (graph.getNodeById) return graph.getNodeById(tid) ?? null;
+            return (graph._nodes || []).find((n) => String(n.id) === String(tid)) ?? null;
+        },
     };
 }
 
-// 从 PointsEditor 出发沿 bg_image 链找底图源。
+// 从 PointsEditor 出发沿 bg_image 链找底图源；途经 SFImageBatchRange 时
+// 累加 start_index 偏移（用于把"段内帧号"换算回源视频帧号）。
 export function resolveBgSource(node, api, opts = {}) {
     const maxDepth = opts.maxDepth ?? MAX_DEPTH;
     const visited = new Set();
     let src = api.getInputSource(node, "bg_image");
     let depth = 0;
+    let offset = 0;
     while (src && !visited.has(src) && depth < maxDepth) {
         visited.add(src);
         depth += 1;
+        if (isRangeNode(src)) {
+            const s = Number(widgetValue(src, "start_index"));
+            if (Number.isFinite(s) && s > 0) offset += s;
+            src = api.getInputSource(src, "images") || api.firstImageSource(src);
+            continue;
+        }
         const desc = describeSource(src);
-        if (desc) return desc;
+        if (desc) return { ...desc, offset, node: src };
         src = api.firstImageSource(src);
     }
     return null;
+}
+
+// 该 PointsEditor 下游 SeC 的 annotation_frame_idx（找不到→0）。
+export function resolveAnnotationFrame(node, api) {
+    for (const out of (node?.outputs || [])) {
+        for (const lid of (out?.links || [])) {
+            const tgt = api.linkTarget(lid);
+            if (!tgt || typeOf(tgt) !== SEC_TYPE) continue;
+            const v = Number(widgetValue(tgt, "annotation_frame_idx"));
+            if (Number.isFinite(v) && v >= 0) return v;
+        }
+    }
+    return 0;
 }

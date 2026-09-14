@@ -9,7 +9,7 @@
 // 抓到图/视频首帧后交给 KJNodes 的 editor.processImage()（其自身会持久化
 // properties.imgData，点一次后随工作流保存、重载自动恢复）。
 import { app } from "/scripts/app.js";
-import { makeGraphApi, resolveBgSource } from "./sf_points_bg_lib.js";
+import { makeGraphApi, resolveBgSource, resolveAnnotationFrame } from "./sf_points_bg_lib.js";
 import { buildSourceURL, parseAnnotatedImageValue, sfToast } from "./sf_common.js";
 
 const NODE = "PointsEditor";
@@ -54,22 +54,55 @@ function captureVideoURL(url) {
     });
 }
 
+// 把可 seek 的 videoEl 定位到指定秒并抓帧（VHS 高级预览已应用 skip/force_rate/cap，
+// 故「输出帧 N」= currentTime N / (force_rate/select_every_nth)）。
+function captureVideoElementAt(videoEl, seconds) {
+    return new Promise((resolve) => {
+        const grab = () => {
+            clearTimeout(timer);
+            videoEl.removeEventListener("seeked", grab);
+            try { resolve(captureVideoFrame(videoEl)); } catch (e) { resolve(null); }
+        };
+        const timer = setTimeout(grab, 600);
+        videoEl.addEventListener("seeked", grab, { once: true });
+        try { videoEl.currentTime = Math.max(0, seconds); } catch (e) { grab(); }
+    });
+}
+
+function videoElementFps(videoEl, params) {
+    const fr = Number(params?.force_rate) || 0;
+    if (fr <= 0) return 0;
+    const nth = Number(params?.select_every_nth) || 1;
+    return fr / nth;
+}
+
 async function applyBg(node, { silent }) {
     const editor = node.editor;
     if (!editor?.processImage) {
         if (!silent) toast("编辑器未就绪", "KJNodes PointsEditor 编辑器尚未创建", "warn");
         return false;
     }
-    const source = resolveBgSource(node, makeGraphApi(graphOf(node)));
+    const api = makeGraphApi(graphOf(node));
+    const source = resolveBgSource(node, api);
     if (!source) {
         if (!silent) toast("未找到底图源",
             "上游接 LoadImage / VHS / SFImageCropExpand，或先运行一次后刷新", "warn");
         return false;
     }
+    // 目标帧 = 分段偏移（途经 SFImageBatchRange.start_index）+ 下游 SeC 的 annotation_frame_idx
+    const frame = (source.offset || 0) + resolveAnnotationFrame(node, api);
     try {
         if (source.kind === "videoEl") {
-            editor.processImage(captureVideoFrame(source.videoEl), { resize: true });
-            if (!silent) toast("底图已刷新", "取自上游视频首帧");
+            const vp = (source.node?.widgets || []).find((w) => w?.name === "videopreview");
+            const fps = videoElementFps(source.videoEl, vp?.value?.params);
+            const seekable = source.videoEl.seekable && source.videoEl.seekable.length > 0;
+            let canvas = null;
+            if (frame > 0 && fps > 0 && seekable) {
+                canvas = await captureVideoElementAt(source.videoEl, frame / fps);
+            }
+            if (!canvas) canvas = captureVideoFrame(source.videoEl);
+            editor.processImage(canvas, { resize: true });
+            if (!silent) toast("底图已刷新", canvas && frame > 0 ? `取自上游视频第 ${frame} 帧` : "取自上游视频首帧");
             return true;
         }
         if (source.kind === "widget" && source.widget === "video") {
@@ -79,7 +112,10 @@ async function applyBg(node, { silent }) {
             return true;
         }
         if (source.kind === "preview") {
-            editor.processImage(await loadImage(source.url), { resize: true });
+            const imgs = source.node?.imgs;
+            const pick = (Array.isArray(imgs) && imgs[frame]) ? imgs[frame] : null;
+            const url = typeof pick === "string" ? pick : pick?.src;
+            editor.processImage(await loadImage(url || source.url), { resize: true });
             if (!silent) toast("底图已刷新", "取自上游已执行预览");
             return true;
         }

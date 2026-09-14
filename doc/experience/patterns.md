@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -434,6 +434,7 @@
 - 返回**描述符**而非 URL（`preview/videoEl/widget/file`），URL 构造交给扩展用 `sf_common.buildSourceURL`/`parseAnnotatedImageValue`——纯 lib 不 import sf_common（§26 边界）。
 - `makeGraphApi(graph)` 适配 `graph.links` 为 Map 或对象表两种形态（Vue 版差异，§2.4 同类）。
 - 坐标空间：`preview`/`videoEl`/`image widget` 用 `resize:true`（驱动路 VHS 首帧尺寸 = SeC frames，天然一致）；`file`（裁剪源，尺寸可能≠目标）用 `resize:false` 保留当前 `width/height` 坐标空间并 toast 提示——完全无法在未执行时可靠还原 `ImageScale` 目标尺寸时的务实折中。
+- **偏移/标注帧感知**：途经 `SFImageBatchRange` 时累加其 `start_index`（`resolveBgSource` 返回 `offset`），再从下游 `SeCVideoSegmentation` 读 `annotation_frame_idx`（`resolveAnnotationFrame`，沿 PointsEditor 输出连线找目标节点）→ 目标帧 = offset + annotation。视频源按 `videoEl.currentTime = 帧 / (force_rate/select_every_nth)` seek（VHS 高级预览 `/vhs/viewvideo` 已应用 skip/force_rate/cap，故帧号对口）；`force_rate=0`（保持源帧率）时无从推算 fps → 回退首帧并提示。
 
 ### 3. 与 KJNodes 的耦合边界
 
@@ -443,3 +444,27 @@
 ### 4. 测试
 
 - `tests/test_points_bg_lib.mjs`：拷 `.mjs` 直测（§53 同款）；fake graph（对象表 + Map 两形态）覆盖 `describeSource` 四类优先级、`parseCropExpandState` 对象/坏 JSON/缺失、链式解析、循环保护、未接线、`*` 回退。
+
+## 69. 手动分段 SeC 管线：分段标注 + SFMaskBatch 合并 + 男性/精液相减（2026-09）
+
+> 背景：一镜到底/缓慢变化的视频里，SeC 的 LVLM 概念重识别**只在硬切时触发**（`is_scene_change_hsv` 阈值硬编码 0.35），长镜头全程只有 SAM2 memory，遇长时间遮挡（口交/颜射）易漂移或串入男性。最可靠的做法是**人为分段**：每段用干净的首帧重新标注、各自跑 SeC，再合并——每段开头等于重新初始化 tracker + 概念。
+
+### 1. 结构
+
+- 单次 `VHS_LoadVideo` → N×`SFImageBatchRange`（`start_index/num_frames` 手动分段）切片；
+- 每段：`PointsEditor`（`bg_image` 接该段切片，`annotation_frame_idx=0`）+ `SeCVideoSegmentation`（`frames` 接切片）+ `SFTextConcatenate`（正+负签名）+ `SFMaskCache`（`segN`，命中跳过该段追踪）；
+- 合并：`SFMaskBatch`（沿 batch 维拼接，**未连接端口跳过** → 段数可少于端口数）→ 得到整段 MASK；
+- 排除男性/精液：**单独** `PointsEditor+SeC+Cache`（`male`/`semen`，跑完整帧序列；精液用出现帧做 `annotation_frame_idx` 且 `forward`，忌 bidirectional）→ 两个原生 `MaskComposite(operation=subtract)` 串联：`合并 − male − semen` → `SFMaskToTrackData` → SCAIL driving。
+
+### 2. 关键约束/坑
+
+- **分段必须连续覆盖 `[0,T)`**：`sum(len_i)==源批次帧数`，否则合并后的 mask 与 `WanSCAILToVideo` 的帧数错位。
+- `MaskComposite` 的 `subtract` 会把 batch 展平成帧做 `destination - source` 再 clamp（≈ 二值相减），**要求两路 T 相同**（male/semen 跑全片即满足）。
+- **`sorted(kwargs.keys())` 是字典序**（`image_10` 排在 `image_2` 前，>9 槽顺序会错）。已把两个合并节点收敛到共用 `batch.py::_ordered_pairs(kwargs, prefix)` 做**数字序**排序（`SFMaskBatch` 新增即用，`SFImageBatch` 一并修正；其旧测试因数据全 0 掩盖了该 bug，已改为不同数值真正校验顺序）。
+- 每段缓存签名 = 该段「正点+负点」拼接（`SFTextConcatenate` 分隔符 `|`），改任一类点即失效重算；源用该段切片（`SFImageBatchRange.images`），换段/换源也失效。
+- 代价：SeC 调用数 = 段数 + 2（男/精液）+ 参考路；`auto_unload_model` 取舍同 §66——首次慢，缓存命中后大幅加速。
+- 底图刷新（§68）需偏移感知，否则分段 PointsEditor 显示的是源视频首帧而非段首帧。
+
+### 3. 测试
+
+- `tests/test_mask_batch.py`：FakeTensor + mock `torch.cat`，覆盖数字序拼接（`mask_10` 必须在 `mask_2` 后）、None 槽跳过、2D 升 3D、尺寸不一致抛错、全空抛错、双字典注册。

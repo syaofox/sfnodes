@@ -100,14 +100,15 @@ node = SFImageBatch()
 def t(*shape):
     return FakeTensor(np.zeros(shape, dtype=np.float32))
 
-# 多路收集按键排序（image_2 与 image_10 乱序传入，仍按编号顺序拼接）
-a, b, c = t(1, 4, 4, 3), t(2, 4, 4, 3), t(3, 4, 4, 3)
+# 多路按编号（数字序）拼接：image_10 不能排到 image_2 前面（用不同数值真正校验顺序）
+a = FakeTensor(np.full((1, 4, 4, 3), 1.0, dtype=np.float32))
+b = FakeTensor(np.full((2, 4, 4, 3), 2.0, dtype=np.float32))
+c = FakeTensor(np.full((3, 4, 4, 3), 3.0, dtype=np.float32))
 out = node.execute(image_2=b, image_10=c, image_1=a)
 check("乱序按键排序收集", out[0].shape == (6, 4, 4, 3))
+d = out[0].data
 check("批次内容顺序 image_1→image_2→image_10",
-      out[0].data[0:1].shape == (1, 4, 4, 3)
-      and out[0].data[1:3].shape == (2, 4, 4, 3)
-      and np.array_equal(out[0].data, np.concatenate([a.data, b.data, c.data], axis=0)))
+      d[0].mean() == 1 and d[1].mean() == 2 and d[3].mean() == 3)
 
 # None 槽跳过（ComfyUI 未连接的 optional 传 None）
 out = node.execute(image_1=a, image_2=None, image_3=b)

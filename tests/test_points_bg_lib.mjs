@@ -99,6 +99,26 @@ reset();
 const solo = mkNode(40, { inputs: [inp("bg_image", "IMAGE", null)] });
 check("未接线 null", L.resolveBgSource(solo, L.makeGraphApi(mkGraph({}))) === null);
 
+// ── SFImageBatchRange 偏移累加 ──
+reset();
+const segEditor = mkNode(60, { inputs: [inp("bg_image", "IMAGE", 600)] });
+const range = mkNode(61, { type: "SFImageBatchRange", inputs: [inp("images", "IMAGE", 601), inp("masks", "MASK", null)],
+    widgets: [{ name: "start_index", value: 7 }, { name: "num_frames", value: 4 }] });
+const vhs = mkNode(62, { widgets: [{ name: "videopreview", videoEl: { src: "/x" } }] });
+const gRange = mkGraph({ 600: { origin_id: 61 }, 601: { origin_id: 62 } });
+const rdesc = L.resolveBgSource(segEditor, L.makeGraphApi(gRange));
+check("Range 偏移累加", rdesc?.kind === "videoEl" && rdesc?.offset === 7);
+
+// ── resolveAnnotationFrame：下游 SeC ──
+reset();
+const pe = mkNode(70, { outputs: [{ name: "positive_coords", links: [700] }] });
+const sec = mkNode(71, { type: "SeCVideoSegmentation", inputs: [], widgets: [{ name: "annotation_frame_idx", value: 9 }] });
+const gAnn = mkGraph({ 700: { origin_id: 70, target_id: 71 } });
+check("annotation_frame_idx 读取", L.resolveAnnotationFrame(pe, L.makeGraphApi(gAnn)) === 9);
+reset();
+const pe2 = mkNode(72, { outputs: [{ name: "positive_coords", links: [] }] });
+check("无下游 SeC → 0", L.resolveAnnotationFrame(pe2, L.makeGraphApi(mkGraph({}))) === 0);
+
 // ── links Map 形态 + `*` 回退 ──
 reset();
 const mapEditor = mkNode(50, { inputs: [inp("bg_image", "IMAGE", 500)] });

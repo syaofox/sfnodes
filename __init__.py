@@ -21,7 +21,7 @@ from .nodes.image.crop_expand import SFImageCropExpand
 from .nodes.image.brush_mask import SFImageBrushMask
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
-from .nodes.image.batch import SFImageBatch
+from .nodes.image.batch import SFImageBatch, SFMaskBatch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.batch_range import SFImageBatchRange
 from .nodes.image.invert_track import SFInvertTrackData
@@ -233,6 +233,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageOutpaintStitch": SFImageOutpaintStitch,
     "SFImageBatchIndex": SFImageBatchIndex,
     "SFImageBatch": SFImageBatch,
+    "SFMaskBatch": SFMaskBatch,
     "SFImageBatchRange": SFImageBatchRange,
     "SFInvertTrackData": SFInvertTrackData,
     "SFMaskToTrackData": SFMaskToTrackData,
@@ -446,6 +447,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageOutpaintStitch": "SF Image Outpaint Stitch",
     "SFImageBatchIndex": "SF Image Batch Index",
     "SFImageBatch": "SF Image Batch",
+    "SFMaskBatch": "SF Mask Batch",
     "SFImageBatchRange": "SF Image Batch Range",
     "SFInvertTrackData": "SF Invert Track Data",
     "SFMaskToTrackData": "SF Mask To Track Data",
