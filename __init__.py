@@ -25,6 +25,7 @@ from .nodes.image.batch import SFImageBatch
 from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.batch_range import SFImageBatchRange
 from .nodes.image.invert_track import SFInvertTrackData
+from .nodes.image.mask_to_track_data import SFMaskToTrackData
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
     GetImageSize,
@@ -232,6 +233,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageBatch": SFImageBatch,
     "SFImageBatchRange": SFImageBatchRange,
     "SFInvertTrackData": SFInvertTrackData,
+    "SFMaskToTrackData": SFMaskToTrackData,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -442,6 +444,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageBatch": "SF Image Batch",
     "SFImageBatchRange": "SF Image Batch Range",
     "SFInvertTrackData": "SF Invert Track Data",
+    "SFMaskToTrackData": "SF Mask To Track Data",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",

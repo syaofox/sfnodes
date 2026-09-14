@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -623,3 +623,30 @@
 
 - `tests/test_invert_track.py`：numpy 严格复刻位序的 pack/unpack 桩 + `FakeArr`（支持 `any(dim=)`/`~`/索引/`unsqueeze`）注入 `invert_track_data`；覆盖单对象/多对象并集/子集/空帧全选/非法索引空/packed None 全帧/键保留 + execute 集成（stub `torch` 与 `comfy.ldm.sam3.tracker`）。
 - 用 numpy 而非 mock 位运算，保证位序与核心一致，能抓打包错误。
+
+## 65. SFMaskToTrackData：MASK→SAM3_TRACK_DATA 桥接（第三方追踪器接入 SCAIL2ColoredMask，2026-09）
+
+> 背景：SCAIL-2 工作流原用核心 `SAM3_VideoTrack`（**文本 prompt**）追踪，需求改为 `Comfyui-SecNodes` 的 `SeCVideoSegmentation`（**视觉 prompt**：points/bbox/mask）提取遮罩。两者输出类型不兼容。
+
+### 1. 类型断点与桥接决策
+
+- `SCAIL2ColoredMask.ref_track_data` 声明为 `MultiType[SAM3_TRACK_DATA, MASK]` → **参考路可直接接 SeC 的 `MASK`，零桥接**。
+- `SCAIL2ColoredMask.driving_track_data` **只收 `SAM3_TRACK_DATA`** → 驱动 pose 遮罩路必须把逐帧 MASK 打包成 track_data，否则连不上。故新增 `SFMaskToTrackData`。
+- 不采用"改核心 `nodes_scail.py` 放宽 driving 类型"（跨仓库、运行实例在 docker 镜像内改源码副本无效）；节点级桥接可复用、可测、可版本化。
+
+### 2. 实现（节点 `nodes/image/mask_to_track_data.py`）
+
+- 纯函数 `mask_to_track_data(masks, pack_masks, torch)`：`[H,W]`/`[T,H,W]` → `[T,1,H,W]`；**单对象约束**（对象维必须为 1，多对象抛错）；`W` 非 8 倍数时 `torch.nn.functional.pad` 补零；`pack_masks` 位打包 → `{packed_masks:[T,1,H,W//8], orig_size:(H,W), n_frames:T, scores:[1.0]}`。空帧返回 `packed_masks=None`。
+- **位打包直接复用核心 `comfy.ldm.sam3.tracker.pack_masks`**（lazy import，与 §64 同源），不内联副本；`pad` 后宽度=packed 宽度×8，`_render_colored_masks` 再插值回 `orig_size`，所以非 8 倍数宽度不影响渲染。
+- 与 §64 同构：纯函数签名注入 `pack_masks/torch` 便于离线测试。
+
+### 3. 工作流接线（SeC 替代 SAM3 追踪）
+
+- 驱动：`VHS_LoadVideo.IMAGE → SeCVideoSegmentation.frames` + `PointsEditor.positive_coords → positive_points`；`SeCVideoSegmentation.masks → SFMaskToTrackData → SCAIL2ColoredMask.driving_track_data`。
+- 参考：`ImageScale.IMAGE → SeCVideoSegmentation.frames`；`masks → SCAIL2ColoredMask.ref_track_data`（走 MASK 分支）+ `ImageCompositeMasked.mask` / `MaskToImage.mask`（替代原 `SAM3_TrackToMask`）。
+- 两路共用 1 个 `SeCModelLoader`；SeC 默认 `auto_unload_model=True`，第二次分割会卸载后自动重载（省显存、多一次加载耗时）。
+- 移除字幕去除整条（含其哑节点）后，驱动的 `Any Switch`/`ComfySwitchNode` 成为纯透传，一并删除，`VHS_LoadVideo.IMAGE` 直连 `SeC.frames` 与 `WanSCAILToVideo.pose_video`。
+
+### 4. 测试
+
+- `tests/test_mask_to_track_data.py`：numpy 严格位序 pack 桩 + `FakeArr`（`dim/unsqueeze`）+ `torch.nn.functional.pad` 桩；覆盖 3D/2D、非 8 倍数补零、多对象报错、空帧/None、execute 集成、双字典键一致。
