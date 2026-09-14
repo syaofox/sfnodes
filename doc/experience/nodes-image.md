@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -650,3 +650,62 @@
 ### 4. 测试
 
 - `tests/test_mask_to_track_data.py`：numpy 严格位序 pack 桩 + `FakeArr`（`dim/unsqueeze`）+ `torch.nn.functional.pad` 桩；覆盖 3D/2D、非 8 倍数补零、多对象报错、空帧/None、execute 集成、双字典键一致。
+
+## 66. SFMaskCache：遮罩磁盘缓存 + lazy 跳过上游（2026-09）
+
+> 背景：SeC 视频分割要加载 4B 模型，同样的视频/图片重跑一次很慢。需求是把驱动/参考的提取遮罩按源持久化，下次直接复用。
+
+### 1. 用 lazy 输入做"真跳过"而非只缓存结果
+
+- ComfyUI 的 `comfy_execution/graph.py::add_node` 对标记 `{"lazy": True}` 的输入**不建依赖**（`include_lazy=False`），节点可在 lazy 上游未算时先调度；节点实现 `check_lazy_status` 返回需要求值的输入键，返回 `[]` 即放行且 lazy 输入为 `None`。
+- 因此 `SFMaskCache` 在缓存命中时 `check_lazy_status` 返回 `[]` → SeC 节点整条分支**根本不执行**（省掉模型加载+推理），而不是算了再丢弃。这是比"保存/加载两节点 + 手动 mute"优越之处。仓库已有先例 `nodes/logic.py::AnythingIndexSwitch`（`lazy_options = {"lazy": True}`）。
+- 未命中/`force=True` 返回 `["masks"]`，节点重入时拿到上游遮罩并落盘。
+
+### 2. 缓存键与失效
+
+- 键 = `name` + `signature`（可选，接 `PointsEditor.positive_coords`）+ `source` 首末帧 16×16 下采样哈希（可选，接源视频/参考图 IMAGE）。**任一不匹配即失效**；`force`（非 lazy，`check_lazy_status` 能读到）强制重算。
+- `source_signature` 只哈希首末帧 + 形状，避免整批几十帧哈希开销；非 4D/None 返回 `""`。
+- 语义是"完全相同才命中"：签名/源未接线时按空串参与比较（保存时接了、后来断了也会失配重算），不做"缺失即忽略"的宽松匹配。
+
+### 3. 存储与预览（`nodes/mask/mask_cache.py`）
+
+- 目录 `user/sfnodes/mask_cache/`（`disk_state.sf_user_dir()`），三件同名前缀：`<name>.safetensors`（uint8 `[T,H,W]`，0-255 量化保留软遮罩）+ `<name>.json`（元数据，`atomic_write_json` 原子写）+ `<name>.png`（最多 4 帧横排预览拼图，便于文件管理器查看）。
+- 名称清洗复用 `disk_state.sanitize_filename`；`cache_paths` 非法名返回 None 并抛错。
+- 路由 `GET /api/sfnodes/mask_cache/list`（导入时注册、try/except 包裹），前端 `web/sf_mask_cache.js` 在 `onNodeCreated`/`onAfterGraphConfigured` 重建 `name` 下拉并加「↻ 刷新缓存列表」按钮；下拉末位「＋ 新建缓存…」用 `window.prompt` 输入新名（combo 不能自由输入）；`VALIDATE_INPUTS` 返回 True 接管动态选项校验。
+
+### 4. 接线
+
+- 驱动：`SeC.masks → SFMaskCache.lazy masks → SFMaskToTrackData → SCAIL driving`；参考：`SeC.masks → SFMaskCache → SCAIL ref / 合成 / 转图 / 预览桥接`。`source` 接源图、`signature` 接点选坐标。
+- `execute` 的 `masks is None` 即命中/纯读取路径（从盘读回）；`masks` 非空即保存路径——上游若因其他消费者仍被计算，会用新结果覆盖缓存（符合预期）。
+
+### 5. 测试
+
+- `tests/test_mask_cache.py`：内存 `safetensors/torch` 桩 + tempdir（monkeypatch `mod.cache_dir`）；覆盖结构/注册、clean_name/quantize/source_signature、save→load 往返、cache_hit 三态、list/read_meta、`check_lazy_status` 各分支、execute 读/写/缺失报错。相对导入经 `sys.modules` 注册 `sfnodes` 包占位（test_save_image_exact.py 同款）。
+
+## 67. SFTrackDataCache：SAM3_TRACK_DATA 层缓存 + 缓存逻辑单源抽取（2026-09）
+
+> 背景：§66 的 SFMaskCache 只在 MASK 层缓存，若上游是 SAM3.1 追踪（`SAM3_TRACK_DATA`），走 `SAM3_TrackToMask → 缓存 → SFMaskToTrackData` 会把**多对象并集塌缩成单身份、丢失 scores**。需要 track_data 层缓存。
+
+### 1. 与 §66 同构 + track_data 专属存取
+
+- lazy `track_data`(SAM3_TRACK_DATA) 输入，命中 `check_lazy_status` 返回 `[]` → `SAM3_VideoTrack` 整条不执行；`execute` 的 `track_data is None` 即读盘路径。
+- 落盘保留核心 dict 原貌：`packed_masks`（uint8 `[T,N,H//... W//8]` 位打包**原样存**，不 unpack）+ `scores`（**float64**，避免 float32 往返精度误差）+ json 里的 `n_frames/orig_size/num_objects`；`packed_masks is None`（无对象）时写 `_empty` 占位满足 `save_file`，读回 `packed_masks=None`。
+- 重建 dict 必须含 `{packed_masks, n_frames, scores, orig_size}`（`SAM3_TrackToMask`/`SAM3_TrackPreview`/`SCAIL2ColoredMask`/`SFInvertTrackData` 消费的键全在内）；`packed_masks` 必须是 torch 张量（下游 `.to(device)`）。
+- 预览：`user/sfnodes/track_cache/<name>.png`，lazy import 核心 `unpack_masks` 解码后**按对象上色**（本地小调色板常量，非核心 `COLORS` 的 import 副本），最多 4 帧横排；失败忽略。
+
+### 2. 缓存通用逻辑单源抽取（sf_utils/cache_store.py）
+
+- §66 把"名字清洗/三件路径/源图指纹/元数据读写/命中判定/列表/列表路由"都放在 mask_cache 内；新增 track 缓存会逐字复制 → 抽到 `sf_utils/cache_store.py`，**按显式 `base_dir` 参数化**（`sf_cache_dir(subdir)` 建目录，其余函数收 `base_dir`）。
+- mask_cache 保留同名薄包装（`cache_dir()` 等）委托 cache_store：调用点与 `test_mask_cache.py` 的 `monkeypatch(mod.cache_dir)` 零改动——包装内仍调模块级 `cache_dir()`，注入的 tempdir 生效（若直接调用 cache_store 的绝对路径则会绕过 patch，测试隔离失效）。
+- `register_list_route(route_path, subdir)` 收拢两处同构路由（惰性 import server/aiohttp，无 ComfyUI 静默）。
+
+### 3. 前端 lib 抽取（web/sf_cache_name_lib.js）
+
+- 两节点共享 `name` 下拉重建/「＋ 新建」prompt/「↻ 刷新」按钮逻辑；抽成**无 `app` 依赖**的纯模块，`sf_mask_cache.js`（重构）与新增 `sf_track_cache.js` 各自 `registerExtension` 注入 `{api}`。
+- 纯逻辑 `buildNameOptions(names,current,newLabel)`（保序去重 + 当前值插入队首 + 新建入口）可 `.mjs` 直测（`tests/test_cache_name_lib.mjs`，复刻 `sf_boolean_switch_lib` 的拷 .mjs import 法）；combo 不能自由输入故用「＋ 新建…」魔法项 + `window.prompt`。
+- MODS 增 `sf_cache_name_lib`/`sf_track_cache`（registerExtension 文件必须直接 import `/scripts/app.js`；lib 无 import 依赖）。
+
+### 4. 测试
+
+- `tests/test_track_data_cache.py`：内存 safetensors/torch 桩 + tempdir（monkeypatch `mod.cache_dir`）；覆盖结构/注册、多对象 packed+scores 往返、packed=None、cache_hit 三态、check_lazy 各分支、execute 读/写/缺失/非法名；相对导入经 `sys.modules` 注册 `sfnodes` 包占位。
+- `tests/test_mask_cache.py` 回归通过（验证抽取不破坏既有行为）。

@@ -26,6 +26,7 @@ from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.batch_range import SFImageBatchRange
 from .nodes.image.invert_track import SFInvertTrackData
 from .nodes.image.mask_to_track_data import SFMaskToTrackData
+from .nodes.image.track_data_cache import SFTrackDataCache
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
     GetImageSize,
@@ -62,6 +63,7 @@ from .nodes.mask.masks import (
     MaskFillPercentArea,
 )
 from .nodes.mask.conditional_invert import ConditionalInvertMask
+from .nodes.mask.mask_cache import SFMaskCache
 from .nodes.image.processing import (
     ColorAdjustment,
     ColorTint,
@@ -234,6 +236,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageBatchRange": SFImageBatchRange,
     "SFInvertTrackData": SFInvertTrackData,
     "SFMaskToTrackData": SFMaskToTrackData,
+    "SFTrackDataCache": SFTrackDataCache,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -314,6 +317,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageCompare": ImageCompare,
     "SFPauseImage": SFPauseImage,
     "SFPauseMask": SFPauseMask,
+    "SFMaskCache": SFMaskCache,
     "SFPauseLatent": SFPauseLatent,
     "SFImageSceneSplit": SFImageSceneSplit,
     "SFSaveVideoSwitchable": SFSaveVideoSwitchable,
@@ -445,6 +449,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageBatchRange": "SF Image Batch Range",
     "SFInvertTrackData": "SF Invert Track Data",
     "SFMaskToTrackData": "SF Mask To Track Data",
+    "SFTrackDataCache": "SF Track Data Cache",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
@@ -525,6 +530,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageCompare": "SF Image Compare",
     "SFPauseImage": "SF Pause Image",
     "SFPauseMask": "SF Pause Mask",
+    "SFMaskCache": "SF Mask Cache",
     "SFPauseLatent": "SF Pause Latent",
     "SFImageSceneSplit": "SF Image Scene Split",
     "SFSaveVideoSwitchable": "SF Save Video (Switchable)",
