@@ -709,3 +709,30 @@
 
 - `tests/test_track_data_cache.py`：内存 safetensors/torch 桩 + tempdir（monkeypatch `mod.cache_dir`）；覆盖结构/注册、多对象 packed+scores 往返、packed=None、cache_hit 三态、check_lazy 各分支、execute 读/写/缺失/非法名；相对导入经 `sys.modules` 注册 `sfnodes` 包占位。
 - `tests/test_mask_cache.py` 回归通过（验证抽取不破坏既有行为）。
+
+## 69. 画布节点拖拽释放兜底 + 按键守卫：SFImageCropExpand/SFImageBrushMask 截选框/笔触粘鼠标（2026-09）
+
+> 背景：SFImageCropExpand 用户反馈"裁剪超出图片大小后，选取框会随鼠标移动而改变，而不是按住拖动才改"。SFImageBrushMask 是同一复刻范式的内联副本，同病。
+
+### 1. 根因（前端包源码实锤，非猜测）
+
+前端 1.x `LGraphCanvas.processMouseUp` 三处导致节点自持拖拽状态收不到释放：
+- 纯点击（未超拖拽阈值）走 `pointer.up(e)` 提前 `return`，**不调 `node.onMouseUp`**；
+- 非 click 路径只对 `this.node_over?.onMouseUp?.(...)` 回调——**松开时鼠标不在节点上**（出界拖拽的典型：拉框扩图把手柄拉出节点外再松开）不回调；
+- 结尾**无条件 `e.stopPropagation(); e.preventDefault();`**——本包 bubble 阶段的 `document.addEventListener("mouseup")` 兜底**永不触发**。
+
+三者叠加 → `node._sfExpandDrag`（/`_sfBrushDrawing`）残留；`onMouseMove` 只要状态为真就继续 `updateCropByDrag`（/续笔），鼠标再移回节点上方即"无人按键也跟着动"。这正是上游 YCNodes 原版 README 记录的"双击停止"怪癖（本包继承了 `onDblClick=finalize`）。`e.buttons` 在 `onMouseMove` 里毫无校验是直接漏洞。
+
+### 2. 修复（两道防线，公共实现进 sf_common）
+
+- `web/sf_common.js` 新增 `primaryButtonReleased(e)`：原生 `e.buttons` 主键（bit0）已松返回 true，缺 `buttons` 返回 false（兼容旧调用/测试桩，保持"不主动结束"旧行为）。
+- 新增 `installNodeReleaseGuard(node, onRelease, {hook})` / `removeNodeReleaseGuard(node, {hook})`：`window.addEventListener(["mouseup","pointerup","pointercancel","blur"], h, true)`，幂等、ref 存 `node[hook]`，`onRemoved` 解绑。**capture 阶段先于目标 `stopPropagation` 执行，释放必达**（家规同 `sf_dropdown_settings.js` / `sf_lora_stack_settings.js` / canvas `CanvasPointer.move` 的 `if(!e.buttons) reset()`）。
+- 两节点：`onMouseMove` 开头 `if (状态 && primaryButtonReleased(e)) { finalize; return true; }`（兜底彻底丢失的释放：窗口外/第二显示器，下次移回节点即落定）；bubble `document` 兜底 → `installNodeReleaseGuard`；`onMouseDown` 加 `e.button !== 0` 早退（右键/中键不起拖；BrushMask 原已有）。
+- `onDblClick` 保留（原版习惯、无害）。
+
+### 3. 测试与复用
+
+- `tests/test_common_release_guard.js`：剥 `sf_common` import 直跑（同 `test_common_paste_js.js`）——`primaryButtonReleased` 语义、四事件 capture 注册、幂等安装、`remove` 解绑清 hook、回调抛错吞掉。
+- `tests/test_crop_expand_smoke.js`：桩 app/CropAPI/sf_popup/image_browser，sf_common 用真实剥 import 版，纯库拷真实——断言左键命中手柄起拖、按住改框、`buttons:0` 清状态且不再改框、落定后移动不改、右键不起拖、`onMouseUp` 与 window capture 释放、`onRemoved` 解绑。
+- `tests/test_brush_mask_smoke.js` 的 `stub_common` 同步补三导出（桩模块必须与真实导出面一致，否则 ESM 命名导入直接 SyntaxError——本轮踩到）。
+- 不新增公共纯库函数（判定逻辑放 sf_common，DOM 事件面本就不属纯库）。

@@ -71,7 +71,7 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
-    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p;\n`);
+    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {};\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     `export function showImageBrowser() {}\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),

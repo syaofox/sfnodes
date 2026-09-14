@@ -617,3 +617,49 @@ function findActiveNode(comfyClass, hook) {
   }
   return null;
 }
+
+// ── 画布节点拖拽释放兜底 + 按键守卫（通用）────────────────────────────
+//
+// 前端 LGraphCanvas.processMouseUp 有三处导致"释放丢失"：
+//   ① 纯点击（未超拖拽阈值）走 pointer.up() 提前 return，不调 node.onMouseUp；
+//   ② 仅在 node_over 上调 node.onMouseUp——松开时鼠标不在节点上（出界拖拽）
+//      不回调；
+//   ③ 结尾无条件 e.stopPropagation()——bubble 阶段的 document 监听收不到。
+// 后果：节点自持的拖拽状态（如 _sfExpandDrag/_sfBrushDrawing）残留，之后
+// 鼠标一移回节点就被当拖拽继续改值（"框/笔触粘鼠标"）。
+//
+// 两道防线（家规，同 sf_dropdown_settings.js / sf_lora_stack_settings.js）：
+//   1. installNodeReleaseGuard：window capture 监听在目标 stopPropagation
+//      之前执行，释放必达；
+//   2. primaryButtonReleased：onMouseMove 里用原生 e.buttons 兜底，释放彻底
+//      没收到（窗口外/第二显示器）时，下一次移回节点也会结束拖拽。
+
+// 原生指针事件是否显示主键（左键）已松开。缺失 buttons 返回 false（兼容
+// 旧调用/测试桩，保持"不主动结束"的旧行为）。
+export function primaryButtonReleased(e) {
+  return !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0);
+}
+
+// 为节点安装释放兜底：四事件任一到达即调 onRelease（幂等调用方自行保证）。
+// hook 为节点上的存储键，可多实例/多类共存。重复安装同一 hook 幂等。
+export function installNodeReleaseGuard(node, onRelease, { hook = "_sfReleaseGuard" } = {}) {
+  if (node[hook]) return;
+  const handler = () => {
+    try {
+      onRelease();
+    } catch (e) {
+      console.error("[sf_common] release guard failed:", e);
+    }
+  };
+  const events = ["mouseup", "pointerup", "pointercancel", "blur"];
+  for (const t of events) window.addEventListener(t, handler, true);
+  node[hook] = { handler, events };
+}
+
+// 卸载并清空 hook（节点 onRemoved 调用，防监听泄漏）。
+export function removeNodeReleaseGuard(node, { hook = "_sfReleaseGuard" } = {}) {
+  const g = node[hook];
+  if (!g) return;
+  for (const t of g.events) window.removeEventListener(t, g.handler, true);
+  node[hook] = null;
+}

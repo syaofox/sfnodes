@@ -17,7 +17,7 @@
 
 import { app } from "/scripts/app.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, sfApiUrl, buildSourceURL, getSfAccent, sfThemeColors, parseAnnotatedImageValue, installPasteHandler } from "./sf_common.js";
+import { sfToast, sfApiUrl, buildSourceURL, getSfAccent, sfThemeColors, parseAnnotatedImageValue, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard } from "./sf_common.js";
 import { attachPopupDismiss } from "./sf_popup.js";
 import { showImageBrowser } from "./image_browser.js";
 import {
@@ -778,6 +778,8 @@ function finalizeDrag(node, canvas) {
 
 function setupInteractions(node) {
   node.onMouseDown = (e, localPos) => {
+    // 仅左键起拖（右键/中键交给原位/菜单；buttons 缺失的旧调用放行）
+    if (e && e.button !== 0 && e.button !== undefined) return false;
     for (const b of node._sfExpandButtons) {
       const [bx, by, bw, bh] = buttonRect(b, node);
       if (localPos[0] >= bx && localPos[0] <= bx + bw &&
@@ -809,6 +811,11 @@ function setupInteractions(node) {
   };
 
   node.onMouseMove = (e, localPos, graphCanvas) => {
+    // 释放丢失兜底：主键已松但拖拽状态残留 → 立即落定，绝不再改框
+    if (node._sfExpandDrag && primaryButtonReleased(e)) {
+      finalizeDrag(node, graphCanvas?.canvas);
+      return true;
+    }
     const st = getState(node);
     const dragging = !!node._sfExpandDrag;
     const m = computeDisplayMetrics(
@@ -844,15 +851,14 @@ function setupInteractions(node) {
 
   node.onDblClick = () => finalizeDrag(node, null);
 
-  // 全局释放兜底：鼠标移出节点区域松开也能落定
-  if (!node._sfExpandGlobalUp) {
-    node._sfExpandGlobalUp = () => {
-      if (finalizeDrag(node, null)) {
-        if (app.graph) app.graph.setDirtyCanvas(true, true);
-      }
-    };
-    document.addEventListener("mouseup", node._sfExpandGlobalUp);
-  }
+  // 释放兜底（window capture，复用 sf_common）：画布 processMouseUp 会
+  // stopPropagation 且仅对 node_over 回调 → 出界/纯点击释放收不到，bubble
+  // 的 document 监听无效（见 sf_common.installNodeReleaseGuard 注释）
+  installNodeReleaseGuard(node, () => {
+    if (finalizeDrag(node, null)) {
+      if (app.graph) app.graph.setDirtyCanvas(true, true);
+    }
+  }, { hook: "_sfExpandReleaseGuard" });
 
   // 拖放图片文件到节点显示区加载
   node.onDragOver = (e) => {
@@ -1058,10 +1064,7 @@ app.registerExtension({
     const onRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
       if (onRemoved) onRemoved.apply(this, []);
-      if (this._sfExpandGlobalUp) {
-        document.removeEventListener("mouseup", this._sfExpandGlobalUp);
-        this._sfExpandGlobalUp = null;
-      }
+      removeNodeReleaseGuard(this, { hook: "_sfExpandReleaseGuard" });
     };
   },
 });

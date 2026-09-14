@@ -29,7 +29,7 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent, installPasteHandler, sfApiUrl } from "./sf_common.js";
+import { sfToast, buildSourceURL, getSfAccent, installPasteHandler, sfApiUrl, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard } from "./sf_common.js";
 import { showImageBrowser } from "./image_browser.js";
 import { parseAnnotatedImageValue } from "./sf_common.js";
 import { getSelectedNodes } from "./sf_canvas_align_lib.js";
@@ -799,6 +799,11 @@ function setupInteractions(node) {
     node._sfBrushCursor =
       lx >= mm.offsetX && lx <= mm.offsetX + mm.scaledW &&
       ly >= mm.offsetY && ly <= mm.offsetY + mm.scaledH ? [lx, ly] : null;
+    // 释放丢失兜底：主键已松但落笔状态残留 → 立即落定，绝不再续笔
+    if (node._sfBrushDrawing && primaryButtonReleased(e)) {
+      finalizeStroke(node, null);
+      return true;
+    }
     if (!node._sfBrushDrawing) return false;
     const st = getState(node);
     const m = metricsOf(node);
@@ -818,15 +823,14 @@ function setupInteractions(node) {
 
   node.onDblClick = () => finalizeStroke(node, null);
 
-  // 全局释放兜底：鼠标移出节点区域松开也能落定
-  if (!node._sfBrushGlobalUp) {
-    node._sfBrushGlobalUp = () => {
-      if (finalizeStroke(node, null)) {
-        if (app.graph) app.graph.setDirtyCanvas(true, true);
-      }
-    };
-    document.addEventListener("mouseup", node._sfBrushGlobalUp);
-  }
+  // 释放兜底（window capture，复用 sf_common）：画布 processMouseUp 会
+  // stopPropagation 且仅对 node_over 回调 → 出界/纯点击释放收不到，bubble
+  // 的 document 监听无效（见 sf_common.installNodeReleaseGuard 注释）
+  installNodeReleaseGuard(node, () => {
+    if (finalizeStroke(node, null)) {
+      if (app.graph) app.graph.setDirtyCanvas(true, true);
+    }
+  }, { hook: "_sfBrushReleaseGuard" });
 
   // 拖放图片文件到节点显示区加载
   node.onDragOver = (e) => {
@@ -1098,10 +1102,7 @@ app.registerExtension({
     const onRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
       if (onRemoved) onRemoved.apply(this, []);
-      if (this._sfBrushGlobalUp) {
-        document.removeEventListener("mouseup", this._sfBrushGlobalUp);
-        this._sfBrushGlobalUp = null;
-      }
+      removeNodeReleaseGuard(this, { hook: "_sfBrushReleaseGuard" });
     };
 
     // 官方快捷键通道：画布 processKey 把 keydown 分发给选中节点的 onKeyDown。
