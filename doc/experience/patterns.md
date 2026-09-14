@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -417,3 +417,29 @@
 ### 5. 编辑工具卫生（本次连踩两次）
 
 - 用 edit 删除整函数时，`oldString` 不要把被保留的 def 行也包进去——一次误配会整段删掉邻居函数体。删后立即 `py_compile` + `git diff --stat` 确认零误删（本批一次误删 `decode_image`、一次误删 `sf_user_dir`，均当场恢复）。
+
+## 68. PointsEditor 底图刷新：跨包解析上游 + 复用 KJNodes 编辑器（2026-09）
+
+> 背景：KJNodes `PointsEditor` 的 `bg_image` 只由 `editor_base.setupNode` 的 `watchImageInputs` → `resolveSourcePreview` 解析，且只在 `onConnectionsChange` / 上游 `image|video` widget 回调 / 执行后 `onExecuted` 时触发。后果：① 工作流重载恢复连线不走 `onConnectionsChange`（见 §4/§15 同类坑）→ 不跑一次就没底图；② 透传/变换链（`ImageScale`/`SFImageBatch`/`Any Switch`/`SFImageCropExpand`）没有 `image|video` widget，`resolveSourcePreview` 直接返回 null → 永远解析不到。
+
+### 1. 方案：前端扩展加「↻ 刷新底图」，零执行
+
+- 不新增/复刻节点；`web/sf_points_bg.js` 在 `beforeRegisterNodeDef` 里对 `PointsEditor` 链 `onNodeCreated`（装按钮）与 `onAfterGraphConfigured`（静默尝试一次）。
+- 抓到图后调 KJNodes 的 `node.editor.processImage(img, {resize})`：它内部会 `properties.imgData`（按 KJNodes 设置 embed 或上传 temp），**点一次后随工作流持久化、重载自动恢复**，无需自建持久化。特性检测 `node.editor?.processImage` 缺失即降级告警。
+- 抓帧复用：VHS `videopreview.videoEl` 直接 `drawImage`；`widget=video` 时新建离屏 `<video>` 等 `loadeddata` 抓首帧。**不要设 `crossOrigin`**（`/view` 同源；匿名模式反而在无 CORS 头时加载失败且 `toBlob` 会因污染画布抛错）。
+
+### 2. 上游解析抽纯 lib（可单测）
+
+- `web/sf_points_bg_lib.js`（无 `app` 依赖）：沿 `bg_image` 链逐跳，`describeSource` 优先级 **已执行预览 `node.imgs`（尺寸最准）→ `videopreview.videoEl` → `image|video` widget → `SFImageCropExpand` 的 `properties.sfCropExpandState.src_path`**，否则走「首个 IMAGE 槽（`*` 槽回退，覆盖 Any Switch / Convert）」继续向上；`visited` 防环、`MAX_DEPTH` 兜底。
+- 返回**描述符**而非 URL（`preview/videoEl/widget/file`），URL 构造交给扩展用 `sf_common.buildSourceURL`/`parseAnnotatedImageValue`——纯 lib 不 import sf_common（§26 边界）。
+- `makeGraphApi(graph)` 适配 `graph.links` 为 Map 或对象表两种形态（Vue 版差异，§2.4 同类）。
+- 坐标空间：`preview`/`videoEl`/`image widget` 用 `resize:true`（驱动路 VHS 首帧尺寸 = SeC frames，天然一致）；`file`（裁剪源，尺寸可能≠目标）用 `resize:false` 保留当前 `width/height` 坐标空间并 toast 提示——完全无法在未执行时可靠还原 `ImageScale` 目标尺寸时的务实折中。
+
+### 3. 与 KJNodes 的耦合边界
+
+- 只依赖两个事实：`editorKey: 'pointsEditor'` 对应的 DOM widget 与编辑器实例挂在 `node.editor`（`setupNode`/`onConfigure` 里 `node.editor = new editorClass(this)`）；`processImage` 存在。均做特性检测，KJNodes 升级失效时只丢刷新功能。
+- **按钮不能 `node.addWidget("button", ...)`**：KJNodes 的「Reset canvas / Align to image」是名为 `editor_buttons` 的 **DOM widget 行**，画布按钮会与之重叠（视觉压在那行上）。改为找到 `node.widgets.find(w => w.name === "editor_buttons")` 的 `w.element`（DOM 容器）把按钮 append 进同一行并套用同样式 `flex:1;height:24px;font:12px sans-serif`；该行在 KJNodes `onNodeCreated` 内创建、扩展注册顺序不定，故用短暂重试（~12×60ms）。**去重不能只看 `button.isConnected`**：configure 期间该 DOM 行会瞬时脱离又被复用，旧引用被误判为"已移除"→ 重复追加。正确做法是给按钮打 `data-sf-*` 标记、每次 `row.querySelectorAll(标记)` 判定，并顺手移除多余残留（自愈）。
+
+### 4. 测试
+
+- `tests/test_points_bg_lib.mjs`：拷 `.mjs` 直测（§53 同款）；fake graph（对象表 + Map 两形态）覆盖 `describeSource` 四类优先级、`parseCropExpandState` 对象/坏 JSON/缺失、链式解析、循环保护、未接线、`*` 回退。

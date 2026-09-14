@@ -87,6 +87,8 @@ MODS = [
     "load_images_path", "sf_prompt_reader", "sf_prompt_list", "sf_mask_fill",
     # 磁盘缓存家族（lazy 跳过上游 + 缓存名下拉/新建；共用 sf_cache_name_lib）
     "sf_cache_name_lib", "sf_mask_cache", "sf_track_cache",
+    # PointsEditor 底图刷新（上游解析纯逻辑 + 扩展）
+    "sf_points_bg_lib", "sf_points_bg",
     # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）
     "sf_convert_anything",
     # Any Pack / Unpack 动态槽位（导出 setSlotType 供跨模块复用）
