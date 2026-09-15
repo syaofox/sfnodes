@@ -224,10 +224,12 @@ def encode_qwen_edit(clip, vae, prompt, entries, ref_upscale="lanczos",
 
     full_prompt = image_prompt + prompt
 
-    if vl_images:
+    # 与 EditUtils 一致：llama_template 非空时始终传入（即使无图片的纯文本编码），
+    # 否则不传（走 tokenizer 默认模板）。
+    if llama_template:
         tokens = clip.tokenize(full_prompt, images=vl_images, llama_template=llama_template)
     else:
-        tokens = clip.tokenize(full_prompt, images=[])
+        tokens = clip.tokenize(full_prompt, images=vl_images)
 
     conditioning = clip.encode_from_tokens_scheduled(tokens)
 

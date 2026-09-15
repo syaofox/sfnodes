@@ -653,3 +653,12 @@
 - `tests/test_krea2_edit.py`：`get_system_prompt` 前缀/后缀/`{}` 清洗/默认；`crop_with_pad_info` 形状与数值；`make_ref_positions` 的 frame index / `scale_to_grid` 中心对齐 / rope 像素→token；节点壳 schema、非 Krea2 直通、preparer 追加与 mask 尺寸校验、编码 6 路输出与非法 `model_config` 抛错。mock：FakeTensor(numpy) + fake torch/einops/comfy.ldm.common_dit/comfy.utils/node_helpers。
 - `tests/test_qwen_edit.py` 增补：`scale_reference(area)`、`to_ref/to_vl` 标志、rope offsets 写入/零值不写。
 - **保留 EditUtils 不删**，先跑工作流 A/B 对比出图确认一致再移除。
+
+### 6. 等价性差分验证（抽取原函数对跑，2026-09）
+
+复刻"无区别"不能只靠肉眼。有效手段：**用 ast 从 EditUtils `nodes.py` 抽出原函数源码，在 mock 环境 exec 后与复刻实现同输入差分**（一次性脚本，不入库，避免测试依赖外部路径）。
+
+- 补丁类函数（forward/KV/ref 指纹/补丁安装/guard）用 `ast.get_source_segment` 提取后**逐行文本比对**，差异应仅剩注释/docstring；本轮全部命中，零逻辑差异。
+- 编码路径把 `EditTextEncode_EditUtils.encode` 原函数抽出来，与 `encode_qwen_edit` 在同一 FakeTensor + 确定性 `common_upscale`/`FakeVae`/`FakeClip` 下比对 8 个用例（工作流配置单图 pad / 双图 center+area / to_ref-to_vl 标志 / 主图 mask / vl_resize=False+disabled+bicubic / ref_crop=disabled / 纯文本 / 非零 rope），逐项比 `common_upscale` 目标尺寸、`tokenize` 入参、ref/vae/vl 形状、latent 形状与数值和、pad_info。**注意 exec 时原方法首参 `self` 需占位**（否则参数整体错位）。
+- **发现真实差异 1 处**：`encode_qwen_edit` 原在 `vl_images` 为空（纯文本）时走 `clip.tokenize(prompt, images=[])` **丢弃了非空 `llama_template`**，而 EditUtils 无条件传模板 → Krea2 纯文本条件不同。修复为 `if llama_template: 传模板 else: 不传`（`images=vl_images` 恒传）。同步补测试锁定两种分支。
+- `INPUT_TYPES` 用 ast 抽 `INPUT_TYPES` 方法 + 注入 `s`(类属性)/`any_type`/`_*_CROPS` 常量后调用比对：**默认值/min/max/step/选项/输入顺序全一致**，仅 tooltip 中文化 + `pad_info` 输入类型 `ANY`→`AnyType("*")`（通配等价，无行为影响）。输入顺序一致是 `widgets_values` 按位恢复的前提。

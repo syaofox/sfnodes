@@ -111,6 +111,7 @@ from sf_utils.qwen_edit import (  # noqa: E402
     mask_matches,
     encode_qwen_edit,
     TEXT_ONLY_LATENT_SHAPE,
+    DEFAULT_LLAMA_TEMPLATE,
 )
 
 
@@ -207,6 +208,11 @@ check("纯文本无 noise_mask", nm2 is None and latent2.get("noise_mask") is No
 check("纯文本 main_image None", main2 is None)
 check("纯文本 full_prompt", custom2["full_prompt"] == "hello")
 check("纯文本 vl_images 空", custom2["vl_images"] == [])
+check("纯文本仍透传非空 llama_template（对齐 EditUtils）",
+      clip2.calls[0]["llama_template"] == DEFAULT_LLAMA_TEMPLATE)
+clip_txt = FakeClip()
+encode_qwen_edit(clip_txt, FakeVae(), "hello", [], llama_template="")
+check("空 llama_template 不传（走 tokenizer 默认）", clip_txt.calls[0]["llama_template"] is None)
 
 # ── 3.5 ref_resize_mode / to_ref / to_vl / rope offsets ──────────────────────
 
