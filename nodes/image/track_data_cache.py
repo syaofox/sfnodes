@@ -41,6 +41,15 @@ def clean_name(raw) -> str:
     return cache_store.clean_name(raw)
 
 
+def _resolve_name(name, name_text=""):
+    """缓存名解析单源：name_text 非空（列表取首个非空项）优先，否则回退下拉 name。"""
+    candidates = name_text if isinstance(name_text, (list, tuple)) else (name_text,)
+    for cand in candidates:
+        if isinstance(cand, str) and cand.strip():
+            return cand
+    return name if isinstance(name, str) else ""
+
+
 def cache_paths(name):
     return cache_store.cache_paths(cache_dir(), name)
 
@@ -190,6 +199,11 @@ class SFTrackDataCache:
                     "IMAGE",
                     {"tooltip": "可选源图/视频帧；首末帧哈希入缓存键，换源即失效"},
                 ),
+                "name_text": (
+                    "STRING",
+                    {"forceInput": True, "default": "",
+                     "tooltip": "可选文本来源（如文件名/镜头名）：非空时覆盖上方下拉作为缓存名，空则用下拉。连接后下拉置灰"},
+                ),
             },
         }
 
@@ -199,27 +213,28 @@ class SFTrackDataCache:
     CATEGORY = _CATEGORY
     DESCRIPTION = ("在 SAM3_TRACK_DATA 层持久化追踪结果到 user/sfnodes/track_cache/：命中缓存时通过 lazy 输入"
                    "跳过 SAM3_VideoTrack 直接读盘，完整保留多对象身份与 scores（区别于 MASK 层缓存的并集塌缩）。"
-                   "可选用 source 源图哈希与 signature 做缓存失效键，另存按对象上色的 PNG 预览拼图。")
+                   "可选用 source 源图哈希与 signature 做缓存失效键，另存按对象上色的 PNG 预览拼图。"
+                   "缓存名可由可选 name_text 文本输入覆盖（非空优先，接文件名/SFParsePath 等）。")
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
         # name 选项由前端从磁盘动态重建，超出 INPUT_TYPES 静态初始列表，跳过 "not in list" 校验
         return True
 
-    def check_lazy_status(self, name, force=False, signature="", source=None, **kwargs):
+    def check_lazy_status(self, name, force=False, signature="", source=None, name_text="", **kwargs):
         # track_data 未接线（纯读取场景）：无需拉取
         if "track_data" not in kwargs:
             return []
         if force:
             return ["track_data"]
-        if cache_hit(name, str(signature or ""), source_signature(source)):
+        if cache_hit(_resolve_name(name, name_text), str(signature or ""), source_signature(source)):
             return []
         return ["track_data"]
 
-    def execute(self, name, force=False, signature="", source=None, track_data=None):
-        nm = clean_name(name)
+    def execute(self, name, force=False, signature="", source=None, track_data=None, name_text=""):
+        nm = clean_name(_resolve_name(name, name_text))
         if not nm:
-            raise ValueError("SF Track Data Cache: 请填写合法的缓存名（不能为空或含路径分隔符）")
+            raise ValueError("SF Track Data Cache: 请填写合法的缓存名（name_text 或下拉不能为空/非法）")
         sig = str(signature or "")
         src = source_signature(source)
         if track_data is None:

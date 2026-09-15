@@ -1,8 +1,8 @@
 # SFMaskCache 后端逻辑测试（Node/Python 直接运行：python tests/test_mask_cache.py）
 # 覆盖：
 #   - 结构：CATEGORY/RETURN_TYPES/NAMES/FUNCTION/DESCRIPTION、INPUT_TYPES
-#     （name combo / force / lazy masks / signature forceInput / source IMAGE）、
-#     VALIDATE_INPUTS=True、根 __init__.py 注册键一致
+#     （name combo / force / lazy masks / signature forceInput / source IMAGE /
+#     name_text 文本覆盖 forceInput）、VALIDATE_INPUTS=True、根 __init__.py 注册键一致
 #   - 纯函数（tempdir + 内存 safetensors/torch 桩）：
 #     clean_name / cache_paths / quantize_masks / source_signature /
 #     save→load 往返 / cache_hit 签名与源键 / list_cache_names / read_meta
@@ -100,6 +100,10 @@ check("masks optional MASK", schema["optional"]["masks"][0] == "MASK")
 check("masks lazy", schema["optional"]["masks"][1].get("lazy") is True)
 check("signature forceInput", schema["optional"]["signature"][1].get("forceInput") is True)
 check("source optional IMAGE", schema["optional"]["source"][0] == "IMAGE")
+check("name_text optional STRING forceInput",
+      schema["optional"]["name_text"][0] == "STRING"
+      and schema["optional"]["name_text"][1].get("forceInput") is True
+      and schema["optional"]["name_text"][1].get("default") == "")
 
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as f:
     init_src = f.read()
@@ -174,6 +178,28 @@ check("check_lazy 签名不符→masks",
       node.check_lazy_status("hitone", False, "other", None, **{"masks": None}) == ["masks"])
 check("check_lazy force→masks",
       node.check_lazy_status("hitone", True, "sig1", None, **{"masks": None}) == ["masks"])
+
+# name_text 文本覆盖：非空优先（下拉仅作回退）
+check("_resolve_name 文本优先", mod._resolve_name("combo", "text") == "text")
+check("_resolve_name 空白回退", mod._resolve_name("combo", "   ") == "combo")
+check("_resolve_name 列表取首个非空", mod._resolve_name("combo", ["", "only"]) == "only")
+check("_resolve_name 非字符串回退", mod._resolve_name("combo", 123) == "combo")
+mod.save_mask_cache("textname", m3, signature="sig1", source_sig="")
+check("check_lazy name_text 命中→[]",
+      node.check_lazy_status("combo", False, "sig1", None, name_text="textname",
+                             **{"masks": None}) == [])
+check("check_lazy name_text 未命中→masks",
+      node.check_lazy_status("combo", False, "sig1", None, name_text="missing",
+                             **{"masks": None}) == ["masks"])
+res_text = node.execute("combo", False, "", None, m3, "textwrite")
+check("execute name_text 覆盖写入", "textwrite" in mod.list_cache_names() and res_text[0].shape == (3, 4, 5))
+res_read = node.execute("combo", False, "", None, None, "textwrite")
+check("execute name_text 覆盖读取", res_read[0].shape == (3, 4, 5))
+try:
+    node.execute("", False, "", None, m3, "   ")
+    check("execute 文本空白且下拉为空报错", False)
+except ValueError:
+    check("execute 文本空白且下拉为空报错", True)
 
 # execute 保存路径
 res = node.execute("newone", False, "", None, m3)

@@ -1,8 +1,8 @@
 # SFTrackDataCache 后端逻辑测试（Node/Python 直接运行：python tests/test_track_data_cache.py）
 # 覆盖：
 #   - 结构/注册：CATEGORY/RETURN_TYPES/NAMES/FUNCTION/DESCRIPTION、INPUT_TYPES
-#     （name combo / force / lazy track_data / signature forceInput / source IMAGE）、
-#     VALIDATE_INPUTS=True、根 __init__.py 双字典键一致
+#     （name combo / force / lazy track_data / signature forceInput / source IMAGE /
+#     name_text 文本覆盖 forceInput）、VALIDATE_INPUTS=True、根 __init__.py 双字典键一致
 #   - 纯函数（tempdir + 内存 safetensors/torch 桩）：clean_name / cache_paths /
 #     cache_hit / list / save→load 往返（多对象 packed + scores + n_frames +
 #     orig_size 保留）/ packed=None 分支 / 非法输入报错
@@ -101,6 +101,10 @@ check("track_data optional", schema["optional"]["track_data"][0] == "SAM3_TRACK_
 check("track_data lazy", schema["optional"]["track_data"][1].get("lazy") is True)
 check("signature forceInput", schema["optional"]["signature"][1].get("forceInput") is True)
 check("source optional IMAGE", schema["optional"]["source"][0] == "IMAGE")
+check("name_text optional STRING forceInput",
+      schema["optional"]["name_text"][0] == "STRING"
+      and schema["optional"]["name_text"][1].get("forceInput") is True
+      and schema["optional"]["name_text"][1].get("default") == "")
 
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as f:
     init_src = f.read()
@@ -169,6 +173,29 @@ check("check_lazy 签名不符→track_data",
       node.check_lazy_status("hitname", False, "other", None, **{"track_data": None}) == ["track_data"])
 check("check_lazy force→track_data",
       node.check_lazy_status("hitname", True, "person", None, **{"track_data": None}) == ["track_data"])
+
+# name_text 文本覆盖：非空优先（下拉仅作回退）
+check("_resolve_name 文本优先", mod._resolve_name("combo", "text") == "text")
+check("_resolve_name 空白回退", mod._resolve_name("combo", "   ") == "combo")
+check("_resolve_name 列表取首个非空", mod._resolve_name("combo", ["", "first", "second"]) == "first")
+check("_resolve_name 非字符串回退", mod._resolve_name("combo", 123) == "combo")
+check("_resolve_name 全空", mod._resolve_name("", "") == "")
+mod.save_track_cache("textname", td, signature="person", source_sig="")
+check("check_lazy name_text 命中→[]",
+      node.check_lazy_status("combo", False, "person", None, name_text="textname",
+                             **{"track_data": None}) == [])
+check("check_lazy name_text 未命中→track_data",
+      node.check_lazy_status("combo", False, "person", None, name_text="missing",
+                             **{"track_data": None}) == ["track_data"])
+res_text = node.execute("combo", False, "", None, td, "textwrite")
+check("execute name_text 覆盖写入", "textwrite" in mod.list_cache_names() and res_text[0] is td)
+res_read = node.execute("combo", False, "", None, None, "textwrite")
+check("execute name_text 覆盖读取", res_read[0]["packed_masks"].shape == (2, 2, 1, 4))
+try:
+    node.execute("", False, "", None, td, "   ")
+    check("execute 文本空白且下拉为空报错", False)
+except ValueError:
+    check("execute 文本空白且下拉为空报错", True)
 
 res = node.execute("brandnew", False, "", None, td)
 check("execute 保存返回 dict", isinstance(res, tuple) and res[0]["packed_masks"].shape == (2, 2, 1, 4))

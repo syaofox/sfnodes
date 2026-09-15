@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -829,3 +829,26 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 ### 5. 测试
 
 - `tests/test_image_region.py`：strength=0 原样、blur/mean/fill 区域内外行为、羽化过渡、批量与 mask 广播、mask 尺寸不符抛错、3D 输入 3D 输出；节点 CATEGORY/RETURN_NAMES/INPUT_TYPES 与 execute（尺寸一致路径 + 尺寸不符走缩放分支）。mock：fake torch（模糊走 PIL）。
+
+## 80. 缓存节点名接入文本：name_text 覆盖输入 + 下拉置灰（2026-09）
+
+> 需求：SF Track Data Cache / SF Mask Cache 的缓存名 `name` 是磁盘列表重建的 combo（「＋ 新建…」走 window.prompt），希望把缓存名接到文本来源（文件名 / SFParsePath / 工作流名等），不再手选。
+
+### 1. 方案：可选 STRING 覆盖输入，而非改造 combo
+
+- `name` 是 required combo（数组型输入）：新前端虽让 widget 与 socket 共存，但数组型 widget 槽的 socket 类型是 `COMBO`，STRING 直连不可靠，且本节点前端会动态重建 options——不要把赌注押在"连到下拉"。
+- 正确做法：可选 `name_text`（`"STRING"` + `forceInput: True` + `default: ""`），后端解析单源 `_resolve_name(name, name_text)`：**文本 strip 非空优先，空回退下拉**；`check_lazy_status` 与 `execute` **共用同一函数**（懒命中判断与写盘名字必须同源，否则命中/落盘分叉）。
+- `forceInput` 无 widget → 不进 `widgets_values`，旧工作流按位兼容；文本照旧走 `clean_name`，清洗后为空且下拉为空 → 报错（与旧行为一致）。
+- 列表上游（如 `SFParsePath.filename` 是 `OUTPUT_IS_LIST`）：`_resolve_name` 对 list/tuple 取首个非空项（check_lazy_status 用）；execute 按 ComfyUI 语义逐项执行，每个名字各存一份、输出列表。
+
+### 2. 前端置灰：`widget.disabled` + 必须调 `updateComputedDisabled()`
+
+- Vue 前端 `DomWidget.vue` 的透明度/pointer-events 读的是 **`computedDisabled`**，而它由 `LGraphNode.updateComputedDisabled()` 计算（`widget.disabled || connected`）——所以只写 `widget.disabled = true` 不会立即重绘，**必须再调 `node.updateComputedDisabled?.()`**（先例：该函数同时兜住"widget 槽被直接连线"的自动压制）。
+- 连接态检测复用 `sf_dynamic_slots.isSlotConnected`（`link` 数字 / `links` 数组两形态；纯模块可复用，禁内联副本）。
+- 安装点：`installCacheNameList` 内挂实例级 `onConnectionsChange`（幂等标志防重复包裹）+ 既有 `onNodeCreated`/`onAfterGraphConfigured` 安装点兜底（configure 恢复不触发 `onConnectionsChange`）；断开时还原 `disabled`（首次记录原值，避免覆盖他人设置）；初始未连接时直接记录状态、不触碰 widget。
+- `sf_cache_name_lib.js` 纯模块新增依赖 `sf_dynamic_slots.js`（同为无 app 依赖纯模块）→ 其 .mjs 测试改为**拷贝链**（两文件 + 相对导入改 `.mjs`，test_lora_browser_smoke.js 同款）。
+
+### 3. 测试
+
+- 后端（`tests/test_track_data_cache.py` / `test_mask_cache.py`）：schema（forceInput/default）、`_resolve_name`（文本优先/空白回退/列表取首项/非字符串回退/全空）、lazy 命中与未命中（name_text 路径）、execute 覆盖写入与读取、文本空白且下拉为空报错。
+- 前端（`tests/test_cache_name_lib.mjs`）：`isNameTextLinked` 两形态、`applyNameOverrideState` 置灰/恢复/保留原有 disabled/状态未变提前返回、`installCacheNameList` 按钮幂等与 hook 驱动置灰（stub fetch/window）。
