@@ -122,6 +122,27 @@ check("reorder advanced after others", order.indexOf("advanced") > order.indexOf
 check("reorder long_video_mode after advanced", order.indexOf("long_video_mode") > order.indexOf("advanced"));
 check("reorder chunk_frames last", order[order.length - 1] === "chunk_frames");
 
+// 6b. Simple Video 高级项显隐（tiled_decode 随 advanced 显示，chunk/context 均可见）
+const getW = (node, name) => node.widgets.find((w) => w.name === name);
+const advNode = new FakeNode([
+  fakeWidget("advanced", false, "toggle"), fakeWidget("long_video_mode", "chunk", "combo"),
+  fakeWidget("max_frames", 0), fakeWidget("chunk_frames", 81), fakeWidget("overlap_frames", 5),
+  fakeWidget("color_correction", false, "toggle"), fakeWidget("context_frames", 81),
+  fakeWidget("context_overlap_frames", 20), fakeWidget("tiled_decode", false, "toggle"),
+]);
+exported.updateSimpleVideoWidgets(advNode);
+check("advanced off hides tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === false);
+getW(advNode, "advanced").value = true;
+exported.updateSimpleVideoWidgets(advNode);
+check("advanced on shows tiled_decode (chunk)", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === true);
+check("chunk shows chunk_frames", exported.isWidgetVisible(getW(advNode, "chunk_frames")) === true);
+check("chunk hides context_frames", exported.isWidgetVisible(getW(advNode, "context_frames")) === false);
+getW(advNode, "long_video_mode").value = "context_sampling";
+exported.updateSimpleVideoWidgets(advNode);
+check("context shows tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === true);
+check("context shows context_frames", exported.isWidgetVisible(getW(advNode, "context_frames")) === true);
+check("context hides chunk_frames", exported.isWidgetVisible(getW(advNode, "chunk_frames")) === false);
+
 // 7. widgets_values 位置错位修复（advanced + long_video_mode 顺序颠倒）
 const repairNode = new FakeNode([
   fakeWidget("advanced", false, "toggle"), fakeWidget("long_video_mode", "chunk", "combo"),

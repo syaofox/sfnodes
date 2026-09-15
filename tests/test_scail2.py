@@ -136,6 +136,51 @@ for key, cls in nodes_mod.NODE_CLASS_MAPPINGS.items():
             has_tooltip = isinstance(config, tuple) and len(config) > 1 and isinstance(config[1], dict) and bool(config[1].get("tooltip"))
             check(f"{key}.{name} tooltip", has_tooltip)
 
+# tiled_decode 开关存在且默认关
+check("simple has tiled_decode", "tiled_decode" in required)
+check("tiled_decode default off", required["tiled_decode"][1].get("default") is False)
+
+# ── _decode_latent_to_frames：tiled 分块解码分支选择 ──
+class FakeTensor:
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def contiguous(self):
+        return self
+
+    def clamp(self, low, high):
+        return self
+
+
+decode_calls = []
+
+
+class FakeVAEDecode:
+    def decode(self, vae, latent):
+        decode_calls.append("plain")
+        return (FakeTensor(),)
+
+
+class FakeVAEDecodeTiled:
+    def decode(self, vae, latent, tile_size, overlap, temporal_size, temporal_overlap):
+        decode_calls.append(("tiled", tile_size, overlap, temporal_size, temporal_overlap))
+        return (FakeTensor(),)
+
+
+nodes_stub = types.ModuleType("nodes")
+nodes_stub.VAEDecode = FakeVAEDecode
+nodes_stub.VAEDecodeTiled = FakeVAEDecodeTiled
+sys.modules["nodes"] = nodes_stub
+nodes_mod._empty_cache = lambda *a, **k: None
+
+nodes_mod._decode_latent_to_frames(None, {"samples": None})
+assert_eq(decode_calls[-1], "plain", "decode plain")
+nodes_mod._decode_latent_to_frames(None, {"samples": None}, True)
+assert_eq(decode_calls[-1], ("tiled", 512, 64, 64, 8), "decode tiled args")
+
 # ── 根 __init__.py 注册键（4 键各出现两次：类映射 + 显示名映射）──
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as fh:
     root_src = fh.read()

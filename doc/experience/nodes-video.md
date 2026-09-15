@@ -48,7 +48,14 @@
 - `SFSCAIL2SimpleVideo` 的 `widgets_values` 是**位置敏感**的，源提供的 `repairSimpleVideoWidgetOrder` 在 `onConfigure` 时按 mode 值定位并纠正 `advanced`/`long_video_mode` 顺序颠倒，保留。
 - 4 节点的**全部输入/选项在 Python `INPUT_TYPES` 内联中文 `tooltip`**（含 combo 的 512p/704p/custom、模式、长视频方式说明与旧版迁移输入），`tests/test_scail2.py` 断言每个输入都有非空 tooltip，防止后续新增输入漏写。
 
-### 72.6 测试与回归
+### 72.6 解码显存开关（tiled_decode）
+
+- 编码/解码默认均为**非 tiled**（`vae.encode` + `nodes.VAEDecode`），分块只分采样：长视频/高分辨率的显存峰值主要在整段解码与参考图全图编码。
+- 仅提供**低风险可选项** `SFSCAIL2SimpleVideo.tiled_decode`（BOOLEAN，默认关，随 `advanced` 显示）：开启后 `_decode_latent_to_frames` 改走 `nodes.VAEDecodeTiled`（tile 512 / overlap 64 / temporal 64 / temporal_overlap 8，即原生默认），降低解码显存峰值、速度略慢。
+- 编码侧 tiled（参考图 / pose）**不做**：Wan VAE 的时空压缩在 tiled 边界可能产生伪影，且 `reference_latents` 要求逐帧单 latent，风险高。
+- `tiled_decode` 已贯通四个 decode 调用点（native chunk / multi-ref chunk / context）并写入各层 summary；`tests/test_scail2.py` 用 fake `nodes` 模块断言 plain/tiled 分支与参数。
+
+### 72.7 测试与回归
 
 - `tests/test_scail2.py`：纯逻辑断言（`4n+1` cover/floor、32 对齐、Fit Video 尺寸、色板、布局候选）+ 节点结构元数据 + 根 `__init__.py` 4 键各出现两次。mock `torch` 顶层符号，stub `sfnodes` 包结构使相对导入可解析。
 - `tests/test_scail2_js.js`：mock node + `new Function` 剥离 import/export，覆盖扩展注册、数量驱动槽重建、旧版迁移、Fit Video 显隐、Simple Video 排序/错位修复、`setWidgetVisible` 往返、nodeData 裁剪。

@@ -297,10 +297,13 @@ def _sample_for_decode(
     return decode_latent
 
 
-def _decode_latent_to_frames(vae, latent_to_decode):
+def _decode_latent_to_frames(vae, latent_to_decode, tiled: bool = False):
     import nodes
 
-    decoded = nodes.VAEDecode().decode(vae, latent_to_decode)[0]
+    if tiled:
+        decoded = nodes.VAEDecodeTiled().decode(vae, latent_to_decode, 512, 64, 64, 8)[0]
+    else:
+        decoded = nodes.VAEDecode().decode(vae, latent_to_decode)[0]
     frames = decoded.detach().cpu().contiguous().clamp(0, 1)
     del decoded, latent_to_decode
     _empty_cache()
@@ -330,6 +333,7 @@ def _run_native_scail_chunk(
     seed: int,
     cfg: float,
     pose_strength: float,
+    tiled_decode: bool = False,
 ):
     WanSCAILToVideo = _get_scail_nodes_module().WanSCAILToVideo
     scail_out = _node_result(
@@ -372,7 +376,7 @@ def _run_native_scail_chunk(
     del scail_out, chunk_positive, chunk_negative, latent
     reference_image = pose_video = clip_vision_output = pose_video_mask = reference_image_mask = previous_frames = None
     _empty_cache(force=True)
-    frames = _decode_latent_to_frames(vae, latent_to_decode)
+    frames = _decode_latent_to_frames(vae, latent_to_decode, tiled_decode)
     summary = {
         "width": int(width),
         "height": int(height),
@@ -382,6 +386,7 @@ def _run_native_scail_chunk(
         "input_video_frame_offset": int(video_frame_offset),
         "output_video_frame_offset": int(next_offset),
         "decoded_shape": _shape(frames),
+        "tiled_decode": bool(tiled_decode),
     }
     return frames, int(next_offset), summary
 
@@ -1136,6 +1141,7 @@ def _run_multi_ref_scail_chunk(
     cfg: float,
     pose_strength: float,
     prepared_reference_pack=None,
+    tiled_decode: bool = False,
 ):
     import comfy.model_management
     import comfy.utils
@@ -1244,7 +1250,7 @@ def _run_multi_ref_scail_chunk(
     pose_video = pose_video_mask = pose_video_latent = mask_video_hw = driving_mask_28ch = None
     previous = prev_latent = prev_trimmed = None
     _empty_cache(force=True)
-    frames = _decode_latent_to_frames(vae, latent_to_decode)
+    frames = _decode_latent_to_frames(vae, latent_to_decode, tiled_decode)
     summary = {
         "width": int(width),
         "height": int(height),
@@ -1255,6 +1261,7 @@ def _run_multi_ref_scail_chunk(
         "output_video_frame_offset": int(video_frame_offset + length),
         "decoded_shape": _shape(frames),
         "reference_pack": ref_summary,
+        "tiled_decode": bool(tiled_decode),
     }
     return frames, int(video_frame_offset + length), summary
 
@@ -1404,6 +1411,7 @@ def _run_context_scail(
     cfg: float,
     pose_strength: float,
     prepared_reference_pack=None,
+    tiled_decode: bool = False,
 ):
     import comfy.model_management
     import node_helpers
@@ -1478,7 +1486,7 @@ def _run_context_scail(
     reference_image = reference_pack = reference_image_mask = clip_vision_output = prepared_reference_pack = None
     context_model = None
     _empty_cache(force=True)
-    frames = _decode_latent_to_frames(vae, latent_to_decode)
+    frames = _decode_latent_to_frames(vae, latent_to_decode, tiled_decode)
     summary = {
         "width": int(width),
         "height": int(height),
@@ -1489,6 +1497,7 @@ def _run_context_scail(
         "context": context_summary,
         "reference": reference_summary,
         "pose": pose_summary,
+        "tiled_decode": bool(tiled_decode),
     }
     return frames, summary
 
@@ -1726,6 +1735,7 @@ class SFSCAIL2SimpleVideo:
                 "color_correction": ("BOOLEAN", {"default": False, "tooltip": "开启段间重叠区域色彩校正（减少接缝色差；overlap=0 时无效）"}),
                 "context_frames": ("INT", {"default": 81, "min": 17, "max": 321, "step": 4, "tooltip": "上下文窗口帧数（context_sampling 模式，自动对齐 4n+1）"}),
                 "context_overlap_frames": ("INT", {"default": 20, "min": 0, "max": 320, "step": 1, "tooltip": "上下文窗口重叠帧数（context_sampling 模式，0=不重叠）"}),
+                "tiled_decode": ("BOOLEAN", {"default": False, "tooltip": "输出解码使用分块 VAE 解码（VAEDecodeTiled，降低解码显存峰值；速度略慢，长视频/高分辨率建议开启）"}),
             },
             "optional": {
                 "driving_track_data": ("SAM3_TRACK_DATA", {"tooltip": "驱动视频的 SAM3 追踪数据（replacement 模式必需；多主体 Reference Pack 也必需）"}),
@@ -1761,6 +1771,7 @@ class SFSCAIL2SimpleVideo:
         color_correction: bool = False,
         context_frames: int = 81,
         context_overlap_frames: int = 20,
+        tiled_decode: bool = False,
         driving_track_data=None,
         reference_track_data=None,
     ):
@@ -1877,6 +1888,7 @@ class SFSCAIL2SimpleVideo:
                 cfg=float(cfg),
                 pose_strength=float(pose_strength),
                 prepared_reference_pack=prepared_reference_pack,
+                tiled_decode=bool(tiled_decode),
             )
             summary = {
                 "mode": mode,
@@ -1889,6 +1901,7 @@ class SFSCAIL2SimpleVideo:
                 "generated_frames": int(frames.shape[0]),
                 "dropped_tail_frames": int(total_frames - frames.shape[0]),
                 "color_correction_enabled": False,
+                "tiled_decode": bool(tiled_decode),
                 "cfg": float(cfg),
                 "seed_start": int(seed),
                 "reference_input": "reference_pack" if reference_pack is not None else "image",
@@ -1955,6 +1968,7 @@ class SFSCAIL2SimpleVideo:
                     cfg=float(cfg),
                     pose_strength=float(pose_strength),
                     prepared_reference_pack=prepared_reference_pack,
+                    tiled_decode=bool(tiled_decode),
                 )
             else:
                 decoded, next_offset, chunk_summary = _run_native_scail_chunk(
@@ -1979,6 +1993,7 @@ class SFSCAIL2SimpleVideo:
                     seed=int(seed) + chunk_index,
                     cfg=float(cfg),
                     pose_strength=float(pose_strength),
+                    tiled_decode=bool(tiled_decode),
                 )
 
             discard_head = 0 if chunk_index == 0 else min(previous_frame_count, int(decoded.shape[0]))
@@ -2038,6 +2053,7 @@ class SFSCAIL2SimpleVideo:
             "chunk_frames": int(chunk_frames),
             "overlap_frames": int(previous_frame_count),
             "color_correction_enabled": bool(color_correction_enabled),
+            "tiled_decode": bool(tiled_decode),
             "cfg": float(cfg),
             "seed_start": int(seed),
             "reference_input": "reference_pack" if reference_pack is not None else "image",

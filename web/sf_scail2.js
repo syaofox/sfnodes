@@ -11,8 +11,8 @@
 import { app } from "/scripts/app.js";
 
 const EXT_NAME = "sfnodes.scail2";
-const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction"];
-const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames"];
+const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode"];
+const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "tiled_decode"];
 const SIMPLE_ADVANCED_MODE_WIDGET = "long_video_mode";
 const SIMPLE_WIDGET_ORDER = [
   "advanced",
@@ -23,6 +23,7 @@ const SIMPLE_WIDGET_ORDER = [
   "color_correction",
   "context_frames",
   "context_overlap_frames",
+  "tiled_decode",
 ];
 const SIMPLE_ALL_ADVANCED_WIDGETS = Array.from(new Set([SIMPLE_ADVANCED_MODE_WIDGET, ...SIMPLE_CHUNK_ADVANCED_WIDGETS, ...SIMPLE_CONTEXT_ADVANCED_WIDGETS]));
 const MAX_REFERENCE_SUBJECTS = 6;
