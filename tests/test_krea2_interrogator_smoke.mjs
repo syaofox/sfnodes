@@ -29,6 +29,7 @@ fs.writeFileSync(path.join(tmp,"sf_popup.mjs"), `export function attachPopupDism
 export function clampToViewport(){}`);
 fs.writeFileSync(path.join(tmp,"sf_common.mjs"), `export function el(){return{}}
 export function injectCSSOnce(){}`);
+fs.writeFileSync(path.join(tmp,"sf_llm_settings.mjs"), `export function registerLLMSettings(){}`);
 
 // transform source
 let src = fs.readFileSync(path.join(WEB,"krea2_interrogator.js"),"utf-8");
@@ -36,6 +37,7 @@ src = src.replace('import { app } from "/scripts/app.js";','import { app } from 
 src = src.replace('from "./sf_krea2_presets.js"','from "./sf_krea2_presets.mjs"');
 src = src.replace('from "./sf_popup.js"','from "./sf_popup.mjs"');
 src = src.replace('from "./sf_common.js"','from "./sf_common.mjs"');
+src = src.replace('from "./sf_llm_settings.js"','from "./sf_llm_settings.mjs"');
 fs.writeFileSync(path.join(tmp,"mod.mjs"), src);
 
 // need to provide document stub for setup

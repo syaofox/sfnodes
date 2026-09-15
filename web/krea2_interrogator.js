@@ -1,5 +1,5 @@
-// SF Image Interrogator 预设联动：切换 preset 时自动把对应预设文本填入 prompt widget，
-// 之后仍可手动编辑；提供"管理预设"入口（新增/修改/删除/复位）。
+// SF Image Interrogator（本地版 + LLM API 版）预设联动：切换 preset 时自动把对应预设
+// 文本填入 prompt widget，之后仍可手动编辑；提供"管理预设"入口（新增/修改/删除/复位）。
 // 预设数据唯一来源为后端（sf_utils/krea2_presets.py，合并内置+用户覆盖，经 API 获取），
 // 前端不内嵌副本，避免双份维护。combo 选项由用户预设动态重建（VALIDATE_INPUTS 兜底）。
 
@@ -12,9 +12,11 @@ import {
   presetsChangedEvent,
   nodesOfClass,
 } from "./sf_krea2_presets.js";
+import { registerLLMSettings } from "./sf_llm_settings.js";
 
 const KIND = "interrogator";
-const COMIFY_CLASS = "SFImageInterrogator";
+// 本地版（Krea2 CLIP）+ API 版（视觉大模型）共用同一反推预设库
+const COMIFY_CLASSES = ["SFImageInterrogator", "SFImageInterrogatorAPI"];
 const MAX_ATTEMPTS = 10;
 
 let presets = null;          // 合并预设缓存：{key: text}
@@ -29,7 +31,7 @@ async function loadPresets() {
         const data = await fetchPresets(KIND);
         presets = data.presets;
         // 重建所有已存在节点的 combo options + 快照（用户新增的预设要出现在下拉里，且切换时能填充）
-        for (const n of nodesOfClass(COMIFY_CLASS)) {
+        for (const n of nodesOfClass(COMIFY_CLASSES)) {
             n.properties = n.properties || {};
             n.properties._krea2PresetData = presets;
             setPresetOptions(n, presets);
@@ -58,11 +60,12 @@ function attachPending() {
 app.registerExtension({
     name: "sfnodes.krea2_interrogator",
     setup() {
+        registerLLMSettings();   // 共享 LLM 设置（SFImageInterrogatorAPI 需要）
         loadPresets();
         // 其他窗口/节点改了预设 → 重拉并重建（本地管理 popup 已直接重建，此为跨端兜底；
         // 用 reloadNodes 不再广播，避免监听到自身广播后无限循环）
         document.addEventListener(presetsChangedEvent(KIND), async () => {
-            const data = await reloadNodes(KIND, COMIFY_CLASS);
+            const data = await reloadNodes(KIND, COMIFY_CLASSES);
             if (data && data.presets) presets = data.presets;
         });
     },
@@ -70,7 +73,7 @@ app.registerExtension({
     // 索引必然错位，图加载后按 widget 名自愈（类型不符回退默认值），避免崩溃；新参数
     // min_p/presence_penalty/use_default_template 等亦纳入自愈。
     afterConfigureGraph() {
-        const nodes = app.graph?._nodes?.filter((n) => n?.comfyClass === COMIFY_CLASS) ?? [];
+        const nodes = app.graph?._nodes?.filter((n) => COMIFY_CLASSES.includes(n?.comfyClass)) ?? [];
         const CAG_ALLOWED = ["fixed", "increment", "decrement", "randomize"];
         for (const node of nodes) {
             const userPrompt = node.widgets?.find((w) => w.name === "user_prompt");
@@ -124,7 +127,7 @@ app.registerExtension({
         }
     },
     nodeCreated(node) {
-        if (node?.comfyClass !== COMIFY_CLASS) return;
+        if (!COMIFY_CLASSES.includes(node?.comfyClass)) return;
 
         addManageButton(node, KIND);
 

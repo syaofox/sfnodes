@@ -75,6 +75,10 @@ MODS = [
     "sf_popup",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）
     "sf_krea2_presets",
+    # Krea2 反推预设联动（本地版 + API 版 SFImageInterrogatorAPI 共用双 class）
+    "krea2_interrogator",
+    # 共享 LLM API 设置（翻译 / 图片反推共用 sfnodes.LLM.*）
+    "sf_llm_settings",
     # Diffusion Model 信息面板家族（dmodel 域路由束 + 节点扩展）
     "sf_dmodel_api", "sf_load_diffusion_model",
     # 画布对齐（多选宽度对齐：lib 纯逻辑 + 主扩展画布菜单子菜单）

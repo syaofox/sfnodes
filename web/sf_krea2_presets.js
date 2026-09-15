@@ -79,8 +79,11 @@ export function setPresetOptions(node, presets) {
   node.setDirtyCanvas?.(true, true);
 }
 
+// comfyClass 支持单个类名或类名数组（本地版 + API 版反推共用同一预设库）。
 export function nodesOfClass(comfyClass) {
-  return (app?.graph?._nodes ?? []).filter((n) => n?.comfyClass === comfyClass);
+  const classes = Array.isArray(comfyClass) ? comfyClass : [comfyClass];
+  const set = new Set(classes);
+  return (app?.graph?._nodes ?? []).filter((n) => n && set.has(n.comfyClass));
 }
 
 export function presetsChangedEvent(kind) {

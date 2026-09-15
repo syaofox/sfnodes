@@ -102,6 +102,7 @@ from .nodes.model.conditioning_combine import SFConditioningCombine
 from .nodes.model.conditioning_concat import SFConditioningConcat
 from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
+from .nodes.model.image_interrogator_api import SFImageInterrogatorAPI
 from .nodes.model.krea2_edit import SFKrea2ModelConfig, SFKrea2EditApply
 from .nodes.model.regional_lora import SFRegionalLoRA
 from .nodes.model.wan_window_lora import SFWanWindowLoRA
@@ -394,6 +395,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTextEncodeKrea2": TextEncodeKrea2,
     "SFKrea2SystemPrompt": Krea2SystemPrompt,
     "SFImageInterrogator": SFImageInterrogator,
+    "SFImageInterrogatorAPI": SFImageInterrogatorAPI,
     "SFKrea2ModelConfig": SFKrea2ModelConfig,
     "SFKrea2ConfigPreparer": SFKrea2ConfigPreparer,
     "SFKrea2EditTextEncode": SFKrea2EditTextEncode,
@@ -618,6 +620,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextEncodeKrea2": "SF Text Encode (Krea2)",
     "SFKrea2SystemPrompt": "SF Krea2 System Prompt",
     "SFImageInterrogator": "SF Image Interrogator",
+    "SFImageInterrogatorAPI": "SF Image Interrogator (API)",
     "SFKrea2ModelConfig": "SF Krea2 Model Config",
     "SFKrea2ConfigPreparer": "SF Krea2 Config Preparer",
     "SFKrea2EditTextEncode": "SF Krea2 Edit Text Encode",

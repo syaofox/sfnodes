@@ -1,20 +1,21 @@
+from .llm_client import (
+    DEFAULT_BASE_URL as DEFAULT_TRANSLATE_BASE_URL,
+    DEFAULT_MODEL as DEFAULT_TRANSLATE_MODEL,
+    PROVIDER_PRESETS as TRANSLATE_PROVIDERS,
+    build_chat_payload,
+    extract_api_error,
+    parse_chat_response as parse_translate_response,
+)
 from .logger import get_logger
 from .string import has_chinese_character
 
 logger = get_logger(__name__)
 
 # ── LLM 翻译（OpenAI 兼容 /chat/completions）─────────────────────────────
-# 供 SFPauseText 的「中⇄EN」按钮经 /api/sfnodes/translate 调用。默认服务商
-# DeepSeek（deepseek-flash）；此处只放纯函数（请求构造/响应解析/方向判定），
-# 网络请求在 nodes/text/translate_routes.py。
-DEFAULT_TRANSLATE_BASE_URL = "https://api.deepseek.com"
-DEFAULT_TRANSLATE_MODEL = "deepseek-flash"
-
-# 服务商预设：base_url/model 默认值。custom 让用户自填（任何 OpenAI 兼容端点）。
-TRANSLATE_PROVIDERS = {
-    "deepseek": {"base_url": DEFAULT_TRANSLATE_BASE_URL, "model": DEFAULT_TRANSLATE_MODEL},
-    "custom": {"base_url": "", "model": ""},
-}
+# 供 SFPauseText 的「中⇄EN」按钮经 /api/sfnodes/translate 调用；默认服务商
+# DeepSeek（deepseek-flash）。通用请求构造/解析/网络调用单源收敛于
+# sf_utils/llm_client.py（与 SFImageInterrogatorAPI 共用），此处只留翻译专属的
+# 方向判定与提示词；旧函数名以导入别名保留（对外契约不变）。
 
 _DIRECTION_TARGET = {"zh2en": "English", "en2zh": "Simplified Chinese"}
 
@@ -49,47 +50,18 @@ def build_translate_messages(text, direction="zh2en"):
 
 
 def build_translate_payload(text, direction="zh2en", model=DEFAULT_TRANSLATE_MODEL, disable_thinking=True):
-    """构造 /chat/completions 请求体。
+    """构造 /chat/completions 请求体（通用构造单源 llm_client.build_chat_payload）。
 
     disable_thinking：DeepSeek V4.1 默认开启思考模式，翻译任务不需要推理链
     （更慢更贵且 content 可能夹带过程）。仅对支持的端点携带该字段，非 DeepSeek
     的 OpenAI 兼容端点会因未知字段 400，故由调用方按 base_url 决定。
     """
-    payload = {
-        "model": model or DEFAULT_TRANSLATE_MODEL,
-        "messages": build_translate_messages(text, direction),
-        "stream": False,
-        "temperature": 0.0,
-    }
-    if disable_thinking:
-        payload["thinking"] = {"type": "disabled"}
-    return payload
-
-
-def parse_translate_response(data):
-    """从 /chat/completions 响应中取出译文；结构缺失/为空时抛 ValueError。"""
-    if not isinstance(data, dict):
-        raise ValueError("响应不是 JSON 对象")
-    choices = data.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise ValueError(extract_api_error(data) or "响应缺少 choices")
-    message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    content = message.get("content") if isinstance(message, dict) else None
-    if not isinstance(content, str) or not content.strip():
-        raise ValueError("响应译文为空")
-    return content.strip()
-
-
-def extract_api_error(data):
-    """从错误响应里提取可读信息（DeepSeek/OpenAI 均为 {"error": {...}}）。"""
-    if not isinstance(data, dict):
-        return ""
-    err = data.get("error")
-    if isinstance(err, dict):
-        return str(err.get("message") or err.get("type") or "")
-    if isinstance(err, str):
-        return err
-    return ""
+    return build_chat_payload(
+        model or DEFAULT_TRANSLATE_MODEL,
+        build_translate_messages(text, direction),
+        temperature=0.0,
+        disable_thinking=disable_thinking,
+    )
 
 
 def translators(

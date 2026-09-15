@@ -94,7 +94,7 @@ globalThis.api = {
 
 // ── 加载模块（替换 /scripts/* import，相对 import 改 .mjs 同 tmp）──
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_ptx_"));
-for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_text_ui.js", "sf_pause_text.js"]) {
+for (const n of ["sf_common.js", "sf_llm_settings.js", "sf_pause_text_lib.js", "sf_pause_text_ui.js", "sf_pause_text.js"]) {
     const code = fs
         .readFileSync(path.join(__dirname, "..", "web", n), "utf8")
         .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
@@ -112,19 +112,19 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_text_ui.js", 
     const ext = app._ext;
     check("扩展已注册", !!ext && ext.name === "sfnodes.PauseText");
 
-    // ── 翻译设置注册（init）──
+    // ── 翻译设置注册（共享 sf_llm_settings，init 调用）──
     ext.init();
     const ids = addedSettings.map((s) => s.id);
-    check("翻译设置四项已注册", ["sfnodes.Translate.Provider", "sfnodes.Translate.BaseUrl",
-        "sfnodes.Translate.Model", "sfnodes.Translate.ApiKey"].every((id) => ids.includes(id)));
-    const baseDef = addedSettings.find((s) => s.id === "sfnodes.Translate.BaseUrl");
-    const modelDef = addedSettings.find((s) => s.id === "sfnodes.Translate.Model");
+    check("LLM 设置四项已注册", ["sfnodes.LLM.Provider", "sfnodes.LLM.BaseUrl",
+        "sfnodes.LLM.Model", "sfnodes.LLM.ApiKey"].every((id) => ids.includes(id)));
+    const baseDef = addedSettings.find((s) => s.id === "sfnodes.LLM.BaseUrl");
+    const modelDef = addedSettings.find((s) => s.id === "sfnodes.LLM.Model");
     check("默认 base_url 与 model", baseDef.defaultValue === "https://api.deepseek.com" &&
         modelDef.defaultValue === "deepseek-flash");
-    const apiDef = addedSettings.find((s) => s.id === "sfnodes.Translate.ApiKey");
+    const apiDef = addedSettings.find((s) => s.id === "sfnodes.LLM.ApiKey");
     check("API key 默认留空", apiDef.defaultValue === "" && apiDef.type === "text");
     ext.init();
-    check("设置注册幂等", addedSettings.filter((s) => s.id === "sfnodes.Translate.ApiKey").length === 1);
+    check("设置注册幂等", addedSettings.filter((s) => s.id === "sfnodes.LLM.ApiKey").length === 1);
 
     // ── beforeRegisterNodeDef / nodeCreated ──
     const proto = {};

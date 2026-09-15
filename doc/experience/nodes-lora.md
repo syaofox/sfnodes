@@ -1,4 +1,4 @@
-# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59、§61）
+# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59、§61、§75）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -662,3 +662,24 @@
 - 编码路径把 `EditTextEncode_EditUtils.encode` 原函数抽出来，与 `encode_qwen_edit` 在同一 FakeTensor + 确定性 `common_upscale`/`FakeVae`/`FakeClip` 下比对 8 个用例（工作流配置单图 pad / 双图 center+area / to_ref-to_vl 标志 / 主图 mask / vl_resize=False+disabled+bicubic / ref_crop=disabled / 纯文本 / 非零 rope），逐项比 `common_upscale` 目标尺寸、`tokenize` 入参、ref/vae/vl 形状、latent 形状与数值和、pad_info。**注意 exec 时原方法首参 `self` 需占位**（否则参数整体错位）。
 - **发现真实差异 1 处**：`encode_qwen_edit` 原在 `vl_images` 为空（纯文本）时走 `clip.tokenize(prompt, images=[])` **丢弃了非空 `llama_template`**，而 EditUtils 无条件传模板 → Krea2 纯文本条件不同。修复为 `if llama_template: 传模板 else: 不传`（`images=vl_images` 恒传）。同步补测试锁定两种分支。
 - `INPUT_TYPES` 用 ast 抽 `INPUT_TYPES` 方法 + 注入 `s`(类属性)/`any_type`/`_*_CROPS` 常量后调用比对：**默认值/min/max/step/选项/输入顺序全一致**，仅 tooltip 中文化 + `pad_info` 输入类型 `ANY`→`AnyType("*")`（通配等价，无行为影响）。输入顺序一致是 `widgets_values` 按位恢复的前提。
+
+---
+
+## 75. SFImageInterrogatorAPI：LLM API 版图像反推（共享设置 + 后端读凭据）
+
+> 背景：需要不加载本地 VLM、直接用大模型 API 反推图片。DeepSeek V4.1 `deepseek-flash` 已原生支持视觉（OpenAI 兼容：图片放 user 消息 content 数组的 `image_url` 部分，支持 base64 data URL + `detail`）。与本地版 SFImageInterrogator 共用反推预设库，凭据与翻译功能共用。
+
+### 1. 分层与契约
+
+- **通用客户端单源** `sf_utils/llm_client.py`：`get_llm_config()` / `build_chat_payload()` / `build_image_content()` / `parse_chat_response()` / `extract_api_error()` / `image_to_data_url()`（PIL→JPEG/PNG data URL，`max_megapixels` 只缩小不放大）/ `chat_completion_sync()`（requests，节点 execute 的 worker 线程）/ `chat_completion_async()`（aiohttp，路由）。翻译的通用部分收敛于此（`sf_utils/translation.py` 仅留方向判定/提示词，旧函数名以 import 别名保留，测试零改动）。
+- **节点** `nodes/model/image_interrogator_api.py::SFImageInterrogatorAPI`：`image`(IMAGE) + `preset`/`prompt`/`user_prompt`/`temperature`/`max_tokens`/`vision_megapixels`/`detail(auto|low|high)`/`frame_index`（-1 取末帧），可选 `system_prompt`(forceInput)；输出 `STRING text`。单帧编码 → alpha 黑底预乘 → 缩放 → JPEG base64；失败/空结果抛异常。预设与 `_merged_presets/INTERROGATOR_PRESETS/INTERROGATOR_DEFAULT_PROMPT` 复用 `.krea2`；`VALIDATE_INPUTS` 恒 True 兼容动态 combo。
+- **前端复用**：`web/krea2_interrogator.js` 的 `COMIFY_CLASSES` 改类名数组，同一扩展同时服务本地版+API 版（预设→prompt 联动、管理按钮、options 重建、widgets_values 自愈；不存在的 widget 自动跳过）——零新增 web 文件；`sf_krea2_presets.nodesOfClass` 支持类名数组。
+
+### 2. 踩坑 / 决策
+
+- **凭据存 ComfyUI Settings，但由后端读**：设置项 `sfnodes.LLM.{Provider,BaseUrl,Model,ApiKey}`（`type:text`/combo），前端注册；节点 `execute` 无请求上下文，直接从 `<user_dir>/default/comfy.settings.json` 读取（非 multi-user 默认用户；`DEEPSEEK_API_KEY` 环境变量兜底）。翻译路由也改为服务端读取，**密钥不再经浏览器请求体往返**（原首版把 key 放 fetch body）。
+- **设置 id 迁移**：翻译首版用 `sfnodes.Translate.*`，本次统一为 `sfnodes.LLM.*`；前端 `registerLLMSettings` 在新值缺失时搬运旧值（`migrateLegacy`），`llm_client.get_llm_config` 亦做旧 id 回退，用户已填 key 不丢。
+- **`thinking` 字段按端点携带**：DeepSeek 默认思考模式，翻译/反推均 `{"type":"disabled"}`；非 DeepSeek 的 OpenAI 兼容端点会因未知字段 400，故 `is_deepseek(base_url)` 判断（`build_chat_payload(disable_thinking=...)`）。
+- **可移植导入兜底**：测试以 `nodes.model.image_interrogator_api` 顶层导入时 `from ...sf_utils.llm_client` 越界 → try/except 回退绝对 `sf_utils.llm_client`（krea2.py 同款；注意保持顶层名字绑定，测试才能 monkeypatch `mod.chat_completion_sync`）。
+- **图片约束**：DeepSeek 单图 ≤32MiB、单边 ≤8192px、仅 user 消息可带图（system/assistant 带图 400）；靠 `vision_megapixels` + 单帧 + JPEG 控制体积。
+- **`frame_index` 契约**：0 起，-1 取末帧，越界抛错（测试覆盖正/负越界）。
