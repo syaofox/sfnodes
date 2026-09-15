@@ -618,3 +618,38 @@
 - **两个必加的守卫**：① 原生 combo 分组头 `--xxx--`（只显示不可选）跳过分组逻辑——分组头文本若含 `/` 会被误拆成文件夹，原位保留；② 无路径菜单早退，连 `maxHeight` 调整都跳过，避免对无关菜单的副作用（LIST 模式全程不碰 DOM，一键回退）。
 - **设置 id 随分组一起搬走**：设置面板的子分组标题由 id 中段派生（`sfnodes.LoraLoader.*` 即挂 `LoraLoader` 分组下），只改显示名去不掉标题。故 id 换为 `sfnodes.Combo.DisplayMode`（常量 `DISPLAY_SETTING_ID`，另两处读写同源引用）；旧 id 直接废弃不做迁移——默认值即 Tree，曾手动设为 List 的用户升级后重设一次即可。
 - **变换纯 DOM 重排**：只移动 `.litemenu-entry` 节点、不改 widget 值；过滤输入有文本时既有 CSS `:has(input:not(:placeholder-shown))` 自动退化为扁平全路径。同一 `litecontextmenu` 钩子继续复用，不新增前端版本风险。
+
+---
+
+## 73. Krea2 参考图编辑 5 节点复刻：摆脱 ComfyUI-EditUtils（2026-09）
+
+> 背景：`[krea2]depth精准洗图` 系列工作流依赖第三方 ComfyUI-EditUtils 的 5 个节点（Krea2ModelConfig / QwenConfigPreparer / EditTextEncode / CropWithPadInfo / Krea2EditApply），需要在本包内复刻以便移除该插件。运行时与源码副本同为 ComfyUI 0.35.0（`comfy/ldm/krea2/model.py`、`comfy/model_base.py` 逐字节相同）。
+
+### 1. 关键事实：核心已原生支持 Krea2 ref latent，但仍需补丁
+
+- 核心 0.29+（commit `c9602625`）起 `SingleStreamDiT._forward` 已支持 `ref_latents` + `ref_latents_method="index_timestep_zero"`（ref 位置 id=(n,h,w)、t=0 调制、只输出 target token），与 EditUtils 的默认 `editutils` 模式**数学等价**。
+- 但 `model_detection.py` 对 Krea2 **未设 `default_ref_method`**（仅 Flux/Qwen 系列有），`Krea2.extra_conds` 虽会生成 `out['ref_latents']`，`_forward` 因 `ref_method=None` 直接忽略 → **无补丁时参考图完全不起作用**。这正是 `Krea2EditApply` 必须存在的根因，不能简单删节点走核心。
+- EditUtils 额外的核心没有的能力：`ref_pos_match_target`（ref 位置 id 中心对齐拉伸到 target 网格）、`reference_rope_offsets`（区域编辑偏移）、`ref_kv_cache`+`ref_strength`（首步捕获每层 ref K/V，采样进度 ≥ ref_strength 后丢弃 ref 退化为纯文生图）。本工作流 v2 的 `ref_strength=0.2` 实际生效，若走核心原生通路会静默丢失该调度、出图改变。
+
+### 2. 复用与落点
+
+- **编码全复用 `sf_utils/qwen_edit.py`**：Krea2 文本编码器基于 Qwen、VAE 是 Qwen-Image 的 VAE，故 `Krea2ModelConfig` 输出 `model_name="qwen"/vae_unit=8`，`SFKrea2EditTextEncode` 内部调 `encode_qwen_edit`。为对齐 EditUtils 原接口，向 `encode_qwen_edit` 增补 per-entry `to_ref/to_vl/vl_resize/ref_main_image/ref_resize_mode(area)/ref_upscale/vl_*/rope_*`（缺省=旧行为，向后兼容）；非零 rope offsets 写 `reference_rope_offsets`，**不新增 custom_output 键**（避免破坏既有 `tests/test_qwen_edit.py` 键集合断言）。
+- **补丁逐行移植到 `sf_utils/krea2_edit.py`**，节点壳在 `nodes/model/krea2_edit.py`（`SFKrea2ModelConfig` / `SFKrea2EditApply`），配置链在 `nodes/utils/qwen_edit.py`（`SFKrea2ConfigPreparer` / `SFKrea2EditTextEncode`），裁剪在 `nodes/image/crop_with_pad.py`（`SFCropWithPadInfo`）。内部属性前缀保留原 `_editutils_*` 以免移植引入语义偏差；torch/comfy 惰性 import（本机 mock 测试可行）。
+
+### 3. 补丁机制（移植要点）
+
+- `extra_conds`：从 kwargs 取 `reference_latents`（**兼容 dict `{"samples":...}` 与裸 tensor**，新版 `VAE.encode` 返回 tensor、旧版返回 dict），逐个 `base_model.process_latent_in` 后包 `comfy.conds.CONDList`；`reference_rope_offsets` 包 `CONDConstant`。
+- `diffusion_model.forward`：无 ref 时链回 `dit` 上保存的原 forward（`_editutils_krea2_original_forward`）；有 ref 时经 `WrapperExecutor` 调 `krea2_edit_forward`（保证其它 DIFFUSION_MODEL wrapper 仍触发）。
+- `ref_kv_cache`：必须 `m.object_patches.get("diffusion_model.forward")` 链到**已装的分发 forward**（而非 `dit.forward`——对象补丁在 `patch_model()` 时才落到模块上），并注册同一 key 覆盖为缓存版；任何异常打印一次后回退非缓存 forward，保证不中断生成。
+- **本工作流里 `ref_pos_match_target` 实际无操作**：单主图且 target latent 就是主图 ref latent，尺寸天然一致，位置 id 拉伸为恒等；`rope offsets` 也为 0。完整移植仍保留这些能力。
+
+### 4. 工作流改写（SF 前缀）
+
+- 注册键按规范用 `SF` 前缀，工作流引用的原 `*_EditUtils` 名会失效 → 备份后改写 v1/v2 JSON 的 `type` 与 `properties['Node name for S&R']`，`cnr_id` 由 `editutils` 改 `sfnodes` 并去掉失效 `ver`。
+- `widgets_values` 是**按位**恢复的：新节点必须与 EditUtils **保持输入顺序、类型与默认值 1:1**（如 Krea2EditApply 的 `mode/ref_pos_match_target/ref_kv_cache/ref_strength/reset_cache/debug_log` 顺序），改顺序会让旧工作流值错位。
+
+### 5. 测试
+
+- `tests/test_krea2_edit.py`：`get_system_prompt` 前缀/后缀/`{}` 清洗/默认；`crop_with_pad_info` 形状与数值；`make_ref_positions` 的 frame index / `scale_to_grid` 中心对齐 / rope 像素→token；节点壳 schema、非 Krea2 直通、preparer 追加与 mask 尺寸校验、编码 6 路输出与非法 `model_config` 抛错。mock：FakeTensor(numpy) + fake torch/einops/comfy.ldm.common_dit/comfy.utils/node_helpers。
+- `tests/test_qwen_edit.py` 增补：`scale_reference(area)`、`to_ref/to_vl` 标志、rope offsets 写入/零值不写。
+- **保留 EditUtils 不删**，先跑工作流 A/B 对比出图确认一致再移除。

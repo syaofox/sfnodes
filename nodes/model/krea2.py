@@ -2,13 +2,16 @@
 
 Krea2 的条件编码器是 12 层 Qwen3-VL-4B 的 tap（见 comfy/text_encoders/krea2.py）。
 由于该文本编码器是视觉语言模型，可将参考图送入其视觉通路，使条件编码获得图像感知
-能力，无需 VAE / reference-latent。Krea2 的 DiT（comfy/ldm/krea2/model.py）是纯
-文生图模型，token 序列为 [text_tokens, noisy_image_patches]，没有 reference latent
-的插槽，因此本节点刻意不提供 VAE 输入（接 VAE 也只会被静默丢弃）。
+能力，无需 VAE / reference-latent。本节点刻意走这条纯 CLIP 视觉条件通路，不提供
+VAE 输入（接 VAE 也只会被静默丢弃）。
+
+注：ComfyUI 核心 0.29+ 起 Krea2 的 DiT（comfy/ldm/krea2/model.py）已支持参考图
+latent 的插槽（reference_latents + index_timestep_zero），但那走的是 VAE latent
+条件通路，由本包 SFKrea2EditApply（nodes/model/krea2_edit.py，补丁核心 Krea2 前向）
+消费，与本节点的 CLIP 视觉条件通路互不相同。
 
 每张参考图可配一张可选遮罩：连接遮罩后，图片会在送入视觉编码器前裁剪到遮罩的
-包围盒，VLM 只"看"被遮罩标记的区域。这是参考图遮罩，不是局部重绘 —— Krea2 没有
-concat/inpaint 通路。
+包围盒，VLM 只"看"被遮罩标记的区域。这是参考图遮罩，不是局部重绘。
 
 与 TextEncodeQwenImageEdit 的区别：
   * 即使连接了图片也强制使用 Krea2 的 descriptor 条件模板（核心 Qwen-Edit 节点

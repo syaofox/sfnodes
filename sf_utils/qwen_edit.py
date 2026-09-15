@@ -28,13 +28,23 @@ DEFAULT_LLAMA_TEMPLATE = (
 TEXT_ONLY_LATENT_SHAPE = (1, 4, 128, 128)
 
 
-def scale_longest_edge(height, width, ref_longest_edge):
-    """longest_edge 模式：最长边缩放到 ref_longest_edge，另一边等比。返回 (scaled_h, scaled_w)。"""
-    ori_longest = max(height, width)
+def scale_reference(height, width, ref_longest_edge, ref_resize_mode="longest_edge"):
+    """参考图缩放：longest_edge 最长边对齐 / area 总面积对齐 ref_longest_edge²。
+
+    返回 (scaled_h, scaled_w)。
+    """
     if min(height, width) <= 0 or ref_longest_edge <= 0:
         raise ValueError(f"invalid image size {height}x{width} / ref_longest_edge {ref_longest_edge}")
-    scale_by = ori_longest / ref_longest_edge
+    if ref_resize_mode == "area":
+        scale_by = math.sqrt((ref_longest_edge * ref_longest_edge) / float(width * height))
+    else:
+        scale_by = max(height, width) / float(ref_longest_edge)
     return int(round(height / scale_by)), int(round(width / scale_by))
+
+
+def scale_longest_edge(height, width, ref_longest_edge):
+    """longest_edge 模式：最长边缩放到 ref_longest_edge，另一边等比。返回 (scaled_h, scaled_w)。"""
+    return scale_reference(height, width, ref_longest_edge, "longest_edge")
 
 
 def pad_info_from(orig_w, orig_h, resized_w, resized_h):
@@ -49,10 +59,12 @@ def pad_info_from(orig_w, orig_h, resized_w, resized_h):
     }
 
 
-def process_reference(vae, image, ref_longest_edge, ref_crop, ref_upscale, is_main, mask=None, vae_unit=VQE_UNIT):
+def process_reference(vae, image, ref_longest_edge, ref_crop, ref_upscale, is_main, mask=None,
+                      vae_unit=VQE_UNIT, ref_resize_mode="longest_edge"):
     """单张参考图的 ref 处理。
 
     image: [B,H,W,C] float 张量；mask: [B,H,W] 或 None（仅主图生效）。
+    ref_resize_mode: longest_edge | area（对齐 EditUtils 的 ref_resize_mode）。
     返回 dict：
       vae_image   [B,H',W',C] 编码输入
       ref_latent  vae.encode 输出
@@ -67,7 +79,7 @@ def process_reference(vae, image, ref_longest_edge, ref_crop, ref_upscale, is_ma
     if mask is not None:
         sample_masks = mask.unsqueeze(1).repeat(1, channels, 1, 1)  # [B,C,H,W]
 
-    scaled_h, scaled_w = scale_longest_edge(orig_h, orig_w, ref_longest_edge)
+    scaled_h, scaled_w = scale_reference(orig_h, orig_w, ref_longest_edge, ref_resize_mode)
     noise_mask = None
     pad_info = None
 
@@ -107,11 +119,20 @@ def process_reference(vae, image, ref_longest_edge, ref_crop, ref_upscale, is_ma
     }
 
 
-def process_vl_image(image, vl_target_size=384, vl_crop="center", vl_upscale="lanczos"):
-    """视觉塔输入：面积缩放到 vl_target_size²，支持 center/disabled 裁剪。返回 [B,H',W',C]。"""
+def process_vl_image(image, vl_target_size=384, vl_crop="center", vl_upscale="lanczos",
+                     vl_resize=True):
+    """视觉塔输入：面积缩放到 vl_target_size²，支持 center/disabled 裁剪。返回 [B,H',W',C]。
+
+    vl_resize=False 时保持原面积（仅当超过 2048² 才缩小），对齐 EditUtils。
+    """
     samples = image.movedim(-1, 1)
-    total = int(vl_target_size * vl_target_size)
     orig_h, orig_w = samples.shape[2], samples.shape[3]
+    if vl_resize:
+        total = int(vl_target_size * vl_target_size)
+    else:
+        total = int(orig_w * orig_h)
+        if total > 2048 * 2048:
+            total = 2048 * 2048
     scale_by = math.sqrt(total / float(orig_w * orig_h))
     width = round(orig_w * scale_by)
     height = round(orig_h * scale_by)
@@ -121,44 +142,85 @@ def process_vl_image(image, vl_target_size=384, vl_crop="center", vl_upscale="la
 
 def encode_qwen_edit(clip, vae, prompt, entries, ref_upscale="lanczos",
                      vl_target_size=384, vl_crop="center", vl_upscale="lanczos",
-                     llama_template=DEFAULT_LLAMA_TEMPLATE):
+                     llama_template=DEFAULT_LLAMA_TEMPLATE, vae_unit=VQE_UNIT):
     """主编码入口（qwen 路径）。
 
     entries: 每张已提供图的配置列表（顺序即 Picture 编号顺序）：
-      {"image": [B,H,W,C], "mask": [B,H,W]|None, "ref_longest_edge": int, "ref_crop": str}
+      {"image": [B,H,W,C], "mask": [B,H,W]|None, "ref_longest_edge": int, "ref_crop": str,
+       # 可选（缺省 = 旧行为/函数级共享参数）：to_ref/to_vl/vl_resize/ref_main_image/
+       # ref_resize_mode/ref_upscale/vl_target_size/vl_crop/vl_upscale/
+       # rope_x_offset/rope_y_offset}
     返回 (conditioning, latent_out, custom_output, main_image, noise_mask)。
     """
     pad_info = {"x": 0, "y": 0, "width": 0, "height": 0, "scale_by": 1.0}
-    main_index = 0 if entries else -1
+
+    # 主图选择：首个 to_ref 且 ref_main_image 的项；无则回退首个 to_ref 项。
+    main_cfg_index = -1
+    for i, entry in enumerate(entries):
+        if entry.get("to_ref", True) and entry.get("ref_main_image", i == 0):
+            main_cfg_index = i
+            break
+    if main_cfg_index < 0:
+        for i, entry in enumerate(entries):
+            if entry.get("to_ref", True):
+                main_cfg_index = i
+                break
+    if main_cfg_index < 0 and entries:
+        main_cfg_index = 0
 
     ref_latents = []
     vae_images = []
     vl_images = []
+    rope_offsets = []
     noise_mask = None
     image_prompt = ""
+    main_ref_pos = 0
 
     for i, entry in enumerate(entries):
         image = entry["image"]
-        is_main = i == main_index
-        ref = process_reference(
-            vae,
-            image,
-            entry["ref_longest_edge"],
-            entry["ref_crop"],
-            ref_upscale,
-            is_main,
-            mask=entry.get("mask"),
-        )
-        ref_latents.append(ref["ref_latent"])
-        vae_images.append(ref["vae_image"])
-        if ref["pad_info"] is not None:
-            pad_info = ref["pad_info"]
-        if ref["noise_mask"] is not None:
-            noise_mask = ref["noise_mask"]
+        to_ref = entry.get("to_ref", True)
+        to_vl = entry.get("to_vl", True)
+        if not to_ref and not to_vl:
+            continue
 
-        vl_image = process_vl_image(image, vl_target_size, vl_crop, vl_upscale)
-        vl_images.append(vl_image)
-        image_prompt += "Picture {}: <|vision_start|><|image_pad|><|vision_end|>".format(i + 1)
+        mask = entry.get("mask")
+        if mask is not None and not mask_matches(mask, image):
+            print("encode_qwen_edit: mask H/W 与 image 不符，忽略该 mask")
+            mask = None
+        is_main = (i == main_cfg_index) and to_ref
+
+        if to_ref:
+            ref = process_reference(
+                vae,
+                image,
+                entry["ref_longest_edge"],
+                entry["ref_crop"],
+                entry.get("ref_upscale", ref_upscale),
+                is_main,
+                mask=mask,
+                vae_unit=vae_unit,
+                ref_resize_mode=entry.get("ref_resize_mode", "longest_edge"),
+            )
+            ref_latents.append(ref["ref_latent"])
+            vae_images.append(ref["vae_image"])
+            rope_offsets.append((entry.get("rope_x_offset", 0), entry.get("rope_y_offset", 0)))
+            if ref["pad_info"] is not None:
+                pad_info = ref["pad_info"]
+            if ref["noise_mask"] is not None:
+                noise_mask = ref["noise_mask"]
+            if is_main:
+                main_ref_pos = len(ref_latents) - 1
+
+        if to_vl:
+            vl_image = process_vl_image(
+                image,
+                entry.get("vl_target_size", vl_target_size),
+                entry.get("vl_crop", vl_crop),
+                entry.get("vl_upscale", vl_upscale),
+                vl_resize=entry.get("vl_resize", True),
+            )
+            vl_images.append(vl_image)
+            image_prompt += "Picture {}: <|vision_start|><|image_pad|><|vision_end|>".format(i + 1)
 
     full_prompt = image_prompt + prompt
 
@@ -171,8 +233,15 @@ def encode_qwen_edit(clip, vae, prompt, entries, ref_upscale="lanczos",
 
     no_refs_cond = conditioning
     if ref_latents:
-        conditioning = _set_reference_latents(conditioning, ref_latents)
-        latent_samples = ref_latents[main_index]
+        if any(x or y for x, y in rope_offsets):
+            conditioning = set_conditioning_values(
+                conditioning,
+                {"reference_latents": ref_latents, "reference_rope_offsets": rope_offsets},
+                append=True,
+            )
+        else:
+            conditioning = _set_reference_latents(conditioning, ref_latents)
+        latent_samples = ref_latents[main_ref_pos]
     else:
         latent_samples = torch.zeros(TEXT_ONLY_LATENT_SHAPE)
 
@@ -180,7 +249,7 @@ def encode_qwen_edit(clip, vae, prompt, entries, ref_upscale="lanczos",
     if noise_mask is not None:
         latent_out["noise_mask"] = noise_mask
 
-    main_image = vae_images[main_index] if vae_images else None
+    main_image = vae_images[main_ref_pos] if vae_images else None
 
     custom_output = {
         "pad_info": pad_info,

@@ -208,6 +208,46 @@ check("纯文本 main_image None", main2 is None)
 check("纯文本 full_prompt", custom2["full_prompt"] == "hello")
 check("纯文本 vl_images 空", custom2["vl_images"] == [])
 
+# ── 3.5 ref_resize_mode / to_ref / to_vl / rope offsets ──────────────────────
+
+from sf_utils.qwen_edit import scale_reference  # noqa: E402
+
+check("scale_reference area 与 longest_edge 不同",
+      scale_reference(100, 100, 50, "area") == (200, 200)
+      and scale_reference(100, 100, 50, "longest_edge") == (50, 50))
+
+# to_ref=False 只做 VL：ref_latents 不增长；to_vl=False 无 Picture 编号
+vae3 = FakeVae()
+clip3 = FakeClip()
+entries3 = [
+    {"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32, "ref_crop": "center"},
+    {"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32, "ref_crop": "center",
+     "to_ref": False},
+    {"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32, "ref_crop": "center",
+     "to_ref": False, "to_vl": False},
+]
+_cond3, _lat3, custom3, _main3, _nm3 = encode_qwen_edit(clip3, vae3, "p", entries3)
+check("to_ref=False 不进 ref_latents", len(custom3["ref_latents"]) == 1)
+check("to_ref=False 仍进 VL", len(custom3["vl_images"]) == 2)
+check("to_vl=False 不编号", "Picture 3:" not in custom3["full_prompt"])
+
+# rope offsets 非零 → conditioning 写 reference_rope_offsets
+vae4 = FakeVae()
+clip4 = FakeClip()
+entries4 = [{"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32,
+             "ref_crop": "center", "rope_x_offset": 8, "rope_y_offset": 8}]
+_cond4, _lat4, custom4, _main4, _nm4 = encode_qwen_edit(clip4, vae4, "p", entries4)
+extra = custom4["full_refs_cond"][0][1]
+check("rope offsets 写入 conditioning",
+      extra.get("reference_rope_offsets") == [(8, 8)] and "reference_latents" in extra)
+
+# 全零 rope offsets 不写该键（保持旧行为）
+vae5 = FakeVae()
+entries5 = [{"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32,
+             "ref_crop": "center"}]
+_cond5, _lat5, custom5, _main5, _nm5 = encode_qwen_edit(FakeClip(), vae5, "p", entries5)
+check("零 rope offsets 不写键", "reference_rope_offsets" not in custom5["full_refs_cond"][0][1])
+
 # ── 4. 节点壳 ────────────────────────────────────────────────────────────────
 
 _sf_pkg = types.ModuleType("sfnodes")

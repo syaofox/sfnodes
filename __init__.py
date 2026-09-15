@@ -18,6 +18,7 @@ from .nodes.image.load_image_resize import SFLoadImageResize
 from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
 from .nodes.image.crop_expand import SFImageCropExpand
+from .nodes.image.crop_with_pad import SFCropWithPadInfo
 from .nodes.image.brush_mask import SFImageBrushMask
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
@@ -101,6 +102,7 @@ from .nodes.model.conditioning_combine import SFConditioningCombine
 from .nodes.model.conditioning_concat import SFConditioningConcat
 from .nodes.model.lora_plot import SFLoraPlot, SFLoraPlotImageSaver
 from .nodes.model.krea2 import TextEncodeKrea2, Krea2SystemPrompt, SFImageInterrogator
+from .nodes.model.krea2_edit import SFKrea2ModelConfig, SFKrea2EditApply
 from .nodes.model.regional_lora import SFRegionalLoRA
 from .nodes.model.wan_window_lora import SFWanWindowLoRA
 from .nodes.model.wan_window_planner import SFWanWindowPlanner
@@ -167,7 +169,12 @@ from .nodes.text.long_text_to_list import SFLongTextToList
 from .nodes.text.text_list_affix import SFTextListAffix
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
-from .nodes.utils.qwen_edit import SFQwenEditTextEncode, SFQwenEditOutputExtractor
+from .nodes.utils.qwen_edit import (
+    SFQwenEditTextEncode,
+    SFQwenEditOutputExtractor,
+    SFKrea2ConfigPreparer,
+    SFKrea2EditTextEncode,
+)
 from .nodes.utils.painter_flux_edit import SFPainterFluxImageEdit
 from .nodes.utils.flux_resolution import FluxResolution
 from .nodes.utils.canvas_size import CanvasSizePreset  # noqa: F401  # 副作用注册 /api/sfnodes/canvas_size_presets 路由
@@ -230,6 +237,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageResize": SFImageResize,
     "SFImageCrop": SFImageCrop,
     "SFImageCropExpand": SFImageCropExpand,
+    "SFCropWithPadInfo": SFCropWithPadInfo,
     "SFImageBrushMask": SFImageBrushMask,
     "SFImageUncrop": SFImageUncrop,
     "SFImageTile": SFImageTile,
@@ -385,6 +393,10 @@ NODE_CLASS_MAPPINGS = {
     "SFTextEncodeKrea2": TextEncodeKrea2,
     "SFKrea2SystemPrompt": Krea2SystemPrompt,
     "SFImageInterrogator": SFImageInterrogator,
+    "SFKrea2ModelConfig": SFKrea2ModelConfig,
+    "SFKrea2ConfigPreparer": SFKrea2ConfigPreparer,
+    "SFKrea2EditTextEncode": SFKrea2EditTextEncode,
+    "SFKrea2EditApply": SFKrea2EditApply,
     # SageAttention 补丁节点
     "SFPatchSageAttention": SFPatchSageAttention,
     # Flux 分辨率节点
@@ -449,6 +461,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageResize": "SF Image Resize",
     "SFImageCrop": "SF Image Crop",
     "SFImageCropExpand": "SF Image Crop Expand",
+    "SFCropWithPadInfo": "SF Crop With Pad Info",
     "SFImageBrushMask": "SF Image Brush Mask",
     "SFImageUncrop": "SF Image Uncrop",
     "SFImageTile": "SF Image Tile",
@@ -604,6 +617,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTextEncodeKrea2": "SF Text Encode (Krea2)",
     "SFKrea2SystemPrompt": "SF Krea2 System Prompt",
     "SFImageInterrogator": "SF Image Interrogator",
+    "SFKrea2ModelConfig": "SF Krea2 Model Config",
+    "SFKrea2ConfigPreparer": "SF Krea2 Config Preparer",
+    "SFKrea2EditTextEncode": "SF Krea2 Edit Text Encode",
+    "SFKrea2EditApply": "SF Krea2 Edit Apply",
     # SageAttention 补丁节点
     "SFPatchSageAttention": "SF Patch Sage Attention",
     # Flux 分辨率节点
