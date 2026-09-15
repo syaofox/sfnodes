@@ -27,6 +27,10 @@ from ...sf_utils.resize_engine import (
     floor_divisible,
     make_divisible,
     make_even,
+    longer_dimension_to_wh,
+    multiple_to_wh,
+    multiplier_to_wh,
+    shorter_dimension_to_wh,
     total_pixels_to_wh,
 )
 from ...sf_utils.common import _parse_fill_color  # 填充色解析（单源，见 common）
@@ -604,17 +608,24 @@ class ScaleImageToSquare:
 
 
 class ImageResizePlus:
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
+    DESCRIPTION = "高级图片缩放，目标尺寸模式支持宽高、总像素、倍率、长边、短边、缩放至倍数；支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "image": ("IMAGE",),
                 "size_mode": (
-                    ["width & height", "total pixels"],
+                    [
+                        "width & height",
+                        "total pixels",
+                        "scale by multiplier",
+                        "longer dimension",
+                        "shorter dimension",
+                        "scale to multiple",
+                    ],
                     {
                         "default": "width & height",
-                        "tooltip": "目标尺寸模式：width & height=按宽高，total pixels=按总像素数（忽略 width/height，保持源图宽高比）",
+                        "tooltip": "目标尺寸模式：width & height=按宽高；total pixels=按总像素数；scale by multiplier=按倍率；longer dimension=长边；shorter dimension=短边；scale to multiple=缩放到倍数（cover + 居中裁剪）。除 width & height 外均保持源图宽高比",
                     },
                 ),
                 "width": (
@@ -643,6 +654,46 @@ class ImageResizePlus:
                         "max": 16.0,
                         "step": 0.01,
                         "tooltip": "目标总像素（百万像素），1.00 = 1024×1024 = 1,048,576 像素（与原生 ImageScaleToTotalPixels 一致）；仅 size_mode=total pixels 生效",
+                    },
+                ),
+                "multiplier": (
+                    "FLOAT",
+                    {
+                        "default": 1.00,
+                        "min": 0.01,
+                        "max": 8.0,
+                        "step": 0.01,
+                        "tooltip": "缩放倍率（2.0 放大一倍，0.5 缩小一半）；仅 size_mode=scale by multiplier 生效",
+                    },
+                ),
+                "longer_size": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 1,
+                        "max": MAX_RESOLUTION,
+                        "step": 1,
+                        "tooltip": "长边缩放到的目标像素数，保持宽高比；仅 size_mode=longer dimension 生效",
+                    },
+                ),
+                "shorter_size": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 1,
+                        "max": MAX_RESOLUTION,
+                        "step": 1,
+                        "tooltip": "短边缩放到的目标像素数，保持宽高比；仅 size_mode=shorter dimension 生效",
+                    },
+                ),
+                "multiple": (
+                    "INT",
+                    {
+                        "default": 8,
+                        "min": 1,
+                        "max": MAX_RESOLUTION,
+                        "step": 1,
+                        "tooltip": "缩放到该数的倍数（cover 缩放 + 居中裁剪，用于 latent 对齐，如 8/64）；仅 size_mode=scale to multiple 生效",
                     },
                 ),
                 "interpolation": (
@@ -710,7 +761,7 @@ class ImageResizePlus:
     )
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "高级图片缩放，支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
+    DESCRIPTION = "高级图片缩放，目标尺寸模式支持宽高、总像素、倍率、长边、短边、缩放至倍数；支持拉伸、保持比例、填充裁剪和条件缩放；divisible_by 会将最终宽高向下取整到该数的倍数（默认 8）"
 
     def execute(
         self,
@@ -719,6 +770,10 @@ class ImageResizePlus:
         height,
         size_mode="width & height",
         total_pixels=1.0,
+        multiplier=1.0,
+        longer_size=512,
+        shorter_size=512,
+        multiple=8,
         method="keep proportion",
         interpolation="lanczos",
         condition="always",
@@ -739,6 +794,26 @@ class ImageResizePlus:
             computed = total_pixels_to_wh(ow, oh, total_pixels)
             if computed is not None:
                 width, height = computed
+        elif size_mode == "scale by multiplier":
+            computed = multiplier_to_wh(ow, oh, multiplier)
+            width, height = computed if computed is not None else (0, 0)
+        elif size_mode == "longer dimension":
+            computed = longer_dimension_to_wh(ow, oh, longer_size)
+            width, height = computed if computed is not None else (0, 0)
+        elif size_mode == "shorter dimension":
+            computed = shorter_dimension_to_wh(ow, oh, shorter_size)
+            width, height = computed if computed is not None else (0, 0)
+        elif size_mode == "scale to multiple":
+            # 原生等价：倍数网格由 multiple 独占，divisible_by 不参与
+            # （否则二次取整可能破坏 multiple 网格，见 experience/nodes-image.md §75）
+            divisible_by = 1
+            computed = multiple_to_wh(ow, oh, multiple)
+            if computed is not None:
+                width, height = computed
+                # 原生 scale to multiple = cover 缩放 + 居中裁剪，与 method 无关
+                method = "fill / crop"
+            else:
+                width = height = 0
 
         if divisible_by > 1:
             width = floor_divisible(width, divisible_by)

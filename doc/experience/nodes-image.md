@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -758,3 +758,37 @@
 
 - `tests/test_image_browser_js.js` 文本提取 `applyNativeLoadImagePick`/`findNativeBrowseButton` 进 `.mjs` 直跑（依赖的模块级常量按源文件正则取值注入，守单真源）：写入值/触发 callback/setDirtyCanvas、无 callback 不抛错、无 widget/空值/node 空返回 false；按钮下标命中/无返回 -1/同名非 button 不算。
 - 实机验证走分段 console 诊断（platform §2.9），重点看：按钮存在、pick input/output 后 widget 值与预览刷新、队列不报 `Value not in list`。
+
+## 75. SFImageResizePlus size_mode 复刻原生 ResizeImageMaskNode（2026-09）
+
+> 背景：原生 `ResizeImageMaskNode.resize_type` 有 9 种模式，而 `SFImageResizePlus` 原 `size_mode` 只有 `width & height` / `total pixels`。目标是把"缺少的、有意义的"模式补进 `size_mode`。
+
+### 1. 覆盖判定（哪些该复刻）
+
+- 已覆盖：`scale dimensions`（= width & height + method 的 stretch/keep/fill crop/pad）、`scale total pixels`。
+- **冗余不复刻**：`scale width` / `scale height` —— `width & height` + `method="keep proportion"` 把另一维填 0 即等价（实测 2000×1000 缩宽 1024 → 1024×512，与原生一致）。单边 auto 逻辑见 `execute` 里 `method in (keep proportion, pad)` 分支。
+- 新增 4 个：`scale by multiplier` / `longer dimension` / `shorter dimension` / `scale to multiple`。
+- `match size`（按参考图尺寸）需额外 optional 参考输入，本次不做（可后续单独加）。
+
+### 2. 数学单源收敛到 resize_engine.py
+
+- 新增纯函数 `multiplier_to_wh` / `longer_dimension_to_wh` / `shorter_dimension_to_wh` / `multiple_to_wh`（与既有 `total_pixels_to_wh` 同文件同风格，非法输入返回 None，1px 下限）。
+- **不要在 scale.py 内联**：`SFImageResize` 的 `resize_engine` 已有 longest_side/scale_factor 的 PIL 版实现，目标尺寸数学应收敛为纯函数单源，可直测。
+- `scale to multiple` 语义 = 先 `floor` 到倍数得目标，再 **cover 缩放 + 居中裁剪**（原生 `scale_to_multiple_cover`）；与既有 `divisible_by`（只裁不 cover）不同。
+
+### 3. execute 分支与 method 特例
+
+- 新分支只改"目标尺寸计算"段（在 `divisible_by` 取整之前），算出的 width/height 仍走既有 `divisible_by` → `method` → `condition` 通路，mask/pad/interpolation 全复用。
+- 倍率/长边/短边：默认 `method="keep proportion"` 即得原生精确结果；用户改 method 则是合理超集。
+- **`scale to multiple` 内部强制 `method="fill / crop"`**（忽略 method widget，前端同步隐藏）——因为原生该模式恒为 cover+裁剪，与 method 无关。退化（multiple<=1 / 取整为 0）时 `width=height=0` 走自动档直通，**不能**回落到隐藏 widget 里残留的旧 width/height。
+- **`scale to multiple` 必须让 `divisible_by` 退场**：`divisible_by` 是全局后置取整，会在 multiple 目标上再 `floor`，若 `multiple % divisible_by != 0` 会破坏倍数网格（如 multiple=6、divisible_by=8 会把 996 压成 992）。原生 `ResizeImageMaskNode` 无 `divisible_by`，故本模式**后端 `divisible_by=1` 跳过、前端隐藏该 widget**；其余模式 `divisible_by` 照常生效。
+
+### 4. widgets_values 位置敏感与新控件兼容（核心坑）
+
+- 新增 4 个 widget（multiplier/longer_size/shorter_size/multiple）紧跟 total_pixels，canonical 长度 10 → **14**。旧工作流按位恢复会错位，`web/sf_image_resize_plus.js::configure` 必须**逐级 remap**：先 8→10（size_mode 置顶重排前），再 10→14（在 `total_pixels` 后插入 4 个默认值 `1.0/512/512/8`）。判据用 `widgets_values.length`，新版 14 项原样放行。
+- 前端显隐按 `size_mode` 分支；`scale to multiple` 额外 `methodW.hidden=true`，切回其它模式由统一 `toggle()` 恢复。
+
+### 5. 测试
+
+- `tests/test_image_resize_plus.py`：4 个纯函数（含倍数已整除/取整为 0/竖图）与 `execute` 各新模式出图尺寸、multiple 退化直通、六选项/顺序断言。
+- `tests/test_image_resize_plus_js.js`：各模式参数显隐、scale to multiple 隐藏 method、8→14 与 10→14 remap、14 项不改写。

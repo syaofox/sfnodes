@@ -35,6 +35,11 @@ function makeNode(sizeMode, dirty) {
             { name: "width", value: 1024, callback: null },
             { name: "height", value: 1024, callback: null },
             { name: "total_pixels", value: 1.0, callback: null },
+            { name: "multiplier", value: 1.0, callback: null },
+            { name: "longer_size", value: 512, callback: null },
+            { name: "shorter_size", value: 512, callback: null },
+            { name: "multiple", value: 8, callback: null },
+            { name: "divisible_by", value: 8, callback: null },
             { name: "method", value: "keep proportion", callback: null },
             { name: "crop_position", value: "center", callback: null },
             { name: "pad_color", value: "#000000", callback: null },
@@ -82,12 +87,17 @@ const w = (n, name) => n.widgets.find((x) => x.name === name);
     n.configure({
         widgets_values: [1024, 512, "lanczos", "pad", "always", 8, "center", "#000000"],
     });
-    check("旧版 8 项 widgets_values remap 为 10 项", JSON.stringify(captured.widgets_values) === JSON.stringify([
-        "width & height", 1024, 512, 1.0, "lanczos", "pad", "always", 8, "center", "#000000",
+    check("旧版 8 项 widgets_values remap 为 14 项", JSON.stringify(captured.widgets_values) === JSON.stringify([
+        "width & height", 1024, 512, 1.0, 1.0, 512, 512, 8, "lanczos", "pad", "always", 8, "center", "#000000",
     ]));
     n.configure({ widgets_values: ["total pixels", 1024, 1024, 1.5, "lanczos", "pad", "always", 8, "center", "#000000"] });
-    check("新版 10 项 widgets_values 不改写",
-        captured.widgets_values[0] === "total pixels" && captured.widgets_values.length === 10);
+    check("旧版 10 项 widgets_values remap 为 14 项",
+        JSON.stringify(captured.widgets_values) === JSON.stringify([
+            "total pixels", 1024, 1024, 1.5, 1.0, 512, 512, 8, "lanczos", "pad", "always", 8, "center", "#000000",
+        ]));
+    n.configure({ widgets_values: ["total pixels", 1024, 1024, 1.5, 1.0, 512, 512, 8, "lanczos", "pad", "always", 8, "center", "#000000"] });
+    check("新版 14 项 widgets_values 不改写",
+        captured.widgets_values[0] === "total pixels" && captured.widgets_values.length === 14);
     setTimeout(() => {
         check("configure 恢复 total pixels 后 width/height 隐藏",
             w(n, "width").hidden === true && w(n, "height").hidden === true && w(n, "total_pixels").hidden === false);
@@ -109,6 +119,35 @@ const w = (n, name) => n.widgets.find((x) => x.name === name);
         w(n4, "method").callback();
         check("keep proportion: 两者隐藏",
             w(n4, "crop_position").hidden === true && w(n4, "pad_color").hidden === true);
+
+        // 3.6 新增 4 个 size_mode 的参数显隐
+        const n5 = makeNode("width & height");
+        ext.nodeCreated(n5);
+        check("默认 width & height: 新模式参数全隐藏",
+            w(n5, "multiplier").hidden === true && w(n5, "longer_size").hidden === true
+            && w(n5, "shorter_size").hidden === true && w(n5, "multiple").hidden === true);
+        const modes = [
+            ["scale by multiplier", "multiplier"],
+            ["longer dimension", "longer_size"],
+            ["shorter dimension", "shorter_size"],
+            ["scale to multiple", "multiple"],
+        ];
+        for (const [mode, active] of modes) {
+            w(n5, "size_mode").value = mode;
+            w(n5, "size_mode").callback();
+            const all = ["multiplier", "longer_size", "shorter_size", "multiple"];
+            const ok = all.every((name) => w(n5, name).hidden === (name !== active));
+            check(`${mode}: 仅隐藏其余模式参数`, ok);
+        }
+        // scale to multiple 内部强制 cover → method 隐藏；倍数网格独占 → divisible_by 隐藏
+        check("scale to multiple: method 隐藏",
+            w(n5, "method").hidden === true);
+        check("scale to multiple: divisible_by 隐藏",
+            w(n5, "divisible_by").hidden === true);
+        w(n5, "size_mode").value = "width & height";
+        w(n5, "size_mode").callback();
+        check("切回 width & height: method/divisible_by 恢复可见",
+            w(n5, "method").hidden === false && w(n5, "divisible_by").hidden === false);
 
         // 4. onAfterGraphConfigured 同步恢复
         const n2 = makeNode("width & height");

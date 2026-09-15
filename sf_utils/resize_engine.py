@@ -76,6 +76,75 @@ def total_pixels_to_wh(orig_w: int, orig_h: int, total_pixels: float) -> Tuple[i
     return max(1, round(ow * scale)), max(1, round(oh * scale))
 
 
+def multiplier_to_wh(orig_w: int, orig_h: int, multiplier: float) -> Tuple[int, int] | None:
+    """按倍率缩放，返回 (width, height)（对齐原生 scale by multiplier）。
+
+    非正 / 非法输入返回 None（调用方回退）。取整用 round，与原生一致。
+    """
+    try:
+        ow, oh = int(orig_w), int(orig_h)
+        m = float(multiplier)
+    except (TypeError, ValueError):
+        return None
+    if ow <= 0 or oh <= 0 or m <= 0:
+        return None
+    return max(1, round(ow * m)), max(1, round(oh * m))
+
+
+def longer_dimension_to_wh(orig_w: int, orig_h: int, size: int) -> Tuple[int, int] | None:
+    """长边缩放到 size、短边按比例（对齐原生 scale longer dimension）。
+
+    非正 / 非法输入返回 None（调用方回退）。
+    """
+    try:
+        ow, oh = int(orig_w), int(orig_h)
+        s = int(size)
+    except (TypeError, ValueError):
+        return None
+    if ow <= 0 or oh <= 0 or s <= 0:
+        return None
+    if ow >= oh:
+        return max(1, s), max(1, round(oh * s / ow))
+    return max(1, round(ow * s / oh)), max(1, s)
+
+
+def shorter_dimension_to_wh(orig_w: int, orig_h: int, size: int) -> Tuple[int, int] | None:
+    """短边缩放到 size、长边按比例（对齐原生 scale shorter dimension）。
+
+    非正 / 非法输入返回 None（调用方回退）。
+    """
+    try:
+        ow, oh = int(orig_w), int(orig_h)
+        s = int(size)
+    except (TypeError, ValueError):
+        return None
+    if ow <= 0 or oh <= 0 or s <= 0:
+        return None
+    if ow <= oh:
+        return max(1, s), max(1, round(oh * s / ow))
+    return max(1, round(ow * s / oh)), max(1, s)
+
+
+def multiple_to_wh(orig_w: int, orig_h: int, multiple: int) -> Tuple[int, int] | None:
+    """向下取整到 multiple 的倍数，返回 cover 目标 (width, height)。
+
+    multiple <= 1、非法输入或取整后任一维为 0 时返回 None（调用方回退）。
+    与原生 scale to multiple 同款：先算 floor 倍数目标，再 cover 缩放 + 居中裁剪。
+    """
+    try:
+        ow, oh = int(orig_w), int(orig_h)
+        m = int(multiple)
+    except (TypeError, ValueError):
+        return None
+    if ow <= 0 or oh <= 0 or m <= 1:
+        return None
+    tw = (ow // m) * m
+    th = (oh // m) * m
+    if tw <= 0 or th <= 0:
+        return None
+    return tw, th
+
+
 def parse_resize_state(state_json: str, defaults: dict) -> dict:
     """Parse a hidden-state JSON string, merging known keys over `defaults`.
     Falls back to a copy of `defaults` on any error (subgraph / partial-prompt
