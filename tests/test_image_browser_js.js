@@ -33,11 +33,12 @@ function extractFn(name) {
     const mjs = [
         extractFn("getImageFolderFromValue"),
         extractFn("folderExists"),
-        "export { getImageFolderFromValue, folderExists };",
+        extractFn("applyNativeLoadImagePick"),
+        "export { getImageFolderFromValue, folderExists, applyNativeLoadImagePick };",
     ].join("\n\n");
     const modPath = path.join(tmpDir, "lib.mjs");
     fs.writeFileSync(modPath, mjs);
-    const { getImageFolderFromValue, folderExists } = await import(modPath);
+    const { getImageFolderFromValue, folderExists, applyNativeLoadImagePick } = await import(modPath);
 
     // ── getImageFolderFromValue ──
     check("空值 → input 根", (() => { const r = getImageFolderFromValue(""); return r.type === "input" && r.folder === ""; })());
@@ -62,6 +63,31 @@ function extractFn(name) {
     check("不存在的目录无效", !folderExists(items, "sub"));
     check("同名前缀目录不算（face vs faces）", !folderExists(items, "face"));
     check("空列表下子目录无效", !folderExists([], "faces"));
+
+    // ── applyNativeLoadImagePick ──
+    (() => {
+        const calls = [];
+        const dirty = [];
+        const node = {
+            widgets: [{ name: "image", value: "old.png", callback: (v) => calls.push(v) }],
+            setDirtyCanvas: (...a) => dirty.push(a),
+        };
+        check("pick 写入 widget 值", applyNativeLoadImagePick(node, "out/a.png [output]") === true
+            && node.widgets[0].value === "out/a.png [output]");
+        check("pick 触发 widget callback", calls.length === 1 && calls[0] === "out/a.png [output]");
+        check("pick 触发 setDirtyCanvas", dirty.length === 1);
+
+        const noCb = { widgets: [{ name: "image", value: "" }], setDirtyCanvas: () => {} };
+        check("无 callback 不抛错且返回 true", applyNativeLoadImagePick(noCb, "x.png") === true);
+
+        const noWidget = { widgets: [{ name: "channel", value: "" }] };
+        check("无 image widget 返回 false", applyNativeLoadImagePick(noWidget, "x.png") === false);
+
+        const hasWidget = { widgets: [{ name: "image", value: "keep.png" }] };
+        check("value 为 null 返回 false 且不改值", applyNativeLoadImagePick(hasWidget, null) === false
+            && hasWidget.widgets[0].value === "keep.png");
+        check("node 为 null 返回 false", applyNativeLoadImagePick(null, "x.png") === false);
+    })();
 
     console.log(failures.length ? `\n${failures.length} FAILED` : "\nAll passed");
     process.exit(failures.length ? 1 : 0);

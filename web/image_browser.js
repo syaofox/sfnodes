@@ -752,6 +752,39 @@ app.registerExtension({
     },
 });
 
+// 官方原生 LoadImage/LoadImageMask 的 Browse 按钮：选中值写回原生 `image`
+// widget 并触发其 callback——核心 image_upload 借此刷新预览。原生 LoadImage
+// 的 VALIDATE_INPUTS 带 image 参数，使后端 combo 列表校验被跳过（execution.py
+// validate_prompt 的 `x not in validate_function_inputs` 守卫），故 output 图片
+// 的 "xxx [output]" 注解值也可直接提交，无需污染原生下拉 options。
+export function applyNativeLoadImagePick(node, value) {
+    const w = node?.widgets?.find(w => w.name === "image");
+    if (!w || value == null) return false;
+    w.value = value;
+    if (typeof w.callback === "function") w.callback(value);
+    node.setDirtyCanvas?.(true, true);
+    return true;
+}
+
+// 挂到官方原生加载节点的选择器模式扩展（精确 comfyClass 匹配，不误伤
+// SFLoadImageBrowser——后者已自挂 Browse 按钮）。
+const NATIVE_LOAD_IMAGE_TYPES = ["LoadImage", "LoadImageMask"];
+
+app.registerExtension({
+    name: "sfnodes.native_load_image_browse",
+    nodeCreated(node) {
+        if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
+
+        node.addWidget("button", "Browse Images", null, () => {
+            const imageWidget = node.widgets?.find(w => w.name === "image");
+            showImageBrowser(node, {
+                selectedValue: imageWidget?.value || "",
+                onPick: (value) => applyNativeLoadImagePick(node, value),
+            });
+        });
+    },
+});
+
 // 在 window 捕获阶段抢先接管 SFLoadImageBrowser 上的图片拖拽，
 // 避免被第三方扩展（如 Fill-Nodes 的 LoadImageDropFix）在 document 捕获阶段
 // 劫持为"新建 LoadImage 节点"（其 isLoadImageNode 硬编码只识别 LoadImage/LoadImageMask）

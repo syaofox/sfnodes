@@ -736,3 +736,24 @@
 - `tests/test_crop_expand_smoke.js`：桩 app/CropAPI/sf_popup/image_browser，sf_common 用真实剥 import 版，纯库拷真实——断言左键命中手柄起拖、按住改框、`buttons:0` 清状态且不再改框、落定后移动不改、右键不起拖、`onMouseUp` 与 window capture 释放、`onRemoved` 解绑。
 - `tests/test_brush_mask_smoke.js` 的 `stub_common` 同步补三导出（桩模块必须与真实导出面一致，否则 ESM 命名导入直接 SyntaxError——本轮踩到）。
 - 不新增公共纯库函数（判定逻辑放 sf_common，DOM 事件面本就不属纯库）。
+
+## 71. 官方原生 LoadImage/LoadImageMask 挂 Browse 按钮（复用 showImageBrowser 选择器模式，2026-09）
+
+> 背景：希望官方原生 Load Image 也拥有 SF Load Image Browser 的"浏览图片"能力，纯前端、不改 Python。
+
+### 1. 复用与实现
+
+- 直接复用 `web/image_browser.js::showImageBrowser(node, opts)` 的 **onPick 选择器模式**（§34 参数化的产物）：宿主传 `onPick` + `selectedValue`，弹层不碰 widget、选中值交回调。
+- 新增 `applyNativeLoadImagePick(node, value)`（导出，纯函数好测）：定位 `widgets` 里 `name==="image"` 的 widget → 赋 `value` → 调其 `callback(value)`（核心 `image_upload` 借此刷新预览）→ `setDirtyCanvas`。无 widget/null 值返回 false。
+- 独立扩展 `sfnodes.native_load_image_browse`，`nodeCreated` 精确匹配 `comfyClass ∈ {LoadImage, LoadImageMask}`（**不误伤 SFLoadImageBrowser**——它已有自挂按钮），`addWidget("button", "Browse Images", ...)`。
+
+### 2. 关键发现：combo 列表校验被 VALIDATE_INPUTS 跳过
+
+- 弹层可切到 output 目录，选中值形如 `"a.png [output]"`，而原生 `image` combo 的静态 options 只有 input 文件。原以为会踩 `Value not in list`（patterns §2），实测**不会**：
+- `execution.py::validate_prompt` 里 combo 成员检查被 `if x not in validate_function_inputs and not validate_has_kwargs:` 守卫包裹——只要节点 `VALIDATE_INPUTS` 的形参含该输入名即整段跳过。原生 `LoadImage.VALIDATE_INPUTS(s, image)` 正好含 `image`（LoadImageMask 继承同款），`get_annotated_filepath` 原生解析 output 路径。
+- 结论：**无需**像 SFLoadImageResize 那样把 output 值塞进 `imageWidget.options.values`（那会污染原生可见下拉）。判断依据是"节点是否声明了 VALIDATE_INPUTS 且形参覆盖该 combo"。
+
+### 3. 测试
+
+- `tests/test_image_browser_js.js` 文本提取 `applyNativeLoadImagePick` 进 `.mjs` 直跑：写入值/触发 callback/setDirtyCanvas、无 callback 不抛错、无 widget/空值/node 空返回 false。
+- 实机验证走分段 console 诊断（platform §2.9），重点看：按钮存在、pick input/output 后 widget 值与预览刷新、队列不报 `Value not in list`。
