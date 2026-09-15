@@ -683,3 +683,11 @@
 - **可移植导入兜底**：测试以 `nodes.model.image_interrogator_api` 顶层导入时 `from ...sf_utils.llm_client` 越界 → try/except 回退绝对 `sf_utils.llm_client`（krea2.py 同款；注意保持顶层名字绑定，测试才能 monkeypatch `mod.chat_completion_sync`）。
 - **图片约束**：DeepSeek 单图 ≤32MiB、单边 ≤8192px、仅 user 消息可带图（system/assistant 带图 400）；靠 `vision_megapixels` + 单帧 + JPEG 控制体积。
 - **`frame_index` 契约**：0 起，-1 取末帧，越界抛错（测试覆盖正/负越界）。
+
+### 3. seed 透传与 LRU 缓存（2026-09）
+
+- **seed 条件发送**：官方 DeepSeek Chat Completions 的请求体字段表**没有 `seed`**（第三方 OpenAI 兼容托管有）。故节点加 `send_seed` 布尔（默认**关**）：关时 `chat_completion_sync(seed=None)` 不写该键（对官方安全），开时才下发。**实测（2026-09，官方 `api.deepseek.com`/`deepseek-flash`）：带 seed 与不带均 200，官方不因该字段报错**（是否真正参与采样未证，按 best-effort 对待）；默认仍关，用户按端点能力自行开启。
+- **缓存键要含"不发送但影响期望"的参数**：`send_seed` 关时节点 seed 不进请求体，但它决定用户是否想要新结果（配合 `control_after_generate=randomize`）。若缓存键只看 payload，随机化 seed 也会命中同一缓存 → 拿不到新结果。解决：`make_cache_key(base_url, payload, extra)` 的 `extra` 由节点恒传 `(seed,)`，把节点 seed 纳入键而不进请求体。
+- **LRU 单源共用**：`LruCache`（OrderedDict + threading.Lock，容量 128；命中 move_to_end、超容淘汰最久未用）放在 llm_client，`chat_completion_sync/async` 同用一份 `response_cache`（同步写、异步读命中，反之亦然）。键 = `(base_url, sha256(canonical payload), extra)`——payload 含图片 data URL，故换了图/提示词/温度/模型自动换键；哈希后不驻留图片字节。只缓存成功结果。
+- **开关走同一设置体系**：`sfnodes.LLM.CacheEnabled`（boolean，默认开，前端 sf_llm_settings.js 注册）→ 后端 `get_llm_config()["cache_enabled"]` → `chat_completion_*` 的 `use_cache=None` 时取该值。翻译路由与节点无需额外接线。
+- **可测性**：网络层拆 `_do_request_sync`/`_do_request_async`，测试 monkeypatch 计数即可验证命中/绕过/跨同步异步复用，不发真实请求；`LruCache` 淘汰顺序单测覆盖。

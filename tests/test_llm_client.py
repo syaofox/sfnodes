@@ -13,14 +13,19 @@ from sf_utils.llm_client import (  # noqa: E402
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
     PROVIDER_PRESETS,
+    LruCache,
     build_chat_payload,
     build_image_content,
+    chat_completion_async,
+    chat_completion_sync,
     extract_api_error,
     get_llm_config,
     image_to_data_url,
     is_deepseek,
+    make_cache_key,
     parse_chat_response,
 )
+import sf_utils.llm_client as L  # noqa: E402
 
 failures = []
 
@@ -98,6 +103,9 @@ check("payload 空模型回退默认", p["model"] == DEFAULT_MODEL)
 check("payload temperature 0 保留", p["temperature"] == 0.0)
 check("payload max_tokens", p["max_tokens"] == 512)
 check("payload thinking", p["thinking"] == {"type": "disabled"})
+check("payload 默认不含 seed", "seed" not in build_chat_payload("m", msgs))
+check("payload 含 seed", build_chat_payload("m", msgs, seed=123)["seed"] == 123)
+check("payload seed=0 也下发", build_chat_payload("m", msgs, seed=0)["seed"] == 0)
 
 # ── 图片 content ──
 content = build_image_content("描述这张图", "data:image/png;base64,AAAA", "high")
@@ -143,6 +151,94 @@ try:
     check("RGBA 转 RGB 编码", image_to_data_url(rgba).startswith("data:image/jpeg;base64,"))
 except ImportError:
     print("SKIP: PIL 不可用，跳过图片编码测试")
+
+# ── cache_enabled 配置读取 ──
+check("cache_enabled 默认 True", get_llm_config({})["cache_enabled"] is True)
+check("cache_enabled bool False", get_llm_config({"sfnodes.LLM.CacheEnabled": False})["cache_enabled"] is False)
+check("cache_enabled 字符串 false", get_llm_config({"sfnodes.LLM.CacheEnabled": "false"})["cache_enabled"] is False)
+check("cache_enabled 字符串 true", get_llm_config({"sfnodes.LLM.CacheEnabled": "yes"})["cache_enabled"] is True)
+
+# ── make_cache_key ──
+pA = build_chat_payload("m", msgs, temperature=0.0)
+pB = build_chat_payload("m", msgs, temperature=0.0)
+check("cache key 稳定", make_cache_key("u", pA) == make_cache_key("u", pB))
+check("cache key 端点敏感", make_cache_key("u", pA) != make_cache_key("v", pA))
+check("cache key payload 敏感", make_cache_key("u", pA) != make_cache_key("u", build_chat_payload("m", msgs, temperature=1.0)))
+check("cache key extra 敏感", make_cache_key("u", pA, (1,)) != make_cache_key("u", pA, (2,)))
+
+# ── LruCache ──
+c = LruCache(2)
+check("空缓存 len 0", len(c) == 0)
+c.set("a", 1)
+c.set("b", 2)
+check("命中提升前", c.get("a") == 1)
+c.set("c", 3)   # "b" 最久未用 -> 淘汰
+check("超容淘汰最久未用 b", c.get("b") is None)
+check("保留 a/c", c.get("a") == 1 and c.get("c") == 3 and len(c) == 2)
+c.set("a", 9)
+check("覆盖同键", c.get("a") == 9 and len(c) == 2)
+c.clear()
+check("clear", len(c) == 0)
+
+# ── 缓存集成（打桩网络层，不发请求）──
+_sync_calls = {"n": 0}
+_async_calls = {"n": 0}
+_orig_sync = L._do_request_sync
+_orig_async = L._do_request_async
+
+
+def _fake_sync(base_url, payload, api_key, timeout):
+    _sync_calls["n"] += 1
+    return f"SYNC-{_sync_calls['n']}"
+
+
+async def _fake_async(base_url, payload, api_key, timeout):
+    _async_calls["n"] += 1
+    return f"ASYNC-{_async_calls['n']}"
+
+
+L._do_request_sync = _fake_sync
+L._do_request_async = _fake_async
+try:
+    L.response_cache.clear()
+    cfg = {"base_url": "u", "model": "m", "api_key": "k", "cache_enabled": True}
+    msgs = [{"role": "user", "content": "same"}]
+    r1 = chat_completion_sync(cfg, msgs, temperature=0.0)
+    r2 = chat_completion_sync(cfg, msgs, temperature=0.0)
+    check("同参数第二次命中缓存", r1 == r2 and _sync_calls["n"] == 1)
+    r3 = chat_completion_sync(cfg, msgs, temperature=0.0, cache_key_extra=(1,))
+    check("不同 cache_key_extra 不命中", _sync_calls["n"] == 2 and r3 != r1)
+    r4 = chat_completion_sync(cfg, msgs, temperature=0.0, cache_key_extra=(1,))
+    check("相同 extra 命中", r4 == r3 and _sync_calls["n"] == 2)
+    chat_completion_sync(cfg, msgs, temperature=0.0, seed=7)
+    chat_completion_sync(cfg, msgs, temperature=0.0, seed=7)
+    check("seed 进缓存键且命中", _sync_calls["n"] == 3 and L.response_cache.get(
+        make_cache_key("u", build_chat_payload("m", msgs, temperature=0.0, seed=7))) == "SYNC-3")
+    chat_completion_sync(cfg, msgs, temperature=0.0, use_cache=False)
+    check("use_cache=False 绕过缓存", _sync_calls["n"] == 4)
+
+    cfg_off = {"base_url": "u", "model": "m", "api_key": "k", "cache_enabled": False}
+    chat_completion_sync(cfg_off, msgs, temperature=0.0)
+    chat_completion_sync(cfg_off, msgs, temperature=0.0)
+    check("cache_enabled=False 不缓存", _sync_calls["n"] == 6)
+
+    # 同步写入 → 异步命中（同进程同缓存）
+    import asyncio
+
+    amsgs = [{"role": "user", "content": "async-only"}]
+    a1 = asyncio.run(chat_completion_async(cfg, amsgs, temperature=0.0))
+    a2 = asyncio.run(chat_completion_async(cfg, amsgs, temperature=0.0))
+    check("异步同参数命中缓存", a1 == a2 and _async_calls["n"] == 1)
+
+    bmsgs = [{"role": "user", "content": "cross-sync-async"}]
+    before_async = _async_calls["n"]
+    chat_completion_sync(cfg, bmsgs, temperature=0.0)
+    asyncio.run(chat_completion_async(cfg, bmsgs, temperature=0.0))
+    check("异步复用同步写入的缓存", _async_calls["n"] == before_async)
+finally:
+    L._do_request_sync = _orig_sync
+    L._do_request_async = _orig_async
+    L.response_cache.clear()
 
 print(f"\nFAILURES: {len(failures)}")
 if failures:

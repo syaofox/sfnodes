@@ -77,6 +77,18 @@ class SFImageInterrogatorAPI:
                     "default": 512, "min": 8, "max": 8192,
                     "tooltip": "返回文本的最大 token 数（DeepSeek thinking 已关闭，不会占用推理预算）",
                 }),
+                "seed": ("INT", {
+                    "default": 0, "min": 0, "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                    "tooltip": "随机种子（best-effort 复现）。右侧下拉控制递增模式（fixed/increment/decrement/randomize）。"
+                               "是否真正发给 API 取决于下方 send_seed；即使不发送，它也会区分 LRU 缓存——"
+                               "随机化时每次取新结果，固定时命中缓存保持稳定",
+                }),
+                "send_seed": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "是否把 seed 发给 API。官方 DeepSeek Chat Completions 未文档化该字段，默认关闭（避免被拒）；"
+                               "第三方 OpenAI 兼容端点通常支持 seed，可开启以获得更好的可复现性",
+                }),
                 "vision_megapixels": ("FLOAT", {
                     "default": 1.0, "min": 0.1, "max": 8.0, "step": 0.1,
                     "tooltip": "发送前图片缩放上限（百万像素，按面积等比，只缩小不放大）。控制请求体积/成本",
@@ -107,7 +119,8 @@ class SFImageInterrogatorAPI:
         "图像反推（LLM API 版）：把输入图片编码为 base64 发给 OpenAI 兼容的视觉大模型"
         "（默认 DeepSeek deepseek-flash），返回描述文本作为提示词。与本地版 SF Image "
         "Interrogator 共用反推预设库。API key/模型在 设置 → SF LLM 配置；只处理单帧"
-        "（frame_index），失败报错。"
+        "（frame_index），失败报错。可选 seed（send_seed 控制是否下发，best-effort 复现）；"
+        "相同参数请求命中内存 LRU 缓存不再出网（可在 设置 → SF LLM 关闭）。"
     )
 
     @classmethod
@@ -142,7 +155,7 @@ class SFImageInterrogatorAPI:
         return image_to_data_url(cls._frame_to_pil(image, index), max_megapixels=megapixels)
 
     def interrogate(self, image, preset, prompt, user_prompt, temperature, max_tokens,
-                    vision_megapixels, detail, frame_index, system_prompt=None):
+                    seed, send_seed, vision_megapixels, detail, frame_index, system_prompt=None):
         instruction = (prompt or "").strip() or _merged_presets(
             "interrogator", INTERROGATOR_PRESETS).get(preset, INTERROGATOR_DEFAULT_PROMPT)
         extra = (user_prompt or "").strip()
@@ -157,5 +170,8 @@ class SFImageInterrogatorAPI:
         ]
         text = chat_completion_sync(
             get_llm_config(), messages, temperature=temperature, max_tokens=max_tokens,
+            seed=(seed if send_seed else None),
+            # seed 始终纳入缓存键：不发送时仍能区分（随机化取新结果/固定命中缓存）
+            cache_key_extra=(seed,),
         )
         return (text,)

@@ -79,6 +79,8 @@ check("max_tokens INT", req["max_tokens"][0] == "INT")
 check("vision_megapixels FLOAT", req["vision_megapixels"][0] == "FLOAT")
 check("detail 三档", req["detail"][0] == ["auto", "low", "high"] and req["detail"][1].get("default") == "auto")
 check("frame_index 默认 0", req["frame_index"][1].get("default") == 0)
+check("seed INT + control_after_generate", req["seed"][0] == "INT" and req["seed"][1].get("control_after_generate") is True)
+check("send_seed 布尔默认 False", req["send_seed"][0] == "BOOLEAN" and req["send_seed"][1].get("default") is False)
 check("system_prompt 可选 forceInput", it["optional"]["system_prompt"][1].get("forceInput") is True)
 check("RETURN_TYPES", SFImageInterrogatorAPI.RETURN_TYPES == ("STRING",))
 check("RETURN_NAMES", SFImageInterrogatorAPI.RETURN_NAMES == ("text",))
@@ -124,7 +126,8 @@ mod.get_llm_config = lambda: {"provider": "deepseek", "base_url": "u", "model": 
 try:
     out = node.interrogate(
         image=arr, preset="default", prompt="", user_prompt="keep clothing",
-        temperature=0.3, max_tokens=512, vision_megapixels=1.0, detail="high", frame_index=0,
+        temperature=0.3, max_tokens=512, seed=5, send_seed=False,
+        vision_megapixels=1.0, detail="high", frame_index=0,
     )
     check("输出文本", out == ("A DESCRIBED SCENE",))
     check("config 来自 get_llm_config", captured["config"]["api_key"] == "k")
@@ -132,6 +135,8 @@ try:
     check("system + user", captured["messages"][0]["role"] == "system" and captured["messages"][1]["role"] == "user")
     check("temperature 透传", captured["kwargs"]["temperature"] == 0.3)
     check("max_tokens 透传", captured["kwargs"]["max_tokens"] == 512)
+    check("send_seed=False 不下发 seed", captured["kwargs"]["seed"] is None)
+    check("seed 进缓存键", captured["kwargs"]["cache_key_extra"] == (5,))
     user_content = captured["messages"][1]["content"]
     check("content 含文本与图片", user_content[0]["type"] == "text" and user_content[1]["type"] == "image_url")
     instruction = user_content[0]["text"]
@@ -144,12 +149,14 @@ try:
     captured.clear()
     node.interrogate(
         image=arr, preset="default", prompt="custom instruction", user_prompt="",
-        temperature=0.3, max_tokens=512, vision_megapixels=1.0, detail="auto", frame_index=0,
+        temperature=0.3, max_tokens=512, seed=9, send_seed=True,
+        vision_megapixels=1.0, detail="auto", frame_index=0,
         system_prompt="MY SYSTEM",
     )
     check("system_prompt 覆盖", captured["messages"][0]["content"] == "MY SYSTEM")
     check("prompt 非空覆盖预设", captured["messages"][1]["content"][0]["text"] == "custom instruction")
     check("auto detail 保留字段", captured["messages"][1]["content"][1]["image_url"]["detail"] == "auto")
+    check("send_seed=True 下发 seed", captured["kwargs"]["seed"] == 9)
 
     # 错误传播
     def boom(*a, **k):
@@ -157,7 +164,10 @@ try:
 
     mod.chat_completion_sync = boom
     check("API 错误传播", raises(
-        node.interrogate, arr, "default", "x", "", 0.3, 512, 1.0, "auto", 0,
+        node.interrogate,
+        image=arr, preset="default", prompt="x", user_prompt="",
+        temperature=0.3, max_tokens=512, seed=0, send_seed=False,
+        vision_megapixels=1.0, detail="auto", frame_index=0,
     ))
 finally:
     mod.chat_completion_sync = real_sync

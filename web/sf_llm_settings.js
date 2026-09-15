@@ -18,6 +18,7 @@ export const SETTING_PROVIDER = "sfnodes.LLM.Provider";
 export const SETTING_BASE_URL = "sfnodes.LLM.BaseUrl";
 export const SETTING_MODEL = "sfnodes.LLM.Model";
 export const SETTING_API_KEY = "sfnodes.LLM.ApiKey";
+export const SETTING_CACHE = "sfnodes.LLM.CacheEnabled";
 
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
 export const DEFAULT_MODEL = "deepseek-flash";
@@ -83,6 +84,12 @@ export function registerLLMSettings() {
             name: "SF LLM: API key (DeepSeek or OpenAI-compatible)",
             defaultValue: "",
             type: "text",
+        });
+        s.addSetting({
+            id: SETTING_CACHE,
+            name: "SF LLM: cache identical requests (LRU, avoids repeat API calls)",
+            defaultValue: true,
+            type: "boolean",
         });
         migrateLegacy();
     } catch (e) {

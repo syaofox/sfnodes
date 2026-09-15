@@ -115,8 +115,10 @@ for (const n of ["sf_common.js", "sf_llm_settings.js", "sf_pause_text_lib.js", "
     // ── 翻译设置注册（共享 sf_llm_settings，init 调用）──
     ext.init();
     const ids = addedSettings.map((s) => s.id);
-    check("LLM 设置四项已注册", ["sfnodes.LLM.Provider", "sfnodes.LLM.BaseUrl",
-        "sfnodes.LLM.Model", "sfnodes.LLM.ApiKey"].every((id) => ids.includes(id)));
+    check("LLM 设置五项已注册", ["sfnodes.LLM.Provider", "sfnodes.LLM.BaseUrl",
+        "sfnodes.LLM.Model", "sfnodes.LLM.ApiKey", "sfnodes.LLM.CacheEnabled"].every((id) => ids.includes(id)));
+    const cacheDef = addedSettings.find((s) => s.id === "sfnodes.LLM.CacheEnabled");
+    check("缓存设置默认开", cacheDef && cacheDef.defaultValue === true && cacheDef.type === "boolean");
     const baseDef = addedSettings.find((s) => s.id === "sfnodes.LLM.BaseUrl");
     const modelDef = addedSettings.find((s) => s.id === "sfnodes.LLM.Model");
     check("默认 base_url 与 model", baseDef.defaultValue === "https://api.deepseek.com" &&
