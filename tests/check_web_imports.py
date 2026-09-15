@@ -89,6 +89,8 @@ MODS = [
     "sf_cache_name_lib", "sf_mask_cache", "sf_track_cache",
     # PointsEditor 底图刷新（上游解析纯逻辑 + 扩展）
     "sf_points_bg_lib", "sf_points_bg",
+    # SeC 数值上限补丁（前端 INT 缺 max 默认 2048 的规避）
+    "sf_sec_limits",
     # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）
     "sf_convert_anything",
     # Any Pack / Unpack 动态槽位（导出 setSlotType 供跨模块复用）

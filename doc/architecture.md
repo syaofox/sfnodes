@@ -84,6 +84,7 @@ sfnodes/
 │   ├── sf_mask_cache.js / sf_track_cache.js # 磁盘缓存节点前端（各自 registerExtension 注入 API 复用 sf_cache_name_lib；/api/sfnodes/{mask_cache,track_cache}/list，见 experience/nodes-image.md §66·§67）
 │   ├── sf_points_bg_lib.js # PointsEditor 底图上游解析纯逻辑（describeSource 优先级 preview/videoEl/widget/file + 链式遍历/防环 + makeGraphApi 适配 Map/对象 links，无 app 依赖，tests/test_points_bg_lib.mjs）
 │   ├── sf_points_bg.js  # PointsEditor「↻ 刷新底图」扩展（跨包解析上游→抓视频首帧/取文件→复用 KJNodes editor.processImage 零执行并持久化 imgData，见 experience/patterns.md §68）
+│   ├── sf_sec_limits.js # SeC 数值上限补丁（前端 widget 工厂对缺 max 的 INT 默认 2048 → 定义阶段抬高 annotation_frame_idx/object_id/max_frames_to_track 的 max，不改第三方包；onNodeCreated 兜底 patch，tests/test_sec_limits_smoke.mjs，见 experience/patterns.md §70）
 │   ├── sf_image_resize_plus.js # 缩放增强节点前端（SFImageResizePlus：size_mode 置顶（width/height/total_pixels 紧随），total pixels 时隐藏 width/height 反则隐藏 total_pixels；method 联动——crop_position 仅 fill / crop、pad_color 仅 pad；hidden 切换+双钩子保恢复；configure 前对旧版 8 项 widgets_values remap 补齐新 10 项顺序）
 │   ├── sf_pause_latent.js # latent 闸门薄配置（分段采样中间暂停，safetensors 快照，extraInputKeys:["image"]；调 definePauseGate）
 │   ├── sf_outpaint*.js  # 外绘预览两模块（core 纯数学 + 主扩展）

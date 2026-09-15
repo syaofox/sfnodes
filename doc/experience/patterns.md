@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -468,3 +468,31 @@
 ### 3. 测试
 
 - `tests/test_mask_batch.py`：FakeTensor + mock `torch.cat`，覆盖数字序拼接（`mask_10` 必须在 `mask_2` 后）、None 槽跳过、2D 升 3D、尺寸不一致抛错、全空抛错、双字典注册。
+
+## 70. 前端 INT 缺 max 默认 2048：第三方节点数值上限规避（2026-09）
+
+> 现象：Comfyui-SecNodes 的 `annotation_frame_idx` 在 UI 里最大只能填 2048，长视频（如 2785 帧）无法标注靠后的帧。节点源码只写了 `min:0`、**没有 `max`**，后端也只校验 `idx < num_frames`，按理不该被限。
+
+### 1. 根因在前端 widget 工厂
+
+ComfyUI 前端 chunk `settingStore-*.js` 的 widget 工厂里，INT/FLOAT 未声明 max 时**默认上限 2048**：
+
+```js
+e.addWidget(a, t.name, l, onFloatValueChange, { min: t.min ?? 0, max: t.max ?? 2048, ... })
+e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2048, ... })
+```
+
+所以凡是自定义节点漏写 `max` 的 INT 都会被 UI 钳到 2048（核心节点大多显式写了 max，故少见）。定位时别只搜 `core-*.js`/`index-*.js`——它在 `settingStore` chunk。
+
+### 2. 规避：前端定义阶段抬高 max（不改第三方包）
+
+`web/sf_sec_limits.js`：
+- 在 `beforeRegisterNodeDef(nodeData)` 里改 `nodeData.input.optional[名]` / `required[名]` 的 spec（`[type, opts]` 数组的 `opts.max`）→ **widget 建出来时就带大 max**。这是关键：Vue 的 `k=computed(()=>filterWidgetProps(widget.options,...))` 只在初始化时从 spec 取值，事后改 `widget.options.max` 未必触发响应式重算，改 spec 最稳。
+- 兜底再在 `onNodeCreated`/`onAfterGraphConfigured` 里 patch `widget.options.max`（应对定义缓存/已建旧 widget）。
+- `Math.max(现值, 目标)`：已有更大 max 不降级。
+- 覆盖面：`annotation_frame_idx` / `object_id` / `max_frames_to_track`（该包仅 `mllm_memory_size` 本就有 max:20）。
+- 好处：纯前端、免重启、随第三方包更新仍生效（对比直接改第三方 `nodes.py` 加 max——会被更新覆盖）。
+
+### 3. 测试
+
+- `tests/test_sec_limits_smoke.mjs`：stub `app` 捕获扩展 → 断言 spec 抬高、`raiseSpec` 不降级、`onNodeCreated` 兜底 patch、非目标节点不动、扩展名 `sfnodes.*`。
