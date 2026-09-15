@@ -746,6 +746,7 @@
 - 直接复用 `web/image_browser.js::showImageBrowser(node, opts)` 的 **onPick 选择器模式**（§34 参数化的产物）：宿主传 `onPick` + `selectedValue`，弹层不碰 widget、选中值交回调。
 - 新增 `applyNativeLoadImagePick(node, value)`（导出，纯函数好测）：定位 `widgets` 里 `name==="image"` 的 widget → 赋 `value` → 调其 `callback(value)`（核心 `image_upload` 借此刷新预览）→ `setDirtyCanvas`。无 widget/null 值返回 false。
 - 独立扩展 `sfnodes.native_load_image_browse`，`nodeCreated` 精确匹配 `comfyClass ∈ {LoadImage, LoadImageMask}`（**不误伤 SFLoadImageBrowser**——它已有自挂按钮），`addWidget("button", "Browse Images", ...)`。
+- 显隐受设置 `sfnodes.LoadImage.BrowseButton.Enabled`（boolean，默认开）门控：`nodeCreated` 时读设置决定是否挂载；`onChange` 遍历 `app.graph._nodes` 对现存节点即时增删（`widgets.splice`）——与官方 info 开关同款，**onChange 时 store 尚未更新，须 `setTimeout(...,0)` 延后一 tick 再读值**。`findNativeBrowseButton(widgets)` 纯函数（返回下标/-1）供增删去重与测试复用。
 
 ### 2. 关键发现：combo 列表校验被 VALIDATE_INPUTS 跳过
 
@@ -755,5 +756,5 @@
 
 ### 3. 测试
 
-- `tests/test_image_browser_js.js` 文本提取 `applyNativeLoadImagePick` 进 `.mjs` 直跑：写入值/触发 callback/setDirtyCanvas、无 callback 不抛错、无 widget/空值/node 空返回 false。
+- `tests/test_image_browser_js.js` 文本提取 `applyNativeLoadImagePick`/`findNativeBrowseButton` 进 `.mjs` 直跑（依赖的模块级常量按源文件正则取值注入，守单真源）：写入值/触发 callback/setDirtyCanvas、无 callback 不抛错、无 widget/空值/node 空返回 false；按钮下标命中/无返回 -1/同名非 button 不算。
 - 实机验证走分段 console 诊断（platform §2.9），重点看：按钮存在、pick input/output 后 widget 值与预览刷新、队列不报 `Value not in list`。

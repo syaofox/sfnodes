@@ -30,15 +30,20 @@ function extractFn(name) {
 
 (async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_imgbrowser_"));
+    // findNativeBrowseButton 依赖模块级常量，按源文件取值注入（守单真源）
+    const btnNameMatch = src.match(/const NATIVE_BROWSE_BUTTON_NAME = "([^"]+)";/);
+    if (!btnNameMatch) throw new Error("NATIVE_BROWSE_BUTTON_NAME not found in web/image_browser.js");
     const mjs = [
+        `const NATIVE_BROWSE_BUTTON_NAME = ${JSON.stringify(btnNameMatch[1])};`,
         extractFn("getImageFolderFromValue"),
         extractFn("folderExists"),
         extractFn("applyNativeLoadImagePick"),
-        "export { getImageFolderFromValue, folderExists, applyNativeLoadImagePick };",
+        extractFn("findNativeBrowseButton"),
+        "export { getImageFolderFromValue, folderExists, applyNativeLoadImagePick, findNativeBrowseButton };",
     ].join("\n\n");
     const modPath = path.join(tmpDir, "lib.mjs");
     fs.writeFileSync(modPath, mjs);
-    const { getImageFolderFromValue, folderExists, applyNativeLoadImagePick } = await import(modPath);
+    const { getImageFolderFromValue, folderExists, applyNativeLoadImagePick, findNativeBrowseButton } = await import(modPath);
 
     // ── getImageFolderFromValue ──
     check("空值 → input 根", (() => { const r = getImageFolderFromValue(""); return r.type === "input" && r.folder === ""; })());
@@ -88,6 +93,15 @@ function extractFn(name) {
             && hasWidget.widgets[0].value === "keep.png");
         check("node 为 null 返回 false", applyNativeLoadImagePick(null, "x.png") === false);
     })();
+
+    // ── findNativeBrowseButton ──
+    check("命中按钮返回下标", findNativeBrowseButton([
+        { name: "image", type: "combo" },
+        { name: "Browse Images", type: "button" },
+    ]) === 1);
+    check("无按钮返回 -1", findNativeBrowseButton([{ name: "image", type: "combo" }]) === -1);
+    check("空/未定义返回 -1", findNativeBrowseButton([]) === -1 && findNativeBrowseButton(undefined) === -1);
+    check("同名但非 button 不算", findNativeBrowseButton([{ name: "Browse Images", type: "combo" }]) === -1);
 
     console.log(failures.length ? `\n${failures.length} FAILED` : "\nAll passed");
     process.exit(failures.length ? 1 : 0);

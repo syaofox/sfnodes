@@ -767,21 +767,71 @@ export function applyNativeLoadImagePick(node, value) {
 }
 
 // 挂到官方原生加载节点的选择器模式扩展（精确 comfyClass 匹配，不误伤
-// SFLoadImageBrowser——后者已自挂 Browse 按钮）。
+// SFLoadImageBrowser——后者已自挂 Browse 按钮）。受设置开关门控（默认开）。
 const NATIVE_LOAD_IMAGE_TYPES = ["LoadImage", "LoadImageMask"];
+
+export const NATIVE_BROWSE_SETTING = "sfnodes.LoadImage.BrowseButton.Enabled";
+const NATIVE_BROWSE_BUTTON_NAME = "Browse Images";
+
+function isNativeBrowseEnabled() {
+    try { return app.ui?.settings?.getSettingValue?.(NATIVE_BROWSE_SETTING) ?? true; }
+    catch { return true; }
+}
+
+// 纯函数（好测）：按钮 widget 在 widgets 中的下标，无则 -1。
+export function findNativeBrowseButton(widgets) {
+    return (widgets || []).findIndex(w => w?.type === "button" && w.name === NATIVE_BROWSE_BUTTON_NAME);
+}
+
+function addNativeBrowseButton(node) {
+    if (findNativeBrowseButton(node.widgets) !== -1) return;
+    node.addWidget("button", NATIVE_BROWSE_BUTTON_NAME, null, () => {
+        const imageWidget = node.widgets?.find(w => w.name === "image");
+        showImageBrowser(node, {
+            selectedValue: imageWidget?.value || "",
+            onPick: (value) => applyNativeLoadImagePick(node, value),
+        });
+    });
+}
+
+// 开关变更时对现存节点即时增删按钮（默认开；关闭后新节点也不再挂）。
+function refreshNativeBrowseButtons() {
+    const on = isNativeBrowseEnabled();
+    const nodes = app.graph?._nodes || app.graph?.nodes || [];
+    for (const n of nodes) {
+        if (!NATIVE_LOAD_IMAGE_TYPES.includes(n?.comfyClass)) continue;
+        const idx = findNativeBrowseButton(n.widgets);
+        if (on && idx === -1) addNativeBrowseButton(n);
+        else if (!on && idx !== -1) n.widgets.splice(idx, 1);
+        n.setDirtyCanvas?.(true, true);
+    }
+    app.graph?.setDirtyCanvas?.(true, true);
+}
+
+let _nativeBrowseSettingRegistered = false;
+function registerNativeBrowseSettingOnce() {
+    if (_nativeBrowseSettingRegistered) return;
+    _nativeBrowseSettingRegistered = true;
+    try {
+        app.ui.settings.addSetting({
+            id: NATIVE_BROWSE_SETTING,
+            name: "SF: show Browse Images button on native LoadImage / LoadImageMask",
+            type: "boolean",
+            defaultValue: true,
+            // 官方 info 开关先例：onChange 时 store 尚未更新，延后一 tick 读值
+            onChange: () => { setTimeout(refreshNativeBrowseButtons, 0); },
+        });
+    } catch { /* 设置系统不可用则退化为默认值（开） */ }
+}
 
 app.registerExtension({
     name: "sfnodes.native_load_image_browse",
+    init() {
+        registerNativeBrowseSettingOnce();
+    },
     nodeCreated(node) {
         if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
-
-        node.addWidget("button", "Browse Images", null, () => {
-            const imageWidget = node.widgets?.find(w => w.name === "image");
-            showImageBrowser(node, {
-                selectedValue: imageWidget?.value || "",
-                onPick: (value) => applyNativeLoadImagePick(node, value),
-            });
-        });
+        if (isNativeBrowseEnabled()) addNativeBrowseButton(node);
     },
 });
 
