@@ -19,6 +19,7 @@ from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
 from .nodes.image.crop_expand import SFImageCropExpand
 from .nodes.image.crop_with_pad import SFCropWithPadInfo
+from .nodes.image.region_neutralize import SFReferenceRegionNeutralize
 from .nodes.image.brush_mask import SFImageBrushMask
 from .nodes.image.outpaint import SFImageOutpaint, SFImageOutpaintStitch
 from .nodes.image.tile import SFImageTile, SFImageUntile, SFImageTileInfo
@@ -240,6 +241,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageCrop": SFImageCrop,
     "SFImageCropExpand": SFImageCropExpand,
     "SFCropWithPadInfo": SFCropWithPadInfo,
+    "SFReferenceRegionNeutralize": SFReferenceRegionNeutralize,
     "SFImageBrushMask": SFImageBrushMask,
     "SFImageUncrop": SFImageUncrop,
     "SFImageTile": SFImageTile,
@@ -465,6 +467,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageCrop": "SF Image Crop",
     "SFImageCropExpand": "SF Image Crop Expand",
     "SFCropWithPadInfo": "SF Crop With Pad Info",
+    "SFReferenceRegionNeutralize": "SF Reference Region Neutralize",
     "SFImageBrushMask": "SF Image Brush Mask",
     "SFImageUncrop": "SF Image Uncrop",
     "SFImageTile": "SF Image Tile",

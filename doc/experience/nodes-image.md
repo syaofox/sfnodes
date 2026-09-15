@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -792,3 +792,40 @@
 
 - `tests/test_image_resize_plus.py`：4 个纯函数（含倍数已整除/取整为 0/竖图）与 `execute` 各新模式出图尺寸、multiple 退化直通、六选项/顺序断言。
 - `tests/test_image_resize_plus_js.js`：各模式参数显隐、scale to multiple 隐藏 method、8→14 与 10→14 remap、14 项不改写。
+
+---
+
+## 76. SFReferenceRegionNeutralize：Krea2 参考区域中和（保留姿势/背景，只换脸，2026-09）
+
+> 背景：Krea2 洗图时用深度图作参考复刻姿势，配角色 LoRA 换脸。用户反馈只能靠 `SFKrea2EditApply.ref_strength` 调节——调高姿势稳，但脸也贴近原人物、角色 LoRA 被压制。
+
+### 1. 根因：ref_strength 是全局时间旋钮，无法空间解耦
+
+- `ref_strength` 控制的是**整块参考 token 参与采样的进度比例**（进度 ≥ 它即丢弃缓存的 ref K/V）。参考 token 同时编码结构与外观/身份，二者在同一 attention 里、没有空间区分 → 锁姿势必然连带锁脸。
+- 提高角色 LoRA 权重是**全局对抗**，会同时改身体/风格，无法只在脸上生效。
+- 深度参考下身份泄漏来自**深度保留了原人物头部/面部几何**（骨相/脸型），强 ref 时模型忠实还原该几何，LoRA 只能在纹理/五官上争。
+
+### 2. 为什么不做 attention 级"参考区域遮罩"
+
+- Krea2 是 single-stream 全注意力（heads=48，序列 3~6k）。query 级稠密偏置 `(b·h, Lq, Lk)` 到 **GB 级显存**，不可行。
+- 退化成"仅 key 的布尔 mask"（屏蔽参考图脸区 token）内存可控，但：运行时启用 flash-attn 时 `attention_flash` **遇 mask 直接抛错并回退 SDPA**（整模型变慢）；sage 是否支持取决编译（`SAGE_ATTENTION_SUPPORTS_MASK`）；还要与文本 padding 的 `attention_mask` 合并。风险/收益不划算。
+- 对"参考=深度图"的场景，**在图像/latent 域中和脸区**更安全且等价：`SFKrea2EditTextEncode` 的**初始 latent 就是主图 ref latent**，图像域改完后 ref latent 与初始 latent 同步失去面部几何。
+
+### 3. 节点与纯逻辑
+
+- `SFReferenceRegionNeutralize`（`nodes/image/region_neutralize.py`，CATEGORY `sfnodes/image`）：`image` + `mask` + `mode`(blur/mean/fill) + `strength` + `blur_radius` + `feather` + `fill_value` → 中和后的 `image`。
+- 纯逻辑 `sf_utils/image_region.py::neutralize_region`（numpy + PIL，顶层无 torch 依赖，可直测）：`blur` 用高斯模糊保留大致深度/头姿（推荐）、`mean` 区域均值、`fill` 常量；`strength` 按羽化 mask 混合，区域外严格不变；支持 3D/4D 与 mask 批量广播（批量小于图像复用末帧），mask 尺寸不符在节点层 bilinear 缩放。模糊惰性复用 `sf_utils/inpaint_helpers.gaussian_blur_np`（单源）。
+
+### 4. 推荐连线配方（不改工作流文件，仅说明）
+
+```
+SFImageCropExpand.image → DepthAnythingPreprocessor → SFReferenceRegionNeutralize.image → SFKrea2ConfigPreparer.image
+原图(RGB) → GeneratePreciseFaceMask → SFReferenceRegionNeutralize.mask
+SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
+（可选）SFRegionalLoRA：脸框 + 角色 LoRA，strength 1.2–1.5、羽化 0.08，串在 LoraLoader 之后
+```
+协同后：深度参考负责身体/背景/服装，区域 LoRA 负责脸，`ref_strength` 只再微调整体结构强度。`blur + strength 0.6~0.8` 起步，不够再试 `mean`。
+
+### 5. 测试
+
+- `tests/test_image_region.py`：strength=0 原样、blur/mean/fill 区域内外行为、羽化过渡、批量与 mask 广播、mask 尺寸不符抛错、3D 输入 3D 输出；节点 CATEGORY/RETURN_NAMES/INPUT_TYPES 与 execute（尺寸一致路径 + 尺寸不符走缩放分支）。mock：fake torch（模糊走 PIL）。
