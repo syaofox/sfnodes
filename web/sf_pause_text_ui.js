@@ -4,8 +4,8 @@
 //
 // 布局：状态条（Pause/Continue 提示）在顶部作为普通 DOM 行（Classic 与 Vue
 // 渲染器统一显示，不做浮动/偏移的渲染器双路径）→ 可编辑文本框（占满剩余高度，
-// 头部带字段名、Pause/Pass/Keep 切换与 Copy/Revert 图标）→ 计数 + Regenerate /
-// Continue 按钮行。
+// 头部带字段名、Pause/Pass/Keep 切换与 Copy/Revert 图标）→ 计数 + 翻译 /
+// Regenerate / Continue 按钮行。
 //
 // 与 Pixaroma 的差异（已确认范围）：状态条不做 canvas 绘制 / slot 行浮动
 // （简化为普通行）；无 accent 颜色设置（固定强调色）；无 resize floor /
@@ -146,11 +146,15 @@ export function buildPauseTextWidget(node, callbacks) {
     box.append(hdr, ta);
     installWheelZoomPassthrough(ta); // 输入框滚轮透传(缩放画布/滚动文本, 对齐原生)
 
-    // 底部行：计数 + Regenerate / Continue
+    // 底部行：计数 + 翻译 / Regenerate / Continue
     const bot = document.createElement("div");
     bot.className = "sf-ptx-bot";
     const count = document.createElement("span");
     count.className = "sf-ptx-count";
+    const btnTranslate = document.createElement("button");
+    btnTranslate.className = "sf-ptx-btn";
+    btnTranslate.textContent = "中⇄EN";
+    btnTranslate.title = "翻译当前文本：含中文→英文，否则→中文（就地替换）";
     const btnRegen = document.createElement("button");
     btnRegen.className = "sf-ptx-btn";
     btnRegen.textContent = "⟳ Regenerate";
@@ -159,7 +163,7 @@ export function buildPauseTextWidget(node, callbacks) {
     btnContinue.className = "sf-ptx-btn primary";
     btnContinue.textContent = "▶ Continue";
     btnContinue.title = "只用你的编辑文本运行工作流其余部分";
-    bot.append(count, btnRegen, btnContinue);
+    bot.append(count, btnTranslate, btnRegen, btnContinue);
 
     root.append(band, box, bot);
 
@@ -185,9 +189,10 @@ export function buildPauseTextWidget(node, callbacks) {
     }
     btnRegen.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onRegenerate(); });
     btnContinue.addEventListener("click", (e) => { e.stopPropagation(); callbacks.onContinue(); });
+    btnTranslate.addEventListener("click", (e) => { e.stopPropagation(); if (!btnTranslate.disabled) callbacks.onTranslate?.(); });
 
     node._sfPauseTextEls = {
-        root, band, box, hlbl, segPause, segPass, segKeep, copyBtn, revertBtn, ta, count, btnRegen, btnContinue,
+        root, band, box, hlbl, segPause, segPass, segKeep, copyBtn, revertBtn, ta, count, btnTranslate, btnRegen, btnContinue,
     };
     return root;
 }
@@ -241,6 +246,8 @@ export function renderPause(node) {
     const hasText = !!s.text;
     els.copyBtn.classList.toggle("off", !hasText);
     els.revertBtn.classList.toggle("off", !edited);
+    // 翻译：Pass 直接跑模型不看盒子，文本为空或忙时禁用
+    els.btnTranslate.disabled = !editable || !hasText || !!node._sfPauseTextBusy;
     // Keep 模式下 Regenerate 变灰：Keep 复用当前文本，从模型取新提示词不属于这里——
     // 想取新文本切回 Pause
     els.btnRegen.disabled = !editable || keep || !!node._sfPauseTextBusy;

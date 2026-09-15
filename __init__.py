@@ -165,6 +165,7 @@ from .nodes.text.styles_selector import SFStylesSelector  # noqa: F401  # 副作
 from .nodes.text.id_clothing import SFIDClothingSelector
 from .nodes.text.character import SFCharacterSelect
 from .nodes.text import prompt_reader_routes  # noqa: F401  # 副作用注册 /api/sfnodes/prompt_reader/extract 路由
+from .nodes.text import translate_routes  # noqa: F401  # 副作用注册 /api/sfnodes/translate 路由（SFPauseText 翻译按钮）
 from .nodes.text.long_text_to_list import SFLongTextToList
 from .nodes.text.text_list_affix import SFTextListAffix
 

@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -500,3 +500,23 @@
 
 - **测试期望与收敛语义对齐**：空/失效选择按设计回落首角首图——"空选占位"断言本身违背既定语义，改断言而非改代码；先怀疑检查脚本再怀疑代码（patterns §3 同款）。
 - **TDZ 致节点建不出且语法检查哑火**：`roleEl` 在 `root.append` 之后才 `const` 声明 → `setupNode` 抛 `ReferenceError`，用户侧"节点加载不出来"，而 `node --check` 全绿。修法之外新增 `tests/test_character_smoke.js`（FakeDOM + FakeNode 真跑 `setupNode`：扩展名前缀、双隐藏 widget 补建、roles 载入渲染、自动首图、切库清空、onConfigure），注毒验证可抓获；桩注意三点：`addWidget(type, name, value)` 参数序与 LiteGraph 一致、`innerHTML=""` 要清 children（真 DOM 语义）、`fetch` 桩给固定角色库。
+
+---
+
+## 74. SFPauseText 中⇄EN 翻译按钮：LLM API 经后端代理
+
+> 背景：SFPauseText 需要一键把盒子文本在中文/英文间互译，译文就地替换（Continue/Keep 时输出译文）。翻译引擎走大模型 API，默认 DeepSeek `deepseek-flash`（base `https://api.deepseek.com`）。API key/base_url/model 由用户在 ComfyUI Settings 配置。
+
+### 1. 分层与契约
+
+- **后端纯函数**（`sf_utils/translation.py`，与既有 `translators` 库封装同文件）：`detect_translate_direction`（复用 `sf_utils/string.has_chinese_character`：含中文→`zh2en`，否则→`en2zh`）、`build_translate_messages`（系统提示词「只输出译文，不解释不加引号，保留格式/占位符」）、`build_translate_payload`、`parse_translate_response`、`extract_api_error`。全部无网络、可单测。
+- **后端路由**（`nodes/text/translate_routes.py`，新）：`POST /api/sfnodes/translate`，aiohttp 调 `{base_url}/chat/completions`，恒 200 返回 `{ok, text|direction}` 或 `{ok:false, message}`。导入副作用注册（`prompt_reader_routes` 范式）。根 `__init__.py` 加副作用 import 行。
+- **前端**（`web/sf_pause_text.js` + `sf_pause_text_ui.js`）：底行「中⇄EN」按钮；`init()` 幂等注册四项设置 `sfnodes.Translate.{Provider,BaseUrl,Model,ApiKey}`（`type:"text"`，1.51.9 确认支持）；`onTranslate` 读活 textarea → `fetch(sfApiUrl("/api/sfnodes/translate"))` → 成功 `setText`+`syncText`+`renderPause`（就地替换 = 输出改变），失败 flash 错误。无新增 web 文件 → `check_web_imports.py` MODS 不变。
+
+### 2. 踩坑 / 决策
+
+- **浏览器直连 LLM API 会被 CORS 拦**：必须后端代理；密钥虽经浏览器内存但不落节点、不写工作流。API key 不硬编码进仓库（默认留空，设置页粘贴）。
+- **`thinking` 字段只对 DeepSeek 发**：DeepSeek V4.1 默认开启思考模式，翻译任务应 `{"type":"disabled"}` 关掉（更快更省、content 不夹过程）；但该字段是非标准扩展，其他 OpenAI 兼容端点会因未知字段 400 → 路由按 `"deepseek" in base_url.lower()` 决定是否携带。
+- **设置读值时机**：`onChange` 参数即新值、`getSettingValue` 此刻仍是旧值（与本包 Accent 设置同坑，见 `sf_lora_stack`）；Provider 切回 DeepSeek 时据此复位 base/model。
+- **方向自动判定**：`has_chinese_character` 只覆盖基本汉字区 U+4E00–U+9FFF，混合文本含任一汉字即判 zh2en——对提示词场景足够；纯符号/数字判 en2zh。
+- **可测性**：网络层与纯逻辑分离，`tests/test_translation.py` 覆盖方向/目标语言/messages/payload（含 thinking 两态）/响应解析/错误提取；冒烟测试补设置注册（幂等 + 默认值）与按钮存在性断言。

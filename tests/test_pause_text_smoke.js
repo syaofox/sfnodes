@@ -64,6 +64,8 @@ globalThis.window = {
 // ── app / api mock ──
 let promptObj = { output: {} };
 let queuedCalls = 0;
+const addedSettings = [];
+const settingValues = {};
 globalThis.app = {
     graph: {
         _nodes: [], links: {},
@@ -72,6 +74,13 @@ globalThis.app = {
     },
     canvas: { setDirty() {}, ds: { scale: 1 } },
     extensionManager: { toast: { add() {} } },
+    ui: {
+        settings: {
+            addSetting(p) { addedSettings.push(p); },
+            getSettingValue(id) { return settingValues[id]; },
+            setSettingValue(id, v) { settingValues[id] = v; },
+        },
+    },
     registerExtension(ext) { this._ext = ext; },
     graphToPrompt: async () => promptObj,
     queuePrompt: async () => { queuedCalls++; },
@@ -103,6 +112,20 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_text_ui.js", 
     const ext = app._ext;
     check("扩展已注册", !!ext && ext.name === "sfnodes.PauseText");
 
+    // ── 翻译设置注册（init）──
+    ext.init();
+    const ids = addedSettings.map((s) => s.id);
+    check("翻译设置四项已注册", ["sfnodes.Translate.Provider", "sfnodes.Translate.BaseUrl",
+        "sfnodes.Translate.Model", "sfnodes.Translate.ApiKey"].every((id) => ids.includes(id)));
+    const baseDef = addedSettings.find((s) => s.id === "sfnodes.Translate.BaseUrl");
+    const modelDef = addedSettings.find((s) => s.id === "sfnodes.Translate.Model");
+    check("默认 base_url 与 model", baseDef.defaultValue === "https://api.deepseek.com" &&
+        modelDef.defaultValue === "deepseek-flash");
+    const apiDef = addedSettings.find((s) => s.id === "sfnodes.Translate.ApiKey");
+    check("API key 默认留空", apiDef.defaultValue === "" && apiDef.type === "text");
+    ext.init();
+    check("设置注册幂等", addedSettings.filter((s) => s.id === "sfnodes.Translate.ApiKey").length === 1);
+
     // ── beforeRegisterNodeDef / nodeCreated ──
     const proto = {};
     ext.beforeRegisterNodeDef({ name: "SFPauseText", prototype: proto }, { name: "SFPauseText" });
@@ -120,6 +143,7 @@ for (const n of ["sf_common.js", "sf_pause_text_lib.js", "sf_pause_text_ui.js", 
     app.graph._nodes = [gate];
     proto.onNodeCreated.call(gate);   // setupNode 挂在原型 onNodeCreated（无 nodeCreated 钩子）
     check("setupNode 完成", !!gate._sfPauseTextEls && !!gate._sfPauseTextEls.ta);
+    check("翻译按钮已建", !!gate._sfPauseTextEls.btnTranslate);
     await new Promise((r) => setTimeout(r, 5));   // 让 queueMicrotask restore 跑完
     check("restore 已推文本进盒子", gate._sfPauseTextEls.ta.value === "box text");
 

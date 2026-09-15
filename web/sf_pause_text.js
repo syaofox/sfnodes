@@ -4,7 +4,7 @@
 //
 // 复刻 Pixaroma Pause Text（精简 shared 依赖版）：
 //   - 节点体：状态条 + 可编辑文本框 + Pause/Pass/Keep 切换 + Copy/Revert +
-//     Regenerate/Continue 按钮（web/sf_pause_text_ui.js）
+//     翻译（中⇄EN，LLM API 经后端代理）+ Regenerate/Continue 按钮（web/sf_pause_text_ui.js）
 //   - 状态存 node.properties.pauseTextState（随工作流保存，见 sf_pause_text_lib.js）
 //   - 队列语义（双钩子，与 SFPromptTags 同款 Switch 拆分）：
 //       * app.graphToPrompt 只 INJECT（Export/分享/保存按钮也会触发，删节点
@@ -22,7 +22,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { isVueNodes, applyAdaptiveCanvasOnly } from "./sf_common.js";
+import { isVueNodes, applyAdaptiveCanvasOnly, sfApiUrl } from "./sf_common.js";
 import { api } from "/scripts/api.js";
 import {
     getState, setGate, setText, setModelText, revertText, STATE_PROP,
@@ -148,6 +148,111 @@ async function copyText(node) {
     }
 }
 
+// ── 翻译：LLM API（设置项 + 后端代理路由）──────────────────────────────
+// API key / base_url / model 存 ComfyUI Settings（全局、随用户持久化），
+// 节点不持有密钥。请求经 /api/sfnodes/translate 后端代理（浏览器直连
+// DeepSeek 会被 CORS 拦截）。默认 DeepSeek deepseek-flash。
+const SETTING_API_KEY = "sfnodes.Translate.ApiKey";
+const SETTING_BASE_URL = "sfnodes.Translate.BaseUrl";
+const SETTING_MODEL = "sfnodes.Translate.Model";
+const SETTING_PROVIDER = "sfnodes.Translate.Provider";
+const DEFAULT_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_MODEL = "deepseek-flash";
+
+function getSetting(id) {
+    try { return app.ui?.settings?.getSettingValue?.(id); } catch { return undefined; }
+}
+
+function setSetting(id, val) {
+    try {
+        const s = app.ui?.settings;
+        if (typeof s?.setSettingValueAsync === "function") s.setSettingValueAsync(id, val);
+        else s?.setSettingValue?.(id, val);
+    } catch { /* 仅会话内生效 */ }
+}
+
+// 幂等注册（扩展 init 调用一次）。设置系统不可用时静默降级，按钮会提示未配置。
+let _translateSettingsRegistered = false;
+function registerTranslateSettings() {
+    if (_translateSettingsRegistered) return;
+    _translateSettingsRegistered = true;
+    try {
+        const s = app.ui.settings;
+        s.addSetting({
+            id: SETTING_PROVIDER,
+            name: "SF Translate: provider (used by SF Pause Text translate button)",
+            defaultValue: "deepseek",
+            type: "combo",
+            options: () => [
+                { value: "deepseek", text: "DeepSeek", selected: getSetting(SETTING_PROVIDER) !== "custom" },
+                { value: "custom", text: "OpenAI-compatible (custom)", selected: getSetting(SETTING_PROVIDER) === "custom" },
+            ],
+            onChange: (value) => {
+                // 切回 DeepSeek 时把 base/model 复位为官方默认（onChange 参数即新值）
+                if (value === "deepseek") {
+                    setSetting(SETTING_BASE_URL, DEFAULT_BASE_URL);
+                    setSetting(SETTING_MODEL, DEFAULT_MODEL);
+                }
+            },
+        });
+        s.addSetting({
+            id: SETTING_BASE_URL,
+            name: "SF Translate: API base URL",
+            defaultValue: DEFAULT_BASE_URL,
+            type: "text",
+        });
+        s.addSetting({
+            id: SETTING_MODEL,
+            name: "SF Translate: model name",
+            defaultValue: DEFAULT_MODEL,
+            type: "text",
+        });
+        s.addSetting({
+            id: SETTING_API_KEY,
+            name: "SF Translate: API key (DeepSeek or OpenAI-compatible)",
+            defaultValue: "",
+            type: "text",
+        });
+    } catch (e) {
+        console.warn("[SF Pause Text] translate settings unavailable", e);
+    }
+}
+
+// 就地翻译当前盒子文本：含中文→英文，否则→中文。成功后替换盒子内容 = 输出随之改变。
+async function translateBox(node) {
+    const raw = editedTextOf(node) || "";
+    if (!raw.trim()) { flash(node, "Nothing to translate"); return; }
+    const apiKey = String(getSetting(SETTING_API_KEY) || "").trim();
+    const baseUrl = String(getSetting(SETTING_BASE_URL) || DEFAULT_BASE_URL).trim() || DEFAULT_BASE_URL;
+    const model = String(getSetting(SETTING_MODEL) || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+    if (!apiKey) { flash(node, "Set API key in Settings → SF Translate"); return; }
+
+    node._sfPauseTextBusy = "Translating…";
+    renderPause(node);
+    try {
+        const r = await fetch(sfApiUrl("/api/sfnodes/translate"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                text: raw, direction: "auto",
+                api_key: apiKey, base_url: baseUrl, model,
+            }),
+        });
+        const j = await r.json().catch(() => null);
+        if (!j) { flash(node, "Translation failed: bad server response"); return; }
+        if (!j.ok) { flash(node, "Translation failed: " + (j.message || "unknown error")); return; }
+        setText(node, j.text);
+        syncText(node);
+        flash(node, j.direction === "zh2en" ? "Translated to English" : "Translated to Chinese");
+    } catch (err) {
+        console.error("[SF Pause Text] translate failed", err);
+        flash(node, "Translation failed: could not reach the server");
+    } finally {
+        node._sfPauseTextBusy = null;
+        renderPause(node);
+    }
+}
+
 function setupNode(node) {
     const root = buildPauseTextWidget(node, {
         onGate: (gate) => { setGate(node, gate); renderPause(node); },
@@ -155,6 +260,7 @@ function setupNode(node) {
         onContinue: () => queueWithMode(node, "continue"),
         onRegenerate: () => regenerate(node),
         onCopy: () => copyText(node),
+        onTranslate: () => translateBox(node),
         onRevert: () => { revertText(node); syncText(node); renderPause(node); flashIcon(node._sfPauseTextEls?.revertBtn); },
     });
     const widget = node.addDOMWidget(WIDGET_TYPE, WIDGET_TYPE, root, {
@@ -182,6 +288,10 @@ function restore(node) {
 
 app.registerExtension({
     name: "sfnodes.PauseText",
+
+    init() {
+        registerTranslateSettings();
+    },
 
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== CLASS) return;
