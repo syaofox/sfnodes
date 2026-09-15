@@ -58,6 +58,9 @@ assert_eq(easy.round_32(480), 480, "round_32(480)")
 assert_eq(easy.round_nearest_32(47), 32, "round_nearest_32(47)")
 assert_eq(easy.round_nearest_32(48), 64, "round_nearest_32(48)")
 
+# 上下文窗口调度枚举（对齐 comfy.context_windows.ContextSchedules）
+assert_eq(easy.CONTEXT_SCHEDULES, ("standard_static", "standard_uniform", "looped_uniform", "batched"), "context schedules")
+
 # Fit Video 尺寸策略
 assert_eq(easy.target_size_for_video(480, 832, "512p"), (896, 512), "target 512p")
 assert_eq(easy.target_size_for_video(480, 832, "704p"), (1216, 704), "target 704p")
@@ -140,6 +143,12 @@ for key, cls in nodes_mod.NODE_CLASS_MAPPINGS.items():
 check("simple has tiled_decode", "tiled_decode" in required)
 check("tiled_decode default off", required["tiled_decode"][1].get("default") is False)
 
+# context_schedule / freenoise 选项（对齐原生 WanContextWindowsManual，默认保持现状）
+check("simple has context_schedule", required["context_schedule"][0] == list(easy.CONTEXT_SCHEDULES))
+check("context_schedule default static", required["context_schedule"][1].get("default") == "standard_static")
+check("simple has freenoise", required["freenoise"][0] == "BOOLEAN")
+check("freenoise default off", required["freenoise"][1].get("default") is False)
+
 # ── _decode_latent_to_frames：tiled 分块解码分支选择 ──
 class FakeTensor:
     def detach(self):
@@ -180,6 +189,145 @@ nodes_mod._decode_latent_to_frames(None, {"samples": None})
 assert_eq(decode_calls[-1], "plain", "decode plain")
 nodes_mod._decode_latent_to_frames(None, {"samples": None}, True)
 assert_eq(decode_calls[-1], ("tiled", 512, 64, 64, 8), "decode tiled args")
+
+# ── apply_scail2_easy_context：schedule / freenoise 透传（stub comfy.context_windows）──
+cw = types.ModuleType("comfy.context_windows")
+
+
+class FakeSchedules:
+    STATIC_STANDARD = "standard_static"
+    UNIFORM_STANDARD = "standard_uniform"
+    UNIFORM_LOOPED = "looped_uniform"
+    BATCHED = "batched"
+
+
+class FakeFuseMethods:
+    PYRAMID = "pyramid"
+
+
+class FakeNamed:
+    def __init__(self, name):
+        self.name = name
+
+
+handler_kwargs_log = []
+
+
+class FakeContextHandler:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        handler_kwargs_log.append(kwargs)
+
+    def get_resized_cond(self, cond_in, x_in, window, device=None):
+        return cond_in
+
+
+prepare_wrapper_calls = []
+sampler_wrapper_calls = []
+cw.ContextSchedules = FakeSchedules
+cw.ContextFuseMethods = FakeFuseMethods
+cw.IndexListContextHandler = FakeContextHandler
+cw.get_matching_context_schedule = lambda name: FakeNamed(name)
+cw.get_matching_fuse_method = lambda name: FakeNamed(name)
+cw.create_prepare_sampling_wrapper = lambda model: prepare_wrapper_calls.append(model)
+cw.create_sampler_sample_wrapper = lambda model: sampler_wrapper_calls.append(model)
+
+comfy_stub = types.ModuleType("comfy")
+comfy_stub.context_windows = cw
+sys.modules["comfy"] = comfy_stub
+sys.modules["comfy.context_windows"] = cw
+
+context_mod = importlib.import_module("sfnodes.sf_utils.scail2_context")
+
+
+class FakeModel:
+    def __init__(self):
+        self.model_options = {}
+
+    def clone(self):
+        return self
+
+
+default_model = FakeModel()
+_, default_summary = context_mod.apply_scail2_easy_context(default_model, 81, 20)
+assert_eq(default_summary["context_schedule"], "standard_static", "context default schedule")
+assert_eq(default_summary["freenoise"], False, "context default freenoise")
+assert_eq(default_summary["context_latent_frames"], 21, "context latent length")
+assert_eq(default_summary["context_overlap_latent_frames"], 5, "context latent overlap")
+assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_static", "handler schedule default")
+assert_eq(handler_kwargs_log[-1]["fuse_method"].name, "pyramid", "handler fuse default")
+assert_eq(handler_kwargs_log[-1]["freenoise"], False, "handler freenoise default")
+assert_eq(handler_kwargs_log[-1]["context_stride"], 1, "handler stride")
+assert_eq(handler_kwargs_log[-1]["closed_loop"], False, "handler closed_loop")
+assert_eq(handler_kwargs_log[-1]["dim"], 2, "handler dim")
+assert_eq(sampler_wrapper_calls, [], "no sampler wrapper without freenoise")
+
+uniform_model = FakeModel()
+_, uniform_summary = context_mod.apply_scail2_easy_context(
+    uniform_model, 81, 20, context_schedule="standard_uniform", freenoise=True
+)
+assert_eq(uniform_summary["context_schedule"], "standard_uniform", "context uniform schedule")
+assert_eq(uniform_summary["freenoise"], True, "context freenoise on")
+assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_uniform", "handler schedule uniform")
+assert_eq(handler_kwargs_log[-1]["freenoise"], True, "handler freenoise on")
+assert_eq(len(prepare_wrapper_calls), 2, "prepare wrapper per call")
+assert_eq(len(sampler_wrapper_calls), 1, "sampler wrapper with freenoise")
+assert_eq(uniform_model.model_options["context_handler"].kwargs["freenoise"], True, "handler attached")
+
+try:
+    context_mod.apply_scail2_easy_context(FakeModel(), 81, 81)
+    check("overlap guard raises", False)
+except ValueError:
+    check("overlap guard raises", True)
+
+# ── _set_scail_single_reference_conditioning：正/负向共享同一 reference_latents ──
+comfy_utils = types.ModuleType("comfy.utils")
+comfy_utils.common_upscale = lambda tensor, width, height, mode, crop: tensor
+comfy_stub.utils = comfy_utils
+sys.modules["comfy.utils"] = comfy_utils
+
+cond_set_calls = []
+
+node_helpers_stub = types.ModuleType("node_helpers")
+node_helpers_stub.conditioning_set_values = lambda cond, values, append=False: (
+    cond_set_calls.append((cond, values, append)) or cond
+)
+sys.modules["node_helpers"] = node_helpers_stub
+
+
+class FakeImageTensor:
+    def __getitem__(self, item):
+        return self
+
+    def movedim(self, a, b):
+        return self
+
+
+ref_latent_sentinel = object()
+
+
+class FakeVAE:
+    def encode(self, pixels):
+        return ref_latent_sentinel
+
+
+positive_cond = {"positive": True}
+negative_cond = {"negative": True}
+nodes_mod._set_scail_single_reference_conditioning(
+    positive=positive_cond,
+    negative=negative_cond,
+    vae=FakeVAE(),
+    latent=None,
+    reference_image=FakeImageTensor(),
+    reference_image_mask=None,
+    width=64,
+    height=64,
+    replacement_mode=False,
+)
+positive_refs = [values for cond, values, _ in cond_set_calls if cond is positive_cond]
+negative_refs = [values for cond, values, _ in cond_set_calls if cond is negative_cond]
+assert_eq(positive_refs, [{"reference_latents": [ref_latent_sentinel]}], "positive ref latents")
+assert_eq(negative_refs, positive_refs, "negative shares positive reference_latents")
 
 # ── 根 __init__.py 注册键（4 键各出现两次：类映射 + 显示名映射）──
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as fh:

@@ -129,19 +129,36 @@ const advNode = new FakeNode([
   fakeWidget("max_frames", 0), fakeWidget("chunk_frames", 81), fakeWidget("overlap_frames", 5),
   fakeWidget("color_correction", false, "toggle"), fakeWidget("context_frames", 81),
   fakeWidget("context_overlap_frames", 20), fakeWidget("tiled_decode", false, "toggle"),
+  fakeWidget("context_schedule", "standard_static", "combo"), fakeWidget("freenoise", false, "toggle"),
 ]);
 exported.updateSimpleVideoWidgets(advNode);
 check("advanced off hides tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === false);
+check("advanced off hides context_schedule", exported.isWidgetVisible(getW(advNode, "context_schedule")) === false);
 getW(advNode, "advanced").value = true;
 exported.updateSimpleVideoWidgets(advNode);
 check("advanced on shows tiled_decode (chunk)", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === true);
 check("chunk shows chunk_frames", exported.isWidgetVisible(getW(advNode, "chunk_frames")) === true);
 check("chunk hides context_frames", exported.isWidgetVisible(getW(advNode, "context_frames")) === false);
+check("chunk hides context_schedule", exported.isWidgetVisible(getW(advNode, "context_schedule")) === false);
+check("chunk hides freenoise", exported.isWidgetVisible(getW(advNode, "freenoise")) === false);
 getW(advNode, "long_video_mode").value = "context_sampling";
 exported.updateSimpleVideoWidgets(advNode);
 check("context shows tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === true);
 check("context shows context_frames", exported.isWidgetVisible(getW(advNode, "context_frames")) === true);
+check("context shows context_schedule", exported.isWidgetVisible(getW(advNode, "context_schedule")) === true);
+check("context shows freenoise", exported.isWidgetVisible(getW(advNode, "freenoise")) === true);
 check("context hides chunk_frames", exported.isWidgetVisible(getW(advNode, "chunk_frames")) === false);
+check("context_schedule label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.context_schedule === "窗口调度");
+check("freenoise label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.freenoise === "FreeNoise 噪声扰动");
+
+// 6c. Simple Video 排序：新上下文 widget 追加在末尾（旧 widgets_values 位置不受影响）
+const orderNode = new FakeNode([
+  fakeWidget("freenoise", false, "toggle"), fakeWidget("seed", 1),
+  fakeWidget("context_schedule", "standard_static", "combo"), fakeWidget("advanced", false, "toggle"),
+]);
+exported.reorderSimpleVideoWidgets(orderNode);
+check("reorder context_schedule before freenoise", orderNode.widgets.findIndex((w) => w.name === "context_schedule") <
+  orderNode.widgets.findIndex((w) => w.name === "freenoise"));
 
 // 7. widgets_values 位置错位修复（advanced + long_video_mode 顺序颠倒）
 const repairNode = new FakeNode([

@@ -24,6 +24,7 @@ import torch.nn.functional as F
 
 from ...sf_utils.scail2_context import apply_scail2_easy_context
 from ...sf_utils.scail2_easy import (
+    CONTEXT_SCHEDULES,
     LONG_VIDEO_MODES,
     MAX_LEGACY_REFERENCE_IMAGES_PER_SUBJECT,
     MAX_MIXED_REFERENCE_IMAGES,
@@ -1302,7 +1303,7 @@ def _set_scail_single_reference_conditioning(
 
     ref_latent = vae.encode(ref_pixels[:, :, :, :3])
     positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
-    negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [torch.zeros_like(ref_latent)]}, append=True)
+    negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [ref_latent]}, append=True)
 
     ref_mask_shape = None
     if replacement_mode and ref_mask is not None:
@@ -1410,6 +1411,8 @@ def _run_context_scail(
     seed: int,
     cfg: float,
     pose_strength: float,
+    context_schedule: str = "standard_static",
+    freenoise: bool = False,
     prepared_reference_pack=None,
     tiled_decode: bool = False,
 ):
@@ -1471,6 +1474,8 @@ def _run_context_scail(
         model,
         context_frames=context_frames,
         context_overlap_frames=context_overlap_frames,
+        context_schedule=context_schedule,
+        freenoise=freenoise,
     )
     latent_to_decode = _sample_for_decode(
         model=context_model,
@@ -1736,6 +1741,8 @@ class SFSCAIL2SimpleVideo:
                 "context_frames": ("INT", {"default": 81, "min": 17, "max": 321, "step": 4, "tooltip": "上下文窗口帧数（context_sampling 模式，自动对齐 4n+1）"}),
                 "context_overlap_frames": ("INT", {"default": 20, "min": 0, "max": 320, "step": 1, "tooltip": "上下文窗口重叠帧数（context_sampling 模式，0=不重叠）"}),
                 "tiled_decode": ("BOOLEAN", {"default": False, "tooltip": "输出解码使用分块 VAE 解码（VAEDecodeTiled，降低解码显存峰值；速度略慢，长视频/高分辨率建议开启）"}),
+                "context_schedule": (list(CONTEXT_SCHEDULES), {"default": "standard_static", "tooltip": "上下文窗口调度（context_sampling 模式，对齐原生 Wan Context Windows）：固定窗口=每步复用同一组窗口；均匀窗口=随采样步从精细到全局推进（原生 Wan 默认）；循环均匀=窗口回绕的均匀调度；分批=无重叠顺序切段"}),
+                "freenoise": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口 FreeNoise 噪声扰动（context_sampling 模式，原生 Wan 默认开）：窗口间扰动噪声改善衔接；开启需运行环境提供 create_sampler_sample_wrapper"}),
             },
             "optional": {
                 "driving_track_data": ("SAM3_TRACK_DATA", {"tooltip": "驱动视频的 SAM3 追踪数据（replacement 模式必需；多主体 Reference Pack 也必需）"}),
@@ -1772,6 +1779,8 @@ class SFSCAIL2SimpleVideo:
         context_frames: int = 81,
         context_overlap_frames: int = 20,
         tiled_decode: bool = False,
+        context_schedule: str = "standard_static",
+        freenoise: bool = False,
         driving_track_data=None,
         reference_track_data=None,
     ):
@@ -1855,6 +1864,8 @@ class SFSCAIL2SimpleVideo:
             generation_length = _wan_frame_count_floor(total_frames)
             if generation_length <= 0:
                 raise ValueError("pose_video has no usable 4n+1 frame range.")
+            if context_schedule not in CONTEXT_SCHEDULES:
+                context_schedule = "standard_static"
             context_frames = _wan_frame_count_cover(max(17, int(context_frames)))
             requested_context_overlap = max(0, int(context_overlap_frames))
             context_overlap_frames = (
@@ -1883,6 +1894,8 @@ class SFSCAIL2SimpleVideo:
                 length=generation_length,
                 context_frames=context_frames,
                 context_overlap_frames=context_overlap_frames,
+                context_schedule=context_schedule,
+                freenoise=bool(freenoise),
                 replacement_mode=mask_replacement_mode,
                 seed=int(seed),
                 cfg=float(cfg),

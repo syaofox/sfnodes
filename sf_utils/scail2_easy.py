@@ -6,6 +6,7 @@
 
 RESOLUTION_PRESETS = ("512p", "704p", "custom")
 LONG_VIDEO_MODES = ("chunk", "context_sampling")
+CONTEXT_SCHEDULES = ("standard_static", "standard_uniform", "looped_uniform", "batched")
 REFERENCE_PACK_TYPE = "SCAIL2_REFERENCE_PACK"
 MAX_REFERENCE_SUBJECTS = 6
 MAX_LEGACY_REFERENCE_IMAGES_PER_SUBJECT = 6

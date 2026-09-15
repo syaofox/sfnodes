@@ -12,7 +12,7 @@ import { app } from "/scripts/app.js";
 
 const EXT_NAME = "sfnodes.scail2";
 const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode"];
-const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "tiled_decode"];
+const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "context_schedule", "freenoise", "tiled_decode"];
 const SIMPLE_ADVANCED_MODE_WIDGET = "long_video_mode";
 const SIMPLE_WIDGET_ORDER = [
   "advanced",
@@ -24,6 +24,8 @@ const SIMPLE_WIDGET_ORDER = [
   "context_frames",
   "context_overlap_frames",
   "tiled_decode",
+  "context_schedule",
+  "freenoise",
 ];
 const SIMPLE_ALL_ADVANCED_WIDGETS = Array.from(new Set([SIMPLE_ADVANCED_MODE_WIDGET, ...SIMPLE_CHUNK_ADVANCED_WIDGETS, ...SIMPLE_CONTEXT_ADVANCED_WIDGETS]));
 const MAX_REFERENCE_SUBJECTS = 6;
@@ -37,6 +39,12 @@ const SIMPLE_COMBO_LABELS = {
     chunk: "接续分段",
     context_sampling: "上下文采样",
   },
+  context_schedule: {
+    standard_static: "固定窗口",
+    standard_uniform: "均匀窗口",
+    looped_uniform: "循环均匀",
+    batched: "分批切段",
+  },
 };
 const SCAIL2_LABELS = {
   SCAIL2SimpleVideo: {
@@ -49,6 +57,8 @@ const SCAIL2_LABELS = {
     color_correction: "色彩校正",
     context_frames: "上下文窗口帧数",
     context_overlap_frames: "上下文重叠帧数",
+    context_schedule: "窗口调度",
+    freenoise: "FreeNoise 噪声扰动",
   },
   SCAIL2ReferencePack: {
     subject_count: "主体数量",
@@ -726,6 +736,7 @@ function setupSimpleVideoNode(node) {
   applyEasyNodeInstanceTranslation(node);
   localizeComboWidget(getWidget(node, "mode"), "mode");
   localizeComboWidget(getWidget(node, "long_video_mode"), "long_video_mode");
+  localizeComboWidget(getWidget(node, "context_schedule"), "context_schedule");
 
   const advancedWidget = getWidget(node, "advanced");
   if (advancedWidget) {

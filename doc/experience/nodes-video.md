@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -112,3 +112,43 @@
 
 - `tests/test_track_data_ops.py`：numpy 严格位序 pack/unpack 桩；覆盖前补帧/已足够长/packed None、逐对象相减、多路并集、MASK 与 TRACK_DATA 两种排除、resize、4D 多通道报错、帧数不一致报错、空排除直通、execute 集成 + 双字典注册一致。
 - `tests/test_sam3_point_track.py`：stub `torch` + `comfy_extras.nodes_sam3`；覆盖锚帧切片、点提示透传、anchor>0 前补空帧回全长、`initial_mask` 跳过检测、2D 升维、缺提示/越界/非 IMAGE 报错。
+
+## 78. SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正（2026-09）
+
+> 需求：参考原生 `WanContextWindowsManual`（`comfy_extras/nodes_context_windows.py`）审视 `SFSCAIL2SimpleVideo` 的 `context_sampling`。此前窗口参数全部硬编码在 `sf_utils/scail2_context.py::apply_scail2_easy_context`，逐项对照后只补真正有差距的项。
+
+### 78.1 对照与取舍
+
+| 原生 Wan 参数 | 原生默认 | SF 原状 | 结论 |
+|---|---|---|---|
+| `context_schedule` | `standard_uniform` | 硬编码 `standard_static` | 新增 widget（4 档 `ContextSchedules`，默认仍 `standard_static` 保存量行为） |
+| `freenoise` | True（并挂 sampler wrapper） | 硬编码 False、无 wrapper | 新增 widget（默认关；开启补挂 wrapper） |
+| `fuse_method` | pyramid | pyramid | 与原生默认一致，未暴露 |
+| `context_stride` / `closed_loop` | 1 / False | 1 / False | 与原生默认一致，未暴露 |
+| `retain_first_frame`（`cond_retain_index_list="0"`） | False | 不适用 | 明确不做，见 78.2 |
+| `split_conds_to_windows` | False | 不适用（无多区域条件） | 明确不做 |
+
+- `context_schedule` 全部枚举走核心 `comfy.context_windows.get_matching_context_schedule`（常量表 `CONTEXT_SCHEDULES` 放 `sf_utils/scail2_easy.py` 无依赖单源）；`updateSimpleVideoWidgets` 仅在 `advanced && long_video_mode=context_sampling` 显示，combo 中文档位复用既有 `localizeComboWidget` + `SIMPLE_COMBO_LABELS`。
+- 新增 widget **追加在 Python `required` 末尾（`tiled_decode` 之后）与 JS `SIMPLE_WIDGET_ORDER` 末尾**：SimpleVideo 的 `widgets_values` 位置敏感，追加式新增使旧工作流按位对齐不受影响（旧数组短于新 widget 数 → 新 widget 取默认值）。
+- `freenoise=True` 必须补调 `comfy.context_windows.create_sampler_sample_wrapper(model)`（核心注释：该 wrapper 目前仅 freenoise 使用；缺失即抛明确错误）。FreeNoise 只扰动噪声本身，与 SCAIL 蒙版按 `index_list` 切片正交。
+
+### 78.2 retain_first_frame 对 SCAIL-2 无效的原因
+
+- 核心 `WAN21_SCAIL2.resize_cond_for_context_window`（`comfy/model_base.py`）对 `sam_latents`（驱动蒙版，来自 `driving_mask_28ch`）/`pose_latents` 走 `slice_cond`（显式忽略 retain），`ref_mask_latents` 走"取前 N 帧 + 零填充"分支；`cond_retain_index_list`（`retain_first_frame`）只对与 x 同时间长的通用 cond 生效。
+- SCAIL-2 的"首帧/起始内容"在 `reference_latents` 与两类 28ch 蒙版里，且参考帧本就整段保留给每个窗口（不在窗口时间采样范围内），故无需也不应再 retain。
+
+### 78.3 核心已原生切 SCAIL 蒙版（兼容垫片勿删）
+
+- `WAN21_SCAIL2.resize_cond_for_context_window`（2026-06 SCAIL-2 支持）已原生处理 `sam_latents`/`ref_mask_latents` 的逐窗口切片；`extra_conds` 把 `driving_mask_28ch`/`ref_mask_28ch` 映射为 `sam_latents`/`ref_mask_latents`。
+- `sf_utils/scail2_context.py` 的 `_patch_scail_forward`（按 kwargs 旧键名 `driving_mask_28ch` 等查找）与 `SCAIL2EasyContextHandler.get_resized_cond` 里的 `_resize_scail_model_conds`（按 model_conds 旧键名查找）在当前核心上均为**幂等空转**。
+- **保留原因**：运行实例（docker）核心版本可能早于该支持，垫片是兼容回退且无副作用；**勿因"看似无用"删除**。删除前先用 §77 式诊断核实运行实例的 `comfy/model_base.py` 是否含 `WAN21_SCAIL2.resize_cond_for_context_window`。
+
+### 78.4 单图负向条件修正
+
+- 单图（非 Reference Pack）路径 `_set_scail_single_reference_conditioning` 的 negative 原为 `torch.zeros_like(ref_latent)`：与核心 `WanSCAILToVideo`（`nodes_scail.py` 正负同 `reference_latents`）及 SF 自身多参考 Pack 路径（`_set_scail_reference_pack_conditioning`）均不一致；`cfg>1` 时负向会拿黑参考帧做引导（`cfg=1.0` 无影响）。
+- 现改为正负共享同一 `ref_latent`；`tests/test_scail2.py` 以 stub `node_helpers.conditioning_set_values` 记录调用并断言正负 `reference_latents` 同值，锁死回归。
+
+### 78.5 测试与回归
+
+- `tests/test_scail2.py` 新增：`CONTEXT_SCHEDULES` 常量表；两个新 widget 的存在/默认值；stub `comfy.context_windows` 断言 handler kwargs（schedule/fuse/freenoise/stride/closed_loop/dim）、`create_sampler_sample_wrapper` 仅 freenoise 时调用、overlap 越界抛错、正负同 ref。
+- `tests/test_scail2_js.js` 新增：chunk 模式隐藏 / context 模式显示 `context_schedule`+`freenoise`、中文标签、排序末尾追加（`context_schedule` 在 `freenoise` 前）。

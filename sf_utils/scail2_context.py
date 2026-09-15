@@ -5,6 +5,9 @@ context_sampling 长视频模式在 comfy.context_windows 的窗口调度下采�
 条件、不会切这两类 28ch 蒙版。这里给 `SCAILWanModel._forward` 打一次性幂等 patch，
 在每个窗口前把蒙版按同一 index 列表切片，并让 handler 的 get_resized_cond 同步处理
 model_conds 里的蒙版——否则跨窗口复用会错位。
+
+窗口参数对齐原生 WanContextWindowsManual：`context_schedule` 可选（默认固定窗口）,
+`freenoise` 开启时补挂 create_sampler_sample_wrapper（核心仅 freenoise 需要它）。
 """
 
 import logging
@@ -184,7 +187,7 @@ def _latent_frames(pixel_frames):
     return max(1, ((max(1, int(pixel_frames)) - 1) // 4) + 1)
 
 
-def apply_scail2_easy_context(model, context_frames, context_overlap_frames):
+def apply_scail2_easy_context(model, context_frames, context_overlap_frames, *, context_schedule=None, freenoise=False):
     try:
         import comfy.context_windows as context_windows
     except Exception as exc:
@@ -196,6 +199,11 @@ def apply_scail2_easy_context(model, context_frames, context_overlap_frames):
     context_overlap = 0 if int(context_overlap_frames) <= 0 else _latent_frames(context_overlap_frames)
     if context_overlap >= context_length:
         raise ValueError("context_overlap_frames must be smaller than context_frames.")
+
+    schedule = context_windows.get_matching_context_schedule(
+        context_schedule or context_windows.ContextSchedules.STATIC_STANDARD
+    )
+    fuse_method = context_windows.get_matching_fuse_method(context_windows.ContextFuseMethods.PYRAMID)
 
     class SCAIL2EasyContextHandler(context_windows.IndexListContextHandler):
         def get_resized_cond(self, cond_in, x_in, window, device=None):
@@ -210,14 +218,14 @@ def apply_scail2_easy_context(model, context_frames, context_overlap_frames):
 
     model = model.clone()
     handler_kwargs = {
-        "context_schedule": context_windows.get_matching_context_schedule(context_windows.ContextSchedules.STATIC_STANDARD),
-        "fuse_method": context_windows.get_matching_fuse_method(context_windows.ContextFuseMethods.PYRAMID),
+        "context_schedule": schedule,
+        "fuse_method": fuse_method,
         "context_length": context_length,
         "context_overlap": context_overlap,
         "context_stride": 1,
         "closed_loop": False,
         "dim": 2,
-        "freenoise": False,
+        "freenoise": bool(freenoise),
         "cond_retain_index_list": "",
         "split_conds_to_windows": False,
     }
@@ -228,12 +236,20 @@ def apply_scail2_easy_context(model, context_frames, context_overlap_frames):
         handler = SCAIL2EasyContextHandler(**handler_kwargs)
     model.model_options["context_handler"] = handler
     context_windows.create_prepare_sampling_wrapper(model)
+    if bool(freenoise):
+        create_sampler_sample_wrapper = getattr(context_windows, "create_sampler_sample_wrapper", None)
+        if create_sampler_sample_wrapper is None:
+            raise RuntimeError(
+                "This ComfyUI build does not provide the context window FreeNoise sampler wrapper, so freenoise is unavailable."
+            )
+        create_sampler_sample_wrapper(model)
 
     return model, {
         "context_frames": int(context_frames),
         "context_overlap_frames": int(context_overlap_frames),
         "context_latent_frames": int(context_length),
         "context_overlap_latent_frames": int(context_overlap),
-        "context_schedule": context_windows.ContextSchedules.STATIC_STANDARD,
-        "fuse_method": context_windows.ContextFuseMethods.PYRAMID,
+        "context_schedule": schedule.name,
+        "fuse_method": fuse_method.name,
+        "freenoise": bool(freenoise),
     }
