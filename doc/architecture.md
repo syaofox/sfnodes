@@ -6,7 +6,7 @@
 
 ```
 sfnodes/
-├── __init__.py          # 节点注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS
+├── __init__.py          # 节点注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS（另调用 vhs_loadvideo_filename.install_deferred() 给 VHS LoadVideo 追加 filename 输出）
 ├── requirements.txt     # Python 依赖（仅声明，不在本机安装）
 ├── nodes/               # 所有节点实现，按功能分子目录
 │   ├── face/            # 人脸：分析、对齐、扭曲、区域、遮挡、人像分割（person_mask.py：SFPersonMask）
@@ -71,6 +71,7 @@ sfnodes/
 │   ├── scail2_easy.py   # SCAIL-2 纯逻辑（无 torch/ComfyUI 依赖）：常量表（类型串/主体·参考上限/色板/上下文窗口调度 CONTEXT_SCHEDULES）+ 帧数 4n+1 取整 cover/floor + 32 对齐 + Fit Video 尺寸策略 target_size_for_video + 多主体拼图布局 stage_row_candidates/stage_layout_from_rows/layout_stage_entries，SFSCAIL2* 用，见 experience/nodes-video.md §72）
 │   ├── scail2_context.py # SCAIL-2 上下文窗口采样（复用 comfy.context_windows 的 IndexListContextHandler/schedule/fuse + create_prepare_sampling_wrapper；可选 context_schedule/context_stride/closed_loop/freenoise（默认保持现状），freenoise=True 补挂 create_sampler_sample_wrapper；给 SCAILWanModel._forward 打一次性幂等 patch，按窗口 index_list 切 driving/ref 28ch 蒙版并同步 model_conds，_SCAIL_PATCHED 守卫——核心 2026-06 起已原生切这两类 cond，垫片为兼容回退勿删，见 §72·§78）
 │   ├── track_data_ops.py # SAM3_TRACK_DATA 纯逻辑（无 torch/ComfyUI 依赖，依赖注入）：pad_track_data_front 前补空帧回全长（锚帧非 0 的追踪）+ subtract_from_track_data 逐帧逐对象相减若干排除遮罩并保留对象数（MASK/TRACK_DATA 两种输入、尺寸 resize、帧数不一致报错）；SFSAM3PointTrack/SFTrackDataSubtract 共用，位打包复用核心 pack_masks/unpack_masks，见 experience/nodes-video.md §77）
+│   ├── vhs_loadvideo_filename.py # 第三方节点运行时补丁（不改 VHS 文件）：给 ComfyUI-VideoHelperSuite 的 4 个 LoadVideo 节点原地追加 filename(STRING) 输出——RETURN_TYPES/RETURN_NAMES 末尾追加（按槽索引连线不破坏已有工作流；server.node_info() 惰性读类属性）+ 包装 load_video 返回原始 widget 值（upload=相对名/Path=路径或 URL）；守卫（__module__ 含 videohelpersuite / 已有 filename / FUNCTION 不符 / 幂等标记）+ 加载时序兜底（install 查 nodes.NODE_CLASS_MAPPINGS，缺 key 时 install_deferred 经 PromptServer.instance.loop 有限重试），根 __init__.py 调用，见 experience/patterns.md §79）
 │   └── logger.py        # 日志
 ├── web/                 # 前端 JS Widget
 │   ├── sf_common.js     # 复刻节点公共小工具 + 主题令牌层（SF_THEME_CSS 顶层注入 :root 的 --sf-* 语义色，映射 ComfyUI Color Palette 的 --comfy-menu-bg/--fg-color/--input-text 等变量使 DOM UI 跟随明暗/自定义主题；半透明面走 color-mix(var(--fg-color)) 两端自适；sfThemeColors() 读旧 --comfy-* 实色供 canvas 节点 ctx.fillStyle 取色，含 light 亮度判定）（sfApiUrl / isVueNodes / applyAdaptiveCanvasOnly / isGraphLoading / installGraphLoadingGuard / installCanvasZoomPassthrough / installWheelZoomPassthrough / parseAnnotatedImageValue / buildSourceURL / getUpstreamImageURL / installPasteHandler / primaryButtonReleased / installNodeReleaseGuard / removeNodeReleaseGuard（画布节点拖拽释放兜底：window capture 四事件监听绕开 processMouseUp 的 stopPropagation + node_over 限制，onMouseMove 按键守卫兜底丢失释放 / escapeHtml / downloadDataURL / copyText）+ 全局强调色（getSfAccent/applySfAccentVar/sfAccent，document 根 --sf-acc CSS 变量体系）+ LoRA 行名真源（loraDisplayName/getLoraDisplayMode/loraRowLabel，Stack/Plot 共享，设置键 sfnodes.Lora.DisplayName——旧 sfnodes.PowerLoraLoader.DisplayName 键已废弃不读取）+ 微工具（injectCSSOnce 守卫式样式注入统一入口 / sfToast extensionManager 封装 / el DOM 快捷创建 / hideJsonWidget 隐藏序列化 widget / canvasBackingScale CSS→物理像素换算）；**依赖 /scripts/app.js——纯逻辑模块（*_lib.js/*_core.js/sf_markdown.js）不得 import 本文件**

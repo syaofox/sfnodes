@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -501,3 +501,35 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 ### 3. 测试
 
 - `tests/test_sec_limits_smoke.mjs`：stub `app` 捕获扩展 → 断言 spec 抬高、`raiseSpec` 不降级、`onNodeCreated` 兜底 patch、非目标节点不动、扩展名 `sfnodes.*`。
+
+## 79. VHS_LoadVideo 追加 filename 输出：跨包运行时补丁（2026-09）
+
+> 需求：给 ComfyUI-VideoHelperSuite 的 `VHS_LoadVideo` 系列加文件名输出，约束是**不修改 VHS 文件**。已核对上游 main——同样没有 filename 输出，不是版本落后能解决的。
+
+### 1. 只能"原地补丁注册表里的类对象"
+
+- 自定义节点 key 冲突：`load_custom_node` 对自定义节点重名 key 是**静默覆盖**（`nodes.py` 里 `NODE_CLASS_MAPPINGS[name] = node_cls`，无查重），且加载顺序 = `os.listdir` 不排序 → 用新 key 顶替 VHS 的 key 不可靠。
+- 正确姿势：`nodes.NODE_CLASS_MAPPINGS["VHS_LoadVideo"]` 与 VHS 模块 `videohelpersuite.load_video_nodes.LoadVideoUpload` 是**同一类对象**，直接改它的 `RETURN_TYPES/RETURN_NAMES` 并包装 `load_video`。
+- ⚠ 不要 `sys.path.insert(VHS 目录)` 后 `import videohelpersuite`——那会生成**第二个模块对象**，补丁打在副本上而注册表仍是原类（失效且无感）。必须从注册表拿类。
+
+### 2. object_info 惰性读取 → 追加属性即生效
+
+- `server.py::node_info()` 在**每次 /object_info 请求时**读 `obj_class.RETURN_TYPES/RETURN_NAMES/OUTPUT_IS_LIST` → 类属性改完前端建槽即见，**不需要前端 JS**。
+- 工作流按槽**索引**连线、`execution.py` 解析 `cached.outputs[slot]` → **末尾追加**不动 0..N-1，旧工作流链接全保（旧节点缺新槽时前端最多需刷新/重建节点）。VHS 前端 JS 只操作 `outputs[0]`（VAE 切换 `addVAEOutputToggle`），第 5 槽无冲突。
+
+### 3. 实现要点（`sf_utils/vhs_loadvideo_filename.py`，根 `__init__.py` 调用）
+
+- **包装而非重写**：`functools.wraps` 包 `load_video`，调用前取 `kwargs["video"]` 原始 widget 值，调用后追加 `(*result, filename)`；非元组兜底、filename 计算异常回退空串——补丁绝不阻断 VHS 执行。4 个变体（Upload / Path / FFmpeg Upload / FFmpeg Path）同一包装器。
+- 语义取"节点上显示的原始值"（零解析、无歧义；要 basename/stem 接现成 `SFParsePath`）：upload 变体如 `sub/clip.mp4`，Path 变体为输入路径/URL 原样。
+- 守卫：`__module__` 含 `videohelpersuite`、已有 `filename` 输出、`FUNCTION != "load_video"`、幂等标记 `_sf_filename_output_patched`；install 吞异常只告警 → VHS 升级改结构时补丁静默退场，不拖挂 VHS 运行。
+- 加载时序：`install()` 查 `nodes.NODE_CLASS_MAPPINGS`；VHS 尚未加载（readdir 把 sfnodes 排前时）走 `install_deferred()`——`PromptServer.instance.loop.call_later` 有限重试（0.5s × 60）。当前部署 readdir VHS 在前 → 即装即中。
+- 模块本身无 import 副作用，调用权在根 `__init__.py`（测试可注入 registry/loop）。
+
+### 4. 测试
+
+- `tests/test_vhs_filename_patch.py`：fake 类伪造 VHS 结构（`__module__` 指向 VHS 路径），覆盖属性追加 / `OUTPUT_IS_LIST` 同步 / 原始值语义（含 None/URL）/ 原 kwargs 不改写 / 原函数异常照常抛 / 非元组兜底 / 二次 patch 幂等 / 外来类与已带 filename、FUNCTION 不符跳过 / install 计数 / install_deferred 调度与耗尽。
+
+### 5. 验证与退路
+
+- 生效条件：重启容器 + 浏览器硬刷新（object_info 无服务端缓存）。VHS 的 `documentation.py` 帮助文案在其 import 时已成型，不会提及 filename（纯装饰，不影响槽）。
+- 若旧工作流里已存在的 VHS 节点刷新后不显示新槽（前端以 saved outputs 为准时），退路是补一个约 10 行的前端模块：`onAfterGraphConfigured` 对比 `nodeData.output.length` 补 `addOutput`——本次先不做，实测需要再补。

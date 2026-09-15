@@ -210,7 +210,13 @@ from .nodes.logic import (
     SFConvertAnything,
 )
 
+from .sf_utils.vhs_loadvideo_filename import install_deferred as _install_vhs_filename_output  # noqa: F401  # 导入后由下方调用：为 VHS_LoadVideo 追加 filename 输出
+
 WEB_DIRECTORY = "web"
+
+# 为 VHS_LoadVideo / VHS_LoadVideoPath / VHS_LoadVideoFFmpeg / VHS_LoadVideoFFmpegPath
+# 追加 filename 输出（运行时原地补丁，不修改 VHS 文件；机制与守卫见该模块 docstring）
+_install_vhs_filename_output()
 
 
 NODE_CLASS_MAPPINGS = {
