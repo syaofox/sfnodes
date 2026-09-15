@@ -433,8 +433,13 @@
 - `web/sf_points_bg_lib.js`（无 `app` 依赖）：沿 `bg_image` 链逐跳，`describeSource` 优先级 **已执行预览 `node.imgs`（尺寸最准）→ `videopreview.videoEl` → `image|video` widget → `SFImageCropExpand` 的 `properties.sfCropExpandState.src_path`**，否则走「首个 IMAGE 槽（`*` 槽回退，覆盖 Any Switch / Convert）」继续向上；`visited` 防环、`MAX_DEPTH` 兜底。
 - 返回**描述符**而非 URL（`preview/videoEl/widget/file`），URL 构造交给扩展用 `sf_common.buildSourceURL`/`parseAnnotatedImageValue`——纯 lib 不 import sf_common（§26 边界）。
 - `makeGraphApi(graph)` 适配 `graph.links` 为 Map 或对象表两种形态（Vue 版差异，§2.4 同类）。
+- **KJNodes 虚拟 Set/Get 透传**：`GetNode` 无输入、只带通道名（widget `Constant`/`widgets_values[0]`），直接上溯会断链（"未找到底图源"）。`findSetNode` 在**同图 `_nodes`** 里找通道名相同的 `SetNode`，再沿其 `IMAGE`/`value` 输入继续——工作流里 `LoadImage/video → SFImageResizePlus → Set_v-image → Get_v-image → PointsEditor` 这种常见结构才能解析到底图。
+- **`ImageFromBatch` 起始帧偏移**：与 `SFImageBatchRange` 同款累加 `batch_index`（`offset`），使精液等"中途出现帧"的 `PointsEditor` 能对到正确的那帧。
 - 坐标空间：`preview`/`videoEl`/`image widget` 用 `resize:true`（驱动路 VHS 首帧尺寸 = SeC frames，天然一致）；`file`（裁剪源，尺寸可能≠目标）用 `resize:false` 保留当前 `width/height` 坐标空间并 toast 提示——完全无法在未执行时可靠还原 `ImageScale` 目标尺寸时的务实折中。
-- **偏移/标注帧感知**：途经 `SFImageBatchRange` 时累加其 `start_index`（`resolveBgSource` 返回 `offset`），再从下游 `SeCVideoSegmentation` 读 `annotation_frame_idx`（`resolveAnnotationFrame`，沿 PointsEditor 输出连线找目标节点）→ 目标帧 = offset + annotation。视频源按 `videoEl.currentTime = 帧 / (force_rate/select_every_nth)` seek（VHS 高级预览 `/vhs/viewvideo` 已应用 skip/force_rate/cap，故帧号对口）；`force_rate=0`（保持源帧率）时无从推算 fps → 回退首帧并提示。
+- **偏移/标注帧感知**：途经 `SFImageBatchRange`/`ImageFromBatch` 时累加起始帧（`resolveBgSource` 返回 `offset`），再从下游 `SeCVideoSegmentation` 读 `annotation_frame_idx`（`resolveAnnotationFrame`，沿 PointsEditor 输出连线找目标节点）→ 目标帧 = offset + annotation。视频源按 `videoEl.currentTime = 帧 / (force_rate/select_every_nth)` seek（VHS 高级预览 `/vhs/viewvideo` 已应用 skip/force_rate/cap，故帧号对口）；`force_rate=0`（保持源帧率）时无从推算 fps → 回退首帧并提示。
+- **同一 VHS videoEl 被多个 PointsEditor 共用 → 必须每次显式 seek**：只对 `frame>0` 才 seek 会让 frame=0 的编辑器抓到另一个编辑器 seek 后的位置（"底图互相干扰"）。现在 `fps>0` 时一律 seek（含 0）；已在目标位置（|currentTime-target|<0.04 且 readyState≥2）走快捷路径（设置相同 currentTime 不一定触发 `seeked`）。
+- **seek 不许"抓旧帧冒充成功"**：旧实现等 600ms 超时后无条件 `captureVideoFrame`，且 toast 只看 `frame>0` 就报"第 N 帧"（实际是当前帧）。现在 `seekVideoElement` 等 `seeked` 且**校验落点** `|currentTime-target|<0.05`——VHS 预览流（`/api/vhs/viewvideo?...&deadline=realtime`）是**不可 seek 流**（`seekable` 只有 `[0,0]`），浏览器会把 `currentTime` 钳回 0 **却照样触发 `seeked`**，只等事件必然误判。另：`seeked` 后立即 `drawImage` 可能画出旧帧 → `afterFrame`（`requestVideoFrameCallback` + 120ms 兜底）再抓。
+- **不可 seek 流的兜底 = 播放推进**：`captureVideoByPlayback` 把 `currentTime` 归零后 `play()`，rAF 轮询到 `currentTime >= 帧/fps` 暂停并抓帧（同一时间轴，帧号语义不变；32 帧片段约 2s，可接受）。仅在 seek 校验失败后启用；仍失败才「同一 URL 新建离屏 video 再 seek」→ 最后用当前帧并 **toast 明确告警**。播放前若 `currentTime` 回不到 target 之前则直接判失败（播放只能前进，别抓一帧冒充）。`console.info` 单行字符串输出 `frame/fps/t/method/ready/dur/cur/seekable/seekEnd/src`（对象会被 Chrome 折叠成 `…`，务必用字符串）。
 
 ### 3. 与 KJNodes 的耦合边界
 
@@ -443,7 +448,7 @@
 
 ### 4. 测试
 
-- `tests/test_points_bg_lib.mjs`：拷 `.mjs` 直测（§53 同款）；fake graph（对象表 + Map 两形态）覆盖 `describeSource` 四类优先级、`parseCropExpandState` 对象/坏 JSON/缺失、链式解析、循环保护、未接线、`*` 回退。
+- `tests/test_points_bg_lib.mjs`：拷 `.mjs` 直测（§53 同款）；fake graph（对象表 + Map 两形态）覆盖 `describeSource` 四类优先级、`parseCropExpandState` 对象/坏 JSON/缺失、链式解析、循环保护、未接线、`*` 回退、KJNodes `GetNode→SetNode` 通道解析、`ImageFromBatch` 起始帧偏移。
 
 ## 69. 手动分段 SeC 管线：分段标注 + SFMaskBatch 合并 + 男性/精液相减（2026-09）
 

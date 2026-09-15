@@ -28,6 +28,7 @@ from .nodes.image.batch_index import SFImageBatchIndex
 from .nodes.image.batch_range import SFImageBatchRange
 from .nodes.image.invert_track import SFInvertTrackData
 from .nodes.image.mask_to_track_data import SFMaskToTrackData
+from .nodes.image.track_data_subtract import SFTrackDataSubtract
 from .nodes.image.track_data_cache import SFTrackDataCache
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
@@ -120,6 +121,7 @@ from .nodes.video.scail2 import (
     SFSCAIL2ReferenceSAMBuilder,
     SFSCAIL2SimpleVideo,
 )
+from .nodes.video.sam3_point_track import SFSAM3PointTrack
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -255,6 +257,7 @@ NODE_CLASS_MAPPINGS = {
     "SFImageBatchRange": SFImageBatchRange,
     "SFInvertTrackData": SFInvertTrackData,
     "SFMaskToTrackData": SFMaskToTrackData,
+    "SFTrackDataSubtract": SFTrackDataSubtract,
     "SFTrackDataCache": SFTrackDataCache,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
@@ -345,6 +348,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSCAIL2ReferencePack": SFSCAIL2ReferencePack,
     "SFSCAIL2ReferenceSAMBuilder": SFSCAIL2ReferenceSAMBuilder,
     "SFSCAIL2SimpleVideo": SFSCAIL2SimpleVideo,
+    "SFSAM3PointTrack": SFSAM3PointTrack,
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
@@ -481,6 +485,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFImageBatchRange": "SF Image Batch Range",
     "SFInvertTrackData": "SF Invert Track Data",
     "SFMaskToTrackData": "SF Mask To Track Data",
+    "SFTrackDataSubtract": "SF Track Data Subtract",
     "SFTrackDataCache": "SF Track Data Cache",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
@@ -571,6 +576,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSCAIL2ReferencePack": "SF SCAIL-2 Reference Pack",
     "SFSCAIL2ReferenceSAMBuilder": "SF SCAIL-2 Reference SAM Builder",
     "SFSCAIL2SimpleVideo": "SF SCAIL-2 Simple Video",
+    "SFSAM3PointTrack": "SF SAM3 Point Track",
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点

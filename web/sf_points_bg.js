@@ -6,8 +6,13 @@
 // （ImageScale/SFImageBatch/Any Switch/SFImageCropExpand）更是完全解析不到。
 //
 // 本扩展不执行工作流：沿 bg_image 链解析（纯逻辑 sf_points_bg_lib.js），
-// 抓到图/视频首帧后交给 KJNodes 的 editor.processImage()（其自身会持久化
+// 抓到图/视频帧后交给 KJNodes 的 editor.processImage()（其自身会持久化
 // properties.imgData，点一次后随工作流保存、重载自动恢复）。
+//
+// ⚠ 多个 PointsEditor 可能共用同一个 VHS videoEl：每帧都必须显式 seek 到目标
+// 位置（含 frame=0），否则会互相"继承"当前帧；seek 失败时不得抓旧帧冒充成功
+// （toast 必须如实报告）。seek 完成后等一帧（rVFC/120ms）再 drawImage，避免
+// 画出 seek 前的旧帧。
 import { app } from "/scripts/app.js";
 import { makeGraphApi, resolveBgSource, resolveAnnotationFrame } from "./sf_points_bg_lib.js";
 import { buildSourceURL, parseAnnotatedImageValue, sfToast } from "./sf_common.js";
@@ -54,18 +59,120 @@ function captureVideoURL(url) {
     });
 }
 
-// 把可 seek 的 videoEl 定位到指定秒并抓帧（VHS 高级预览已应用 skip/force_rate/cap，
-// 故「输出帧 N」= currentTime N / (force_rate/select_every_nth)）。
-function captureVideoElementAt(videoEl, seconds) {
+// seek 完成后等一帧再抓：直接在 'seeked' 里 drawImage 可能仍画出旧帧。
+function afterFrame(videoEl, done) {
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; done(); };
+    if (typeof videoEl.requestVideoFrameCallback === "function") {
+        try { videoEl.requestVideoFrameCallback(finish); } catch (e) { /* 回退定时器 */ }
+    }
+    setTimeout(finish, 120);
+}
+
+function seekVideoElement(videoEl, seconds, timeout) {
     return new Promise((resolve) => {
-        const grab = () => {
+        const target = Math.max(0, seconds);
+        // 已在目标位置：设置相同的 currentTime 不一定触发 seeked，直接取帧。
+        if (videoEl.readyState >= 2 && Math.abs(videoEl.currentTime - target) < 0.04) {
+            afterFrame(videoEl, () => resolve(true));
+            return;
+        }
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
-            videoEl.removeEventListener("seeked", grab);
-            try { resolve(captureVideoFrame(videoEl)); } catch (e) { resolve(null); }
+            videoEl.removeEventListener("seeked", onSeeked);
+            resolve(ok);
         };
-        const timer = setTimeout(grab, 600);
-        videoEl.addEventListener("seeked", grab, { once: true });
-        try { videoEl.currentTime = Math.max(0, seconds); } catch (e) { grab(); }
+        // ⚠ 非 seekable 流（VHS /vhs/viewvideo?deadline=realtime，seekable=[0,0]）会
+        // 把 currentTime 钳回 0 却照样触发 seeked → 必须校验落点，否则误判成功。
+        const onSeeked = () => afterFrame(videoEl,
+            () => finish(Math.abs(videoEl.currentTime - target) < 0.05));
+        const timer = setTimeout(() => finish(false), timeout);
+        videoEl.addEventListener("seeked", onSeeked);
+        try { videoEl.currentTime = target; } catch (e) { finish(false); }
+    });
+}
+
+// 不可 seek 的流：从当前位置播放推进到目标秒再暂停抓帧（同一 videoEl 时间轴 =
+// VHS 输出帧时间轴，故「帧 N」= 播放到 N/(force_rate/select_every_nth) 秒）。
+function captureVideoByPlayback(videoEl, seconds, fps, timeout = 15000) {
+    return new Promise((resolve) => {
+        const target = Math.max(0, seconds);
+        if (target <= 0.001) {
+            try { videoEl.currentTime = 0; } catch (e) { /* 非 seekable 流忽略 */ }
+            afterFrame(videoEl, () => {
+                try { resolve(captureVideoFrame(videoEl)); } catch (e) { resolve(null); }
+            });
+            return;
+        }
+        let settled = false;
+        let rafId = null;
+        const cleanup = () => {
+            if (rafId != null) cancelAnimationFrame(rafId);
+            clearTimeout(timer);
+        };
+        const done = (canvas) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            try { videoEl.pause(); } catch (e) { /* 忽略 */ }
+            resolve(canvas);
+        };
+        const timer = setTimeout(() => done(null), timeout);
+        const tick = () => {
+            if (settled) return;
+            if (videoEl.ended && videoEl.currentTime < target - 0.05) { done(null); return; }
+            if (videoEl.currentTime >= target - 0.001 || videoEl.ended) {
+                try { videoEl.pause(); } catch (e) { /* 忽略 */ }
+                afterFrame(videoEl, () => {
+                    try { done(captureVideoFrame(videoEl)); } catch (e) { done(null); }
+                });
+                return;
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+        try { if (videoEl.currentTime > target) videoEl.currentTime = 0; } catch (e) { /* 忽略 */ }
+        // 播放只能前进：回不到 target 之前（例如重置失败）就别抓一帧冒充。
+        if (videoEl.currentTime > target + 0.05) { done(null); return; }
+        const p = videoEl.play();
+        if (p && typeof p.catch === "function") p.catch(() => done(null));
+        rafId = requestAnimationFrame(tick);
+    });
+}
+
+// 把 videoEl 定位到指定秒并抓帧；seek 未在超时内完成时返回 null（绝不抓旧帧冒充）。
+// VHS 高级预览已应用 skip/force_rate/cap，故「输出帧 N」= currentTime N / (force_rate/select_every_nth)。
+async function captureVideoElementAt(videoEl, seconds, timeout = 5000) {
+    if (!(await seekVideoElement(videoEl, seconds, timeout))) return null;
+    try { return captureVideoFrame(videoEl); } catch (e) { return null; }
+}
+
+// 用同一 URL 新建离屏 video 再 seek（绕开 VHS 预览元素未缓冲/不可 seek 的状态）。
+function captureVideoURLAt(url, seconds, timeout = 8000) {
+    return new Promise((resolve) => {
+        const v = document.createElement("video");
+        v.muted = true;
+        v.preload = "auto";
+        let settled = false;
+        const finish = (ok) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            let out = null;
+            if (ok) { try { out = captureVideoFrame(v); } catch (e) { out = null; } }
+            try { v.removeAttribute("src"); v.load(); } catch (e) { /* 忽略 */ }
+            resolve(out);
+        };
+        const timer = setTimeout(() => finish(false), timeout);
+        v.addEventListener("error", () => finish(false), { once: true });
+        v.addEventListener("loadeddata", () => {
+            if (seconds <= 0) { afterFrame(v, () => finish(true)); return; }
+            v.addEventListener("seeked", () => afterFrame(v, () => finish(true)), { once: true });
+            try { v.currentTime = seconds; } catch (e) { finish(false); }
+        }, { once: true });
+        v.src = url;
     });
 }
 
@@ -95,14 +202,45 @@ async function applyBg(node, { silent }) {
         if (source.kind === "videoEl") {
             const vp = (source.node?.widgets || []).find((w) => w?.name === "videopreview");
             const fps = videoElementFps(source.videoEl, vp?.value?.params);
-            const seekable = source.videoEl.seekable && source.videoEl.seekable.length > 0;
+            const seconds = fps > 0 ? frame / fps : 0;
+            // 多个 PointsEditor 共用 VHS 的同一个 videoEl：每次都显式 seek 到目标帧，
+            // 否则一个编辑器刷新会把另一个的当前帧当成自己的底图（frame=0 也是）。
             let canvas = null;
-            if (frame > 0 && fps > 0 && seekable) {
-                canvas = await captureVideoElementAt(source.videoEl, frame / fps);
+            let method = "current";
+            if (fps > 0) {
+                canvas = await captureVideoElementAt(source.videoEl, seconds);
+                if (canvas) method = "seek";
+            }
+            if (!canvas && fps > 0) {
+                // VHS 预览流不可 seek（seekable=[0,0]）：播放推进到目标帧再抓。
+                canvas = await captureVideoByPlayback(source.videoEl, seconds, fps);
+                if (canvas) method = "playback";
+            }
+            if (!canvas && fps > 0) {
+                const url = source.videoEl.currentSrc || source.videoEl.src;
+                if (url) {
+                    canvas = await captureVideoURLAt(url, seconds);
+                    if (canvas) method = "offscreen";
+                }
             }
             if (!canvas) canvas = captureVideoFrame(source.videoEl);
+            console.info(
+                `[sf_points_bg] videoEl frame=${frame} fps=${fps} t=${seconds} method=${method}` +
+                ` ready=${source.videoEl.readyState} dur=${source.videoEl.duration}` +
+                ` cur=${source.videoEl.currentTime} seekable=${source.videoEl.seekable?.length ?? 0}` +
+                ` seekEnd=${source.videoEl.seekable?.length ? source.videoEl.seekable.end(0) : "-"}` +
+                ` src=${source.videoEl.currentSrc || source.videoEl.src}`);
             editor.processImage(canvas, { resize: true });
-            if (!silent) toast("底图已刷新", canvas && frame > 0 ? `取自上游视频第 ${frame} 帧` : "取自上游视频首帧");
+            if (!silent) {
+                if (fps <= 0) {
+                    toast("底图已刷新", "取自上游视频当前帧（无法从 force_rate 推算帧号）", "warn");
+                } else if (method !== "current") {
+                    toast("底图已刷新", `取自上游视频第 ${frame} 帧`);
+                } else {
+                    toast("底图已刷新（未定位到目标帧）",
+                        `未能取到第 ${frame} 帧（视频未缓冲完），显示的是当前帧；稍后再点一次`, "warn");
+                }
+            }
             return true;
         }
         if (source.kind === "widget" && source.widget === "video") {

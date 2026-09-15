@@ -119,6 +119,33 @@ reset();
 const pe2 = mkNode(72, { outputs: [{ name: "positive_coords", links: [] }] });
 check("无下游 SeC → 0", L.resolveAnnotationFrame(pe2, L.makeGraphApi(mkGraph({}))) === 0);
 
+// ── KJNodes 虚拟 Get/Set 通道解析 ──
+reset();
+const peGet = mkNode(80, { inputs: [inp("bg_image", "IMAGE", 800)] });
+const getNode = mkNode(81, { type: "GetNode", inputs: [],
+    widgets: [{ name: "Constant", value: "v-image" }], widgets_values: ["v-image"] });
+const setNode = mkNode(82, { type: "SetNode", inputs: [inp("IMAGE", "IMAGE", 802)],
+    widgets: [{ name: "Constant", value: "v-image" }] });
+const driveLoad = mkNode(83, { widgets: [{ name: "image", value: "drive.png" }] });
+const gGS = { links: { 800: { origin_id: 81 }, 802: { origin_id: 83 } },
+    getNodeById: (id) => nodes[id] ?? null, _nodes: Object.values(nodes) };
+check("Get/Set 通道解析", L.resolveBgSource(peGet, L.makeGraphApi(gGS))?.value === "drive.png");
+
+// ── ImageFromBatch 起始帧偏移 + Get/Set 链 ──
+reset();
+const peIB = mkNode(90, { inputs: [inp("bg_image", "IMAGE", 900)] });
+const fromBatch = mkNode(91, { type: "ImageFromBatch", inputs: [inp("image", "IMAGE", 901)],
+    widgets: [{ name: "batch_index", value: 5 }, { name: "length", value: 1 }] });
+const getIB = mkNode(92, { type: "GetNode", inputs: [],
+    widgets: [{ name: "Constant", value: "v-image" }] });
+const setIB = mkNode(93, { type: "SetNode", inputs: [inp("IMAGE", "IMAGE", 903)],
+    widgets: [{ name: "Constant", value: "v-image" }] });
+const vhsIB = mkNode(94, { widgets: [{ name: "videopreview", videoEl: { src: "/v" } }] });
+const gIB = { links: { 900: { origin_id: 91 }, 901: { origin_id: 92 }, 903: { origin_id: 94 } },
+    getNodeById: (id) => nodes[id] ?? null, _nodes: Object.values(nodes) };
+const dIB = L.resolveBgSource(peIB, L.makeGraphApi(gIB));
+check("ImageFromBatch 偏移 + Get/Set 链", dIB?.kind === "videoEl" && dIB?.offset === 5);
+
 // ── links Map 形态 + `*` 回退 ──
 reset();
 const mapEditor = mkNode(50, { inputs: [inp("bg_image", "IMAGE", 500)] });
