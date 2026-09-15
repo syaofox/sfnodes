@@ -123,12 +123,14 @@
 |---|---|---|---|
 | `context_schedule` | `standard_uniform` | 硬编码 `standard_static` | 新增 widget（4 档 `ContextSchedules`，默认仍 `standard_static` 保存量行为） |
 | `freenoise` | True（并挂 sampler wrapper） | 硬编码 False、无 wrapper | 新增 widget（默认关；开启补挂 wrapper） |
+| `context_stride` | 1（仅 uniform 系生效） | 硬编码 1 | 新增 widget（默认 1；仅 `standard_uniform`/`looped_uniform` 显示） |
+| `closed_loop` | False（仅 looped 生效） | 硬编码 False | 新增 widget（默认关；仅 `looped_uniform` 显示） |
 | `fuse_method` | pyramid | pyramid | 与原生默认一致，未暴露 |
-| `context_stride` / `closed_loop` | 1 / False | 1 / False | 与原生默认一致，未暴露 |
 | `retain_first_frame`（`cond_retain_index_list="0"`） | False | 不适用 | 明确不做，见 78.2 |
 | `split_conds_to_windows` | False | 不适用（无多区域条件） | 明确不做 |
 
 - `context_schedule` 全部枚举走核心 `comfy.context_windows.get_matching_context_schedule`（常量表 `CONTEXT_SCHEDULES` 放 `sf_utils/scail2_easy.py` 无依赖单源）；`updateSimpleVideoWidgets` 仅在 `advanced && long_video_mode=context_sampling` 显示，combo 中文档位复用既有 `localizeComboWidget` + `SIMPLE_COMBO_LABELS`。
+- `context_stride`/`closed_loop` 由前端 `simpleVisibleAdvancedWidgets()` **按调度条件显隐**（与原生 tooltip 语义一致，避免设置无效项）：stride 仅 uniform 系（`standard_uniform`/`looped_uniform`）显示、closed_loop 仅 `looped_uniform` 显示；`context_schedule` 的 callback + `onWidgetChanged` 触发刷新。后端 `apply_scail2_easy_context` 对 stride 做 `max(1, int(...))` 夹取并透传（`closed_loop` 仅 loop 调度有意义，非 loop 传入由核心窗口生成器自然忽略）。
 - 新增 widget **追加在 Python `required` 末尾（`tiled_decode` 之后）与 JS `SIMPLE_WIDGET_ORDER` 末尾**：SimpleVideo 的 `widgets_values` 位置敏感，追加式新增使旧工作流按位对齐不受影响（旧数组短于新 widget 数 → 新 widget 取默认值）。
 - `freenoise=True` 必须补调 `comfy.context_windows.create_sampler_sample_wrapper(model)`（核心注释：该 wrapper 目前仅 freenoise 使用；缺失即抛明确错误）。FreeNoise 只扰动噪声本身，与 SCAIL 蒙版按 `index_list` 切片正交。
 
@@ -150,5 +152,5 @@
 
 ### 78.5 测试与回归
 
-- `tests/test_scail2.py` 新增：`CONTEXT_SCHEDULES` 常量表；两个新 widget 的存在/默认值；stub `comfy.context_windows` 断言 handler kwargs（schedule/fuse/freenoise/stride/closed_loop/dim）、`create_sampler_sample_wrapper` 仅 freenoise 时调用、overlap 越界抛错、正负同 ref。
-- `tests/test_scail2_js.js` 新增：chunk 模式隐藏 / context 模式显示 `context_schedule`+`freenoise`、中文标签、排序末尾追加（`context_schedule` 在 `freenoise` 前）。
+- `tests/test_scail2.py` 新增：`CONTEXT_SCHEDULES` 常量表；新 widget 的存在/默认值（schedule/freenoise/context_stride/closed_loop）；stub `comfy.context_windows` 断言 handler kwargs（schedule/fuse/freenoise/stride/closed_loop/dim）、stride 夹取、`create_sampler_sample_wrapper` 仅 freenoise 时调用、overlap 越界抛错、正负同 ref。
+- `tests/test_scail2_js.js` 新增：chunk 模式隐藏 / context 模式显示上下文 widget；`context_stride` 随 uniform 系显示、`closed_loop` 仅 looped 显示（static 下两者隐藏）；中文标签；排序末尾追加且与 Python `required` 同序（`context_schedule` → `freenoise` → `context_stride` → `closed_loop`）——顺序必须一致，否则旧工作流 `widgets_values` 末位会错位（`freenoise` 的值会落到 `context_stride`）。

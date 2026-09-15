@@ -187,7 +187,16 @@ def _latent_frames(pixel_frames):
     return max(1, ((max(1, int(pixel_frames)) - 1) // 4) + 1)
 
 
-def apply_scail2_easy_context(model, context_frames, context_overlap_frames, *, context_schedule=None, freenoise=False):
+def apply_scail2_easy_context(
+    model,
+    context_frames,
+    context_overlap_frames,
+    *,
+    context_schedule=None,
+    freenoise=False,
+    context_stride=1,
+    closed_loop=False,
+):
     try:
         import comfy.context_windows as context_windows
     except Exception as exc:
@@ -222,8 +231,8 @@ def apply_scail2_easy_context(model, context_frames, context_overlap_frames, *, 
         "fuse_method": fuse_method,
         "context_length": context_length,
         "context_overlap": context_overlap,
-        "context_stride": 1,
-        "closed_loop": False,
+        "context_stride": max(1, int(context_stride)),
+        "closed_loop": bool(closed_loop),
         "dim": 2,
         "freenoise": bool(freenoise),
         "cond_retain_index_list": "",
@@ -252,4 +261,6 @@ def apply_scail2_easy_context(model, context_frames, context_overlap_frames, *, 
         "context_schedule": schedule.name,
         "fuse_method": fuse_method.name,
         "freenoise": bool(freenoise),
+        "context_stride": max(1, int(context_stride)),
+        "closed_loop": bool(closed_loop),
     }

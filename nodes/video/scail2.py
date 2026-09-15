@@ -1413,6 +1413,8 @@ def _run_context_scail(
     pose_strength: float,
     context_schedule: str = "standard_static",
     freenoise: bool = False,
+    context_stride: int = 1,
+    closed_loop: bool = False,
     prepared_reference_pack=None,
     tiled_decode: bool = False,
 ):
@@ -1476,6 +1478,8 @@ def _run_context_scail(
         context_overlap_frames=context_overlap_frames,
         context_schedule=context_schedule,
         freenoise=freenoise,
+        context_stride=context_stride,
+        closed_loop=closed_loop,
     )
     latent_to_decode = _sample_for_decode(
         model=context_model,
@@ -1743,6 +1747,8 @@ class SFSCAIL2SimpleVideo:
                 "tiled_decode": ("BOOLEAN", {"default": False, "tooltip": "输出解码使用分块 VAE 解码（VAEDecodeTiled，降低解码显存峰值；速度略慢，长视频/高分辨率建议开启）"}),
                 "context_schedule": (list(CONTEXT_SCHEDULES), {"default": "standard_static", "tooltip": "上下文窗口调度（context_sampling 模式，对齐原生 Wan Context Windows）：固定窗口=每步复用同一组窗口；均匀窗口=随采样步从精细到全局推进（原生 Wan 默认）；循环均匀=窗口回绕的均匀调度；分批=无重叠顺序切段"}),
                 "freenoise": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口 FreeNoise 噪声扰动（context_sampling 模式，原生 Wan 默认开）：窗口间扰动噪声改善衔接；开启需运行环境提供 create_sampler_sample_wrapper"}),
+                "context_stride": ("INT", {"default": 1, "min": 1, "max": 8, "step": 1, "tooltip": "上下文窗口步幅（仅均匀窗口/循环均匀调度生效）：>1 时在采样后段生成跨更长时段的多尺度窗口（同一 token 数、更大时间跨度），进一步减少窗口边界伪影；1=仅单尺度"}),
+                "closed_loop": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口闭环（仅循环均匀调度生效）：把视频首尾当作相邻帧生成回绕窗口，用于无缝循环视频；普通内容开启会让首尾互相干扰"}),
             },
             "optional": {
                 "driving_track_data": ("SAM3_TRACK_DATA", {"tooltip": "驱动视频的 SAM3 追踪数据（replacement 模式必需；多主体 Reference Pack 也必需）"}),
@@ -1781,6 +1787,8 @@ class SFSCAIL2SimpleVideo:
         tiled_decode: bool = False,
         context_schedule: str = "standard_static",
         freenoise: bool = False,
+        context_stride: int = 1,
+        closed_loop: bool = False,
         driving_track_data=None,
         reference_track_data=None,
     ):
@@ -1866,6 +1874,8 @@ class SFSCAIL2SimpleVideo:
                 raise ValueError("pose_video has no usable 4n+1 frame range.")
             if context_schedule not in CONTEXT_SCHEDULES:
                 context_schedule = "standard_static"
+            context_stride = max(1, min(8, int(context_stride)))
+            closed_loop = bool(closed_loop)
             context_frames = _wan_frame_count_cover(max(17, int(context_frames)))
             requested_context_overlap = max(0, int(context_overlap_frames))
             context_overlap_frames = (
@@ -1896,6 +1906,8 @@ class SFSCAIL2SimpleVideo:
                 context_overlap_frames=context_overlap_frames,
                 context_schedule=context_schedule,
                 freenoise=bool(freenoise),
+                context_stride=context_stride,
+                closed_loop=closed_loop,
                 replacement_mode=mask_replacement_mode,
                 seed=int(seed),
                 cfg=float(cfg),

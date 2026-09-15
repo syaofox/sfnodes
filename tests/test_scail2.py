@@ -148,6 +148,10 @@ check("simple has context_schedule", required["context_schedule"][0] == list(eas
 check("context_schedule default static", required["context_schedule"][1].get("default") == "standard_static")
 check("simple has freenoise", required["freenoise"][0] == "BOOLEAN")
 check("freenoise default off", required["freenoise"][1].get("default") is False)
+check("simple has context_stride", required["context_stride"][0] == "INT")
+check("context_stride default 1", required["context_stride"][1].get("default") == 1)
+check("simple has closed_loop", required["closed_loop"][0] == "BOOLEAN")
+check("closed_loop default off", required["closed_loop"][1].get("default") is False)
 
 # ── _decode_latent_to_frames：tiled 分块解码分支选择 ──
 class FakeTensor:
@@ -252,6 +256,8 @@ default_model = FakeModel()
 _, default_summary = context_mod.apply_scail2_easy_context(default_model, 81, 20)
 assert_eq(default_summary["context_schedule"], "standard_static", "context default schedule")
 assert_eq(default_summary["freenoise"], False, "context default freenoise")
+assert_eq(default_summary["context_stride"], 1, "context default stride")
+assert_eq(default_summary["closed_loop"], False, "context default closed_loop")
 assert_eq(default_summary["context_latent_frames"], 21, "context latent length")
 assert_eq(default_summary["context_overlap_latent_frames"], 5, "context latent overlap")
 assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_static", "handler schedule default")
@@ -273,6 +279,20 @@ assert_eq(handler_kwargs_log[-1]["freenoise"], True, "handler freenoise on")
 assert_eq(len(prepare_wrapper_calls), 2, "prepare wrapper per call")
 assert_eq(len(sampler_wrapper_calls), 1, "sampler wrapper with freenoise")
 assert_eq(uniform_model.model_options["context_handler"].kwargs["freenoise"], True, "handler attached")
+
+looped_model = FakeModel()
+_, looped_summary = context_mod.apply_scail2_easy_context(
+    looped_model, 81, 20, context_schedule="looped_uniform", context_stride=2, closed_loop=True
+)
+assert_eq(looped_summary["context_schedule"], "looped_uniform", "context looped schedule")
+assert_eq(looped_summary["context_stride"], 2, "context stride passthrough")
+assert_eq(looped_summary["closed_loop"], True, "context closed_loop passthrough")
+assert_eq(handler_kwargs_log[-1]["context_stride"], 2, "handler stride looped")
+assert_eq(handler_kwargs_log[-1]["closed_loop"], True, "handler closed_loop looped")
+assert_eq(len(prepare_wrapper_calls), 3, "prepare wrapper per call (looped)")
+
+context_mod.apply_scail2_easy_context(FakeModel(), 81, 20, context_stride=0)
+assert_eq(handler_kwargs_log[-1]["context_stride"], 1, "handler stride clamped to 1")
 
 try:
     context_mod.apply_scail2_easy_context(FakeModel(), 81, 81)

@@ -12,8 +12,10 @@ import { app } from "/scripts/app.js";
 
 const EXT_NAME = "sfnodes.scail2";
 const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode"];
-const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "context_schedule", "freenoise", "tiled_decode"];
+const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "context_schedule", "context_stride", "closed_loop", "freenoise", "tiled_decode"];
 const SIMPLE_ADVANCED_MODE_WIDGET = "long_video_mode";
+const SIMPLE_UNIFORM_SCHEDULES = new Set(["standard_uniform", "looped_uniform"]);
+const SIMPLE_LOOPED_SCHEDULE = "looped_uniform";
 const SIMPLE_WIDGET_ORDER = [
   "advanced",
   "long_video_mode",
@@ -26,6 +28,8 @@ const SIMPLE_WIDGET_ORDER = [
   "tiled_decode",
   "context_schedule",
   "freenoise",
+  "context_stride",
+  "closed_loop",
 ];
 const SIMPLE_ALL_ADVANCED_WIDGETS = Array.from(new Set([SIMPLE_ADVANCED_MODE_WIDGET, ...SIMPLE_CHUNK_ADVANCED_WIDGETS, ...SIMPLE_CONTEXT_ADVANCED_WIDGETS]));
 const MAX_REFERENCE_SUBJECTS = 6;
@@ -58,6 +62,8 @@ const SCAIL2_LABELS = {
     context_frames: "上下文窗口帧数",
     context_overlap_frames: "上下文重叠帧数",
     context_schedule: "窗口调度",
+    context_stride: "窗口步幅",
+    closed_loop: "循环闭环",
     freenoise: "FreeNoise 噪声扰动",
   },
   SCAIL2ReferencePack: {
@@ -686,10 +692,20 @@ function setupReferencePackNode(node) {
   updateReferencePackWidgets(node, { force: true });
 }
 
+function simpleVisibleAdvancedWidgets(node) {
+  const longVideoMode = String(getWidget(node, "long_video_mode")?.value || "chunk");
+  if (longVideoMode !== "context_sampling") return SIMPLE_CHUNK_ADVANCED_WIDGETS;
+  const schedule = String(getWidget(node, "context_schedule")?.value || "standard_static");
+  return SIMPLE_CONTEXT_ADVANCED_WIDGETS.filter((name) => {
+    if (name === "context_stride") return SIMPLE_UNIFORM_SCHEDULES.has(schedule);
+    if (name === "closed_loop") return schedule === SIMPLE_LOOPED_SCHEDULE;
+    return true;
+  });
+}
+
 function updateSimpleVideoWidgets(node) {
   const advanced = Boolean(getWidget(node, "advanced")?.value);
-  const longVideoMode = String(getWidget(node, "long_video_mode")?.value || "chunk");
-  const visibleAdvanced = longVideoMode === "context_sampling" ? SIMPLE_CONTEXT_ADVANCED_WIDGETS : SIMPLE_CHUNK_ADVANCED_WIDGETS;
+  const visibleAdvanced = simpleVisibleAdvancedWidgets(node);
   const visibleSet = new Set(advanced ? [SIMPLE_ADVANCED_MODE_WIDGET, ...visibleAdvanced] : []);
   let changed = false;
   for (const name of SIMPLE_ALL_ADVANCED_WIDGETS) {
@@ -751,6 +767,15 @@ function setupSimpleVideoNode(node) {
   if (modeWidget) {
     const original = modeWidget.callback;
     modeWidget.callback = function () {
+      original?.apply(this, arguments);
+      updateSimpleVideoWidgets(node);
+    };
+  }
+
+  const scheduleWidget = getWidget(node, "context_schedule");
+  if (scheduleWidget) {
+    const original = scheduleWidget.callback;
+    scheduleWidget.callback = function () {
       original?.apply(this, arguments);
       updateSimpleVideoWidgets(node);
     };
@@ -848,7 +873,7 @@ app.registerExtension({
       if (nodeData.name === "SFSCAIL2FitVideo" && widgetName === "resolution") {
         updateFitVideoWidgets(this);
       }
-      if (nodeData.name === "SFSCAIL2SimpleVideo" && (widgetName === "advanced" || widgetName === "long_video_mode")) {
+      if (nodeData.name === "SFSCAIL2SimpleVideo" && ["advanced", "long_video_mode", "context_schedule"].includes(widgetName)) {
         updateSimpleVideoWidgets(this);
       }
       return result;
