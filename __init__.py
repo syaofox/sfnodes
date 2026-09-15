@@ -110,6 +110,12 @@ from .nodes.image.pause_image import SFPauseImage
 from .nodes.image.pause_latent import SFPauseLatent
 from .nodes.image.scene_split import SFImageSceneSplit
 from .nodes.video.save_video import SFSaveVideoSwitchable
+from .nodes.video.scail2 import (
+    SFSCAIL2FitVideo,
+    SFSCAIL2ReferencePack,
+    SFSCAIL2ReferenceSAMBuilder,
+    SFSCAIL2SimpleVideo,
+)
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -322,6 +328,11 @@ NODE_CLASS_MAPPINGS = {
     "SFPauseLatent": SFPauseLatent,
     "SFImageSceneSplit": SFImageSceneSplit,
     "SFSaveVideoSwitchable": SFSaveVideoSwitchable,
+    # SCAIL-2 视频节点
+    "SFSCAIL2FitVideo": SFSCAIL2FitVideo,
+    "SFSCAIL2ReferencePack": SFSCAIL2ReferencePack,
+    "SFSCAIL2ReferenceSAMBuilder": SFSCAIL2ReferenceSAMBuilder,
+    "SFSCAIL2SimpleVideo": SFSCAIL2SimpleVideo,
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
@@ -536,6 +547,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFPauseLatent": "SF Pause Latent",
     "SFImageSceneSplit": "SF Image Scene Split",
     "SFSaveVideoSwitchable": "SF Save Video (Switchable)",
+    # SCAIL-2 视频节点
+    "SFSCAIL2FitVideo": "SF SCAIL-2 Fit Video",
+    "SFSCAIL2ReferencePack": "SF SCAIL-2 Reference Pack",
+    "SFSCAIL2ReferenceSAMBuilder": "SF SCAIL-2 Reference SAM Builder",
+    "SFSCAIL2SimpleVideo": "SF SCAIL-2 Simple Video",
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点

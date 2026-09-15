@@ -113,6 +113,8 @@ MODS = [
     "sf_ignore_groups", "sf_ignore_groups_lib",
     # Note（复刻孤海注释文本便签；复用 sf_common/sf_popup）
     "sf_note", "sf_note_lib",
+    # SCAIL-2 四节点前端（复刻 ComfyUI-SCAIL2-Easy；动态槽/显隐）
+    "sf_scail2",
 ]
 
 EXPORT_RE = re.compile(
