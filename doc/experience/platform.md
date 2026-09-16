@@ -231,3 +231,13 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **保留不动的颜色**：强调色 `--sf-acc`、状态色（红/绿/蓝/警告橙）、黑色遮罩 `rgba(0,0,0,.55)`、缩略图占位渐变、canvas 节点体配色（布尔开关/万能滑条/便签是节点自身设计色，非弹层主题）。
 - **canvas 取色**：DOM 的 CSS `var()` 自动响应主题；canvas 绘制用 `sf_common.sfThemeColors()`（读旧 `--comfy-*` **实色**返回 `{panel,panel2,surface,border,text,textStrong,textDim,light}`——`--sf-*` 令牌多为 var()/color-mix() 字符串，`ctx.fillStyle` 解析不了）。sf_crop_expand 的画布按钮/底条/扩展区改用它（明暗两端一致）；需要读单个 CSS 变量时 `getComputedStyle(document.documentElement).getPropertyValue("--sf-panel-bg")`（自定义属性 computed 阶段已替换 `var()`，如 sf_lora_stack_info 的 JPEG 透明底合成）。
 - **Node 冒烟测试守卫**：`tests/test_*.js` 会把 `sf_common.js` 拷成 `.mjs` 裸跑，顶层注入无 `document` 会崩——调用必须包 `if (typeof document !== "undefined")`（纯逻辑模块不得 import sf_common 的边界依旧）。
+
+### 17. 任意节点颜色（node.color/bgcolor 机制与前端调色板限制）
+
+> 背景：ComfyUI 原生只提供固定调色板（`LGraphCanvas.node_colors`，9 项 red/brown/green/blue/pale_blue/cyan/purple/yellow/black，各 `{color,bgcolor,groupcolor}`），节点右键 Colors 子菜单、右侧属性面板 `SetNodeColor`、选中工具条 `ColorPickerButton` 都只列这些名字，**无任意色入口**（前端包 1.51/1.52 实证）。网上第三方（`comfyui-custom-node-color` / HouseKeeper / MurMur）自行弹取色器补这个缺口。本包按需实现为画布聚合菜单动作（`web/sf_node_color.js` + `sf_node_color_lib.js`，SF Node Color…）。
+
+- **机制**：节点标题/节点体渲染直接读 `node.color` / `node.bgcolor`（`renderingColor`/`renderingBgColor` getter = `node.color || constructor.color || NODE_DEFAULT_COLOR`），且二者在序列化白名单内（`[...,color,bgcolor,...]`）→ **赋任意 hex 即生效并随工作流保存**，无需后端。`node.setColorOption({color,bgcolor})` 接受任意值（只是 `getColorOption()` 反查调色板会返回 null，原生选择器显示 No Color 属正常）；清除走 `setColorOption(null)` 等价原生「No Color」。
+- **取色 UI**：原生 `<input type="color">`（浏览器级取色器，仅 6 位 hex）+ hex 文本框（接受 `#RGB`/`#RRGGBB`/无 `#`，`normalizeHexColor` 归一）+ `localStorage` 最近色（机器私有）。撤销用 `graph.beforeChange()/afterChange()`（`sf_canvas_align` 先例），完成后 `canvas.setDirty(true,true)`。
+- **对比度限制（未处理）**：标题文字色取自 `constructor.title_text_color || canvas.node_title_color`（默认 `#999`，选中 `#FFF`，前端包全局行为），**不随 `node.color` 变** → 选浅色标题时文字可能偏淡。第三方 HouseKeeper 另按亮度自动切标题/正文黑白字；本包暂不做（改动最小、与原生调色板行为一致）。
+- **入口形态**：`📦 SF Menu ▶ SF Node Color…`（仅 ≥1 选中节点时注入，`buildNodeColorMenuItem` 无选中返回 null）。注意画布菜单只在**空白处**右键出现——右键节点得到的是 LiteGraph 节点菜单，故须先选中节点、再在空白处右键（用户确认的入口形态）。
+- **测试**：`tests/test_node_color_lib.mjs`（纯逻辑：hex 归一/最近色 FIFO/apply/reset/read）+ `tests/test_node_color_js.js`（`.mjs` 拷贝链：菜单门槛/面板挂载/应用写色/撤销钩子/最近色持久化/清除/overlay 与 Esc 关闭）；`tests/test_canvas_menu_js.js` 增补菜单项门槛断言。

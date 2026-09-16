@@ -85,6 +85,8 @@ MODS = [
     "sf_canvas_align", "sf_canvas_align_lib",
     # 画布内存清理（SF Memory 子菜单：原生 /free + 自建 RAM 路由）
     "sf_memory_menu",
+    # 任意节点颜色（SF Node Color 菜单项 + 取色面板；纯逻辑 + 主模块）
+    "sf_node_color", "sf_node_color_lib",
     # 画布聚合菜单（📦 SF Menu 唯一顶层入口，组装各特性 export 动作）
     "sf_canvas_menu",
     # 单文件多依赖节点

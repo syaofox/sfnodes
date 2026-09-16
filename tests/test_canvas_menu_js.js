@@ -116,6 +116,7 @@ globalThis.fetch = async (url, opts) => {
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_cm_"));
 const MODS = [
     "sf_canvas_menu.js", "sf_canvas_align.js", "sf_canvas_align_lib.js",
+    "sf_node_color.js", "sf_node_color_lib.js", "sf_popup.js",
     "sf_memory_menu.js", "sf_note.js", "sf_note_lib.js",
     "sf_workflows.js", "sf_workflows_ui.js", "sf_workflows_lib.js",
     "sf_lora_browser.js", "sf_lora_browser_ui.js", "sf_lora_browser_lib.js",
@@ -155,6 +156,7 @@ for (const n of MODS) {
         !!byContent(opts, "SF LoRA Browser") && !!byContent(opts, "SF Workflows")
         && !!byContent(opts, "SF Memory"));
     check("0 选中无 SF Align", !byContent(opts, "SF Align"));
+    check("0 选中无 SF Node Color", !byContent(opts, "SF Node Color…"));
     check("画布菜单无 Add SF Note 入口", !byContent(opts, "Add SF Note"));
 
     // ── 2 选中：对齐出现 ──
@@ -164,6 +166,8 @@ for (const n of MODS) {
     opts = sub();
     const align = byContent(opts, "SF Align");
     check("2 选中出现 SF Align", !!align && align.has_submenu === true);
+    const nodeColor = byContent(opts, "SF Node Color…");
+    check("2 选中出现 SF Node Color", !!nodeColor && typeof nodeColor.callback === "function");
     const flat = align ? align.submenu.options.map((o) => o.content) : [];
     check("Align 单层平铺 9 动作",
         ["Width: Widest", "Width: Narrowest", "Width: First Selected",
