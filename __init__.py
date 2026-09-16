@@ -30,6 +30,7 @@ from .nodes.image.invert_track import SFInvertTrackData
 from .nodes.image.mask_to_track_data import SFMaskToTrackData
 from .nodes.image.track_data_subtract import SFTrackDataSubtract
 from .nodes.image.track_data_add import SFTrackDataAdd
+from .nodes.image.track_data_merge import SFTrackDataMerge
 from .nodes.image.track_data_cache import SFTrackDataCache
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
@@ -271,6 +272,7 @@ NODE_CLASS_MAPPINGS = {
     "SFMaskToTrackData": SFMaskToTrackData,
     "SFTrackDataSubtract": SFTrackDataSubtract,
     "SFTrackDataAdd": SFTrackDataAdd,
+    "SFTrackDataMerge": SFTrackDataMerge,
     "SFTrackDataCache": SFTrackDataCache,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
@@ -500,6 +502,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFMaskToTrackData": "SF Mask To Track Data",
     "SFTrackDataSubtract": "SF Track Data Subtract",
     "SFTrackDataAdd": "SF Track Data Add",
+    "SFTrackDataMerge": "SF Track Data Merge",
     "SFTrackDataCache": "SF Track Data Cache",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点

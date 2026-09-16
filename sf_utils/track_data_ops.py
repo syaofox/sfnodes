@@ -2,7 +2,7 @@
 
 用于 `SFSAM3PointTrack` 的锚帧前补空帧，以及 `SFTrackDataSubtract` 的
 track_data 层逐帧相减（排除男性/阴茎/精液等）、`SFTrackDataAdd` 的逐帧
-并集合成单身份。位打包复用核心
+并集合成单身份、`SFTrackDataMerge` 的逐槽先减后加组合。位打包复用核心
 `comfy.ldm.sam3.tracker.pack_masks/unpack_masks`（由调用方注入）。
 
 track_data 形状约定：`packed_masks` 为 `[T, N, H, W//8]` 位打包张量
@@ -164,4 +164,30 @@ def add_to_track_data(track_data, add_masks, pack_masks=None, unpack_masks=None,
     out["n_frames"] = int(total)
     out["orig_size"] = (int(height), int(width))
     out["scores"] = [1.0]
+    return out
+
+
+def merge_track_data(track_data, subtract_masks, add_masks, pack_masks=None,
+                     unpack_masks=None, torch=None, interpolate=None):
+    """基础 track_data 先逐对象相减、再有叠加时并集塌单身份。
+
+    等价于把 `SFTrackDataSubtract` 与 `SFTrackDataAdd` 串联：
+    `subtract_from_track_data` → （仅当存在至少一个有效叠加时）
+    `add_to_track_data`。顺序无关（相减各路并集、叠加各路并集，相减先于叠加）。
+
+    - 无有效叠加时保留基础对象数与 `scores`（不塌单身份）；
+    - 空基础 + 有叠加走 `add_to_track_data` 的补零/回退尺寸逻辑。
+    """
+    out = subtract_from_track_data(
+        track_data, subtract_masks,
+        pack_masks=pack_masks, unpack_masks=unpack_masks,
+        torch=torch, interpolate=interpolate,
+    )
+    valid_adds = [a for a in (add_masks or []) if a is not None]
+    if valid_adds:
+        out = add_to_track_data(
+            out, valid_adds,
+            pack_masks=pack_masks, unpack_masks=unpack_masks,
+            torch=torch, interpolate=interpolate,
+        )
     return out

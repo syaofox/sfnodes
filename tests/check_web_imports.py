@@ -111,6 +111,8 @@ MODS = [
     "sf_conditioning_concat",
     # Track Data Subtract/Add（排除/叠加动态槽；复用 sf_dynamic_slots）
     "sf_track_data_slots",
+    # Track Data Merge（逐槽 -/+ 模式单节点加减；复用 sf_dynamic_slots/sf_common）
+    "sf_track_data_merge", "sf_track_data_merge_lib",
     # Painter Flux Image Edit（参考图动态槽位；复用 sf_dynamic_slots.installDynamicSlots）
     "sf_painter_flux_edit",
     # Wan Window LoRA（逐窗位置 preset 槽；复用 sf_dynamic_slots.installDynamicSlots）

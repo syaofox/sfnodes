@@ -162,6 +162,9 @@ SFTrackDataSubtract = mod.SFTrackDataSubtract
 add_mod = load(os.path.join(root, "nodes", "image", "track_data_add.py"),
                "sfnodes.nodes.image.track_data_add")
 SFTrackDataAdd = add_mod.SFTrackDataAdd
+merge_mod = load(os.path.join(root, "nodes", "image", "track_data_merge.py"),
+                 "sfnodes.nodes.image.track_data_merge")
+SFTrackDataMerge = merge_mod.SFTrackDataMerge
 
 
 def parse_init_keys():
@@ -201,8 +204,23 @@ check("Add track_data required SAM3_TRACK_DATA", add_schema["required"]["track_d
 check("add 多类型 20 路", all(add_schema["optional"][f"add_{i}"][0] == "MASK,SAM3_TRACK_DATA"
                              for i in range(1, 21)))
 
+check("Merge CATEGORY", SFTrackDataMerge.CATEGORY == "sfnodes/image")
+check("Merge FUNCTION", SFTrackDataMerge.FUNCTION == "execute")
+check("Merge RETURN_TYPES", SFTrackDataMerge.RETURN_TYPES == ("SAM3_TRACK_DATA",))
+check("Merge RETURN_NAMES", SFTrackDataMerge.RETURN_NAMES == ("track_data",))
+check("Merge DESCRIPTION 存在", isinstance(getattr(SFTrackDataMerge, "DESCRIPTION", None), str)
+      and SFTrackDataMerge.DESCRIPTION.strip() != "")
+merge_schema = SFTrackDataMerge.INPUT_TYPES()
+check("Merge track_data required SAM3_TRACK_DATA",
+      merge_schema["required"]["track_data"][0] == "SAM3_TRACK_DATA")
+check("Merge track 多类型 20 路", all(merge_schema["optional"][f"track_{i}"][0] == "MASK,SAM3_TRACK_DATA"
+                                  for i in range(1, 21)))
+check("Merge hidden SlotModes STRING", merge_schema["hidden"]["SlotModes"][0] == "STRING")
+check("Merge _parse_modes 容错", merge_mod._parse_modes('{"track_1": "add"}') == {"track_1": "add"}
+      and merge_mod._parse_modes("garbage") == {} and merge_mod._parse_modes('{"track_2": "x"}') == {"track_2": "sub"})
+
 init_keys = parse_init_keys()
-for _node in ("SFTrackDataSubtract", "SFTrackDataAdd"):
+for _node in ("SFTrackDataSubtract", "SFTrackDataAdd", "SFTrackDataMerge"):
     check(f"__init__ 注册 {_node} 双字典一致",
           _node in init_keys.get("NODE_CLASS_MAPPINGS", set())
           and _node in init_keys.get("NODE_DISPLAY_NAME_MAPPINGS", set()))
@@ -391,6 +409,44 @@ check("空基础无叠加直通", ops.add_to_track_data({"packed_masks": None, "
                                           torch=fake_torch, interpolate=fake_interpolate)["packed_masks"] is None)
 
 
+# ── 3c. merge_track_data（先减后加组合）──
+# 仅相减：保留对象数、scores
+out_sub_only = ops.merge_track_data(td_base, [FakeTensor(ex)], [], pack_masks=_stub_pack,
+                                    unpack_masks=_stub_unpack, torch=fake_torch,
+                                    interpolate=fake_interpolate)
+check("merge 仅相减保留对象数", out_sub_only["packed_masks"].shape[1] == 1)
+check("merge 仅相减内容", np.array_equal(numpy_unpack(_arr(out_sub_only["packed_masks"]))[0, 0], expected0))
+check("merge 仅相减保留 scores", out_sub_only["scores"] == [0.9])
+
+# 先减后加：塌单身份，减掉的区域不会因 add 复活（先减后加）
+out_mix = ops.merge_track_data(td_base, [FakeTensor(ex)], [FakeTensor(add_a)], pack_masks=_stub_pack,
+                               unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+umix = numpy_unpack(_arr(out_mix["packed_masks"]))
+expected_mix = (base[0, 0] & ~ex[0]) | add_a[0]
+check("merge 先减后加塌单身份", out_mix["packed_masks"].shape[1] == 1)
+check("merge 先减后加内容", np.array_equal(umix[0, 0], expected_mix))
+check("merge 先减后加 scores=[1.0]", out_mix["scores"] == [1.0])
+
+# 仅叠加（无相减）：等价 add_to_track_data
+out_add_only = ops.merge_track_data(td_base, [], [FakeTensor(add_a)], pack_masks=_stub_pack,
+                                    unpack_masks=_stub_unpack, torch=fake_torch,
+                                    interpolate=fake_interpolate)
+check("merge 仅叠加等价 add", np.array_equal(numpy_unpack(_arr(out_add_only["packed_masks"])), ua))
+
+# 空基础 + 叠加
+out_empty = ops.merge_track_data({"packed_masks": None, "n_frames": 2, "orig_size": (4, 8)},
+                                 [], [FakeTensor(add_a)], pack_masks=_stub_pack,
+                                 unpack_masks=_stub_unpack, torch=fake_torch,
+                                 interpolate=fake_interpolate)
+check("merge 空基础叠加单身份", out_empty["packed_masks"].shape[1] == 1)
+check("merge 空基础叠加内容", np.array_equal(numpy_unpack(_arr(out_empty["packed_masks"])), add_a[:, None]))
+
+# 全空直通
+check("merge 全空直通", ops.merge_track_data(td_base, [], [None], pack_masks=_stub_pack,
+                                         unpack_masks=_stub_unpack, torch=fake_torch,
+                                         interpolate=fake_interpolate)["scores"] == [0.9])
+
+
 # ── 4. execute 集成 ──
 node = SFTrackDataSubtract()
 res = node.execute(td_base, exclude_1=FakeTensor(ex))
@@ -419,6 +475,25 @@ try:
     check("Add execute 非法输入抛错", False)
 except ValueError:
     check("Add execute 非法输入抛错", True)
+
+merge_node = SFTrackDataMerge()
+# 默认模式 = sub（track_1 未在 SlotModes 中出现）
+res_default = merge_node.execute(td_base, track_1=FakeTensor(ex))
+check("Merge 默认 sub 保留对象数", res_default[0]["packed_masks"].shape[1] == 1)
+check("Merge 默认 sub 内容",
+      np.array_equal(numpy_unpack(_arr(res_default[0]["packed_masks"]))[0, 0], expected0))
+# 显式 add + sub 混合
+res_mix = merge_node.execute(td_base, '{"track_1": "sub", "track_2": "add"}',
+                             track_1=FakeTensor(ex), track_2=FakeTensor(add_a))
+check("Merge execute 混合塌单身份", res_mix[0]["packed_masks"].shape[1] == 1)
+check("Merge execute 混合内容",
+      np.array_equal(numpy_unpack(_arr(res_mix[0]["packed_masks"]))[0, 0], expected_mix))
+check("Merge execute 返回单元素", isinstance(res_mix, tuple) and len(res_mix) == 1)
+try:
+    merge_node.execute({"not": "track"})
+    check("Merge execute 非法输入抛错", False)
+except ValueError:
+    check("Merge execute 非法输入抛错", True)
 
 print()
 if failures:

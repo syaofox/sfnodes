@@ -124,6 +124,9 @@ export function installConfiguredSlotRecovery(node, config) {
     const initial = config.initialInputs ?? 1;
     const max = config.inputCount ?? 20;
     const start = config.inputStart ?? 0;
+    // 可选自定义匹配（优先级高于前缀）：与 installDynamicSlots 的 inputMatch 同款，
+    // 用于前缀会误伤固定槽的场景（如 track_data 与 track_N 共用 track_ 前缀）。
+    const match = config.inputMatch || ((name) => typeof name === "string" && name.startsWith(prefix));
 
     const originalOnAfterGraphConfigured = node.onAfterGraphConfigured;
     node.onAfterGraphConfigured = function () {
@@ -133,22 +136,22 @@ export function installConfiguredSlotRecovery(node, config) {
         if (!this.inputs) return;
         let linked = 0;
         for (const slot of this.inputs) {
-            if (slot && slot.name && slot.name.startsWith(prefix) && isSlotConnected(slot)) {
+            if (slot && slot.name && match(slot.name) && isSlotConnected(slot)) {
                 linked += 1;
             }
         }
         const want = Math.min(Math.max(linked + 1, initial), max);
         // 补齐
-        let dynamic = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+        let dynamic = this.inputs.filter((s) => s && s.name && match(s.name));
         while (dynamic.length < want) {
             this.addInput(prefix + (start + dynamic.length), type);
-            dynamic = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+            dynamic = this.inputs.filter((s) => s && s.name && match(s.name));
         }
         // 回收尾部空槽
         const reversed = [...this.inputs].reverse();
         for (const slot of reversed) {
-            if (!slot || !slot.name || !slot.name.startsWith(prefix)) break;
-            const current = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+            if (!slot || !slot.name || !match(slot.name)) break;
+            const current = this.inputs.filter((s) => s && s.name && match(s.name));
             if (!isSlotConnected(slot) && current.length > want) {
                 this.removeInput(this.inputs.indexOf(slot));
             } else {

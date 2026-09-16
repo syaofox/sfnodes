@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81、§83）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -880,3 +880,30 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 - 后端 `tests/test_track_data_ops.py`：Subtract/Add 结构（20 槽）+ `add_to_track_data`（单/多对象塌单身份、TRACK_DATA/MASK 两种叠加、多路并集、resize、帧数不一致报错、空基础叠加/直通、补宽路径）+ 两节点 execute。
 - 前端 `tests/test_track_data_slots_js.js`：初始 4 槽、全连追加、断开回收、`installConfiguredSlotRecovery` 补齐/回收、非目标 class 不处理。
 - `tests/test_mask_to_track_data.py` 补 sfnodes 包结构桩（节点相对导入 `sf_utils.track_data_ops` 后必需）。
+
+## 83. SFTrackDataMerge：单节点逐槽加减（动态槽 + 每槽 -/+ 模式）
+
+> 背景：`SFTrackDataSubtract` 串联 `SFTrackDataAdd` 完成"基础 − 排除 + 叠加"需要两个节点、两段接线；一个工作流里加减路一多，接线与节点数都很繁琐（见 `[scail2]SCAIL-sam3.1-原生(排除).json`：452 相减 → 474 叠加）。目标=一个节点、一列动态槽，每路可独立定义为"减"或"加"。
+
+### 1. 语义：等价串联，先减后加、顺序无关
+
+- 纯逻辑 `sf_utils/track_data_ops.py::merge_track_data(base, subtract_masks, add_masks, ...)` **只做组合**：先 `subtract_from_track_data`（多路并集后逐对象相减、保留对象数），**仅当存在至少一个有效叠加时**再 `add_to_track_data`（并集塌单身份、`scores=[1.0]`）。
+- **坑**：`add_to_track_data` 对非空基础即使 `add_masks=[]` 也会塌成单身份（base 的 `any(dim=1)` 无条件打包）。因此组合前必须过滤出至少一个有效叠加才调用它，否则"纯相减"会意外丢对象数。
+- 相减各路并集、叠加各路并集，相减恒先于叠加 → 结果与槽序无关；"先加后减"需求请另接一个相减节点。
+
+### 2. 每槽模式的数据通道（值通道模式 + 注入）
+
+- 后端 `SFTrackDataMerge`（`nodes/image/track_data_merge.py`）：required `track_data` + optional `track_1..20`（`"MASK,SAM3_TRACK_DATA"`）+ hidden STRING `SlotModes`。`execute` 按 **槽序号**（非 kwargs 顺序）收集，`_parse_modes` 容错解析 JSON，非法值归 `sub`。
+- 默认模式 `sub`（保守）：叠加会塌单身份，默认不加，避免误塌。
+- 前端模式状态存 `node.properties.sfTrackMergeModes`（随工作流保存，`SFPromptStack` 同款），提交时经 `graphToPrompt` 钩子注入 `SlotModes`（只注入不剪枝）。**properties 不会自动进 prompt，注入不可省**。
+- 节点体 DOM 行列表逐槽 `-`/`+` 切换（Classic/Vue 均渲染；不用 canvas 手绘——Vue 下 `onDrawForeground` 不保证调用）。复用 `sf_common.el/injectCSSOnce/isVueNodes` 与 `sf_prompt_stack` 的 DOM widget 形态。
+
+### 3. 前缀撞名：`track_data` vs `track_N`
+
+- 基础槽名 `track_data` 与动态前缀 `track_` 撞名，`installDynamicSlots`/`installConfiguredSlotRecovery` 的裸 `startsWith(prefix)` 会把基础槽当动态槽：初始会被裁成 3 个而非 4 个、下一槽号跳号、恢复时基础链接被计入 `linked`。
+- 修复：`sf_dynamic_slots.js::installConfiguredSlotRecovery` 新增可选 `inputMatch`（与 `installDynamicSlots` 的 `inputMatch` 同款，默认 `startsWith` 保旧行为），本节点两处均传 `(name) => /^track_\d+$/.test(name)`；纯 lib `collectSlotNames` 同样要求**数字后缀**。**任何"前缀 + 编号"动态槽若固定槽同前缀，都必须用 inputMatch/数字后缀排除。**
+
+### 4. 复用与测试
+
+- 复用：`track_data_ops`（组合既有两函数）、`sf_dynamic_slots`（动态槽 + 恢复）、`sf_common`（DOM/主题）、`sf_prompt_stack` 的注入范式；既有 Subtract/Add 节点**保持不动**（向后兼容）。
+- 测试：后端 `tests/test_track_data_ops.py`（merge 纯逻辑：仅减保留对象数/scores、先减后加塌单身份且减掉区域不复活、仅叠加等价 Add、空基础、全空直通 + Merge 结构与 execute 默认 sub/混合模式/非法输入）；前端 `tests/test_track_data_merge_lib.mjs`（parse/get/set/toggle/serialize/collectSlotNames）与 `tests/test_track_data_merge_js.js`（含基础槽的裁剪/追加/回收、DOM 行渲染与点击写 properties、graphToPrompt 注入）。
