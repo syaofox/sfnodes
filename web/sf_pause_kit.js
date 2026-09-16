@@ -600,6 +600,10 @@ export function definePauseGate(cfg) {
         const widget = node.addDOMWidget(widgetType, widgetType, root, {
             serialize: false,
             getMinHeight: () => NODE_MIN_H,  // 常量
+            // addDOMWidget 默认 hideOnZoom:true——画布 zoom out 到低质量档时整个
+            // DOM widget 被隐藏只画占位矩形，预览与按钮一起消失、放大了才回来。
+            // 关闭它与 SFPauseText 对齐（见 nodes-text.md §7.6）。
+            hideOnZoom: false,
         });
         applyAdaptiveCanvasOnly(widget);
 

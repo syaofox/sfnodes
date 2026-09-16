@@ -195,6 +195,10 @@ function setupNode(node) {
     const widget = node.addDOMWidget(WIDGET_TYPE, WIDGET_TYPE, root, {
         serialize: false,
         getMinHeight: () => nodeMinH(),
+        // addDOMWidget 默认 hideOnZoom:true——画布 zoom out 到低质量档时整个
+        // DOM widget 被隐藏只画占位矩形，文字与按钮一起消失、放大了才回来。
+        // 关闭它让节点体（含底部按钮）在任何缩放下都保留。
+        hideOnZoom: false,
     });
     applyAdaptiveCanvasOnly(widget);
 

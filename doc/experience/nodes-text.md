@@ -109,6 +109,13 @@
 - `sf_pause_text.js`：主扩展（setupNode/双钩子/executed/Regenerate/一次性提交模式/防双包装）。
 - 后端 `nodes/text/pause_text.py`：无状态（文本随隐藏输入携带），OUTPUT_NODE = True，无 IS_CHANGED。
 
+### 6. 画布 zoom out 后节点体消失（DOM widget hideOnZoom）
+
+- **现象**：画布 zoom out 后 `SFPauseText` 整个节点体（文字 + 底部按钮）不可见、点不到，必须放大到超过某个阈值才出现；`SFBooleanSwitch` 这类 canvas 绘制控件却一直可见可点。
+- **根因**：`LGraphNode.addDOMWidget` 的 options **默认 `hideOnZoom: true`**（前端 `src/scripts/domWidget.ts`：`options: { hideOnZoom: true, ...options }`）。画布缩到低质量档（`lgCanvas.low_quality`）时 `src/components/graph/DomWidgets.vue` 的 `updateWidgets` 判定 `widget.options.hideOnZoom && lowQuality` → `widgetState.visible=false`，整个 DOM widget 被隐藏、canvas 只画一个占位矩形（classic 路径 `BaseDOMWidgetImpl.draw` 同理）。canvas 原生控件不受此机制约束，故 `SFBooleanSwitch` 一直可见。与按钮尺寸/pointer-events 无关（`shouldHandleNodePointerEvents` 只受 `canvasStore.isReadOnly` 控制）。
+- **解法**：`addDOMWidget(..., { hideOnZoom: false })`，节点体（含底部按钮）在任何缩放下都保留。
+- **家族同步**：`sf_pause_kit.js`（SFPauseImage / SFPauseMask / SFPauseLatent）用同一 `addDOMWidget`，已一并传 `hideOnZoom:false`；新增任何 DOM widget 节点若要低 zoom 仍可见可点，都须显式关闭。
+
 ---
 
 ## 14. SFTextFindReplace：查找替换双端镜像（复刻 Pixaroma Find & Replace）
