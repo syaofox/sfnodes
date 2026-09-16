@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -852,3 +852,31 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 
 - 后端（`tests/test_track_data_cache.py` / `test_mask_cache.py`）：schema（forceInput/default）、`_resolve_name`（文本优先/空白回退/列表取首项/非字符串回退/全空）、lazy 命中与未命中（name_text 路径）、execute 覆盖写入与读取、文本空白且下拉为空报错。
 - 前端（`tests/test_cache_name_lib.mjs`）：`isNameTextLinked` 两形态、`applyNameOverrideState` 置灰/恢复/保留原有 disabled/状态未变提前返回、`installCacheNameList` 按钮幂等与 hook 驱动置灰（stub fetch/window）。
+
+## 81. SF Track Data Add：track_data 并集叠加 + 动态槽位（2026-09）
+
+> 背景：`SFTrackDataSubtract`（见 `nodes-video.md` §77）只能"减"。需要其逆操作——把多路 MASK / `SAM3_TRACK_DATA` 逐帧并集叠加到基础追踪数据并**合成单一身份**（例如把分别追踪的目标合成一个驱动遮罩）。
+
+### 1. 纯逻辑单源
+
+- `sf_utils/track_data_ops.py::add_to_track_data`：复用同模块 `_exclusion_frames`（MASK/TRACK_DATA 归一为逐帧 bool `[T,H,W]`）与 `_resize_frames`（尺寸对齐），零重复实现。
+- 基础有对象：`unpack(packed).any(dim=1)` 跨对象塌平 → 各路叠加归一/对齐后逐帧 OR → `pack_masks(union).unsqueeze(1)`，输出对象维恒为 1；`n_frames`/`orig_size` 保留、`scores=[1.0]`（对齐 `invert_track_data` 塌单身份）。
+- 基础为空（packed None/0 对象）：无叠加浅拷贝直通；有叠加按 `orig_size`/`n_frames` 补零基础（缺省回退首个叠加的尺寸/帧数）。
+- 叠加帧数与基础不一致 → ValueError（对齐 Subtract）；宽度补 8 倍数抽为 `pad_width_to_8`，`mask_to_track_data` 同源复用（原先内联副本）。
+
+### 2. 节点与动态槽位（4 → 动态）
+
+- `SFTrackDataAdd`（`nodes/image/track_data_add.py`，CATEGORY `sfnodes/image`）：required `track_data` + optional `add_1..20`（`"MASK,SAM3_TRACK_DATA"`）。
+- **Subtract 同步改造**：`exclude_1..4` → `exclude_1..20` 静态 schema，`execute` 收集 `kwargs` 前缀值。静态 20 槽 + 前端裁剪是既有范式（`SFImageBatch`），无需灵活 schema / `VALIDATE_INPUTS`；并集/相减满足交换律 → 无需数字序排序。
+- 前端 `web/sf_track_data_slots.js` 单文件管两节点（`exclude_` / `add_`），初始 4、上限 20（`installDynamicSlots`）。
+
+### 3. 抽出 `installConfiguredSlotRecovery`（去重）
+
+- `sf_conditioning_combine.js` 与 `sf_conditioning_concat.js` 曾各内联一份逐字相同的 `onAfterGraphConfigured` 补齐/回收逻辑；新增 `web/sf_dynamic_slots.js::installConfiguredSlotRecovery(node, {inputPrefix, inputStart, inputType, initialInputs, inputCount})` 为单源实现，三节点共用（命名统一 `prefix + (start + count)`，等价原 `condName`）。
+- 加载/粘贴 configure 直赋 links 不触发 `onConnectionsChange`，按链接数补齐到 `linked+1`（上限内）并回收尾部空槽。
+
+### 4. 测试
+
+- 后端 `tests/test_track_data_ops.py`：Subtract/Add 结构（20 槽）+ `add_to_track_data`（单/多对象塌单身份、TRACK_DATA/MASK 两种叠加、多路并集、resize、帧数不一致报错、空基础叠加/直通、补宽路径）+ 两节点 execute。
+- 前端 `tests/test_track_data_slots_js.js`：初始 4 槽、全连追加、断开回收、`installConfiguredSlotRecovery` 补齐/回收、非目标 class 不处理。
+- `tests/test_mask_to_track_data.py` 补 sfnodes 包结构桩（节点相对导入 `sf_utils.track_data_ops` 后必需）。

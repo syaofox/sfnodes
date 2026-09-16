@@ -1,17 +1,17 @@
 _CATEGORY = "sfnodes/image"
 
-_MAX_EXCLUDE_SLOTS = 20
+_MAX_ADD_SLOTS = 20
 
 
-class SFTrackDataSubtract:
+class SFTrackDataAdd:
     @classmethod
     def INPUT_TYPES(cls):
         optional = {
-            f"exclude_{i}": (
+            f"add_{i}": (
                 "MASK,SAM3_TRACK_DATA",
-                {"tooltip": f"要从基础遮罩中逐帧排除的遮罩 / 追踪数据（第 {i} 路，未连接跳过）"},
+                {"tooltip": f"要逐帧并集叠加到基础追踪数据的遮罩 / 追踪数据（第 {i} 路，未连接跳过）"},
             )
-            for i in range(1, _MAX_EXCLUDE_SLOTS + 1)
+            for i in range(1, _MAX_ADD_SLOTS + 1)
         }
         return {
             "required": {
@@ -24,20 +24,20 @@ class SFTrackDataSubtract:
     RETURN_NAMES = ("track_data",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "在 SAM3_TRACK_DATA 层逐帧减去若干排除遮罩/追踪数据（男性、阴茎、精液等），保留对象数；输入槽随连接自动增删（初始 4，上限 20）；输出可直接接 SCAIL-2 的 driving_track_data"
+    DESCRIPTION = "把若干 MASK / SAM3_TRACK_DATA 逐帧并集叠加到基础追踪数据并合成为单一身份（SF Track Data Subtract 的逆操作）；输入槽随连接自动增删（初始 4，上限 20）；输出可直接接 SCAIL-2 的 driving/ref"
 
     def execute(self, track_data, **kwargs):
         import torch
         from comfy.ldm.sam3.tracker import pack_masks, unpack_masks
-        from ...sf_utils.track_data_ops import is_track_data, subtract_from_track_data
+        from ...sf_utils.track_data_ops import add_to_track_data, is_track_data
 
         if not is_track_data(track_data):
-            raise ValueError("SF Track Data Subtract: 输入不是有效的 SAM3_TRACK_DATA")
+            raise ValueError("SF Track Data Add: 输入不是有效的 SAM3_TRACK_DATA")
 
-        excludes = [v for k, v in kwargs.items() if k.startswith("exclude_") and v is not None]
-        return (subtract_from_track_data(
+        adds = [v for k, v in kwargs.items() if k.startswith("add_") and v is not None]
+        return (add_to_track_data(
             track_data,
-            excludes,
+            adds,
             pack_masks=pack_masks,
             unpack_masks=unpack_masks,
             torch=torch,

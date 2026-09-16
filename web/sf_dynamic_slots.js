@@ -115,6 +115,50 @@ function installSide(node, side, cfg, nameFor) {
     };
 }
 
+// 加载/粘贴恢复：configure 直赋 links 不触发 onConnectionsChange，按实际链接数
+// 补齐到 linked+1（上限内），回收多余尾部空槽。包装 node.onAfterGraphConfigured。
+// 与 installDynamicSlots 配套使用（同一 prefix/type/初始值与上限）。
+export function installConfiguredSlotRecovery(node, config) {
+    const prefix = config.inputPrefix;
+    const type = config.inputType || "*";
+    const initial = config.initialInputs ?? 1;
+    const max = config.inputCount ?? 20;
+    const start = config.inputStart ?? 0;
+
+    const originalOnAfterGraphConfigured = node.onAfterGraphConfigured;
+    node.onAfterGraphConfigured = function () {
+        if (originalOnAfterGraphConfigured) {
+            originalOnAfterGraphConfigured.apply(this, arguments);
+        }
+        if (!this.inputs) return;
+        let linked = 0;
+        for (const slot of this.inputs) {
+            if (slot && slot.name && slot.name.startsWith(prefix) && isSlotConnected(slot)) {
+                linked += 1;
+            }
+        }
+        const want = Math.min(Math.max(linked + 1, initial), max);
+        // 补齐
+        let dynamic = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+        while (dynamic.length < want) {
+            this.addInput(prefix + (start + dynamic.length), type);
+            dynamic = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+        }
+        // 回收尾部空槽
+        const reversed = [...this.inputs].reverse();
+        for (const slot of reversed) {
+            if (!slot || !slot.name || !slot.name.startsWith(prefix)) break;
+            const current = this.inputs.filter((s) => s && s.name && s.name.startsWith(prefix));
+            if (!isSlotConnected(slot) && current.length > want) {
+                this.removeInput(this.inputs.indexOf(slot));
+            } else {
+                break;
+            }
+        }
+        this.setSize(this.computeSize());
+    };
+}
+
 export function installDynamicSlots(node, config) {
     const originalOnConnectionsChange = node.onConnectionsChange;
     const nameFor = config.nameFor || ((cfg, count) => cfg.prefix + (cfg.start + count));

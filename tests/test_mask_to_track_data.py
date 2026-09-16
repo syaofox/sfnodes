@@ -93,6 +93,13 @@ tracker = types.ModuleType("comfy.ldm.sam3.tracker")
 tracker.pack_masks = _stub_pack
 sys.modules["comfy.ldm.sam3.tracker"] = tracker
 
+# 注册 sfnodes 包结构使节点相对导入（sf_utils.track_data_ops）解析
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.image", "nodes/image"), ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules[_pkg] = _m
+
 
 def load(modpath, modname):
     spec = importlib.util.spec_from_file_location(modname, modpath)

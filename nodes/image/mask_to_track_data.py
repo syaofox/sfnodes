@@ -6,6 +6,8 @@ def _empty_track_data(n_frames=0, orig_size=(0, 0)):
 
 
 def mask_to_track_data(masks, pack_masks=None, torch=None):
+    from ...sf_utils.track_data_ops import pad_width_to_8
+
     if masks is None:
         raise ValueError("SF Mask To Track Data: 输入 MASK 为空")
     dim = masks.dim()
@@ -22,9 +24,7 @@ def mask_to_track_data(masks, pack_masks=None, torch=None):
     if t == 0 or h <= 0 or w <= 0:
         return _empty_track_data(t, (h, w))
 
-    wp = (w + 7) // 8 * 8
-    if wp != w:
-        masks = torch.nn.functional.pad(masks, (0, wp - w))
+    masks = pad_width_to_8(masks, torch)
 
     return {
         "packed_masks": pack_masks(masks),

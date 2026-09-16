@@ -1,12 +1,15 @@
-# SFTrackDataSubtract / sf_utils.track_data_ops 后端逻辑测试
+# SFTrackDataSubtract / SFTrackDataAdd / sf_utils.track_data_ops 后端逻辑测试
 # （Node/Python 直接运行：python tests/test_track_data_ops.py）
 # 覆盖：
 #   - 结构：CATEGORY、RETURN_TYPES/NAMES、FUNCTION、DESCRIPTION、
-#     INPUT_TYPES（track_data required / exclude_1..4 多类型）、根 __init__.py 注册键一致
+#     INPUT_TYPES（track_data required / exclude_1..20 · add_1..20 多类型）、
+#     根 __init__.py 注册键一致
 #   - track_data_ops 纯函数（numpy 版 pack/unpack 桩，真实位打包）：
 #     pad_track_data_front 前补空帧 / 已足够长 / packed None；
 #     subtract_from_track_data 逐对象相减、多路并集、MASK 与 TRACK_DATA 两种排除、
-#     尺寸不一致 resize、帧数不一致报错、空排除直通、packed None 直通
+#     尺寸不一致 resize、帧数不一致报错、空排除直通、packed None 直通；
+#     add_to_track_data 逐帧并集塌单身份、多路并集、MASK 与 TRACK_DATA 两种叠加、
+#     resize、帧数不一致报错、空基础+叠加、空基础无叠加直通
 #   - execute 集成（mock torch + comfy.ldm.sam3.tracker）
 import ast
 import importlib.util
@@ -112,11 +115,18 @@ def fake_interpolate(t, size, mode="nearest"):
     return FakeTensor(out)
 
 
+def fake_pad(t, pads, mode="constant", value=0):
+    a = _arr(t)
+    left, right = pads
+    return FakeTensor(np.pad(a, [(0, 0)] * (a.ndim - 1) + [(left, right)], mode="constant"))
+
+
 fake_torch = types.SimpleNamespace(
+    bool=np.bool_,
     zeros=lambda shape, dtype=None, device=None: FakeTensor(
         np.zeros(shape, dtype=np.uint8 if dtype is None else dtype), device=device or "cpu"),
     cat=lambda tensors, dim=0: FakeTensor(np.concatenate([_arr(t) for t in tensors], axis=dim)),
-    nn=types.SimpleNamespace(functional=types.SimpleNamespace(interpolate=fake_interpolate)),
+    nn=types.SimpleNamespace(functional=types.SimpleNamespace(interpolate=fake_interpolate, pad=fake_pad)),
 )
 sys.modules["torch"] = fake_torch
 
@@ -149,6 +159,9 @@ ops = load(os.path.join(root, "sf_utils", "track_data_ops.py"), "sfnodes.sf_util
 mod = load(os.path.join(root, "nodes", "image", "track_data_subtract.py"),
            "sfnodes.nodes.image.track_data_subtract")
 SFTrackDataSubtract = mod.SFTrackDataSubtract
+add_mod = load(os.path.join(root, "nodes", "image", "track_data_add.py"),
+               "sfnodes.nodes.image.track_data_add")
+SFTrackDataAdd = add_mod.SFTrackDataAdd
 
 
 def parse_init_keys():
@@ -174,13 +187,25 @@ check("DESCRIPTION 存在", isinstance(getattr(SFTrackDataSubtract, "DESCRIPTION
 
 schema = SFTrackDataSubtract.INPUT_TYPES()
 check("track_data required SAM3_TRACK_DATA", schema["required"]["track_data"][0] == "SAM3_TRACK_DATA")
-check("exclude 多类型 4 路", all(schema["optional"][f"exclude_{i}"][0] == "MASK,SAM3_TRACK_DATA"
-                                for i in range(1, 5)))
+check("exclude 多类型 20 路", all(schema["optional"][f"exclude_{i}"][0] == "MASK,SAM3_TRACK_DATA"
+                                for i in range(1, 21)))
+
+check("Add CATEGORY", SFTrackDataAdd.CATEGORY == "sfnodes/image")
+check("Add FUNCTION", SFTrackDataAdd.FUNCTION == "execute")
+check("Add RETURN_TYPES", SFTrackDataAdd.RETURN_TYPES == ("SAM3_TRACK_DATA",))
+check("Add RETURN_NAMES", SFTrackDataAdd.RETURN_NAMES == ("track_data",))
+check("Add DESCRIPTION 存在", isinstance(getattr(SFTrackDataAdd, "DESCRIPTION", None), str)
+      and SFTrackDataAdd.DESCRIPTION.strip() != "")
+add_schema = SFTrackDataAdd.INPUT_TYPES()
+check("Add track_data required SAM3_TRACK_DATA", add_schema["required"]["track_data"][0] == "SAM3_TRACK_DATA")
+check("add 多类型 20 路", all(add_schema["optional"][f"add_{i}"][0] == "MASK,SAM3_TRACK_DATA"
+                             for i in range(1, 21)))
 
 init_keys = parse_init_keys()
-check("__init__ 注册 SFTrackDataSubtract 双字典一致",
-      "SFTrackDataSubtract" in init_keys.get("NODE_CLASS_MAPPINGS", set())
-      and "SFTrackDataSubtract" in init_keys.get("NODE_DISPLAY_NAME_MAPPINGS", set()))
+for _node in ("SFTrackDataSubtract", "SFTrackDataAdd"):
+    check(f"__init__ 注册 {_node} 双字典一致",
+          _node in init_keys.get("NODE_CLASS_MAPPINGS", set())
+          and _node in init_keys.get("NODE_DISPLAY_NAME_MAPPINGS", set()))
 check("__init__ 字典键集合完全一致",
       init_keys.get("NODE_CLASS_MAPPINGS", set()) == init_keys.get("NODE_DISPLAY_NAME_MAPPINGS", set()))
 
@@ -290,6 +315,82 @@ check("packed None 直通", ops.subtract_from_track_data({"packed_masks": None, 
                                                      torch=fake_torch, interpolate=fake_interpolate)["packed_masks"] is None)
 
 
+# ── 3b. add_to_track_data ──
+add_a = np.zeros((2, 4, 8), dtype=bool)
+add_a[0, :, 2:6] = True
+add_a[1, :, 4:] = True
+out_add = ops.add_to_track_data(td_base, [FakeTensor(add_a)], pack_masks=_stub_pack,
+                                unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+ua = numpy_unpack(_arr(out_add["packed_masks"]))
+check("并集单身份", out_add["packed_masks"].shape[1] == 1)
+check("并集帧0", np.array_equal(ua[0, 0], base[0, 0] | add_a[0]))
+check("并集帧1", np.array_equal(ua[1, 0], base[1, 0] | add_a[1]))
+check("并集 orig_size 保留", out_add["orig_size"] == (4, 8))
+check("并集 n_frames 保留", out_add["n_frames"] == 2)
+check("并集 scores=[1.0]", out_add["scores"] == [1.0])
+check("并集不改原输入", td_base["scores"] == [0.9])
+
+# 多路并集
+add_b = np.zeros((2, 4, 8), dtype=bool)
+add_b[0, :, :1] = True
+out_add2 = ops.add_to_track_data(td_base, [FakeTensor(add_a), FakeTensor(add_b)], pack_masks=_stub_pack,
+                                 unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+ua2 = numpy_unpack(_arr(out_add2["packed_masks"]))
+check("多路并集帧0", np.array_equal(ua2[0, 0], base[0, 0] | add_a[0] | add_b[0]))
+
+# 多对象基础塌成单身份
+add_m1 = add_a[:1]
+out_multi = ops.add_to_track_data(td_multi, [FakeTensor(add_m1)], pack_masks=_stub_pack,
+                                  unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+um2 = numpy_unpack(_arr(out_multi["packed_masks"]))
+check("多对象塌单身份", out_multi["packed_masks"].shape[1] == 1)
+check("多对象并集内容", np.array_equal(um2[0, 0], multi[0, 0] | multi[0, 1] | add_m1[0]))
+
+# TRACK_DATA 作为叠加输入
+add_td = {"packed_masks": FakeTensor(numpy_pack(add_a[:, None])), "n_frames": 2, "orig_size": (4, 8)}
+out_add_td = ops.add_to_track_data(td_base, [add_td], pack_masks=_stub_pack,
+                                   unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+check("TRACK_DATA 叠加等价", np.array_equal(numpy_unpack(_arr(out_add_td["packed_masks"])), ua))
+
+# resize：叠加 4x16（右半 True）→ 缩到 4x8 后右 4 列 True
+add_big = np.zeros((2, 4, 16), dtype=bool)
+add_big[:, :, 8:] = True
+out_add_rz = ops.add_to_track_data(td_base, [FakeTensor(add_big)], pack_masks=_stub_pack,
+                                   unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+check("并集 resize 路径不崩", out_add_rz["packed_masks"] is not None)
+
+# 帧数不一致报错
+try:
+    ops.add_to_track_data(td_base, [np.zeros((3, 4, 8), dtype=bool)], pack_masks=_stub_pack,
+                          unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+    check("并集帧数不一致报错", False)
+except ValueError:
+    check("并集帧数不一致报错", True)
+
+# 空基础 + 叠加（orig_size 已知）→ 输出即叠加内容
+td_none = {"packed_masks": None, "n_frames": 2, "orig_size": (4, 8)}
+out_none = ops.add_to_track_data(td_none, [FakeTensor(add_a)], pack_masks=_stub_pack,
+                                 unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+un = numpy_unpack(_arr(out_none["packed_masks"]))
+check("空基础并集单身份", out_none["packed_masks"].shape[1] == 1)
+check("空基础并集内容", np.array_equal(un, add_a[:, None]))
+
+# 空基础 + 宽度非 8 倍数 MASK（orig_size 缺失，走补宽路径）
+td_none2 = {"packed_masks": None, "n_frames": 2}
+add_w6 = np.zeros((2, 4, 6), dtype=bool)
+add_w6[:, :, :3] = True
+out_w6 = ops.add_to_track_data(td_none2, [FakeTensor(add_w6)], pack_masks=_stub_pack,
+                               unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+uw6 = numpy_unpack(_arr(out_w6["packed_masks"]))
+check("空基础补宽到 8", uw6.shape[-1] == 8)
+check("空基础补宽内容保留", np.array_equal(uw6[:, 0, :, :6], add_w6))
+
+# 空基础无叠加直通
+check("空基础无叠加直通", ops.add_to_track_data({"packed_masks": None, "n_frames": 2},
+                                          [], pack_masks=_stub_pack, unpack_masks=_stub_unpack,
+                                          torch=fake_torch, interpolate=fake_interpolate)["packed_masks"] is None)
+
+
 # ── 4. execute 集成 ──
 node = SFTrackDataSubtract()
 res = node.execute(td_base, exclude_1=FakeTensor(ex))
@@ -303,6 +404,21 @@ try:
     check("execute 非法输入抛错", False)
 except ValueError:
     check("execute 非法输入抛错", True)
+
+add_node = SFTrackDataAdd()
+res_add = add_node.execute(td_base, add_1=FakeTensor(add_a))
+check("Add execute 返回单元素 tuple", isinstance(res_add, tuple) and len(res_add) == 1)
+check("Add execute 输出单身份", res_add[0]["packed_masks"].shape[1] == 1)
+check("Add execute 并集内容",
+      np.array_equal(numpy_unpack(_arr(res_add[0]["packed_masks"]))[0, 0], base[0, 0] | add_a[0]))
+check("Add execute 未接叠加直通",
+      numpy_unpack(_arr(add_node.execute(td_base)[0]["packed_masks"])).shape == (2, 1, 4, 8))
+
+try:
+    add_node.execute({"not": "track"})
+    check("Add execute 非法输入抛错", False)
+except ValueError:
+    check("Add execute 非法输入抛错", True)
 
 print()
 if failures:
