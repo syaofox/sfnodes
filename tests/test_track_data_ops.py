@@ -409,6 +409,20 @@ check("空基础无叠加直通", ops.add_to_track_data({"packed_masks": None, "
                                           torch=fake_torch, interpolate=fake_interpolate)["packed_masks"] is None)
 
 
+# track_data 工作分辨率（方形 packed）≠ 真实宽高（orig_size）：add 必须保留 orig_size
+sq = np.zeros((2, 1, 8, 8), dtype=bool)
+sq[0, 0, :4, :] = True
+td_sq = {"packed_masks": FakeTensor(numpy_pack(sq)), "n_frames": 2, "orig_size": (4, 16), "scores": [0.7]}
+add_sq = np.zeros((2, 8, 8), dtype=bool)
+add_sq[1, :, :] = True
+out_sq = ops.add_to_track_data(td_sq, [FakeTensor(add_sq)], pack_masks=_stub_pack,
+                               unpack_masks=_stub_unpack, torch=fake_torch, interpolate=fake_interpolate)
+check("add 保留非方形 orig_size（方形工作网格）", out_sq["orig_size"] == (4, 16))
+check("add 输出仍为工作网格 packed", out_sq["packed_masks"].shape == (2, 1, 8, 1))
+check("add 保留 n_frames", out_sq["n_frames"] == 2)
+check("add 保留 orig_size 不改原输入", td_sq["orig_size"] == (4, 16))
+
+
 # ── 3c. merge_track_data（先减后加组合）──
 # 仅相减：保留对象数、scores
 out_sub_only = ops.merge_track_data(td_base, [FakeTensor(ex)], [], pack_masks=_stub_pack,
@@ -445,6 +459,15 @@ check("merge 空基础叠加内容", np.array_equal(numpy_unpack(_arr(out_empty[
 check("merge 全空直通", ops.merge_track_data(td_base, [], [None], pack_masks=_stub_pack,
                                          unpack_masks=_stub_unpack, torch=fake_torch,
                                          interpolate=fake_interpolate)["scores"] == [0.9])
+
+# 方形工作网格 + 非方形 orig_size：先减后加后仍保留真实宽高
+ex_sq = np.zeros((2, 8, 8), dtype=bool)
+ex_sq[0, :, :2] = True
+out_ms = ops.merge_track_data(td_sq, [FakeTensor(ex_sq)], [FakeTensor(add_sq)],
+                              pack_masks=_stub_pack, unpack_masks=_stub_unpack,
+                              torch=fake_torch, interpolate=fake_interpolate)
+check("merge 减+加保留非方形 orig_size", out_ms["orig_size"] == (4, 16))
+check("merge 减+加塌单身份", out_ms["packed_masks"].shape[1] == 1)
 
 
 # ── 4. execute 集成 ──
@@ -489,6 +512,10 @@ check("Merge execute 混合塌单身份", res_mix[0]["packed_masks"].shape[1] ==
 check("Merge execute 混合内容",
       np.array_equal(numpy_unpack(_arr(res_mix[0]["packed_masks"]))[0, 0], expected_mix))
 check("Merge execute 返回单元素", isinstance(res_mix, tuple) and len(res_mix) == 1)
+# execute 层：方形工作网格 + 非方形 orig_size 经 + 后仍保留真实宽高
+res_sq = merge_node.execute(td_sq, '{"track_2": "add"}',
+                            track_1=FakeTensor(ex_sq), track_2=FakeTensor(add_sq))
+check("Merge execute 保留非方形 orig_size", res_sq[0]["orig_size"] == (4, 16))
 try:
     merge_node.execute({"not": "track"})
     check("Merge execute 非法输入抛错", False)

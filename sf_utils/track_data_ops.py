@@ -128,7 +128,12 @@ def add_to_track_data(track_data, add_masks, pack_masks=None, unpack_masks=None,
     - 叠加遮罩帧数须与基础一致（不广播），否则报错；
     - 基础为空追踪且无有效叠加时原样返回（浅拷贝）；有叠加时以基础
       `orig_size`/`n_frames` 为准补零基础（缺省回退首个叠加的尺寸/帧数）；
-    - `scores` 置 `[1.0]`（对齐 `invert_track_data` 塌单身份语义）。
+    - `scores` 置 `[1.0]`（对齐 `invert_track_data` 塌单身份语义）；
+    - **`orig_size` 必须继承输入**：SAM3 追踪器在固定方形工作分辨率
+      （`image_size`）上打包，`packed_masks` 的 H/W 与真实宽高无关，只有
+      `orig_size` 记录真尺寸（`SAM3_VideoTrack` 事后写入）。若用 `unpack` 的
+      H/W 覆盖 orig_size，下游 `SAM3_TrackToMask` 会按方形插值 → 宽高比变 1:1。
+      工作分辨率（`unpack` 的 H/W）仅用于把各路叠加对齐到基础打包网格。
     """
     packed = track_data.get("packed_masks")
     frames = []
@@ -137,19 +142,23 @@ def add_to_track_data(track_data, add_masks, pack_masks=None, unpack_masks=None,
         if f is not None:
             frames.append(f)
 
+    orig = track_data.get("orig_size") or (0, 0)
+    orig_h, orig_w = int(orig[0]), int(orig[1])
+    has_orig = orig_h > 0 and orig_w > 0
+
     if packed is not None and packed.shape[1] > 0:
-        base = unpack_masks(packed).any(dim=1)  # [T, H, W]
+        base = unpack_masks(packed).any(dim=1)  # [T, work_h, work_w]（追踪器工作网格）
         total = base.shape[0]
-        height, width = base.shape[-2], base.shape[-1]
+        work_h, work_w = base.shape[-2], base.shape[-1]
+        # 真实宽高以输入 orig_size 为准（缺失/非法才回退工作分辨率）
+        out_orig = (orig_h, orig_w) if has_orig else (int(work_h), int(work_w))
     else:
         if not frames:
             return dict(track_data)
-        orig = track_data.get("orig_size") or (0, 0)
-        height, width = int(orig[0]), int(orig[1])
-        if height <= 0 or width <= 0:
-            height, width = frames[0].shape[-2], frames[0].shape[-1]
+        work_h, work_w = (orig_h, orig_w) if has_orig else (frames[0].shape[-2], frames[0].shape[-1])
         total = int(track_data.get("n_frames") or 0) or frames[0].shape[0]
-        base = torch.zeros((total, height, width), dtype=torch.bool)
+        base = torch.zeros((total, work_h, work_w), dtype=torch.bool)
+        out_orig = (int(work_h), int(work_w))
 
     union = base
     for f in frames:
@@ -157,12 +166,12 @@ def add_to_track_data(track_data, add_masks, pack_masks=None, unpack_masks=None,
             raise ValueError(
                 f"SF Track Data Add: 叠加遮罩帧数 {f.shape[0]} 与基础 {total} 不一致"
             )
-        union = union | _resize_frames(f, height, width, interpolate)
+        union = union | _resize_frames(f, work_h, work_w, interpolate)
 
     out = dict(track_data)
     out["packed_masks"] = pack_masks(pad_width_to_8(union, torch)).unsqueeze(1)
     out["n_frames"] = int(total)
-    out["orig_size"] = (int(height), int(width))
+    out["orig_size"] = (int(out_orig[0]), int(out_orig[1]))
     out["scores"] = [1.0]
     return out
 

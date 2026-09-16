@@ -881,6 +881,13 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 - 前端 `tests/test_track_data_slots_js.js`：初始 4 槽、全连追加、断开回收、`installConfiguredSlotRecovery` 补齐/回收、非目标 class 不处理。
 - `tests/test_mask_to_track_data.py` 补 sfnodes 包结构桩（节点相对导入 `sf_utils.track_data_ops` 后必需）。
 
+### 5. 追踪器工作分辨率 ≠ `orig_size`：add 必须保留 `orig_size`（2026-09 修复）
+
+- **症状**：`SF Track Data Add`（及 `SFTrackDataMerge` 带 `+`）的输出接 `SAM3 Track to Mask` 后 mask 宽高比变成 **1:1**。
+- **根因**：SAM3 追踪器在固定**方形**工作分辨率 `image_size`（默认 1008）上打包（`comfy/ldm/sam3/tracker.py` 里 `F.interpolate(size=(image_size, image_size))`），所以 `packed_masks` 的 H/W 是方形、与真实宽高无关；真实宽高由 `SAM3_VideoTrack.execute` 事后写入 `result["orig_size"] = (H, W)`。`SAM3_TrackToMask` 正是用 `orig_size` 把 mask 插值回真实 `(H, W)`。
+- **bug**：`add_to_track_data` 曾用 `unpack_masks(packed).shape[-2:]`（方形工作网格）覆盖输出 `orig_size` → 下游拿到方形尺寸 → 1:1。`subtract_from_track_data` 用 `dict(track_data)` 保留了 `orig_size`，故只有含 `+` 的路径出问题。
+- **修复**：`orig_size`/`n_frames` 继承输入；`unpack` 的 H/W 仅作**对齐各叠加路的工作网格**（`_resize_frames` 目标）。测试需用"方形 packed + 非方形 orig_size"才能暴露（现有用例 orig_size 与 packed 同形，测不出）。
+
 ## 83. SFTrackDataMerge：单节点逐槽加减（动态槽 + 每槽 -/+ 模式）
 
 > 背景：`SFTrackDataSubtract` 串联 `SFTrackDataAdd` 完成"基础 − 排除 + 叠加"需要两个节点、两段接线；一个工作流里加减路一多，接线与节点数都很繁琐（见 `[scail2]SCAIL-sam3.1-原生(排除).json`：452 相减 → 474 叠加）。目标=一个节点、一列动态槽，每路可独立定义为"减"或"加"。
@@ -890,6 +897,7 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 - 纯逻辑 `sf_utils/track_data_ops.py::merge_track_data(base, subtract_masks, add_masks, ...)` **只做组合**：先 `subtract_from_track_data`（多路并集后逐对象相减、保留对象数），**仅当存在至少一个有效叠加时**再 `add_to_track_data`（并集塌单身份、`scores=[1.0]`）。
 - **坑**：`add_to_track_data` 对非空基础即使 `add_masks=[]` 也会塌成单身份（base 的 `any(dim=1)` 无条件打包）。因此组合前必须过滤出至少一个有效叠加才调用它，否则"纯相减"会意外丢对象数。
 - 相减各路并集、叠加各路并集，相减恒先于叠加 → 结果与槽序无关；"先加后减"需求请另接一个相减节点。
+- **`orig_size` 必须来自输入而非 `unpack` 尺寸**（SAM3 追踪器工作网格是方形，`orig_size` 才是真实宽高）——详见 §81.5，否则下游 `SAM3 Track to Mask` 宽高比变 1:1。
 
 ### 2. 每槽模式的数据通道（值通道模式 + 注入）
 
