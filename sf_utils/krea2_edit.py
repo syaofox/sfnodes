@@ -297,6 +297,7 @@ def make_ref_kv_attn_wrapper(attn_module, dit):
     复用：把缓存的 ref k/v 拼到新算出的 k/v 尾部。
     """
     from einops import rearrange
+    import comfy.utils
     from comfy.ldm.flux.math import apply_rope
     from comfy.ldm.modules.attention import optimized_attention_masked
 
