@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -154,3 +154,33 @@
 
 - `tests/test_scail2.py` 新增：`CONTEXT_SCHEDULES` 常量表；新 widget 的存在/默认值（schedule/freenoise/context_stride/closed_loop）；stub `comfy.context_windows` 断言 handler kwargs（schedule/fuse/freenoise/stride/closed_loop/dim）、stride 夹取、`create_sampler_sample_wrapper` 仅 freenoise 时调用、overlap 越界抛错、正负同 ref。
 - `tests/test_scail2_js.js` 新增：chunk 模式隐藏 / context 模式显示上下文 widget；`context_stride` 随 uniform 系显示、`closed_loop` 仅 looped 显示（static 下两者隐藏）；中文标签；排序末尾追加且与 Python `required` 同序（`context_schedule` → `freenoise` → `context_stride` → `closed_loop`）——顺序必须一致，否则旧工作流 `widgets_values` 末位会错位（`freenoise` 的值会落到 `context_stride`）。
+
+## 82. SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置，2026-09）
+
+### 82.1 问题：整段预处理的 O(T) 峰值
+
+原生工作流（`WanSCAILToVideo` + `WanContextWindowsManual`，如 `[scail2]SCAIL-sam3.1-原生(排除).json`）把 `VHS_LoadVideo.frame_count` 直连 `length`，**一次前向生成整段视频**。采样显存本身对总帧数不敏感（上下文窗口把每次前向限制在 `context_length` 帧，`estimate_memory` 对 `sam_latents/pose_latents` 的时间维按 `memory_usage_shape_process` 的 1.5 帧估算），但核心 `comfy_extras/nodes_scail.py` 的两个纯函数按整段 T 构造中间张量：
+
+- `_render_colored_masks`：`unpack_masks` → `[T,N,H,W]` f32 + `color_overlay` `[T,H,W,3]` f32，2500 帧 @704×1280、N=1 时约 30–55 GB。
+- `_extract_mask_to_28ch`：7 通道阈值图 `[T,7,H,W]` f32，同尺寸约 16 GB。
+
+`intermediate_device()` 默认 CPU（`--gpu-only` 时 GPU），故这些是系统内存峰值；`--gpu-only` 下直接爆显存。此外 `WanSCAILToVideo.execute` 对整段 `reference_image_mask` 做 `common_upscale`（`[T,3,H,W]` f32，可数十 GB），而实际只用前 `n_ref` 帧。
+
+### 82.2 机制：分块包装 + 逐元素等价
+
+`sf_utils/scail2_mem.py` 给核心函数打一次性幂等 patch（`_MARK` 守卫，对齐 `scail2_context.py`），不修改核心文件、不改工作流接线：
+
+- **渲染分块**：按 `packed_masks[start:end]` 逐块执行原生表达式，写入预分配 `out[T,H,W,3]`。等价依据：`any(dim=1)`/`argmax(dim=1)`/`interpolate(mode="nearest")`/`where` 与背景色广播**逐帧独立**，不存在时间维耦合。
+- **28ch 分块**：按输入帧逐块算 7 通道阈值图并做**仅空间**下采样（`mode="area"` 逐 `(t,c)` 独立），再按原生时间打包顺序写 `padded`：`padded[0:4]=帧0`、`padded[3+j]=帧j (j≥1)`，最后 `.view(T_latent,28,...)`。要求 `T ≡ 1 (mod 4)`（核心 `view` 前置条件，调用方先截断到 4n+1），非该形态走原生。
+- **参考蒙版裁剪**：包装 `WanSCAILToVideo.execute`（执行引擎走 `getattr(type_obj,"execute").__func__(cls, **inputs)`，`classmethod` 包装可安全收 kwargs），仅当 `reference_image_mask` 帧数 > `reference_image` 批数时取前 `n_ref`。等价依据：原生 `ref_mask_hw` 只用 `[:1]` 与 `min(i, n_masks-1) for i in range(n_ref)`，当 `n_masks ≥ n_ref` 时恒为前 `n_ref` 帧（`n_masks < n_ref` 时广播最后一帧，故只在此情形才裁剪）。
+- **短输入/异常回退**：`T ≤ chunk`、空追踪或分块路径抛异常时一律回退原生函数并告警，短工作流零变化；`Enabled=False` 同。
+
+### 82.3 设置与 dtype
+
+`sfnodes.SCAIL2Mem.{Enabled(默认开), ChunkFrames(默认 32), HalfPrecision(默认开)}`，前端 `web/sf_scail2_mem_settings.js` 自注册（`app.registerExtension` + `addSetting`，独立于 SF 节点），后端每节点执行时经 `read_options()` 读 `comfy.settings.json`（复用 `sf_utils/llm_client.read_comfy_settings`，唯一读取实现），改动即时生效无需重启。`HalfPrecision=True` 时彩色蒙版输出 f16（值仅 0/1，与 f32 逐元素等价，仅省一半常驻）；下游原生 `common_upscale→F.interpolate`（`area`/`nearest-exact`）需构建支持 CPU half，报错时把开关关掉即可。`ChunkFrames` 与后端设置同名同默认值（前端 slider / 后端每调用读盘），避免双默认漂移。
+
+### 82.4 残留与边界
+
+- 分块只压中间峰值，**输出本身仍 O(T)**：`pose_video_mask`（f16 下 ~13.5 GB @704）、`reference_image_mask`（渲染在追踪分辨率如 512²，~7.9 GB）；VHS 载入与 VAE 解码各 ~13.5–27 GB。
+- 彻底支持 2500+ 帧需配合分块生成（`SFSCAIL2SimpleVideo` 的 `long_video_mode=chunk`，见 §72）；或在工作流层面把参考视频经 `SFImageBatchIndex`/`ImageFromBatch` 取单帧再送 `reference_image_mask`。
+- `_extract_mask_to_28ch` 的输入 `[T,3,H/2,W/2]` 上采样仍在 `execute` 内整段分配（~6.8 GB），本轮未触及（须重写 `execute`）。

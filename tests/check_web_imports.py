@@ -125,6 +125,8 @@ MODS = [
     "sf_note", "sf_note_lib",
     # SCAIL-2 四节点前端（复刻 ComfyUI-SCAIL2-Easy；动态槽/显隐）
     "sf_scail2",
+    # SCAIL-2 预处理内存优化设置（后端 scail2_mem 补丁开关/帧数/f16）
+    "sf_scail2_mem_settings",
 ]
 
 EXPORT_RE = re.compile(
