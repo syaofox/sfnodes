@@ -241,3 +241,14 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **对比度限制（未处理）**：标题文字色取自 `constructor.title_text_color || canvas.node_title_color`（默认 `#999`，选中 `#FFF`，前端包全局行为），**不随 `node.color` 变** → 选浅色标题时文字可能偏淡。第三方 HouseKeeper 另按亮度自动切标题/正文黑白字；本包暂不做（改动最小、与原生调色板行为一致）。
 - **入口形态**：`📦 SF Menu ▶ SF Node Color…`（仅 ≥1 选中节点时注入，`buildNodeColorMenuItem` 无选中返回 null）。注意画布菜单只在**空白处**右键出现——右键节点得到的是 LiteGraph 节点菜单，故须先选中节点、再在空白处右键（用户确认的入口形态）。
 - **测试**：`tests/test_node_color_lib.mjs`（纯逻辑：hex 归一/最近色 FIFO/apply/reset/read）+ `tests/test_node_color_js.js`（`.mjs` 拷贝链：菜单门槛/面板挂载/应用写色/撤销钩子/最近色持久化/清除/overlay 与 Esc 关闭）；`tests/test_canvas_menu_js.js` 增补菜单项门槛断言。
+
+### 18. 节点运行时间显示（execution 事件计时 + Classic onDrawForeground / Vue node.badges 双路）
+
+> 背景：需求「节点显示运行时间 + 设置开关默认关」，参考 `ComfyUI-Easy-Use` 的 `Comfy.EasyUse.TimeTaken`（`web_version/v2/assets/extensions-*.js`）。实现 `web/sf_node_runtime.js` + `sf_node_runtime_lib.js`。
+
+- **计时来源**：`/scripts/api.js` 的 `execution_start` / `executing` 事件。Easy-Use 做法：记录「上一个 executing 的节点 id + 开始时间」，收到下一个 executing 时把 `Date.now() - 开始时间` 结算给上一个节点（墙钟近似，含调度开销）；`execution_start` 清空全部（每轮重新计时），节点多次执行则累加。缓存命中节点只发 `execution_cached`、无 executing → 无耗时（与 Easy-Use 一致）。
+- **⚠ 事件载荷陷阱（首次实测不显示的根因）**：新版前端 `ComfyApi extends EventTarget`（`api-DclbNWWy.js`），socket 分发是 `case "executing": this.dispatchCustomEvent("executing", data.display_node || data.node)` —— **`event.detail` 直接就是节点 id（数字/字符串），整轮结束为 `null`，不是 `{node, display_node}` 对象**。若按对象解析（`detail.display_node ?? detail.node`）会全部得到 undefined → 永不结算、无显示。`resolveNodeId` 必须同时兼容 primitive（新）与对象（旧/第三方）。
+- **显示双路**：Classic 渲染器用 `onDrawForeground` 逐节点类型补丁绘制（Easy-Use 原做法；项目内 sf_dropdown/sf_find_replace/sf_image_resize 已验证）；Vue Nodes 2.0 的 per-node `onDrawForeground` 不触发，改用原生 `node.badges`（`window.LGraphBadge` 实例 = 官方 `Comfy.NodeBadge` 同款），并以 `graph.trigger("node:property:changed",{property:"badges",...})` 触发刷新。颜色取 `LiteGraph.NODE_TITLE_COLOR/NODE_DEFAULT_BGCOLOR`（随调色板主题变）。
+- **自管理边界**：Vue badge 实例打 `_sfRuntimeBadge` 标记，`findIndex` 只替换/删除自己的，不影响官方 NodeId/生命周期/API 价格等 badge。Classic 的绘制同样只读 `node.executionDuration`。
+- **开关**：`sfnodes.NodeRuntime.Enabled`（boolean，**默认 false**，Easy-Use 默认 true）；`onChange(false)` 立即 `clearAll()` 清除耗时与 badge，开启后需下一轮执行才有数据。`execution_start` 无条件清空（即使关闭，避免残留）。
+- **测试**：`tests/test_node_runtime_lib.mjs`（formatDuration/accumulateSeconds/resolveNodeId 双形态/badge 标记）+ `tests/test_node_runtime_js.js`（受控 `Date.now`；executing 以 primitive id 触发模拟真实前端，断言开关门槛、Classic executionDuration 结算 + onDrawForeground 绘制文案/折叠与关闭跳过、Vue badge 生成/重建、execution_start 清空、onChange(false) 清除）。
