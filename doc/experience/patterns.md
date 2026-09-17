@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -563,3 +563,18 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 - **根因**：`web/multi_lora_tree.js::updateMenu` 仅凭"是否有任一选项含 `/` 或 `\`"判定路径型菜单。model 标签含斜杠即 `hasPath`，而该下拉本用 `"-- Image --"/"-- Video --"` 原生分组头，被误当路径树。
 - **修复**：菜单含原生 combo 分组头（`/^--.*--$/`）即跳过树折叠——自带分组的下拉不是路径列表（当前仅 canvas_size 的 model/resolution 使用分组头）。判定改为全量扫描两个标志（路径项可能在分组头之前，不能命中路径就 break）。
 - **边界**：这是通用前端规则；若将来出现"路径 + 分组头"混合下拉需另议，目前无此用例。
+
+## 89. 动态槽加载恢复扩展到输出侧：循环节点多状态槽（2026-09）
+
+- **症状**：SFForLoopStart/End 只能承载 1 个循环状态（`value1`）。外部分段循环需要 2 个状态槽（`value1`=段文件列表、`value2`=上一段尾帧锚），手改工作流 JSON 写入第 2 个槽后——**加载即丢**：`installDynamicSlots` 在 nodeCreated 时 `trimToInitial`（裁到 1 个槽），loop 节点又没有加载恢复，第 2 槽的链接无处安放（configure 重建 slots 后仍缺恢复兜底；若某些版本裁剪先于链接恢复则直接丢链接）。
+- **根因**：`installConfiguredSlotRecovery` 只恢复**输入侧**（`addInput/removeInput`），而 loop 的 `value` 槽是**输出侧**；`loop_flow.js` 也从未调用恢复函数。
+- **修复**：
+  1. `sf_dynamic_slots.js`：把恢复逻辑抽成内部 `recoverDynamicSide(node, side, cfg)`，`installConfiguredSlotRecovery` 在传 `outputPrefix` 时对 outputs 一并恢复（按已连接槽数 `want = linked + 1` 补齐、回收尾部空槽）。既有调用（conditioning combine/concat、track_data subtract/add/merge）只传 input 配置，行为不变。
+  2. `loop_flow.js`：`installDynamicSlots` 之后调用 `installConfiguredSlotRecovery`，ForLoop 用 `start=1/count=19`、While 用 `start=0/count=20`（与动态槽配置一致）。
+- **要点**：
+  - 输入槽"已连接"看 `slot.link`（非 null/-1），输出槽看 `slot.links` 数组——`isSlotConnected` 已兼容两者，恢复输出侧时直接复用。
+  - `want` 是**动态槽目标数**（含 1 个待连空位），不是总槽数；固定槽（flow/index/total/condition）不参与前缀匹配。
+  - 恢复只在 `onAfterGraphConfigured` 生效（加载/粘贴），连接时增删仍由 `installDynamicSlots` 的 `onConnectionsChange` 负责，二者互不冲突。
+- **测试**：`tests/test_loop_slots_recovery.mjs`（FakeNode 6 组：补齐/回收/全空裁剪/While `start=0`/与 installDynamicSlots 协同/连接事件仍有效）。
+- **踩坑**：测"连接后自动加槽"时须先把 `slot.link`/`slot.links` 置好再触发 `onConnectionsChange`（LiteGraph 时序是连线建立后才回调），否则 `allConnected=false` 不加槽，容易误判为代码 bug。
+- **关联**：`nodes-video.md` §87 的外部分段循环依赖 2 个状态槽，加载本恢复后才不丢链接。

@@ -32,6 +32,7 @@ from .nodes.image.track_data_subtract import SFTrackDataSubtract
 from .nodes.image.track_data_add import SFTrackDataAdd
 from .nodes.image.track_data_merge import SFTrackDataMerge
 from .nodes.image.track_data_cache import SFTrackDataCache
+from .nodes.image.track_data_slice import SFTrackDataSlice
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
     GetImageSize,
@@ -123,6 +124,7 @@ from .nodes.video.scail2 import (
     SFSCAIL2ReferenceSAMBuilder,
     SFSCAIL2SimpleVideo,
 )
+from .nodes.video.video_concat import SFVideoConcat
 from .nodes.video.sam3_point_track import SFSAM3PointTrack
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
@@ -274,6 +276,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTrackDataAdd": SFTrackDataAdd,
     "SFTrackDataMerge": SFTrackDataMerge,
     "SFTrackDataCache": SFTrackDataCache,
+    "SFTrackDataSlice": SFTrackDataSlice,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -363,6 +366,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSCAIL2ReferencePack": SFSCAIL2ReferencePack,
     "SFSCAIL2ReferenceSAMBuilder": SFSCAIL2ReferenceSAMBuilder,
     "SFSCAIL2SimpleVideo": SFSCAIL2SimpleVideo,
+    "SFVideoConcat": SFVideoConcat,
     "SFSAM3PointTrack": SFSAM3PointTrack,
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
@@ -504,6 +508,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTrackDataAdd": "SF Track Data Add",
     "SFTrackDataMerge": "SF Track Data Merge",
     "SFTrackDataCache": "SF Track Data Cache",
+    "SFTrackDataSlice": "SF Track Data Slice",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",
@@ -593,6 +598,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSCAIL2ReferencePack": "SF SCAIL-2 Reference Pack",
     "SFSCAIL2ReferenceSAMBuilder": "SF SCAIL-2 Reference SAM Builder",
     "SFSCAIL2SimpleVideo": "SF SCAIL-2 Simple Video",
+    "SFVideoConcat": "SF Video Concat",
     "SFSAM3PointTrack": "SF SAM3 Point Track",
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",

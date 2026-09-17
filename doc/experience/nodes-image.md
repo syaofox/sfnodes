@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81、§83）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81、§83、§85、§88）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -946,3 +946,27 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 
 - 复用后端 `disk_state.atomic_write_json/mtime_size_sig/sf_user_dir`、`common.valid_name`、`logger`；前端 `sf_common.el/injectCSSOnce/sfApiUrl`、`sf_popup.attachPopupDismiss/clampToViewport`。存储骨架对齐 `crop_expand_presets.py`（w/h 语义：像素整数 vs 比例浮点，故独立成模块而非参数化）。
 - 测试：后端 `tests/test_canvas_size_presets.py`（CRUD/校验/归一化 mtime 重载/路由）+ `tests/test_canvas_size.py`（自定义值解析、路由注册、import 触发；加载改包上下文以支持相对 import）；前端 `tests/test_canvas_size_lib.mjs` + `tests/test_canvas_size_js.js`。
+
+## 88. SFTrackDataSlice：SAM3_TRACK_DATA 时间维切片（外部分段配套，2026-09）
+
+### 88.1 背景：为什么需要切片
+
+外部分段跑 SCAIL-2（见 nodes-video.md §87）时，`SFSCAIL2SimpleVideo` 每次只看到本段 `pose_video`，但 `driving_track_data` 若传整段，节点内 `SCAIL2ColoredMask` 会按**整段 T** 渲染彩色蒙版（§82 的分块补丁只压中间峰值，输出仍 O(T)：4492 帧 ≈ 31 GB f16），且段内 pose 与 track 帧序错位（track 从 0 起 vs pose 从 skip 起）。
+
+正解：整段追踪只做一次（或读 `SFTrackDataCache` 缓存），循环内用 `SFTrackDataSlice` 按 `start=skip, length=段长` 切片后喂给节点——每段只渲染段内蒙版，内存回到 O(段长)。
+
+### 88.2 纯逻辑 slice_track_data（sf_utils/track_data_ops.py）
+
+```python
+slice_track_data(track_data, start=0, length=0)
+```
+
+- `packed_masks[start:end].contiguous()`，`n_frames = end - start`（**以 span 为准**，与 packed 首维一致；`packed_masks is None` 的整条空追踪只调 `n_frames`，时间语义不变）。
+- `start` 支持负值（相对末尾，-1=最后一帧），越界夹到 `[0, T]`；`length <= 0` 表示切到结尾，超出尾部自动截断；空切片合法（首维 0、`n_frames=0`）。
+- **保留 `scores`（per-object，不随帧变）与 `orig_size`**——追踪器方形工作网格 ≠ 真实宽高（§81.5），切片绝不能碰 `orig_size`，否则下游 `SAM3_TrackToMask` 输出 1:1。
+- 输出浅拷贝 dict，不改原输入；`T` 来源优先 `packed.shape[0]`，无 packed 时用 `n_frames`（与 `pad_track_data_front` 同约定）。
+
+### 88.3 节点与测试
+
+- `nodes/image/track_data_slice.py`：`SFTrackDataSlice`（required `track_data`/`start`/`length`，`start` min=-1000000 支持负值取尾），非法输入抛错；无前端 JS（静态输入）。
+- 测试走 §83 同款 numpy 位序桩（`FakeTensor` 增补 `contiguous()`），覆盖区间/负 start/长度 0/截断/越界空/多对象保留/`packed None`/execute 集成——`tests/test_track_data_ops.py`。

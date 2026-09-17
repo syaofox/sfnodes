@@ -56,6 +56,42 @@ def infer_generation_size(height, width):
     return round_32(int(width)), round_32(int(height))
 
 
+def normalize_external_anchor(available_frames, previous_frame_count):
+    """外部分段锚帧归一：返回 0（不锚）或 `1..previous_frame_count`。
+
+    `previous_frame_count=0`（overlap 关闭）或输入为空时返回 0；超出锚帧
+    上限时取前 `previous_frame_count` 帧（调用方负责从尾部截取）。
+    """
+    try:
+        available = int(available_frames)
+        limit = int(previous_frame_count)
+    except (TypeError, ValueError):
+        return 0
+    if available <= 0 or limit <= 0:
+        return 0
+    return min(available, limit)
+
+
+def chunk_discard_head(chunk_index, previous_frame_count, external_anchor_frames):
+    """每个生成段的头部丢弃帧数（锚定重复帧）。
+
+    内部 chunk 衔接段（`chunk_index > 0`）丢弃 `previous_frame_count` 帧；
+    外锚首段（段首自带上一段尾部重叠帧）丢弃实际锚帧数（与 latent 锚定帧数
+    一致）；无外锚的首段不丢弃（返回 0）。
+    """
+    try:
+        index = int(chunk_index)
+        previous = int(previous_frame_count)
+        anchor = int(external_anchor_frames)
+    except (TypeError, ValueError):
+        return 0
+    if previous <= 0:
+        return 0
+    if index == 0:
+        return max(0, anchor)
+    return previous
+
+
 def target_size_for_video(height, width, resolution, custom_width=832, custom_height=480):
     """复刻 Fit Video 尺寸策略：短边缩放到 512/704（长边按比例），custom 直接取参。"""
     height = int(height)

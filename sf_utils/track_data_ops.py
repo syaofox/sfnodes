@@ -2,7 +2,8 @@
 
 用于 `SFSAM3PointTrack` 的锚帧前补空帧，以及 `SFTrackDataSubtract` 的
 track_data 层逐帧相减（排除男性/阴茎/精液等）、`SFTrackDataAdd` 的逐帧
-并集合成单身份、`SFTrackDataMerge` 的逐槽先减后加组合。位打包复用核心
+并集合成单身份、`SFTrackDataMerge` 的逐槽先减后加组合、
+`SFTrackDataSlice` 的时间维区间切片。位打包复用核心
 `comfy.ldm.sam3.tracker.pack_masks/unpack_masks`（由调用方注入）。
 
 track_data 形状约定：`packed_masks` 为 `[T, N, H, W//8]` 位打包张量
@@ -13,6 +14,32 @@ track_data 形状约定：`packed_masks` 为 `[T, N, H, W//8]` 位打包张量
 
 def is_track_data(value):
     return isinstance(value, dict) and "packed_masks" in value
+
+
+def slice_track_data(track_data, start=0, length=0):
+    """按帧区间切片 track_data（时间维），保留对象数 / `scores` / `orig_size`。
+
+    - `start` 支持负值（相对末尾，-1=最后一帧），越界夹到 `[0, T]`；
+    - `length <= 0` 表示切到结尾，超出尾部自动截断；
+    - `packed_masks is None`（整条无对象）时仅调整 `n_frames`（时间语义一致）；
+    - 输出为浅拷贝，不改原输入；空切片合法（首维 0、`n_frames=0`）。
+    """
+    out = dict(track_data)
+    packed = track_data.get("packed_masks")
+    total = int(packed.shape[0]) if packed is not None else int(track_data.get("n_frames") or 0)
+    start = int(start or 0)
+    if start < 0:
+        start += total
+    start = max(0, min(start, total))
+    requested = int(length or 0)
+    end = total if requested <= 0 else min(total, start + requested)
+    span = max(0, end - start)
+    if packed is None:
+        out["n_frames"] = span
+        return out
+    out["packed_masks"] = packed[start:end].contiguous()
+    out["n_frames"] = span
+    return out
 
 
 def pad_width_to_8(masks, torch):

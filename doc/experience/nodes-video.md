@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -184,3 +184,71 @@
 - 分块只压中间峰值，**输出本身仍 O(T)**：`pose_video_mask`（f16 下 ~13.5 GB @704）、`reference_image_mask`（渲染在追踪分辨率如 512²，~7.9 GB）；VHS 载入与 VAE 解码各 ~13.5–27 GB。
 - 彻底支持 2500+ 帧需配合分块生成（`SFSCAIL2SimpleVideo` 的 `long_video_mode=chunk`，见 §72）；或在工作流层面把参考视频经 `SFImageBatchIndex`/`ImageFromBatch` 取单帧再送 `reference_image_mask`。
 - `_extract_mask_to_28ch` 的输入 `[T,3,H/2,W/2]` 上采样仍在 `execute` 内整段分配（~6.8 GB），本轮未触及（须重写 `execute`）。
+
+## 87. SCAIL-2 外部分段处理：VHS 分段循环 + 外锚接续 + SFVideoConcat 合并（2026-09）
+
+### 87.1 背景：§82 只压显存，RAM 仍是 O(T)
+
+`SFSCAIL2SimpleVideo` 的 `long_video_mode=chunk` 把**采样显存**压到 O(chunk_frames)，但整条链路的系统内存仍随总帧数线性增长，且都在进节点之前就发生：
+
+| 项 | 量级（4492 帧 @1280×896 f32 实测工作流） |
+|---|---|
+| `VHS_LoadVideo`（`frame_load_cap=0`）整段加载 | ≈ 62 GB 常驻 |
+| replacement 模式整段 `pose_video_mask`（f16，§82 补丁输出） | ≈ 31 GB |
+| 节点 `stitched` 累积输出 + 最终 `torch.cat`/`clamp` 瞬时峰值 | ≈ 62 / 最高 ~185 GB |
+| `VHS_VideoCombine` / 输出缓存 | 再一份 |
+
+结论：**要支持任意长度，必须"分段加载 → 分段生成 → 分段落盘 → 最后文件级合并"**，把每轮工作集压到 O(段长)。本节方案已落地（`previous_frames` 外锚 + `SFTrackDataSlice` + `SFVideoConcat`）。
+
+### 87.2 分段循环接线（用户工作流层）
+
+```
+循环外: 画幅子图 ──width/height──> VHS_LoadVideo(custom_w/h)     # 分辨率仍由现有子图控
+        整段追踪子图 → SFTrackDataCache → track_data ─┐
+        VHS_LoadVideo(audio) ──────────────────────┐ │
+SFForLoopStart(total)                              │ │
+  index → SFMathInt(multiply, step) → skip          │ │
+  VHS_LoadVideo(video, force_rate, skip, cap=L) → 段帧
+  SFTrackDataSlice(整段track, start=skip, len=L) ←─┘ │   # 循环外输入，每轮复用
+  previous_frames ← 循环状态（首轮 None）
+  SFSCAIL2SimpleVideo(pose_video=段帧, driving_track_data=段track,
+                      previous_frames, chunk_frames=81, overlap=5) → 段输出
+  ImageFromBatch(-5, length=5) → 尾帧 → 循环状态
+  VHS_VideoCombine(段输出, fps, prefix="…/seg_") → VHS_FILENAMES
+      → SFBatchAnything(累加) → 循环状态
+SFForLoopEnd
+循环外: SFVideoConcat(segments=文件列表, audio=VHS.audio, prefix="…/final")
+```
+
+- **skip/cap 转输入**：VHS 这些 INT widget 可直接 Convert to Input，由 `SFMathInt` 驱动（VHS 无额外校验，只要求非负）。
+- **段长参数**：取 `L = overlap + 76k` 且 `L ≡ 1 (mod 4)`（默认 **461 = 5 + 76×6**，与内部 chunk 81/步长 76 完全对齐，段内无残段）；`step = L - overlap`（461→456）；**首段** `skip=0`，其后 `skip = index × step`；`total = (N - overlap - 1) // step + 1`（N=源总帧数；也可手填）。每段输入 cap=L 且第 i≥1 段的段首 overlap 帧正是上一段尾部输出（重叠输入 + 外锚丢弃 = 无缝）。
+- **循环状态**只放「上一段尾 overlap 帧」与「文件列表」，绝不能把整段帧放进状态槽（会跨轮持有，RAM 又变 O(T)）。
+- `SFBatchAnything` 对 `VHS_FILENAMES` 是 `tuple(bool, list)`，两个 tuple 相加会拼成 `(bool, list, bool, list…)` 混合结构——`SFVideoConcat` 内部递归展平，无需前置转换。
+
+### 87.3 外锚 previous_frames 语义（跨段无缝的关键）
+
+`SFSCAIL2SimpleVideo` 新增 optional `previous_frames`（IMAGE）。实现要点（`nodes/video/scail2.py` + `sf_utils/scail2_easy.py`）：
+
+- **归一**：`normalize_external_anchor(输入帧数, previous_frame_count)` → 0（不锚，overlap 关或空输入）或 `1..previous_frame_count`，实际取输入尾部这些帧。
+- **偏移起算**：`video_frame_offset` 初值 = 实际锚帧数。原生 `WanSCAILToVideo` 内部会把传入偏移**再减 `previous_frames` 帧数**（`max(0, ·)`）后切片并编码为 latent 前几帧（`noise_mask=0`），所以外锚与内部 chunk 衔接走的是**同一条核心路径**：段首 overlap 帧由锚 latent 占据、不重新生成。
+- **首段也丢弃**：`chunk_discard_head(chunk_index, previous_frame_count, external_anchor_frames)`：`chunk_index>0` 恒丢 `previous_frame_count`；首段丢**实际锚帧数**；无锚首段丢 0。丢弃后输出与输入段的 pose 帧一一对齐（段输出 = 输入段去掉重叠前缀）。
+- **尾帧自然截断**：循环内 `length <= previous_frame_count` 时 break，故每段末尾至多丢 overlap 帧（末段不足时丢尾），总输出 = `N - 丢弃`（对齐 4n+1 的既有行为）。
+- **context_sampling 不支持外锚**（窗口调度自带时序管理），传入时忽略并在 summary 标 `external_anchor_ignored`。
+- 边界：`overlap_frames=0` 时外锚不生效（归一为 0）；锚帧数不等于段首重叠帧数属用户参数错误（会重复/跳帧），按"锚帧数=段首重叠帧数"使用。
+
+### 87.4 SFVideoConcat：文件级合并（不装回内存）
+
+`nodes/video/video_concat.py` + 纯逻辑 `sf_utils/video_concat.py`：
+
+- **输入解析** `collect_segment_paths`：递归（深度≤8）提取字符串路径，保序去重；跳过 `.png`（VHS 首帧元数据）与被 `X-audio.mp4` 终版覆盖的 `X.mp4` 中间文件（VHS `output_files` 结构：`[png, mid.mp4, final-audio.mp4]`，`VHS_KeepIntermediate=False` 会删中间文件，故只保留终版）。
+- **合并**：`InputImpl.VideoFromFile(路径)` 逐段引用（`get_stream_source` 直接返回路径，零拷贝）→ `InputImpl.VideoFromList(videos, complete_audio=audio, codec=Types.VideoCodec("auto"))` → `save_to(output_path, format=Types.VideoContainer(format))`。各段与目标容器/编码签名一致时**纯 remux 不重编码**（`save_to` 内 `reuse_streams` 判定）；命名复用 `folder_paths.get_save_image_path`（`_00001_.mp4` 计数不覆盖）。
+- **音频**：分段时各段不接 VHS 的 audio（否则每段音轨与段内容错位）；`SFVideoConcat.audio` 接整段 `VHS_LoadVideo.audio`（lazy AUDIO dict）统一注入，`VideoFromList` 的 `complete_audio` 自动截到视频长度（`len(images)/frame_rate × sample_rate`）。
+- **cleanup**：可选删除段文件（默认关，便于失败排查）。
+- 若合并文件在 output 目录，可通过 `LoadVideo` + `ConcatenateVideo` 继续做后处理（Video 对象为文件引用，仍不装帧）。
+
+### 87.5 已知开销与边界
+
+- **VHS 普通 LoadVideo 无 seek**：`skip_first_frames` 是从 0 帧起 `grab()` 逐帧丢弃（不解码输出但要走解码器），12 段的全长任务约多解 1.5× 前缀；长片建议 `VHS_LoadVideoFFmpeg*`（输入侧 `-ss` 快速 seek），代价是换节点重连。
+- **每轮重新执行**：循环里 VHS/VAE encode/采样都重跑（本来就该跑）；模型权重不卸载，`_empty_cache(force=True)` 仍在每段末清理。
+- **单段显存不变**：外层分段只解决 RAM/mask；单段 81 帧 @生成分辨率的采样峰值依旧（能跑通单段即可跑全长）。
+- **SAM3 追踪**：整段追踪一次（可 `SFTrackDataCache` 磁盘缓存）后循环内只切片；不要分段重追踪（ID/颜色跨段不一致）。

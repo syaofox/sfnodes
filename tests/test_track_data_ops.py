@@ -1,15 +1,16 @@
-# SFTrackDataSubtract / SFTrackDataAdd / sf_utils.track_data_ops 后端逻辑测试
-# （Node/Python 直接运行：python tests/test_track_data_ops.py）
+# SFTrackDataSubtract / SFTrackDataAdd / SFTrackDataSlice / sf_utils.track_data_ops
+# 后端逻辑测试（Node/Python 直接运行：python tests/test_track_data_ops.py）
 # 覆盖：
 #   - 结构：CATEGORY、RETURN_TYPES/NAMES、FUNCTION、DESCRIPTION、
-#     INPUT_TYPES（track_data required / exclude_1..20 · add_1..20 多类型）、
-#     根 __init__.py 注册键一致
+#     INPUT_TYPES（track_data required / exclude_1..20 · add_1..20 多类型 /
+#     slice 的 start·length）、根 __init__.py 注册键一致
 #   - track_data_ops 纯函数（numpy 版 pack/unpack 桩，真实位打包）：
 #     pad_track_data_front 前补空帧 / 已足够长 / packed None；
 #     subtract_from_track_data 逐对象相减、多路并集、MASK 与 TRACK_DATA 两种排除、
 #     尺寸不一致 resize、帧数不一致报错、空排除直通、packed None 直通；
 #     add_to_track_data 逐帧并集塌单身份、多路并集、MASK 与 TRACK_DATA 两种叠加、
-#     resize、帧数不一致报错、空基础+叠加、空基础无叠加直通
+#     resize、帧数不一致报错、空基础+叠加、空基础无叠加直通；
+#     slice_track_data 区间/负 start/到尾/截断/越界空/保留字段/packed None
 #   - execute 集成（mock torch + comfy.ldm.sam3.tracker）
 import ast
 import importlib.util
@@ -70,6 +71,9 @@ class FakeTensor:
 
     def unsqueeze(self, dim):
         return FakeTensor(np.expand_dims(self.data, dim))
+
+    def contiguous(self):
+        return FakeTensor(np.ascontiguousarray(self.data), dtype=self.dtype, device=self.device)
 
     def any(self, dim=None):
         return FakeTensor(self.data.any() if dim is None else self.data.any(axis=dim))
@@ -165,6 +169,9 @@ SFTrackDataAdd = add_mod.SFTrackDataAdd
 merge_mod = load(os.path.join(root, "nodes", "image", "track_data_merge.py"),
                  "sfnodes.nodes.image.track_data_merge")
 SFTrackDataMerge = merge_mod.SFTrackDataMerge
+slice_mod = load(os.path.join(root, "nodes", "image", "track_data_slice.py"),
+                 "sfnodes.nodes.image.track_data_slice")
+SFTrackDataSlice = slice_mod.SFTrackDataSlice
 
 
 def parse_init_keys():
@@ -219,8 +226,22 @@ check("Merge hidden SlotModes STRING", merge_schema["hidden"]["SlotModes"][0] ==
 check("Merge _parse_modes 容错", merge_mod._parse_modes('{"track_1": "add"}') == {"track_1": "add"}
       and merge_mod._parse_modes("garbage") == {} and merge_mod._parse_modes('{"track_2": "x"}') == {"track_2": "sub"})
 
+check("Slice CATEGORY", SFTrackDataSlice.CATEGORY == "sfnodes/image")
+check("Slice FUNCTION", SFTrackDataSlice.FUNCTION == "execute")
+check("Slice RETURN_TYPES", SFTrackDataSlice.RETURN_TYPES == ("SAM3_TRACK_DATA",))
+check("Slice RETURN_NAMES", SFTrackDataSlice.RETURN_NAMES == ("track_data",))
+check("Slice DESCRIPTION 存在", isinstance(getattr(SFTrackDataSlice, "DESCRIPTION", None), str)
+      and SFTrackDataSlice.DESCRIPTION.strip() != "")
+slice_schema = SFTrackDataSlice.INPUT_TYPES()
+check("Slice track_data required SAM3_TRACK_DATA",
+      slice_schema["required"]["track_data"][0] == "SAM3_TRACK_DATA")
+check("Slice start INT 支持负值", slice_schema["required"]["start"][0] == "INT"
+      and slice_schema["required"]["start"][1].get("min", 0) < 0)
+check("Slice length INT min 0", slice_schema["required"]["length"][0] == "INT"
+      and slice_schema["required"]["length"][1].get("min") == 0)
+
 init_keys = parse_init_keys()
-for _node in ("SFTrackDataSubtract", "SFTrackDataAdd", "SFTrackDataMerge"):
+for _node in ("SFTrackDataSubtract", "SFTrackDataAdd", "SFTrackDataMerge", "SFTrackDataSlice"):
     check(f"__init__ 注册 {_node} 双字典一致",
           _node in init_keys.get("NODE_CLASS_MAPPINGS", set())
           and _node in init_keys.get("NODE_DISPLAY_NAME_MAPPINGS", set()))
@@ -470,6 +491,42 @@ check("merge 减+加保留非方形 orig_size", out_ms["orig_size"] == (4, 16))
 check("merge 减+加塌单身份", out_ms["packed_masks"].shape[1] == 1)
 
 
+# ── 3d. slice_track_data（时间维切片）──
+sl = ops.slice_track_data(td_base, 1, 1)
+check("slice 帧数", sl["n_frames"] == 1)
+check("slice packed 首维", sl["packed_masks"].shape == (1, 1, 4, 1))
+check("slice 内容等于第 1 帧", np.array_equal(numpy_unpack(_arr(sl["packed_masks"])), base[1:2]))
+check("slice 保留 orig_size", sl["orig_size"] == (4, 8))
+check("slice 保留 scores", sl["scores"] == [0.9])
+check("slice 不改原输入", td_base["n_frames"] == 2 and td_base["packed_masks"].shape[0] == 2)
+
+sl_neg = ops.slice_track_data(td_base, -1, 1)
+check("slice 负 start 取尾", np.array_equal(numpy_unpack(_arr(sl_neg["packed_masks"])), base[1:2]))
+
+sl_tail = ops.slice_track_data(td_base, -1, 0)
+check("slice 负 start + length=0 到结尾", sl_tail["n_frames"] == 1)
+
+sl_all = ops.slice_track_data(td_base, 0, 0)
+check("slice length=0 全量", sl_all["n_frames"] == 2
+      and np.array_equal(numpy_unpack(_arr(sl_all["packed_masks"])), base))
+
+sl_clip = ops.slice_track_data(td_base, 1, 99)
+check("slice 尾部截断", sl_clip["n_frames"] == 1)
+
+sl_empty = ops.slice_track_data(td_base, 5, 2)
+check("slice start 越界为空", sl_empty["n_frames"] == 0 and sl_empty["packed_masks"].shape[0] == 0)
+
+sl_under = ops.slice_track_data(td_base, -99, 1)
+check("slice 负值越界从头", np.array_equal(numpy_unpack(_arr(sl_under["packed_masks"])), base[:1]))
+
+sl_none = ops.slice_track_data({"packed_masks": None, "n_frames": 5, "orig_size": (4, 8)}, 1, 2)
+check("slice packed None 只调 n_frames", sl_none["packed_masks"] is None and sl_none["n_frames"] == 2
+      and sl_none["orig_size"] == (4, 8))
+
+sl_multi = ops.slice_track_data(td_multi, 0, 1)
+check("slice 保留对象数", sl_multi["packed_masks"].shape[1] == 2)
+
+
 # ── 4. execute 集成 ──
 node = SFTrackDataSubtract()
 res = node.execute(td_base, exclude_1=FakeTensor(ex))
@@ -521,6 +578,18 @@ try:
     check("Merge execute 非法输入抛错", False)
 except ValueError:
     check("Merge execute 非法输入抛错", True)
+
+slice_node = SFTrackDataSlice()
+res_slice = slice_node.execute(td_base, 1, 1)
+check("Slice execute 返回单元素", isinstance(res_slice, tuple) and len(res_slice) == 1)
+check("Slice execute 内容",
+      np.array_equal(numpy_unpack(_arr(res_slice[0]["packed_masks"])), base[1:2]))
+check("Slice execute 默认参数全量", slice_node.execute(td_base)[0]["n_frames"] == 2)
+try:
+    slice_node.execute({"not": "track"})
+    check("Slice execute 非法输入抛错", False)
+except ValueError:
+    check("Slice execute 非法输入抛错", True)
 
 print()
 if failures:

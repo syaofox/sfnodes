@@ -34,10 +34,12 @@ from ...sf_utils.scail2_easy import (
     REFERENCE_PACK_TYPE,
     RESOLUTION_PRESETS,
     SCAIL_COLOR_PALETTE,
+    chunk_discard_head as _chunk_discard_head,
     clamp_int as _clamp_int,
     infer_generation_size as _infer_generation_size_math,
     is_reference_pack as _is_reference_pack,
     layout_stage_entries as _layout_stage_entries,
+    normalize_external_anchor as _normalize_external_anchor,
     subject_color as _subject_color,
     target_size_for_video as _target_size_for_video_math,
     wan_frame_count_cover as _wan_frame_count_cover,
@@ -1753,6 +1755,7 @@ class SFSCAIL2SimpleVideo:
             "optional": {
                 "driving_track_data": ("SAM3_TRACK_DATA", {"tooltip": "驱动视频的 SAM3 追踪数据（replacement 模式必需；多主体 Reference Pack 也必需）"}),
                 "reference_track_data": ("SAM3_TRACK_DATA", {"tooltip": "参考图的 SAM3 追踪数据（仅单图 replacement 模式需要）"}),
+                "previous_frames": ("IMAGE", {"tooltip": "跨段锚定帧（外部分段时接上一段输出的尾部帧，如 ImageFromBatch 取 -overlap 帧）：chunk 模式下首段也会丢弃对应重叠帧实现无缝接续；不接=从本段开头生成。context_sampling 模式忽略"}),
             },
         }
 
@@ -1791,6 +1794,7 @@ class SFSCAIL2SimpleVideo:
         closed_loop: bool = False,
         driving_track_data=None,
         reference_track_data=None,
+        previous_frames=None,
     ):
         reference_is_pack = _is_reference_pack(reference_image)
         if pose_video.ndim != 4:
@@ -1932,6 +1936,7 @@ class SFSCAIL2SimpleVideo:
                 "reference_input": "reference_pack" if reference_pack is not None else "image",
                 "core": "SCAIL-2 context sampling -> SamplerCustom -> VAEDecode",
                 "context_details": context_summary,
+                "external_anchor_ignored": bool(previous_frames is not None),
             }
             return (frames.contiguous().clamp(0, 1), json.dumps(summary, indent=2))
 
@@ -1943,10 +1948,21 @@ class SFSCAIL2SimpleVideo:
             raise ValueError("chunk_frames must be larger than overlap_frames.")
         color_correction_enabled = bool(color_correction and previous_frame_count > 0)
 
+        # 外部分段锚定：本段输入若自带上一段尾部重叠帧（previous_frames），
+        # 首段也按锚帧丢弃重复帧；偏移从锚帧数起算（与内部 chunk 衔接语义一致）。
+        external_anchor = None
+        external_anchor_frames = 0
+        if previous_frames is not None:
+            if not isinstance(previous_frames, torch.Tensor) or previous_frames.ndim != 4 or previous_frames.shape[0] <= 0:
+                raise ValueError("previous_frames must be a non-empty ComfyUI IMAGE tensor.")
+            external_anchor_frames = _normalize_external_anchor(int(previous_frames.shape[0]), previous_frame_count)
+            if external_anchor_frames > 0:
+                external_anchor = previous_frames[-external_anchor_frames:].detach().contiguous()
+
         stitched = []
         chunk_summaries = []
-        previous_frames = None
-        video_frame_offset = 0
+        previous_frames = external_anchor
+        video_frame_offset = external_anchor_frames
         produced = 0
         chunk_index = 0
         max_chunks = max(1, (total_frames // max(1, chunk_frames - previous_frame_count)) + 4)
@@ -2021,7 +2037,8 @@ class SFSCAIL2SimpleVideo:
                     tiled_decode=bool(tiled_decode),
                 )
 
-            discard_head = 0 if chunk_index == 0 else min(previous_frame_count, int(decoded.shape[0]))
+            discard_target = _chunk_discard_head(chunk_index, previous_frame_count, external_anchor_frames)
+            discard_head = min(discard_target, int(decoded.shape[0]))
             current_overlap = decoded[:discard_head].contiguous() if discard_head > 0 else None
             reference_overlap = previous_frames[-discard_head:].contiguous() if previous_frames is not None and discard_head > 0 else None
             kept = decoded[discard_head:].contiguous()
@@ -2077,6 +2094,7 @@ class SFSCAIL2SimpleVideo:
             "first_chunk_frames": int(first_length),
             "chunk_frames": int(chunk_frames),
             "overlap_frames": int(previous_frame_count),
+            "external_anchor_frames": int(external_anchor_frames),
             "color_correction_enabled": bool(color_correction_enabled),
             "tiled_decode": bool(tiled_decode),
             "cfg": float(cfg),

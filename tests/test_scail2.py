@@ -1,12 +1,13 @@
 # SF SCAIL-2 后端测试（Node/Python 直接运行：python3 tests/test_scail2.py）
 # 覆盖：
 #   - sf_utils/scail2_easy.py 纯逻辑：帧数 4n+1 取整、32 对齐、Fit Video 尺寸策略、
-#     色板、多主体拼图布局候选（无 torch 依赖）
+#     色板、多主体拼图布局候选、外部分段锚帧归一/首段丢弃（无 torch 依赖）
 #   - nodes/video/scail2.py 四节点结构：CATEGORY/RETURN_TYPES/RETURN_NAMES/FUNCTION/
 #     DESCRIPTION、INPUT_TYPES 关键项、模块内双注册字典
 #   - 根 __init__.py 注册键一致（4 键各出现两次：类映射 + 显示名映射）
 # mock：torch（节点模块顶层 import torch / torch.nn.functional；方法内才用张量）
 import importlib.util
+import inspect
 import os
 import sys
 import types
@@ -69,6 +70,19 @@ assert_eq(easy.target_size_for_video(100, 100, "custom", 100, 200), (96, 192), "
 # 生成尺寸推断
 assert_eq(easy.infer_generation_size(480, 832), (832, 480), "infer size")
 
+# 外部分段锚帧归一 / 首段丢弃
+assert_eq(easy.normalize_external_anchor(0, 5), 0, "anchor 空输入")
+assert_eq(easy.normalize_external_anchor(5, 0), 0, "anchor overlap 关")
+assert_eq(easy.normalize_external_anchor(3, 5), 3, "anchor 少于上限")
+assert_eq(easy.normalize_external_anchor(9, 5), 5, "anchor 截到上限")
+assert_eq(easy.normalize_external_anchor(None, 5), 0, "anchor None")
+assert_eq(easy.chunk_discard_head(0, 5, 0), 0, "无外锚首段不丢")
+assert_eq(easy.chunk_discard_head(0, 5, 5), 5, "外锚首段丢锚帧")
+assert_eq(easy.chunk_discard_head(0, 5, 3), 3, "外锚首段丢实际锚帧数")
+assert_eq(easy.chunk_discard_head(1, 5, 0), 5, "内部衔接段丢重叠")
+assert_eq(easy.chunk_discard_head(1, 5, 5), 5, "内部衔接段丢重叠（有外锚）")
+assert_eq(easy.chunk_discard_head(2, 0, 5), 0, "overlap 关不丢")
+
 # 类型/色板
 check("is_reference_pack true", easy.is_reference_pack({"type": "SCAIL2_REFERENCE_PACK"}))
 check("is_reference_pack false", not easy.is_reference_pack({"type": "other"}))
@@ -130,6 +144,10 @@ required = simple.INPUT_TYPES()["required"]
 check("simple has mode combo", required["mode"][0] == ["replacement", "animation"])
 check("simple has long_video_mode", required["long_video_mode"][0] == ["chunk", "context_sampling"])
 check("simple optional track data", "driving_track_data" in simple.INPUT_TYPES()["optional"])
+check("simple optional previous_frames", "previous_frames" in simple.INPUT_TYPES()["optional"])
+check("simple previous_frames IMAGE 类型", simple.INPUT_TYPES()["optional"]["previous_frames"][0] == "IMAGE")
+check("simple generate 签名含 previous_frames",
+      "previous_frames" in inspect.signature(simple.generate).parameters)
 
 # 每个节点的每个输入/选项都必须带非空中文 tooltip
 for key, cls in nodes_mod.NODE_CLASS_MAPPINGS.items():
