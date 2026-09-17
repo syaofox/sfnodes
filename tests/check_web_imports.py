@@ -101,6 +101,8 @@ MODS = [
     "sf_sec_limits",
     # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）
     "sf_convert_anything",
+    # SimpleMath / SFNumber（number_type→输出槽改型，复用 any_pack.setSlotType）
+    "simple_math",
     # Any Pack / Unpack 动态槽位（导出 setSlotType 供跨模块复用）
     "any_pack",
     # Any Switch（复刻 rgthree；复用 any_pack.setSlotType/slotLinkTypes）

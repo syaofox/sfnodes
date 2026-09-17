@@ -1,27 +1,30 @@
 import { app } from "/scripts/app.js";
 import { installDynamicSlots } from "./sf_dynamic_slots.js";
+import { setSlotType } from "./any_pack.js";
 
 const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 
-// SFNumber：number_type 切换时调整 value widget 的步进/精度（INT 整数、FLOAT/PERCENT 小数）
+// SFNumber：number_type 切换时调整 value widget 的步进/精度（INT 整数、FLOAT 小数）
 // ⚠ 前端创建 widget 时会按 step 派生 step2（精调步进，修饰键拖拽用）且不随 step 联动，须一并覆盖
 const SF_NUMBER_OPTS = {
     INT: { step: 1, step2: 1, round: 1, precision: 0 },
     FLOAT: { step: 0.01, step2: 0.01, round: 0.01, precision: 2 },
-    // PERCENT 按百分数书写（输入 50 → 输出 0.5），整数步进
-    PERCENT: { step: 1, step2: 1, round: 1, precision: 0 },
 };
 
-// 切档换算：规范值 q = FLOAT 语义量（PERCENT 档显示值 = q × 100）
+// 输出槽改型：随 number_type 同步槽类型+槽名（复用 any_pack.setSlotType，patterns §41 同款）
+const SF_NUMBER_SOCKET = {
+    INT: { type: "INT", name: "int" },
+    FLOAT: { type: "FLOAT", name: "float" },
+};
+
+// 切档换算：规范值 q = FLOAT 语义量（INT 档回填取整）
 const SF_NUMBER_TO_Q = {
     INT: (v) => v,
     FLOAT: (v) => v,
-    PERCENT: (v) => v / 100,
 };
 const SF_NUMBER_FROM_Q = {
     INT: (q) => Math.round(q),
     FLOAT: (q) => q,
-    PERCENT: (q) => q * 100,
 };
 
 function findNumberWidgets(node) {
@@ -29,6 +32,12 @@ function findNumberWidgets(node) {
     const typeW = find("number_type");
     const valueW = find("value");
     return typeW && valueW ? { typeW, valueW } : null;
+}
+
+function syncOutputType(node, mode) {
+    // 输出槽类型+槽名随 number_type 同步（元素替换，Vue 渲染生效）
+    const m = SF_NUMBER_SOCKET[mode] || SF_NUMBER_SOCKET.FLOAT;
+    setSlotType(node, node.outputs, 0, m.type, { name: m.name, localized_name: m.name });
 }
 
 function applyNumberMode(node) {
@@ -40,6 +49,7 @@ function applyNumberMode(node) {
     if (w.typeW.value === "INT" && typeof w.valueW.value === "number") {
         w.valueW.value = Math.round(w.valueW.value);
     }
+    syncOutputType(node, w.typeW.value);
     if (node.setDirtyCanvas) node.setDirtyCanvas(true, true);
 }
 

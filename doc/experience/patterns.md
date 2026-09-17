@@ -209,6 +209,13 @@
 - 原 `RETURN_TYPES = ("INT","FLOAT")` 双输出改单输出 `RETURN_TYPES = (any,)` / `RETURN_NAMES = ("value",)`（复用 `sf_utils/common.py` AnyType）——输出槽类型是静态类属性不能随 number_type 运行时切换，固定 FLOAT 会接不上 INT 输入，固定 INT 丢精度，any 是唯一兼顾方案；execute 按档位返回真类型值（INT→`int`、FLOAT/PERCENT→`float`），下游类型检测仍可 `isinstance` 判断。
 - **旧工作流槽位兼容（按槽索引恢复）**：接槽 0（原 int）的链接理论可恢复（any 与 INT 兼容）；接槽 1（原 float）的链接加载时丢弃需手动重接——破裂式改动，已获确认接受。
 
+### 4. PERCENT 移除与输出槽前端改型（2026-09）
+
+- **PERCENT 档彻底移除**（用户确认）：后端 `number_type` 收窄为 `["FLOAT","INT"]`、`execute` 删 ÷100 分支；前端删 `SF_NUMBER_OPTS`/`SF_NUMBER_TO_Q`/`SF_NUMBER_FROM_Q` 的 PERCENT 行。旧工作流 `number_type=PERCENT` 会命中 ComfyUI combo 校验 "Value not in list"（`execution.py`）报错需手动重选；且 PERCENT 存量 150 原输出 1.5、现按 FLOAT 直出 150（破坏式，已接受）。
+- **输出槽类型+槽名随档改型**：`web/simple_math.js` 复用 `any_pack.js::setSlotType`（§41 同款，不内联），`SF_NUMBER_SOCKET` 映射 INT→`INT/int`、FLOAT→`FLOAT/float`，patch 含 `name`+`localized_name`（渲染读 `label ?? localized_name ?? name`）。调用点收敛在 `applyNumberMode` 一处——nodeCreated / configure / combo callback 三路径通吃；`RETURN_TYPES=(any,)` 保留（后端静态属性不能动态，前端改型仅影响渲染与连线校验）。
+- **连接校验代价**：输出变具体类型后 `INT` 档接不上 `FLOAT` 输入（前端 `LiteGraph.isValidConnection` 仅全等或 `*` 通配），与此前 item 3「any 兼顾 INT/FLOAT」的取舍相反（用户确认）。存量连线在 configure 时不会被重新校验、不断开；后端 `any` 使执行/prompt 校验不受影响。
+- 测试：`tests/test_simple_math.py` 删 PERCENT 用例 + `INPUT_TYPES` options 断言；`tests/test_number_js.js` 暂存目录加 `any_pack.js`、mock 节点补 `outputs`、三路径输出槽 type/name 断言；`tests/check_web_imports.py` MODS 加 `simple_math`（导入 any_pack 符号后纳入规则 A）。
+
 ## 41. combo→输出槽类型前端改型（SFConvert Anything，2026-09）
 
 > 背景：复刻 easy convertAnything（`nodes/logic.py::SFConvertAnything`）——任意输入按 `output_type` combo（string/int/float/boolean）转换输出。后端 `RETURN_TYPES = (any_type,)` 静态声明无法随 combo 变化，输出槽类型同步是纯前端职责（渲染槽点颜色 + 连线校验）。
