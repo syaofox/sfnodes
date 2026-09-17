@@ -296,3 +296,11 @@ SFForLoopEnd
 - 映射规则：锚帧先排序去重，遮罩顺序须与之一致；**多余丢弃**；**不足**或**该张全零**→ 该段回退 prompts/conditioning 检测（全零可作密集批次里跳过中间段的占位）；2D 单张仅首段；单段时批内只取第 1 张（多对象种子请直接用原生 `SAM3_VideoTrack`）。`ndim` 非 2/3 报错（此前会原样透传给原生 `unsqueeze(1)` 造成难查的维度错误）。
 - 实现：`masks = initial_mask`（2D→`[1,H,W]`，循环外只做一次）；每段 `candidate = masks[index:index+1]`，`bool(candidate.any())` 为假则视为未提供；种子与文本条件同时传给原生节点（原生在段首丢弃检测、用遮罩建轨，段内检测继续 recondition）。
 - 测试：批映射逐段对应/提示词仍逐行编码/不足回退/多余丢弃/全零回退/2D 升维/4D 报错；FakeTensor 需补 `.any()` 桩。
+
+### 98.7 间隔锚帧 + 提示词粘性继承（输入顺序重排，2026-09）
+
+- **anchor_interval**（required INT，0=关，紧随 `anchor_frames`）：`>0` 时锚帧 = 列表 ∪ `{0,N,2N,...<T}` 排序去重——支持「每 24 帧 + 手写补特殊帧」，`0` 时行为不变；间隔越小段数越多、开销越大。
+- **提示词粘性继承**（`_resolve_prompts(lines, count)` 纯函数）：非空行覆盖并成为当前值；**缺失行继承当前值**（单行 `person` 即全段生效，取代「`person>` 语法」提案）；**空行清空当前值**（该段回退 conditioning，保留旧语义）；行数多余忽略。
+- ⚠️ 行为变化：`"person\n"` 尾部换行被 `splitlines()` 丢弃 → 只有一行 → 现在**全段 person**（此前第二段回退 conditioning）。要显式重置回 conditioning 写 `"person\n\n"`。
+- **输入顺序重排**（用户确认不在意旧工作流位置数组兼容）：required = images/model/anchor_frames/anchor_interval；optional = initial_mask/clip/prompts/conditioning/detection_threshold/max_objects/detect_interval（分段控制 → 种子来源 → 检测参数）。已存工作流需按新槽位重排（`widgets_values` 位置数组 + 连线目标槽）。
+- 测试：`_resolve_prompts` 单行/继承/空行重置/行首为空/多余行；间隔生成/合并去重/超总帧；execute 集成（间隔切片 + 单行提示全段）；required/optional 键序断言。

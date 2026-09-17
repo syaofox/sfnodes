@@ -157,12 +157,19 @@ check("images required IMAGE", schema["required"]["images"][0] == "IMAGE")
 check("model required MODEL", schema["required"]["model"][0] == "MODEL")
 check("anchor_frames STRING default 0", schema["required"]["anchor_frames"][0] == "STRING"
       and schema["required"]["anchor_frames"][1].get("default") == "0")
+check("anchor_interval required INT default 0", schema["required"]["anchor_interval"][0] == "INT"
+      and schema["required"]["anchor_interval"][1].get("default") == 0)
 check("prompts optional multiline", schema["optional"]["prompts"][0] == "STRING"
       and schema["optional"]["prompts"][1].get("multiline") is True)
 check("initial_mask optional MASK", schema["optional"]["initial_mask"][0] == "MASK")
 check("max_objects default 1", schema["optional"]["max_objects"][0] == "INT"
       and schema["optional"]["max_objects"][1].get("default") == 1)
 check("无 initial_mask_always（已由批语义取代）", "initial_mask_always" not in schema["optional"])
+check("required 顺序：images/model/anchor_frames/anchor_interval",
+      list(schema["required"].keys()) == ["images", "model", "anchor_frames", "anchor_interval"])
+check("optional 顺序：种子来源后接检测参数",
+      list(schema["optional"].keys()) == ["initial_mask", "clip", "prompts", "conditioning",
+                                          "detection_threshold", "max_objects", "detect_interval"])
 
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as f:
     tree = ast.parse(f.read())
@@ -185,6 +192,16 @@ check("解析：空串回退 [0]", mod._parse_anchors("", 5) == [0] and mod._par
 check("解析：逗号/空格/分号 + 排序去重", mod._parse_anchors("5, 2;5\n3", 8) == [2, 3, 5])
 check("解析：提示词逐行保留空行", mod._parse_prompts("person\n\nwoman") == ["person", "", "woman"])
 check("解析：空提示词", mod._parse_prompts("") == [] and mod._parse_prompts(None) == [])
+
+# 粘性继承：非空覆盖、缺失继承、空行重置
+check("继承：单行全段生效", mod._resolve_prompts(["person"], 3) == ["person", "person", "person"])
+check("继承：缺失行继承上一行",
+      mod._resolve_prompts(["a", "b"], 4) == ["a", "b", "b", "b"])
+check("继承：空行重置后继续继承",
+      mod._resolve_prompts(["a", "", "c"], 5) == ["a", None, "c", "c", "c"])
+check("继承：行首为空则前段无值",
+      mod._resolve_prompts(["", "b"], 3) == [None, "b", "b"])
+check("继承：多余行忽略", mod._resolve_prompts(["a", "b", "c"], 2) == ["a", "b"])
 
 
 # ── 3. execute ──
@@ -290,14 +307,47 @@ try:
 except ValueError:
     check("4D 遮罩报错", True)
 
-# 空行回退 conditioning
+# 粘性继承：单行（含尾部换行，splitlines 后仅一行）→ 全段同一提示词
 calls["track"].clear()
 calls["tokens"].clear()
 res3 = node.execute(images, model="M", anchor_frames="0,4", clip=FakeClip(),
                     prompts="person\n", conditioning="COND_OBJ")
-check("首行编码", calls["track"][0]["conditioning"] == [("COND:person", {})])
-check("空行回退 conditioning", calls["track"][1]["conditioning"] == "COND_OBJ")
+check("单行提示词全段生效", calls["tokens"] == ["person", "person"]
+      and calls["track"][0]["conditioning"] == [("COND:person", {})]
+      and calls["track"][1]["conditioning"] == [("COND:person", {})])
 check("行数不足仍全长", res3[0]["n_frames"] == 8)
+
+# 空行显式重置 → 该段回退 conditioning
+calls["track"].clear()
+calls["tokens"].clear()
+node.execute(images, model="M", anchor_frames="0,4", clip=FakeClip(),
+             prompts="person\n\n", conditioning="COND_OBJ")
+check("空行重置回退 conditioning", calls["track"][0]["conditioning"] == [("COND:person", {})]
+      and calls["track"][1]["conditioning"] == "COND_OBJ")
+
+# anchor_interval：每 N 帧自动锚帧（单行提示词全段生效）
+calls["track"].clear()
+calls["tokens"].clear()
+res5 = node.execute(images, model="M", anchor_interval=4, clip=FakeClip(), prompts="person")
+check("间隔锚帧 0,4 两段", len(calls["track"]) == 2
+      and calls["track"][0]["images"].shape == (4, 4, 8, 3)
+      and calls["track"][1]["images"].shape == (4, 4, 8, 3))
+check("间隔模式单行提示全段", calls["track"][0]["conditioning"] == [("COND:person", {})]
+      and calls["track"][1]["conditioning"] == [("COND:person", {})])
+check("间隔输出全长", res5[0]["n_frames"] == 8)
+
+# anchor_interval 与列表合并去重：interval=4 + 显式 2 → 0,2,4
+calls["track"].clear()
+node.execute(images, model="M", anchor_frames="2", anchor_interval=4, conditioning="COND_OBJ")
+check("间隔与列表合并去重", len(calls["track"]) == 3
+      and calls["track"][0]["images"].shape == (2, 4, 8, 3)
+      and calls["track"][1]["images"].shape == (2, 4, 8, 3)
+      and calls["track"][2]["images"].shape == (4, 4, 8, 3))
+
+# 间隔大于总帧数 → 仅 0
+calls["track"].clear()
+node.execute(images, model="M", anchor_interval=99, conditioning="COND_OBJ")
+check("间隔超总帧仅首帧", len(calls["track"]) == 1)
 
 # 空段（第二段无检测）→ 该段补零
 calls["track"].clear()
