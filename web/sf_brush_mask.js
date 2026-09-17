@@ -35,7 +35,7 @@
 
 import { app } from "/scripts/app.js";
 import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString } from "./sf_common.js";
-import { installBrushMenu, handleSamPointer, drawSamOverlay } from "./sf_brush_ai.js";
+import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert } from "./sf_brush_ai.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
@@ -57,6 +57,7 @@ import {
   paintStrokeMask,
   paintInvertMask,
   colorTextStyle,
+  INVERT_ON_COLOR,
 } from "./sf_brush_mask_lib.js";
 
 const CLASS = "SFImageBrushMask";
@@ -160,6 +161,7 @@ function toolText(id) {
     erase: "Erase",
     clear: "Clear",
     undo: "Undo",
+    invert: "Invert",
     sizeMinus: "S−",
     sizePlus: "S+",
     opaMinus: "O−",
@@ -190,6 +192,7 @@ function buildControls() {
     w: COL_W,
     h: COL_H,
     isToggle: id === "brush" || id === "erase",
+    isInvert: id === "invert",
     isColor: id === "brushColor" ? "brush" : null,
   }));
   // 底行：Load/Browse（与信息文本同排，y 运行时解析；短文案保 MIN 320）
@@ -216,6 +219,7 @@ function buttonAction(node, id) {
   else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, -1, brushOpacityStep() / 100) });
   else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1, brushOpacityStep() / 100) });
   else if (id === "brushColor") { pickColor(node); return; }
+  else if (id === "invert") { toggleInvert(AI_CFG, node); return; }  // 状态位按钮（与右键菜单同一实现）
   else return;
   stateChanged(node);
 }
@@ -326,6 +330,8 @@ function setupDrawing(node) {
       if (b.isColor) {
         const rgb = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
         ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
+      } else if (b.isInvert && st.invert) {
+        ctx.fillStyle = INVERT_ON_COLOR;  // 反选 ON：状态色
       } else if (b.isToggle && (
         (b.id === "brush" && st.brush_mode !== "erase") ||
         (b.id === "erase" && st.brush_mode === "erase"))) {
@@ -336,8 +342,9 @@ function setupDrawing(node) {
       ctx.fillRect(bx, by, bw, bh);
       ctx.strokeStyle = "rgba(150,150,150,0.6)";
       ctx.strokeRect(bx, by, bw, bh);
-      ctx.fillStyle = b.isColor ? colorTextStyle(st.brush_color) : "rgba(220,220,220,0.9)";
-      ctx.font = b.y === BOTTOM_Y ? "11px Arial" : "10px Arial";
+      ctx.fillStyle = b.isColor ? colorTextStyle(st.brush_color)
+        : (b.isInvert && st.invert ? "rgba(255,255,255,0.95)" : "rgba(220,220,220,0.9)");
+      ctx.font = b.y === BOTTOM_Y ? "11px Arial" : (b.isInvert ? "9px Arial" : "10px Arial");
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(b.text, bx + bw / 2, by + bh / 2);

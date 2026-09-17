@@ -169,7 +169,7 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__graph._nodes.push(node);
   nodeType.prototype.onNodeCreated.call(node);
 
-  check("控件 23 项（列1 11 + 列2 10 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 23);
+  check("控件 24 项（列1 11 + 列2 11 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 24);
   check("释放兜底 hook 已装", !!node._sfCEBReleaseGuard);
   check("computeSize 钳最小值", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([360, 300]));
 
@@ -190,6 +190,16 @@ const makeState = (patch = {}) => JSON.stringify({
   check("反选开启（状态位）", JSON.parse(node.properties[STATE_PROP]).invert === true);
   menuOpts.find((o) => o.content.includes("反选")).callback();
   check("反选关闭（再点一次）", JSON.parse(node.properties[STATE_PROP]).invert === false);
+  // 面板反选按钮（列2）：点击 toggle + ON 状态色绘制
+  const invBtn2 = node._sfCEBCtrls.find((b) => b.id === "invert");
+  check("反选按钮存在（列2）", !!invBtn2 && invBtn2.isInvert === true);
+  node.onMouseDown({ button: 0, buttons: 1 }, [invBtn2.x + 15, invBtn2.y + 9]);
+  check("点按钮开启反选", JSON.parse(node.properties[STATE_PROP]).invert === true);
+  const invOps2 = [];
+  node.onDrawForeground(makeFullCtx(invOps2));
+  check("反选按钮 ON 用状态色", invOps2.some((o) => o.op === "fillRect" && o.fill === "rgba(196,124,34,0.95)"));
+  node.onMouseDown({ button: 0, buttons: 1 }, [invBtn2.x + 15, invBtn2.y + 9]);
+  check("再点按钮关闭反选", JSON.parse(node.properties[STATE_PROP]).invert === false);
 
 
   const gc = () => ({ canvas: { style: {} }, setDirty() {} });

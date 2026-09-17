@@ -45,7 +45,7 @@ import {
 } from "./sf_common.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
-import { installBrushMenu, handleSamPointer, drawSamOverlay } from "./sf_brush_ai.js";
+import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert } from "./sf_brush_ai.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
 import {
   RATIO_PRESETS_COL,
@@ -73,6 +73,7 @@ import {
   paintStrokeMask,
   paintInvertMask,
   colorTextStyle,
+  INVERT_ON_COLOR,
 } from "./sf_brush_mask_lib.js";
 import {
   LAYOUT,
@@ -227,6 +228,7 @@ function toolText(id) {
     erase: "Erase",
     clear: "Clear",
     undo: "Undo",
+    invert: "Invert",
     sizeMinus: "S−",
     sizePlus: "S+",
     opaMinus: "O−",
@@ -284,6 +286,7 @@ function buildControls() {
       id,
       text: toolText(id),
       isToggle: id === "crop" || id === "brush" || id === "erase",
+      isInvert: id === "invert",
       isColor: id === "brushColor",
     }));
   });
@@ -312,6 +315,7 @@ function buttonAction(node, id) {
   else if (id === "opaMinus") setState(node, { brush_opacity: stepOpacityFromSettings(st.brush_opacity, -1) });
   else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacityFromSettings(st.brush_opacity, +1) });
   else if (id === "brushColor") { pickColor(node); return; }
+  else if (id === "invert") { toggleInvert(AI_CFG, node); return; }  // 状态位按钮（与右键菜单同一实现）
   else return;
   stateChanged(node);
 }
@@ -416,6 +420,8 @@ function drawButtons(ctx, node, st, th, accent) {
       ctx.fillStyle = st.fill_color || "#000000";
     } else if (b.isToggle && b.id === st.brush_mode) {
       ctx.fillStyle = accent;
+    } else if (b.isInvert && st.invert) {
+      ctx.fillStyle = INVERT_ON_COLOR;  // 反选 ON：状态色
     } else if (b.isColor) {
       const rgb = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
       ctx.fillStyle = `rgba(${rgb[0] || 0},${rgb[1] || 0},${rgb[2] || 0},0.9)`;
@@ -429,9 +435,10 @@ function drawButtons(ctx, node, st, th, accent) {
 
     if (b.id === "fillColor") ctx.fillStyle = colorTextStyle(st.fill_color);
     else if (b.isColor) ctx.fillStyle = colorTextStyle(st.brush_color);
+    else if (b.isInvert && st.invert) ctx.fillStyle = "rgba(255,255,255,0.95)";
     else ctx.fillStyle = th.textStrong;
 
-    ctx.font = b.y === BOTTOM_Y ? "11px Arial" : "10px Arial";
+    ctx.font = b.y === BOTTOM_Y ? "11px Arial" : (b.isInvert ? "9px Arial" : "10px Arial");
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     let text = b.text;

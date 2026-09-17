@@ -1163,3 +1163,12 @@ slice_track_data(track_data, start=0, length=0)
   - SAM 文本：仅在 `sam.loaded=false` 时提示"首次需加载 1.7GB 模型"；
   - YOLO：模型不在 `yolo.loaded` 时提示"首次加载权重"。
 - 测试：`test_brush_mask_tools.py` 增 `person_status`（未落盘/已落盘/已驻留三态，含不触发下载语义）与 `_handle_ai_status` 汇总键断言。
+
+## 95. 反选遮罩面板按钮（状态色可视化，2026-09）
+
+> 背景：反选（Invert）此前只有右键菜单（✓ 前缀）与信息文本 "Inv" 后缀，节点面板上看不出状态。用户要求改为节点界面按钮并按状态变色。
+
+- `sf_brush_mask_lib.js`：`TOOL_COL` 在 Clear/Undo 之后插入 `invert`（画笔列 9→10 项、合体节点列2 10→11 项；两节点最小高度不变：列底 232/254 均小于既有下限 320/300）；新增 `INVERT_ON_COLOR = "rgba(196,124,34,0.95)"`（琥珀，区别于强调色 accent 的模式高亮，明暗主题都醒目）。
+- 两节点：`buildControls` 标 `isInvert`；`buttonAction` 的 `invert` 分支直接调共享 `toggleInvert(AI_CFG, node)`——与右键菜单同一实现（状态写入 + toast 单源，勿另写 toggle）；`drawButtons` ON 时琥珀底 + 白字（该钮字号 9px：30px 列宽容纳 "Invert"），OFF 常规底色与文字色。信息文本 "Inv" 后缀保留。
+- 测试：lib 测试更新 TOOL_COL 项数/顺序并断言状态色常量；两个 smoke 增「点面板按钮 toggle + ON 状态色 fillRect」断言。
+- ⚠ 教训：`TOOL_COL` 是共享列定义，增删项会整体移动后续按钮行——**测试与文档不要写死行号/项数注释**；本轮画笔 smoke 里写死的 S+ 坐标（`[25, 126+11]`）在插入 invert 后点到别行导致 3 个用例失败，已改为按控件几何解析（`_sfBrushCtrls.find(b=>b.id==="sizePlus")`）。同步检查了合体 smoke 的列2 坐标（Crop/Brush/Erase 在 invert 之前，未受影响）。

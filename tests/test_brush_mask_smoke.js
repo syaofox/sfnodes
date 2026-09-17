@@ -136,7 +136,7 @@ function makeCtx(ops) {
   node.size = [420, 320];
   node.flags = {};
   nodeType.prototype.onNodeCreated.call(node);
-  check("控件 11 项（竖列 9 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 11);
+  check("控件 12 项（竖列 10 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 12);
 
   // 跑一帧真实绘制
   const ops = [];
@@ -175,6 +175,15 @@ function makeCtx(ops) {
   // 反选 toggle（菜单回调 → 状态位 + lean 注入）
   opts.find((o) => o.content.includes("反选")).callback();
   check("反选开启（状态位）", JSON.parse(node.properties.sfBrushMaskState).invert === true);
+  // 面板反选按钮：再点一次关闭 + ON 状态色绘制
+  const invBtn = node._sfBrushCtrls.find((b) => b.id === "invert");
+  check("反选按钮存在（竖列）", !!invBtn && invBtn.isInvert === true);
+  node.onMouseDown({ button: 0, buttons: 1 }, [invBtn.x + 15, invBtn.y + 9]);
+  check("点按钮关闭反选", JSON.parse(node.properties.sfBrushMaskState).invert === false);
+  node.onMouseDown({ button: 0, buttons: 1 }, [invBtn.x + 15, invBtn.y + 9]);
+  const invOps = [];
+  node.onDrawForeground(makeCtx(invOps));
+  check("反选按钮 ON 用状态色", invOps.some((o) => o.op === "fillRect" && o.fill === "rgba(196,124,34,0.95)"));
   check("菜单项均带 callback", opts.every((o) => typeof o.callback === "function"));
 
   // SAM 点选模式：进入 → 正/负点 → Enter 执行（POST 载荷含坐标）
@@ -371,13 +380,15 @@ function makeCtx(ops) {
   globalThis.__bmExt.init();
   check("注册 SizeStep 设置项", globalThis.__bmSettingDefs["sfnodes.BrushMask.SizeStep"]?.defaultValue === 2);
   check("注册 OpacityStep 设置项", globalThis.__bmSettingDefs["sfnodes.BrushMask.OpacityStep"]?.defaultValue === 5);
-  node.onMouseDown({}, [25, 126 + 11]); // S+ 按钮中心（列顶 16 + 5×22，高 18）
+  const sizePlusBtn = node._sfBrushCtrls.find((b) => b.id === "sizePlus");
+  const clickSizePlus = () => node.onMouseDown({}, [sizePlusBtn.x + 15, sizePlusBtn.y + 9]);
+  clickSizePlus(); // S+ 按钮中心（按控件几何解析，勿写死行号）
   check("默认步长 +2", sizeOf() === 82);
   globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 5;
-  node.onMouseDown({}, [25, 126 + 11]);
+  clickSizePlus();
   check("自定义步长 +5", sizeOf() === 87);
   globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 999;
-  node.onMouseDown({}, [25, 126 + 11]);
+  clickSizePlus();
   check("非法设置回退默认", sizeOf() === 89);
   // 快捷键必须同样走设置（三路统一入口，§45.12 复修）
   globalThis.__bmSettingVals["sfnodes.BrushMask.SizeStep"] = 7;

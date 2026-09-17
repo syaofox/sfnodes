@@ -46,7 +46,7 @@ function makeCanvas(w = 10, h = 10) {
   const Brush = await import(pathToFileURL(path.join(tmpDir, "sf_brush_mask_lib.js")).href);
 
   // ── 组合布局 ──
-  check("TOOL_COL 10 项且 Crop 置顶", L.TOOL_COL.length === 10 && L.TOOL_COL[0] === "crop"
+  check("TOOL_COL 11 项且 Crop 置顶", L.TOOL_COL.length === 11 && L.TOOL_COL[0] === "crop"
     && JSON.stringify(L.TOOL_COL.slice(1)) === JSON.stringify(Brush.TOOL_COL));
   check("列1/列2 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34);
   check("TOOL_COL_X = shiftLeft + 列1宽 + 间距", L.TOOL_COL_X === L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap);

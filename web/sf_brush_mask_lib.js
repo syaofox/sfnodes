@@ -17,20 +17,26 @@
 //（Load/Browse + 信息文本）占 bottomH。
 export const LAYOUT = { shiftLeft: 10, shiftRight: 80, toolColW: 34, toolColGap: 6, bottomH: 26 };
 
-// 左侧竖列按钮（从上到下）：模式 → 破坏性操作 → 数值步进 → 取色。
+// 左侧竖列按钮（从上到下）：模式 → 破坏性操作/状态位 → 数值步进 → 取色。
 // 列按钮几何：w=30、h=18、步进 22、列顶 = shiftLeft+6（主扩展 buildControls）。
 // eraserColor 已移除（真擦除预览无红色可染，见 §45.9）。
+// invert（反选遮罩状态位）置 Clear/Undo 之后：ON 时按钮显示 INVERT_ON_COLOR，
+// 便于在节点上直接观察"输出遮罩已取反"（§95）。
 export const TOOL_COL = [
   "brush",
   "erase",
   "clear",
   "undo",
+  "invert",
   "sizeMinus",
   "sizePlus",
   "opaMinus",
   "opaPlus",
   "brushColor",
 ];
+
+// 反选按钮 ON 状态色（琥珀；区别于强调色的模式高亮，明暗主题下都醒目）
+export const INVERT_ON_COLOR = "rgba(196,124,34,0.95)";
 
 export const COL_TOP = 16;
 export const COL_W = 30;
@@ -97,7 +103,7 @@ export function stepOpacity(cur, dir, step = OPA_STEP) {
 // - 宽度：底行 Load(44)/Browse(48)（右缘 106）+ 最小文本窗 ~100（信息文本
 //   溢出时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 取整 320；
 //   推导：10（左缩进）+ 106（按钮）+ 6（间隙）+ 100（文本）+ 86（右槽区）≈ 308。
-// - 高度：竖列 9 项（列顶 16 起，步进 22，底 =16+9*22-4=210）+ 底行 26 +
+// - 高度：竖列 10 项（列顶 16 起，步进 22，底 =16+10*22-4=232）+ 底行 26 +
 //   上下边距 → 取整 320（竖列缩短后仍保持，与旧存量 size 兼容）。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
