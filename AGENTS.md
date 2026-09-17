@@ -6,6 +6,8 @@ sfnodes 是一个 ComfyUI 自定义节点包，提供图像处理、人脸操作
 
 ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，含 `comfy/`、`nodes.py` 等，**仅为源码副本**，实际运行实例为 docker 部署——以实际挂载路径为准），可用于查阅 API 和参考实现。**不要尝试在本机启动 ComfyUI 或安装运行时依赖。**
 
+**ComfyUI 前端（`comfyui-frontend-package` / `/scripts/app.js` 等）不在宿主机上**——宿主机没有 `web/` 前端源码与 `node_modules`。需查前端实现时在容器内查看：容器名 `comfyui-docker`，容器内代码位置 `/mnt/github/comfyui-docker`（如 `docker exec comfyui-docker cat /mnt/github/comfyui-docker/...`）。
+
 ## Architecture
 
 ```
@@ -16,9 +18,10 @@ sfnodes/
 ├── tools/           # 一次性脚本（extract_lora_diff.py 模型差异提 LoRA，自带 README，不进 requirements.txt）
 ├── sf_utils/        # 共享工具库（无状态纯函数为主）：image/mask 转换、lora_* 系列、resize_engine / dropdown / regional_engine / krea2_presets / disk_state / prompt_reader 等纯逻辑模块
 ├── web/             # 前端 JS Widget：sf_common.js（公共小工具/微工具 injectCSSOnce·sfToast·el·hideJsonWidget/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
-├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、CSV/字体等）
+├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、anime_char/characters/face_distance 子数据，含 CSV/字体）
 ├── tests/           # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
-└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 六主题文件）/ vibecoding.md 任务模板
+├── user/            # 用户数据目录回退占位（真源 `<ComfyUI user dir>/sfnodes`，见 user/sfnodes/README.md；仅 README 入库）
+└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 七主题文件）/ vibecoding.md 任务模板
 ```
 
 **逐文件职责与机制说明见 `doc/architecture.md`**——新增/删除文件必须同步其条目。
@@ -27,7 +30,7 @@ sfnodes/
 
 根 `__init__.py` 两字典同步注册：
 
-- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（现 171 键全部带 SF 前缀；新增一律带前缀）
+- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（现 195 键全部带 SF 前缀；新增一律带前缀）
 - `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，显示名 `"SF <Display Name>"`
 
 ```python
@@ -39,7 +42,7 @@ class SFMyNode:
     RETURN_TYPES = ("TYPE",)
     RETURN_NAMES = ("name",)
     FUNCTION = "execute"          # 执行方法名
-    CATEGORY = "sfnodes/<group>"  # 统一 sfnodes/<功能组>：face/image/mask/model/text/utils/logic/inpaint/latent
+    CATEGORY = "sfnodes/<group>"  # 统一 sfnodes/<功能组>：face/image/mask/model/text/video/utils/logic/inpaint/latent
     DESCRIPTION = "..."           # 必填
 
     def execute(self, ...):
@@ -64,7 +67,7 @@ class SFMyNode:
 ## Development Rules
 
 1. **不要启动 ComfyUI 或运行 pip install**——本机仅代码编辑环境；一次性生成工具装 `/tmp` 用，产物内联进 web/ 模块，不得进 requirements.txt
-2. 可阅读 `../..` 源码理解 API 与参考实现
+2. 可阅读 `../..` 源码理解 API 与参考实现；**前端代码不在宿主机**，查前端实现须在容器 `comfyui-docker` 的 `/mnt/github/comfyui-docker` 内查看（见 Project Overview）
 3. 新增节点同步更新根 `__init__.py` 两个注册字典
 4. 新增依赖同步 `requirements.txt`
 5. 实现类 PascalCase，注册键 `"SF"` 前缀
@@ -90,7 +93,7 @@ class SFMyNode:
 
 ## 经验摘要（不变式索引）
 
-> 完整机制与踩坑案例在 `doc/experience/` 六主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / apps，全局 § 号映射见目录内 README.md；摘要括号内 `<简称> §N` 指向对应文件章节，改动对应功能前先读该文件。
+> 完整机制与踩坑案例在 `doc/experience/` 七主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / nodes-video(video) / apps，全局 § 号映射见目录内 README.md；摘要括号内 `<简称> §N` 指向对应文件章节，改动对应功能前先读该文件。
 
 - **循环/图展开**（`nodes/logic.py`，platform §1）：execute 可返回 `{"result","expand"}` 展开动态子图，result 中 link 值 `[id,slot]` 被解析为链接目标值；**LoopEnd 已声明 OUTPUT_NODE=True（2026-09），输出悬空也会被调度执行循环**——但 WhileLoopEnd 重建收集（`_collect_output_nodes`）必须跳过 SFForLoopEnd，否则其被误当循环体内输出消费者纳入 contained → 每轮克隆再 expand 嵌套错误展开（WhileLoopEnd 自身被收集无害：explore_dependencies 已排除 + upstream 守卫去重）；隐藏输入首轮不在 prompt 中→kwargs 缺键而非 None，需默认值兜底。
 - **widget 值传后端必须先声明输入**（patterns §4 / image §11）：前端提交 prompt 前 validatePrompt 删除 schema 外输入——任何"运行时状态"输入须 Python hidden 声明 + 同名隐藏 STRING widget 走标准收集；注入只能作双保险。**勿写 addDOMWidget 的 .value**（Vue setter 回调链无限递归），读取走 getValue。
