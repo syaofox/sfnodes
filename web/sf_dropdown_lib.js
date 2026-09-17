@@ -20,7 +20,7 @@
 // index 永远是"当前分类过滤后"列表内的索引；游标（pending/cursor）同理。
 //
 // 运行游标（_sfDropdownPending/_sfDropdownCursor）只存节点内存，永不序列化：
-//   写进工作流会把每次 Run 标成 modified（Seed 陷阱，见 AGENTS.md 经验摘要）。
+//   写进工作流会把每次 Run 标成 modified（Seed 陷阱，见 doc/experience/nodes-text.md §15）。
 //
 // ==========================================================================
 
