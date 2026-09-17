@@ -1043,3 +1043,48 @@ slice_track_data(track_data, start=0, length=0)
 - `tests/test_brush_mask_smoke.js`：E 切 Eraser、B 切 Brush（大写）、输入框 / 修饰键 / 编辑器打开 / 未选中不改模式（原有 `[ ]` / 滚轮 / 去重断言不动）。
 - `tests/test_crop_expand_brush_mask_smoke.js`：E/B/C 三模式切换。
 - 两节点 DESCRIPTION 增补快捷键说明（brush：B/E + `[ ]`；合体：C/B/E + `[ ]`）。
+
+## 93. 画笔节点 AI 菜单三期：人物部位 / YOLO / 导入遮罩 / 反选（sf_brush_sam → sf_brush_ai，2026-09）
+
+> 背景：在两个画笔节点（SFImageBrushMask / SFImageCropExpandBrushMask）的右键菜单里除 SAM 外再挂 5 类能力。用户拍板：人物部位、YOLO、导入遮罩、SAM 点/框选、反选（不做形态学/复制粘贴/导出）；合体节点反选语义为「只反笔触层」；点选为多点收集后 Enter 执行；前端模块改名 sf_brush_ai.js（§91 中的 sf_brush_sam.js 即其前身，`installSamMenu` → `installBrushMenu`）。
+
+### 1. 菜单 8 项与后端路由
+
+| 菜单 | 路由 | 实现要点 |
+|---|---|---|
+| SAM 文本 | `POST …/sam` | 原有（prompt/threshold/refine） |
+| SAM 点选/框选 | 同上（payload 加 `positive_coords`/`negative_coords`/`bbox`） | core `SAM3_Detect` 已支持点/框提示，**仅点框时 `conditioning=None`**（已核实 core 走 SAM decoder 路径）；`_normalize_points/_normalize_bbox` 纯函数归一（越界丢弃、框钳制 ≥2×2、显式提供但全无效 → 400，避免静默退化成文本 "object"）；点选左键=正点、**Shift+左键=负点**（不用 Alt，见 §93.5） |
+| 人物部位 | `POST …/person_parts` | MediaPipe selfie multiclass（脸/发/身体/衣服/背景）；分割核心抽到 `sf_utils/person_mask.py`（SFPersonMask 节点改委托，**懒 import mediapipe**——旧节点顶层 import 会让全包依赖 mediapipe 才能加载） |
+| YOLO | `GET …/yolo_models` + `POST …/yolo` | 扫 `models/ultralytics/{bbox,segm}`；`ultralytics` 为**运行时可选依赖**（AGPL，不进 requirements，缺失给中文报错）；模型名白名单（单段文件名 + 在扫描清单内，防路径穿越）；bbox→矩形/椭圆用**纯 numpy**（不依赖 cv2）、segm→`masks.xy` 多边形经 PIL 填充；`.predict` 源按 BGR 约定故通道反转 |
+| 导入遮罩 | `POST …/import_mask` | 纯本地无模型无熔断：灰度 → NEAREST 缩放到**当前源图尺寸** → `mask_to_fill_strokes` |
+| 反选 | 无路由（状态位） | `invert` 进 state/lean/IS_CHANGED；后端笔刷节点 `1-笔触`、合体节点 `扩展区 ∪ (1-笔触)`（扩展区是结构性重绘区不被反选取消）；前端预览用 `paintInvertMask(srcCvs, outCvs)` 在离屏画布「白底 + destination-out 打洞」（主画布禁 destination-out 的纪律不破） |
+| 卸载 AI | `POST …/unload_all` | 清 SAM/人物/YOLO 三层缓存 + empty_cache |
+
+- 模型路由全部沿用 §91 的**忙时熔断 + 同步处理**（queue_busy() 409；同步阻塞事件循环封死入队竞态）。
+- 共享 `open_src_image`（crop.py，PIL RGB）提升：SAM/人物/YOLO/导入四处源图读取收敛；`load_src_rgb` 改为其薄包装。
+
+### 2. 前端 `web/sf_brush_ai.js`（两节点单源）
+
+- `installBrushMenu(cfg, nodeType)` 装 8 项；cfg = `{ toastTag, logTag, getState, patchState, addStrokes(node, incoming, extra), toImage, fromImage, inDisplay, displayOrigin }`——`addStrokes` 的 extra 直接展开进 state（SAM/人物/YOLO 参数记忆统一，不进 lean 注入）；坐标换算由宿主注入（笔刷节点与合体节点的 metrics/displayMin 语义不同，模块保持节点无关）。
+- 通用弹窗 `createModal({id,title,bodyHtml})` + `wireDialogKeys(inputs, apply)`（Enter 执行 / Esc 关闭 / 放行 ctrl·meta·alt；回车吞掉防上浮触发全局键位），SAM/人物/YOLO 三个弹窗共用。
+- **点/框模式状态机**：`beginSamMode(cfg,node,kind)`（模块级单活动节点，切换即取消旧的；注册 window **capture** keydown：Enter 执行 / Esc 取消 / Backspace 撤回上一点——仅激活期消费，不干扰前端 Delete 删节点与 Escape 退子图）→ 节点 `onMouseDown/Move/Up` 首部 `handleSamPointer`（点选：左键正点、Shift+左键负点；框选：拖橡皮筋松开即跑）→ `onDrawForeground` 调 `drawSamOverlay`（绿/红编号点、虚线框、顶部提示条）。控件命中优先于模式（模式激活时按钮仍可用）；模式激活时光环置空、cursor 置 crosshair。
+- 忙时：`aiBusy()`（GET sam_status.busy）预检 + 409 兜底 warn（§91 同源）。
+
+### 3. 测试
+
+- `tests/test_brush_mask_tools.py`（新，mock torch/aiohttp/folder_paths/cv2/mediapipe/ultralytics）：person_mask 纯核心（parts 归一/阈值并集/refine 二次分割/缓冲注入）；YOLO 清单扫描与白名单防穿越、`_boxes_to_mask` rect+ellipse、`_polygons_to_mask`、run_yolo bbox/segm（conf 钳制、labels、BGR）；三条模型路由忙时 409（不加载模型）与成功回笔触；导入遮罩缩放追踪；`unload_all` 清三层。
+- `tests/test_brush_mask_sam.py` 扩展：点/框委托（conditioning None）、文本+点并存、`_handle_sam` 归一/400 路径。
+- 两节点后端测试：invert 输出（笔刷全反 / 合体扩展区保留）与 IS_CHANGED（lean_key 追 `inv=`，默认键串变化已同步断言）。
+- 两个 smoke：8 项菜单、反选 toggle + 反相离屏打洞、点选（正/Shift 负点 + Enter POST 载荷 + 覆盖层绘制断言）/框选（橡皮筋 + bbox POST）；stub_api 记录调用。
+- `check_web_imports.py` MODS：`sf_brush_sam` → `sf_brush_ai`。
+
+### 4. 真机修复：mediapipe 属性名与「mock 镜像 bug」陷阱（2026-09）
+
+- 症状：人物部位菜单报 `module 'mediapipe.tasks.python.vision' has no attribute 'VisionRunningMode'`。
+- 根因：原 `nodes/face/person_mask.py` 顶层有**局部别名** `VisionRunningMode = mp.tasks.vision.RunningMode`；抽取到 `sf_utils/person_mask.py` 时把别名误当成模块属性名写成 `mp.tasks.vision.VisionRunningMode`（容器实测该属性不存在，只有 `RunningMode`）。
+- 教训：**mock 不要照抄被抽取代码的属性名**——本轮测试的 fake mediapipe 也写了 `VisionRunningMode`，于是单测全绿而真机炸（mock 与实现同错）。正确做法：mock 只暴露真实 API 的符号面（本次已把 fake 改为只提供 `RunningMode`），依赖真实名不符即失败。抽取"顶层别名"时先 grep 别名的定义来源，别按别名赋属性。
+
+### 5. 真机修复二：覆盖层不显示 + Alt 点击克隆（2026-09）
+
+- **点不显示**：`sf_crop_expand_brush_mask.js` 的覆盖层闭包用了 `imageToLocal` 但该文件**只 import 了 localToImage**——`drawSamOverlay` 抛 `ReferenceError` 中断整帧（同 §93.4 的教训：绘制期异常=节点内容整帧不画）。修法：补 import；两个 smoke 增加「模式激活时 onDrawForeground 不抛错 + arc/strokeRect/提示文本」断言（已用"去掉 import"反例验证会 FAIL——此前的 smoke 只测交互不测模式绘制，故漏网）。
+- **Alt+左键克隆节点**：前端在**派发给 `node.onMouseDown` 之前**就处理 Alt（canvas 模式 `_processPrimaryButton` 的 `alt_drag_do_clone_nodes` 分支；Vue 节点 `nodeOnPointerdown` 先 `cloneNodes` 再 `ve(e)`），宿主 handler 返回 true 也拦不到。修法：负点改用 **Shift+左键**（节点体上 Shift 无早期分支；handler 返回 true 后前端清掉该次 onClick，不影响选择）。教训：**节点画布交互的修饰键先查前端默认行为表再定**（Alt=克隆、Ctrl/Meta=加选/panning、Shift=插槽连线/加选；后两者在节点体路径可消费）。

@@ -125,6 +125,19 @@ function makeCanvas(w = 10, h = 10) {
     check("无 erase 无打洞", !cvs.ops.some((o) => o.value === "destination-out"));
   }
 
+  // ── paintInvertMask（反选预览：白底 + 打洞，仅离屏）──
+  {
+    const src = makeCanvas(20, 20);
+    const out = makeCanvas(20, 20);
+    Brush.paintInvertMask(src, out);
+    const gcos = out.ops.filter((o) => o.op === "set:globalCompositeOperation").map((o) => o.value);
+    const fillIdx = out.ops.findIndex((o) => o.op === "fillRect");
+    const holeIdx = out.ops.findIndex((o) => o.op === "drawImage");
+    check("反选白底先画", fillIdx >= 0 && holeIdx > fillIdx);
+    check("反选 destination-out 打洞并复位", gcos.includes("destination-out") && gcos[gcos.length - 1] === "source-over");
+    check("反选返回目标画布", Brush.paintInvertMask(src, out) === out);
+  }
+
   // ── drawPlaceholder / drawCropBox ──
   {
     const ops = [];

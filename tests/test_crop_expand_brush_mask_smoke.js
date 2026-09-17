@@ -88,6 +88,8 @@ const makeState = (patch = {}) => JSON.stringify({
   brush_size: 80, strokes: [], brush_opacity: 0.5,
   brush_color: "255,255,255", brush_mode: "crop",
   sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  invert: false, person_parts: [], person_confidence: 0.4, person_refine: false,
+  yolo_kind: "bbox", yolo_model: "", yolo_conf: 0.25, yolo_box_shape: "rect",
   ...patch,
 });
 
@@ -98,7 +100,7 @@ const makeState = (patch = {}) => JSON.stringify({
   // 桩模块
   fs.writeFileSync(path.join(tmpDir, "stub_app.js"), "export const app = globalThis.app;\n");
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
-    "export const api = { addEventListener() {}, fetchApi: async () => ({ ok: true, json: async () => ({}) }) };\n");
+    "export const api = { addEventListener() {}, fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => ({}) }; } };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     "export const CropAPI = { uploadSrc: async () => ({}) };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"), "export function showImageBrowser() {}\n");
@@ -131,8 +133,10 @@ const makeState = (patch = {}) => JSON.stringify({
       ['from "/scripts/app.js"', 'from "./stub_app.js"'],
       ['from "/scripts/api.js"', 'from "./stub_api.js"'],
     ]],
-    ["sf_brush_sam.js", [
+    ["sf_brush_ai.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
       ['from "/scripts/api.js"', 'from "./stub_api.js"'],
+      ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
     ]],
   ]) {
     let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
@@ -168,14 +172,24 @@ const makeState = (patch = {}) => JSON.stringify({
   check("释放兜底 hook 已装", !!node._sfCEBReleaseGuard);
   check("computeSize 钳最小值", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([360, 300]));
 
-  // 右键菜单（sf_brush_sam 共享安装器）
+  // 右键菜单（sf_brush_ai 共享安装器）
   const menuOpts = [];
   node.getExtraMenuOptions({}, menuOpts);
-  check("菜单有 SAM 蒙版项", menuOpts.some((o) => o.content.includes("SAM 蒙版")));
-  check("菜单有卸载 SAM 项", menuOpts.some((o) => o.content.includes("卸载 SAM")));
-  check("菜单仅两项", menuOpts.length === 2);
+  const menuText = menuOpts.map((o) => o.content).join("|");
+  check("菜单 8 项", menuOpts.length === 8);
+  check("菜单有 SAM 文本/点选/框选", menuText.includes("SAM 蒙版") && menuText.includes("点选") && menuText.includes("框选"));
+  check("菜单有人物部位/YOLO/导入", menuText.includes("人物部位") && menuText.includes("YOLO") && menuText.includes("导入遮罩"));
+  check("菜单有反选/卸载 AI", menuText.includes("反选") && menuText.includes("卸载 AI"));
   const st0 = JSON.parse(node.properties[STATE_PROP]);
-  check("SAM 记忆字段默认齐全", st0.sam_prompt === "" && st0.sam_threshold === 0.5 && st0.sam_refine === 2);
+  check("菜单参数记忆字段默认齐全", st0.sam_prompt === "" && st0.sam_threshold === 0.5 && st0.sam_refine === 2
+    && st0.invert === false && st0.yolo_kind === "bbox");
+
+  // 反选 toggle（菜单回调 → 状态位；合体节点语义 = 扩展区 ∪ (1 - 笔触)）
+  menuOpts.find((o) => o.content.includes("反选")).callback();
+  check("反选开启（状态位）", JSON.parse(node.properties[STATE_PROP]).invert === true);
+  menuOpts.find((o) => o.content.includes("反选")).callback();
+  check("反选关闭（再点一次）", JSON.parse(node.properties[STATE_PROP]).invert === false);
+
 
   const gc = () => ({ canvas: { style: {} }, setDirty() {} });
   const state = () => JSON.parse(node.properties[STATE_PROP]);
@@ -297,6 +311,39 @@ const makeState = (patch = {}) => JSON.stringify({
   nodeType.prototype.onRemoved.call(node);
   check("onRemoved 解绑释放监听", node._sfCEBReleaseGuard === null
     && winListeners.filter((l) => l.type === "mouseup").length === 0);
+
+
+  // SAM 框选模式：进入 → 拖框 → 松开执行（POST 载荷含 bbox）
+  node.properties[STATE_PROP] = makeState({ src_path: "sfnodes_crop/x.png", brush_mode: "brush" });
+  globalThis.__apiCalls = [];
+  menuOpts.find((o) => o.content.includes("框选")).callback();
+  check("进入框选模式", !!node._sfAiSam && node._sfAiSam.kind === "box");
+  node.onMouseDown({ button: 0, buttons: 1 }, [100, 60]);
+  node.onMouseMove({ buttons: 1 }, [140, 100], { canvas: { style: {} }, setDirty() {} });
+  check("框选记录橡皮筋", !!node._sfAiSam.box && node._sfAiSam.box.x2 > node._sfAiSam.box.x1);
+  // 覆盖层绘制：虚线框 + 提示条，不抛错（曾缺 imageToLocal import → 整帧中断）
+  const boxOps = [];
+  let boxDrawErr = null;
+  try { node.onDrawForeground(makeFullCtx(boxOps)); } catch (e) { boxDrawErr = e; }
+  check("框选覆盖层绘制不抛错", boxDrawErr === null);
+  check("框选画虚线框", boxOps.some((o) => o.op === "strokeRect"));
+  check("框选提示条文本", boxOps.some((o) => o.op === "fillText" && String(o.args[0]).includes("框选")));
+  node.onMouseUp({}, [], { canvas: { style: {} }, setDirty() {} });
+  check("松开退出模式", node._sfAiSam == null);
+  await new Promise((r) => setTimeout(r, 20));
+  const boxCall = (globalThis.__apiCalls || []).find((c) => c.url.includes("/brush_mask/sam") && c.body);
+  const boxBody = boxCall ? JSON.parse(boxCall.body) : null;
+  check("框选 POST 含 bbox", !!boxBody && Array.isArray(boxBody.bbox) && boxBody.bbox.length === 4);
+
+  // 反选预览：源图区白底打洞（离屏 destination-out）
+  node.properties[STATE_PROP] = makeState({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 20, invert: true,
+    strokes: [{ mode: "brush", size: 20, points: [[10, 10]] }],
+  });
+  const beforeInv = createdCanvases.length;
+  node.onDrawForeground(makeFullCtx([]));
+  const newCvs = createdCanvases.slice(beforeInv);
+  check("反选新建离屏画布并打洞", newCvs.some((c) => c.ops.some((o) => o.op === "set:globalCompositeOperation" && o.value === "destination-out")));
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

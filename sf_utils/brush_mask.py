@@ -198,9 +198,9 @@ def lean_key(meta):
     """Stable cache key over result-affecting fields only (strokes + source).
 
     原 ``nodes/image/brush_mask.py::_lean_key`` 提升为公共实现（SFImageBrushMask
-    与 SFImageCropExpandBrushMask 共用）。预览字段（opacity/color/mode）故意排除
+    与 SFImageCropExpandBrushMask 共用）。    预览字段（opacity/color/mode/算法参数记忆）故意排除
     ——改预览不重跑（text §6 lean 注入先例）。SAM 结果即 fill 笔触（strokes 内），
-    无额外键。非法输入回退默认，保证键始终是字符串。
+    无额外键。invert（反选）影响输出，进键。非法输入回退默认，键始终是字符串。
     """
     if not isinstance(meta, dict):
         meta = {}
@@ -213,7 +213,9 @@ def lean_key(meta):
         brush_size = int(float(meta.get("brush_size", 80)))
     except Exception:
         brush_size = 80
-    return f"{meta.get('src_path', '')}|{meta.get('src_w', '')}|{meta.get('src_h', '')}|{brush_size}|{strokes_key}"
+    inv = "1" if meta.get("invert") else "0"
+    return (f"{meta.get('src_path', '')}|{meta.get('src_w', '')}|{meta.get('src_h', '')}"
+            f"|{brush_size}|{strokes_key}|inv={inv}")
 
 
 def _fill_polygon(mask, pts):

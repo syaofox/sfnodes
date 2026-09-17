@@ -40,8 +40,8 @@ MODS = [
     # Crop Expand Brush Mask（两节点合体：组合布局 + 源图链路/比例弹窗/画笔工具共享）
     "sf_crop_expand_brush_mask", "sf_crop_expand_brush_mask_lib",
     "sf_crop_source", "sf_crop_expand_ratios", "sf_brush_tools",
-    # SAM 右键图层共享 UI（brush 两节点：菜单/对话框/忙时熔断预检）
-    "sf_brush_sam",
+    # AI/工具右键菜单共享 UI（brush 两节点：SAM/人物/YOLO/导入/反选/卸载）
+    "sf_brush_ai",
     # Inpaint 家族
     "sf_inpaint", "sf_inpaint_core", "sf_inpaint_geometry",
     "sf_inpaint_paint", "sf_inpaint_render",

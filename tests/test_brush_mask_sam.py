@@ -176,13 +176,15 @@ class _FakeSAM3Detect:
     mask = None  # 测试按需注入 (H, W) float32，None 则用中央块
 
     @classmethod
-    def execute(cls, model, image, conditioning=None, threshold=0.5,
+    def execute(cls, model, image, conditioning=None, bboxes=None,
+                positive_coords=None, negative_coords=None, threshold=0.5,
                 refine_iterations=2, individual_masks=False):
         _FakeSAM3Detect.last = {
             "model": model, "threshold": threshold,
             "refine_iterations": refine_iterations,
             "individual_masks": individual_masks,
             "cond": conditioning, "image_shape": tuple(np.asarray(image).shape),
+            "bboxes": bboxes, "positive_coords": positive_coords, "negative_coords": negative_coords,
             "hook_during_run": sys.modules["comfy.utils"].PROGRESS_BAR_HOOK,
         }
         h, w = np.asarray(image).shape[1:3]
@@ -309,6 +311,18 @@ check("返回中央块遮罩", mask.shape == (8, 6) and mask[4, 3] == 1.0 and ma
 check("推理期 hook 置空", _FakeSAM3Detect.last["hook_during_run"] is None)
 check("hook 事后还原", sys.modules["comfy.utils"].PROGRESS_BAR_HOOK == "ORIG_HOOK")
 
+# ── run_sam_mask 点/框提示（conditioning=None 走 SAM decoder 路径）──
+sam.run_sam_mask(img, "", 0.5, 2, positive_coords='[{"x": 3, "y": 4}]')
+check("仅点提示 conditioning=None", _FakeSAM3Detect.last["cond"] is None)
+check("点提示透传", _FakeSAM3Detect.last["positive_coords"] == '[{"x": 3, "y": 4}]'
+      and _FakeSAM3Detect.last["negative_coords"] is None)
+sam.run_sam_mask(img, "person", 0.5, 2, positive_coords='[{"x": 3, "y": 4}]')
+check("文本+点并存", _FakeSAM3Detect.last["cond"] is not None
+      and _FakeSAM3Detect.last["positive_coords"] == '[{"x": 3, "y": 4}]')
+sam.run_sam_mask(img, "", 0.5, 2, bbox={"x": 1, "y": 2, "width": 3, "height": 4})
+check("框提示透传", _FakeSAM3Detect.last["bboxes"] == {"x": 1, "y": 2, "width": 3, "height": 4})
+check("空提示回退 object", (sam.run_sam_mask(img, ""), _FakeCLIPTextEncode.last["text"] == "object")[1])
+
 # ── mask_to_fill_strokes（cv2 行为桩）──
 box = np.array([[[1, 1]], [[4, 1]], [[4, 3]], [[1, 3]]])  # 3×2 矩形，面积 6
 cv2.boxes = [box]
@@ -404,6 +418,31 @@ state = json.dumps({
 arr = np.asarray(node.execute(SFBrushMaskJson=state)[1])[0]
 check("fill 块内白", arr[2, 2] == 1.0)
 check("fill 块外黑", arr[0, 0] == 0.0 and arr[4, 5] == 0.0)
+
+# ── _handle_sam 点/框归一 ──
+code, payload = sam._handle_sam({
+    "src_path": "sfnodes_crop/crop_src_samx.png",
+    "positive_coords": [{"x": 1, "y": 2}, {"x": 99, "y": 99}, "bad"],
+    "threshold": 0.5,
+}, busy=False)
+check("点提示归一（越界/非法丢弃）", code == 200
+      and _FakeSAM3Detect.last["positive_coords"] == '[{"x": 1, "y": 2}]')
+code, payload = sam._handle_sam({
+    "src_path": "sfnodes_crop/crop_src_samx.png",
+    "positive_coords": [{"x": -5, "y": 0}],
+}, busy=False)
+check("点全越界 400", code == 400 and "点提示无效" in payload.get("error", ""))
+code, payload = sam._handle_sam({
+    "src_path": "sfnodes_crop/crop_src_samx.png",
+    "bbox": [4, 3, 1, 0],
+}, busy=False)
+check("框提示列表归一为 dict", code == 200
+      and _FakeSAM3Detect.last["bboxes"] == {"x": 1, "y": 0, "width": 3, "height": 3})
+code, payload = sam._handle_sam({
+    "src_path": "sfnodes_crop/crop_src_samx.png",
+    "bbox": [1, 1, 2, 2],
+}, busy=False)
+check("框过小 400", code == 400 and "框提示无效" in payload.get("error", ""))
 
 # ── 结果 ──
 print()

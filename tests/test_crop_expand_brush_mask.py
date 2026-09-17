@@ -252,7 +252,23 @@ key_d = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=json
 }))
 check("IS_CHANGED 预览字段不进键", key_a == key_d)
 key_e = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson="{}")
-check("IS_CHANGED 无源返回状态键", key_e == "0:0:512:512:|" + "|||80|[]")
+check("IS_CHANGED 无源返回状态键", key_e == "0:0:512:512:|" + "|||80|[]|inv=0")
+
+# 反选：合体节点 = 扩展区 ∪ (1 - 笔触)，扩展区不被反选取消
+state_inv = json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
+    "fill_color": "#0000ff", "brush_size": 2,
+    "invert": True,
+    "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+})
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_inv)
+mi = np.asarray(mask_t)
+check("反选：交集内非笔触点变白", mi[0, 2, 3] == 1.0)
+check("反选：笔触点变黑", mi[0, 4, 4] == 0.0)
+check("反选：扩展区仍白", np.allclose(mi[0, 0:2, :], 1.0))
+key_inv = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=state_inv)
+check("反选进 IS_CHANGED 键", key_inv != key_a)
 
 # 结果
 print()

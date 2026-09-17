@@ -89,9 +89,11 @@ function makeCtx(ops) {
       ['from "./sf_common.js"', 'from "./stub_common.js"'],
     ]],
     ["sf_pause_text_lib.js", "sf_pause_text_lib.js", []],
-    ["sf_brush_sam.js", "sf_brush_sam.js", [
+    ["sf_brush_ai.js", "sf_brush_ai.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
       ['from "/scripts/api.js"', 'from "./stub_api.js"'],
       ['from "./sf_common.js"', 'from "./stub_common.js"'],
+      ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
     ]],
   ]) {
     let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
@@ -101,7 +103,7 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     `export function showImageBrowser() {}\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
-    `export const api = { fetchApi: async () => ({ ok: true, json: async () => ({}) }) };\n`);
+    `export const api = { fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => ({}) }; } };\n`);
   // 纯库用真实实现
   fs.copyFileSync(path.join(webDir, "sf_brush_mask_lib.js"), path.join(tmpDir, "sf_brush_mask_lib.js"));
   fs.copyFileSync(path.join(webDir, "sf_canvas_align_lib.js"), path.join(tmpDir, "sf_canvas_align_lib.js"));
@@ -163,9 +165,61 @@ function makeCtx(ops) {
 
   const opts = [];
   node.getExtraMenuOptions({}, opts);
-  check("菜单有 SAM 蒙版项", opts.some((o) => o.content.includes("SAM 蒙版")));
-  check("菜单有卸载 SAM 项", opts.some((o) => o.content.includes("卸载 SAM")));
-  check("菜单仅两项（无覆盖层清除项）", opts.length === 2);
+  const menuText = opts.map((o) => o.content).join("|");
+  check("菜单 8 项", opts.length === 8);
+  check("菜单有 SAM 文本项", menuText.includes("SAM 蒙版"));
+  check("菜单有点选/框选", menuText.includes("点选") && menuText.includes("框选"));
+  check("菜单有人物部位/YOLO/导入", menuText.includes("人物部位") && menuText.includes("YOLO") && menuText.includes("导入遮罩"));
+  check("菜单有反选/卸载 AI", menuText.includes("反选") && menuText.includes("卸载 AI"));
+
+  // 反选 toggle（菜单回调 → 状态位 + lean 注入）
+  opts.find((o) => o.content.includes("反选")).callback();
+  check("反选开启（状态位）", JSON.parse(node.properties.sfBrushMaskState).invert === true);
+  check("菜单项均带 callback", opts.every((o) => typeof o.callback === "function"));
+
+  // SAM 点选模式：进入 → 正/负点 → Enter 执行（POST 载荷含坐标）
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "sfnodes_crop/x.png", src_w: 100, src_h: 100, brush_size: 80,
+    strokes: [], brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  globalThis.__apiCalls = [];
+  opts.find((o) => o.content.includes("点选")).callback();
+  check("进入点选模式", !!node._sfAiSam && node._sfAiSam.kind === "point");
+  const modePanelClick = node.onMouseDown({ button: 0, buttons: 1 }, [25, 25]); // Brush 模式按钮
+  check("点选模式仍可点控件列", modePanelClick === true && node._sfAiSam.pos.length === 0);
+  node.onMouseDown({ button: 0, buttons: 1 }, [150, 100]);
+  node.onMouseDown({ button: 0, buttons: 1, shiftKey: true }, [170, 110]);
+  check("点选记录正/负点（Shift 负点）", node._sfAiSam.pos.length === 1 && node._sfAiSam.neg.length === 1);
+  // 覆盖层绘制：点/提示必须画出来且不抛错（曾缺 imageToLocal import → 整帧中断）
+  const samOps = [];
+  let samDrawErr = null;
+  try { node.onDrawForeground(makeCtx(samOps)); } catch (e) { samDrawErr = e; }
+  check("点选覆盖层绘制不抛错", samDrawErr === null);
+  check("点选画在图上（arc ×2）", samOps.filter((o) => o.op === "arc").length >= 2);
+  check("点选提示条文本", samOps.some((o) => o.op === "fillText" && String(o.args[0]).includes("Shift")))
+  for (const fn of (globalThis.__bmKeys.keydown || [])) {
+    fn({ key: "Enter", timeStamp: Date.now() + Math.random(), ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {} });
+  }
+  check("Enter 退出模式", node._sfAiSam == null);
+  await new Promise((r) => setTimeout(r, 20));
+  const postCall = (globalThis.__apiCalls || []).find((c) => c.url.includes("/brush_mask/sam") && c.body);
+  const postBody = postCall ? JSON.parse(postCall.body) : null;
+  check("点选 POST 含正/负点", !!postBody && JSON.parse(postBody.positive_coords).length === 1
+    && JSON.parse(postBody.negative_coords).length === 1);
+
+  // 反选预览：白底打洞（paintInvertMask 在离屏画布 destination-out）
+  node.properties.sfBrushMaskState = JSON.stringify({
+    src_path: "", src_w: 100, src_h: 100, brush_size: 80, invert: true,
+    strokes: [{ mode: "brush", size: 20, points: [[10, 10]] }],
+    brush_opacity: 0.5, brush_color: "255,255,255", brush_mode: "brush",
+    sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
+  });
+  const beforeInv = createdCanvases.length;
+  node.onDrawForeground(makeCtx([]));
+  const newCvs = createdCanvases.slice(beforeInv);
+  check("反选新建离屏画布并打洞", newCvs.length >= 1
+    && newCvs.some((c) => c.ops.some((o) => o.op === "set:globalCompositeOperation" && o.value === "destination-out")));
 
   // fill 笔触绘制：整体填充闭合多边形（SAM 并入，§45.9）
   node.properties.sfBrushMaskState = JSON.stringify({
@@ -178,7 +232,7 @@ function makeCtx(ops) {
   const ops2 = [];
   node.onDrawForeground(makeCtx(ops2));
   // fill 画在离屏遮罩画布上（不透明白），不透明度在贴回时统一施加
-  const fillCvs = createdCanvases[createdCanvases.length - 1];
+  const fillCvs = node._sfMaskCvs; // 离屏遮罩画布（避免被后续新建画布干扰索引）
   const fills = fillCvs ? fillCvs.ops.filter((o) => o.op === "fill") : [];
   check("fill 笔触触发填充", fills.length >= 1);
   check("fill 用画笔色不透明", fills.some((o) => o.fill === "rgba(255,255,255,1)"));

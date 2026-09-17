@@ -35,6 +35,7 @@ from ...sf_utils.common import parse_json_dict as _parse_state  # 隐藏状态�
 from .crop import _safe_join
 from .crop import load_src_rgb
 from . import brush_mask_sam  # noqa: F401  # 副作用注册 /api/sfnodes/brush_mask/* 路由
+from . import brush_mask_tools  # noqa: F401  # 人物部位/YOLO/导入遮罩/统一卸载路由
 
 _CATEGORY = "sfnodes/image"
 
@@ -49,11 +50,14 @@ class SFImageBrushMask:
         "撤销上一笔。选中节点时快捷键：B 切 Brush、E 切 Eraser、[ ] 调节笔刷尺寸。\n\n"
         "Size 步进（S±，可悬停滚轮快调）调节笔刷直径；Opacity 与取色仅改变预览叠加的透明度/颜色，"
         "不影响输出（输出遮罩恒为二值）。\n\n"
-        "右键菜单可用文本 prompt 跑 SAM 分割（核心 SAM3_Detect，需 "
-        "models/checkpoints/sam3.1_multiplex_fp16.safetensors），结果转为填充"
-        "笔触并入列表统一管理（可擦除/撤销/清除）；多人用 person:3（:N 为每类"
-        "最多检出数），多类用逗号分隔。工作流执行期间菜单不可用（避免与运行时"
-        "模型加载并发冲突），请等任务结束再试。\n\n"
+        "右键菜单：SAM 文本/点选/框选分割（核心 SAM3_Detect，需 "
+        "models/checkpoints/sam3.1_multiplex_fp16.safetensors；点选左键=正点、"
+        "Shift+左键=负点、Enter 执行）、人物部位遮罩（MediaPipe：脸/发/身体/衣服/"
+        "背景）、YOLO 检测/分割（models/ultralytics/{bbox,segm} 权重，需已装 "
+        "ultralytics）、导入遮罩文件为笔触、反选遮罩（输出取反），结果均转为"
+        "填充笔触并入列表统一管理（可擦除/撤销/清除）。多人用 person:3（:N 为"
+        "每类最多检出数），多类用逗号分隔。工作流执行期间模型类菜单不可用"
+        "（避免与运行时模型加载并发冲突），请等任务结束再试。\n\n"
         "图片持久化到 input/sfnodes_crop/，工作流保存/重载/刷新不丢图。输出 "
         "原图、遮罩、宽、高，以及 filename——源图在 input 目录下的存储路径"
         "（可直连 LoadImage，未加载时为空串）。"
@@ -123,5 +127,7 @@ class SFImageBrushMask:
                  "strokes": meta.get("strokes", [])}
         strokes = parse_state_strokes(state, brush_default)
         mask_arr = rasterize_strokes(strokes, sw, sh)
+        if meta.get("invert"):
+            mask_arr = 1.0 - mask_arr  # 反选：笔触层取反（空笔触 → 全白）
         mask = torch.from_numpy(mask_arr)[None,]  # [1, H, W]
         return (image, mask, sw, sh, src_path)

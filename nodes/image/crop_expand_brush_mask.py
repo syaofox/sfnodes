@@ -24,6 +24,7 @@ mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区结构
 
 import os
 
+import numpy as np
 import torch
 
 from ...sf_utils.brush_mask import lean_key as _brush_lean_key
@@ -55,10 +56,14 @@ class SFImageCropExpandBrushMask:
         "（扩展区填充色）。右列：Crop/Brush/Erase 模式切换、Clear 清空与 Undo "
         "撤销笔触、笔刷 Size± 与预览 Opa± 步进（悬停滚轮快调；选中节点时 "
         "C/B/E 快捷键切模式、[ ] 调尺寸）、BCol 笔刷取色。\n\n"
-        "右键菜单可用文本 prompt 跑 SAM 分割（核心 SAM3_Detect，需 "
-        "models/checkpoints/sam3.1_multiplex_fp16.safetensors），结果转为填充"
-        "笔触并入列表统一管理（可擦除/撤销/清除）。工作流执行期间菜单不可用"
-        "（避免与运行时模型加载并发冲突），请等任务结束再试。\n\n"
+        "右键菜单：SAM 文本/点选/框选分割（核心 SAM3_Detect，需 "
+        "models/checkpoints/sam3.1_multiplex_fp16.safetensors；点选左键=正点、"
+        "Shift+左键=负点、Enter 执行）、人物部位遮罩（MediaPipe）、YOLO 检测/分割"
+        "（models/ultralytics/{bbox,segm} 权重，需已装 ultralytics）、导入遮罩"
+        "文件为笔触、反选遮罩。反选只作用于笔触层：mask = 扩展区 ∪ (1 - 笔触)，"
+        "扩展区始终保留重绘。结果均转为填充笔触并入列表统一管理（可擦除/撤销/"
+        "清除）。工作流执行期间模型类菜单不可用（避免与运行时模型加载并发冲突），"
+        "请等任务结束再试。\n\n"
         "mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）——笔触以源图坐标记录并"
         "随图移动，只有落在裁剪框内的部分进入输出；Erase 只擦除笔触，扩展区"
         "始终保留（外绘掩码直接可用）。\n\n"
@@ -133,6 +138,11 @@ class SFImageCropExpandBrushMask:
                 overlay = rasterize_strokes(strokes, sw, sh)
 
         img_arr, mask_arr = _compose_expand(src, x, y, w, h, fill_rgb, overlay)
+        if meta.get("invert"):
+            # 反选只作用于笔触层：扩展区 ∪ (1 - 笔触)——扩展区是结构性重绘区，
+            # 不被反选取消（仅笔刷节点是纯 1 - 笔触）
+            _, ext_mask = _compose_expand(src, x, y, w, h, fill_rgb, None)
+            mask_arr = np.maximum(ext_mask, 1.0 - mask_arr)
 
         image = torch.from_numpy(img_arr)[None,]   # [1, H, W, 3]
         mask = torch.from_numpy(mask_arr)[None,]   # [1, H, W]

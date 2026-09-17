@@ -22,8 +22,9 @@
 //   - 组合布局：sf_crop_expand_brush_mask_lib.js
 //   - 源图链路：sf_crop_source.js（Load/Browse/拖放/Ctrl+V → input/sfnodes_crop/）
 //   - 比例预设弹窗：sf_crop_expand_ratios.js
-//   - SAM 右键菜单：sf_brush_sam.js（与 SFImageBrushMask 单源；工作流执行
-//     期间后端 409 熔断，见 experience/nodes-image.md §91）
+//   - AI/工具右键菜单：sf_brush_ai.js（与 SFImageBrushMask 单源：SAM 文本/
+//     点选/框选、人物部位、YOLO、导入遮罩、反选、统一卸载；工作流执行期间
+//     后端 409 熔断，见 experience/nodes-image.md §91·§93）
 //   - 画笔步长设置/[ ]/滚轮：sf_brush_tools.js
 //   - 图索引：sf_pause_kit.js（buildClassNodeIndex/findNodeByPromptId 单源）
 //   - 释放兜底/cursor 补丁：sf_common.js
@@ -44,12 +45,13 @@ import {
 } from "./sf_common.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
-import { installSamMenu } from "./sf_brush_sam.js";
+import { installBrushMenu, handleSamPointer, drawSamOverlay } from "./sf_brush_ai.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
 import {
   RATIO_PRESETS_COL,
   ratioFromAspect,
   localToImage,
+  imageToLocal,
   getHandleAtPoint,
   getCursorForHandle,
   updateCropByDrag,
@@ -69,6 +71,7 @@ import {
   stepBrushSize,
   stepOpacity,
   paintStrokeMask,
+  paintInvertMask,
   colorTextStyle,
 } from "./sf_brush_mask_lib.js";
 import {
@@ -102,10 +105,19 @@ const DEFAULT_STATE = {
   brush_opacity: 0.5,
   brush_color: "255,255,255",
   brush_mode: "crop", // crop | brush | erase（三模式单选）
-  // SAM 对话框记忆（不进 lean 注入；SAM 结果即 fill 笔触进 strokes）
+  // 反选（影响输出 → 进 lean 注入；合体节点语义 = 扩展区 ∪ (1 - 笔触)）：
+  invert: false,
+  // 菜单参数记忆（不进 lean 注入；结果均以 fill 笔触进 strokes）
   sam_prompt: "",
   sam_threshold: 0.5,
   sam_refine: 2,
+  person_parts: [],
+  person_confidence: 0.4,
+  person_refine: false,
+  yolo_kind: "bbox",
+  yolo_model: "",
+  yolo_conf: 0.25,
+  yolo_box_shape: "rect",
 };
 
 // ── 状态读写 ──────────────────────────────────────────────────────────────
@@ -142,6 +154,7 @@ function leanState(st) {
     fill_color: st.fill_color || "#000000",
     brush_size: st.brush_size || 80,
     strokes: Array.isArray(st.strokes) ? st.strokes : [],
+    invert: !!st.invert,
   };
 }
 
@@ -168,21 +181,35 @@ const SOURCE_CFG = {
   },
 };
 
-// ── SAM 右键图层（共享 UI：sf_brush_sam.js，后端 brush_mask_sam.py）──────
-// fill 笔触并入统一列表；sam_* 为对话框记忆字段（不进 lean 注入）。
-const SAM_CFG = {
+// ── AI/工具右键菜单（共享 UI：sf_brush_ai.js；后端 brush_mask_sam/tools.py）──
+// fill 笔触并入统一列表；extra 为菜单参数记忆字段（不进 lean 注入）；
+// 点/框模式经本 cfg 的坐标换算接入节点画布（含裁剪框出界偏移）。
+const AI_CFG = {
   toastTag: "SF Crop Expand Brush Mask",
   logTag: "[SF Crop Expand Brush Mask]",
   getState,
-  addStrokes: (node, incoming, meta) => {
+  patchState: (node, patch) => {
+    setState(node, patch);
+    stateChanged(node);
+  },
+  addStrokes: (node, incoming, extra) => {
     const st = getState(node);
     setState(node, {
       strokes: incoming && incoming.length ? [...st.strokes, ...incoming] : st.strokes,
-      sam_prompt: meta.prompt,
-      sam_threshold: meta.threshold,
-      sam_refine: meta.refine,
+      ...(extra || {}),
     });
     stateChanged(node);
+  },
+  toImage: (node, lx, ly) => localToImage(lx, ly, metricsOf(node, null)),
+  fromImage: (node, x, y) => imageToLocal(x, y, metricsOf(node, null)),
+  inDisplay: (node, lx, ly) => {
+    const m = metricsOf(node, null);
+    return lx >= m.offsetX && lx <= m.offsetX + m.scaledDisplayWidth &&
+      ly >= m.offsetY && ly <= m.offsetY + m.scaledDisplayHeight;
+  },
+  displayOrigin: (node) => {
+    const m = metricsOf(node, null);
+    return { x: m.offsetX, y: m.offsetY };
   },
 };
 
@@ -508,10 +535,11 @@ function setupDrawing(node) {
           ? { mode: st.brush_mode === "erase" ? "erase" : "brush", size: st.brush_size, points: node._sfCEBCur }
           : null,
       });
+      const compositeCvs = st.invert ? invertComposite(node, maskCvs) : maskCvs;
       ctx.save();
       ctx.globalAlpha = st.brush_opacity;
       try {
-        ctx.drawImage(maskCvs, srcX, srcY, srcW, srcH);
+        ctx.drawImage(compositeCvs, srcX, srcY, srcW, srcH);
       } catch (e) {
         console.error("[SF Crop Expand Brush Mask] draw mask composite failed:", e);
       }
@@ -547,7 +575,7 @@ function setupDrawing(node) {
 
     // 笔刷光环：悬停显示区时显示实际笔刷直径（BrushMask 同款语义；离开节点
     // 后靠 canvas.node_over 门控隐藏）
-    const cursor = node._sfCEBCursor;
+    const cursor = node._sfAiSam ? null : node._sfCEBCursor;
     const hovering = !app.canvas || app.canvas.node_over === node;
     if (cursor && hovering && (st.brush_mode === "brush" || st.brush_mode === "erase")) {
       const isErase = st.brush_mode === "erase";
@@ -572,13 +600,16 @@ function setupDrawing(node) {
       ctx.restore();
     }
 
+    // SAM 点选/框选覆盖层（点/橡皮筋/提示条）
+    drawSamOverlay(node, ctx, (x, y) => imageToLocal(x, y, m), { x: m.offsetX, y: m.offsetY });
+
     // 信息文本（与底行按钮同排，右对齐到输出槽区前；空间不足时截断 "…"）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
     ctx.textAlign = "right";
     const ext = isExtended(rect, st.src_w, st.src_h) ? " (Extended)" : "";
     const fullText = `Src: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}` +
-      ` | Brush: ${Math.round(st.brush_size)} | Strokes: ${st.strokes.length}`;
+      ` | Brush: ${Math.round(st.brush_size)} | Strokes: ${st.strokes.length}${st.invert ? " | Inv" : ""}`;
     const maxTextW = nodeW - shiftRight - 6 - (106 + 6); // 底行按钮右缘 106 + 间隙 6
     let label = fullText;
     if (ctx.measureText(fullText).width > maxTextW) {
@@ -603,6 +634,18 @@ function ensureMaskCanvas(node, w, h) {
     node._sfCEBMaskCvs = cvs;
   }
   return cvs;
+}
+
+// 反相遮罩预览画布（离屏白底打洞；尺寸=源图，随尺寸重建）
+function invertComposite(node, srcCvs) {
+  let cvs = node._sfInvertCvs;
+  if (!cvs || cvs.width !== srcCvs.width || cvs.height !== srcCvs.height) {
+    cvs = document.createElement("canvas");
+    cvs.width = Math.max(1, srcCvs.width);
+    cvs.height = Math.max(1, srcCvs.height);
+    node._sfInvertCvs = cvs;
+  }
+  return paintInvertMask(srcCvs, cvs);
 }
 
 // ── 交互 ──────────────────────────────────────────────────────────────────
@@ -653,6 +696,9 @@ function setupInteractions(node) {
       }
     }
 
+    // SAM 点选/框选模式（显示区内消费；控件命中已先行）
+    if (handleSamPointer(AI_CFG, node, "down", e, [lx, ly])) return true;
+
     // 仅左键起拖/落笔（右键/中键交给原位/菜单；buttons 缺失的旧调用放行）
     if (e && e.button !== 0 && e.button !== undefined) return false;
 
@@ -700,6 +746,9 @@ function setupInteractions(node) {
       finalizeStroke(node, graphCanvas?.canvas);
       return true;
     }
+
+    // SAM 点选/框选模式优先（消费移动；框模式拖橡皮筋 + crosshair）
+    if (handleSamPointer(AI_CFG, node, "move", e, lp)) return true;
 
     const st = getState(node);
     const dragging = !!node._sfCEBDrag;
@@ -750,6 +799,7 @@ function setupInteractions(node) {
   };
 
   node.onMouseUp = (_e, _lp, graphCanvas) => {
+    if (handleSamPointer(AI_CFG, node, "up", _e, _lp || [0, 0])) return true;
     const a = finalizeDrag(node, graphCanvas?.canvas);
     const b = finalizeStroke(node, graphCanvas?.canvas);
     return a || b;
@@ -884,7 +934,7 @@ app.registerExtension({
       if (origKeyDown) return origKeyDown.apply(this, arguments);
     };
 
-    // 右键菜单（共享安装器：SAM 蒙版…/卸载 SAM 模型）
-    installSamMenu(SAM_CFG, nodeType);
+    // 右键菜单（共享安装器：SAM/人物/YOLO/导入/反选/卸载）
+    installBrushMenu(AI_CFG, nodeType);
   },
 });

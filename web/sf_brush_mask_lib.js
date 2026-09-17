@@ -255,6 +255,25 @@ export function paintStrokeMask(cvs, strokes, opts = {}) {
   return mx;
 }
 
+// paintInvertMask(srcCvs, outCvs) → outCvs：在离屏画布上绘制**反相**遮罩预览
+// （白底 + 以 destination-out 把 srcCvs 的非透明区打成洞）。srcCvs 为
+// paintStrokeMask 产物（笔触白/透明，erase 已打洞）。打洞只发生在离屏画布上
+// ——主画布禁用 destination-out（会连照片一起擦掉）的纪律不破。
+// 画布由调用方创建（lib 保持无 DOM 依赖，测试可传 FakeCanvas）。
+export function paintInvertMask(srcCvs, outCvs) {
+  const mx = outCvs.getContext("2d");
+  mx.save();
+  mx.setTransform(1, 0, 0, 1, 0, 0);
+  mx.globalCompositeOperation = "source-over";
+  mx.fillStyle = "rgba(255,255,255,1)";
+  mx.fillRect(0, 0, outCvs.width, outCvs.height);
+  mx.globalCompositeOperation = "destination-out";
+  mx.drawImage(srcCvs, 0, 0);
+  mx.globalCompositeOperation = "source-over";
+  mx.restore();
+  return outCvs;
+}
+
 // parseStroke(stroke, defaultSize) → {points, mode, size}
 // 与 sf_utils/brush_mask.py::_parse_one_stroke 同语义（双端镜像）：
 // mode:size:opacity[:r,g,b]:points / mode:points / 裸点列；opacity 与颜色

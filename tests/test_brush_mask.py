@@ -172,6 +172,20 @@ check("execute 笔触处白", np.asarray(mask_t)[0, 2, 2] == 1.0)
 check("execute 远处黑", np.asarray(mask_t)[0, 0, 0] == 0.0)
 check("execute filename=src_path", fname == "sfnodes_crop/crop_src_brushx.png")
 
+# 反选：笔刷节点 = 1 - 笔触（空笔触 → 全白）
+img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({
+    "src_path": "sfnodes_crop/crop_src_brushx.png",
+    "src_w": 6, "src_h": 5, "brush_size": 3, "invert": True,
+    "strokes": [{"mode": "brush", "size": 3, "points": [[2, 2]]}],
+}))
+check("反选：笔触处黑", np.asarray(mask_t)[0, 2, 2] == 0.0)
+check("反选：其余全白", np.asarray(mask_t)[0, 0, 0] == 1.0 and np.asarray(mask_t)[0, 4, 5] == 1.0)
+img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({
+    "src_path": "sfnodes_crop/crop_src_brushx.png",
+    "src_w": 6, "src_h": 5, "invert": True, "strokes": [],
+}))
+check("反选空笔触全白", np.allclose(np.asarray(mask_t), 1.0))
+
 img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({"src_path": ""}))
 check("无源默认 512", (w, h) == (512, 512) and np.asarray(img_t).shape == (1, 512, 512, 3))
 check("无源遮罩全黑", np.allclose(np.asarray(mask_t), 0.0))
@@ -197,6 +211,12 @@ key_prev = mod.SFImageBrushMask.IS_CHANGED(SFBrushMaskJson=json.dumps({
     "brush_opacity": 0.9, "brush_color": "0,0,255", "eraser_color": "0,255,0",
 }))
 check("IS_CHANGED 预览字段不进键", key_a == key_prev)
+key_inv = mod.SFImageBrushMask.IS_CHANGED(SFBrushMaskJson=json.dumps({
+    "src_path": "sfnodes_crop/crop_src_brushx.png",
+    "src_w": 6, "src_h": 5, "brush_size": 3, "invert": True,
+    "strokes": [{"mode": "brush", "size": 3, "points": [[2, 2]]}],
+}))
+check("IS_CHANGED 反选进键", key_inv != key_a)
 check("IS_CHANGED 无源返回状态键", "|" in mod.SFImageBrushMask.IS_CHANGED(SFBrushMaskJson="{}"))
 
 # ── 结果 ──
