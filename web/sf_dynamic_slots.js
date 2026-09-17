@@ -117,46 +117,73 @@ function installSide(node, side, cfg, nameFor) {
 
 // 加载/粘贴恢复：configure 直赋 links 不触发 onConnectionsChange，按实际链接数
 // 补齐到 linked+1（上限内），回收多余尾部空槽。包装 node.onAfterGraphConfigured。
-// 与 installDynamicSlots 配套使用（同一 prefix/type/初始值与上限）。
-export function installConfiguredSlotRecovery(node, config) {
-    const prefix = config.inputPrefix;
-    const type = config.inputType || "*";
-    const initial = config.initialInputs ?? 1;
-    const max = config.inputCount ?? 20;
-    const start = config.inputStart ?? 0;
-    // 可选自定义匹配（优先级高于前缀）：与 installDynamicSlots 的 inputMatch 同款，
-    // 用于前缀会误伤固定槽的场景（如 track_data 与 track_N 共用 track_ 前缀）。
-    const match = config.inputMatch || ((name) => typeof name === "string" && name.startsWith(prefix));
+// 单侧（input/output）恢复：按实际已连接数补齐到 linked+1（上限内），回收多余尾部空槽。
+function recoverDynamicSide(node, side, cfg) {
+    const slotsProp = side === "input" ? "inputs" : "outputs";
+    const isInput = side === "input";
+    const slots = node[slotsProp];
+    if (!Array.isArray(slots)) return;
+    const dynamic = () => (node[slotsProp] ?? []).filter((s) => s && s.name && cfg.match(s.name));
+    let linked = 0;
+    for (const slot of slots) {
+        if (slot && slot.name && cfg.match(slot.name) && isSlotConnected(slot)) {
+            linked += 1;
+        }
+    }
+    const want = Math.min(Math.max(linked + 1, cfg.initial), cfg.max);
+    // 补齐
+    while (dynamic().length < want) {
+        const name = cfg.prefix + (cfg.start + dynamic().length);
+        if (isInput) node.addInput(name, cfg.type);
+        else node.addOutput(name, cfg.type);
+    }
+    // 回收尾部空槽
+    const reversed = [...node[slotsProp]].reverse();
+    for (const slot of reversed) {
+        if (!slot || !slot.name || !cfg.match(slot.name)) break;
+        if (!isSlotConnected(slot) && dynamic().length > want) {
+            if (isInput) node.removeInput(node[slotsProp].indexOf(slot));
+            else node.removeOutput(node[slotsProp].indexOf(slot));
+        } else {
+            break;
+        }
+    }
+}
 
+// 与 installDynamicSlots 配套使用（同一 prefix/type/初始值与上限）。
+// config 同时给 inputPrefix 与 outputPrefix 时两侧都恢复（如循环节点 value 槽）。
+export function installConfiguredSlotRecovery(node, config) {
     const originalOnAfterGraphConfigured = node.onAfterGraphConfigured;
     node.onAfterGraphConfigured = function () {
         if (originalOnAfterGraphConfigured) {
             originalOnAfterGraphConfigured.apply(this, arguments);
         }
-        if (!this.inputs) return;
-        let linked = 0;
-        for (const slot of this.inputs) {
-            if (slot && slot.name && match(slot.name) && isSlotConnected(slot)) {
-                linked += 1;
-            }
+        if (!Array.isArray(this.inputs)) return;
+        if (config.inputPrefix) {
+            // 可选自定义匹配（优先级高于前缀）：与 installDynamicSlots 的 inputMatch 同款，
+            // 用于前缀会误伤固定槽的场景（如 track_data 与 track_N 共用 track_ 前缀）。
+            const inputMatch = config.inputMatch
+                || ((name) => typeof name === "string" && name.startsWith(config.inputPrefix));
+            recoverDynamicSide(this, "input", {
+                prefix: config.inputPrefix,
+                type: config.inputType || "*",
+                initial: config.initialInputs ?? 1,
+                max: config.inputCount ?? 20,
+                start: config.inputStart ?? 0,
+                match: inputMatch,
+            });
         }
-        const want = Math.min(Math.max(linked + 1, initial), max);
-        // 补齐
-        let dynamic = this.inputs.filter((s) => s && s.name && match(s.name));
-        while (dynamic.length < want) {
-            this.addInput(prefix + (start + dynamic.length), type);
-            dynamic = this.inputs.filter((s) => s && s.name && match(s.name));
-        }
-        // 回收尾部空槽
-        const reversed = [...this.inputs].reverse();
-        for (const slot of reversed) {
-            if (!slot || !slot.name || !match(slot.name)) break;
-            const current = this.inputs.filter((s) => s && s.name && match(s.name));
-            if (!isSlotConnected(slot) && current.length > want) {
-                this.removeInput(this.inputs.indexOf(slot));
-            } else {
-                break;
-            }
+        if (config.outputPrefix) {
+            const outputMatch = config.outputMatch
+                || ((name) => typeof name === "string" && name.startsWith(config.outputPrefix));
+            recoverDynamicSide(this, "output", {
+                prefix: config.outputPrefix,
+                type: config.outputType || "*",
+                initial: config.initialOutputs ?? 1,
+                max: config.outputCount ?? 20,
+                start: config.outputStart ?? 0,
+                match: outputMatch,
+            });
         }
         this.setSize(this.computeSize());
     };

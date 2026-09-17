@@ -13,11 +13,13 @@
 // - Auto-add slots when existing slots are connected (up to declared count)
 // - Auto-remove trailing empty slots on disconnect
 // - Fixed slots (flow / index / total / condition) are never touched
+// - 加载既有工作流时经 installConfiguredSlotRecovery 按实际链接数补齐/回收
+//   （多状态槽不会因创建期裁剪而丢链接）
 //
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { installDynamicSlots } from "./sf_dynamic_slots.js";
+import { installConfiguredSlotRecovery, installDynamicSlots } from "./sf_dynamic_slots.js";
 
 const LOOP_NODES = {
     SFWhileLoopStart: {
@@ -62,6 +64,18 @@ app.registerExtension({
         if (!cfg) return;
 
         installDynamicSlots(node, {
+            inputPrefix: cfg.inputPrefix,
+            inputStart: cfg.inputStart,
+            inputCount: cfg.inputCount,
+            inputType: "*",
+            initialInputs: 1,
+            outputPrefix: cfg.outputPrefix,
+            outputStart: cfg.outputStart,
+            outputCount: cfg.outputCount,
+            outputType: "*",
+            initialOutputs: 1,
+        });
+        installConfiguredSlotRecovery(node, {
             inputPrefix: cfg.inputPrefix,
             inputStart: cfg.inputStart,
             inputCount: cfg.inputCount,
