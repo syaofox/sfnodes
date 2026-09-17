@@ -159,6 +159,10 @@ check("prompts optional multiline", schema["optional"]["prompts"][0] == "STRING"
 check("initial_mask optional MASK", schema["optional"]["initial_mask"][0] == "MASK")
 check("max_objects default 1", schema["optional"]["max_objects"][0] == "INT"
       and schema["optional"]["max_objects"][1].get("default") == 1)
+check("initial_mask_always optional BOOLEAN 默认关", schema["optional"]["initial_mask_always"][0] == "BOOLEAN"
+      and schema["optional"]["initial_mask_always"][1].get("default") is False)
+check("initial_mask_always 为末尾 optional（旧工作流 widgets_values 位置兼容）",
+      list(schema["optional"].keys())[-1] == "initial_mask_always")
 
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as f:
     tree = ast.parse(f.read())
@@ -229,6 +233,27 @@ calls["track"].clear()
 res_seed_only = node.execute(images, model="M", anchor_frames="0", initial_mask=seed2d)
 check("单锚仅遮罩可跑", res_seed_only[0]["n_frames"] == 8
       and calls["track"][0]["conditioning"] is None)
+
+# initial_mask_always：每个锚段都以 initial_mask 作种子（全程有效）
+calls["track"].clear()
+calls["tokens"].clear()
+res_always = node.execute(images, model="M", anchor_frames="2,5", clip=FakeClip(),
+                          prompts="person\nwoman", initial_mask=seed2d, initial_mask_always=True)
+check("开关打开：两段都收到种子", len(calls["track"]) == 2
+      and calls["track"][0]["initial_mask"].shape == (1, 4, 8)
+      and calls["track"][1]["initial_mask"].shape == (1, 4, 8))
+check("开关打开：2D 只升维一次且同对象",
+      calls["track"][0]["initial_mask"] is calls["track"][1]["initial_mask"])
+check("开关打开：文本仍逐行编码", calls["track"][0]["conditioning"] == [("COND:person", {})]
+      and calls["track"][1]["conditioning"] == [("COND:woman", {})])
+check("开关打开：输出全长", res_always[0]["n_frames"] == 8)
+
+# 开关打开但未接遮罩 → 报错
+try:
+    node.execute(images, model="M", anchor_frames="0,4", conditioning="C", initial_mask_always=True)
+    check("开关打开缺遮罩报错", False)
+except ValueError:
+    check("开关打开缺遮罩报错", True)
 
 # 空行回退 conditioning
 calls["track"].clear()

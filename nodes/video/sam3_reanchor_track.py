@@ -48,13 +48,15 @@ class SFSAM3ReanchorTrack:
                 "prompts": ("STRING", {"multiline": True, "default": "",
                                        "tooltip": "每行对应一个锚帧的提示词，可各不相同（如切镜后 person→woman）；空行/行数不足回退 conditioning，行数多余忽略"}),
                 "conditioning": ("CONDITIONING", {"tooltip": "所有锚帧共用的现成文本条件（prompts 对应行为空时回退）"}),
-                "initial_mask": ("MASK", {"tooltip": "仅作用于第一个锚帧的种子遮罩（如 SAM3 Detect 输出）；接了则首段跳过文本检测"}),
+                "initial_mask": ("MASK", {"tooltip": "种子遮罩（如 SAM3 Detect 输出）；默认仅作用于第一个锚帧，打开下方开关后每个锚段都用它建轨"}),
                 "detection_threshold": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01,
                                                   "tooltip": "段内文本检测得分阈值（越高越严格）"}),
                 "max_objects": ("INT", {"default": 1, "min": 1, "max": 64, "step": 1,
                                         "tooltip": "每段最多追踪的对象数；输出跨对象并集塌成单一身份"}),
                 "detect_interval": ("INT", {"default": 1, "min": 1, "max": 999, "step": 1,
                                             "tooltip": "段内检测间隔帧数（1=每帧检测；越大越省算力）"}),
+                "initial_mask_always": ("BOOLEAN", {"default": False,
+                                                    "tooltip": "打开后每个锚段都以 initial_mask 作种子（全程有效），适合机位/主体位置基本不变的视频；主体移动大时后续锚帧会因首帧形状错位。未接 initial_mask 时打开会报错"}),
             },
         }
 
@@ -65,7 +67,8 @@ class SFSAM3ReanchorTrack:
     DESCRIPTION = "按锚帧分段调用 SAM3 追踪：每个锚帧用对应提示词重新检测并以全新追踪状态向后传播，各段并集塌成单一身份；输出与输入同长度，可接 SAM3 Track to Mask / SCAIL-2 driving"
 
     def execute(self, images, model, anchor_frames="0", clip=None, prompts="", conditioning=None,
-                initial_mask=None, detection_threshold=0.5, max_objects=1, detect_interval=1):
+                initial_mask=None, detection_threshold=0.5, max_objects=1, detect_interval=1,
+                initial_mask_always=False):
         import torch
         from comfy_extras.nodes_sam3 import SAM3_VideoTrack
         from ...sf_utils.common import node_result
@@ -79,6 +82,11 @@ class SFSAM3ReanchorTrack:
 
         anchors = _parse_anchors(anchor_frames, total)
         prompt_lines = _parse_prompts(prompts)
+
+        if initial_mask_always and initial_mask is None:
+            raise ValueError("SF SAM3 Reanchor Track: initial_mask_always 已打开，但未接 initial_mask")
+        if initial_mask is not None and initial_mask.ndim == 2:
+            initial_mask = initial_mask.unsqueeze(0)
 
         segments = []
         for index, anchor in enumerate(anchors):
@@ -94,9 +102,7 @@ class SFSAM3ReanchorTrack:
             elif conditioning is not None:
                 cond = conditioning
 
-            seed = initial_mask if (index == 0 and initial_mask is not None) else None
-            if seed is not None and seed.ndim == 2:
-                seed = seed.unsqueeze(0)
+            seed = initial_mask if (initial_mask is not None and (initial_mask_always or index == 0)) else None
             if seed is None and cond is None:
                 raise ValueError(
                     f"SF SAM3 Reanchor Track: 锚帧 {anchor} 既无提示词，也无 conditioning/initial_mask")

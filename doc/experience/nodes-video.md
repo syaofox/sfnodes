@@ -289,3 +289,10 @@ SFForLoopEnd
 
 - `tests/test_reanchor_track.py`：stub `torch` + `comfy_extras.nodes_sam3` + FakeClip；覆盖锚帧解析（排序去重/空串回退/越界与非法报错）、逐行编码与切片调用、空行回退 conditioning、`initial_mask` 仅首锚与 2D 升维、空段补零、输出全长单身份、结构元数据与双字典注册。
 - `tests/test_track_data_ops.py`：补 `concat_track_data_segments` 用例（段间空隙、多对象并集、多对象段在前补零、单段直通、全空、重叠/越界/网格不一致报错）。
+
+### 98.6 选项开关 initial_mask_always（补充，2026-09）
+
+- 语义：打开后**每个锚段都以同一张 `initial_mask` 作种子**（默认仅首锚）；段内 prompts/conditioning 仍透传用于逐帧检测与 recondition。适合机位/主体位置基本不变的视频；主体移动大时后续锚帧会因首帧形状错位（此时应改用文本重检测或锚帧遮罩）。
+- 实现：`initial_mask` 2D 升维提到循环外只做一次（同对象传给各段）；`initial_mask_always and initial_mask is None` 提前抛 `ValueError`（静默忽略会让用户误以为已生效）。
+- **widget 放 optional 末尾**：新增 BOOLEAN 追加在 `detect_interval` 之后，保证已保存工作流的 `widgets_values` 位置数组不错位（named 前端不受影响，但旧位置数组会）。
+- 测试：结构（BOOLEAN/默认关/位于末尾）+ 开关打开两段同一种子且文本仍逐行编码 + 缺遮罩报错。
