@@ -1153,3 +1153,13 @@ slice_track_data(track_data, start=0, length=0)
 - **回归防护**：`tests/test_brush_mask_tools.py` 增断言——float 0..1 → uint8（R=1.0→255、B=0.5→128 且 RGB→BGR）、uint8 原样透传。
 - **真机复核（同一张图全模型扫描）**：修复后 30 个权重多数正常检出（female_body 0.96 / nipples 0.86 / anime 多类 5 个 / person / 各类 seg 等）；仅内容不匹配的（无马赛克/无脚/无 watermark）为 0。进一步换图复核：`armpit_seg`(0.13@0.08) / `cockAndBallDetection2D`(0.30) / `pussy_yolo11s_seg_best`(0.30, 低至 0.13@0.08) / `panties` / `adetailerFootYolov8x`(0.29) 均可检出。
 - **使用建议**：小目标/低分模型把 Confidence 降到 0.08–0.2；x1280 训练模型（nsfw-anime-*）用 imgsz 960/1280；内容专属模型（马赛克/足/水印）只在含对应内容的图上出结果。
+
+### 7. 模型提示文案动态化：mediapipe 落盘位置与"首次"语义（2026-09）
+
+- **落盘位置**：`ModelManager.get_model_path(name, sub_dir="person_mask")` = `folder_paths.models_dir/sfnodes/person_mask/<file>` → 容器 `/home/comfy/app/models/sfnodes/person_mask/selfie_multiclass_256x256.tflite` = **宿主 `/mnt/github/comfyui-docker/models/sfnodes/person_mask/`**（bind mount，持久化；同根另有 occluder/region 两个潜在 sub_dir）。
+- **不会重复下载**：`downloader.download_model` 首行 `if (save_loc / model_name).is_file(): return True` 短路；进程内另有 `_person_cache["buffer"]` 字节缓存。只有文件缺失（新容器无该 mount / 手动删除）才会走网络。用户反馈"每次提示首次下载"实为**前端 toast 静态文案**（`runPersonParts` 写死"首次需下载 tflite 模型"），与真实行为不符。
+- **修法（动态文案）**：新只读路由 `GET /api/sfnodes/brush_mask/ai_status` → `{busy, sam, person:{model_found,loaded}, yolo:{loaded:[...]}, yolo_models}`（不加载模型、不触发下载；`person_status()` 只做 `os.path.isfile` 探测）。前端 `aiStatus()` 取代原 `aiBusy()`（旧后端回退 sam_status 取 busy），`runAiRequest` 把 `opts.running` 支持为 `(status)=>string` 函数：
+  - 人物部位：未落盘 → "首次需下载 tflite 模型，约 16MB"；已落盘未驻留 → "首次加载 tflite 模型"；已驻留 → 无后缀；
+  - SAM 文本：仅在 `sam.loaded=false` 时提示"首次需加载 1.7GB 模型"；
+  - YOLO：模型不在 `yolo.loaded` 时提示"首次加载权重"。
+- 测试：`test_brush_mask_tools.py` 增 `person_status`（未落盘/已落盘/已驻留三态，含不触发下载语义）与 `_handle_ai_status` 汇总键断言。

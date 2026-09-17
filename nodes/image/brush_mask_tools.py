@@ -7,6 +7,7 @@
   POST /api/sfnodes/brush_mask/yolo          {src_path, kind: bbox|segm, model, conf, box_shape,
                                               imgsz: 640|960|1280, classes: [id 或类名]}
   POST /api/sfnodes/brush_mask/import_mask   {src_path, src_w, src_h}
+  GET  /api/sfnodes/brush_mask/ai_status    （busy + 各模型落盘/驻留状态，供前端提示文案）
   POST /api/sfnodes/brush_mask/unload_all
 
 模型路由与 SAM 同规矩：`queue_busy()` 忙时熔断（409）+ 同步处理（见
@@ -62,6 +63,20 @@ def load_person_buffer():
     if _person_cache["buffer"] is None:
         _person_cache["buffer"] = _person_mask.load_model_buffer()
     return _person_cache["buffer"]
+
+
+def person_status():
+    """人物部位 tflite 状态（纯只读，不触发下载）：{model_found, loaded}。
+
+    落盘位置 = models_dir/sfnodes/person_mask/<file>（宿主 bind mount，见 §94.5）。
+    """
+    try:
+        filename = _person_mask.MODELS[_person_mask.MODEL_NAME]["filename"]
+        path = os.path.join(folder_paths.models_dir, "sfnodes", "person_mask", filename)
+        found = os.path.isfile(path)
+    except Exception:
+        found = False
+    return {"model_found": found, "loaded": _person_cache["buffer"] is not None}
 
 
 def _handle_person_parts(data, busy=None):
@@ -415,6 +430,24 @@ def unload_all():
     return {"sam": had_sam, "person": had_person, "yolo": had_yolo}
 
 
+# ── 状态汇总（前端提示文案/诊断用）────────────────────────────────────────
+
+def _handle_ai_status():
+    """纯逻辑入口（可裸测）：busy + SAM/人物/YOLO 状态汇总。只读、不加载模型。"""
+    from .brush_mask_sam import sam_status
+    try:
+        sam = sam_status()
+    except Exception:
+        sam = {}
+    return 200, {
+        "busy": queue_busy(),
+        "sam": sam,
+        "person": person_status(),
+        "yolo": {"loaded": sorted(os.path.basename(p) for p in _yolo_cache)},
+        "yolo_models": list_yolo_models(),
+    }
+
+
 # ── 路由注册 ───────────────────────────────────────────────────────────────
 
 def _register_routes():
@@ -464,6 +497,11 @@ def _register_routes():
             except Exception:
                 data = {}
             code, payload = _handle_import_mask(data)
+            return web.json_response(payload, status=code)
+
+        @routes.get("/api/sfnodes/brush_mask/ai_status")
+        async def _ai_status(request: web.Request) -> web.Response:
+            code, payload = _handle_ai_status()
             return web.json_response(payload, status=code)
 
         @routes.post("/api/sfnodes/brush_mask/unload_all")

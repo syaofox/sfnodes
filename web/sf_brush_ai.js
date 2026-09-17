@@ -39,6 +39,7 @@ import { readFileAsDataURL } from "./sf_crop_source.js";
 
 const SAM_RUN = "/api/sfnodes/brush_mask/sam";
 const SAM_STATUS = "/api/sfnodes/brush_mask/sam_status";
+const AI_STATUS = "/api/sfnodes/brush_mask/ai_status";
 const PERSON_RUN = "/api/sfnodes/brush_mask/person_parts";
 const YOLO_LIST = "/api/sfnodes/brush_mask/yolo_models";
 const YOLO_CLASSES = "/api/sfnodes/brush_mask/yolo_classes";
@@ -77,13 +78,16 @@ async function aiGet(path) {
   return await res.json();
 }
 
-// 预检队列忙闲；查询失败视为不忙（服务端 409 兜底）
-async function aiBusy() {
+// 预检状态（busy + 各模型落盘/驻留）；查询失败返回 null（视为不忙，服务端 409 兜底）
+async function aiStatus() {
   try {
-    const data = await aiGet(SAM_STATUS);
-    return !!data.busy;
+    return await aiGet(AI_STATUS);
   } catch {
-    return false;
+    try {
+      return await aiGet(SAM_STATUS); // 旧后端回退（无 ai_status 路由时至少取 busy）
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -94,7 +98,8 @@ async function runAiRequest(cfg, node, path, body, opts) {
     sfToast({ summary: cfg.toastTag, detail: "先加载源图再使用 AI 菜单", severity: "warn", fallbackTag: cfg.toastTag });
     return;
   }
-  if (await aiBusy()) {
+  const status = await aiStatus();
+  if (status && status.busy) {
     sfToast({
       summary: cfg.toastTag,
       detail: "ComfyUI 正在执行工作流（SAM/模型加载中），为避免冲突，请等当前任务结束后再试",
@@ -102,7 +107,8 @@ async function runAiRequest(cfg, node, path, body, opts) {
     });
     return;
   }
-  sfToast({ summary: cfg.toastTag, detail: opts.running, severity: "info", life: 5000, fallbackTag: cfg.toastTag });
+  const running = typeof opts.running === "function" ? opts.running(status) : opts.running;
+  sfToast({ summary: cfg.toastTag, detail: running, severity: "info", life: 5000, fallbackTag: cfg.toastTag });
   try {
     const data = await aiPost(path, body);
     if (opts.onData) opts.onData(data);
@@ -195,7 +201,8 @@ export async function runSamMask(cfg, node, prompt, threshold, refine) {
     src_path: cfg.getState(node).src_path,
     prompt, threshold, refine_iterations: refine,
   }, {
-    running: `SAM 推理中：${prompt || "object"}…（首次需加载 1.7GB 模型）`,
+    running: (s) => `SAM 推理中：${prompt || "object"}…` +
+      (s && s.sam && !s.sam.loaded ? "（首次需加载 1.7GB 模型）" : ""),
     failPrefix: "SAM 失败",
     logKind: "sam",
     extra: { sam_prompt: prompt, sam_threshold: threshold, sam_refine: refine },
@@ -470,7 +477,12 @@ export async function runPersonParts(cfg, node, parts, confidence, refine) {
   await runAiRequest(cfg, node, PERSON_RUN, {
     src_path: cfg.getState(node).src_path, parts, confidence, refine,
   }, {
-    running: "人物部位分割中…（首次需下载 tflite 模型）",
+    running: (s) => {
+      const p = s && s.person;
+      if (p && !p.model_found) return "人物部位分割中…（首次需下载 tflite 模型，约 16MB）";
+      if (p && !p.loaded) return "人物部位分割中…（首次加载 tflite 模型）";
+      return "人物部位分割中…";
+    },
     failPrefix: "人物部位分割失败",
     logKind: "person",
     extra: { person_parts: parts, person_confidence: confidence, person_refine: refine },
@@ -545,7 +557,8 @@ export async function runYolo(cfg, node, kind, model, conf, boxShape, imgsz, cla
   const ids = Array.isArray(classes) ? classes.filter((c) => Number.isFinite(Number(c))) : [];
   if (ids.length) body.classes = ids;
   await runAiRequest(cfg, node, YOLO_RUN, body, {
-    running: `YOLO 推理中（${model}）…`,
+    running: (s) => `YOLO 推理中（${model}）…` +
+      (s && Array.isArray(s.yolo?.loaded) && !s.yolo.loaded.includes(model) ? "（首次加载权重）" : ""),
     failPrefix: "YOLO 推理失败",
     logKind: "yolo",
     extra: {

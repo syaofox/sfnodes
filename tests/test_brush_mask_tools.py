@@ -344,6 +344,17 @@ check("person 成功回笔触+parts 归一", code == 200 and payload["parts"] ==
       and payload["count"] == 1 and payload["strokes"][0]["mode"] == "fill")
 check("person 覆盖率", payload["coverage"] == 1.0 and (payload["width"], payload["height"]) == (10, 5))
 
+# ── 状态汇总 / person 落盘状态（提示文案用；不触发下载）──
+check("person_status 未落盘但已驻留", tools.person_status() == {"model_found": False, "loaded": True})
+_pdir = os.path.join(fp.models_dir, "sfnodes", "person_mask")
+os.makedirs(_pdir, exist_ok=True)
+open(os.path.join(_pdir, "selfie_multiclass_256x256.tflite"), "wb").write(b"\x00")
+check("person_status 已落盘", tools.person_status()["model_found"] is True)
+code, payload = tools._handle_ai_status()
+check("ai_status 汇总键", code == 200 and set(("busy", "sam", "person", "yolo", "yolo_models")) <= set(payload))
+check("ai_status person/yolo 内容", payload["person"]["model_found"] is True
+      and isinstance(payload["yolo"]["loaded"], list) and "bbox" in payload["yolo_models"])
+
 # ── YOLO 路由 ──
 code, payload = tools._handle_yolo({"src_path": SRC, "kind": "bbox", "model": "a.pt"}, busy=True)
 check("yolo busy 409", code == 409)
