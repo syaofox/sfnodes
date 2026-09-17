@@ -755,6 +755,12 @@ function setupInteractions(node) {
     const m = metricsOf(node, dragging ? node._sfCEBDrag.frozen : null);
     const p = localToImage(lx, ly, m);
 
+    // 光环位置常驻记录（每次移动都记——落笔/拖框期间也要跟随鼠标；曾只在
+    // 悬停分支更新，导致画笔拖动时圆环停在起笔前的位置，见 §93.5）
+    node._sfCEBCursor =
+      lx >= m.offsetX && lx <= m.offsetX + m.scaledDisplayWidth &&
+      ly >= m.offsetY && ly <= m.offsetY + m.scaledDisplayHeight ? [lx, ly] : null;
+
     if (dragging) {
       const drag = node._sfCEBDrag;
       const ratio = ratioFromAspect(st.aspect_ratio, st.custom_w, st.custom_h);
@@ -779,11 +785,6 @@ function setupInteractions(node) {
       }
       return true;
     }
-
-    // 光环位置常驻记录（画与不画都记；显示区外置空，绘制侧再经 node_over 门控）
-    node._sfCEBCursor =
-      lx >= m.offsetX && lx <= m.offsetX + m.scaledDisplayWidth &&
-      ly >= m.offsetY && ly <= m.offsetY + m.scaledDisplayHeight ? [lx, ly] : null;
 
     // 悬停 cursor：Crop 模式按手柄；其余模式写回 default（防模式切换后残留
     // 上一次的 resize cursor）

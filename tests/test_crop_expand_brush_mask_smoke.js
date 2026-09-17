@@ -230,6 +230,8 @@ const makeState = (patch = {}) => JSON.stringify({
   check("源图区内起笔", s1 === true && node._sfCEBDrawing === true);
   node.onMouseMove({ buttons: 1 }, [170, 120], { canvas: {} });
   check("拖动追加笔触点", node._sfCEBCur.length >= 2);
+  // 落笔拖动时光环跟随（曾只在悬停分支更新 → 圆环停在起笔前位置）
+  check("落笔拖动时光环跟随鼠标", JSON.stringify(node._sfCEBCursor) === JSON.stringify([170, 120]));
   node.onMouseUp({}, [], gc());
   const st2 = state();
   check("落定写入笔触（brush）", st2.strokes.length === 1 && st2.strokes[0].mode === "brush" && st2.strokes[0].points.length >= 2);

@@ -1088,3 +1088,10 @@ slice_track_data(track_data, start=0, length=0)
 
 - **点不显示**：`sf_crop_expand_brush_mask.js` 的覆盖层闭包用了 `imageToLocal` 但该文件**只 import 了 localToImage**——`drawSamOverlay` 抛 `ReferenceError` 中断整帧（同 §93.4 的教训：绘制期异常=节点内容整帧不画）。修法：补 import；两个 smoke 增加「模式激活时 onDrawForeground 不抛错 + arc/strokeRect/提示文本」断言（已用"去掉 import"反例验证会 FAIL——此前的 smoke 只测交互不测模式绘制，故漏网）。
 - **Alt+左键克隆节点**：前端在**派发给 `node.onMouseDown` 之前**就处理 Alt（canvas 模式 `_processPrimaryButton` 的 `alt_drag_do_clone_nodes` 分支；Vue 节点 `nodeOnPointerdown` 先 `cloneNodes` 再 `ve(e)`），宿主 handler 返回 true 也拦不到。修法：负点改用 **Shift+左键**（节点体上 Shift 无早期分支；handler 返回 true 后前端清掉该次 onClick，不影响选择）。教训：**节点画布交互的修饰键先查前端默认行为表再定**（Alt=克隆、Ctrl/Meta=加选/panning、Shift=插槽连线/加选；后两者在节点体路径可消费）。
+
+### 6. 真机修复三：合体节点画笔拖动时圆环不跟随（2026-09）
+
+- 症状：Brush/Erase 拖动时笔触轨迹正常，但笔刷光环（圆环）停在起笔前的位置不动（用户反馈"拖动时显示轨迹，但鼠标图标没有改变位置"）。
+- 根因：合体节点 `onMouseMove` 把 `_sfCEBCursor`（光环位置）记录写在**悬停分支**里，而落笔分支与裁剪拖框分支都提前 `return true` → 拖动期间悬停分支不可达，光环位置停留在拖动前最后一次悬停值。笔刷节点在函数顶部先记录再分支，故无此问题（同语义两实现、顺序不同 → 行为分叉）。
+- 修法：`_sfCEBCursor` 记录上移到所有分支之前（每次移动都记；绘制侧仍有 `node_over` 与模式门控，SAM 模式/折叠等不受影响）；两个 smoke 的拖动用例补「光环跟随鼠标」断言（已用"移回悬停分支"反例验证会 FAIL）。
+- 教训：同一处理函数里"状态记录"与"提前 return 的分支"并存时，记录必须在分支之前；跨节点镜像实现（两个 brush 节点的 mousemove）要逐段比对语句顺序，别只比函数名。
