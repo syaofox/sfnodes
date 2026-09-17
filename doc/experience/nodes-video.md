@@ -42,7 +42,7 @@
 
 ### 72.5 前端动态槽与显隐（web/sf_scail2.js）
 
-- 源文件的双语探测（`isChineseLocale` / `EASY_TRANSLATIONS.zh|en`）按项目约定收敛为**中文单语** `SCAIL2_LABELS` + `SIMPLE_COMBO_LABELS`；`applyLabel` 同时写 `label/localized_name/display_name` 与 `options`/`_state`（Vue 前端渲染读 `label ?? localized_name ?? name`）。
+- 源文件的双语探测（`isChineseLocale` / `EASY_TRANSLATIONS.zh|en`）按项目约定收敛：**仅 widget 标签中文化**（`SCAIL2_LABELS`），combo 选项值保持英文原文（曾用 `SIMPLE_COMBO_LABELS` + `getOptionLabel` 汉化选项值，已按需求移除）；`applyLabel` 同时写 `label/localized_name/display_name` 与 `options`/`_state`（Vue 前端渲染读 `label ?? localized_name ?? name`）。
 - Reference Pack 是**数量驱动**动态槽（`subject_count`/`reference_count` 计数框），与项目 `sf_dynamic_slots.js` 的**连线驱动**语义不同，未复用。流程：`beforeRegisterNodeDef` 里 `trimReferencePackNodeDataInputs` 把 schema 可选输入裁到 `subject_1_image`+`scene_image` → 计数框 callback 触发 `updateReferencePackWidgets`（旧版迁移 → 期望列表签名 → 重建输入槽 → widget 顺序同步 → fitNode）。
 - 显隐工具（`storeWidgetDefaults` / `setWidgetVisible` / `hideComputeSize`）项目内无共享实现，本模块内实现（不擅自改 `sf_common.js`）：隐藏时 `type="hidden"` + `options.hidden/canvasOnly=true` + computeSize 归零，恢复时按存储的 defaults 还原并同步 `_state`。
 - `SFSCAIL2SimpleVideo` 的 `widgets_values` 是**位置敏感**的，源提供的 `repairSimpleVideoWidgetOrder` 在 `onConfigure` 时按 mode 值定位并纠正 `advanced`/`long_video_mode` 顺序颠倒，保留。
@@ -129,7 +129,7 @@
 | `retain_first_frame`（`cond_retain_index_list="0"`） | False | 不适用 | 明确不做，见 78.2 |
 | `split_conds_to_windows` | False | 不适用（无多区域条件） | 明确不做 |
 
-- `context_schedule` 全部枚举走核心 `comfy.context_windows.get_matching_context_schedule`（常量表 `CONTEXT_SCHEDULES` 放 `sf_utils/scail2_easy.py` 无依赖单源）；`updateSimpleVideoWidgets` 仅在 `advanced && long_video_mode=context_sampling` 显示，combo 中文档位复用既有 `localizeComboWidget` + `SIMPLE_COMBO_LABELS`。
+- `context_schedule` 全部枚举走核心 `comfy.context_windows.get_matching_context_schedule`（常量表 `CONTEXT_SCHEDULES` 放 `sf_utils/scail2_easy.py` 无依赖单源）；`updateSimpleVideoWidgets` 仅在 `advanced && long_video_mode=context_sampling` 显示，combo 选项值（`standard_static`/`standard_uniform`/`looped_uniform`/`batched`）直接显示英文原文（曾汉化，已移除）。
 - `context_stride`/`closed_loop` 由前端 `simpleVisibleAdvancedWidgets()` **按调度条件显隐**（与原生 tooltip 语义一致，避免设置无效项）：stride 仅 uniform 系（`standard_uniform`/`looped_uniform`）显示、closed_loop 仅 `looped_uniform` 显示；`context_schedule` 的 callback + `onWidgetChanged` 触发刷新。后端 `apply_scail2_easy_context` 对 stride 做 `max(1, int(...))` 夹取并透传（`closed_loop` 仅 loop 调度有意义，非 loop 传入由核心窗口生成器自然忽略）。
 - 新增 widget **追加在 Python `required` 末尾（`tiled_decode` 之后）与 JS `SIMPLE_WIDGET_ORDER` 末尾**：SimpleVideo 的 `widgets_values` 位置敏感，追加式新增使旧工作流按位对齐不受影响（旧数组短于新 widget 数 → 新 widget 取默认值）。
 - `freenoise=True` 必须补调 `comfy.context_windows.create_sampler_sample_wrapper(model)`（核心注释：该 wrapper 目前仅 freenoise 使用；缺失即抛明确错误）。FreeNoise 只扰动噪声本身，与 SCAIL 蒙版按 `index_list` 切片正交。

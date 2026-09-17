@@ -1,4 +1,4 @@
-// SF SCAIL-2 前端（复刻 ComfyUI-SCAIL2-Easy/web/scail2_easy.js，中文单语）
+// SF SCAIL-2 前端（复刻 ComfyUI-SCAIL2-Easy/web/scail2_easy.js；widget 标签中文，combo 选项值保持英文原文）
 //
 // - SFSCAIL2FitVideo：resolution 为 custom 时显示 custom_width/height，否则隐藏。
 // - SFSCAIL2ReferencePack：subject_count/reference_count 计数框驱动 subject_N_image /
@@ -7,7 +7,8 @@
 //   重载时修复 widgets_values 位置错位。
 // - SFSCAIL2ReferenceSAMBuilder：仅中文标签。
 //
-// 源文件的双语探测（isChineseLocale / EASY_TRANSLATIONS.zh|en）已按项目约定收敛为中文单语。
+// 源文件的双语探测（isChineseLocale / EASY_TRANSLATIONS.zh|en）已按项目约定收敛：仅 widget 标签中文化，
+// combo 选项值（mode/long_video_mode/context_schedule）保持英文原文显示。
 import { app } from "/scripts/app.js";
 
 const EXT_NAME = "sfnodes.scail2";
@@ -34,22 +35,6 @@ const SIMPLE_WIDGET_ORDER = [
 const SIMPLE_ALL_ADVANCED_WIDGETS = Array.from(new Set([SIMPLE_ADVANCED_MODE_WIDGET, ...SIMPLE_CHUNK_ADVANCED_WIDGETS, ...SIMPLE_CONTEXT_ADVANCED_WIDGETS]));
 const MAX_REFERENCE_SUBJECTS = 6;
 const MAX_MIXED_REFERENCE_IMAGES = 5;
-const SIMPLE_COMBO_LABELS = {
-  mode: {
-    replacement: "角色替换",
-    animation: "动作迁移",
-  },
-  long_video_mode: {
-    chunk: "接续分段",
-    context_sampling: "上下文采样",
-  },
-  context_schedule: {
-    standard_static: "固定窗口",
-    standard_uniform: "均匀窗口",
-    looped_uniform: "循环均匀",
-    batched: "分批切段",
-  },
-};
 const SCAIL2_LABELS = {
   SCAIL2SimpleVideo: {
     reference_image: "参考图",
@@ -127,19 +112,6 @@ function applyLabel(item, label) {
 
 function translationForInput(className, name) {
   return SCAIL2_LABELS[className]?.[name];
-}
-
-function localizeComboWidget(widget, name) {
-  if (!widget) return;
-  ensureOptions(widget);
-  widget.options.getOptionLabel = (value) => {
-    const raw = value == null ? "" : String(value);
-    return SIMPLE_COMBO_LABELS[name]?.[raw] || raw;
-  };
-  if (widget._state) {
-    widget._state.options ||= {};
-    widget._state.options.getOptionLabel = widget.options.getOptionLabel;
-  }
 }
 
 function applyEasyNodeDataTranslation(nodeData) {
@@ -750,9 +722,6 @@ function setupSimpleVideoNode(node) {
   if (SIMPLE_VIDEO_SETUP.has(node)) return;
   SIMPLE_VIDEO_SETUP.add(node);
   applyEasyNodeInstanceTranslation(node);
-  localizeComboWidget(getWidget(node, "mode"), "mode");
-  localizeComboWidget(getWidget(node, "long_video_mode"), "long_video_mode");
-  localizeComboWidget(getWidget(node, "context_schedule"), "context_schedule");
 
   const advancedWidget = getWidget(node, "advanced");
   if (advancedWidget) {
