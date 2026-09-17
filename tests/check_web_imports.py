@@ -73,6 +73,8 @@ MODS = [
     "sf_character", "sf_character_lib",
     # 公共弹层三件套
     "sf_popup",
+    # Canvas Size Preset（model 官方表联动 + 全局自定义分辨率库管理）
+    "canvas_size", "sf_canvas_size_lib",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）
     "sf_krea2_presets",
     # Krea2 反推预设联动（本地版 + API 版 SFImageInterrogatorAPI 共用双 class）

@@ -34,6 +34,8 @@ Canvas Size Preset 节点：按模型选择官方分辨率预设，输出画布�
 
 from aiohttp import web
 
+from ...sf_utils import canvas_size_presets  # noqa: F401  # 副作用注册 /api/sfnodes/canvas_size_custom 路由
+
 _CATEGORY = "sfnodes/utils"
 
 # 每档为 (宽高比标签, 宽, 高) 列表。所有数值均为 16 的倍数（DiT patch 整除
@@ -116,7 +118,12 @@ PRESETS = {
     "LTX-2.5": {"0.9MP": _LTX_0P9MP, "1K": _LTX_1K},
 }
 
-# model 下拉分组（"--x--" 为 ComfyUI combo 原生分组头，只显示不可选）。
+# 自定义分辨率伪模型：resolution 选项由前端从全局自定义库
+# （sf_utils/canvas_size_presets.py）动态填充，后端无官方档位（空 dict）。
+CUSTOM_MODEL = "Custom Resolution"
+PRESETS[CUSTOM_MODEL] = {}
+
+# model 下拉分组（"--x--" 为分组标签；部分前端不渲染为原生分组，仅作可读分隔）。
 MODEL_GROUPS = [
     ("-- Image --", [
         "Z-Image (Turbo)",
@@ -133,6 +140,7 @@ MODEL_GROUPS = [
         "HunyuanVideo 1.5",
         "LTX-2.5",
     ]),
+    ("-- Custom --", [CUSTOM_MODEL]),
 ]
 
 MODELS = []
@@ -152,7 +160,7 @@ DEFAULT_RESOLUTION = _resolution_value(_DEFAULT_ITEM[0], _DEFAULT_ITEM[1], _DEFA
 
 
 def _build_resolution_values(model):
-    """平铺某模型的所有分辨率选项，档位以 '--x--' 分组头融入（ComfyUI combo 原生分组）。"""
+    """平铺某模型的所有分辨率选项，档位以 '--x--' 分组标签融入。"""
     values = []
     for tier, items in PRESETS[model].items():
         values.append("--{}--".format(tier))
@@ -191,7 +199,8 @@ class CanvasSizePreset:
                         "default": DEFAULT_MODEL,
                         "tooltip": "目标模型。分辨率预设取自各模型官方规格：Z-Image（官方三档）、"
                                    "Flux.2 Klein 9B 与 Krea 2（官方 1K~2K、16 整除）、"
-                                   "Wan2.2 T2V/I2V（官方 480p/720p）",
+                                   "Wan2.2 T2V/I2V（官方 480p/720p）。选 \"Custom Resolution\" "
+                                   "时 resolution 列出全局自定义库（user/sfnodes/canvas_size_presets.json）",
                     },
                 ),
                 "resolution": (
@@ -199,7 +208,7 @@ class CanvasSizePreset:
                     {
                         "default": DEFAULT_RESOLUTION,
                         "tooltip": "画布分辨率（宽x高 + 比例）。选项按模型分组（--1MP-- 等档位头），"
-                                   "切换 model 后选项自动更新",
+                                   "切换 model 后选项自动更新；\"Custom Resolution\" 模型下为自定义库",
                     },
                 ),
             }
@@ -212,7 +221,8 @@ class CanvasSizePreset:
     DESCRIPTION = ("按模型选择官方分辨率预设，输出画布宽高。覆盖 Z-Image / Qwen-Image / "
                    "Flux.1 / Flux.2 Klein 9B / Krea 2 / SDXL·SD 3.5 与 Wan2.2 / HunyuanVideo "
                    "1.5 / LTX-2.5 等生图生视频模型（全部 16 整除或按官方约束，可直接接 "
-                   "Empty Latent / Empty SD3 Latent 等节点）")
+                   "Empty Latent / Empty SD3 Latent 等节点）。model 选 \"Custom Resolution\" "
+                   "可管理并选用全局自定义分辨率库（跨工作流共享）")
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
@@ -238,7 +248,11 @@ def _register_canvas_size_routes():
 
         @routes.get("/api/sfnodes/canvas_size_presets")
         async def _canvas_size_presets(request: web.Request) -> web.Response:
-            return web.json_response({"models": MODELS, "values": RESOLUTION_VALUES})
+            return web.json_response({
+                "models": MODELS,
+                "values": RESOLUTION_VALUES,
+                "custom_model": CUSTOM_MODEL,
+            })
 
     except Exception:
         pass

@@ -556,3 +556,10 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 - `tests/test_logic.py`：`output_type` options 断言补 `"combo"`；`combo` 直通用例（字符串与数值各一）。
 - `tests/test_convert_anything_js.js`：`callback("combo")` 断言槽型 `COMBO`、槽名 `combo`（`SOCKET_TYPES` 映射即改型键）。
 - 节点 DESCRIPTION 与 `doc/architecture.md` 两处条目同步补 combo/COMBO。
+
+## 86. Combo 树形折叠误伤：原生分组头下拉须跳过（2026-09）
+
+- **症状**：`SFCanvasSizePreset` 的 `model` 下拉在设置 "SF: combo dropdown display mode (folder tree)" 开启时被错误折叠成文件夹（`Krea 2 (Turbo/RAW)` 被拆开）。
+- **根因**：`web/multi_lora_tree.js::updateMenu` 仅凭"是否有任一选项含 `/` 或 `\`"判定路径型菜单。model 标签含斜杠即 `hasPath`，而该下拉本用 `"-- Image --"/"-- Video --"` 原生分组头，被误当路径树。
+- **修复**：菜单含原生 combo 分组头（`/^--.*--$/`）即跳过树折叠——自带分组的下拉不是路径列表（当前仅 canvas_size 的 model/resolution 使用分组头）。判定改为全量扫描两个标志（路径项可能在分组头之前，不能命中路径就 break）。
+- **边界**：这是通用前端规则；若将来出现"路径 + 分组头"混合下拉需另议，目前无此用例。

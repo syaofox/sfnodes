@@ -41,12 +41,20 @@ class _FakeRoutes:
             handlers[path] = fn
             return fn
         return deco
+    post = get
+    delete = get
 fake_server = types.ModuleType("server")
 fake_server.PromptServer = types.SimpleNamespace(instance=types.SimpleNamespace(routes=_FakeRoutes()))
 sys.modules["server"] = fake_server
 
+# ── 包上下文（canvas_size.py 有相对 import `from ...sf_utils import ...`）──
+pkg = types.ModuleType("sfnodes"); pkg.__path__ = [root]; sys.modules["sfnodes"] = pkg
+pkg_n = types.ModuleType("sfnodes.nodes"); pkg_n.__path__ = [os.path.join(root, "nodes")]; sys.modules["sfnodes.nodes"] = pkg_n
+pkg_u = types.ModuleType("sfnodes.nodes.utils"); pkg_u.__path__ = [os.path.join(root, "nodes", "utils")]; sys.modules["sfnodes.nodes.utils"] = pkg_u
+pkg_s = types.ModuleType("sfnodes.sf_utils"); pkg_s.__path__ = [os.path.join(root, "sf_utils")]; sys.modules["sfnodes.sf_utils"] = pkg_s
+
 spec = importlib.util.spec_from_file_location(
-    "canvas_size",
+    "sfnodes.nodes.utils.canvas_size",
     os.path.join(root, "nodes", "utils", "canvas_size.py"),
 )
 mod = importlib.util.module_from_spec(spec)
@@ -85,9 +93,12 @@ for model in MODELS:
     n_items = len(values) - len(headers)
     n_expected = sum(len(items) for items in PRESETS[model].values())
     check(f"{model}: {n_items} 个分辨率项", n_items == n_expected)
-check("model 下拉含 2 个分组头", len([m for m in MODELS if m.startswith("--")]) == 2)
-check("分组头为 Image/Video", MODELS[0] == "-- Image --" and "-- Video --" in MODELS)
+check("model 下拉含 3 个分组头", len([m for m in MODELS if m.startswith("--")]) == 3)
+check("分组头为 Image/Video/Custom",
+      MODELS[0] == "-- Image --" and "-- Video --" in MODELS and "-- Custom --" in MODELS)
 check("PRESETS 键全部在 MODELS 中", set(PRESETS.keys()) <= set(MODELS))
+check("Custom Resolution 无官方档位",
+      PRESETS[mod.CUSTOM_MODEL] == {} and RESOLUTION_VALUES[mod.CUSTOM_MODEL] == [])
 check("默认模型为 Z-Image (Turbo)", mod.DEFAULT_MODEL == "Z-Image (Turbo)")
 check("Qwen 官方表 7 项", len(PRESETS["Qwen-Image (2512)"]["Official"]) == 7)
 check("HunyuanVideo 1.5 两档", set(PRESETS["HunyuanVideo 1.5"].keys()) == {"720p", "480p"})
@@ -105,6 +116,8 @@ w, h, r = mod._parse_resolution("--1MP--")
 check("分组头兜底回默认", (w, h, r) == (1024, 1024, "1:1"))
 w, h, r = mod._parse_resolution("")
 check("空值兜底回默认", (w, h, r) == (1024, 1024, "1:1"))
+w, h, r = mod._parse_resolution("1600x900 (My Wide)")
+check("解析自定义命名条目", (w, h, r) == (1600, 900, "My Wide"))
 
 # ── 4. execute 输出 ──
 node = mod.CanvasSizePreset()
@@ -129,11 +142,15 @@ check("DESCRIPTION 非空", bool(mod.CanvasSizePreset.DESCRIPTION))
 
 # ── 6. API handler 响应结构（mock aiohttp/server 已注入，模块导入即注册路由）──
 check("路由已注册", "/api/sfnodes/canvas_size_presets" in handlers)
+check("自定义预设路由已注册", "/api/sfnodes/canvas_size_custom" in handlers)
+src = open(os.path.join(root, "nodes", "utils", "canvas_size.py"), encoding="utf-8").read()
+check("canvas_size.py 导入自定义预设模块触发注册", "from ...sf_utils import canvas_size_presets" in src)
 async def _call():
     return await handlers["/api/sfnodes/canvas_size_presets"](None)
 payload = asyncio.run(_call())
 check("API payload 含 models", payload["models"] == MODELS)
 check("API payload values 与常量一致", payload["values"] == RESOLUTION_VALUES)
+check("API payload 含 custom_model", payload["custom_model"] == mod.CUSTOM_MODEL)
 
 print()
 if failures:

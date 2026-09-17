@@ -6,8 +6,9 @@
 // JavaScript extension that provides folder tree view for combo dropdown menus
 // across all nodes (native LoRA/checkpoint pickers, third-party nodes, SF
 // nodes): values containing "/" or "\" are grouped into collapsible folders.
-// Menus without path-like values (e.g. sampler/scheduler names) and LIST mode
-// leave the menu untouched.
+// Menus without path-like values (e.g. sampler/scheduler names), menus with
+// native combo group headers ("--xxx--", e.g. SFCanvasSizePreset), and LIST
+// mode leave the menu untouched.
 //
 // Features:
 // - Displays path values in a collapsible folder tree structure
@@ -123,17 +124,23 @@ app.registerExtension({
             if (displayMode !== DISPLAY_MODE.TREE) return;
 
             // 非路径型菜单（选项值都不含子目录分隔符，如 sampler/scheduler 名）
-            // 无分组意义，直接放行，避免无意义 DOM 重排
+            // 无分组意义，直接放行，避免无意义 DOM 重排。
+            // 带 ComfyUI 原生 combo 分组头（"--xxx--"）的菜单自带分组，同样跳过
+            // ——否则某个非路径值恰好含 "/"（如 SFCanvasSizePreset 的 model 标签
+            // "Krea 2 (Turbo/RAW)"）会把整个下拉误当路径树折叠。
             const entries = menu.querySelectorAll(".litemenu-entry");
             let hasPath = false;
+            let hasGroupHeader = false;
             for (const entry of entries) {
                 const v = entry.getAttribute("data-value") ?? entry.textContent ?? "";
-                if (v.includes("/") || v.includes("\\")) {
+                if (/^--.*--$/.test(v.trim())) {
+                    hasGroupHeader = true;
+                } else if (v.includes("/") || v.includes("\\")) {
                     hasPath = true;
-                    break;
                 }
+                if (hasPath && hasGroupHeader) break;
             }
-            if (!hasPath) return;
+            if (!hasPath || hasGroupHeader) return;
 
             const position = menu.getBoundingClientRect();
             const maxHeight = window.innerHeight - position.top - 20;

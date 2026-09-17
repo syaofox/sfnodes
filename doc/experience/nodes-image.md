@@ -915,3 +915,34 @@ SFKrea2EditApply.ref_strength 降到 ~0.3–0.5
 
 - 复用：`track_data_ops`（组合既有两函数）、`sf_dynamic_slots`（动态槽 + 恢复）、`sf_common`（DOM/主题）、`sf_prompt_stack` 的注入范式；既有 Subtract/Add 节点**保持不动**（向后兼容）。
 - 测试：后端 `tests/test_track_data_ops.py`（merge 纯逻辑：仅减保留对象数/scores、先减后加塌单身份且减掉区域不复活、仅叠加等价 Add、空基础、全空直通 + Merge 结构与 execute 默认 sub/混合模式/非法输入）；前端 `tests/test_track_data_merge_lib.mjs`（parse/get/set/toggle/serialize/collectSlotNames）与 `tests/test_track_data_merge_js.js`（含基础槽的裁剪/追加/回收、DOM 行渲染与点击写 properties、graphToPrompt 注入）。
+
+## 85. SFCanvasSizePreset 全局自定义分辨率库（2026-09）
+
+> 背景：节点原为纯官方预设表（按模型/档位、16 整除），无法保存常用非官方尺寸。本次加"全局命名自定义分辨率库"：节点挂「⚙ 自定义分辨率」DOM 按钮，弹窗内增删命名条目 `{name,w,h}`，持久化到 `user/sfnodes/canvas_size_presets.json` 跨工作流共享。
+>
+> **关键设计（2026-09 二次修订）**：自定义库是 model 下拉里的独立分类 `-- Custom --`（伪模型 `"Custom Resolution"`），选中它时 `resolution` **只列自定义库**。**不可**把自定义项混进真实模型的 resolution 列表——ComfyUI 前端并不渲染 `--x--` 分组头（源码无对应逻辑），自定义项放末/置顶都只会变成该模型列表里的普通条目，用户会认为"被归类到某模型"。
+
+### 1. combo 值编码：`"WxH (name)"`
+
+- `resolution` 是 combo，值即显示串。自定义条目编码为 `"1600x900 (My Wide)"`：既有 `_parse_resolution` 取 `split(" ",1)[0]` 得宽高、首个 `(...)` 得 ratio 文本，**天然解析，后端节点执行逻辑零改动**。
+- 代价：name 不得含 `(` / `)`（否则解析截断），后端 `_valid_name` 与前端 `validCustomName` 双端拒绝；名称若恰为 `16:9` 则 `resolution` 输出即 `16:9`（合理）。
+- 删除预设后旧工作流里的值仍可解析执行（不查表），健壮。
+
+### 2. 伪模型 + 路由命名避让
+
+- 后端 `MODEL_GROUPS` 增第三组 `("-- Custom --", [CUSTOM_MODEL])`，`PRESETS[CUSTOM_MODEL] = {}`（无官方档位），路由 payload 增 `custom_model` 字段（前端不硬编码模型名）。
+- 既有 `GET /api/sfnodes/canvas_size_presets` 返回官方模型表；自定义库占用 `/api/sfnodes/canvas_size_custom`，避免与旧接口冲突（零改动旧链路）。
+
+### 3. 前端重建与同步
+
+- 纯逻辑 `sf_canvas_size_lib.js`：`normalizeCustomPresets` / `customOptionValue` / `mergeResolutionValues`（`--Custom--` 分组头 + 自定义项 + 官方表；与官方重复的值跳过）。
+- `syncNode` 分两路：真实模型 `values = merge(official, custom)`；伪模型 `official=[]`，`values = merge([], custom)`，空库给占位 `[--Custom--]` 保证 combo 非空。回退目标：真实模型取首个**官方**选项（不落到自定义项），伪模型取首个自定义项。
+- 两接口并行加载并缓存：model 切换用缓存**同步**重建；自定义库增删后 refetch + syncAll 重建**所有**同类节点。
+- 管理弹窗双击/套用条目时**顺带把节点 model 切到伪模型**（否则值不在真实模型的 options 里，再次 sync 会被回退）。
+- 降级：官方表失败保持 INPUT_TYPES 静态选项（绝不用默认模型表冒充其他 model）；自定义库失败仅隐藏自定义项。
+- **恢复时 preserveValue**：`syncNode(node, true)`（数据加载 / `onAfterGraphConfigured`）当前值不在列表时**保留**（删库/离线旧值仍可执行），仅用户切换 model 才回退。回退目标取该 model 的**首个官方选项**（`firstSelectable(official)`）而非合并表首项，避免落到置顶的自定义项。工作流恢复须等 `Promise.all([loadOfficial, loadCustom])` 都就绪再同步，否则自定义库未到会把恢复的自定义值误回退。
+
+### 4. 复用与测试
+
+- 复用后端 `disk_state.atomic_write_json/mtime_size_sig/sf_user_dir`、`common.valid_name`、`logger`；前端 `sf_common.el/injectCSSOnce/sfApiUrl`、`sf_popup.attachPopupDismiss/clampToViewport`。存储骨架对齐 `crop_expand_presets.py`（w/h 语义：像素整数 vs 比例浮点，故独立成模块而非参数化）。
+- 测试：后端 `tests/test_canvas_size_presets.py`（CRUD/校验/归一化 mtime 重载/路由）+ `tests/test_canvas_size.py`（自定义值解析、路由注册、import 触发；加载改包上下文以支持相对 import）；前端 `tests/test_canvas_size_lib.mjs` + `tests/test_canvas_size_js.js`。
