@@ -278,6 +278,14 @@ const makeState = (patch = {}) => JSON.stringify({
   check("[ 缩小笔刷", state().brush_size === 80);
   fireKey("]", { target: { tagName: "INPUT" } });
   check("输入框内不响应", state().brush_size === 80);
+
+  // ── 模式快捷键（C 裁剪 / B 笔刷 / E 擦除；大小写不敏感）──
+  fireKey("e");
+  check("E 切 Erase", state().brush_mode === "erase");
+  fireKey("B");
+  check("B 切 Brush（大写）", state().brush_mode === "brush");
+  fireKey("c");
+  check("C 切 Crop", state().brush_mode === "crop");
   check("设置项已注册（init）", (ext.init(), globalThis.__settingDefs["sfnodes.BrushMask.SizeStep"]?.defaultValue === 2));
 
   // ── window capture 释放兜底 + onRemoved 解绑 ──

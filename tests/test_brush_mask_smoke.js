@@ -279,6 +279,25 @@ function makeCtx(ops) {
   fireKey("]");
   check("未选中不动", sizeOf() === 80);
 
+  // ── 模式快捷键（B 笔刷 / E 擦除；大小写不敏感）──
+  const modeOf = () => JSON.parse(node.properties.sfBrushMaskState).brush_mode;
+  globalThis.__bmCanvas.selected_nodes = { 12: node };
+  fireKey("e");
+  check("E 切 Eraser", modeOf() === "erase");
+  fireKey("B");
+  check("B 切 Brush（大写）", modeOf() === "brush");
+  fireKey("e", { target: { tagName: "INPUT" } });
+  check("输入框内不改模式", modeOf() === "brush");
+  fireKey("e", { ctrlKey: true });
+  check("修饰键不改模式", modeOf() === "brush");
+  globalThis.__bmEditorOpen = true;
+  fireKey("e");
+  check("编辑器打开时不改模式", modeOf() === "brush");
+  globalThis.__bmEditorOpen = false;
+  globalThis.__bmCanvas.selected_nodes = {};
+  fireKey("e");
+  check("未选中不改模式", modeOf() === "brush");
+
   // 设置页步长：init 注册 + S+ 按钮读取自定义步长
   globalThis.__bmExt.init();
   check("注册 SizeStep 设置项", globalThis.__bmSettingDefs["sfnodes.BrushMask.SizeStep"]?.defaultValue === 2);

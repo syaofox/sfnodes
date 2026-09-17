@@ -36,7 +36,7 @@ import { app } from "/scripts/app.js";
 import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString } from "./sf_common.js";
 import { installSamMenu } from "./sf_brush_sam.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
-import { registerBrushSizeKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
+import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
 import {
   LAYOUT,
@@ -190,6 +190,7 @@ function buttonAction(node, id) {
   if (id === "load") pickFile(node, SOURCE_CFG);
   else if (id === "browse") browseSource(node, SOURCE_CFG);
   else if (id === "brush") setState(node, { brush_mode: "brush" });
+  else if (id === "modeErase") setState(node, { brush_mode: "erase" }); // 键盘 E：确定性切换（鼠标 Erase 按钮保持 toggle）
   else if (id === "erase") setState(node, { brush_mode: st.brush_mode === "erase" ? "brush" : "erase" });
   else if (id === "clear") setState(node, { strokes: [] });
   else if (id === "undo") {
@@ -542,11 +543,13 @@ if (!app._sfBrushMaskPromptPatched) {
 // sf_common.installResizeCornerCursor 注释（§44）。
 installResizeCornerCursor(CLASS, hitResizeCornerSE);
 
-// ── 画笔工具共享安装（sf_brush_tools）：[ ] 尺寸快捷键（双通道 + 时间戳去重）
-// 与 S±/O± 悬停滚轮快调；action 经 buttonAction 统一入口（步长设置三路同源）。
-const brushKeyStep = registerBrushSizeKeys({
+// ── 画笔工具共享安装（sf_brush_tools）：快捷键（[ ] 尺寸 / B 笔刷 / E 擦除，
+// 双通道 + 时间戳去重）与 S±/O± 悬停滚轮快调；action 经 buttonAction 统一
+// 入口（步长设置三路同源）。
+const brushKeyStep = registerBrushKeys({
   classNames: [CLASS],
   controlsProp: "_sfBrushCtrls",
+  keyMap: { "]": "sizePlus", "[": "sizeMinus", "b": "brush", "e": "modeErase" },
   applyAction: (n, action) => buttonAction(n, action),
 });
 

@@ -78,7 +78,7 @@ import {
   ensureMinSize,
   computeDisplayMetrics,
 } from "./sf_crop_expand_brush_mask_lib.js";
-import { registerBrushSizeKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
+import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
 
 const CLASS = "SFImageCropExpandBrushMask";
 const HIDDEN_INPUT = "SFCropExpandBrushMaskJson"; // 必须与 crop_expand_brush_mask.py 的隐藏输入一致
@@ -808,11 +808,13 @@ if (!app._sfCEBPromptPatched) {
 // ── 右下角 resize cursor 视觉修正（sf_common 共享安装器）────────────────────
 installResizeCornerCursor(CLASS, hitResizeCornerSE);
 
-// ── 画笔工具共享安装（sf_brush_tools）：[ ] 尺寸快捷键（双通道 + 时间戳去重）
-// 与 S±/O± 悬停滚轮快调；action 经 buttonAction 统一入口（步长设置三路同源）。
-const brushKeyStep = registerBrushSizeKeys({
+// ── 画笔工具共享安装（sf_brush_tools）：快捷键（[ ] 尺寸 / C 裁剪 / B 笔刷 /
+// E 擦除，双通道 + 时间戳去重；buttonAction 对这三模式本就是确定性写入）与
+// S±/O± 悬停滚轮快调；action 经 buttonAction 统一入口（步长设置三路同源）。
+const brushKeyStep = registerBrushKeys({
   classNames: [CLASS],
   controlsProp: "_sfCEBCtrls",
+  keyMap: { "]": "sizePlus", "[": "sizeMinus", "c": "crop", "b": "brush", "e": "erase" },
   applyAction: (n, action) => buttonAction(n, action),
 });
 

@@ -1023,3 +1023,23 @@ slice_track_data(track_data, start=0, length=0)
 - `tests/test_brush_mask_sam.py`：假 `server.PromptServer` 注入 `queue_busy` 三态（空闲/有任务/异常）与 `sam_status.busy`；忙时 409 且**不加载模型/不触发推理**（`comfy_sd.calls` 与 `SAM3_Detect.last` 均不变）；hostbuf 异常附带提示。
 - 合体节点 smoke：菜单两项 + `sam_*` 默认记忆字段；brush smoke harness 增拷真实 `sf_brush_sam.js`（改写 import 指向桩）。
 - `tests/check_web_imports.py` MODS 增 `sf_brush_sam`。
+
+## 92. 画笔节点模式快捷键（B/E，合体节点 +C）与前端默认键位核查（2026-09）
+
+> 背景：两个画笔节点（SFImageBrushMask / SFImageCropExpandBrushMask）此前只有 `[`/`]` 尺寸快捷键，模式切换只能点竖列按钮。按用户确认加 `B`=Brush、`E`=Erase（合体节点另加 `C`=Crop），不做 X 切换键；只在选中该类节点时生效。
+
+### 1. 注册器泛化（web/sf_brush_tools.js）
+
+- `registerBrushSizeKeys` → **`registerBrushKeys({ classNames, controlsProp, keyMap, applyAction })`**：`keyMap` 由宿主配置（键 → 宿主动作 id），模块内仍是单 window keydown 监听 + 模块级注册表 + `e.timeStamp` 双通道去重；返回 `keyStep(e)` 供节点 `onKeyDown`（官方通道）使用。
+- 键归一化：单字母忽略大小写（`B`/`b` 同键），`[`/`]` 等符号精确匹配。守卫全部保留：修饰键 / 输入框 / `.sf-px-overlay` 跳过；按住连发与多选同戳去重行为不变（动作仅执行一次）。
+- 动作仍走各节点 `buttonAction` 单一入口：brush 节点 keyMap `{ "]": "sizePlus", "[": "sizeMinus", "b": "brush", "e": "modeErase" }`（新增 `modeErase` 确定性分支——鼠标 Erase 按钮保持原 toggle 语义）；合体节点 keyMap `{ "c": "crop", "b": "brush", "e": "erase" }`（其 buttonAction 对这三位本就是确定性写入）。
+
+### 2. 前端默认键位核查（防单字母冲突，方法可复用）
+
+容器 `comfyui-frontend-package`（1.52.7）的默认绑定数组在 `static/assets/keybindingService-*.js` 顶部（`{combo:{ctrl/alt/shift/meta,key},commandId,targetElementId}`）。提取法：`docker cp` 该文件到 /tmp 后本机 python 正则解析（一次性脚本，不入库）。结论——**纯单键默认仅占用 `r/w/n/m/a/./p/v/h/Escape/Delete/Backspace`**，`b`/`e`/`c` 空闲；`Ctrl+B/M`（bypass/mute）、`Alt+C`（collapse）等带修饰键绑定不冲突（我们的 handler 仅在无 Ctrl/Meta/Alt 时响应）。
+
+### 3. 测试与文档
+
+- `tests/test_brush_mask_smoke.js`：E 切 Eraser、B 切 Brush（大写）、输入框 / 修饰键 / 编辑器打开 / 未选中不改模式（原有 `[ ]` / 滚轮 / 去重断言不动）。
+- `tests/test_crop_expand_brush_mask_smoke.js`：E/B/C 三模式切换。
+- 两节点 DESCRIPTION 增补快捷键说明（brush：B/E + `[ ]`；合体：C/B/E + `[ ]`）。

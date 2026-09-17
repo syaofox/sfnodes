@@ -1,15 +1,18 @@
 // ==========================================================================
-// sf_brush_tools.js - 画笔节点共享工具（步长设置 / [ ] 快捷键 / 步进器滚轮）
+// sf_brush_tools.js - 画笔节点共享工具（步长设置 / 快捷键注册 / 步进器滚轮）
 // ==========================================================================
 //
 // SFImageBrushMask 与 SFImageCropExpandBrushMask 共用（原 sf_brush_mask.js 内联
 // 实现提升）：
 //   - 步长设置读取/注册（sfnodes.BrushMask.SizeStep/OpacityStep，两节点共享
 //     同一组用户设置键）；步进纯函数仍在 sf_brush_mask_lib.js。
-//   - [ ] 画笔尺寸快捷键：双通道互补——① 官方通道（画布 processKey 分发选中
-//     节点的 onKeyDown，宿主用返回的 keyStep）② window 冒泡监听兜底。同一
-//     物理按键会走两遍，经 e.timeStamp 去重只执行一次（多选同理：首个节点的
-//     applyAction 全量调整后，其余同戳调用直接跳过）。
+//   - 通用按键注册（registerBrushKeys，宿主 keyMap 配置键→动作）：
+//     默认 [ ] 尺寸、B/E 模式（合体节点另有 C）；双通道互补——① 官方通道
+//     （画布 processKey 分发选中节点的 onKeyDown，宿主用返回的 keyStep）
+//     ② window 冒泡监听兜底。同一物理按键会走两遍，经 e.timeStamp 去重只执行
+//     一次（多选同理：首个节点的 applyAction 全量调整后，其余同戳调用直接跳过）。
+//     字母键忽略大小写；输入框/修饰键/全屏编辑器打开时跳过。默认键位冲突已
+//     核查（前端纯单键默认仅 r/w/n/m/a/./p/v/h/Escape/Delete/Backspace）。
 //   - S±/O± 悬停滚轮快调：引擎无节点级 onMouseWheel 钩子，用 window capture
 //     先手拦截（installPasteHandler 同款）；仅命中步进器且无 Ctrl/Meta 时
 //     preventDefault+stopPropagation，其余放行画布缩放。
@@ -72,7 +75,7 @@ export function registerBrushStepSettings() {
   }
 }
 
-// ── [ ] 快捷键 + 步进器滚轮（模块级注册表，单窗口监听）────────────────────
+// ── 快捷键注册 + 步进器滚轮（模块级注册表，单窗口监听）────────────────────
 
 const _keyEntries = [];
 let _keysInstalled = false;
@@ -83,20 +86,28 @@ function _matches(node, cfg) {
   return cfg.classNames.includes(node.comfyClass) || cfg.classNames.includes(node.type);
 }
 
+// 键归一化：单字母忽略大小写（B/b 同键），其余（[ ] 等符号）原样精确匹配
+function _normalizeKey(key) {
+  const k = String(key || "");
+  return k.length === 1 && /[a-z]/i.test(k) ? k.toLowerCase() : k;
+}
+
 function _keyStep(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return false;
-  if (e.key !== "[" && e.key !== "]") return false;
-  if (e.timeStamp === _lastKey.t && e.key === _lastKey.k) return true;
+  const key = _normalizeKey(e.key);
+  const entries = _keyEntries.filter((cfg) => cfg.keyMap && cfg.keyMap[key]);
+  if (entries.length === 0) return false;
+  if (e.timeStamp === _lastKey.t && key === _lastKey.k) return true;
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return false;
   if (typeof document !== "undefined" && document.querySelector && document.querySelector(".sf-px-overlay")) return false;
   _lastKey.t = e.timeStamp;
-  _lastKey.k = e.key;
-  // 经宿主 buttonAction 统一入口（步长设置三路同源，勿内联 stepBrushSize
-  // ——曾漏传设置值）
-  const action = e.key === "]" ? "sizePlus" : "sizeMinus";
+  _lastKey.k = key;
+  // 动作一律经宿主 buttonAction 统一入口（步长设置三路同源，勿内联
+  // stepBrushSize——曾漏传设置值）；动作词表由各节点 keyMap 定义
   let hit = false;
-  for (const cfg of _keyEntries) {
+  for (const cfg of entries) {
+    const action = cfg.keyMap[key];
     for (const n of getSelectedNodes(app)) {
       if (!_matches(n, cfg) || !n.properties) continue;
       cfg.applyAction(n, action);
@@ -106,12 +117,14 @@ function _keyStep(e) {
   return hit;
 }
 
-// registerBrushSizeKeys({ classNames, controlsProp, applyAction })
+// registerBrushKeys({ classNames, controlsProp, keyMap, applyAction })
 //   classNames: 参与的节点类名数组
 //   controlsProp: 宿主控件几何数组属性名（滚轮命中用，如 "_sfBrushCtrls"）
-//   applyAction(node, action): action ∈ {sizeMinus, sizePlus}
+//   keyMap: 键 → 宿主动作 id（如 { "]": "sizePlus", "[": "sizeMinus",
+//           "b": "brush", "e": "modeErase" }；字母键大小写不敏感）
+//   applyAction(node, action): 宿主动作落点（经各自 buttonAction）
 // 返回 keyStep(e) → bool 供宿主 onKeyDown 使用（官方通道）。
-export function registerBrushSizeKeys(cfg) {
+export function registerBrushKeys(cfg) {
   _keyEntries.push(cfg);
   if (!_keysInstalled) {
     _keysInstalled = true;
