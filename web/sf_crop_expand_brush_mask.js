@@ -42,6 +42,10 @@ import {
   pickColorInput,
   rgbStringToHex,
   hexToRgbString,
+  sfFrameWidth,
+  sfFrameThin,
+  sfCursorWidth,
+  registerSfLineWidthSettings,
 } from "./sf_common.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
@@ -497,7 +501,7 @@ function setupDrawing(node) {
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = th.border;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = sfFrameThin();
     const gridSize = 32 * m.scale;
     for (let x = m.offsetX; x <= m.offsetX + m.scaledDisplayWidth; x += gridSize) {
       ctx.beginPath();
@@ -557,7 +561,7 @@ function setupDrawing(node) {
 
     // 原图边界虚线
     ctx.strokeStyle = "rgba(100,150,255,0.6)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = sfFrameWidth();
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(srcX, srcY, srcW, srcH);
     ctx.setLineDash([]);
@@ -580,7 +584,11 @@ function setupDrawing(node) {
     }
 
     // 裁剪框（框外压暗 + 框线/九宫格/手柄；sf_crop_expand_lib 共享绘制）
-    drawCropBox(ctx, rect, st.src_w, st.src_h, m);
+    // 仅 Crop 模式显示：Brush/Erase 时隐藏框组件（压暗/手柄/九宫格会干扰涂抹
+    // 观察，手柄在非 Crop 模式本就不可交互）；扩展区白提示保留（§96）
+    if (st.brush_mode === "crop") {
+      drawCropBox(ctx, rect, st.src_w, st.src_h, m, sfFrameWidth());
+    }
 
     // 笔刷光环：悬停显示区时显示实际笔刷直径（BrushMask 同款语义；离开节点
     // 后靠 canvas.node_over 门控隐藏）
@@ -590,7 +598,7 @@ function setupDrawing(node) {
       const isErase = st.brush_mode === "erase";
       const ringR = Math.max(2, (st.brush_size / 2) * m.scale);
       ctx.save();
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = sfCursorWidth();
       if (isErase) {
         ctx.strokeStyle = "#ffffff";
         ctx.setLineDash([4, 3]);
@@ -884,6 +892,8 @@ app.registerExtension({
   name: "sfnodes.CropExpandBrushMask",
   init() {
     registerBrushStepSettings();
+    // 画布线条粗细设置（sfnodes.Canvas.*，三画布节点共用，幂等）
+    registerSfLineWidthSettings();
   },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== CLASS) return;

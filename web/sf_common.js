@@ -60,6 +60,67 @@ export function sfAccent() {
   return getSfAccent() || "#f66744";
 }
 
+// ── 画布线条粗细（sfnodes.Canvas.* 设置，三画布节点共用）──────────────────
+//
+// 拆分两个设置便于分别调（§97）：
+//   FrameWidth  : 裁剪框边框 / 源图边界虚线 / SAM 框选橡皮筋（辅助细线取其 1/2）
+//   CursorWidth : 画笔光环（鼠标指示）
+// 每帧直读（getSettingValue 是轻量 map 查找）；非法/未配置回退默认 1.0。
+// 辅助细线（九宫格/手柄描边/显示区网格/SAM 点描边）用 sfFrameThin()：
+// max(0.5, frame×0.5) → 默认 1.0 时 0.5，保持"框 > 辅助线"的层级。
+export const FRAME_WIDTH_SETTING = "sfnodes.Canvas.FrameWidth";
+export const CURSOR_WIDTH_SETTING = "sfnodes.Canvas.CursorWidth";
+export const FRAME_WIDTH_DEFAULT = 1.0;
+export const CURSOR_WIDTH_DEFAULT = 1.0;
+
+function _readWidthSetting(id, fallback) {
+  try {
+    const v = Number(globalThis.app?.ui?.settings?.getSettingValue?.(id));
+    return Number.isFinite(v) && v > 0 ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// 裁剪框等主线条宽度（默认 1.0，原为 2）
+export function sfFrameWidth() {
+  return _readWidthSetting(FRAME_WIDTH_SETTING, FRAME_WIDTH_DEFAULT);
+}
+
+// 辅助细线宽度（九宫格/手柄描边/显示网格/SAM 点描边；默认 0.5，原为 1）
+export function sfFrameThin() {
+  return Math.max(0.5, sfFrameWidth() * 0.5);
+}
+
+// 画笔光环（鼠标指示）宽度（默认 1.0，原为 1.5）
+export function sfCursorWidth() {
+  return _readWidthSetting(CURSOR_WIDTH_SETTING, CURSOR_WIDTH_DEFAULT);
+}
+
+let _sfLineWidthSettingsRegistered = false;
+export function registerSfLineWidthSettings() {
+  if (_sfLineWidthSettingsRegistered) return;
+  _sfLineWidthSettingsRegistered = true;
+  try {
+    app.ui.settings.addSetting({
+      id: FRAME_WIDTH_SETTING,
+      name: "SF Nodes: frame line width (crop box / guides / dashed bounds)",
+      defaultValue: FRAME_WIDTH_DEFAULT,
+      type: "slider",
+      attrs: { min: 0.5, max: 3, step: 0.25 },
+    });
+    app.ui.settings.addSetting({
+      id: CURSOR_WIDTH_SETTING,
+      name: "SF Nodes: brush cursor line width (ring)",
+      defaultValue: CURSOR_WIDTH_DEFAULT,
+      type: "slider",
+      attrs: { min: 0.5, max: 3, step: 0.25 },
+    });
+  } catch {
+    // 设置系统不可用则退化为默认值
+  }
+}
+
 // ── LoRA 名称显示（全局设置 sfnodes.Lora.DisplayName）────────────────────
 // 供 SFLoraStack / SFLoraPlot 统一读取（单一真源，禁止各节点内联副本）。五档：
 // full 完整相对路径（默认）/ filename 文件名含扩展名 / basename 文件名

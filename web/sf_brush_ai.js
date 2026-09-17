@@ -33,7 +33,7 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { sfToast, sfApiUrl } from "./sf_common.js";
+import { sfToast, sfApiUrl, sfFrameWidth, sfFrameThin } from "./sf_common.js";
 import { CropAPI } from "./sf_crop_core.js";
 import { readFileAsDataURL } from "./sf_crop_source.js";
 
@@ -430,7 +430,7 @@ export function drawSamOverlay(node, ctx, toLocal, anchor) {
     ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.8)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = sfFrameThin();
     ctx.stroke();
     if (label) {
       ctx.fillStyle = "#ffffff";
@@ -449,7 +449,7 @@ export function drawSamOverlay(node, ctx, toLocal, anchor) {
     const p2 = toLocal(Math.max(mode.box.x1, mode.box.x2), Math.max(mode.box.y1, mode.box.y2));
     ctx.save();
     ctx.strokeStyle = "rgba(255,255,255,0.95)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = sfFrameWidth();
     ctx.setLineDash([6, 4]);
     ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
     ctx.restore();

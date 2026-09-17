@@ -1172,3 +1172,23 @@ slice_track_data(track_data, start=0, length=0)
 - 两节点：`buildControls` 标 `isInvert`；`buttonAction` 的 `invert` 分支直接调共享 `toggleInvert(AI_CFG, node)`——与右键菜单同一实现（状态写入 + toast 单源，勿另写 toggle）；`drawButtons` ON 时琥珀底 + 白字（该钮字号 9px：30px 列宽容纳 "Invert"），OFF 常规底色与文字色。信息文本 "Inv" 后缀保留。
 - 测试：lib 测试更新 TOOL_COL 项数/顺序并断言状态色常量；两个 smoke 增「点面板按钮 toggle + ON 状态色 fillRect」断言。
 - ⚠ 教训：`TOOL_COL` 是共享列定义，增删项会整体移动后续按钮行——**测试与文档不要写死行号/项数注释**；本轮画笔 smoke 里写死的 S+ 坐标（`[25, 126+11]`）在插入 invert 后点到别行导致 3 个用例失败，已改为按控件几何解析（`_sfBrushCtrls.find(b=>b.id==="sizePlus")`）。同步检查了合体 smoke 的列2 坐标（Crop/Brush/Erase 在 invert 之前，未受影响）。
+
+## 96. 组合节点非 Crop 模式隐藏裁剪框（2026-09）
+
+> 背景：用户反馈"crop 没点选时，图片四周还是出现裁剪框，应在非 crop 状态不显示"。
+
+- 症状：合体节点在 Brush/Erase 模式下仍绘制裁剪框全套（框外压暗 + 白框线 + 九宫格 + 8 手柄），涂抹时视觉干扰（压暗压住照片、手柄/网格无意义且手柄本就不可交互）。
+- 修法：`setupDrawing` 里 `drawCropBox(ctx, rect, ...)` 加 `if (st.brush_mode === "crop")` 门控——非 Crop 模式完全隐藏框组件；**扩展区白色提示保留**（它表达的是 mask 恒白区，属于笔触语义而非框组件）。
+- 交互不受影响：非 Crop 模式手柄在 `onMouseDown`/hover cursor 路径本就被忽略（只走 SAM/涂抹分支），仅视觉变化。
+- 测试：合体 smoke 增「Crop 模式有 8 手柄 + 九宫格；Brush/Erase 均无」断言。⚠ 断言陷阱：手柄与 BCol 按钮同为白色 `rgba(255,255,255,0.9)`，须按尺寸区分（手柄 10×10 / 按钮 30×18）；九宫格用 `set:strokeStyle = rgba(255,255,255,0.4)` 唯一识别（源图边界虚线/resize 等是别的色值）；不要用 `strokeRect` 宽度判断——源图边界虚线也有大尺寸 strokeRect。
+
+## 97. 画布线条粗细全局设置（sfnodes.Canvas.FrameWidth / CursorWidth，2026-09）
+
+> 背景：用户反馈裁剪框/边界线/光环"都太粗了"，希望默认改细且可在设置页调。
+
+- 两个设置（用户拍板拆开，不要合并成一个）：`sfnodes.Canvas.FrameWidth`（裁剪框边框 / 源图边界虚线 / SAM 框选橡皮筋）、`sfnodes.Canvas.CursorWidth`（画笔光环）；slider 0.5–3 step 0.25，**默认都 1.0**（原 2 / 1.5）。
+- 层级靠派生值而非第二设置：辅助细线（九宫格 / 手柄描边 / 显示区网格 / SAM 点描边）统一 `sfFrameThin() = max(0.5, frame×0.5)`（默认 0.5，原 1）——一条"框 > 辅助线"规则，改框线时辅助线自动跟随。
+- 实现落点：`sf_common.js` 定义 + 幂等注册（`registerSfLineWidthSettings`，三节点 `init()` 调用；SFImageCropExpand 原本无 init 需新增）+ 每帧直读 `getSettingValue`（轻量 map 查找，异常/非法回退默认）；纯库 `sf_crop_expand_lib.drawCropBox(ctx, rect, srcW, srcH, m, lineW = 1)` 尾参收宽度（裸调用/测试仍细），主扩展调用点传 `sfFrameWidth()`。
+- 范围边界：只调"画布内容线条"；面板/底栏/按钮等控件 chrome 恒 1 不动；全屏编辑器（SF Image Crop / Inpaint）不在内。
+- 测试陷阱：源图边界虚线也用 FrameWidth 且**全模式保留**，不能用"线宽值"判断裁剪框是否绘制（旧断言 `!lws.includes(2.5)` 会假失败）——按框线唯一色 `rgba(255,255,255,0.9)` 判 strokeRect；smoke 桩 ctx 需记录 `set:lineWidth`（brush smoke 的 makeCtx 原来不记录，补 `lw` 字段）与 stub_common 需补新导出。
+- 设置注册断言用真实 sf_common 的 smoke（合体节点）做：`ext.init()` 后 `__settingDefs` 校验 defaultValue/type/attrs；brush smoke 的 stub_common 自己实现同名读写以驱动绘制断言。

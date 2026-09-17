@@ -53,7 +53,7 @@ function makeCtx(ops) {
   return new Proxy({ measureText: () => ({ width: 0 }) }, {
     get(t, p) {
       if (p in t) return t[p];
-      return (...a) => { ops.push({ op: p, args: a, fill: state.fillStyle }); };
+      return (...a) => { ops.push({ op: p, args: a, fill: state.fillStyle, lw: state.lineWidth }); };
     },
     set(t, p, v) { state[p] = v; return true; },
   });
@@ -71,7 +71,7 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
-    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {}; export const installResizeCornerCursor = () => {}; export const pickColorInput = () => {}; export const rgbStringToHex = () => "#ffffff"; export const hexToRgbString = () => "255,255,255"; export const applyAdaptiveCanvasOnly = () => {}; export const injectCSSOnce = () => {};\n`);
+    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {}; export const installResizeCornerCursor = () => {}; export const pickColorInput = () => {}; export const rgbStringToHex = () => "#ffffff"; export const hexToRgbString = () => "255,255,255"; export const applyAdaptiveCanvasOnly = () => {}; export const injectCSSOnce = () => {}; export function sfFrameWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.FrameWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function sfFrameThin() { return Math.max(0.5, sfFrameWidth() * 0.5); } export function sfCursorWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.CursorWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function registerSfLineWidthSettings() { globalThis.__bmSettingDefs["sfnodes.Canvas.FrameWidth"] = { id: "sfnodes.Canvas.FrameWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; globalThis.__bmSettingDefs["sfnodes.Canvas.CursorWidth"] = { id: "sfnodes.Canvas.CursorWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; }\n`);
   // 共享模块用真实实现（源图链路 / 画笔工具），仅改写其 import 指向桩
   for (const [srcFile, dstFile, rules] of [
     ["sf_crop_source.js", "sf_crop_source.js", [
@@ -316,6 +316,12 @@ function makeCtx(ops) {
   // scale = min(290/100, 274/100) = 2.74，环半径 = 40×2.74 = 109.6
   const arcs = ops4.filter((o) => o.op === "arc");
   check("悬停时画光环", arcs.some((o) => Math.abs(o.args[2] - 109.6) < 1e-9));
+  check("光环默认线宽 1（sfnodes.Canvas.CursorWidth）", arcs.every((o) => o.lw === 1));
+  globalThis.__bmSettingVals["sfnodes.Canvas.CursorWidth"] = 2.5;
+  const opsCursor = [];
+  node.onDrawForeground(makeCtx(opsCursor));
+  check("光环线宽随设置（2.5）", opsCursor.filter((o) => o.op === "arc").every((o) => o.lw === 2.5));
+  delete globalThis.__bmSettingVals["sfnodes.Canvas.CursorWidth"];
   globalThis.__bmCanvas.node_over = {};
   const ops5 = [];
   node.onDrawForeground(makeCtx(ops5));

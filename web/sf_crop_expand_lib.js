@@ -165,9 +165,12 @@ export function drawPlaceholder(ctx, x, y, width, height, scale) {
   }
 }
 
-// drawCropBox(ctx, rect, srcW, srcH, m)：框外（原图内）半透明压暗 + 框线 +
+// lineW 为框线宽度（调用方传 sfFrameWidth()，默认 1 保证裸调用/测试仍细）；
+// 九宫格与手柄描边取 max(0.5, lineW/2) 保持"框 > 辅助线"层级，见 §97。
+// drawCropBox(ctx, rect, srcW, srcH, m, lineW)：框外（原图内）半透明压暗 + 框线 +
 // 九宫格 + 8 控制点。rect: {x, y, w, h}（图片坐标），m 来自 computeDisplayMetrics。
-export function drawCropBox(ctx, rect, srcW, srcH, m) {
+export function drawCropBox(ctx, rect, srcW, srcH, m, lineW = 1) {
+  const thin = Math.max(0.5, lineW / 2);
   const x1 = m.offsetX + (rect.x - m.displayMinX) * m.scale;
   const y1 = m.offsetY + (rect.y - m.displayMinY) * m.scale;
   const x2 = x1 + rect.w * m.scale;
@@ -186,12 +189,12 @@ export function drawCropBox(ctx, rect, srcW, srcH, m) {
   if (x2 < imgX2) ctx.fillRect(x2, Math.max(y1, imgY1), imgX2 - x2, Math.min(y2, imgY2) - Math.max(y1, imgY1));
 
   ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = lineW;
   ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
   // 九宫格辅助线
   ctx.strokeStyle = "rgba(255,255,255,0.4)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = thin;
   const w3 = (x2 - x1) / 3;
   const h3 = (y2 - y1) / 3;
   for (let i = 1; i < 3; i++) {
@@ -214,7 +217,7 @@ export function drawCropBox(ctx, rect, srcW, srcH, m) {
   ];
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = thin;
   for (const p of handles) {
     ctx.fillRect(p.x - hs / 2, p.y - hs / 2, hs, hs);
     ctx.strokeRect(p.x - hs / 2, p.y - hs / 2, hs, hs);

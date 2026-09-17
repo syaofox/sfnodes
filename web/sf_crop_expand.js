@@ -21,7 +21,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { getSfAccent, sfThemeColors, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput } from "./sf_common.js";
+import { getSfAccent, sfThemeColors, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, sfFrameWidth, registerSfLineWidthSettings } from "./sf_common.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
@@ -346,14 +346,14 @@ function setupDrawing(node) {
 
     // 原图边界虚线
     ctx.strokeStyle = "rgba(100,150,255,0.6)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = sfFrameWidth();
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(sourceX, sourceY, srcW, srcH);
     ctx.setLineDash([]);
 
     drawCropBox(ctx,
       { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h },
-      st.src_w, st.src_h, m);
+      st.src_w, st.src_h, m, sfFrameWidth());
 
     // 底行背景条（Load/Browse 按钮与信息文本同排）
     const bottomY = nodeH - shiftLeft - BTN_H;
@@ -530,6 +530,10 @@ installResizeCornerCursor(CLASS, hitResizeCornerSE);
 
 app.registerExtension({
   name: "sfnodes.CropExpand",
+  init() {
+    // 画布线条粗细设置（sfnodes.Canvas.*，三画布节点共用，幂等）
+    registerSfLineWidthSettings();
+  },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== CLASS) return;
 

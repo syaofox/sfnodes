@@ -153,6 +153,16 @@ function makeCanvas(w = 10, h = 10) {
     check("裁剪框控制点填充", handleFills.length >= 8);
     check("框外压暗", ops.some((o) => o.op === "fillRect" && String(o.fill).includes("rgba(0,0,0,0.5)")));
   }
+  {
+    // 线宽参数（§97）：边框 = lineW，九宫格/手柄描边 = max(0.5, lineW/2)
+    const lws = (ops) => ops.filter((o) => o.op === "set:lineWidth").map((o) => o.value);
+    const withW = [];
+    Crop.drawCropBox(makeCtx(withW), { x: 1, y: 1, w: 2, h: 2 }, 4, 4, m, 2.5);
+    check("drawCropBox 线宽随参数（2.5 / 1.25）", lws(withW).includes(2.5) && lws(withW).includes(1.25));
+    const def = [];
+    Crop.drawCropBox(makeCtx(def), { x: 1, y: 1, w: 2, h: 2 }, 4, 4, m);
+    check("drawCropBox 默认线宽（1 / 0.5）", lws(def).includes(1) && lws(def).includes(0.5));
+  }
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

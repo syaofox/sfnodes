@@ -34,7 +34,7 @@
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString } from "./sf_common.js";
+import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString, sfCursorWidth, registerSfLineWidthSettings } from "./sf_common.js";
 import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert } from "./sf_brush_ai.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
@@ -406,7 +406,7 @@ function setupDrawing(node) {
       const isErase = st.brush_mode === "erase";
       const ringR = Math.max(2, (st.brush_size / 2) * m.scale);
       ctx.save();
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = sfCursorWidth();
       if (isErase) {
         ctx.strokeStyle = "#ffffff";
         ctx.setLineDash([4, 3]);
@@ -620,6 +620,8 @@ app.registerExtension({
   name: "sfnodes.BrushMask",
   init() {
     registerBrushStepSettings();
+    // 画布线条粗细设置（sfnodes.Canvas.*，三画布节点共用，幂等）
+    registerSfLineWidthSettings();
   },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== CLASS) return;

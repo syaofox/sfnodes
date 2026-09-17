@@ -314,6 +314,15 @@ const makeState = (patch = {}) => JSON.stringify({
   fireKey("c");
   check("C 切 Crop", state().brush_mode === "crop");
   check("设置项已注册（init）", (ext.init(), globalThis.__settingDefs["sfnodes.BrushMask.SizeStep"]?.defaultValue === 2));
+  {
+    const frameDef = globalThis.__settingDefs["sfnodes.Canvas.FrameWidth"];
+    const cursorDef = globalThis.__settingDefs["sfnodes.Canvas.CursorWidth"];
+    check("画布线条设置已注册（默认 1.0 / slider 0.5–3 step 0.25）",
+      frameDef?.defaultValue === 1.0 && cursorDef?.defaultValue === 1.0
+      && frameDef.type === "slider" && frameDef.attrs?.min === 0.5 && frameDef.attrs?.max === 3
+      && frameDef.attrs?.step === 0.25
+      && cursorDef.type === "slider" && cursorDef.attrs?.step === 0.25);
+  }
 
   // ── window capture 释放兜底 + onRemoved 解绑 ──
   node.properties[STATE_PROP] = makeState({ brush_mode: "brush" });
@@ -357,6 +366,48 @@ const makeState = (patch = {}) => JSON.stringify({
   node.onDrawForeground(makeFullCtx([]));
   const newCvs = createdCanvases.slice(beforeInv);
   check("反选新建离屏画布并打洞", newCvs.some((c) => c.ops.some((o) => o.op === "set:globalCompositeOperation" && o.value === "destination-out")));
+
+  // ── 非 Crop 模式隐藏裁剪框（压暗/框线/九宫格/手柄），Crop 模式显示 ──
+  const drawModeOps = (mode) => {
+    node.properties[STATE_PROP] = makeState({ src_path: "", src_w: 512, src_h: 512, brush_mode: mode });
+    const ops = [];
+    node.onDrawForeground(makeFullCtx(ops));
+    return ops;
+  };
+  // 手柄为 10×10 的白色 fillRect（BCol 按钮同为白色但尺寸 30×18，故按尺寸区分）
+  const handleCount = (ops) => ops.filter((o) => o.op === "fillRect" && o.fill === "rgba(255,255,255,0.9)"
+    && o.args[2] === 10 && o.args[3] === 10).length;
+  const hasGrid = (ops) => ops.some((o) => o.op === "set:strokeStyle" && o.value === "rgba(255,255,255,0.4)");
+  const cropOps2 = drawModeOps("crop");
+  const brushOps = drawModeOps("brush");
+  const eraseOps = drawModeOps("erase");
+  check("Crop 模式显示裁剪框手柄", handleCount(cropOps2) >= 8);
+  check("Crop 模式显示九宫格", hasGrid(cropOps2) === true);
+  check("Brush 模式隐藏裁剪框", handleCount(brushOps) === 0 && hasGrid(brushOps) === false);
+  check("Erase 模式隐藏裁剪框", handleCount(eraseOps) === 0 && hasGrid(eraseOps) === false);
+
+  // ── 线宽随设置（sfnodes.Canvas.*，§97）：边框/虚线 = FrameWidth，
+  //    九宫格/手柄/网格 = max(0.5, W/2)，光环 = CursorWidth ──
+  {
+    const lws = (ops) => ops.filter((o) => o.op === "set:lineWidth").map((o) => o.value);
+    check("默认细线 0.5（九宫格/手柄/网格）", lws(cropOps2).includes(0.5));
+    const saved = { ...globalThis.__settingVals };
+    globalThis.__settingVals["sfnodes.Canvas.FrameWidth"] = 2.5;
+    globalThis.__settingVals["sfnodes.Canvas.CursorWidth"] = 2;
+    const wCrop = drawModeOps("crop");
+    check("裁剪框线宽随 FrameWidth（边框 2.5 / 细线 1.25）", lws(wCrop).includes(2.5) && lws(wCrop).includes(1.25));
+    node._sfCEBCursor = [170, 120];
+    globalThis.__canvas.node_over = node;
+    const wBrush = drawModeOps("brush");
+    check("光环线宽随 CursorWidth（2）", lws(wBrush).includes(2));
+    // 源图边界虚线也用 FrameWidth（全模式保留），故不能按线宽判框；
+    // 改按框线唯一色辨别（源图虚线是蓝 rgba(100,150,255,0.6)）
+    const hasBoxBorder = (ops) => ops.some((o) => o.op === "strokeRect" && o.stroke === "rgba(255,255,255,0.9)");
+    check("非 Crop 模式无裁剪框边框（白色）", hasBoxBorder(wBrush) === false && hasBoxBorder(wCrop) === true);
+    globalThis.__canvas.node_over = null;
+    globalThis.__settingVals = saved;
+  }
+  node.properties[STATE_PROP] = makeState({ src_path: "", src_w: 512, src_h: 512, brush_mode: "crop" });
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }
