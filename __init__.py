@@ -127,6 +127,7 @@ from .nodes.video.scail2 import (
 )
 from .nodes.video.video_concat import SFVideoConcat
 from .nodes.video.sam3_point_track import SFSAM3PointTrack
+from .nodes.video.sam3_reanchor_track import SFSAM3ReanchorTrack
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -370,6 +371,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSCAIL2SimpleVideo": SFSCAIL2SimpleVideo,
     "SFVideoConcat": SFVideoConcat,
     "SFSAM3PointTrack": SFSAM3PointTrack,
+    "SFSAM3ReanchorTrack": SFSAM3ReanchorTrack,
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
@@ -603,6 +605,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSCAIL2SimpleVideo": "SF SCAIL-2 Simple Video",
     "SFVideoConcat": "SF Video Concat",
     "SFSAM3PointTrack": "SF SAM3 Point Track",
+    "SFSAM3ReanchorTrack": "SF SAM3 Reanchor Track",
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点

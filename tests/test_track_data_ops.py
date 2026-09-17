@@ -527,6 +527,77 @@ sl_multi = ops.slice_track_data(td_multi, 0, 1)
 check("slice 保留对象数", sl_multi["packed_masks"].shape[1] == 2)
 
 
+# ── 3e. concat_track_data_segments（分段重锚拼接）──
+seg_a = np.zeros((2, 1, 4, 8), dtype=bool)
+seg_a[0, 0, :, :4] = True
+seg_a[1, 0, :, :] = True
+td_a = {"packed_masks": FakeTensor(numpy_pack(seg_a)), "n_frames": 2, "orig_size": (4, 8), "scores": [0.9]}
+# 2 对象段：并集塌单身份
+seg_b = np.zeros((2, 2, 4, 8), dtype=bool)
+seg_b[0, 0, :, :2] = True
+seg_b[0, 1, :, 4:6] = True
+seg_b[1, 0, :, :] = True
+td_b = {"packed_masks": FakeTensor(numpy_pack(seg_b)), "n_frames": 2, "orig_size": (4, 8), "scores": [1.0, 0.8]}
+
+cc = ops.concat_track_data_segments([(0, td_a), (3, td_b)], 5, torch=fake_torch)
+ucc = numpy_unpack(_arr(cc["packed_masks"]))
+check("concat 全长/单身份", cc["packed_masks"].shape == (5, 1, 4, 1))
+check("concat n_frames", cc["n_frames"] == 5)
+check("concat scores=[1.0]", cc["scores"] == [1.0])
+check("concat orig_size 取首段", cc["orig_size"] == (4, 8))
+check("concat 段0帧0", np.array_equal(ucc[0, 0], seg_a[0, 0]))
+check("concat 段0帧1", np.array_equal(ucc[1, 0], seg_a[1, 0]))
+check("concat 段间空隙补零", not ucc[2].any())
+check("concat 段1多对象并集", np.array_equal(ucc[3, 0], seg_b[0, 0] | seg_b[0, 1]))
+check("concat 段1末帧", np.array_equal(ucc[4, 0], seg_b[1, 0]))
+
+# 多对象段在前 + 空隙补零（补零帧对象维须为 1，回归：曾用 ref.shape[1:] 导致 2 通道）
+cc_multi_first = ops.concat_track_data_segments([(1, td_b), (4, td_a)], 6, torch=fake_torch)
+umf = numpy_unpack(_arr(cc_multi_first["packed_masks"]))
+check("concat 多对象段在前补零单身份", cc_multi_first["packed_masks"].shape == (6, 1, 4, 1)
+      and not umf[0].any() and np.array_equal(umf[1, 0], seg_b[0, 0] | seg_b[0, 1])
+      and not umf[3].any() and np.array_equal(umf[4, 0], seg_a[0, 0]))
+
+# 首锚 >0：前补空帧
+cc_front = ops.concat_track_data_segments([(2, td_a)], 4, torch=fake_torch)
+uf = numpy_unpack(_arr(cc_front["packed_masks"]))
+check("concat 首锚前补空帧", cc_front["packed_masks"].shape == (4, 1, 4, 1)
+      and not uf[:2].any() and np.array_equal(uf[2:], seg_a))
+
+# 空段（packed None）跳过，其帧区间补零
+td_empty = {"packed_masks": None, "n_frames": 1, "orig_size": (4, 8)}
+cc_empty = ops.concat_track_data_segments([(0, td_a), (2, td_empty), (3, td_b)], 5, torch=fake_torch)
+ue = numpy_unpack(_arr(cc_empty["packed_masks"]))
+check("concat 空段跳过补零", not ue[2].any() and np.array_equal(ue[3, 0], seg_b[0, 0] | seg_b[0, 1]))
+
+# 单段即全长（不走 cat）
+cc_single = ops.concat_track_data_segments([(0, td_a)], 2, torch=fake_torch)
+check("concat 单段直通", np.array_equal(numpy_unpack(_arr(cc_single["packed_masks"])), seg_a))
+
+# 全空：packed None 仅保留 n_frames/orig_size
+cc_none = ops.concat_track_data_segments([(0, td_empty)], 3, torch=fake_torch)
+check("concat 全空 packed None", cc_none["packed_masks"] is None and cc_none["n_frames"] == 3
+      and cc_none["orig_size"] == (4, 8) and cc_none["scores"] == [])
+
+# 重叠 / 越界 / 网格不一致报错
+for _name, _segs in [
+    ("concat 重叠报错", [(0, td_a), (1, td_b)]),
+    ("concat 越界报错", [(4, td_a)]),
+]:
+    try:
+        ops.concat_track_data_segments(_segs, 5, torch=fake_torch)
+        check(_name, False)
+    except ValueError:
+        check(_name, True)
+try:
+    td_grid = {"packed_masks": FakeTensor(numpy_pack(np.zeros((1, 1, 8, 8), dtype=bool))),
+               "n_frames": 1, "orig_size": (8, 8)}
+    ops.concat_track_data_segments([(0, td_a), (2, td_grid)], 5, torch=fake_torch)
+    check("concat 网格不一致报错", False)
+except ValueError:
+    check("concat 网格不一致报错", True)
+
+
 # ── 4. execute 集成 ──
 node = SFTrackDataSubtract()
 res = node.execute(td_base, exclude_1=FakeTensor(ex))

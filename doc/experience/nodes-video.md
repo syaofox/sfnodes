@@ -252,3 +252,40 @@ SFForLoopEnd
 - **每轮重新执行**：循环里 VHS/VAE encode/采样都重跑（本来就该跑）；模型权重不卸载，`_empty_cache(force=True)` 仍在每段末清理。
 - **单段显存不变**：外层分段只解决 RAM/mask；单段 81 帧 @生成分辨率的采样峰值依旧（能跑通单段即可跑全长）。
 - **SAM3 追踪**：整段追踪一次（可 `SFTrackDataCache` 磁盘缓存）后循环内只切片；不要分段重追踪（ID/颜色跨段不一致）。
+
+## 98. SFSAM3ReanchorTrack：指定帧重锚追踪（2026-09）
+
+> 背景：视频中途人物从全身变半身/换拍摄角度时，SAM3 记忆传播失效、遮罩从切换帧起只抓住头（或丢失目标）。原生 `SAM3_VideoTrack` 只在第 0 帧条件化（`comfy_extras/nodes_sam3.py` 的 `if frame_idx == 0 and initial_masks is not None`），无法中途重锚。需求：指定若干帧，在这些帧用提示词重新检测，并以该帧为起点重新传播。
+
+### 98.1 为什么是 sfnodes 包装节点
+
+- **不改核心**：中途条件帧需要改 `comfy/ldm/sam3/tracker.py`（`_condition_with_masks` 本可接受任意 `frame_idx`，但 `track_video_with_detection` 只在 0 帧调用）+ `detector.forward_video` + 原生节点签名；docker `patches/` 无落地机制、升级即丢。
+- **图内拼接不可行**：多个 `SFSAM3PointTrack` + `SFTrackDataAdd` 要求各输入帧数一致且无补帧节点；且每段会追到片尾，锚点越多重复算力越大。
+- **硬重置 vs 软纠正**：原生逐帧检测的 recondition（`tracker.py` 高置信 ≥0.8 且重叠 ≥0.5 时替换遮罩）是"软纠正"，旧记忆仍在；分段调用原生节点 = 每段全新 tracker 状态（无历史记忆污染），锚帧重新检测，是真正的"从该帧重新扩散追踪"。
+
+### 98.2 节点设计（`nodes/video/sam3_reanchor_track.py`，CATEGORY `sfnodes/video`）
+
+- required：`images` / `model`（SAM3.1）/ `anchor_frames`（STRING，逗号/空格/分号分隔，空串回退 `[0]`；排序去重、越界/非整数报错）。
+- optional：`clip`（SAM3 文本编码器，CheckpointLoader 的 CLIP）、`prompts`（multiline，**每行对应一个锚帧**，可各不相同，如切镜后 `person`→`woman`；空行/行数不足回退 `conditioning`，多余行忽略）、`conditioning`（共用现成条件）、`initial_mask`（**仅首锚**种子，2D 自动升维）、`detection_threshold` / `max_objects` / `detect_interval`（段内透传原生节点）。
+- 流程：锚帧 `a_i` 切段 `images[a_i:a_{i+1}]`（末段到片尾）→ 每段 `clip.encode_from_tokens_scheduled(clip.tokenize(line))`（该行非空时）→ 原生 `SAM3_VideoTrack.execute(images=段, initial_mask=首锚种子, conditioning=cond_i, …)` → `concat_track_data_segments` 拼回全长。
+- 输出恒与输入等长、`orig_size` 继承、各段跨对象位或**塌单身份**（`scores=[1.0]`），可直接接 `SAM3_TrackToMask` / `SCAIL-2 driving_track_data`。
+- 某段起始检测为空（`packed_masks is None`）→ 该段帧区间补零，不影响其他段。
+- 算力：各段帧不重叠，总计 ≈ 一遍全片 + 每段起始一次检测；每段检测进度条独立（原生 execute 自建 pbar）。
+- 与"加 conditioning 让原生节点自己 recondition"（§上文对话结论）的区别：后者依赖检测分 ≥0.8 的硬编码阈值且不清理旧记忆；本节点是用户可控的强制重锚，且允许每段换提示词。
+
+### 98.3 纯逻辑与复用
+
+- `sf_utils/track_data_ops.py::concat_track_data_segments(segments, total_frames, torch)`：`(起始帧, track_data)` 列表 → 每段跨对象**位或**（packed uint8 直接按位或，无需 unpack）塌单身份 → 按偏移放入零张量；首/尾/段间空隙补零；空段跳过；重叠/越界/工作网格不一致报错；`orig_size` 取首个带值段；全空返回 `packed_masks=None`。补零帧对象维恒为 1（回归：曾用 `ref.shape[1:]`，多对象首段会让零帧带 2 通道导致 cat 失败）。
+- `sf_utils/common.py::node_result`：核心 V3 节点 `io.NodeOutput` 解包归一，从 `sam3_point_track.py` 提升为公共实现（两节点共用，禁止内联副本）。
+
+### 98.4 边界
+
+- 提示词行需要 `clip`；缺 `clip` 且该行非空时报错。某锚帧既无提示词也无 `conditioning`/首锚种子时报错。
+- 非 multiplex 老 SAM3 不支持检测路径，仅首锚 `initial_mask` 可用（其余段会由核心抛错）。
+- 首锚 >0 时其前帧恒为空（与 `SFSAM3PointTrack` 一致）。
+- `max_objects` 是**每段**上限；段间对象身份不保证对应，输出已塌单身份，故跨段多主体场景不适用（多主体请用单段 `SAM3_VideoTrack`）。
+
+### 98.5 测试
+
+- `tests/test_reanchor_track.py`：stub `torch` + `comfy_extras.nodes_sam3` + FakeClip；覆盖锚帧解析（排序去重/空串回退/越界与非法报错）、逐行编码与切片调用、空行回退 conditioning、`initial_mask` 仅首锚与 2D 升维、空段补零、输出全长单身份、结构元数据与双字典注册。
+- `tests/test_track_data_ops.py`：补 `concat_track_data_segments` 用例（段间空隙、多对象并集、多对象段在前补零、单段直通、全空、重叠/越界/网格不一致报错）。

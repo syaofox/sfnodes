@@ -1,6 +1,7 @@
 """SAM3_TRACK_DATA 纯逻辑运算（无 torch / ComfyUI 依赖，依赖注入）。
 
-用于 `SFSAM3PointTrack` 的锚帧前补空帧，以及 `SFTrackDataSubtract` 的
+用于 `SFSAM3PointTrack` 的锚帧前补空帧、`SFSAM3ReanchorTrack` 的分段
+拼接回全长（每段位或塌单身份 + 空隙补零），以及 `SFTrackDataSubtract` 的
 track_data 层逐帧相减（排除男性/阴茎/精液等）、`SFTrackDataAdd` 的逐帧
 并集合成单身份、`SFTrackDataMerge` 的逐槽先减后加组合、
 `SFTrackDataSlice` 的时间维区间切片。位打包复用核心
@@ -40,6 +41,59 @@ def slice_track_data(track_data, start=0, length=0):
     out["packed_masks"] = packed[start:end].contiguous()
     out["n_frames"] = span
     return out
+
+
+def concat_track_data_segments(segments, total_frames, torch=None):
+    """把若干 `(起始帧, track_data)` 段按时间偏移拼回全长的单身份 track_data。
+
+    用于分段重锚追踪（`SFSAM3ReanchorTrack`）：每段独立跑一次追踪后，
+    - 每段跨对象位或（packed uint8 按位或）塌成 1 个身份；
+    - 段按起始帧升序、互不重叠；首/尾/段间空隙补零帧；
+    - `packed_masks is None` / 0 对象 / 0 帧的段视为空段跳过（其帧区间为空格）；
+    - 各段 packed 工作网格（H/W）必须一致，否则报错；起点重叠或超出总帧数报错；
+    - 输出 `scores=[1.0]`（单身份语义，同 `add_to_track_data`），
+      `orig_size` 取首个带 orig_size 的段；全空时 `packed_masks=None`。
+    """
+    total = int(total_frames or 0)
+    ref = None  # 首个非空 packed，用于 dtype/device/网格基准
+    ref_orig = (0, 0)
+    parts = []
+    cursor = 0
+    for start, track_data in (segments or []):
+        start = int(start)
+        if track_data is None:
+            continue
+        orig = track_data.get("orig_size")
+        if orig and ref_orig == (0, 0):
+            ref_orig = (int(orig[0]), int(orig[1]))
+        packed = track_data.get("packed_masks")
+        if packed is None or packed.shape[0] == 0 or packed.shape[1] == 0:
+            continue
+        length = int(packed.shape[0])
+        if start < cursor:
+            raise ValueError(f"SF 分段拼接: 段起点 {start} 与前段重叠（当前游标 {cursor}）")
+        if start + length > total:
+            raise ValueError(f"SF 分段拼接: 段 [{start}, {start + length}) 超出总帧数 {total}")
+        if ref is None:
+            ref = packed
+        elif tuple(packed.shape[2:]) != tuple(ref.shape[2:]):
+            raise ValueError("SF 分段拼接: 各段 packed 工作网格不一致")
+        if start > cursor:
+            parts.append(torch.zeros((start - cursor, 1) + tuple(ref.shape[2:]),
+                                     dtype=ref.dtype, device=ref.device))
+        union = packed[:, 0]
+        for i in range(1, int(packed.shape[1])):
+            union = union | packed[:, i]
+        parts.append(union.unsqueeze(1))
+        cursor = start + length
+
+    if ref is None:
+        return {"packed_masks": None, "n_frames": total, "orig_size": ref_orig, "scores": []}
+    if cursor < total:
+        parts.append(torch.zeros((total - cursor, 1) + tuple(ref.shape[2:]),
+                                 dtype=ref.dtype, device=ref.device))
+    out = parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
+    return {"packed_masks": out, "n_frames": total, "orig_size": ref_orig, "scores": [1.0]}
 
 
 def pad_width_to_8(masks, torch):

@@ -13,17 +13,6 @@ def _has_points(spec):
         return True
 
 
-def _node_result(value):
-    if hasattr(value, "result"):
-        result = value.result
-        if result is None:
-            return ()
-        return tuple(result)
-    if isinstance(value, tuple):
-        return value
-    return (value,)
-
-
 class SFSAM3PointTrack:
     @classmethod
     def INPUT_TYPES(cls):
@@ -52,6 +41,7 @@ class SFSAM3PointTrack:
     def execute(self, images, model, anchor_frame=0, positive_coords=None,
                 negative_coords=None, initial_mask=None, refine_iterations=2):
         import torch
+        from ...sf_utils.common import node_result
         from ...sf_utils.track_data_ops import pad_track_data_front
 
         if images is None or images.ndim != 4:
@@ -70,7 +60,7 @@ class SFSAM3PointTrack:
                 raise ValueError("SF SAM3 Point Track: 请先在 PointsEditor 点选目标（刷新底图后 Shift+左键=正向点），或接入 initial_mask")
             from comfy_extras.nodes_sam3 import SAM3_Detect
 
-            detect = _node_result(SAM3_Detect.execute(
+            detect = node_result(SAM3_Detect.execute(
                 model=model,
                 image=images[anchor:anchor + 1],
                 positive_coords=positive_coords,
@@ -81,7 +71,7 @@ class SFSAM3PointTrack:
 
         from comfy_extras.nodes_sam3 import SAM3_VideoTrack
 
-        result = _node_result(SAM3_VideoTrack.execute(
+        result = node_result(SAM3_VideoTrack.execute(
             images=images[anchor:],
             model=model,
             initial_mask=seed,

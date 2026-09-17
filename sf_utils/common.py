@@ -81,6 +81,22 @@ def collect_indexed(kwargs, prefix):
     return out
 
 
+def node_result(value):
+    """把核心 V3 节点 execute 的返回值归一为 tuple。
+
+    `io.NodeOutput.result`（可能为 None）→ tuple；已是 tuple → 原样；其余 → 单元素 tuple。
+    SFSAM3PointTrack 与 SFSAM3ReanchorTrack 复用（原先内联在 sam3_point_track.py）。
+    """
+    if hasattr(value, "result"):
+        result = value.result
+        if result is None:
+            return ()
+        return tuple(result)
+    if isinstance(value, tuple):
+        return value
+    return (value,)
+
+
 def valid_name(name, max_len=None):
     """预设/库条目名合法性：非空字符串、无路径分隔符、无控制字符。
 
