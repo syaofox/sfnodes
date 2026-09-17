@@ -290,9 +290,9 @@ SFForLoopEnd
 - `tests/test_reanchor_track.py`：stub `torch` + `comfy_extras.nodes_sam3` + FakeClip；覆盖锚帧解析（排序去重/空串回退/越界与非法报错）、逐行编码与切片调用、空行回退 conditioning、`initial_mask` 仅首锚与 2D 升维、空段补零、输出全长单身份、结构元数据与双字典注册。
 - `tests/test_track_data_ops.py`：补 `concat_track_data_segments` 用例（段间空隙、多对象并集、多对象段在前补零、单段直通、全空、重叠/越界/网格不一致报错）。
 
-### 98.6 选项开关 initial_mask_always（补充，2026-09）
+### 98.6 initial_mask 批语义：第 i 张对应第 i 段（同日取代 initial_mask_always 开关，2026-09）
 
-- 语义：打开后**每个锚段都以同一张 `initial_mask` 作种子**（默认仅首锚）；段内 prompts/conditioning 仍透传用于逐帧检测与 recondition。适合机位/主体位置基本不变的视频；主体移动大时后续锚帧会因首帧形状错位（此时应改用文本重检测或锚帧遮罩）。
-- 实现：`initial_mask` 2D 升维提到循环外只做一次（同对象传给各段）；`initial_mask_always and initial_mask is None` 提前抛 `ValueError`（静默忽略会让用户误以为已生效）。
-- **widget 放 optional 末尾**：新增 BOOLEAN 追加在 `detect_interval` 之后，保证已保存工作流的 `widgets_values` 位置数组不错位（named 前端不受影响，但旧位置数组会）。
-- 测试：结构（BOOLEAN/默认关/位于末尾）+ 开关打开两段同一种子且文本仍逐行编码 + 缺遮罩报错。
+- 背景：初版只有「首锚种子 + `initial_mask_always` 开关全程复用」两档，无法给不同锚段不同遮罩。改为 **`initial_mask` 批次 `[K,H,W]` 按顺序对应各锚段**，开关删除——需要「同一张遮罩用于所有段」时把同一路扇出到 `SFMaskBatch`（`nodes/image/batch.py`，mask_1..16 未连跳过）多个槽即可，能力不丢。
+- 映射规则：锚帧先排序去重，遮罩顺序须与之一致；**多余丢弃**；**不足**或**该张全零**→ 该段回退 prompts/conditioning 检测（全零可作密集批次里跳过中间段的占位）；2D 单张仅首段；单段时批内只取第 1 张（多对象种子请直接用原生 `SAM3_VideoTrack`）。`ndim` 非 2/3 报错（此前会原样透传给原生 `unsqueeze(1)` 造成难查的维度错误）。
+- 实现：`masks = initial_mask`（2D→`[1,H,W]`，循环外只做一次）；每段 `candidate = masks[index:index+1]`，`bool(candidate.any())` 为假则视为未提供；种子与文本条件同时传给原生节点（原生在段首丢弃检测、用遮罩建轨，段内检测继续 recondition）。
+- 测试：批映射逐段对应/提示词仍逐行编码/不足回退/多余丢弃/全零回退/2D 升维/4D 报错；FakeTensor 需补 `.any()` 桩。

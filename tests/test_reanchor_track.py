@@ -61,6 +61,9 @@ class FakeTensor:
     def unsqueeze(self, dim):
         return FakeTensor(np.expand_dims(self.data, dim))
 
+    def any(self):
+        return bool(self.data.any())
+
     def numpy(self):
         return self.data
 
@@ -159,10 +162,7 @@ check("prompts optional multiline", schema["optional"]["prompts"][0] == "STRING"
 check("initial_mask optional MASK", schema["optional"]["initial_mask"][0] == "MASK")
 check("max_objects default 1", schema["optional"]["max_objects"][0] == "INT"
       and schema["optional"]["max_objects"][1].get("default") == 1)
-check("initial_mask_always optional BOOLEAN 默认关", schema["optional"]["initial_mask_always"][0] == "BOOLEAN"
-      and schema["optional"]["initial_mask_always"][1].get("default") is False)
-check("initial_mask_always 为末尾 optional（旧工作流 widgets_values 位置兼容）",
-      list(schema["optional"].keys())[-1] == "initial_mask_always")
+check("无 initial_mask_always（已由批语义取代）", "initial_mask_always" not in schema["optional"])
 
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as f:
     tree = ast.parse(f.read())
@@ -234,26 +234,61 @@ res_seed_only = node.execute(images, model="M", anchor_frames="0", initial_mask=
 check("单锚仅遮罩可跑", res_seed_only[0]["n_frames"] == 8
       and calls["track"][0]["conditioning"] is None)
 
-# initial_mask_always：每个锚段都以 initial_mask 作种子（全程有效）
+# initial_mask 批语义：第 i 张按顺序对应第 i 个锚段
 calls["track"].clear()
 calls["tokens"].clear()
-res_always = node.execute(images, model="M", anchor_frames="2,5", clip=FakeClip(),
-                          prompts="person\nwoman", initial_mask=seed2d, initial_mask_always=True)
-check("开关打开：两段都收到种子", len(calls["track"]) == 2
-      and calls["track"][0]["initial_mask"].shape == (1, 4, 8)
-      and calls["track"][1]["initial_mask"].shape == (1, 4, 8))
-check("开关打开：2D 只升维一次且同对象",
-      calls["track"][0]["initial_mask"] is calls["track"][1]["initial_mask"])
-check("开关打开：文本仍逐行编码", calls["track"][0]["conditioning"] == [("COND:person", {})]
-      and calls["track"][1]["conditioning"] == [("COND:woman", {})])
-check("开关打开：输出全长", res_always[0]["n_frames"] == 8)
+batch3 = FakeTensor(np.zeros((3, 4, 8), dtype=bool))
+batch3.data[0, :, :2] = True
+batch3.data[1, :, 2:4] = True
+batch3.data[2, :, 4:6] = True
+res_batch = node.execute(images, model="M", anchor_frames="1,3,6", clip=FakeClip(),
+                         prompts="a\nb\nc", initial_mask=batch3)
+check("批：三段各取对应一张", len(calls["track"]) == 3
+      and all(calls["track"][i]["initial_mask"].shape == (1, 4, 8) for i in range(3)))
+check("批：第 i 段种子内容对应第 i 张",
+      np.array_equal(calls["track"][0]["initial_mask"].numpy(), batch3.numpy()[0:1])
+      and np.array_equal(calls["track"][1]["initial_mask"].numpy(), batch3.numpy()[1:2])
+      and np.array_equal(calls["track"][2]["initial_mask"].numpy(), batch3.numpy()[2:3]))
+check("批：提示词仍逐行编码", calls["tokens"] == ["a", "b", "c"])
+check("批：输出全长", res_batch[0]["n_frames"] == 8)
 
-# 开关打开但未接遮罩 → 报错
+# 遮罩不足：剩余段回退 conditioning
+calls["track"].clear()
+res_few = node.execute(images, model="M", anchor_frames="0,4,6", initial_mask=batch3[:2],
+                       conditioning="COND_OBJ")
+check("批：不足的段回退文本", calls["track"][0]["initial_mask"] is not None
+      and calls["track"][1]["initial_mask"] is not None
+      and calls["track"][2]["initial_mask"] is None
+      and calls["track"][2]["conditioning"] == "COND_OBJ")
+check("批：不足仍输出全长", res_few[0]["n_frames"] == 8)
+
+# 遮罩多余：丢弃且不影响对应段
+calls["track"].clear()
+res_extra = node.execute(images, model="M", anchor_frames="0,4", initial_mask=batch3,
+                         conditioning="COND_OBJ")
+check("批：多余丢弃且前两段取到", len(calls["track"]) == 2
+      and calls["track"][0]["initial_mask"] is not None
+      and calls["track"][1]["initial_mask"] is not None
+      and res_extra[0]["n_frames"] == 8)
+
+# 全零占位：该段视为未提供（回退文本），其余段照常
+calls["track"].clear()
+batch_zero = FakeTensor(np.zeros((3, 4, 8), dtype=bool))
+batch_zero.data[0, :, :2] = True
+batch_zero.data[2, :, 4:6] = True
+node.execute(images, model="M", anchor_frames="0,4,6", initial_mask=batch_zero,
+             conditioning="COND_OBJ")
+check("批：全零段回退文本", calls["track"][0]["initial_mask"] is not None
+      and calls["track"][1]["initial_mask"] is None
+      and calls["track"][2]["initial_mask"] is not None)
+
+# 4D 遮罩报错
 try:
-    node.execute(images, model="M", anchor_frames="0,4", conditioning="C", initial_mask_always=True)
-    check("开关打开缺遮罩报错", False)
+    node.execute(images, model="M", anchor_frames="0",
+                 initial_mask=FakeTensor(np.zeros((2, 1, 4, 8), dtype=bool)), conditioning="C")
+    check("4D 遮罩报错", False)
 except ValueError:
-    check("开关打开缺遮罩报错", True)
+    check("4D 遮罩报错", True)
 
 # 空行回退 conditioning
 calls["track"].clear()
