@@ -4,7 +4,7 @@
 //
 // 复刻 easy convertAnything 的前端半边（py/nodes/logic.py::SFConvertAnything
 // 是后端权威）：output_type combo 变化时把输出槽 type 同步为大写类型名
-// （STRING/INT/FLOAT/BOOLEAN），让画布连线校验与槽点颜色跟随所选类型。
+// （STRING/INT/FLOAT/BOOLEAN/COMBO），让画布连线校验与槽点颜色跟随所选类型。
 // 后端始终声明 "*"（any_type），改型纯属前端渲染与连线校验。
 //
 // 与原件差异（已确认范围）：
@@ -25,6 +25,8 @@ const SOCKET_TYPES = {
     int: "INT",
     float: "FLOAT",
     boolean: "BOOLEAN",
+    // 原样直通，仅把槽标记为 COMBO 以便连到下拉/COMBO 输入
+    combo: "COMBO",
 };
 
 function applyOutputType(node, value) {

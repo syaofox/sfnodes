@@ -540,3 +540,19 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 
 - 生效条件：重启容器 + 浏览器硬刷新（object_info 无服务端缓存）。VHS 的 `documentation.py` 帮助文案在其 import 时已成型，不会提及 filename（纯装饰，不影响槽）。
 - 若旧工作流里已存在的 VHS 节点刷新后不显示新槽（前端以 saved outputs 为准时），退路是补一个约 10 行的前端模块：`onAfterGraphConfigured` 对比 `nodeData.output.length` 补 `addOutput`——本次先不做，实测需要再补。
+
+## 84. SFConvert Anything 新增 combo 输出档：原样直通 + COMBO 槽型（2026-09）
+
+> 背景：`SFConvertAnything`（§41）`output_type` 原为 string/int/float/boolean 四档，会把输出槽改型为具体类型，导致结果无法再连到下拉/COMBO 输入（新前端 combo 输入槽 `type` 为字符串 `"COMBO"`，见 platform §12）。新增 `combo` 档把输出槽改型为 `COMBO`，使转换结果可直接驱动下拉输入。
+
+### 1. 模式
+
+- **`combo` 不是值类型，转换用原样直通**（`lambda v: v`，用户确认）：只改槽型不动数据，字符串/数值 option 都安全；要转字符串请用 `string` 档。后端 `CONVERT_ANYTHING_TYPES + ("combo",)`、`CONVERT_ANYTHING_CONVERTERS["combo"]` 直通；前端 `SOCKET_TYPES.combo = "COMBO"`（复用 `any_pack.setSlotType`，§41 挂点/恢复逻辑零改动）。
+- **前后端校验均无碍**：后端 `RETURN_TYPES` 恒为 `("*",)`，执行期 `validate_node_input` 只看到 `*`，不会因槽型变 `COMBO` 而报错；前端 `LiteGraph.isValidConnection`（容器内 1.52.7 sourcemap `litegraph/src/LiteGraphGlobal.ts:688`）对 `"COMBO"==="COMBO"` 全等放行，故 `COMBO` 输出可连 combo 输入，且不会再误连其它具体类型输入。
+- **与 `*` 通配的差别**：`*` 输出本就可连任意输入（含 combo，[platform.md](platform.md) §12），但本节点没有"any 档"；`combo` 提供了一个只面向下拉的确定槽型。
+
+### 2. 测试与文档
+
+- `tests/test_logic.py`：`output_type` options 断言补 `"combo"`；`combo` 直通用例（字符串与数值各一）。
+- `tests/test_convert_anything_js.js`：`callback("combo")` 断言槽型 `COMBO`、槽名 `combo`（`SOCKET_TYPES` 映射即改型键）。
+- 节点 DESCRIPTION 与 `doc/architecture.md` 两处条目同步补 combo/COMBO。

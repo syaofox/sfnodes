@@ -600,12 +600,14 @@ class ComboSelector:
         return (value, stem)
 
 
-CONVERT_ANYTHING_TYPES = ("string", "int", "float", "boolean")
+CONVERT_ANYTHING_TYPES = ("string", "int", "float", "boolean", "combo")
 CONVERT_ANYTHING_CONVERTERS = {
     "string": str,
     "int": int,
     "float": float,
     "boolean": bool,
+    # combo 不是值类型，原样直通：仅让输出槽变 COMBO 以便连到下拉/COMBO 输入
+    "combo": lambda v: v,
 }
 
 
@@ -628,7 +630,7 @@ class SFConvertAnything:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     OUTPUT_NODE = True  # 复刻 easy：输出悬空也强制执行
-    DESCRIPTION = "把任意输入转换为指定类型（string/int/float/boolean）输出；输入为 None 时原样直通。前端会按所选类型同步输出槽类型（便于连线校验）"
+    DESCRIPTION = "把任意输入转换为指定类型（string/int/float/boolean/combo）输出；combo 为原样直通、仅把输出槽标记为 COMBO（便于连到下拉/COMBO 输入）；输入为 None 时原样直通。前端会按所选类型同步输出槽类型（便于连线校验）"
 
     def execute(self, **kwargs):
         value = kwargs["*"]

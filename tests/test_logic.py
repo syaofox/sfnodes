@@ -182,12 +182,14 @@ check("convert string", ca.execute(**{"*": 7, "output_type": "string"}) == ("7",
 check("convert int", ca.execute(**{"*": "12", "output_type": "int"}) == (12,))
 check("convert float", ca.execute(**{"*": 3, "output_type": "float"}) == (3.0,))
 check("convert boolean", ca.execute(**{"*": 0, "output_type": "boolean"}) == (False,))
+check("combo 原样直通", ca.execute(**{"*": "euler", "output_type": "combo"}) == ("euler",))
+check("combo 非字符串也直通", ca.execute(**{"*": 3, "output_type": "combo"}) == (3,))
 check("None 直通", ca.execute(**{"*": None, "output_type": "int"}) == (None,))
 check("输出槽声明任意类型", len(ca.RETURN_TYPES) == 1 and ca.RETURN_TYPES[0] == "*")
 check("OUTPUT_NODE 悬空可执行", getattr(ca, "OUTPUT_NODE", None) is True)
 ca_inputs = ca.INPUT_TYPES()["required"]
 check("输入名照抄字面量 *", "*" in ca_inputs and ca_inputs["*"][0] == "*")
-check("output_type 选项与默认", ca_inputs["output_type"][0] == ["string", "int", "float", "boolean"]
+check("output_type 选项与默认", ca_inputs["output_type"][0] == ["string", "int", "float", "boolean", "combo"]
       and ca_inputs["output_type"][1]["default"] == "string")
 check("DESCRIPTION 已声明", bool(ca.DESCRIPTION))
 

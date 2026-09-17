@@ -63,6 +63,9 @@ node.widgets[0].callback("float");
 check("callback 改型 FLOAT", node.outputs[0].type === "FLOAT");
 node.widgets[0].callback("boolean");
 check("callback 改型 BOOLEAN", node.outputs[0].type === "BOOLEAN");
+node.widgets[0].callback("combo");
+check("callback 改型 COMBO", node.outputs[0].type === "COMBO"
+    && node.outputs[0].name === "combo");
 
 // 元素替换：Vue shallowReactive 数组需替换元素而非原地改（platform §2.7）
 const before = node.outputs[0];
