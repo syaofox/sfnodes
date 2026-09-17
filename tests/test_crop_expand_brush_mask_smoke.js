@@ -90,6 +90,7 @@ const makeState = (patch = {}) => JSON.stringify({
   sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
   invert: false, person_parts: [], person_confidence: 0.4, person_refine: false,
   yolo_kind: "bbox", yolo_model: "", yolo_conf: 0.25, yolo_box_shape: "rect",
+  yolo_imgsz: 640, yolo_classes: [],
   ...patch,
 });
 

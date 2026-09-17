@@ -2,7 +2,9 @@
 # 覆盖（全部 mock，不碰真实模型/torch）：
 #   - person_mask 纯核心：normalize_parts / build_mask / segment_mask（fake mediapipe）
 #   - 人物部位路由：busy 409 / 缺源 400 / 成功回笔触 + parts 归一 + refine 二次分割
-#   - YOLO：模型清单扫描 / 白名单防穿越 / _boxes_to_mask（rect+ellipse）/
+#   - YOLO：模型清单扫描（多目录）/ 白名单防穿越 / task 自检 / 类别过滤 / imgsz 白名单 /
+#     输入 dtype 归一（float 0..1 → uint8 0..255 BGR；ultralytics 按 uint8 处理）/
+#     _boxes_to_mask（rect+ellipse）/
 #     _polygons_to_mask / run_yolo（bbox 与 segm，conf 钳制，labels）/
 #     路由 busy 409（不加载模型）/ 无效模型 400 / 成功回笔触 + detected
 #   - 导入遮罩：缩放到源图尺寸 + 追踪回笔触
@@ -201,13 +203,18 @@ class _FakeYOLOResult:
 class _FakeYOLO:
     last = {}
     predict_calls = 0
+    task = "detect"
+    names = {}
 
     def __init__(self, path):
         self.path = path
+        self.task = _FakeYOLO.task
+        self.names = dict(_FakeYOLO.names)
 
-    def predict(self, source=None, conf=0.25, verbose=False):
+    def predict(self, source=None, conf=0.25, verbose=False, imgsz=640, classes=None):
         _FakeYOLO.predict_calls += 1
-        _FakeYOLO.last = {"source": np.asarray(source), "conf": conf}
+        _FakeYOLO.last = {"source": np.asarray(source), "conf": conf,
+                          "imgsz": imgsz, "classes": classes}
         return [yolo_state["result"]]
 
 
@@ -348,6 +355,79 @@ yolo_state["result"] = _FakeYOLOResult(boxes=_FakeBoxes([[1, 1, 4, 4]], cls=[0])
 code, payload = tools._handle_yolo({"src_path": SRC, "kind": "bbox", "model": "a.pt", "conf": 0.3}, busy=False)
 check("yolo 成功回笔触+detected", code == 200 and payload["detected"] == 1
       and payload["labels"] == ["nipples"] and payload["count"] == 1)
+
+# ── 扫描目录扩展：models/yolo（RMBG legacy）+ 首命中 ──
+_yolo_dir = os.path.join(fp.models_dir, "yolo")
+os.makedirs(_yolo_dir, exist_ok=True)
+open(os.path.join(_yolo_dir, "person.pt"), "wb").write(b"\x00")
+open(os.path.join(_yolo_dir, "a.pt"), "wb").write(b"\x00")   # 与 ultralytics/bbox 同名 → bbox 优先
+lst2 = tools.list_yolo_models()
+check("多目录合并（yolo → bbox 清单）", "person.pt" in lst2["bbox"] and "a.pt" in lst2["bbox"])
+check("多目录去重首命中", tools.resolve_yolo_model("bbox", "a.pt").startswith(os.path.join(fp.models_dir, "ultralytics", "bbox"))
+      and tools.resolve_yolo_model("bbox", "person.pt").startswith(_yolo_dir))
+
+# ── task 自检（纯函数 + 路由）──
+class _TaskModel:
+    def __init__(self, task):
+        self.task = task
+
+
+check("task：bbox+segment → 放行+警告", tools._check_yolo_task(_TaskModel("segment"), "bbox")[0] is True
+      and "分割模型" in tools._check_yolo_task(_TaskModel("segment"), "bbox")[1])
+check("task：segm+detect → 拦截", tools._check_yolo_task(_TaskModel("detect"), "segm")[0] is False)
+check("task：segm+segment → 放行", tools._check_yolo_task(_TaskModel("segment"), "segm") == (True, None))
+check("task：未知 task 不拦截", tools._check_yolo_task(_TaskModel(None), "segm") == (True, None))
+
+# 注意：_load_yolo 按路径缓存 → 用例需先清缓存再改 fake 的 task/names
+tools._yolo_cache.clear()
+_FakeYOLO.task = "detect"
+code, payload = tools._handle_yolo({"src_path": SRC, "kind": "segm", "model": "s.pt"}, busy=False)
+check("detect 权重选 segm → 400", code == 400 and "不能用于分割" in payload.get("error", "")
+      and payload.get("task") == "detect")
+tools._yolo_cache.clear()
+_FakeYOLO.task = "segment"
+yolo_state["result"] = _FakeYOLOResult(boxes=_FakeBoxes([[1, 1, 4, 4]], cls=[0]), names={0: "nipples"})
+code, payload = tools._handle_yolo({"src_path": SRC, "kind": "bbox", "model": "a.pt"}, busy=False)
+check("segment 权重选 bbox → 放行+warning", code == 200 and "warning" in payload
+      and payload.get("task") == "segment")
+tools._yolo_cache.clear()
+_FakeYOLO.task = "detect"
+
+# ── 类别过滤 / imgsz ──
+tools._yolo_cache.clear()
+_FakeYOLO.names = {0: "nipples", 1: "pussy", 2: "anus", 3: "watermark"}
+yolo_state["result"] = _FakeYOLOResult(boxes=_FakeBoxes([[1, 1, 4, 4]], cls=[1]), names=_FakeYOLO.names)
+tools.run_yolo(np_rgb, "bbox", tools.resolve_yolo_model("bbox", "a.pt"), 0.3, "rect",
+               classes=["pussy", "不存在的类"], imgsz=960)
+check("类别名 → id 过滤（未知名丢弃）", _FakeYOLO.last["classes"] == [1])
+check("imgsz 透传", _FakeYOLO.last["imgsz"] == 960)
+tools.run_yolo(np_rgb, "bbox", tools.resolve_yolo_model("bbox", "a.pt"), 0.3, "rect", classes=[2, 0], imgsz=1234)
+check("类别 id 直传排序", _FakeYOLO.last["classes"] == [0, 2])
+check("imgsz 白名单回退 640", _FakeYOLO.last["imgsz"] == 640)
+tools.run_yolo(np_rgb, "bbox", tools.resolve_yolo_model("bbox", "a.pt"), 0.3, "rect", classes=[], imgsz=640)
+check("空类别不过滤（不传 classes）", _FakeYOLO.last["classes"] is None)
+check("_normalize_classes 混合/去重", tools._normalize_classes(["anus", 0, "anus", "x"], _FakeYOLO.names) == [0, 2])
+
+# ── 输入 dtype 归一（真机漏检修复：ultralytics numpy 输入按 uint8 0..255 处理，float 0..1 会被二次 /255）──
+arr_rgb = np.zeros((2, 2, 3), dtype=np.float32)
+arr_rgb[..., 0] = 1.0   # R
+arr_rgb[..., 2] = 0.5   # B
+tools.run_yolo(arr_rgb, "bbox", tools.resolve_yolo_model("bbox", "a.pt"), 0.3, "rect", imgsz=640)
+src = _FakeYOLO.last["source"]
+check("float 输入转 uint8", src.dtype == np.uint8)
+check("float 0..1 → 0..255 且 RGB→BGR", src[0, 0, 0] == 128 and src[0, 0, 2] == 255)
+arr_u8 = np.zeros((2, 2, 3), dtype=np.uint8)
+arr_u8[..., 1] = 200    # G
+tools.run_yolo(arr_u8, "bbox", tools.resolve_yolo_model("bbox", "a.pt"), 0.3, "rect", imgsz=640)
+check("uint8 原样透传（BGR 位序）", _FakeYOLO.last["source"].dtype == np.uint8
+      and _FakeYOLO.last["source"][0, 0, 1] == 200)
+
+# ── 类别清单路由 ──
+code, payload = tools._handle_yolo_classes("bbox", "a.pt")
+check("yolo_classes 成功", code == 200 and payload["names"] == {"0": "nipples", "1": "pussy", "2": "anus", "3": "watermark"}
+      and payload["task"] == "detect")
+code, payload = tools._handle_yolo_classes("bbox", "../a.pt")
+check("yolo_classes 无效 400", code == 400)
 
 # ── 导入遮罩（缩放到源图尺寸）──
 mask_pil = Image.new("L", (20, 10), 0)

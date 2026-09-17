@@ -118,6 +118,8 @@ const DEFAULT_STATE = {
   yolo_model: "",
   yolo_conf: 0.25,
   yolo_box_shape: "rect",
+  yolo_imgsz: 640,
+  yolo_classes: [],
 };
 
 // ── 状态读写 ──────────────────────────────────────────────────────────────

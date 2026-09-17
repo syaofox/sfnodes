@@ -208,6 +208,21 @@ function makeCtx(ops) {
   check("点选 POST 含正/负点", !!postBody && JSON.parse(postBody.positive_coords).length === 1
     && JSON.parse(postBody.negative_coords).length === 1);
 
+  // YOLO 请求载荷：imgsz / classes 透传（直接调共享模块 runYolo）
+  const aiMod = await import(path.join(tmpDir, "sf_brush_ai.js"));
+  const ycfg = {
+    toastTag: "SF Brush Mask", logTag: "[SF Brush Mask]",
+    getState: (n) => JSON.parse(n.properties.sfBrushMaskState),
+    patchState: () => {},
+    addStrokes: () => {},
+  };
+  globalThis.__apiCalls = [];
+  await aiMod.runYolo(ycfg, node, "bbox", "a.pt", 0.3, "rect", 960, [1, 2]);
+  const yoloCall = (globalThis.__apiCalls || []).find((c) => c.url.includes("/brush_mask/yolo") && c.body);
+  const yoloBody = yoloCall ? JSON.parse(yoloCall.body) : null;
+  check("YOLO POST 含 imgsz/classes", !!yoloBody && yoloBody.imgsz === 960
+    && JSON.stringify(yoloBody.classes) === "[1,2]" && yoloBody.kind === "bbox");
+
   // 反选预览：白底打洞（paintInvertMask 在离屏画布 destination-out）
   node.properties.sfBrushMaskState = JSON.stringify({
     src_path: "", src_w: 100, src_h: 100, brush_size: 80, invert: true,

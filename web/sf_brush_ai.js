@@ -41,6 +41,7 @@ const SAM_RUN = "/api/sfnodes/brush_mask/sam";
 const SAM_STATUS = "/api/sfnodes/brush_mask/sam_status";
 const PERSON_RUN = "/api/sfnodes/brush_mask/person_parts";
 const YOLO_LIST = "/api/sfnodes/brush_mask/yolo_models";
+const YOLO_CLASSES = "/api/sfnodes/brush_mask/yolo_classes";
 const YOLO_RUN = "/api/sfnodes/brush_mask/yolo";
 const IMPORT_MASK = "/api/sfnodes/brush_mask/import_mask";
 const UNLOAD_ALL = "/api/sfnodes/brush_mask/unload_all";
@@ -104,6 +105,7 @@ async function runAiRequest(cfg, node, path, body, opts) {
   sfToast({ summary: cfg.toastTag, detail: opts.running, severity: "info", life: 5000, fallbackTag: cfg.toastTag });
   try {
     const data = await aiPost(path, body);
+    if (opts.onData) opts.onData(data);
     mergeStrokes(cfg, node, data, opts.extra || {}, opts);
   } catch (err) {
     console.error(`${cfg.logTag} ${opts.logKind || "ai"} failed:`, err);
@@ -535,16 +537,28 @@ export function openPersonDialog(cfg, node) {
 
 // ── YOLO 检测/分割 ────────────────────────────────────────────────────────
 
-export async function runYolo(cfg, node, kind, model, conf, boxShape) {
-  await runAiRequest(cfg, node, YOLO_RUN, {
-    src_path: cfg.getState(node).src_path, kind, model, conf, box_shape: boxShape,
-  }, {
+export async function runYolo(cfg, node, kind, model, conf, boxShape, imgsz, classes) {
+  const body = {
+    src_path: cfg.getState(node).src_path, kind, model, conf,
+    box_shape: boxShape, imgsz: imgsz || 640,
+  };
+  const ids = Array.isArray(classes) ? classes.filter((c) => Number.isFinite(Number(c))) : [];
+  if (ids.length) body.classes = ids;
+  await runAiRequest(cfg, node, YOLO_RUN, body, {
     running: `YOLO 推理中（${model}）…`,
     failPrefix: "YOLO 推理失败",
     logKind: "yolo",
-    extra: { yolo_kind: kind, yolo_model: model, yolo_conf: conf, yolo_box_shape: boxShape },
+    extra: {
+      yolo_kind: kind, yolo_model: model, yolo_conf: conf, yolo_box_shape: boxShape,
+      yolo_imgsz: imgsz || 640, yolo_classes: ids,
+    },
     mergedPrefix: "YOLO 并入",
     emptyMsg: "YOLO 未检出目标（空结果，笔触不变）",
+    onData: (data) => {
+      if (data && data.warning) {
+        sfToast({ summary: cfg.toastTag, detail: data.warning, severity: "warn", life: 6000, fallbackTag: cfg.toastTag });
+      }
+    },
   });
 }
 
@@ -557,11 +571,12 @@ export async function openYoloDialog(cfg, node) {
   const curKind = st.yolo_kind === "segm" ? "segm" : "bbox";
   const curConf = st.yolo_conf ?? 0.25;
   const curShape = st.yolo_box_shape === "ellipse" ? "ellipse" : "rect";
+  const curImgsz = [640, 960, 1280].includes(Number(st.yolo_imgsz)) ? Number(st.yolo_imgsz) : 640;
   const modal = createModal({
     id: "sf-brush-mask-yolo-overlay",
     title: "YOLO 检测 / 分割",
     okLabel: "Run",
-    width: 320,
+    width: 340,
     bodyHtml: `
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <div style="flex:1;">
@@ -572,37 +587,58 @@ export async function openYoloDialog(cfg, node) {
         </select>
       </div>
       <div style="flex:1;">
+        <label style="${_FIELDLABEL}">imgsz（小目标用 960/1280）</label>
+        <select id="sf-ai-yo-imgsz" style="width:100%;${_INPUT}">
+          ${[640, 960, 1280].map((v) => `<option value="${v}" ${curImgsz === v ? "selected" : ""}>${v}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <label style="${_FIELDLABEL}">模型（ultralytics/{bbox,segm} 或 yolo）</label>
+      <select id="sf-ai-yo-model" style="width:100%;${_INPUT}"></select>
+      <div id="sf-ai-yo-hint" style="color:var(--sf-text-faint);font-size:10px;margin-top:3px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <div style="flex:1;">
         <label style="${_FIELDLABEL}">框形状（仅 bbox）</label>
         <select id="sf-ai-yo-shape" style="width:100%;${_INPUT}">
           <option value="rect" ${curShape === "rect" ? "selected" : ""}>矩形</option>
           <option value="ellipse" ${curShape === "ellipse" ? "selected" : ""}>椭圆</option>
         </select>
       </div>
-    </div>
-    <div style="margin-bottom:8px;">
-      <label style="${_FIELDLABEL}">模型（models/ultralytics/{bbox,segm}）</label>
-      <select id="sf-ai-yo-model" style="width:100%;${_INPUT}"></select>
-      <div id="sf-ai-yo-hint" style="color:var(--sf-text-faint);font-size:10px;margin-top:3px;"></div>
+      <div style="flex:1;">
+        <label style="${_FIELDLABEL}">Confidence（0.01-1）</label>
+        <input type="number" id="sf-ai-yo-conf" value="${curConf}" min="0.01" max="1" step="0.05" style="width:100%;${_INPUT}">
+      </div>
     </div>
     <div>
-      <label style="${_FIELDLABEL}">Confidence（0.01-1）</label>
-      <input type="number" id="sf-ai-yo-conf" value="${curConf}" min="0.01" max="1" step="0.05" style="width:100%;${_INPUT}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+        <label style="${_FIELDLABEL};margin-bottom:0;">类别（默认全选）</label>
+        <span>
+          <a id="sf-ai-yo-all" style="color:var(--sf-text-dim);font-size:10px;cursor:pointer;text-decoration:underline;">全选</a>
+          <a id="sf-ai-yo-none" style="color:var(--sf-text-dim);font-size:10px;cursor:pointer;text-decoration:underline;margin-left:6px;">全不选</a>
+        </span>
+      </div>
+      <div id="sf-ai-yo-classes" style="max-height:132px;overflow-y:auto;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;padding:4px 6px;display:flex;flex-wrap:wrap;gap:3px 12px;">
+        <span id="sf-ai-yo-cls-status" style="color:var(--sf-text-faint);font-size:11px;">选择模型后加载类别…</span>
+      </div>
     </div>`,
   });
   if (!modal) return;
 
   const kindSel = modal.dialog.querySelector("#sf-ai-yo-kind");
+  const imgszSel = modal.dialog.querySelector("#sf-ai-yo-imgsz");
   const shapeSel = modal.dialog.querySelector("#sf-ai-yo-shape");
   const modelSel = modal.dialog.querySelector("#sf-ai-yo-model");
   const confInput = modal.dialog.querySelector("#sf-ai-yo-conf");
   const hint = modal.dialog.querySelector("#sf-ai-yo-hint");
+  const clsBox = modal.dialog.querySelector("#sf-ai-yo-classes");
 
   const syncShapeVisible = () => {
     const isBbox = kindSel.value === "bbox";
     shapeSel.disabled = !isBbox;
     shapeSel.parentElement.style.opacity = isBbox ? "1" : "0.5";
   };
-  kindSel.onchange = syncShapeVisible;
   syncShapeVisible();
 
   let lists = { bbox: [], segm: [] };
@@ -612,12 +648,80 @@ export async function openYoloDialog(cfg, node) {
     console.warn(`${cfg.logTag} yolo list failed:`, e);
   }
   if (!modal.dialog.isConnected) return; // 拉列表期间已关闭
+
+  // ── 类别清单（按 kind+model 拉取；只读元数据，后端不加熔断）──
+  let classInfo = { names: {}, task: null };
+  // null = 首次（默认全选）；Set = 用户显式选择（可空 → apply 时要求至少勾一个）
+  let selectedIds = null;
+
+  const renderClasses = () => {
+    clsBox.replaceChildren();
+    const entries = Object.entries(classInfo.names || {})
+      .map(([id, label]) => [Number(id), String(label)])
+      .filter(([id]) => Number.isFinite(id))
+      .sort((a, b) => a[0] - b[0]);
+    if (!entries.length) {
+      const span = document.createElement("span");
+      span.style.cssText = "color:var(--sf-text-faint);font-size:11px;";
+      span.textContent = "（该模型无类别元数据，按全类运行）";
+      clsBox.appendChild(span);
+      return;
+    }
+    // 同名类用 (#id) 区分显示；值恒为 id（稳定，避免同名歧义）
+    const dup = {};
+    for (const [, label] of entries) dup[label] = (dup[label] || 0) + 1;
+    const allIds = entries.map(([id]) => id);
+    for (const [id, label] of entries) {
+      const wrap = document.createElement("label");
+      wrap.style.cssText = "display:flex;align-items:center;gap:3px;font-size:11px;color:var(--sf-text);white-space:nowrap;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.dataset.id = String(id);
+      cb.checked = selectedIds === null ? true : selectedIds.has(id);
+      cb.onchange = () => {
+        if (selectedIds === null) selectedIds = new Set(allIds);
+        if (cb.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+      };
+      wrap.appendChild(cb);
+      wrap.appendChild(document.createTextNode(dup[label] > 1 ? `${label} (#${id})` : label));
+      clsBox.appendChild(wrap);
+    }
+  };
+
+  const fetchClasses = async () => {
+    const kind = kindSel.value === "segm" ? "segm" : "bbox";
+    const model = modelSel.value || "";
+    if (!model) { classInfo = { names: {}, task: null }; selectedIds = null; renderClasses(); return; }
+    clsBox.replaceChildren();
+    const loading = document.createElement("span");
+    loading.id = "sf-ai-yo-cls-status";
+    loading.style.cssText = "color:var(--sf-text-faint);font-size:11px;";
+    loading.textContent = "加载类别中…（首次加载权重）";
+    clsBox.appendChild(loading);
+    try {
+      const data = await aiGet(`${YOLO_CLASSES}?kind=${kind}&model=${encodeURIComponent(model)}`);
+      if (!modal.dialog.isConnected) return;
+      classInfo = { names: data.names || {}, task: data.task || null };
+      const remembered = Array.isArray(st.yolo_classes) ? st.yolo_classes.map((v) => Number(v)) : [];
+      const available = new Set(Object.keys(classInfo.names).map((v) => Number(v)));
+      const keep = remembered.filter((v) => available.has(v));
+      selectedIds = keep.length ? new Set(keep) : null;
+    } catch (e) {
+      console.warn(`${cfg.logTag} yolo classes failed:`, e);
+      if (!modal.dialog.isConnected) return;
+      classInfo = { names: {}, task: null };
+      selectedIds = null;
+    }
+    renderClasses();
+  };
+
   const fillModels = () => {
     const names = lists[kindSel.value] || [];
     modelSel.replaceChildren();
     if (!names.length) {
       modelSel.appendChild(new Option("（无可用权重）", ""));
-      hint.textContent = "把 .pt 权重放入 models/ultralytics/bbox（检测）或 segm（分割）后重开此窗";
+      hint.textContent = "把 .pt 放入 models/ultralytics/bbox（检测）/ segm（分割）或 models/yolo 后重开此窗";
     } else {
       for (const n of names) modelSel.appendChild(new Option(n, n));
       const preferred = st.yolo_model && names.includes(st.yolo_model) ? st.yolo_model : names[0];
@@ -626,7 +730,25 @@ export async function openYoloDialog(cfg, node) {
     }
   };
   fillModels();
-  kindSel.addEventListener("change", fillModels);
+  fetchClasses();
+
+  kindSel.onchange = () => {
+    syncShapeVisible();
+    fillModels();
+    fetchClasses();
+  };
+  modelSel.onchange = () => fetchClasses();
+  modal.dialog.querySelector("#sf-ai-yo-all").onclick = () => {
+    selectedIds = new Set();
+    for (const cb of clsBox.querySelectorAll("input[type=checkbox]")) {
+      cb.checked = true;
+      selectedIds.add(Number(cb.dataset.id));
+    }
+  };
+  modal.dialog.querySelector("#sf-ai-yo-none").onclick = () => {
+    selectedIds = new Set();
+    for (const cb of clsBox.querySelectorAll("input[type=checkbox]")) cb.checked = false;
+  };
 
   const apply = () => {
     const kind = kindSel.value === "segm" ? "segm" : "bbox";
@@ -635,12 +757,30 @@ export async function openYoloDialog(cfg, node) {
       sfToast({ summary: cfg.toastTag, detail: "没有可用 YOLO 权重", severity: "warn", fallbackTag: cfg.toastTag });
       return;
     }
+    if (kind === "segm" && classInfo.task && classInfo.task !== "segment") {
+      sfToast({
+        summary: cfg.toastTag,
+        detail: `该权重是 ${classInfo.task} 模型，不能用于分割：请切换类型为 bbox 或换用 -seg 权重`,
+        severity: "warn", life: 6000, fallbackTag: cfg.toastTag,
+      });
+      return;
+    }
     let conf = parseFloat(confInput.value);
     if (!Number.isFinite(conf)) conf = 0.25;
     conf = Math.max(0.01, Math.min(1, conf));
     const shape = kind === "bbox" && shapeSel.value === "ellipse" ? "ellipse" : "rect";
+    const imgsz = Number(imgszSel.value) || 640;
+    // 勾选集合：全选/无类别元数据 → 不传过滤（后端等价全类）；部分勾选 → 传 id；
+    // 全不选 → 拦下（避免"什么都不涂"的困惑）
+    const boxes = [...clsBox.querySelectorAll("input[type=checkbox]")];
+    const checked = boxes.filter((cb) => cb.checked).map((cb) => Number(cb.dataset.id));
+    if (boxes.length > 0 && checked.length === 0) {
+      sfToast({ summary: cfg.toastTag, detail: "至少勾选一个类别（或点“全选”）", severity: "warn", fallbackTag: cfg.toastTag });
+      return;
+    }
+    const classes = boxes.length > 0 && checked.length < boxes.length ? checked : [];
     modal.close();
-    runYolo(cfg, node, kind, model, conf, shape);
+    runYolo(cfg, node, kind, model, conf, shape, imgsz, classes);
   };
   modal.dialog.querySelector(".sf-ai-ok").onclick = apply;
   wireDialogKeys(modal, [confInput], apply);

@@ -1095,3 +1095,61 @@ slice_track_data(track_data, start=0, length=0)
 - 根因：合体节点 `onMouseMove` 把 `_sfCEBCursor`（光环位置）记录写在**悬停分支**里，而落笔分支与裁剪拖框分支都提前 `return true` → 拖动期间悬停分支不可达，光环位置停留在拖动前最后一次悬停值。笔刷节点在函数顶部先记录再分支，故无此问题（同语义两实现、顺序不同 → 行为分叉）。
 - 修法：`_sfCEBCursor` 记录上移到所有分支之前（每次移动都记；绘制侧仍有 `node_over` 与模式门控，SAM 模式/折叠等不受影响）；两个 smoke 的拖动用例补「光环跟随鼠标」断言（已用"移回悬停分支"反例验证会 FAIL）。
 - 教训：同一处理函数里"状态记录"与"提前 return 的分支"并存时，记录必须在分支之前；跨节点镜像实现（两个 brush 节点的 mousemove）要逐段比对语句顺序，别只比函数名。
+
+## 94. YOLO 菜单增强：多目录扫描 / 任务自检 / 类别过滤 / imgsz（2026-09）
+
+> 背景：三期 YOLO 菜单只用 `models/ultralytics/{bbox,segm}` 的目录名推断任务类型，且无类别过滤/分辨率选项。核查用户全部 YOLO 权重后发现两类问题：`femaleBodyDetection_typea/yolo26.pt` 是 **seg 权重却放在 bbox 目录**（选 bbox 只出框、反过来选 segm 会 `masks=None` → 静默"未检出"）；多类模型（ntd11 7 类 / breast 2 类 / watermark 同名 2 类）无法只取某几类。按用户确认加四项增强（并授权整理模型目录）。
+
+### 1. 四项增强
+
+- **多目录扫描**：`_YOLO_DIRS = {"bbox": ("ultralytics/bbox", "yolo"), "segm": ("ultralytics/segm",)}`（相对 `folder_paths.models_dir`）。`models/yolo` 是 ComfyUI-RMBG 的 legacy 目录（person/COCO 检测器），**只读并入 bbox 清单**（不移动文件、不影响 RMBG）；`list_yolo_models` 多目录合并去重（前序优先），`resolve_yolo_model` 按序首命中。
+- **任务自检** `_check_yolo_task(model, kind)`（纯函数）：`bbox` 选到 `task=segment` 权重 → 放行 + 响应带 `warning`（前端 warn toast）；`segm` 选到非 segment 权重 → **400** 明确报错（而不是空掩码）；`task` 取不到时不拦截。响应恒带 `task` 字段。
+- **类别过滤**：`GET /yolo_classes?kind&model` 返回 `{names: {id: label}, task}`（懒加载并复用 `_yolo_cache`；**只构造模型读元数据、不推理 → 不加忙时熔断**，工作流运行中也能浏览）；`POST /yolo` 接受 `classes`（id 或类名混合，`_normalize_classes` 去重/丢弃未知，空=不过滤）→ `predict(classes=ids)`。
+- **imgsz**：白名单 `640/960/1280`（小目标 nipples/eyes 用 960/1280；白名单外回退 640）→ `predict(imgsz=...)`。
+
+### 2. 前端（sf_brush_ai.js YOLO 弹窗）
+
+- imgsz 下拉 + Confidence 同行；**类别勾选区**（按 kind+model 拉取；`selectedIds = null` 表示"默认全选"，Set 表示显式选择；同名类显示 `label (#id)`、值恒为 id（避免同名歧义）；全选/全不选链接；**全不选在 apply 拦下**）；kind 与 task 不匹配时提前 warn 并中止（后端 400 兜底）。
+- 记忆字段 `yolo_imgsz/yolo_classes` 随 extra 进 state（不进 lean 注入）。
+
+### 3. 模型目录整理（宿主机 `/mnt/github/comfyui-docker/models`，绑定挂载=容器 models/）
+
+- 确认所有下载/放置的模型**都持久化在宿主机**（models、custom_nodes、input/output/user 均 bind mount）；`models-ext`（宿主 `/home/syaofox/comfymodels`，只读）无 ultralytics/yolo 目录。
+- 整理（只移不删）：bbox 重复的 `femaleBodyDetection_typea.pt`（与 segm 版同 md5）移入 `ultralytics/_archive/`；`femaleBodyDetection_yolo26.pt`（seg 权重）移入 `ultralytics/segm/`；segm 里的示例工作流 JSON 移入 `segm/_workflows/`；`models/sfnodes/` 内**陈旧仓库克隆**（自带 .git，非 ComfyUI 加载路径）移入 `models/_archive_sfnodes_repo_20260917/`，**保留 `person_mask/`**（MediaPipe tflite 落盘处，ModelManager 一律写 `models/sfnodes/<sub_dir>`，person_mask/occluder/region 三维度共用此持久化根）。
+- 排查要点：`folder_paths.models_dir` 实测 `/home/comfy/app/models`；Node 侧 `models/sfnodes/person_mask` 已存在（16MB）；`models/yolo` 未被 `folder_paths` 注册（无 'yolo' 键）→ 我们的扫描自行解析路径，勿动该目录。
+
+### 4. 测试
+
+- `tests/test_brush_mask_tools.py`：多目录合并/首命中（同名 a.pt 双目录）、`_check_yolo_task` 四态、`_normalize_classes` 混合/去重、predict 的 `classes/imgsz` 透传与白名单回退、`_handle_yolo` 任务不匹配 400 / bbox+segment warning、`_handle_yolo_classes` 成功与无效模型。⚠ `_load_yolo` 按路径缓存 → 涉及 task/names 的用例必须先 `_yolo_cache.clear()` 再改 fake（本轮踩坑）。
+- brush smoke：直接 import 共享模块 `runYolo`，断言 POST body 含 `imgsz/classes`。
+
+### 5. 推荐模型补齐下载（2026-09，来源与验证）
+
+按用户确认从两个 HF 镜像合集补齐缺失类别（宿主 `models/ultralytics/{bbox,segm}`，持久化；下载后逐个用 ultralytics 8.4.154 加载验证 task/names）：
+
+| 用途 | 文件 | 来源 | 验证结果 |
+|---|---|---|---|
+| 写实 pussy（分割） | `pussy_yolo11s_seg_best.pt` | `Nudimmud/adetailers` | segment / `{0: Pussy}` |
+| 写实 pussy（分割，旧命名 PubesAnus） | `pussyPubesAnusDetector_v10.pt` | `iahhnim/adetailer_collection` | segment / `{0: pussy}`（实际单类，name 里的 pubes/anus 未出现在 names） |
+| 写实 anus（分割） | `anus_v4.pt` | `Nudimmud/adetailers` | segment / `{0: anus}` |
+| 臀/肛周（分割） | `assdetailer-seg.pt` | `Nudimmud/adetailers` | segment / `{0: ass}` |
+| 全身含男性（分割） | `person_yolov8s-seg.pt` | `iahhnim/adetailer_collection` | segment / `{0: person}` |
+| 动漫多类（分割，yolo26） | `nsfw-anime-medium-x1280.pt` / `nsfw-anime-xl-x1280.pt` | `01miku/anime-nsfw-segm-yolo26` | segment / `{0: anus,1: nipple,2: penis,3: vagina,4: female face,5: male face,6: pubic hair}` |
+| 去码（马赛克分割） | `mosaic_detection_seg.pt` | `iahhnim/adetailer_collection` | segment / `{0: mosaic_penetration,1: mosaic_penis,2: mosaic_pussy,3: mosaic_anus}` |
+| 足部（检测） | `adetailerFootYolov8x_v20.pt` | `iahhnim/adetailer_collection` | **detect** / `{0: foot}`（唯一 detect，归 bbox） |
+| 高端乳首（分割） | `Nipple-yoro11x_seg.pt` | `Nudimmud/adetailers` | segment / `{0: nipple}` |
+| 周边小件（均分割） | `breasts_seg.pt` / `belly_seg_v2.42_less_groin.pt` / `armpit_seg_v1.1.pt` / `womensUnderwear_pantiesSegV3b.pt` / `Anzhc Face -seg.pt`（`{0: male,1: female}`）/ `Anzhc Eyes -seg-hd.pt` | `iahhnim/adetailer_collection` / `Nudimmud/adetailers` | segment（各类名单一） |
+
+- 下载要点：HF `resolve/main` 直链（302→CDN，无需 token）；大文件走 curl `--retry 5 --retry-all-errors`——首次批量下载遇到 `SSL unexpected eof`（文件截断而 curl 未判失败），**必须下载后按仓库 tree 的 size 逐一校验**（本次靠校验才发现 2 个不完整文件）；含空格文件名用 `${f// /%20}`。
+- ⚠ 脚本坑：`local a="$1" b="...$a..."` 单条 `local` 内引用尚未赋值的变量会展开为空 → URL 变 `https://huggingface.co//resolve/main/` 全部 404；须拆成多条 `local`/赋值。
+- 仍未覆盖：**男性专属躯干**（用 `person_yolov8s-seg` 兜）、**精液/体液**（未找到可靠 YOLO 权重）。
+- 归属：全部 segment 权重放 `models/ultralytics/segm/`、足部 detect 放 `bbox/`（与目录 kind 语义一致；选错类型会被 §94.1 的 task 自检拦下）。
+
+### 6. 真机修复：YOLO 全模型漏检（ultralytics numpy 输入必须 uint8 0..255，2026-09）
+
+- **症状**：YOLO 菜单"很多模型检测不到，返回空笔触"。
+- **根因**：ultralytics `engine/predictor.py::preprocess` 对 **list-of-numpy** 输入**无条件** `im.float().div_(255)`（注释明说 "uint8 to fp16/32, 0-255 to 0.0-1.0"），只有直接传 `torch.Tensor` 才跳过除法（"already 0.0-1.0"）。我们的路由把源图建成 `float32 0..1` 再传 numpy → 被二次 /255 → 模型看到近全黑图 → 漏检（同图同模型实测：float 路径 boxes=0/masks=0，uint8 路径 boxes=1/masks=1）。
+- **修法**：`brush_mask_tools.run_yolo` 统一输入 dtype——非 uint8 的按 0..1 语义映射到 0..255（`np.clip(x,0,1)*255+0.5`），再 `ascontiguousarray(img[..., ::-1])` 转 uint8 BGR；`_handle_yolo` 直接传 `np.array(pil)`（uint8 RGB，勿预除 255）。⚠ 仅影响 YOLO 路由：SAM 路由是 comfy 节点链，其张量本就要求 float 0..1，不要"顺手"改。
+- **回归防护**：`tests/test_brush_mask_tools.py` 增断言——float 0..1 → uint8（R=1.0→255、B=0.5→128 且 RGB→BGR）、uint8 原样透传。
+- **真机复核（同一张图全模型扫描）**：修复后 30 个权重多数正常检出（female_body 0.96 / nipples 0.86 / anime 多类 5 个 / person / 各类 seg 等）；仅内容不匹配的（无马赛克/无脚/无 watermark）为 0。进一步换图复核：`armpit_seg`(0.13@0.08) / `cockAndBallDetection2D`(0.30) / `pussy_yolo11s_seg_best`(0.30, 低至 0.13@0.08) / `panties` / `adetailerFootYolov8x`(0.29) 均可检出。
+- **使用建议**：小目标/低分模型把 Confidence 降到 0.08–0.2；x1280 训练模型（nsfw-anime-*）用 imgsz 960/1280；内容专属模型（马赛克/足/水印）只在含对应内容的图上出结果。

@@ -2,8 +2,10 @@
 
 路由（副作用注册，改动需重启容器；与 brush_mask_sam.py 同款 try/except 包裹）：
   POST /api/sfnodes/brush_mask/person_parts  {src_path, parts[], confidence, refine}
-  GET  /api/sfnodes/brush_mask/yolo_models
-  POST /api/sfnodes/brush_mask/yolo          {src_path, kind: bbox|segm, model, conf, box_shape}
+  GET  /api/sfnodes/brush_mask/yolo_models   （bbox/segm 权重清单，扫描 ultralytics/{bbox,segm} + yolo）
+  GET  /api/sfnodes/brush_mask/yolo_classes  ?kind&model（类别清单 + 任务类型；不熔断）
+  POST /api/sfnodes/brush_mask/yolo          {src_path, kind: bbox|segm, model, conf, box_shape,
+                                              imgsz: 640|960|1280, classes: [id 或类名]}
   POST /api/sfnodes/brush_mask/import_mask   {src_path, src_w, src_h}
   POST /api/sfnodes/brush_mask/unload_all
 
@@ -39,6 +41,18 @@ _person_cache = {"buffer": None}   # MediaPipe tflite 字节
 _yolo_cache = {}                   # 模型绝对路径 -> ultralytics.YOLO
 
 _YOLO_KINDS = ("bbox", "segm")
+
+# kind → 候选目录（相对 models_dir，按序查找首命中）：
+#   bbox = ultralytics/bbox（主）+ yolo（ComfyUI-RMBG 的 legacy 目录，只读扫描，
+#          让 person/COCO 等通用检测器也进菜单；不移动文件、不影响 RMBG）
+#   segm = ultralytics/segm
+_YOLO_DIRS = {
+    "bbox": ("ultralytics/bbox", "yolo"),
+    "segm": ("ultralytics/segm",),
+}
+
+# imgsz 白名单（小目标 nipples/eyes 用 960/1280；非法回退 640）
+_IMGSZ_CHOICES = (640, 960, 1280)
 
 
 # ── 人物部位（MediaPipe）────────────────────────────────────────────────────
@@ -82,32 +96,94 @@ def _handle_person_parts(data, busy=None):
 
 # ── YOLO 检测/分割（运行时可选依赖）────────────────────────────────────────
 
-def _yolo_base_dir():
-    return os.path.join(folder_paths.models_dir, "ultralytics")
+def _yolo_dirs(kind):
+    """kind 的候选目录绝对路径（缺失目录也返回，扫描时忽略）。"""
+    return [os.path.join(folder_paths.models_dir, *d.split("/")) for d in _YOLO_DIRS.get(kind, ())]
 
 
 def list_yolo_models():
-    """扫描 models/ultralytics/{bbox,segm} 的 .pt 权重清单。"""
+    """扫描各候选目录的 .pt 权重清单（多目录合并去重，前序目录优先）。"""
     out = {}
     for kind in _YOLO_KINDS:
-        try:
-            names = sorted(f for f in os.listdir(os.path.join(_yolo_base_dir(), kind))
-                           if f.lower().endswith(".pt"))
-        except OSError:
-            names = []
+        names = []
+        seen = set()
+        for d in _yolo_dirs(kind):
+            try:
+                cur = sorted(f for f in os.listdir(d) if f.lower().endswith(".pt"))
+            except OSError:
+                cur = []
+            for n in cur:
+                if n not in seen:
+                    seen.add(n)
+                    names.append(n)
         out[kind] = names
     return out
 
 
 def resolve_yolo_model(kind, name):
-    """白名单解析权重绝对路径：kind 合法 + 单段文件名 + 在扫描清单内。"""
+    """白名单解析权重绝对路径：kind 合法 + 单段文件名 + 在扫描清单内
+    （多目录按序首命中）。"""
     if kind not in _YOLO_KINDS or not isinstance(name, str):
         return None
     if os.path.basename(name) != name or not name.lower().endswith(".pt"):
         return None
     if name not in list_yolo_models().get(kind, []):
         return None
-    return os.path.join(_yolo_base_dir(), kind, name)
+    for d in _yolo_dirs(kind):
+        p = os.path.join(d, name)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _check_yolo_task(model, kind):
+    """任务自检（纯函数，可注入 fake）：返回 (ok, warning)。
+
+    - bbox 选到分割权重 → 可用（只出框），warning 提示可切 segm 拿掩码
+    - segm 选到非分割权重 → 不可用（masks 恒空会"静默未检出"），ok=False
+    - task 取不到（旧/异常权重）→ 不拦截
+    """
+    task = getattr(model, "task", None)
+    if task == "segment" and kind == "bbox":
+        return True, "该权重是分割模型，当前按检测框输出（切换类型为 segm 可得到掩码）"
+    if kind == "segm" and task not in (None, "segment"):
+        return False, f"该权重是 {task} 模型，不能用于分割：请切换类型为 bbox 或换用 -seg 权重"
+    return True, None
+
+
+def _normalize_classes(raw, names_map):
+    """类别过滤归一（纯函数）：接受 id 列表或类名列表（混合亦可）。
+
+    未知项丢弃；重复去重；无有效项返回 None（= 不过滤）。
+    """
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        raw = [c.strip() for c in raw.split(",")]
+    if not isinstance(raw, (list, tuple)):
+        return None
+    valid = set()
+    by_name = {}
+    for cid, label in (names_map or {}).items():
+        try:
+            cid = int(cid)
+        except Exception:
+            continue
+        valid.add(cid)
+        by_name.setdefault(str(label), []).append(cid)
+    out = []
+    for item in raw:
+        try:
+            cid = int(item)
+            if cid in valid and cid not in out:
+                out.append(cid)
+            continue
+        except (TypeError, ValueError):
+            pass
+        for cid in by_name.get(str(item).strip(), []):
+            if cid not in out:
+                out.append(cid)
+    return sorted(out) or None
 
 
 def _load_yolo(path):
@@ -167,10 +243,13 @@ def _polygons_to_mask(polys, width, height):
     return np.array(img).astype(np.float32) / 255.0
 
 
-def run_yolo(np_rgb, kind, model_path, conf=0.25, box_shape="rect"):
+def run_yolo(np_rgb, kind, model_path, conf=0.25, box_shape="rect",
+             classes=None, imgsz=640):
     """跑 YOLO 并返回 (mask (H,W) float32, detected 数, labels 类名列表)。
 
     bbox 权重 → 实心框/椭圆并集；segm 权重 → masks.xy 多边形并集。
+    classes: 类别过滤（id 或类名列表，未知名丢弃；空 = 不过滤）；
+    imgsz: 640/960/1280（白名单外回退 640）。
     """
     model = _load_yolo(model_path)
     try:
@@ -178,9 +257,24 @@ def run_yolo(np_rgb, kind, model_path, conf=0.25, box_shape="rect"):
     except Exception:
         conf = 0.25
     conf = max(0.01, min(1.0, conf))
-    # ultralytics numpy 源按 BGR 约定，源图为 RGB → 反转通道
-    results = model.predict(source=np.ascontiguousarray(np_rgb[:, :, ::-1]),
-                            conf=conf, verbose=False)
+    try:
+        imgsz = int(float(imgsz))
+    except Exception:
+        imgsz = 640
+    if imgsz not in _IMGSZ_CHOICES:
+        imgsz = 640
+    class_ids = _normalize_classes(classes, getattr(model, "names", None))
+    # ⚠ ultralytics 对 list-of-numpy 输入在 preprocess 里无条件 div_(255)（按 uint8
+    # 0..255 处理）；传 float 0..1 会被再除一次 → 近全黑 → 漏检（真机踩坑，见 §94.6）。
+    # 故这里统一转 uint8 BGR：float 输入按 0..1 语义映射到 0..255。
+    img = np.asarray(np_rgb)
+    if img.dtype != np.uint8:
+        img = (np.clip(img.astype(np.float32), 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+    kwargs = {"source": np.ascontiguousarray(img[..., ::-1]),  # RGB → BGR
+              "conf": conf, "verbose": False, "imgsz": imgsz}
+    if class_ids:
+        kwargs["classes"] = class_ids
+    results = model.predict(**kwargs)
     r = results[0]
     h, w = int(np_rgb.shape[0]), int(np_rgb.shape[1])
     names = getattr(r, "names", None) or {}
@@ -231,18 +325,51 @@ def _handle_yolo(data, busy=None):
     box_shape = data.get("box_shape", "rect")
     if box_shape not in ("rect", "ellipse"):
         box_shape = "rect"
-    arr = np.array(pil).astype(np.float32) / 255.0
+    arr = np.array(pil)  # uint8 RGB（run_yolo 内转 uint8 BGR，勿预除 255）
     try:
-        mask_arr, detected, labels = run_yolo(arr, kind, path, data.get("conf", 0.25), box_shape)
+        model = _load_yolo(path)
+    except Exception as e:
+        print(f"[SFBrushMask:yolo] load failed: {e}")
+        return 500, {"error": f"YOLO 模型加载失败：{e}"}
+    task = getattr(model, "task", None)
+    ok, warning = _check_yolo_task(model, kind)
+    if not ok:
+        return 400, {"error": warning, "task": task, "model": data.get("model")}
+    try:
+        mask_arr, detected, labels = run_yolo(arr, kind, path, data.get("conf", 0.25), box_shape,
+                                              data.get("classes"), data.get("imgsz", 640))
     except Exception as e:
         print(f"[SFBrushMask:yolo] inference failed: {e}")
         hint = "（模型加载读取冲突：请在工作流空闲时重试）" if "hostbuf" in str(e).lower() else ""
         return 500, {"error": f"YOLO 推理失败：{e}{hint}"}
     strokes = mask_to_fill_strokes(mask_arr)
-    return 200, {"status": "success", "strokes": strokes, "count": len(strokes),
-                 "coverage": round(float((mask_arr > 0.5).mean()), 4),
-                 "detected": detected, "labels": labels,
-                 "width": pil.size[0], "height": pil.size[1]}
+    out = {"status": "success", "strokes": strokes, "count": len(strokes),
+           "coverage": round(float((mask_arr > 0.5).mean()), 4),
+           "detected": detected, "labels": labels, "task": task,
+           "width": pil.size[0], "height": pil.size[1]}
+    if warning:
+        out["warning"] = warning
+    return 200, out
+
+
+def _handle_yolo_classes(kind, model_name):
+    """纯逻辑入口（可裸测）：类别清单 + 任务类型（不推理，不加忙时熔断）。"""
+    path = resolve_yolo_model(kind, model_name)
+    if not path:
+        return 400, {"error": "YOLO 模型无效：请从 models/ultralytics/{bbox,segm} 的清单中选择 .pt"}
+    try:
+        model = _load_yolo(path)
+    except Exception as e:
+        print(f"[SFBrushMask:yolo] load failed: {e}")
+        return 500, {"error": f"YOLO 模型加载失败：{e}"}
+    names = getattr(model, "names", None) or {}
+    out = {}
+    for cid, label in names.items():
+        try:
+            out[str(int(cid))] = str(label)
+        except Exception:
+            continue
+    return 200, {"names": out, "task": getattr(model, "task", None), "model": model_name}
 
 
 # ── 导入遮罩文件（纯本地，无模型/无熔断）──────────────────────────────────
@@ -312,6 +439,14 @@ def _register_routes():
         @routes.get("/api/sfnodes/brush_mask/yolo_models")
         async def _yolo_models(request: web.Request) -> web.Response:
             return web.json_response(list_yolo_models())
+
+        @routes.get("/api/sfnodes/brush_mask/yolo_classes")
+        async def _yolo_classes(request: web.Request) -> web.Response:
+            # 只构造模型读元数据（懒加载 + 缓存），不推理 → 不加忙时熔断，
+            # 运行工作流时也能浏览类别
+            code, payload = _handle_yolo_classes(request.query.get("kind", "bbox"),
+                                                 request.query.get("model", ""))
+            return web.json_response(payload, status=code)
 
         @routes.post("/api/sfnodes/brush_mask/yolo")
         async def _yolo_run(request: web.Request) -> web.Response:
