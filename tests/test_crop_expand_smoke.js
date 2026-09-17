@@ -27,6 +27,7 @@ globalThis.window = {
     if (i >= 0) winListeners.splice(i, 1);
   },
 };
+globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
 globalThis.document = {
   getElementById: () => null,
   createElement: () => ({ style: {}, set textContent(_) {}, appendChild() {} }),
@@ -121,6 +122,18 @@ const fireWin = (type) => {
   nodeType.prototype.onNodeCreated.call(node);
 
   check("按钮 13 项（竖列 11 + 底行 2）", node._sfExpandButtons && node._sfExpandButtons.length === 13);
+
+  // 绘制冒烟：onDrawForeground 不得抛错——曾因提取脚本误删 drawButtons，异常
+  // 中断 LiteGraph 绘制循环导致按钮与输出槽位整帧不画
+  const ops = [];
+  const drawCtx = new Proxy({ measureText: () => ({ width: 10 }) }, {
+    get(t, p) { if (p in t) return t[p]; return (...a) => ops.push(p); },
+    set() { return true; },
+  });
+  let drawErr = null;
+  try { node.onDrawForeground(drawCtx); } catch (e) { drawErr = e; }
+  check("onDrawForeground 不抛错", drawErr === null);
+  check("按钮已绘制（fillRect ≥ 13）", ops.filter((p) => p === "fillRect").length >= 13);
   check("释放兜底 hook 已装", !!node._sfExpandReleaseGuard);
   const rel = winListeners.filter((l) => l.type === "mouseup");
   check("window capture mouseup 已注册", rel.length === 1 && rel[0].capture === true);

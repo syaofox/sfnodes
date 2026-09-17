@@ -226,6 +226,50 @@ function clampNodeSize(node) {
 
 // ── 绘制 ──────────────────────────────────────────────────────────────────
 
+// 比例竖列 + 底行按钮（绘制与命中共用 buttonRect 解析；只有本节点画布控件
+// 用它，未随 drawPlaceholder/drawCropBox 提升进 lib）
+function drawButtons(ctx, node) {
+  const st = getState(node);
+  const th = sfThemeColors();
+  const accent = getSfAccent() || "rgba(100,150,255,0.8)";
+  for (const b of node._sfExpandButtons) {
+    const [bx, by, bw, bh] = buttonRect(b, node);
+    if (b.isRatio && b.ratioKey === st.aspect_ratio) {
+      ctx.fillStyle = accent;
+    } else if (b.isColor) {
+      ctx.fillStyle = st.fill_color || "#000000";
+    } else {
+      ctx.fillStyle = th.surface;
+    }
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = th.border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    if (b.isColor) {
+      // 颜色按钮文字按背景亮度取黑/白
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(st.fill_color || "#000000"));
+      if (m) {
+        const r = parseInt(m[1], 16), g = parseInt(m[2], 16), bl = parseInt(m[3], 16);
+        const brightness = (r * 299 + g * 587 + bl * 114) / 1000;
+        ctx.fillStyle = brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+      }
+    } else {
+      ctx.fillStyle = th.textStrong;
+    }
+
+    ctx.font = b.isRatio ? "10px Arial" : "11px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    let text = b.text;
+    if (b.ratioKey === "custom" && st.aspect_ratio === "custom") {
+      text = `${st.custom_w || 1}:${st.custom_h || 1}`;
+    }
+    ctx.fillText(text, bx + bw / 2, by + bh / 2);
+  }
+}
 
 function setupDrawing(node) {
   const { shiftLeft, shiftRight } = LAYOUT;
