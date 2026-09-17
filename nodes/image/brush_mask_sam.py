@@ -21,7 +21,14 @@ SAM 层与手绘层，见 §45.9）。位图→矢量的轮廓追踪在
 路由（副作用注册，改动需重启容器；与 crop.py 同款 try/except 包裹）：
   POST /api/sfnodes/brush_mask/sam         {src_path, prompt, threshold, refine_iterations}
   POST /api/sfnodes/brush_mask/sam_unload  {}
-  GET  /api/sfnodes/brush_mask/sam_status  （门禁诊断：core/模型/已加载三态）
+  GET  /api/sfnodes/brush_mask/sam_status  （门禁诊断：core/模型/已加载 + busy）
+
+忙时熔断（2026-09，真机报错修复）：
+  工作流执行期间路由推理会与执行线程**并发做模型加载**——comfy-aimdo 的进程级
+  全局 file reader 非线程安全（hostbuf_file_reader_read failed: active slot
+  already has a completion event），且核心模型管理全局态本就只支持执行线程单线
+  程使用。故 `queue_busy()` 非空（队列/正在运行）时直接 409 拒绝；路由同步处理
+  （阻塞事件循环），检查通过后 /prompt 无法入队，竞态窗口实际被关闭。
 """
 
 import os
@@ -39,23 +46,44 @@ _CKPT = "sam3.1_multiplex_fp16.safetensors"
 
 _cache = {}  # ckpt_path -> (model_patcher, clip)
 
+_BUSY_ERROR = ("ComfyUI 正在执行工作流（可能是 SAM/模型加载任务）。为避免与运行时"
+               "模型加载冲突，请等当前任务结束后再试")
+
+
+def queue_busy():
+    """当前是否有工作流任务在跑/排队（熔断判据，见模块 docstring）。
+
+    取不到 PromptServer（测试/无服务器）视为不忙——不阻塞功能，服务端仍有
+    独立兜底（409 只在真实队列非空时触发）。
+    """
+    try:
+        from server import PromptServer
+        ins = getattr(PromptServer, "instance", None)
+        q = getattr(ins, "prompt_queue", None)
+        if q is None:
+            return False
+        return bool(q.get_tasks_remaining() > 0)
+    except Exception:
+        return False
+
 
 def sam_status():
-    """可用性三态（ pure readout，供菜单门禁与诊断）。"""
+    """可用性三态 + busy（pure readout，供菜单预检与诊断）。"""
+    busy = queue_busy()
     try:
         from comfy_extras.nodes_sam3 import SAM3_Detect  # noqa: F401
     except Exception as e:
         return {"available": False, "reason": f"当前 ComfyUI 核心无 SAM3_Detect（{e}），请升级 ComfyUI",
-                "model_found": False, "loaded": False}
+                "model_found": False, "loaded": False, "busy": busy}
     try:
         ckpt = folder_paths.get_full_path("checkpoints", _CKPT)
     except Exception:
         ckpt = None
     if not ckpt or not os.path.isfile(ckpt):
         return {"available": False, "reason": f"模型缺失：请把 {_CKPT} 放入 models/checkpoints/",
-                "model_found": False, "loaded": False}
+                "model_found": False, "loaded": False, "busy": busy}
     return {"available": True, "reason": "", "model_found": True,
-            "loaded": ckpt in _cache, "ckpt": _CKPT}
+            "loaded": ckpt in _cache, "busy": busy, "ckpt": _CKPT}
 
 
 def _load_stack():
@@ -131,8 +159,16 @@ def run_sam_mask(image_tensor, prompt, threshold=0.5, refine_iterations=2):
     return np.clip(m, 0.0, 1.0).astype(np.float32)
 
 
-def _handle_sam(data):
-    """纯逻辑入口（可裸测）：data -> (http_status, payload)。"""
+def _handle_sam(data, busy=None):
+    """纯逻辑入口（可裸测）：data -> (http_status, payload)。
+
+    busy: None = 实时查询 queue_busy()；True/False 由调用方（测试）注入。
+    忙时 409 直接拒绝，绝不触碰模型加载/推理（见模块 docstring 忙时熔断）。
+    """
+    if busy is None:
+        busy = queue_busy()
+    if busy:
+        return 409, {"busy": True, "error": _BUSY_ERROR}
     if not isinstance(data, dict):
         data = {}
     src_path = data.get("src_path", "") or ""
@@ -150,7 +186,10 @@ def _handle_sam(data):
                                 data.get("refine_iterations", 2))
     except Exception as e:
         print(f"[SFImageBrushMask:sam] inference failed: {e}")
-        return 500, {"error": f"SAM 推理失败：{e}"}
+        # 极小残留窗口（任务刚结束、aimdo 预取线程未退）仍可能撞原生 file reader：
+        # 给出可操作提示而不是裸英文原生错误
+        hint = "（模型加载读取冲突：请在工作流空闲时重试）" if "hostbuf" in str(e).lower() else ""
+        return 500, {"error": f"SAM 推理失败：{e}{hint}"}
     h, w = int(mask_arr.shape[0]), int(mask_arr.shape[1])
     if (w, h) != (pil.size[0], pil.size[1]):
         # 防御：尺寸漂移时按源图重采样后再追踪（NEAREST 保二值）
@@ -175,6 +214,8 @@ def _register_routes():
 
         @routes.post("/api/sfnodes/brush_mask/sam")
         async def _sam_run(request: web.Request) -> web.Response:
+            # 同步执行（不经线程池）：事件循环被本推理阻塞期间 /prompt 无法入队，
+            # 配合 _handle_sam 的队列空闲检查封死"与执行线程并发读模型"的竞态
             try:
                 data = await request.json()
             except Exception:

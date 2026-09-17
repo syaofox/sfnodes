@@ -380,6 +380,34 @@ export async function copyText(text) {
   return ok;
 }
 
+// ── 颜色工具（取色对话框 / hex ↔ "r,g,b" 换算）────────────────────────────
+// SFImageCropExpand（填充色）/ SFImageBrushMask / SFImageCropExpandBrushMask
+// （笔刷色）共用：原两节点各持一份取色 input 与换算片段，收敛于此。
+
+// 原生 <input type="color"> 取色：initialHex 非法回退 fallbackHex，选中后
+// onPick(hex)（异步，用户确认才回调）。
+export function pickColorInput(initialHex, onPick, fallbackHex = "#000000") {
+  const input = document.createElement("input");
+  input.type = "color";
+  input.value = /^#[0-9a-f]{6}$/i.test(String(initialHex || "")) ? initialHex : fallbackHex;
+  input.onchange = (e) => onPick(e.target.value);
+  input.click();
+}
+
+// "r,g,b" → "#rrggbb"（分量钳制 0..255、非法分量按 0；非法串回退 #ffffff）
+export function rgbStringToHex(rgb) {
+  const parts = String(rgb || "255,255,255").split(",").map((c) => parseInt(String(c).trim(), 10));
+  const hex = "#" + parts.map((c) => Math.max(0, Math.min(255, c || 0)).toString(16).padStart(2, "0")).join("");
+  return /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#ffffff";
+}
+
+// "#rrggbb" → "r,g,b"（非法串回退 255,255,255）
+export function hexToRgbString(hex) {
+  const h = String(hex || "").trim();
+  if (!/^#[0-9a-f]{6}$/i.test(h)) return "255,255,255";
+  return `${parseInt(h.substr(1, 2), 16)},${parseInt(h.substr(3, 2), 16)},${parseInt(h.substr(5, 2), 16)}`;
+}
+
 // ── 微工具（守卫式 CSS 注入 / toast / DOM 快捷创建 / 隐藏 widget / canvas
 //    缩放比）────────────────────────────────────────────────────────────
 // 收敛自各 UI 模块内联副本（injectCSS ×23、toast ×4、el ×5、hideJsonWidget
@@ -662,4 +690,52 @@ export function removeNodeReleaseGuard(node, { hook = "_sfReleaseGuard" } = {}) 
   if (!g) return;
   for (const t of g.events) window.removeEventListener(t, g.handler, true);
   node[hook] = null;
+}
+
+// ── 右下角 resize cursor 视觉修正（通用，§44）────────────────────────────
+//
+// 原生命中区（resizeHandleSize 15×15）本身可用，但 pointer.resizeDirection
+// 会被两处反复清空（hover 判定切换无条件清；第三方扩展重放 processMouseMove
+// 每次物理移动跑 ≥2 遍）——帧尾 updateCursorStyle 读到空即闪回 default。修法：
+// 后注册的 window mousemove listener 在原生 15×15 区内**直接写**
+// canvas.style.cursor（绕开 dir→帧尾的间接链路，同时补写 dir 双保险）；区外
+// 仅在自己写入时恢复 ""（不覆盖槽 grab 等原生 cursor）。
+//
+// 多节点类共存：注册表 + 单监听；hitFn 由宿主从各自纯库传入
+// （sf_crop_expand_lib/sf_brush_mask_lib 的 hitResizeCornerSE）。
+const _resizeCursorRegistry = [];
+let _resizeCursorInstalled = false;
+let _resizeCursorOwned = false;
+
+export function installResizeCornerCursor(classNames, hitFn) {
+  const classes = Array.isArray(classNames) ? classNames : [classNames];
+  _resizeCursorRegistry.push({ classes, hitFn });
+  if (_resizeCursorInstalled) return;
+  _resizeCursorInstalled = true;
+  window.addEventListener("mousemove", () => {
+    const canvas = app.canvas;
+    const pointer = canvas?.pointer;
+    if (!pointer || pointer.eDown) return;
+    const mx = canvas.graph_mouse?.[0], my = canvas.graph_mouse?.[1];
+    if (mx == null || my == null) return;
+    let inSE = false;
+    for (const entry of _resizeCursorRegistry) {
+      for (const n of app.graph?._nodes || []) {
+        if (!entry.classes.includes(n.comfyClass) && !entry.classes.includes(n.type)) continue;
+        if (entry.hitFn(mx - n.pos[0], my - n.pos[1], n.size[0], n.size[1])) {
+          inSE = true;
+          break;
+        }
+      }
+      if (inSE) break;
+    }
+    if (inSE) {
+      if (pointer.resizeDirection !== "SE") pointer.resizeDirection = "SE";
+      canvas.canvas.style.cursor = "nwse-resize";
+      _resizeCursorOwned = true;
+    } else if (_resizeCursorOwned) {
+      _resizeCursorOwned = false;
+      if (canvas.canvas.style.cursor === "nwse-resize") canvas.canvas.style.cursor = "";
+    }
+  });
 }

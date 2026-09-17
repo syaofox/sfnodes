@@ -20,11 +20,11 @@ import os
 
 import numpy as np
 import torch
-from PIL import Image
 
 from ...sf_utils.common import _parse_fill_color, parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
 from ...sf_utils import crop_expand_presets as _crop_expand_presets  # noqa: F401 — import 时注册自定义比例预设路由
 from .crop import _safe_join
+from .crop import load_src_rgb
 
 _CATEGORY = "sfnodes/image"
 
@@ -51,10 +51,13 @@ def _clamp_crop(meta):
     return x, y, w, h
 
 
-def _compose_expand(src, crop_x, crop_y, crop_w, crop_h, fill_rgb):
+def _compose_expand(src, crop_x, crop_y, crop_w, crop_h, fill_rgb, overlay=None):
     """Composite the expansion canvas. Pure numpy.
 
     src: (H, W, 3) float32 0..1 RGB, or None (no source → pure fill canvas).
+    overlay: 可选的源图坐标系 (H, W) float32 遮罩（SFImageCropExpandBrushMask
+    的笔触层）——在源图交集贴回处与扩展区遮罩取并集（1.0 = 重绘）；无源图时
+    忽略（点已无坐标可贴）。默认 None 时逐字节保持原行为。
     Returns (image (crop_h, crop_w, 3) float32, mask (crop_h, crop_w) float32)
     with mask 1.0 = extended region (white), 0.0 = original-image region.
     """
@@ -78,6 +81,13 @@ def _compose_expand(src, crop_x, crop_y, crop_w, crop_h, fill_rgb):
             ch = sy2 - sy1
             canvas[dy1:dy1 + ch, dx1:dx1 + cw, :] = src[sy1:sy2, sx1:sx2, :]
             mask[dy1:dy1 + ch, dx1:dx1 + cw] = 0.0
+            # 笔触层并入（形状与 src 一致；防御性检查尺寸，坏 overlay 退化忽略）
+            if (overlay is not None and overlay.ndim == 2
+                    and overlay.shape[0] >= sy2 and overlay.shape[1] >= sx2):
+                mask[dy1:dy1 + ch, dx1:dx1 + cw] = np.maximum(
+                    mask[dy1:dy1 + ch, dx1:dx1 + cw],
+                    overlay[sy1:sy2, sx1:sx2],
+                )
 
     return canvas, mask
 
@@ -133,16 +143,9 @@ class SFImageCropExpand:
         return key
 
     def _load_src(self, src_path):
-        """Load the persisted source image as a float32 RGB array, or None."""
-        full = _safe_join(src_path) if src_path else None
-        if not full:
-            return None
-        try:
-            pil = Image.open(full).convert("RGB")
-            return np.array(pil).astype(np.float32) / 255.0
-        except Exception as e:
-            print(f"[SFImageCropExpand] source load failed: {e}")
-            return None
+        """Load the persisted source image as a float32 RGB array, or None
+        (shared impl in crop.load_src_rgb, converged from three copies)."""
+        return load_src_rgb(src_path, "[SFImageCropExpand]")
 
     def execute(self, SFCropExpandJson="{}", **kwargs):
         meta = _parse_state(SFCropExpandJson)

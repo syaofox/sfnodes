@@ -22,17 +22,22 @@
 // （复用 SFImageCrop 的路由，零新增后端路由），状态只存 src_path——
 // 工作流重载经 /view 恢复预览（原版 base64 进 workflow + 会话 Map 缓存，
 // 文件巨大且刷新丢图，已确认差异）。
-// 交互数学在纯库 sf_brush_mask_lib.js（无 app 依赖可 .mjs 直测）。
-// 最小尺寸钳制 + 右下角 cursor 补写同 sf_crop_expand.js（§44 同款）。
+//
+// 共享实现（与 SFImageCropExpand/SFImageCropExpandBrushMask 单源）：
+//   - 源图加载链路 sf_crop_source.js；画笔步进/命中/绘制与取色文字色在
+//     sf_brush_mask_lib.js（无 app 依赖可 .mjs 直测）；步长设置与 [ ]/滚轮
+//     快调在 sf_brush_tools.js；SAM 右键图层（菜单/对话框/忙时熔断预检）在
+//     sf_brush_sam.js（与 SFImageCropExpandBrushMask 同一实现，见 §91）；
+//     右下角 cursor 补写在 sf_common。
+//   - 最小尺寸钳制（computeSize 包装）同 sf_crop_expand.js（§44 同款）。
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
-import { api } from "/scripts/api.js";
-import { CropAPI } from "./sf_crop_core.js";
-import { sfToast, buildSourceURL, getSfAccent, installPasteHandler, sfApiUrl, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard } from "./sf_common.js";
-import { showImageBrowser } from "./image_browser.js";
-import { parseAnnotatedImageValue } from "./sf_common.js";
-import { getSelectedNodes } from "./sf_canvas_align_lib.js";
+import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString } from "./sf_common.js";
+import { installSamMenu } from "./sf_brush_sam.js";
+import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
+import { registerBrushSizeKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
+import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
 import {
   LAYOUT,
   TOOL_COL,
@@ -44,66 +49,19 @@ import {
   hitResizeCornerSE,
   computeDisplayMetrics,
   localToImage,
-  imageToLocal,
   clampToImage,
   stepBrushSize,
   stepOpacity,
-  hitStepper,
-  wheelDir,
-  wheelAction,
+  paintStrokeMask,
+  colorTextStyle,
 } from "./sf_brush_mask_lib.js";
 
 const CLASS = "SFImageBrushMask";
 const HIDDEN_INPUT = "SFBrushMaskJson"; // 必须与 brush_mask.py 的隐藏输入一致
 const STATE_PROP = "sfBrushMaskState";
 
-// ComfyUI 设置页步长项（init 幂等注册；读取失败回默认值，见 sf_load_image_ui.js 先例）
-const SIZE_STEP_SETTING = "sfnodes.BrushMask.SizeStep";
-const OPA_STEP_SETTING = "sfnodes.BrushMask.OpacityStep";
-const SIZE_STEP_DEFAULT = 2;
-const OPA_STEP_DEFAULT = 5; // 整数百分比
-
-function brushSizeStep() {
-  try {
-    const v = Math.round(Number(app.ui.settings.getSettingValue(SIZE_STEP_SETTING)));
-    return Number.isFinite(v) && v >= 1 && v <= 20 ? v : SIZE_STEP_DEFAULT;
-  } catch {
-    return SIZE_STEP_DEFAULT;
-  }
-}
-
-function brushOpacityStep() {
-  try {
-    const v = Math.round(Number(app.ui.settings.getSettingValue(OPA_STEP_SETTING)));
-    return Number.isFinite(v) && v >= 1 && v <= 25 ? v : OPA_STEP_DEFAULT;
-  } catch {
-    return OPA_STEP_DEFAULT;
-  }
-}
-
-let _brushStepSettingsRegistered = false;
-function registerBrushStepSettings() {
-  if (_brushStepSettingsRegistered) return;
-  _brushStepSettingsRegistered = true;
-  try {
-    app.ui.settings.addSetting({
-      id: SIZE_STEP_SETTING,
-      name: "SF Image Brush Mask: brush size step (Size± buttons, wheel, [ ] keys)",
-      defaultValue: SIZE_STEP_DEFAULT,
-      type: "slider",
-      attrs: { min: 1, max: 20, step: 1 },
-    });
-    app.ui.settings.addSetting({
-      id: OPA_STEP_SETTING,
-      name: "SF Image Brush Mask: opacity step percent (Opa± buttons, wheel)",
-      defaultValue: OPA_STEP_DEFAULT,
-      type: "slider",
-      attrs: { min: 1, max: 25, step: 1 },
-    });
-  } catch {
-    // 设置系统不可用则退化为默认值
-  }
-}
+// 步长设置读取/注册在 sf_brush_tools.js（与 SFImageCropExpandBrushMask 共享
+// 同一组用户设置键）。
 
 const DEFAULT_STATE = {
   src_path: "",
@@ -154,96 +112,27 @@ function stateChanged(node) {
   if (app.graph) app.graph.setDirtyCanvas(true, true);
 }
 
-// src_path → /view 记录（upload_src 返回 "sfnodes_crop/<file>"，前缀即子目录）
-function srcViewPart(srcPath) {
-  if (!srcPath) return null;
-  const norm = String(srcPath).replace(/\\/g, "/");
-  const slash = norm.indexOf("/");
-  return {
-    filename: slash >= 0 ? norm.slice(slash + 1) : norm,
-    subfolder: slash >= 0 ? norm.slice(0, slash) : "",
-    type: "input",
-  };
+// ── 源图加载链路（sf_crop_source 共享实现）────────────────────────────────
+// 换图清空笔触（原版同款语义）；加载后状态回写与预览交给共享链路。
+const SOURCE_CFG = {
+  uploadPrefix: "brushmask_",
+  logTag: "[SF Brush Mask]",
+  toastTag: "SF Brush Mask",
+  imgProp: "_sfBrushImg",
+  getState,
+  onStored: ({ srcPath, w, h }, node) => {
+    setState(node, { src_path: srcPath, src_w: w, src_h: h, strokes: [] });
+  },
+};
+
+// 拖放判定区 = 显示区（metrics 动态计算）
+function sourceAreaOf(node) {
+  const st = getState(node);
+  const m = computeDisplayMetrics({ srcW: st.src_w, srcH: st.src_h }, node.size[0], node.size[1]);
+  return { x: m.offsetX, y: m.offsetY, w: m.scaledW, h: m.scaledH };
 }
 
-// ── 图片加载（按钮 / 拖放 / 粘贴 / Browse 共用）────────────────────────────
-
-function imageDims(dataURL) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = reject;
-    img.src = dataURL;
-  });
-}
-
-async function loadAndStoreImage(node, dataURL) {
-  try {
-    const dims = await imageDims(dataURL);
-    const res = await CropAPI.uploadSrc("brushmask_" + Date.now(), dataURL);
-    const srcPath = res?.path || "";
-    if (!srcPath) {
-      sfToast({ summary: "SF Brush Mask", detail: "源图上传失败，已取消加载", severity: "error", fallbackTag: "SF Brush Mask" });
-      return;
-    }
-    setState(node, {
-      src_path: srcPath,
-      src_w: dims.w,
-      src_h: dims.h,
-      strokes: [], // 换图清空笔触（原版同款语义）
-    });
-    const img = new Image();
-    img.onload = () => {
-      node._sfBrushImg = img;
-      stateChanged(node);
-    };
-    img.src = dataURL;
-  } catch (err) {
-    console.error("[SF Brush Mask] load image failed:", err);
-    sfToast({ summary: "SF Brush Mask", detail: "加载图片失败", severity: "error", fallbackTag: "SF Brush Mask" });
-  }
-}
-
-function pickFile(node) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => loadAndStoreImage(node, event.target.result);
-    reader.readAsDataURL(file);
-  };
-  input.click();
-}
-
-// Browse 按钮：复用 SF Load Image Browser 弹窗（选择器模式），
-// 选中后经 /view 取原始字节 → dataURL → 既有落盘+状态链路
-function browseImage(node) {
-  showImageBrowser(node, {
-    onPick: async (annotated) => {
-      const part = parseAnnotatedImageValue(annotated);
-      const url = buildSourceURL(part);
-      if (!url) return;
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const blob = await resp.blob();
-        const dataURL = await new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.onerror = reject;
-          r.readAsDataURL(blob);
-        });
-        await loadAndStoreImage(node, dataURL);
-      } catch (err) {
-        console.error("[SF Brush Mask] browse load failed:", err);
-        sfToast({ summary: "SF Brush Mask", detail: "从图片浏览器加载失败", severity: "error", fallbackTag: "SF Brush Mask" });
-      }
-    },
-  });
-}
+const SOURCE_DROP_CFG = { ...SOURCE_CFG, getArea: sourceAreaOf };
 
 // ── 控件（左竖列 + 底行：绘制与命中共用同一几何）──────────────────────────
 // 左竖列（x=shiftLeft, w=30, h=18，步进 22，列顶 16）：Brush/Erase 模式 →
@@ -298,8 +187,8 @@ function buildControls() {
 
 function buttonAction(node, id) {
   const st = getState(node);
-  if (id === "load") pickFile(node);
-  else if (id === "browse") browseImage(node);
+  if (id === "load") pickFile(node, SOURCE_CFG);
+  else if (id === "browse") browseSource(node, SOURCE_CFG);
   else if (id === "brush") setState(node, { brush_mode: "brush" });
   else if (id === "erase") setState(node, { brush_mode: st.brush_mode === "erase" ? "brush" : "erase" });
   else if (id === "clear") setState(node, { strokes: [] });
@@ -316,191 +205,31 @@ function buttonAction(node, id) {
 }
 
 function pickColor(node) {
-  const cur = getState(node).brush_color;
-  const rgb = String(cur || "255,255,255").split(",").map((c) => parseInt(String(c).trim(), 10));
-  const hex = "#" + rgb.map((c) => Math.max(0, Math.min(255, c || 0)).toString(16).padStart(2, "0")).join("");
-  const input = document.createElement("input");
-  input.type = "color";
-  input.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#ffffff";
-  input.onchange = (e) => {
-    const h = e.target.value;
+  pickColorInput(rgbStringToHex(getState(node).brush_color), (hex) => {
+    setState(node, { brush_color: hexToRgbString(hex) });
+    stateChanged(node);
+  }, "#ffffff");
+}
+
+// 取色按钮文字色 colorTextStyle 提升到 sf_brush_mask_lib.js（两节点共用）。
+
+// ── SAM 右键图层（共享 UI：sf_brush_sam.js，后端 brush_mask_sam.py）──────
+// fill 笔触并入统一列表；sam_* 为对话框记忆字段（不进 lean 注入）。
+const SAM_CFG = {
+  toastTag: "SF Brush Mask",
+  logTag: "[SF Brush Mask]",
+  getState,
+  addStrokes: (node, incoming, meta) => {
+    const st = getState(node);
     setState(node, {
-      brush_color: `${parseInt(h.substr(1, 2), 16)},${parseInt(h.substr(3, 2), 16)},${parseInt(h.substr(5, 2), 16)}`,
+      strokes: incoming && incoming.length ? [...st.strokes, ...incoming] : st.strokes,
+      sam_prompt: meta.prompt,
+      sam_threshold: meta.threshold,
+      sam_refine: meta.refine,
     });
     stateChanged(node);
-  };
-  input.click();
-}
-
-// 取色按钮文字按背景亮度取黑/白（CropExpand Color 按钮同款）
-function colorTextStyle(color) {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(color || ""));
-  if (!m) {
-    const rgb = String(color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
-    if (rgb.length === 3 && rgb.every((v) => Number.isFinite(v))) {
-      const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-      return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
-    }
-    return "rgba(255,255,255,0.9)";
-  }
-  const brightness = (parseInt(m[1], 16) * 299 + parseInt(m[2], 16) * 587 + parseInt(m[3], 16) * 114) / 1000;
-  return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
-}
-
-// ── SAM（右键菜单 → 核心 SAM3_Detect → fill 笔触并入列表统一管理）────────
-// 后端见 nodes/image/brush_mask_sam.py（三路由 sam/sam_unload/sam_status）。
-
-async function samPost(path, body) {
-  const res = await api.fetchApi(sfApiUrl(path), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  let data = null;
-  try { data = await res.json(); } catch { /* 非 JSON 回退 */ }
-  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
-  return data || {};
-}
-
-async function runSamMask(node, prompt, threshold, refine) {
-  const st = getState(node);
-  if (!st.src_path) {
-    sfToast({ summary: "SF Brush Mask", detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: "SF Brush Mask" });
-    return;
-  }
-  sfToast({ summary: "SF Brush Mask", detail: `SAM 推理中：${prompt || "object"}…（首次需加载 1.7GB 模型）`, severity: "info", life: 5000, fallbackTag: "SF Brush Mask" });
-  try {
-    const data = await samPost("/api/sfnodes/brush_mask/sam", {
-      src_path: st.src_path, prompt, threshold, refine_iterations: refine,
-    });
-    const incoming = Array.isArray(data && data.strokes) ? data.strokes : [];
-    if (!incoming.length) {
-      setState(node, { sam_prompt: prompt, sam_threshold: threshold, sam_refine: refine });
-      stateChanged(node);
-      sfToast({ summary: "SF Brush Mask", detail: "SAM 未检出目标（空结果，笔触不变）", severity: "warn", fallbackTag: "SF Brush Mask" });
-      return;
-    }
-    setState(node, {
-      strokes: [...st.strokes, ...incoming],
-      sam_prompt: prompt,
-      sam_threshold: threshold,
-      sam_refine: refine,
-    });
-    stateChanged(node);
-    const cov = data.coverage != null ? `覆盖 ${Math.round(data.coverage * 100)}%，` : "";
-    sfToast({ summary: "SF Brush Mask", detail: `SAM 并入 ${incoming.length} 个填充笔触（${cov}可擦除/撤销）`, severity: "success", fallbackTag: "SF Brush Mask" });
-  } catch (err) {
-    console.error("[SF Brush Mask] sam failed:", err);
-    sfToast({ summary: "SF Brush Mask", detail: `SAM 失败：${(err && err.message) || err}`, severity: "error", life: 6000, fallbackTag: "SF Brush Mask" });
-  }
-}
-
-async function unloadSamModel() {
-  try {
-    const data = await samPost("/api/sfnodes/brush_mask/sam_unload", {});
-    sfToast({
-      summary: "SF Brush Mask",
-      detail: data && data.unloaded ? "SAM 模型已卸载，显存已释放" : "SAM 模型未在驻留，无需卸载",
-      severity: "info", fallbackTag: "SF Brush Mask",
-    });
-  } catch (err) {
-    console.error("[SF Brush Mask] sam unload failed:", err);
-    sfToast({ summary: "SF Brush Mask", detail: `卸载失败：${(err && err.message) || err}`, severity: "error", fallbackTag: "SF Brush Mask" });
-  }
-}
-
-// SAM prompt 对话框（prompt 文本 + threshold；Enter 确认 / Esc 关闭；
-// 放行 ctrl/meta/alt 组合键。样式同 CropExpand Custom 比例弹窗。）
-function openSamDialog(node) {
-  const st = getState(node);
-  if (!st.src_path) {
-    sfToast({ summary: "SF Brush Mask", detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: "SF Brush Mask" });
-    return;
-  }
-  if (document.getElementById("sf-brush-mask-sam-overlay")) return;
-
-  const overlay = document.createElement("div");
-  overlay.id = "sf-brush-mask-sam-overlay";
-  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;";
-
-  const dialog = document.createElement("div");
-  dialog.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);" +
-    "background:var(--sf-panel-bg);border:1px solid var(--sf-border-soft);border-radius:6px;padding:12px 14px;" +
-    "box-shadow:0 4px 20px rgba(0,0,0,0.5);width:300px;box-sizing:border-box;";
-  const lastPrompt = st.sam_prompt || "";
-  const lastThr = st.sam_threshold ?? 0.5;
-  const lastRefine = st.sam_refine ?? 2;
-  dialog.innerHTML = `
-    <div style="color:var(--sf-text);font-size:13px;margin-bottom:10px;font-weight:bold;">SAM 蒙版：文本选择</div>
-    <div style="margin-bottom:10px;">
-      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Prompt（英文，如 person / car，为空按 object）</label>
-      <input type="text" id="sf-bm-sam-prompt" value="${String(lastPrompt).replace(/"/g, "&quot;")}" placeholder="person"
-        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
-      <div style="color:var(--sf-text-faint);font-size:10px;margin-top:3px;">多人用 person:3（:N = 每类最多 N 个），多类用逗号分隔</div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Threshold（0-1，越低越多）</label>
-      <input type="number" id="sf-bm-sam-thr" value="${lastThr}" min="0" max="1" step="0.05"
-        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
-    </div>
-    <div style="margin-bottom:10px;">
-      <label style="color:var(--sf-text-dim);font-size:10px;display:block;margin-bottom:3px;">Refine（0-5，SAM 解码精修轮数，0=用粗蒙版）</label>
-      <input type="number" id="sf-bm-sam-refine" value="${lastRefine}" min="0" max="5" step="1"
-        style="width:100%;padding:5px;background:var(--sf-input-bg);border:1px solid var(--sf-border-soft);border-radius:3px;color:var(--sf-text);font-size:13px;box-sizing:border-box;">
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="sf-bm-sam-cancel" style="padding:5px 12px;background:var(--sf-surface);border:none;border-radius:3px;color:var(--sf-text);cursor:pointer;font-size:12px;">Cancel</button>
-      <button id="sf-bm-sam-ok" style="padding:5px 12px;background:#4a90e2;border:none;border-radius:3px;color:white;cursor:pointer;font-size:12px;">Run SAM</button>
-    </div>`;
-  overlay.appendChild(dialog);
-  document.body.appendChild(overlay);
-
-  let closed = false;
-  const close = () => {
-    if (closed) return;
-    closed = true;
-    overlay.remove();
-  };
-  overlay.addEventListener("pointerdown", (e) => { if (e.target === overlay) close(); });
-  window.addEventListener("keydown", function esc(e) {
-    if (e.key === "Escape") { close(); window.removeEventListener("keydown", esc); }
-  });
-
-  const promptInput = dialog.querySelector("#sf-bm-sam-prompt");
-  const thrInput = dialog.querySelector("#sf-bm-sam-thr");
-  const refineInput = dialog.querySelector("#sf-bm-sam-refine");
-  setTimeout(() => promptInput.focus(), 100);
-
-  const apply = () => {
-    let thr = parseFloat(thrInput.value);
-    if (!Number.isFinite(thr)) thr = 0.5;
-    thr = Math.max(0, Math.min(1, thr));
-    let refine = parseInt(refineInput.value, 10);
-    if (!Number.isFinite(refine)) refine = 2;
-    refine = Math.max(0, Math.min(5, refine));
-    const p = promptInput.value || "";
-    close();
-    runSamMask(node, p, thr, refine);
-  };
-  dialog.querySelector("#sf-bm-sam-ok").onclick = apply;
-  dialog.querySelector("#sf-bm-sam-cancel").onclick = close;
-  for (const el of [promptInput, thrInput, refineInput]) {
-    el.onkeydown = (e) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "Enter") {
-        // 吞掉回车：否则 keydown 上浮到 window，会触发全局键位
-        // （如用户自绑的 Enter 队列）导致与对话框无关的报错
-        e.preventDefault();
-        e.stopPropagation();
-        apply();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        close();
-      }
-    };
-  }
-}
+  },
+};
 
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────
 
@@ -525,50 +254,8 @@ function drawPlaceholder(ctx, x, y, w, h, scale) {
   }
 }
 
-function drawStrokePath(ctx, pts, m, lineW, style, fill) {
-  if (!pts || pts.length === 0) return;
-  // fill 笔触（SAM 并入）：整体填充闭合多边形
-  if (fill) {
-    if (pts.length === 1) {
-      const p = imageToLocal(pts[0][0], pts[0][1], m);
-      ctx.fillStyle = style;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(1, lineW / 2), 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    }
-    ctx.fillStyle = style;
-    ctx.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const p = imageToLocal(pts[i][0], pts[i][1], m);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    }
-    ctx.closePath();
-    ctx.fill();
-    return;
-  }
-  ctx.lineWidth = Math.max(1, lineW);
-  ctx.strokeStyle = style;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  if (pts.length === 1) {
-    const p = imageToLocal(pts[0][0], pts[0][1], m);
-    // 单点：画一个直径=线宽的圆盘（后端同款：单点印章）
-    ctx.fillStyle = style;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(1, lineW / 2), 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  ctx.beginPath();
-  for (let i = 0; i < pts.length; i++) {
-    const p = imageToLocal(pts[i][0], pts[i][1], m);
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-  }
-  ctx.stroke();
-}
+// 笔触绘制/离屏遮罩合成提升到 sf_brush_mask_lib.js（drawStrokePath /
+// paintStrokeMask，两节点共用同一画序与真擦除语义）。
 
 function setupDrawing(node) {
   const { shiftLeft, shiftRight, bottomH } = LAYOUT;
@@ -643,11 +330,8 @@ function setupDrawing(node) {
       drawPlaceholder(ctx, m.offsetX, m.offsetY, m.scaledW, m.scaledH, m.scale);
     }
 
-    // 遮罩合成（真擦除预览）：离屏画布按画序合成——brush/fill 盖不透明白，
-    // erase 以 destination-out 打洞——再一次贴回主画布。主画布禁用
-    // destination-out（会连照片一起擦掉）。离屏按源图像素绘制
-    // （lineW 取源图笔刷直径，与后端印章同语义），贴回时一次缩放到显示区。
-    // 后端已是同款画序真擦除，预览与输出逐像素一致。
+    // 遮罩合成（真擦除预览；sf_brush_mask_lib.paintStrokeMask 共享实现——
+    // 离屏按源图像素绘制，贴回时一次缩放到显示区，与后端画序逐像素一致）
     const mw = Math.max(1, st.src_w || 512);
     const mh = Math.max(1, st.src_h || 512);
     let maskCvs = node._sfMaskCvs;
@@ -657,29 +341,14 @@ function setupDrawing(node) {
       maskCvs.height = mh;
       node._sfMaskCvs = maskCvs;
     }
-    const mx = maskCvs.getContext("2d");
-    mx.save();
-    mx.setTransform(1, 0, 0, 1, 0, 0);
-    mx.clearRect(0, 0, mw, mh);
-    mx.globalCompositeOperation = "source-over";
     const paintRGB = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
-    const paintStyle = `rgba(${paintRGB[0]},${paintRGB[1]},${paintRGB[2]},1)`;
-    const unit = { scale: 1, offsetX: 0, offsetY: 0 }; // 源图像素系（drawStrokePath 复用）
-    const paintStroke = (s) => {
-      const mode = s.mode || "brush";
-      if (mode === "erase") {
-        mx.globalCompositeOperation = "destination-out";
-        drawStrokePath(mx, s.points, unit, s.size || st.brush_size, "rgba(0,0,0,1)", false);
-        mx.globalCompositeOperation = "source-over";
-      } else {
-        drawStrokePath(mx, s.points, unit, s.size || st.brush_size, paintStyle, mode === "fill");
-      }
-    };
-    for (const s of st.strokes) paintStroke(s);
-    if (node._sfBrushCur && node._sfBrushCur.length > 0) {
-      paintStroke({ mode: st.brush_mode === "erase" ? "erase" : "brush", size: st.brush_size, points: node._sfBrushCur });
-    }
-    mx.restore();
+    paintStrokeMask(maskCvs, st.strokes, {
+      defaultSize: st.brush_size,
+      paintStyle: `rgba(${paintRGB[0]},${paintRGB[1]},${paintRGB[2]},1)`,
+      current: node._sfBrushCur && node._sfBrushCur.length > 0
+        ? { mode: st.brush_mode === "erase" ? "erase" : "brush", size: st.brush_size, points: node._sfBrushCur }
+        : null,
+    });
     ctx.save();
     ctx.globalAlpha = st.brush_opacity;
     try {
@@ -832,84 +501,13 @@ function setupInteractions(node) {
     }
   }, { hook: "_sfBrushReleaseGuard" });
 
-  // 拖放图片文件到节点显示区加载
-  node.onDragOver = (e) => {
-    const m = metricsOf(node);
-    const lx = e.canvasX - node.pos[0];
-    const ly = e.canvasY - node.pos[1];
-    const inArea = lx >= m.offsetX && lx <= m.offsetX + m.scaledW &&
-      ly >= m.offsetY && ly <= m.offsetY + m.scaledH;
-    if (inArea && e.dataTransfer?.types && Array.from(e.dataTransfer.types).includes("Files")) {
-      e.preventDefault();
-      e.stopPropagation();
-      return true;
-    }
-    return false;
-  };
-
-  node.onDragDrop = (e) => {
-    const m = metricsOf(node);
-    const lx = e.canvasX - node.pos[0];
-    const ly = e.canvasY - node.pos[1];
-    if (lx < m.offsetX || lx > m.offsetX + m.scaledW ||
-        ly < m.offsetY || ly > m.offsetY + m.scaledH) {
-      return false;
-    }
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return false;
-    if (!file.type.startsWith("image/")) {
-      console.warn("[SF Brush Mask] only image files are supported");
-      return false;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => loadAndStoreImage(node, event.target.result);
-    reader.onerror = (err) => console.error("[SF Brush Mask] read file failed:", err);
-    reader.readAsDataURL(file);
-    e.preventDefault();
-    e.stopPropagation();
-    return true;
-  };
-}
-
-// ── 工作流恢复 ────────────────────────────────────────────────────────────
-
-function restoreImage(node) {
-  const st = getState(node);
-  const part = srcViewPart(st.src_path);
-  if (!part) return;
-  const url = buildSourceURL(part, true);
-  if (!url) return;
-  const img = new Image();
-  img.onload = () => {
-    node._sfBrushImg = img;
-    if (app.graph) app.graph.setDirtyCanvas(true, true);
-  };
-  img.src = url;
+  // 拖放图片文件到节点显示区加载（sf_crop_source 共享实现）
+  installSourceDrop(node, SOURCE_DROP_CFG);
 }
 
 // ── graphToPrompt：注入隐藏输入（只注入 lean 字段，Export/分享共用同一份 output）──
-
-function buildNodeIndex() {
-  const index = new Map();
-  const visit = (graph) => {
-    if (!graph) return;
-    for (const n of graph._nodes || graph.nodes || []) {
-      if (!n) continue;
-      if (n.comfyClass === CLASS || n.type === CLASS) index.set(String(n.id), n);
-      const inner = n.subgraph || n.graph || n._graph;
-      if (inner && inner !== graph) visit(inner);
-    }
-  };
-  visit(app.graph);
-  return index;
-}
-
-function findNodeById(index, id) {
-  const s = String(id);
-  if (index.has(s)) return index.get(s);
-  const tail = s.includes(":") ? s.slice(s.lastIndexOf(":") + 1) : null;
-  return tail && index.has(tail) ? index.get(tail) : null;
-}
+// 图索引复用 sf_pause_kit.buildClassNodeIndex/findNodeByPromptId（四闸门单源，
+// 复合 id + 子图环守卫）。
 
 if (!app._sfBrushMaskPromptPatched) {
   app._sfBrushMaskPromptPatched = true;
@@ -923,8 +521,8 @@ if (!app._sfBrushMaskPromptPatched) {
         for (const id in out) {
           const entry = out[id];
           if (!entry || entry.class_type !== CLASS) continue;
-          if (!index) index = buildNodeIndex();
-          const node = findNodeById(index, id);
+          if (!index) index = buildClassNodeIndex(CLASS);
+          const node = findNodeByPromptId(index, id);
           const raw = node?.properties?.[STATE_PROP] || JSON.stringify(DEFAULT_STATE);
           let parsed = DEFAULT_STATE;
           try { parsed = { ...DEFAULT_STATE, ...JSON.parse(raw) }; } catch { /* 坏状态回退默认 */ }
@@ -939,113 +537,18 @@ if (!app._sfBrushMaskPromptPatched) {
   };
 }
 
-// ── 右下角 resize cursor 视觉修正（§44 同款：命中区维持原生 15×15， ──────
-// 后注册 mousemove 在区内直接写 style.cursor，绕过 resizeDirection 被清空链路）
+// ── 右下角 resize cursor 视觉修正（sf_common 共享安装器）────────────────────
+// 命中区维持原生 15×15（不做扩大）、区内直接写 style.cursor 的修法见
+// sf_common.installResizeCornerCursor 注释（§44）。
+installResizeCornerCursor(CLASS, hitResizeCornerSE);
 
-if (!app._sfBrushMaskCursorPatch) {
-  app._sfBrushMaskCursorPatch = true;
-  let _sfCursorOwned = false;
-  window.addEventListener("mousemove", () => {
-    const canvas = app.canvas;
-    const pointer = canvas?.pointer;
-    if (!pointer || pointer.eDown) return;
-    const mx = canvas.graph_mouse?.[0], my = canvas.graph_mouse?.[1];
-    if (mx == null || my == null) return;
-    let inSE = false;
-    for (const n of app.graph?._nodes || []) {
-      if (n.comfyClass !== CLASS) continue;
-      if (hitResizeCornerSE(mx - n.pos[0], my - n.pos[1], n.size[0], n.size[1])) {
-        inSE = true;
-        break;
-      }
-    }
-    if (inSE) {
-      if (pointer.resizeDirection !== "SE") pointer.resizeDirection = "SE";
-      canvas.canvas.style.cursor = "nwse-resize";
-      _sfCursorOwned = true;
-    } else if (_sfCursorOwned) {
-      _sfCursorOwned = false;
-      if (canvas.canvas.style.cursor === "nwse-resize") canvas.canvas.style.cursor = "";
-    }
-  });
-}
-
-// ── 步进器滚轮快调 ────────────────────────────────────────────────────────
-//
-// 悬停左竖列 S±/O± 步进器时滚轮直接调值（上滚增大/下滚减小，每 tick 一步）：
-// 引擎无节点级 onMouseWheel 钩子，故用 window capture 先手拦截（同
-// installPasteHandler 先例）；仅命中四个步进器且无 Ctrl/Meta（捏合缩放手势）
-// 时拦截，其余一律放行（画布缩放不受影响）。passive:false 否则 preventDefault
-// 无效；折叠节点跳过（控件不可见）。
-
-if (!app._sfBrushMaskWheelPatch) {
-  app._sfBrushMaskWheelPatch = true;
-  window.addEventListener("wheel", (e) => {
-    if (e.ctrlKey || e.metaKey) return;
-    const dir = wheelDir(e.deltaY);
-    if (!dir) return;
-    const canvas = app.canvas;
-    if (!canvas) return;
-    const mx = canvas.graph_mouse?.[0], my = canvas.graph_mouse?.[1];
-    if (mx == null || my == null) return;
-    for (const n of app.graph?._nodes || []) {
-      if (n.comfyClass !== CLASS && n.type !== CLASS) continue;
-      if (n.flags?.collapsed || !n._sfBrushCtrls) continue;
-      const lx = mx - n.pos[0], ly = my - n.pos[1];
-      if (lx < 0 || ly < 0 || lx > n.size[0] || ly > n.size[1]) continue;
-      const hovered = hitStepper(n._sfBrushCtrls, lx, ly);
-      if (!hovered) continue;
-      const action = wheelAction(hovered, dir);
-      if (!action) continue;
-      e.preventDefault();
-      e.stopPropagation();
-      buttonAction(n, action);
-      return;
-    }
-  }, { passive: false, capture: true });
-}
-
-// ── 笔刷 shortcut [ ] ─────────────────────────────────────────────────────
-// 选中本类节点时 [ 缩小 / ] 放大（步长同 S± 步进器；OS 自动连发按住连调，
-// 故不做 inpaint 式的按住加速）。双通道互补：
-//   ① 官方通道——画布 processKey 把 keydown 分发给选中节点的 onKeyDown；
-//   ② window 冒泡监听——焦点在 body 等画布收不到的场景兜底。
-// 同一物理按键会走两遍，经 e.timeStamp 去重只执行一次（多选同理：首个
-// 节点的 onKeyDown 全量调整后，其余同戳调用直接跳过）。
-// 输入框内 / 修饰键 / 全屏编辑器打开时跳过（sf-px-overlay 存活意味着
-// crop/inpaint 编辑器自家 handler 接管按键）。
-
-let _sfBrushLastKey = { t: -1, k: "" };
-
-function brushKeyStep(e) {
-  if (e.ctrlKey || e.metaKey || e.altKey) return false;
-  if (e.key !== "[" && e.key !== "]") return false;
-  if (e.timeStamp === _sfBrushLastKey.t && e.key === _sfBrushLastKey.k) return true;
-  const t = e.target;
-  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return false;
-  if (typeof document !== "undefined" && document.querySelector && document.querySelector(".sf-px-overlay")) return false;
-  _sfBrushLastKey = { t: e.timeStamp, k: e.key };
-  // 经 buttonAction 统一入口（步长设置三路同源，勿内联 stepBrushSize——曾漏传设置值）
-  const action = e.key === "]" ? "sizePlus" : "sizeMinus";
-  let hit = false;
-  for (const n of getSelectedNodes(app)) {
-    if (n.comfyClass !== CLASS && n.type !== CLASS) continue;
-    if (!n.properties) continue;
-    buttonAction(n, action);
-    hit = true;
-  }
-  return hit;
-}
-
-if (!app._sfBrushMaskKeysPatch) {
-  app._sfBrushMaskKeysPatch = true;
-  window.addEventListener("keydown", (e) => {
-    if (brushKeyStep(e)) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
-}
+// ── 画笔工具共享安装（sf_brush_tools）：[ ] 尺寸快捷键（双通道 + 时间戳去重）
+// 与 S±/O± 悬停滚轮快调；action 经 buttonAction 统一入口（步长设置三路同源）。
+const brushKeyStep = registerBrushSizeKeys({
+  classNames: [CLASS],
+  controlsProp: "_sfBrushCtrls",
+  applyAction: (n, action) => buttonAction(n, action),
+});
 
 // ── 注册 ──────────────────────────────────────────────────────────────────
 
@@ -1083,7 +586,7 @@ app.registerExtension({
         hook: "_sfBrushPaste",
         onPasteImage: (n, dataURL) => n._sfBrushPaste(dataURL),
       });
-      this._sfBrushPaste = (dataURL) => loadAndStoreImage(this, dataURL);
+      this._sfBrushPaste = (dataURL) => storeSource(this, dataURL, SOURCE_CFG);
     };
 
     const onConfigure = nodeType.prototype.onConfigure;
@@ -1096,7 +599,7 @@ app.registerExtension({
         setupDrawing(this);
         setupInteractions(this);
       }
-      restoreImage(this);
+      restoreSourceImage(this, SOURCE_CFG);
     };
 
     const onRemoved = nodeType.prototype.onRemoved;
@@ -1113,19 +616,7 @@ app.registerExtension({
       if (origKeyDown) return origKeyDown.apply(this, arguments);
     };
 
-    // 右键菜单（any_pack.js 同款 getExtraMenuOptions 包装）
-    const origMenu = nodeType.prototype.getExtraMenuOptions;
-    nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
-      if (origMenu) origMenu.apply(this, arguments);
-      if (!Array.isArray(options)) return;
-      options.push({
-        content: "SAM 蒙版：文本选择…",
-        callback: () => openSamDialog(this),
-      });
-      options.push({
-        content: "卸载 SAM 模型",
-        callback: () => unloadSamModel(),
-      });
-    };
+    // 右键菜单（共享安装器：SAM 蒙版…/卸载 SAM 模型）
+    installSamMenu(SAM_CFG, nodeType);
   },
 });

@@ -112,6 +112,13 @@ globalThis.FileReader = class {
     check("disconnectInput:false 不断线", !noDiscNode._discCalled);
     check("默认 disconnectInput 断线", discNode._discCalled === true);
 
+    // ── 颜色工具（sf_common 收敛实现；取色对话框/换算三节点共用）──
+    check("rgbStringToHex 常规", mod.rgbStringToHex("255,0,128") === "#ff0080");
+    check("rgbStringToHex 钳制", mod.rgbStringToHex("999,-5,10") === "#ff000a");
+    check("rgbStringToHex 非法兜底", mod.rgbStringToHex("x,y") === "#ffffff" && mod.rgbStringToHex("") === "#ffffff");
+    check("hexToRgbString 常规", mod.hexToRgbString("#ff0080") === "255,0,128");
+    check("hexToRgbString 非法兜底", mod.hexToRgbString("zzz") === "255,255,255" && mod.hexToRgbString(null) === "255,255,255");
+
     console.log("\nFAILURES:", failures.length);
     fs.rmSync(tmpDir, { recursive: true, force: true });
     process.exit(failures.length ? 1 : 0);

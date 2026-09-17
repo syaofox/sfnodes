@@ -69,6 +69,24 @@ def _decode_image(b64: str):
     return decode_image(b64)
 
 
+def load_src_rgb(src_path, log_tag="[sfnodes]"):
+    """Load a persisted source image (path relative to input/sfnodes_crop/) as a
+    float32 RGB (H, W, 3) array, or None when missing/unreadable.
+
+    SFImageCropExpand / SFImageBrushMask / SFImageCropExpandBrushMask 三节点曾
+    各持一份逐字相同的 _load_src（差异仅日志标签），收敛在 _safe_join 旁。
+    """
+    full = _safe_join(src_path) if src_path else None
+    if not full:
+        return None
+    try:
+        pil = Image.open(full).convert("RGB")
+        return np.array(pil).astype(np.float32) / 255.0
+    except Exception as e:
+        print(f"{log_tag} source load failed: {e}")
+        return None
+
+
 # ── 节点类 ────────────────────────────────────────────────────────────────
 
 

@@ -970,3 +970,56 @@ slice_track_data(track_data, start=0, length=0)
 
 - `nodes/image/track_data_slice.py`：`SFTrackDataSlice`（required `track_data`/`start`/`length`，`start` min=-1000000 支持负值取尾），非法输入抛错；无前端 JS（静态输入）。
 - 测试走 §83 同款 numpy 位序桩（`FakeTensor` 增补 `contiguous()`），覆盖区间/负 start/长度 0/截断/越界空/多对象保留/`packed None`/execute 集成——`tests/test_track_data_ops.py`。
+
+## 90. SFImageCropExpandBrushMask：出界裁剪 + 画笔遮罩合体（2026-09）
+
+> 背景：把 SFImageCropExpand（出界裁剪/外绘预处理）与 SFImageBrushMask（节点内画笔遮罩）合成为一个节点。`nodes/image/crop_expand_brush_mask.py:SFImageCropExpandBrushMask` + `web/sf_crop_expand_brush_mask{,_lib}.js` + 三个新共享模块（源图链路/比例弹窗/画笔工具）。开工前已确认：单 mask = 扩展区 ∪ 笔触 / Crop-Brush-Erase 三模式 / 全量提取共享 / 本版不做 SAM。
+
+### 1. 设计要点（用户拍板）
+
+- **mask 单一输出**：扩展区（结构性，Erase 不作用于它）∪ 笔触（brush 置 1 / erase 置 0）——后端即 `_compose_expand(..., overlay=)` 内 `np.maximum` 并入，overlay 为源图坐标系的笔触栅格化结果；不传 overlay 时原行为逐字节不变（既有测试锁定）。
+- **笔触只在源图区域内可画**：坐标钳制源图（`parse_state_strokes` 的裁剪面直接复用），随图移动、只有落在裁剪框内的部分进入输出；扩展区本就遮罩白，且避免前端离屏画布与后端栅格化随出界框膨胀到 12k² 的内存坑。
+- **三模式单选 Crop/Brush/Erase**：Crop 模式整框可拖可移（与 CropExpand 完全一致），Brush/Erase 模式手柄失效——贴边涂抹不会误拖框。
+- **双列布局**：列1 = 比例预设（CropExpand 同款，含 Custom 全局库弹窗），列2 = BrushMask 工具列前置 Crop；显示区多让一列（base lib `computeDisplayMetrics` 加 `extraLeft` 可选参数，默认 0 = 原行为）。MIN 360×300（宽 320+40）。
+
+### 2. 共享提取（全量，避免第 3/4 份副本）
+
+- 后端：`crop.py:load_src_rgb`（三节点源图读取）、`crop_expand.py:_compose_expand(overlay=)`、`sf_utils/brush_mask.py:lean_key`（原 `brush_mask._lean_key` 提升）+ 复用 `_clamp_crop/_parse_fill_color/parse_json_dict/parse_state_strokes/rasterize_strokes`；零新增路由、零新依赖。
+- 前端新增：`sf_crop_source.js`（Load/Browse/拖放/Ctrl+V → `CropAPI.uploadSrc` → 宿主 `cfg.onStored` 回写 → /view 恢复；cfg 参数化上传前缀/文案/imgProp/getArea）、`sf_crop_expand_ratios.js`（预设库 API + `ratioLabel` + `openCustomRatioDialog(cfg)`）、`sf_brush_tools.js`（步长设置读取/注册 + `[`/`]` 快捷键双通道与时间戳去重 + S±/O± 滚轮；模块级注册表 + 单监听，action 经宿主 `buttonAction` 保证步长三路同源）。
+- 前端提升：`sf_common.js` 新增 `pickColorInput` + `rgbStringToHex/hexToRgbString`（三节点取色弹窗与颜色换算收敛）；`sf_crop_expand_lib.js` 收编 `drawCropBox/drawPlaceholder` + 补 `imageToLocal`（与 localToImage 互逆）+ `extraLeft/minW/minH` 参数；`sf_brush_mask_lib.js` 收编 `drawStrokePath/paintStrokeMask/colorTextStyle`；`sf_common.js` 新增 `installResizeCornerCursor`（多类注册 + 单 mousemove 监听）。既有两节点改为 import（等价搬运，冒烟测试同步）。
+- 图索引直接复用 `sf_pause_kit.buildClassNodeIndex/findNodeByPromptId`（四闸门单源，不引第 4 份 buildNodeIndex 副本）；随后把既有两节点的本地 `buildNodeIndex/findNodeById` 副本一并收敛到同一对（顺带获得复合 id 精确匹配与子图环守卫）。
+
+### 3. 测试
+
+- `tests/test_crop_expand_brush_mask.py`（mock torch/aiohttp/folder_paths）：结构/注册键/`_compose_expand(overlay=)`（点并入、不穿扩展区、无源忽略、坏 shape 防御）/execute（brush、按画序 erase、fill 多边形、框外笔触裁掉、缺源缺口退化）+ IS_CHANGED（预览字段不进键）。
+- `tests/test_crop_expand_brush_mask_lib.mjs`：组合布局/MIN/`extraLeft` 与基库等价/冻结快照透传/`imageToLocal` 互逆/共享绘制 FakeCtx op 流（`paintStrokeMask` 真擦除 `destination-out` 画序、`drawCropBox` 框外压暗 + 8 手柄）。
+- `tests/test_crop_expand_brush_mask_smoke.js`：23 控件、三模式切换、Crop 拖框 + `buttons:0` 释放兜底、Brush 源图内落笔/扩展区不起笔、离屏真擦除预览、lean 注入（不含预览字段）、`[`/`]`、computeSize MIN、onRemoved 解绑。
+- 旧测试桩同步：两个既有 smoke 现在拷贝真实共享模块（`sf_crop_source`/`sf_brush_tools`/`sf_crop_expand_ratios`）并改写其 import 指向桩（桩必须提供与真实导出面一致的符号）。
+
+## 91. SAM 菜单二期：合体节点接入 + 忙时熔断（comfy-aimdo 并发读崩修复，2026-09）
+
+> 背景：SFImageCropExpandBrushMask（§90）接入 SFImageBrushMask 的 SAM 右键图层；用户真机报错——工作流有 SAM 任务进行中时点菜单：`aimdo: hostbuf_file_reader_retire_active: active slot 1 already has a completion event` + `[SFImageBrushMask:sam] inference failed: hostbuf_file_reader_read failed`。
+
+### 1. 根因：路由线程与执行线程并发模型加载，撞 comfy-aimdo 全局 file reader
+
+- 环境：容器 `comfy-aimdo 0.5.5`（AI Model Dynamic Offloader，`comfy/memory_management.py` / `model_patcher` 动态加载链）。native `.so` 内 file reader 为**进程级全局状态**（`_hostbuf_file_reader_slots/_active`；`hostbuf_file_reader_read` 无跨线程锁，`memory_management.py:59` 的 to-device 分支连 `info.lock` 都没有）。
+- 触发：工作流 SAM 任务（执行线程）正在读权重，同时右键菜单路由在 **aiohttp 事件循环线程**同步跑 `_load_stack()/SAM3_Detect.execute` → 两线程并发进同一 reader → slot 冲突。
+- 判定：不是本包代码写错——核心模型管理全局态（`current_loaded_models` / patcher 缓存 / 显存管理）**本就只支持执行线程单线程**，路由侧推理无法靠"给自己加锁"变安全。
+
+### 2. 修法：忙时熔断（409）+ 同步路由封死竞态
+
+- 后端 `brush_mask_sam.py`：`queue_busy()`（`PromptServer.instance.prompt_queue.get_tasks_remaining() > 0`，取不到视为不忙）；`_handle_sam(data, busy=None)` 在**一切校验/加载/推理之前**忙时返回 `409 {"busy": True, "error": ...}`；`sam_status()` 增 `busy` 字段；500 分支对含 `hostbuf` 的异常追加"工作流空闲时重试"提示（覆盖任务刚结束、aimdo 预取线程未退的极小残留窗口）。
+- 路由**保持同步**（阻塞事件循环）是刻意的：检查通过后事件循环被占住，`/prompt` 无法入队、执行线程无新任务可领 → 竞态窗口实际关闭（改线程池/异步等待反而会重新打开）。
+- 前端 `sf_brush_sam.js`：Run 前先 `GET sam_status` 预检 `busy`（warn toast，不发推理请求）；服务端 409 仍兜底（`samPost` 抛错携带 `status/payload`，409 走 warn）。
+- 语义代价（用户拍板）：**工作流执行期间菜单 SAM 不可用**（两个节的 DESCRIPTION 已注明）；不用"服务端排队等空闲"（HTTP 长挂起/多等待者/关页后仍执行），也不做"全局 aimdo 读锁补丁"（改全 App 行为，且救不了核心全局态并发）。
+
+### 3. 前端共享提取（二期顺带收敛）
+
+- `web/sf_brush_sam.js`：菜单安装 `installSamMenu(cfg, nodeType)` / 对话框 `openSamDialog` / 调用 `runSamMask` / 卸载 `unloadSamModel`；cfg = `{ toastTag, logTag, getState, addStrokes(node, incoming, meta) }`——宿主决定笔触并入与记忆字段写入（`sam_prompt/sam_threshold/sam_refine` 仅对话框记忆，不进 lean 注入）。SFImageBrushMask 与 SFImageCropExpandBrushMask 单源（brush 节点原内联实现删除）。
+- 路由名 `/api/sfnodes/brush_mask/sam*` 保留（按 `src_path` 通用；改名会破坏既有节点，无必要）。
+
+### 4. 测试
+
+- `tests/test_brush_mask_sam.py`：假 `server.PromptServer` 注入 `queue_busy` 三态（空闲/有任务/异常）与 `sam_status.busy`；忙时 409 且**不加载模型/不触发推理**（`comfy_sd.calls` 与 `SAM3_Detect.last` 均不变）；hostbuf 异常附带提示。
+- 合体节点 smoke：菜单两项 + `sam_*` 默认记忆字段；brush smoke harness 增拷真实 `sf_brush_sam.js`（改写 import 指向桩）。
+- `tests/check_web_imports.py` MODS 增 `sf_brush_sam`。

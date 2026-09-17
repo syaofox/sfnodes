@@ -19,43 +19,26 @@ Ctrl+V 粘贴），用画笔在图上直接绘制遮罩（brush=白/erase=擦除
   - 输出多一个 ``filename``（src_path 原样 input 相对路径，可直连 LoadImage，
     未加载时为空串）。
 
-纯函数 ``_parse_state`` 无 torch 依赖，可裸测；栅格化在
-``sf_utils/brush_mask.py``（原版绘制语义的纯逻辑移植）。
+纯函数解析/键值/栅格化全在 ``sf_utils/brush_mask.py``（``_parse_state`` 见
+``common.parse_json_dict``；``_lean_key`` 已提升为 ``sf_utils.brush_mask.lean_key``
+公共实现，与 SFImageCropExpandBrushMask 共用；``_load_src`` 收敛到
+``crop.load_src_rgb``）。
 """
 
-import json
 import os
 
-import numpy as np
 import torch
-from PIL import Image
 
-from ...sf_utils.brush_mask import parse_state_strokes
+from ...sf_utils.brush_mask import lean_key as _lean_key
+from ...sf_utils.brush_mask import parse_state_strokes, rasterize_strokes
 from ...sf_utils.common import parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
 from .crop import _safe_join
+from .crop import load_src_rgb
 from . import brush_mask_sam  # noqa: F401  # 副作用注册 /api/sfnodes/brush_mask/* 路由
 
 _CATEGORY = "sfnodes/image"
 
 _HIDDEN_INPUT = "SFBrushMaskJson"
-
-
-def _lean_key(meta):
-    """Stable cache key over result-affecting fields only (strokes + source).
-
-    预览字段（opacity/color）故意排除——改预览不重跑（text §6 lean 注入先例）。
-    SAM 结果即 fill 笔触（strokes 内），无额外键。
-    """
-    strokes = meta.get("strokes", [])
-    try:
-        strokes_key = json.dumps(strokes, sort_keys=True, separators=(",", ":"))
-    except Exception:
-        strokes_key = str(strokes)
-    try:
-        brush_size = int(float(meta.get("brush_size", 80)))
-    except Exception:
-        brush_size = 80
-    return f"{meta.get('src_path', '')}|{meta.get('src_w', '')}|{meta.get('src_h', '')}|{brush_size}|{strokes_key}"
 
 
 class SFImageBrushMask:
@@ -69,7 +52,8 @@ class SFImageBrushMask:
         "右键菜单可用文本 prompt 跑 SAM 分割（核心 SAM3_Detect，需 "
         "models/checkpoints/sam3.1_multiplex_fp16.safetensors），结果转为填充"
         "笔触并入列表统一管理（可擦除/撤销/清除）；多人用 person:3（:N 为每类"
-        "最多检出数），多类用逗号分隔。\n\n"
+        "最多检出数），多类用逗号分隔。工作流执行期间菜单不可用（避免与运行时"
+        "模型加载并发冲突），请等任务结束再试。\n\n"
         "图片持久化到 input/sfnodes_crop/，工作流保存/重载/刷新不丢图。输出 "
         "原图、遮罩、宽、高，以及 filename——源图在 input 目录下的存储路径"
         "（可直连 LoadImage，未加载时为空串）。"
@@ -113,20 +97,11 @@ class SFImageBrushMask:
         return key
 
     def _load_src(self, src_path):
-        """Load the persisted source image as a float32 RGB array, or None."""
-        full = _safe_join(src_path) if src_path else None
-        if not full:
-            return None
-        try:
-            pil = Image.open(full).convert("RGB")
-            return np.array(pil).astype(np.float32) / 255.0
-        except Exception as e:
-            print(f"[SFImageBrushMask] source load failed: {e}")
-            return None
+        """Load the persisted source image as a float32 RGB array, or None
+        (shared impl in crop.load_src_rgb, converged from three copies)."""
+        return load_src_rgb(src_path, "[SFImageBrushMask]")
 
     def execute(self, SFBrushMaskJson="{}", **kwargs):
-        from ...sf_utils.brush_mask import rasterize_strokes
-
         meta = _parse_state(SFBrushMaskJson)
         src_path = meta.get("src_path", "") or ""
         try:

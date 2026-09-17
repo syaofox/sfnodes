@@ -41,7 +41,7 @@ globalThis.app = {
   graphToPrompt: async () => ({ output: {} }),
   registerExtension(ext) { globalThis.__ceExt = ext; },
 };
-globalThis.api = { apiURL: (r) => r };
+globalThis.api = { apiURL: (r) => r, addEventListener() {} };
 
 const fireWin = (type) => {
   for (const l of winListeners.filter((l) => l.type === type)) l.fn({ type });
@@ -60,6 +60,8 @@ const fireWin = (type) => {
     "export function attachPopupDismiss() {}\n");
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     "export function showImageBrowser() {}\n");
+  fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
+    "export const api = globalThis.api;\n");
   // 真实 sf_common：剥 import，走 globalThis
   let common = fs.readFileSync(path.join(webDir, "sf_common.js"), "utf8")
     .replaceAll('import { app } from "/scripts/app.js";', "const app = globalThis.app;")
@@ -67,6 +69,26 @@ const fireWin = (type) => {
   fs.writeFileSync(path.join(tmpDir, "sf_common.js"), common);
   // 纯库真实实现
   fs.copyFileSync(path.join(webDir, "sf_crop_expand_lib.js"), path.join(tmpDir, "sf_crop_expand_lib.js"));
+  // 共享模块真实实现（源图链路 / 比例弹窗），仅改写 import 指向桩
+  for (const [srcFile, rules] of [
+    ["sf_crop_source.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+      ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
+      ['from "./image_browser.js"', 'from "./stub_browser.js"'],
+    ]],
+    ["sf_crop_expand_ratios.js", [
+      ['from "./sf_popup.js"', 'from "./stub_popup.js"'],
+    ]],
+    ["sf_pause_kit.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+      ['from "/scripts/api.js"', 'from "./stub_api.js"'],
+    ]],
+    ["sf_pause_text_lib.js", []],
+  ]) {
+    let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
+    for (const [from, to] of rules) mod = mod.replaceAll(from, to);
+    fs.writeFileSync(path.join(tmpDir, srcFile), mod);
+  }
 
   // 主扩展：改写 import 指向桩
   let code = fs.readFileSync(path.join(webDir, "sf_crop_expand.js"), "utf8");

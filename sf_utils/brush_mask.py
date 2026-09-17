@@ -20,6 +20,8 @@ Opacity/颜色仅预览语义，后端忽略），抽为无 torch/ComfyUI 依赖
 brush/erase 同一列表统一管理（添加/擦除/撤销全通用，见 §45.9）。
 """
 
+import json
+
 import numpy as np
 
 
@@ -190,6 +192,28 @@ def build_brush_data(strokes):
         pts = ";".join(f"{x},{y}" for x, y in st.get("points", []))
         parts.append(f"{st.get('mode', 'brush')}:{int(st.get('size', 80))}:1.0:{pts}")
     return "|".join(parts)
+
+
+def lean_key(meta):
+    """Stable cache key over result-affecting fields only (strokes + source).
+
+    原 ``nodes/image/brush_mask.py::_lean_key`` 提升为公共实现（SFImageBrushMask
+    与 SFImageCropExpandBrushMask 共用）。预览字段（opacity/color/mode）故意排除
+    ——改预览不重跑（text §6 lean 注入先例）。SAM 结果即 fill 笔触（strokes 内），
+    无额外键。非法输入回退默认，保证键始终是字符串。
+    """
+    if not isinstance(meta, dict):
+        meta = {}
+    strokes = meta.get("strokes", [])
+    try:
+        strokes_key = json.dumps(strokes, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        strokes_key = str(strokes)
+    try:
+        brush_size = int(float(meta.get("brush_size", 80)))
+    except Exception:
+        brush_size = 80
+    return f"{meta.get('src_path', '')}|{meta.get('src_w', '')}|{meta.get('src_h', '')}|{brush_size}|{strokes_key}"
 
 
 def _fill_polygon(mask, pts):

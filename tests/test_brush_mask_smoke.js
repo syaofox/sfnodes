@@ -71,7 +71,33 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
-    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {};\n`);
+    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {}; export const installResizeCornerCursor = () => {}; export const pickColorInput = () => {}; export const rgbStringToHex = () => "#ffffff"; export const hexToRgbString = () => "255,255,255"; export const applyAdaptiveCanvasOnly = () => {}; export const injectCSSOnce = () => {};\n`);
+  // 共享模块用真实实现（源图链路 / 画笔工具），仅改写其 import 指向桩
+  for (const [srcFile, dstFile, rules] of [
+    ["sf_crop_source.js", "sf_crop_source.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+      ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
+      ['from "./sf_common.js"', 'from "./stub_common.js"'],
+      ['from "./image_browser.js"', 'from "./stub_browser.js"'],
+    ]],
+    ["sf_brush_tools.js", "sf_brush_tools.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+    ]],
+    ["sf_pause_kit.js", "sf_pause_kit.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+      ['from "/scripts/api.js"', 'from "./stub_api.js"'],
+      ['from "./sf_common.js"', 'from "./stub_common.js"'],
+    ]],
+    ["sf_pause_text_lib.js", "sf_pause_text_lib.js", []],
+    ["sf_brush_sam.js", "sf_brush_sam.js", [
+      ['from "/scripts/api.js"', 'from "./stub_api.js"'],
+      ['from "./sf_common.js"', 'from "./stub_common.js"'],
+    ]],
+  ]) {
+    let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
+    for (const [from, to] of rules) mod = mod.replaceAll(from, to);
+    fs.writeFileSync(path.join(tmpDir, dstFile), mod);
+  }
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     `export function showImageBrowser() {}\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),

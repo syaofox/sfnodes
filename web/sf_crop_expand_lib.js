@@ -51,10 +51,11 @@ export const HANDLE_SIZE = 10;
 export const MIN_NODE_WIDTH = 320;
 export const MIN_NODE_HEIGHT = 300;
 
-// ensureMinSize(w, h) → [w, h]（低于 MIN_NODE_WIDTH/HEIGHT 抬升到下限，
-// 非 0 数值原样放行）。computeSize 包装与 clampNodeSize 共用。
-export function ensureMinSize(w, h) {
-  return [Math.max(w || 0, MIN_NODE_WIDTH), Math.max(h || 0, MIN_NODE_HEIGHT)];
+// ensureMinSize(w, h, minW, minH) → [w, h]（低于下限抬升，非 0 数值原样放行）。
+// computeSize 包装与 clampNodeSize 共用；minW/minH 可选（组合节点双列布局取更大
+// 下限，见 sf_crop_expand_brush_mask_lib.js），默认即本库 MIN。
+export function ensureMinSize(w, h, minW = MIN_NODE_WIDTH, minH = MIN_NODE_HEIGHT) {
+  return [Math.max(w || 0, minW), Math.max(h || 0, minH)];
 }
 
 // 右下角 resize cursor 视觉修正：原生命中区（resizeHandleSize 15×15）本身
@@ -83,11 +84,13 @@ export function ratioFromAspect(key, customW, customH) {
   return entry ? entry.ratio : null;
 }
 
-// computeDisplayMetrics(state, nodeW, nodeH, frozen) → 显示坐标系
+// computeDisplayMetrics(state, nodeW, nodeH, frozen, extraLeft) → 显示坐标系
 // state: {cropX, cropY, cropW, cropH, srcW, srcH}
 // frozen: 拖拽期快照（onMouseDown 时保存的 displayMin/scale/offset/scaled 尺寸），
-//         非拖拽传 null 走动态计算（视图自适应）。
-export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
+//         非拖拽传 null 走动态计算（视图自适应）；frozen 已含 extraLeft 影响，
+//         原样透传。
+// extraLeft: 显示区左侧额外让出的宽度（组合节点第二列；默认 0 = 原行为）。
+export function computeDisplayMetrics(state, nodeW, nodeH, frozen, extraLeft = 0) {
   if (frozen) {
     return {
       displayMinX: frozen.displayMinX,
@@ -107,12 +110,13 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
   const displayWidth = Math.max(1, displayMaxX - displayMinX);
   const displayHeight = Math.max(1, displayMaxY - displayMinY);
 
-  const areaW = nodeW - shiftRight - shiftLeft - LAYOUT.ratioColW - LAYOUT.ratioColGap;
+  const extra = Number(extraLeft) || 0;
+  const areaW = nodeW - shiftRight - shiftLeft - LAYOUT.ratioColW - LAYOUT.ratioColGap - extra;
   const areaH = nodeH - shiftLeft - shiftLeft - LAYOUT.bottomH;
   const scale = Math.min(areaW / displayWidth, areaH / displayHeight);
   const scaledDisplayWidth = displayWidth * scale;
   const scaledDisplayHeight = displayHeight * scale;
-  const offsetX = shiftLeft + LAYOUT.ratioColW + LAYOUT.ratioColGap + (areaW - scaledDisplayWidth) / 2;
+  const offsetX = shiftLeft + LAYOUT.ratioColW + LAYOUT.ratioColGap + extra + (areaW - scaledDisplayWidth) / 2;
   const offsetY = shiftLeft + (areaH - scaledDisplayHeight) / 2;
 
   return { displayMinX, displayMinY, scale, offsetX, offsetY, scaledDisplayWidth, scaledDisplayHeight };
@@ -124,6 +128,97 @@ export function localToImage(localX, localY, m) {
     x: (localX - m.offsetX) / m.scale + m.displayMinX,
     y: (localY - m.offsetY) / m.scale + m.displayMinY,
   };
+}
+
+// 图片坐标 → 屏幕局部坐标（localToImage 的互逆对；绘制覆盖层用。
+// 注意与 sf_brush_mask_lib.imageToLocal 的区别：本函数含 displayMin 偏移，
+// 后者是针对源图局部画布（displayMin=0）的简化版）
+export function imageToLocal(imgX, imgY, m) {
+  return {
+    x: m.offsetX + (imgX - m.displayMinX) * m.scale,
+    y: m.offsetY + (imgY - m.displayMinY) * m.scale,
+  };
+}
+
+// ── 画布绘制（ctx 与主题色由调用方提供；函数本身无 app/DOM 依赖）──────────
+// SFImageCropExpand 与 SFImageCropExpandBrushMask 共用（原 crop_expand.js 内联
+// 实现提升；去 node 依赖改为参数传入，画序/视觉与原实现逐行一致）。
+
+// 未加载/绘制失败时的占位网格。
+export function drawPlaceholder(ctx, x, y, width, height, scale) {
+  ctx.fillStyle = "rgba(100,100,100,0.3)";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "rgba(150,150,150,0.2)";
+  ctx.lineWidth = 1;
+  const gridSize = 32 * scale;
+  for (let gx = x; gx <= x + width; gx += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(gx, y);
+    ctx.lineTo(gx, y + height);
+    ctx.stroke();
+  }
+  for (let gy = y; gy <= y + height; gy += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, gy);
+    ctx.lineTo(x + width, gy);
+    ctx.stroke();
+  }
+}
+
+// drawCropBox(ctx, rect, srcW, srcH, m)：框外（原图内）半透明压暗 + 框线 +
+// 九宫格 + 8 控制点。rect: {x, y, w, h}（图片坐标），m 来自 computeDisplayMetrics。
+export function drawCropBox(ctx, rect, srcW, srcH, m) {
+  const x1 = m.offsetX + (rect.x - m.displayMinX) * m.scale;
+  const y1 = m.offsetY + (rect.y - m.displayMinY) * m.scale;
+  const x2 = x1 + rect.w * m.scale;
+  const y2 = y1 + rect.h * m.scale;
+
+  const imgX1 = m.offsetX + (0 - m.displayMinX) * m.scale;
+  const imgY1 = m.offsetY + (0 - m.displayMinY) * m.scale;
+  const imgX2 = imgX1 + srcW * m.scale;
+  const imgY2 = imgY1 + srcH * m.scale;
+
+  // 裁切框外（原图内）的半透明遮罩
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  if (y1 > imgY1) ctx.fillRect(imgX1, imgY1, imgX2 - imgX1, y1 - imgY1);
+  if (y2 < imgY2) ctx.fillRect(imgX1, y2, imgX2 - imgX1, imgY2 - y2);
+  if (x1 > imgX1) ctx.fillRect(imgX1, Math.max(y1, imgY1), x1 - imgX1, Math.min(y2, imgY2) - Math.max(y1, imgY1));
+  if (x2 < imgX2) ctx.fillRect(x2, Math.max(y1, imgY1), imgX2 - x2, Math.min(y2, imgY2) - Math.max(y1, imgY1));
+
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+  // 九宫格辅助线
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1;
+  const w3 = (x2 - x1) / 3;
+  const h3 = (y2 - y1) / 3;
+  for (let i = 1; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x1 + w3 * i, y1);
+    ctx.lineTo(x1 + w3 * i, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1, y1 + h3 * i);
+    ctx.lineTo(x2, y1 + h3 * i);
+    ctx.stroke();
+  }
+
+  // 控制点
+  const hs = HANDLE_SIZE;
+  const handles = [
+    { x: x1, y: y1 }, { x: x2, y: y1 }, { x: x1, y: y2 }, { x: x2, y: y2 },
+    { x: (x1 + x2) / 2, y: y1 }, { x: (x1 + x2) / 2, y: y2 },
+    { x: x1, y: (y1 + y2) / 2 }, { x: x2, y: (y1 + y2) / 2 },
+  ];
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.lineWidth = 1;
+  for (const p of handles) {
+    ctx.fillRect(p.x - hs / 2, p.y - hs / 2, hs, hs);
+    ctx.strokeRect(p.x - hs / 2, p.y - hs / 2, hs, hs);
+  }
 }
 
 // getHandleAtPoint(imgX, imgY, rect, scale) → 'nw'|'ne'|'sw'|'se'|'n'|'s'|'w'|'e'|'move'|null

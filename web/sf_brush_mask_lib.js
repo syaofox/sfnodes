@@ -157,6 +157,104 @@ export function clampToImage(x, y, srcW, srcH) {
   };
 }
 
+// colorTextStyle(color) → 取色按钮文字色（背景亮度 > 128 取黑，否则白）。
+// 同时接受 "#rrggbb" 与 "r,g,b" 两种形态（Fill/笔刷取色按钮共用）。
+export function colorTextStyle(color) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(color || ""));
+  if (!m) {
+    const rgb = String(color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
+    if (rgb.length === 3 && rgb.every((v) => Number.isFinite(v))) {
+      const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+      return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
+    }
+    return "rgba(255,255,255,0.9)";
+  }
+  const brightness = (parseInt(m[1], 16) * 299 + parseInt(m[2], 16) * 587 + parseInt(m[3], 16) * 114) / 1000;
+  return brightness > 128 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.9)";
+}
+
+// ── 画布绘制（ctx 由调用方提供；SFImageBrushMask 与 SFImageCropExpandBrushMask
+// 共用，原 sf_brush_mask.js 内联实现提升）──────────────────────────────────
+
+// drawStrokePath(ctx, pts, m, lineW, style, fill)：单笔笔触绘制。
+// fill=true 时整体填充闭合多边形（SAM 并入的 fill 笔触）；否则按 lineW 描边
+// （单点画直径=lineW 的圆盘，与后端印章同语义）。m 需提供 scale/offset（源图
+// 局部画布传 unit = {scale:1, offsetX:0, offsetY:0}）。
+export function drawStrokePath(ctx, pts, m, lineW, style, fill) {
+  if (!pts || pts.length === 0) return;
+  // fill 笔触（SAM 并入）：整体填充闭合多边形
+  if (fill) {
+    if (pts.length === 1) {
+      const p = imageToLocal(pts[0][0], pts[0][1], m);
+      ctx.fillStyle = style;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(1, lineW / 2), 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    ctx.fillStyle = style;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const p = imageToLocal(pts[i][0], pts[i][1], m);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+  ctx.lineWidth = Math.max(1, lineW);
+  ctx.strokeStyle = style;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (pts.length === 1) {
+    const p = imageToLocal(pts[0][0], pts[0][1], m);
+    // 单点：画一个直径=线宽的圆盘（后端同款：单点印章）
+    ctx.fillStyle = style;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(1, lineW / 2), 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i++) {
+    const p = imageToLocal(pts[i][0], pts[i][1], m);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+}
+
+// paintStrokeMask(cvs, strokes, opts) → ctx：离屏画布按画序合成二值遮罩笔触
+// （真擦除预览）——brush/fill 以 opts.paintStyle 覆盖，erase 以 destination-out
+// 打洞（主画布禁用 destination-out，会连照片一起擦掉）。离屏按源图像素绘制
+// （lineW 取源图笔刷直径），后端 rasterize_strokes 为同款画序，预览与输出
+// 逐像素一致。opts.current 为进行中笔触 {mode, size, points}（可选）。
+export function paintStrokeMask(cvs, strokes, opts = {}) {
+  const defaultSize = opts.defaultSize || 80;
+  const paintStyle = opts.paintStyle || "rgba(255,255,255,1)";
+  const mx = cvs.getContext("2d");
+  mx.save();
+  mx.setTransform(1, 0, 0, 1, 0, 0);
+  mx.clearRect(0, 0, cvs.width, cvs.height);
+  mx.globalCompositeOperation = "source-over";
+  const unit = { scale: 1, offsetX: 0, offsetY: 0 };
+  const paint = (s) => {
+    const mode = s.mode || "brush";
+    if (mode === "erase") {
+      mx.globalCompositeOperation = "destination-out";
+      drawStrokePath(mx, s.points, unit, s.size || defaultSize, "rgba(0,0,0,1)", false);
+      mx.globalCompositeOperation = "source-over";
+    } else {
+      drawStrokePath(mx, s.points, unit, s.size || defaultSize, paintStyle, mode === "fill");
+    }
+  };
+  for (const s of strokes || []) paint(s);
+  if (opts.current && opts.current.points && opts.current.points.length > 0) paint(opts.current);
+  mx.restore();
+  return mx;
+}
+
 // parseStroke(stroke, defaultSize) → {points, mode, size}
 // 与 sf_utils/brush_mask.py::_parse_one_stroke 同语义（双端镜像）：
 // mode:size:opacity[:r,g,b]:points / mode:points / 裸点列；opacity 与颜色

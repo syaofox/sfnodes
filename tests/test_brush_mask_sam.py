@@ -2,7 +2,9 @@
 # 覆盖（全部 mock，不碰真实 SAM/torch；cv2 用行为桩——findContours 返回
 # 已知方框、面积用鞋带公式、approxPolyDP 恒等，测的是我方管线而非 cv2 本体，
 # 真实几何正确性由 cv2 保证 + 用户真机验证）：
-#   - sam_status 三态（core 缺席 / 模型缺失 / 就绪）
+#   - sam_status 三态（core 缺席 / 模型缺失 / 就绪）+ busy 字段
+#   - queue_busy（有任务/空闲/无 PromptServer/异常）
+#   - _handle_sam 忙时熔断（409 + 不触发模型加载/推理）+ hostbuf 失败提示
 #   - _load_stack 常驻缓存（comfy.sd 只调一次）与缺模型报错
 #   - run_sam_mask 委托链（空 prompt→"object"、阈值钳制、refine=2/union 参数）
 #   - unload_sam 清缓存 + empty_cache
@@ -226,6 +228,7 @@ os.makedirs(os.path.join(tmp_in, "checkpoints"), exist_ok=True)
 open(os.path.join(tmp_in, "checkpoints", ckpt_name), "wb").write(b"\x00" * 64)
 st = sam.sam_status()
 check("status 就绪", st["available"] is True and st["model_found"] is True and st["loaded"] is False)
+check("status 空闲 busy=False", st["busy"] is False)
 
 os.remove(os.path.join(tmp_in, "checkpoints", ckpt_name))
 st = sam.sam_status()
@@ -236,6 +239,49 @@ saved = sys.modules.pop("comfy_extras.nodes_sam3")
 st = sam.sam_status()
 check("status core 缺席", st["available"] is False and "SAM3_Detect" in st["reason"])
 sys.modules["comfy_extras.nodes_sam3"] = saved
+
+# ── queue_busy（假 PromptServer 注入）+ 忙时熔断 ──
+class _FakeQueue:
+    def __init__(self, n):
+        self.n = n
+
+    def get_tasks_remaining(self):
+        return self.n
+
+
+class _FakePromptServer:
+    instance = None
+
+
+srv = types.ModuleType("server")
+srv.PromptServer = _FakePromptServer
+sys.modules["server"] = srv
+
+check("queue_busy 无实例 False", sam.queue_busy() is False)
+_FakePromptServer.instance = types.SimpleNamespace(prompt_queue=_FakeQueue(0))
+check("queue_busy 空闲 False", sam.queue_busy() is False)
+_FakePromptServer.instance = types.SimpleNamespace(prompt_queue=_FakeQueue(2))
+check("queue_busy 有任务 True", sam.queue_busy() is True)
+check("status 忙时 busy=True", sam.sam_status()["busy"] is True)
+_FakePromptServer.instance = types.SimpleNamespace()  # 无 prompt_queue
+check("queue_busy 无队列 False", sam.queue_busy() is False)
+
+
+class _BoomQueue:
+    def get_tasks_remaining(self):
+        raise RuntimeError("boom")
+
+
+_FakePromptServer.instance = types.SimpleNamespace(prompt_queue=_BoomQueue())
+check("queue_busy 异常视为不忙", sam.queue_busy() is False)
+
+# 忙时优先于一切校验（空 src_path 也应 409 而非 400）
+code, payload = sam._handle_sam({"src_path": ""}, busy=True)
+check("忙时 409 + busy 标记", code == 409 and payload.get("busy") is True)
+check("忙时错误信息含工作流提示", "工作流" in payload.get("error", ""))
+
+_FakePromptServer.instance = None
+del sys.modules["server"]
 
 # ── _load_stack 缓存 ──
 sam._cache.clear()
@@ -323,11 +369,27 @@ code, payload = sam._handle_sam({"src_path": "sfnodes_crop/crop_src_samx.png"})
 check("空结果 strokes 为空", code == 200 and payload.get("strokes") == [] and payload.get("count") == 0)
 _FakeSAM3Detect.mask = None
 
+# 忙时 409 必须在加载/推理之前返回（真实文件路径也不碰模型）
+calls_before = len(comfy_sd.calls)
+detect_before = dict(_FakeSAM3Detect.last)
+code, payload = sam._handle_sam({"src_path": "sfnodes_crop/crop_src_samx.png", "prompt": "person"}, busy=True)
+check("忙时不加载模型", code == 409 and len(comfy_sd.calls) == calls_before)
+check("忙时不触发推理", _FakeSAM3Detect.last == detect_before)
+
 orig_run = sam.run_sam_mask
 sam.run_sam_mask = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
 try:
-    code, payload = sam._handle_sam({"src_path": "sfnodes_crop/crop_src_samx.png"})
+    code, payload = sam._handle_sam({"src_path": "sfnodes_crop/crop_src_samx.png"}, busy=False)
     check("推理异常 500", code == 500 and "boom" in payload.get("error", ""))
+finally:
+    sam.run_sam_mask = orig_run
+
+# hostbuf 原生失败 → 追加空闲重试提示
+sam.run_sam_mask = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("hostbuf_file_reader_read failed"))
+try:
+    code, payload = sam._handle_sam({"src_path": "sfnodes_crop/crop_src_samx.png"}, busy=False)
+    check("hostbuf 失败追加提示", code == 500 and "hostbuf" in payload.get("error", "")
+          and "空闲" in payload.get("error", ""))
 finally:
     sam.run_sam_mask = orig_run
 
