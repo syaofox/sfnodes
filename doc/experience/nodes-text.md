@@ -516,7 +516,7 @@
 
 ### 1. 分层与契约
 
-- **后端纯函数**（`sf_utils/translation.py`，与既有 `translators` 库封装同文件）：`detect_translate_direction`（复用 `sf_utils/string.has_chinese_character`：含中文→`zh2en`，否则→`en2zh`）、`build_translate_messages`（系统提示词「只输出译文，不解释不加引号，保留格式/占位符」）；通用请求构造/解析/网络调用见 `sf_utils/llm_client.py`（§75 单源），旧名 `build_translate_payload`/`parse_translate_response` 以导入别名保留。全部无网络、可单测。
+- **后端纯函数**（`sf_utils/translation.py`）：`detect_translate_direction`（复用 `sf_utils/string.has_chinese_character`：含中文→`zh2en`，否则→`en2zh`）、`build_translate_messages`（系统提示词「只输出译文，不解释不加引号，保留格式/占位符」）；通用请求构造/解析/网络调用见 `sf_utils/llm_client.py`（§75 单源），旧名 `build_translate_payload`/`parse_translate_response` 以导入别名保留。全部无网络、可单测。
 - **后端路由**（`nodes/text/translate_routes.py`）：`POST /api/sfnodes/translate`，经 `llm_client.chat_completion_async` 调 `{base_url}/chat/completions`，**凭据由后端 `get_llm_config()` 读服务器设置**（前端只发 text/direction），恒 200 返回 `{ok, text|direction}` 或 `{ok:false, message}`。导入副作用注册（`prompt_reader_routes` 范式）。根 `__init__.py` 加副作用 import 行。
 - **前端**（`web/sf_pause_text.js` + `sf_pause_text_ui.js`）：底行「中⇄EN」按钮；`init()` 调共享 `registerLLMSettings()`（`web/sf_llm_settings.js`，注册 `sfnodes.LLM.{Provider,BaseUrl,Model,ApiKey}`，`type:"text"`×3 + combo，1.51.9 确认支持）；`onTranslate` 读活 textarea → `fetch(sfApiUrl("/api/sfnodes/translate"))` → 成功 `setText`+`syncText`+`renderPause`（就地替换 = 输出改变），失败 flash 错误。
 

@@ -95,4 +95,4 @@ class SFMyNode:
 
 > 本包所有具体机制、节点族约定与踩坑经验统一归档在 `doc/experience/`（七主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / nodes-video(video) / apps）。全局章节号 §N 与文件的映射见 `doc/experience/README.md`；**动手改动某功能前，先按 §N 到对应主题文件查阅**，本文档不重复收录细节。
 >
-> 收录规则：节点专属机制与横切踩坑一律写进对应主题文件（下一个全局 §N，只增不改不重排），并同步 `doc/experience/README.md` 索引表；本文档只保留通用规则（「Node Registration & Class Convention」「Dependencies & ComfyUI APIs」「Code Style」「Development Rules」「Testing」）与本节引用。
+> 收录规则：节点专属机制与横切踩坑一律写进对应主题文件（下一个全局 §N，编号只增不复用、不重排；允许最小事实订正与旧节「已被 §N 取代」标注，细则见 `doc/experience/README.md`「维护规则」），并同步 `doc/experience/README.md` 索引表；本文档只保留通用规则（「Node Registration & Class Convention」「Dependencies & ComfyUI APIs」「Code Style」「Development Rules」「Testing」）与本节引用。
