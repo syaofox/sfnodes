@@ -30,7 +30,7 @@ sfnodes/
 
 根 `__init__.py` 两字典同步注册：
 
-- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（现 195 键全部带 SF 前缀；新增一律带前缀）
+- `NODE_CLASS_MAPPINGS`: 键 `"SF<ClassName>"`，值为类本身（现 197 键全部带 SF 前缀；新增一律带前缀）
 - `NODE_DISPLAY_NAME_MAPPINGS`: 键同上，显示名 `"SF <Display Name>"`
 
 ```python
