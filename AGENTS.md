@@ -21,7 +21,7 @@ sfnodes/
 ├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、anime_char/characters/face_distance 子数据，含 CSV/字体）
 ├── tests/           # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 ├── user/            # 用户数据目录回退占位（真源 `<ComfyUI user dir>/sfnodes`，见 user/sfnodes/README.md；仅 README 入库）
-└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 七主题文件）/ vibecoding.md 任务模板
+└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 七主题文件）
 ```
 
 **逐文件职责与机制说明见 `doc/architecture.md`**——新增/删除文件必须同步其条目。
@@ -79,6 +79,16 @@ class SFMyNode:
 11. **新增节点/功能前先查复用**（见 Code Style），禁止内联副本——语义分叉是 bug 温床。去重/重构注意：① 独立语句的包装块不在函数体内按名删除会漏；② 文件已有某模块 import 时脚本补 import 可能跳过致缺符号（被 try/catch 吞掉极难排查）；③ ESM 结构错误用 `node --input-type=module --check < file` 验证
 12. 新增/删除 py/js 文件同步 `doc/architecture.md` 条目；沉淀新经验按主题写入 `doc/experience/` 对应主题文件（下一个全局 §N）并同步 README.md 索引表；**确属新类别且现有主题均不适配时可新建主题文件**（英文短名对齐节点族，标题注明所含章节）
 
+## Workflow（任务流程）
+
+1. **沟通语言**：中文
+2. **前置评估**（先回答再提方案）：开工前 `git status` 确认基线，有未提交改动先说明；说明影响范围/副作用/性能风险、最优解与替代方案、复用检索结论（复用了哪个公共模块、哪些为新增及不可复用理由）；bug 修复/文案/注释类小改动可简化为一句检索结论
+3. **确认拦截**：方案需详细解释并经用户确认后方可编码
+4. **最小改动**：只改任务范围内代码，不顺手重构无关部分；发现的无关问题先报告，过时/错误注释可顺手修正
+5. **后置复查**：按「Testing」跑三条回归；核对两注册字典键一致；`git diff` 对照开工基线逐文件复查，确保无错漏与无关改动；未经明确要求不执行 git commit/push
+6. **硬约束查询**：涉及 ComfyUI API/节点注册/工具函数/JS Widget 的改动，先读本文件对应章节与 `doc/architecture.md` 逐文件细目，遵循既有约定
+7. **不确定时**：务必追问，禁止猜测
+
 ## Testing
 
 本项目无自动化测试框架。验证方式：
@@ -95,4 +105,4 @@ class SFMyNode:
 
 > 本包所有具体机制、节点族约定与踩坑经验统一归档在 `doc/experience/`（七主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / nodes-video(video) / apps）。全局章节号 §N 与文件的映射见 `doc/experience/README.md`；**动手改动某功能前，先按 §N 到对应主题文件查阅**，本文档不重复收录细节。
 >
-> 收录规则：节点专属机制与横切踩坑一律写进对应主题文件（下一个全局 §N，编号只增不复用、不重排；允许最小事实订正与旧节「已被 §N 取代」标注，细则见 `doc/experience/README.md`「维护规则」），并同步 `doc/experience/README.md` 索引表；本文档只保留通用规则（「Node Registration & Class Convention」「Dependencies & ComfyUI APIs」「Code Style」「Development Rules」「Testing」）与本节引用。
+> 收录规则：节点专属机制与横切踩坑一律写进对应主题文件（下一个全局 §N，编号只增不复用、不重排；允许最小事实订正与旧节「已被 §N 取代」标注，细则见 `doc/experience/README.md`「维护规则」），并同步 `doc/experience/README.md` 索引表；本文档只保留通用规则（「Node Registration & Class Convention」「Dependencies & ComfyUI APIs」「Code Style」「Development Rules」「Workflow」「Testing」）与本节引用。
