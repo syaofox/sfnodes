@@ -7,6 +7,8 @@
 // WanSCAILToVideo 参考蒙版裁剪（只上采样真正用到的前 n_ref 帧）。
 // 后端每节点执行时读服务器 comfy.settings.json，改动即时生效、无需重启。
 //
+// Enabled 为主开关：关闭时完全按原生执行（不分块/不裁剪/不转 f16），
+// HalfPrecision 与 ChunkFrames 仅在主开关开启时有效。
 // 设置系统不可用时静默降级（后端回落默认值：开启 / 32 帧 / f16）。
 // ==========================================================================
 
@@ -26,12 +28,14 @@ export function registerScail2MemSettings() {
         s.addSetting({
             id: SETTING_ENABLED,
             name: "SF SCAIL-2: memory-efficient mask preprocessing (chunked render/extract + ref trim)",
+            tooltip: "Master switch. When off, SCAIL-2 mask preprocessing runs fully native: no chunking, no reference-mask trimming and no float16 output. Applies to any workflow using SCAIL2ColoredMask / WanSCAILToVideo; changes take effect on the next node run.",
             defaultValue: true,
             type: "boolean",
         });
         s.addSetting({
             id: SETTING_CHUNK,
             name: "SF SCAIL-2: mask preprocessing chunk frames",
+            tooltip: "Frames per chunk for chunked mask render/extract (only used when the master switch is on and the video is longer than this). Lower = lower peak memory, more loop overhead. Backend falls back to 32 for values < 1.",
             defaultValue: 32,
             type: "slider",
             attrs: { min: 1, max: 256, step: 1 },
@@ -39,6 +43,7 @@ export function registerScail2MemSettings() {
         s.addSetting({
             id: SETTING_HALF,
             name: "SF SCAIL-2: output colored masks as float16 (halves peak memory)",
+            tooltip: "Only effective while the master switch is on. Colored masks hold 0/1 values so float16 is value-equivalent; turn this off if a downstream upscale fails on CPU half in your PyTorch build.",
             defaultValue: true,
             type: "boolean",
         });

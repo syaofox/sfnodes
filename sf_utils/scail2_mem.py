@@ -25,6 +25,9 @@ comfy_extras/nodes_scail.py 的两个纯函数会一次性构造整段 T 帧的�
 ``sf_utils/vhs_loadvideo_filename.py``（install / 守卫 / logger）。设置读
 ``sfnodes.SCAIL2Mem.{Enabled,ChunkFrames,HalfPrecision}``，读盘复用
 ``sf_utils/llm_client.read_comfy_settings``（comfy.settings.json 唯一读取实现）。
+
+``Enabled`` 为**主开关**：关闭时完全按原生执行（不分块、不裁剪参考蒙版、
+``HalfPrecision`` 也不生效），只有开启时其余两项才有效。
 """
 
 import functools
@@ -173,9 +176,12 @@ def _to_half(value, enabled):
 def _wrap_render(palette, orig):
     def _render_colored_masks(track_data, background="black"):
         enabled, chunk, half = read_options()
+        if not enabled:
+            # Enabled 是主开关：关闭时完全按原生执行（含不转 f16）。
+            return orig(track_data, background)
         packed = track_data.get("packed_masks") if isinstance(track_data, dict) else None
         n = int(packed.shape[0]) if packed is not None else 0
-        if not enabled or packed is None or packed.shape[1] == 0 or n <= chunk:
+        if packed is None or packed.shape[1] == 0 or n <= chunk:
             return _to_half(orig(track_data, background), half)
         try:
             import torch

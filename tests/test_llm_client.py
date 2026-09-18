@@ -3,8 +3,10 @@
 # 图片 content 构造、响应解析、错误提取、图片 data URL 编码（PIL）。
 # 不发网络请求（网络调用由节点/路由在真实环境验证）。
 
+import json
 import os
 import sys
+import tempfile
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root)
@@ -239,6 +241,36 @@ finally:
     L._do_request_sync = _orig_sync
     L._do_request_async = _orig_async
     L.response_cache.clear()
+
+# ── 设置读盘缓存（(path, mtime_ns, size) 命中即返回；文件变更自然失效）──
+_tmp_dir = tempfile.mkdtemp(prefix="sf_llm_settings_")
+_settings_file = os.path.join(_tmp_dir, "comfy.settings.json")
+_orig_settings_path = L._settings_path
+L._settings_path = lambda: _settings_file
+try:
+    check("设置缺失 -> {}", L.read_comfy_settings() == {})
+
+    with open(_settings_file, "w", encoding="utf-8") as fh:
+        json.dump({"sfnodes.LLM.ApiKey": "k1"}, fh)
+    check("设置首次读取", L.read_comfy_settings().get("sfnodes.LLM.ApiKey") == "k1")
+
+    stat_before = os.stat(_settings_file)
+    with open(_settings_file, "w", encoding="utf-8") as fh:
+        json.dump({"sfnodes.LLM.ApiKey": "k2"}, fh)
+    os.utime(_settings_file, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns))
+    check("同 mtime/size 命中缓存", L.read_comfy_settings().get("sfnodes.LLM.ApiKey") == "k1")
+
+    with open(_settings_file, "w", encoding="utf-8") as fh:
+        json.dump({"sfnodes.LLM.ApiKey": "k3"}, fh)
+    os.utime(_settings_file, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns + 10**9))
+    check("mtime 变化后重读", L.read_comfy_settings().get("sfnodes.LLM.ApiKey") == "k3")
+
+    with open(_settings_file, "w", encoding="utf-8") as fh:
+        fh.write("{broken")
+    os.utime(_settings_file, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns + 2 * 10**9))
+    check("损坏 JSON -> {}", L.read_comfy_settings() == {})
+finally:
+    L._settings_path = _orig_settings_path
 
 print(f"\nFAILURES: {len(failures)}")
 if failures:

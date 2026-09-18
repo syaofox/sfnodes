@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -304,3 +304,26 @@ SFForLoopEnd
 - ⚠️ 行为变化：`"person\n"` 尾部换行被 `splitlines()` 丢弃 → 只有一行 → 现在**全段 person**（此前第二段回退 conditioning）。要显式重置回 conditioning 写 `"person\n\n"`。
 - **输入顺序重排**（用户确认不在意旧工作流位置数组兼容）：required = images/model/anchor_frames/anchor_interval；optional = initial_mask/clip/prompts/conditioning/detection_threshold/max_objects/detect_interval（分段控制 → 种子来源 → 检测参数）。已存工作流需按新槽位重排（`widgets_values` 位置数组 + 连线目标槽）。
 - 测试：`_resolve_prompts` 单行/继承/空行重置/行首为空/多余行；间隔生成/合并去重/超总帧；execute 集成（间隔切片 + 单行提示全段）；required/optional 键序断言。
+
+## 100. SCAIL2Mem 设置语义收口：Enabled 主开关 + 分块回归测试 + 设置读盘缓存（2026-09）
+
+> 背景：§82 的三项设置中，`Enabled` 实测只关掉了分块与参考蒙版裁剪——`_wrap_render` 在 `enabled=False` 分支仍执行 `_to_half(orig(...), half)`，即"关掉主开关仍把彩色蒙版转 f16"，容易让排查者以为已完全回原生（`HalfPrecision=True` 是默认值）。
+
+### 100.1 Enabled 主开关语义
+
+- `_wrap_render` 先判 `enabled`：`False` 直接 `return orig(track_data, background)`，不 cast、不分块；`True` 时短输入（T ≤ chunk / 空 track）仍按 `HalfPrecision` 转 f16。`_wrap_extract`/`_wrap_execute` 原本就在 disabled 时返回原生结果，无需改。
+- 定案：**`Enabled` = 补丁总开关**（分块渲染 + 28ch 分块提取 + 参考蒙版裁剪 + `HalfPrecision`），`ChunkFrames`/`HalfPrecision` 仅在 `Enabled=True` 时有效。前端 `web/sf_scail2_mem_settings.js` 两项补 `tooltip` 写明从属关系（新版设置面板 `SettingParams.tooltip` 受支持并渲染，已核实 `SettingItem.vue`）。
+- 排查准则更新：需要严格逐像素复现原生/定位 dtype 问题时，`Enabled=False` 即可，无需再同时关 `HalfPrecision`。
+
+### 100.2 分块等价性回归测试（tests/test_scail2_mem.py）
+
+- **numpy 代理 fake torch**：分块纯函数本就依赖注入 `torch`/`interpolate`/`unpack_masks`（§82.2），测试传 numpy 版实现（`NpT` 代理张量 + 位解包 `fake_unpack_masks` + nearest/area `fake_interpolate`），**无需真实 torch**。沿用 `tests/test_brush_mask_sam.py` 的 numpy 代理模式与 `tests/test_scail2.py` 的 `check/failures/sys.exit(1)` 结构。
+- **等价基准**：测试内保留与核心 `nodes_scail.py` 逐行同构的 `native_render`/`native_extract`（含 `binary_7ch[:1].repeat(4,…)` 时间打包与 `interpolate(area)`），生产分块函数与之逐元素比较——render：T∈{1,10}×N∈{0,1,3}×黑/白底×half 开/关×chunk∈{1,2,3,4,5,7,10,11,100}；28ch：T∈{5,9,17}×chunk∈{1,2,4,8,32,64}；另覆盖空 `packed`/`packed=None` 分支。
+- Wrapper 门控：disabled 完全原生（`.to` 计数 0）、enabled+half 短输入转 f16、half 关不转；`_wrap_execute` 的裁剪（n_mask>n_ref 才裁、n_mask≤n_ref 不裁、disabled 不裁、kwargs 与位置参数两种调用形态）；`install` 幂等与 `_MARK` 守卫。
+- 边界知识：`_to_half` 的 `import torch` 在测试中由假模块短时注入 `sys.modules`（用完恢复），断言 dtype 标记而非真实 half 张量。
+
+### 100.3 设置读盘 mtime 缓存（sf_utils/llm_client.py）
+
+- `read_comfy_settings` 加 `_SETTINGS_CACHE = {"key": (path, st_mtime_ns, st_size), "data": dict}`：每次调用只做一次 `os.stat`，命中直接返回缓存（无 open/JSON 解析）；文件被前端保存后 mtime/size 变化 → 自然失效，**改动即时生效的承诺不变**。stat 失败（文件缺失）不缓存；损坏 JSON 随文件键缓存为空 dict。返回的是缓存对象，调用方（`get_llm_config`、`scail2_mem.read_options`）只读，勿修改。
+- 收益：SCAIL-2 每个 ref/render/extract/execute 调用都会 `read_options()`，长视频工作流反复读同一文件（§82.3 说读盘复用唯一实现），缓存后只剩 stat 开销；LLM 节点/路由每节点读配置同样受益。
+- 测试：`tests/test_llm_client.py` 追加缓存用例——缺失→`{}`、首次读取、**同 mtime/size 改写命中旧缓存**、mtime 变后重读、损坏 JSON→`{}`（`_settings_path` monkeypatch 到临时文件）。

@@ -59,14 +59,37 @@ def _settings_path():
     return os.path.join(base, "default", "comfy.settings.json")
 
 
+# 设置读盘缓存：(path, st_mtime_ns, st_size) → settings dict。仅 stat 命中即返回，
+# 文件变更（前端保存设置）自然失效；stat 失败（文件缺失）不缓存，损坏 JSON 随文件键缓存。
+_SETTINGS_CACHE = {"key": None, "data": {}}
+
+
 def read_comfy_settings():
-    """读 comfy.settings.json（缺失/损坏返回 {}）。"""
+    """读 comfy.settings.json（缺失/损坏返回 {}），按 (path, mtime_ns, size) 缓存。
+
+    每次调用只做一次 stat：文件未变直接返回缓存（无 open/解析开销）；前端保存
+    设置会更新 mtime/size，缓存自然失效，改动仍即时生效。返回的 dict 即缓存
+    对象，调用方只读、勿修改。
+    """
+    path = _settings_path()
     try:
-        with open(_settings_path(), "r", encoding="utf-8") as f:
+        st = os.stat(path)
+        key = (path, st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    if key is not None and _SETTINGS_CACHE["key"] == key:
+        return _SETTINGS_CACHE["data"]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            data = {}
     except Exception:
-        return {}
+        data = {}
+    if key is not None:
+        _SETTINGS_CACHE["key"] = key
+        _SETTINGS_CACHE["data"] = data
+    return data
 
 
 def get_llm_config(settings=None):
