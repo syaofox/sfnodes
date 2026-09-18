@@ -2,7 +2,6 @@ import csv
 import os
 import re
 
-from ...sf_utils.translation import translators
 from comfy.comfy_types.node_typing import IO
 
 _CATEGORY = "sfnodes/text"
@@ -16,80 +15,6 @@ def load_csv_data(filename):
             if len(row) >= 2:
                 data.append({"label": row[0], "value": row[1]})
     return data
-
-
-class TextTranslation:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "trans_switch": (
-                    "BOOLEAN",
-                    {"default": False, "label_on": "on", "label_off": "off"},
-                ),
-                "translator": (
-                    [
-                        "Niutrans",
-                        "MyMemory",
-                        "Alibaba",
-                        "Baidu",
-                        "ModernMt",
-                        "VolcEngine",
-                        "Iciba",
-                        "Iflytek",
-                        "Google",
-                        "Bing",
-                        "Lingvanex",
-                        "Yandex",
-                        "Itranslate",
-                        "SysTran",
-                        "Argos",
-                        "Apertium",
-                        "Reverso",
-                        "Deepl",
-                        "CloudTranslation",
-                        "QQTranSmart",
-                        "TranslateCom",
-                        "Sogou",
-                        "Tilde",
-                        "Caiyun",
-                        "QQFanyi",
-                        "TranslateMe",
-                        "Papago",
-                        "Mirai",
-                        "Youdao",
-                        "Iflyrec",
-                        "Hujiang",
-                        "Yeekit",
-                        "LanguageWire",
-                        "Elia",
-                        "Judic",
-                        "Mglip",
-                        "Utibet",
-                    ],
-                    {"default": "Google"},
-                ),
-                "trans_text": ("STRING", {"multiline": True, "tooltip": "要翻译的文本"}),
-            },
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("string",)
-
-    FUNCTION = "func"
-    CATEGORY = _CATEGORY
-    DESCRIPTION = "翻译文本，支持多种翻译引擎"
-
-    def func(self, trans_switch, translator, trans_text):
-        output_text = ""
-        if trans_switch:
-            output_text = translators(text=trans_text, translator=translator.lower())
-        else:
-            output_text = trans_text
-        return (output_text,)
 
 
 class TextCombine:

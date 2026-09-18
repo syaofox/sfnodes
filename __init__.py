@@ -133,8 +133,6 @@ from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sf
 from .nodes import workflow_routes  # noqa: F401  # 副作用注册 /api/sfnodes/workflows/* 路由
 from .sf_utils import lora_notes  # noqa: F401  # 副作用注册 /api/sfnodes/lora_notes 路由
 from .nodes.text.text import (
-    TextTranslation,
-
     TextCombine,
     AnimeCharSelect,
     TextToFilename,
@@ -374,7 +372,6 @@ NODE_CLASS_MAPPINGS = {
     # 分块采样节点
     "SFKleinTiledKSampler": SFKleinTiledKSampler,
     # 文本节点
-    "SFTextTranslation": TextTranslation,
     "SFTextCombine": TextCombine,
     "SFAnimeCharSelect": AnimeCharSelect,
     "SFTextToFilename": TextToFilename,
@@ -606,7 +603,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # 分块采样节点
     "SFKleinTiledKSampler": "SF Klein Tiled KSampler",
     # 文本节点
-    "SFTextTranslation": "SF Text Translation",
     "SFTextCombine": "SF Text Combine",
     "SFAnimeCharSelect": "SF Anime Char Select",
     "SFTextToFilename": "SF Text To Filename",

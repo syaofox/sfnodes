@@ -6,10 +6,7 @@ from .llm_client import (
     extract_api_error,
     parse_chat_response as parse_translate_response,
 )
-from .logger import get_logger
 from .string import has_chinese_character
-
-logger = get_logger(__name__)
 
 # ── LLM 翻译（OpenAI 兼容 /chat/completions）─────────────────────────────
 # 供 SFPauseText 的「中⇄EN」按钮经 /api/sfnodes/translate 调用；默认服务商
@@ -62,40 +59,3 @@ def build_translate_payload(text, direction="zh2en", model=DEFAULT_TRANSLATE_MOD
         temperature=0.0,
         disable_thinking=disable_thinking,
     )
-
-
-def translators(
-    text: str,
-    translator: str = "bing",
-    source_language="auto",
-    target_language="en",
-    timeout: float = 10.0,
-):
-    if not text:
-        return ""
-    try:
-        import translators
-
-        result = translators.translate_text(
-            query_text=text,
-            translator=translator,
-            from_language=source_language,
-            to_language=target_language,
-            timeout=timeout,
-        )
-        return result
-    except Exception as e:
-        raise Exception(f"Error:  Translation failed , Message : {e}")
-
-
-def get_translator():
-    try:
-        import translators
-
-        translators_list = translators.translators_pool
-        result = "\n".join(translators_list)
-        logger.info(f"Text Translation translator: \n{result}")
-        return result
-
-    except Exception as e:
-        raise Exception(f"Error:  Translation failed , Message : {e}")
