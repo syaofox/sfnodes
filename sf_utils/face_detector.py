@@ -3,9 +3,9 @@ from pathlib import Path
 import cv2
 
 from PIL import Image
-from insightface.app import FaceAnalysis
 
-from .insightface_utils import InsightFace, INSIGHTFACE_DIR
+from .face_analysis import InsightFace, INSIGHTFACE_DIR
+from .face_onnx import FaceEngine
 from .downloader import download_model
 from .logger import get_logger
 
@@ -31,14 +31,12 @@ class FaceDetector:
         model_path = model_dir / DET_MODEL_FILE
         if not model_path.is_file():
             download_model(DET_MODEL_URL, model_dir, DET_MODEL_FILE)
-        face_analysis = FaceAnalysis(
-            name=DET_MODEL_NAME,
-            root=INSIGHTFACE_DIR,
-            allowed_modules=["detection"],
+        engine = FaceEngine(
+            str(model_dir),
             providers=["CPUExecutionProvider"],
+            allowed_modules=["detection"],
         )
-        face_analysis.prepare(ctx_id=0, det_size=(640, 640))
-        self.detector = InsightFace(face_analysis)
+        self.detector = InsightFace(engine)
         logger.info(f"已加载人脸检测模型: {DET_MODEL_NAME}/{DET_MODEL_FILE}")
 
     def detect_crop(self, cv2_image, padding_percent=0.4):

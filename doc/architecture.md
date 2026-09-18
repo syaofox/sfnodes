@@ -34,8 +34,9 @@ sfnodes/
 │   ├── model_manager.py # 模型管理
 │   ├── cutpaste.py      # 剪切/拼接工具
 │   ├── blend.py         # 混合工具
-│   ├── insightface_utils.py # InsightFace 封装
-│   ├── face_detector.py  # 人脸检测
+│   ├── face_analysis.py # 人脸分析封装（insightface 兼容层：InsightFace 方法签名/返回不变，推理由 face_onnx.FaceEngine 承担，见 experience/nodes-image.md §104）
+│   ├── face_onnx.py     # 人脸 ONNX 推理核心（SCRFD 检测 + 2d106 关键点 + ArcFace 特征解码，纯 numpy/cv2/onnxruntime，Umeyama 自实现替代 skimage，无 insightface 依赖，见 experience/nodes-image.md §104）
+│   ├── face_detector.py  # 人脸检测（FaceEngine 仅 detection 模块，det_10g 懒加载）
 │   ├── lora_constants.py # LoRA 扩展名单单点真源（LORA_EXTS/LORA_EXT_RE，lora_reader/lora_samples/sf_common 共用，禁内联副本）
 │   ├── lora_notes.py     # LoRA 用户数据统一存储网关（SFLoraStack 与 SFLoraLoader 系共用 lora_triggers.json 真源；旧 .sf.json 侧车惰性迁移，见 experience/nodes-lora.md §19）
 │   ├── id_clothing.py    # 证件照服装单选纯逻辑（单选收敛 first_selected/草稿优先 resolve_prompt/孤海文件名映射/thumbnail 落盘 commonpath 钳位，无 ComfyUI/torch 依赖，SFIDClothingSelector 用）
@@ -148,7 +149,7 @@ sfnodes/
 
 - `torch`, `torchvision` — 张量运算（由 ComfyUI 运行时提供，不在 `requirements.txt` 中声明）
 - `opencv-contrib-python` — 图像处理
-- `insightface`, `onnxruntime` — 人脸分析
+- `onnxruntime` — 人脸分析（SCRFD/2d106/ArcFace 推理；预处理/解码自研于 `sf_utils/face_onnx.py`，不再依赖 `insightface`，见 experience/nodes-image.md §104）
 - `mediapipe` — 人像分割
 - `kornia` — 图像变换
 - `color_matcher` — 色彩匹配

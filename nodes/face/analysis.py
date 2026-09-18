@@ -4,13 +4,12 @@ import os
 import torch
 import torch.nn.functional as F
 import torchvision.transforms.v2 as T
-import folder_paths
 
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from comfy.utils import ProgressBar
-from ...sf_utils.insightface_utils import InsightFace
-from insightface.app import FaceAnalysis
+from ...sf_utils.face_analysis import InsightFace, INSIGHTFACE_DIR
+from ...sf_utils.face_onnx import FaceEngine
 from ...sf_utils.image_convert import image_to_tensor, tensor2np
 from ...sf_utils.mask_utils import mask_process, mask_from_landmarks
 from ...sf_utils.logger import get_logger
@@ -19,8 +18,6 @@ from ...sf_utils.downloader import download_model
 logger = get_logger(__name__)
 
 _CATEGORY = "sfnodes/face"
-
-INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
 
 INSIGHTFACE_MODELS = {
     "antelopev2": {
@@ -96,14 +93,12 @@ class FaceAnalysisModels:
     def load_insight_face(self, model_name, provider):
         download_insightface_models(model_name)
 
-        model = FaceAnalysis(
-            name=model_name,
-            root=INSIGHTFACE_DIR,
+        model = FaceEngine(
+            os.path.join(INSIGHTFACE_DIR, "models", model_name),
             providers=[
                 provider + "ExecutionProvider",
             ],
         )
-        model.prepare(ctx_id=0, det_size=(640, 640))
 
         out = InsightFace(model)
 

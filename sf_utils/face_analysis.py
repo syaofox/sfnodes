@@ -1,8 +1,9 @@
-import torch
-import torchvision.transforms.v2 as T
 import os
+
 import folder_paths
 import numpy as np
+import torch
+import torchvision.transforms.v2 as T
 
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
 
@@ -21,24 +22,23 @@ THRESHOLDS = {  # from DeepFace
 
 
 class InsightFace:
+    """insightface 兼容封装：方法签名与返回结构不变，推理由自研 FaceEngine 承担"""
+
     def __init__(self, face_analysis):
         self.face_analysis = face_analysis
         self.thresholds = THRESHOLDS["ArcFace"]
 
     def get_face(self, image):
         # 使用最大的检测尺寸来检测尽可能多的人脸
-        self.face_analysis.det_model.input_size = (640, 640)
-        faces = self.face_analysis.get(image)
+        img = np.asarray(image)
+        faces = None
+        for size in [(640, 640)] + [(s, s) for s in range(576, 256, -64)]:
+            detected = self.face_analysis.get(img, det_size=size)
+            if len(detected) > 0:
+                faces = detected
+                break
 
-        # 如果未检测到人脸，尝试使用较小的尺寸
-        if len(faces) == 0:
-            for size in [(size, size) for size in range(576, 256, -64)]:
-                self.face_analysis.det_model.input_size = size
-                faces = self.face_analysis.get(image)
-                if len(faces) > 0:
-                    break
-
-        if len(faces) > 0:
+        if faces:
             # 按人脸面积从大到小排序
             return sorted(
                 faces,
@@ -49,16 +49,18 @@ class InsightFace:
         return None
 
     def get_embeds(self, image, face_index=0):
-        face = self.get_face(image)
+        img = np.asarray(image)
+        faces = self.get_face(img)
 
-        if face is None:
+        if faces is None:
             return None
 
-        face_index = min(face_index, len(face) - 1)
+        face_index = min(face_index, len(faces) - 1)
+        face = faces[face_index]
+        if face["embedding"] is None and self.face_analysis.recognizer is not None:
+            self.face_analysis.recognizer.get(img, face)
 
-        face_embedding = face[face_index].normed_embedding
-        return face_embedding
-
+        return face.normed_embedding
 
     def get_bbox(
         self, image, padding=0, padding_percent=0
@@ -97,6 +99,8 @@ class InsightFace:
         face_index = min(face_index, len(face) - 1)
 
         shape = face[face_index]["kps"]
+        if shape is None:
+            return None
         right_eye = shape[0]
         left_eye = shape[1]
         nose = shape[2]
@@ -105,18 +109,21 @@ class InsightFace:
 
         return [left_eye, right_eye, nose, left_mouth, right_mouth]
 
-
     def get_landmarks(self, image, extended_landmarks=False, face_index=0):
-        face = self.get_face(image)
+        img = np.asarray(image)
+        faces = self.get_face(img)
 
-        if face is None:
+        if faces is None:
             return None
 
-        face_index = min(face_index, len(face) - 1)
+        face_index = min(face_index, len(faces) - 1)
+        face = faces[face_index]
+        if face["landmark_2d_106"] is None:
+            if self.face_analysis.landmark is None:
+                raise RuntimeError("未加载 2d106det 关键点模型")
+            self.face_analysis.landmark.get(img, face)
 
-
-
-        shape = face[face_index]["landmark_2d_106"]
+        shape = face["landmark_2d_106"]
         landmarks = np.round(shape).astype(np.int64)
 
         main_features = landmarks[33:]
@@ -130,7 +137,7 @@ class InsightFace:
         outline = landmarks[[*range(33), *range(48, 51), *range(102, 105)]]
         if extended_landmarks:
             outline_forehead = np.vstack(
-                [outline, self._forehead_points(image, face[face_index])]
+                [outline, self._forehead_points(image, face)]
             )
         else:
             outline_forehead = outline
@@ -164,23 +171,22 @@ class InsightFace:
         pts[:, 1] = np.clip(pts[:, 1], 0, height - 1)
         return np.round(pts).astype(np.int64)
 
-
     def get_single_bbox(
-        self, image, padding=0, padding_percent=0,face_index=0
+        self, image, padding=0, padding_percent=0, face_index=0
     ) -> tuple[torch.Tensor, int, int, int, int]:
         """
         获取指定索引的人脸bbox
-        
+
         Args:
             image: 输入图像
             face_index: 人脸索引，默认为0（最大的人脸）
             padding: 边框填充像素
             padding_percent: 边框填充百分比
-            
+
         Returns:
             tuple: (裁剪图像, x坐标, y坐标, 宽度, 高度)
         """
-        faces = self.get_face(np.array(image))
+        faces = self.get_face(np.asarray(image))
         if faces is None:
             return (None, 0, 0, 0, 0)
 
@@ -201,4 +207,3 @@ class InsightFace:
         img_tensor = T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0)
 
         return (img_tensor, x1, y1, x2 - x1, y2 - y1)
-

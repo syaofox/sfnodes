@@ -5,7 +5,6 @@ markdownify
 translators
 mediapipe
 opencv-contrib-python
-insightface
 onnxruntime
 kornia
 scipy
