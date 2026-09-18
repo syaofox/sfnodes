@@ -18,6 +18,10 @@ Opacity/颜色仅预览语义，后端忽略），抽为无 torch/ComfyUI 依赖
 结构化 state 笔触另有第三种模式 ``fill``（SAM 等算法写入）：``points`` 为
 闭合多边形顶点（像素整数），后端整体填充、前端整体填充绘制——与
 brush/erase 同一列表统一管理（添加/擦除/撤销全通用，见 §45.9）。
+
+第四种模式 ``fill_erase``（同一批算法写入）：多边形整体**打洞**（从现有遮罩
+中减去该区域）。前端在 Eraser 模式下把识别结果（fill）改写为 fill_erase，
+即「当前模式决定识别结果是添加还是减去」；按画序可被后续 fill/brush 补回。
 """
 
 import json
@@ -161,7 +165,7 @@ def parse_state_strokes(state, default_size=80):
         if not isinstance(item, dict):
             continue
         mode = item.get("mode", "brush")
-        if mode not in ("brush", "erase", "fill"):
+        if mode not in ("brush", "erase", "fill", "fill_erase"):
             mode = "brush"
         try:
             size = int(float(item.get("size", size_default)))
@@ -218,15 +222,21 @@ def lean_key(meta):
             f"|{brush_size}|{strokes_key}|inv={inv}")
 
 
-def _fill_polygon(mask, pts):
-    """Fill a closed polygon with 1 (PIL, no cv2 needed — locally testable)."""
+def _fill_polygon(mask, pts, erase=False):
+    """Fill a closed polygon with 1 (add) or 0 (erase) — PIL, no cv2 needed.
+
+    erase=True（``fill_erase`` 笔触）直接在现有遮罩上以 fill=0 描画多边形
+    （多边形内清 0、外部不动），即从遮罩中减去识别区域。
+    """
     from PIL import Image as _PILImage
     from PIL import ImageDraw as _ImageDraw
-    h, w = mask.shape
     img = _PILImage.fromarray((np.clip(mask, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), mode="L")
-    _ImageDraw.Draw(img).polygon([(int(x), int(y)) for x, y in pts], fill=255)
+    _ImageDraw.Draw(img).polygon([(int(x), int(y)) for x, y in pts], fill=0 if erase else 255)
     filled = np.array(img).astype(np.float32) / 255.0
-    mask[:, :] = np.maximum(mask, filled)
+    if erase:
+        mask[:, :] = filled
+    else:
+        mask[:, :] = np.maximum(mask, filled)
 
 
 def mask_to_fill_strokes(mask_arr, eps=1.5, min_area=16.0, max_contours=64):
@@ -329,8 +339,8 @@ def _stamp_line(mask, x1, y1, x2, y2, radius, erase):
 def rasterize_strokes(strokes, width, height):
     """Rasterize parsed strokes into a (H, W) float32 mask (0..1, binary).
 
-    brush 笔画按自身 size 置 1（含线段插值），erase 笔画置 0。空笔画
-    返回全黑遮罩。
+    brush 笔画按自身 size 置 1（含线段插值），erase 笔画置 0；fill 多边形
+    整体置 1，fill_erase 多边形整体置 0（打洞）。空笔画返回全黑遮罩。
     """
     try:
         w = int(width)
@@ -344,10 +354,11 @@ def rasterize_strokes(strokes, width, height):
         pts = st.get("points", []) or []
         if not pts:
             continue
-        # fill 笔触：整体填充多边形（size 无意义，SAM 写入 0）
-        if st.get("mode") == "fill":
+        # fill / fill_erase 笔触：整体填充多边形（size 无意义，算法写入 0）；
+        # fill_erase = 多边形打洞（从现有遮罩减去识别区域，Eraser 模式写入）
+        if st.get("mode") in ("fill", "fill_erase"):
             if len(pts) >= 3:
-                _fill_polygon(mask, pts)
+                _fill_polygon(mask, pts, erase=st.get("mode") == "fill_erase")
             continue
         try:
             radius = max(1, int(st.get("size", 80)) // 2)

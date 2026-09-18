@@ -13,6 +13,11 @@
 //     · ✓ 反选遮罩（invert 状态位）
 //     · 卸载 AI 模型（SAM/人物/YOLO）
 //
+// 模式即运算（与两节点现有 Brush/Erase 模式复用，无独立开关）：当前处于
+// Brush 模式（含合体节点 Crop 模式，非 Erase）时识别结果以 fill 笔触并入；
+// 处于 Eraser 模式时改写为 fill_erase 笔触——从现有遮罩中打洞减去识别区域
+// （导入遮罩同样跟随）。两种结果都是普通笔触项，Undo/Clear/Invert 通用。
+//
 // 后端 nodes/image/brush_mask_sam.py + brush_mask_tools.py（按 src_path 通用）。
 // 忙时熔断（§91）：工作流执行期间后端 409（aimdo 全局 file reader 与执行线程
 // 并发模型加载会撞 slot）；本模块先 GET sam_status 预检 busy 并 warn，服务端
@@ -22,7 +27,8 @@
 //   toastTag, logTag,
 //   getState(node),                   宿主状态读取,
 //   patchState(node, patch),          写状态 + 重绘（反选等）,
-//   addStrokes(node, incoming, extra), 并入 fill 笔触 + extra 展开进 state
+//   addStrokes(node, incoming, extra), 并入笔触（Eraser 模式已在上层改写为
+//                                     fill_erase）+ extra 展开进 state
 //                                     （菜单参数记忆；incoming 为空也写 extra）,
 //   toImage(node, lx, ly) -> {x,y},   节点局部 → 源图像素坐标,
 //   fromImage(node, x, y) -> {x,y},   源图像素 → 节点局部,
@@ -123,19 +129,26 @@ async function runAiRequest(cfg, node, path, body, opts) {
   }
 }
 
-// 结果笔触并入 + 反馈（opts.mergedPrefix / emptyMsg 可定制）
+// 结果笔触并入 + 反馈（opts.mergedPrefix / emptyMsg 可定制）。
+// 模式即运算：Eraser 模式把 fill 改写为 fill_erase（从现有遮罩打洞减去）。
 function mergeStrokes(cfg, node, data, extra, opts) {
   const incoming = Array.isArray(data && data.strokes) ? data.strokes : [];
-  if (!incoming.length) {
+  const subtract = (cfg.getState(node) || {}).brush_mode === "erase";
+  const mapped = subtract
+    ? incoming.map((s) => (s && s.mode === "fill" ? { ...s, mode: "fill_erase" } : s))
+    : incoming;
+  if (!mapped.length) {
     cfg.addStrokes(node, [], extra || {});
     sfToast({ summary: cfg.toastTag, detail: opts.emptyMsg || "未检出目标（空结果，笔触不变）", severity: "warn", fallbackTag: cfg.toastTag });
     return;
   }
-  cfg.addStrokes(node, incoming, extra || {});
+  cfg.addStrokes(node, mapped, extra || {});
   const cov = data.coverage != null ? `覆盖 ${Math.round(data.coverage * 100)}%，` : "";
+  // 减去模式不套 mergedPrefix（YOLO 的 prefix 是"YOLO 并入"，会读成"并入减去"）
+  const verb = subtract ? "减去" : (opts.mergedPrefix || "并入");
   sfToast({
     summary: cfg.toastTag,
-    detail: `${opts.mergedPrefix || "并入"} ${incoming.length} 个填充笔触（${cov}可擦除/撤销）`,
+    detail: `${verb} ${mapped.length} 个填充笔触（${cov}可擦除/撤销）`,
     severity: "success", fallbackTag: cfg.toastTag,
   });
 }
@@ -340,11 +353,13 @@ export function beginSamMode(cfg, node, kind) {
     }
   };
   window.addEventListener("keydown", _modeKeyHandler, true);
+  const subHint = (cfg.getState(node) || {}).brush_mode === "erase"
+    ? "（Eraser 模式：识别结果从遮罩中减去）" : "";
   sfToast({
     summary: cfg.toastTag,
-    detail: kind === "point"
+    detail: (kind === "point"
       ? "SAM 点选：左键=正点，Shift+左键=负点，Enter 执行，Esc 取消"
-      : "SAM 框选：在图上拖出矩形，松开执行，Esc 取消",
+      : "SAM 框选：在图上拖出矩形，松开执行，Esc 取消") + subHint,
     severity: "info", life: 6000, fallbackTag: cfg.toastTag,
   });
   if (app.graph) app.graph.setDirtyCanvas(true, true);

@@ -192,6 +192,23 @@ state_fill = json.dumps({
 img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_fill)
 check("execute fill 覆盖交集", np.allclose(np.asarray(mask_t), 1.0))
 
+# fill_erase 从已有 fill 中打洞（Eraser 模式识别结果；画序在后）
+state_fill_erase = json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
+    "fill_color": "#000000",
+    "brush_size": 80,
+    "strokes": [
+        {"mode": "fill", "size": 0, "points": [[0, 0], [3, 0], [3, 3], [0, 3]]},
+        {"mode": "fill_erase", "size": 0, "points": [[1, 1], [2, 1], [2, 2], [1, 2]]},
+    ],
+})
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_fill_erase)
+mf = np.asarray(mask_t)
+check("execute fill_erase 打洞（画布 3,3 黑）", mf[0, 3, 3] == 0.0)
+check("execute fill_erase 洞外仍白（画布 2,2）", mf[0, 2, 2] == 1.0)
+check("execute fill_erase 不动扩展区", np.allclose(mf[0, 0:2, :], 1.0))
+
 # 笔触落在裁剪框外 → 被裁掉（crop 只含左上 2×2）
 state_clip = json.dumps({
     "src_path": SRC_PATH,

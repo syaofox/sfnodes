@@ -347,11 +347,19 @@ m = pure.rasterize_strokes([
     {"mode": "erase", "size": 3, "points": [(2, 2)]},
 ], 6, 5)
 check("erase 可擦 fill", m[2, 2] == 0.0 and m[0, 0] == 1.0)
+m = pure.rasterize_strokes([
+    {"mode": "fill", "size": 0, "points": [[0, 0], [5, 0], [5, 4], [0, 4]]},
+    {"mode": "fill_erase", "size": 0, "points": [[1, 1], [4, 1], [4, 3], [1, 3]]},
+], 6, 5)
+check("fill_erase 打洞（Eraser 模式 AI 结果）", m[2, 2] == 0.0 and m[0, 0] == 1.0)
 
-# ── parse_state_strokes 允许 fill ──
+# ── parse_state_strokes 允许 fill / fill_erase ──
 ps = pure.parse_state_strokes({"src_w": 10, "src_h": 10, "brush_size": 80,
                                "strokes": [{"mode": "fill", "size": 0, "points": [[1, 1], [5, 1], [5, 5], [1, 5]]}]})
 check("state 保留 fill", len(ps) == 1 and ps[0]["mode"] == "fill")
+ps = pure.parse_state_strokes({"src_w": 10, "src_h": 10, "brush_size": 80,
+                               "strokes": [{"mode": "fill_erase", "size": 0, "points": [[1, 1], [5, 1], [5, 5], [1, 5]]}]})
+check("state 保留 fill_erase", len(ps) == 1 and ps[0]["mode"] == "fill_erase")
 
 # ── unload_sam ──
 check("unload 释放过", sam.unload_sam() is True)

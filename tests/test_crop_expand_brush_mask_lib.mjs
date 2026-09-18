@@ -124,6 +124,21 @@ function makeCanvas(w = 10, h = 10) {
     Brush.paintStrokeMask(cvs, [{ mode: "brush", size: 6, points: [[2, 2]] }], {});
     check("无 erase 无打洞", !cvs.ops.some((o) => o.value === "destination-out"));
   }
+  {
+    // fill_erase（Eraser 模式 AI 结果）：destination-out + 多边形整体填充
+    const cvs = makeCanvas(20, 20);
+    Brush.paintStrokeMask(cvs, [
+      { mode: "fill", size: 0, points: [[2, 2], [10, 2], [10, 10], [2, 10]] },
+      { mode: "fill_erase", size: 0, points: [[4, 4], [8, 4], [8, 8], [4, 8]] },
+    ], { paintStyle: "rgba(255,255,255,1)" });
+    const gcos = cvs.ops.filter((o) => o.op === "set:globalCompositeOperation").map((o) => o.value);
+    const dstIdx = cvs.ops.findIndex((o) => o.op === "set:globalCompositeOperation" && o.value === "destination-out");
+    const closeIdx = cvs.ops.findIndex((o, i) => i > dstIdx && o.op === "closePath");
+    check("fill_erase 走 destination-out 多边形", dstIdx >= 0 && closeIdx > dstIdx
+      && gcos[gcos.length - 1] === "source-over");
+    check("fill_erase 无 paintStyle 填充（打洞为纯擦除）",
+      !cvs.ops.some((o, i) => o.op === "fill" && i > dstIdx && o.fill === "rgba(255,255,255,1)"));
+  }
 
   // ── paintInvertMask（反选预览：白底 + 打洞，仅离屏）──
   {

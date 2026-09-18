@@ -28,7 +28,8 @@
 //     sf_brush_mask_lib.js（无 app 依赖可 .mjs 直测）；步长设置与 [ ]/滚轮
 //     快调在 sf_brush_tools.js；AI/工具右键菜单（SAM 文本/点选/框选、人物
 //     部位、YOLO、导入遮罩、反选、统一卸载，忙时熔断预检）在 sf_brush_ai.js
-//     （与 SFImageCropExpandBrushMask 同一实现，见 §91·§93）；
+//     （与 SFImageCropExpandBrushMask 同一实现，见 §91·§93；识别/导入结果
+//     按当前模式并入——Brush=fill 添加 / Eraser=fill_erase 打洞减去，见 §99）；
 //     右下角 cursor 补写在 sf_common。
 //   - 最小尺寸钳制（computeSize 包装）同 sf_crop_expand.js（§44 同款）。
 // ==========================================================================
@@ -80,7 +81,8 @@ const DEFAULT_STATE = {
   // 反选（影响输出 → 进 lean 注入）：
   invert: false,
   // eraser_color 惰性遗留（ECol 按钮已随真擦除预览移除，无读取方，旧工作流无感）
-  // 菜单参数记忆（不进 lean 注入；结果均以 fill 笔触进 strokes）
+  // 菜单参数记忆（不进 lean 注入；结果以 fill/fill_erase 笔触进 strokes——
+  // Brush 模式 fill 添加、Eraser 模式 fill_erase 打洞，由 sf_brush_ai 统一改写）
   sam_prompt: "",
   sam_threshold: 0.5,
   sam_refine: 2,
@@ -234,8 +236,9 @@ function pickColor(node) {
 // 取色按钮文字色 colorTextStyle 提升到 sf_brush_mask_lib.js（两节点共用）。
 
 // ── AI/工具右键菜单（共享 UI：sf_brush_ai.js；后端 brush_mask_sam/tools.py）──
-// fill 笔触并入统一列表；extra 为菜单参数记忆字段（不进 lean 注入）；
-// 点/框模式经本 cfg 的坐标换算接入节点画布。
+// 结果按当前笔刷模式并入统一列表（Brush=fill 添加 / Eraser=fill_erase 打洞，
+// 由 sf_brush_ai.mergeStrokes 单点改写）；extra 为菜单参数记忆字段（不进 lean
+// 注入）；点/框模式经本 cfg 的坐标换算接入节点画布。
 const AI_CFG = {
   toastTag: "SF Brush Mask",
   logTag: "[SF Brush Mask]",

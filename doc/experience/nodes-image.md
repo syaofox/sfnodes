@@ -1192,3 +1192,14 @@ slice_track_data(track_data, start=0, length=0)
 - 范围边界：只调"画布内容线条"；面板/底栏/按钮等控件 chrome 恒 1 不动；全屏编辑器（SF Image Crop / Inpaint）不在内。
 - 测试陷阱：源图边界虚线也用 FrameWidth 且**全模式保留**，不能用"线宽值"判断裁剪框是否绘制（旧断言 `!lws.includes(2.5)` 会假失败）——按框线唯一色 `rgba(255,255,255,0.9)` 判 strokeRect；smoke 桩 ctx 需记录 `set:lineWidth`（brush smoke 的 makeCtx 原来不记录，补 `lw` 字段）与 stub_common 需补新导出。
 - 设置注册断言用真实 sf_common 的 smoke（合体节点）做：`ext.init()` 后 `__settingDefs` 校验 defaultValue/type/attrs；brush smoke 的 stub_common 自己实现同名读写以驱动绘制断言。
+
+## 99. 画笔节点 AI 识别结果随模式加减（Brush=添加 / Eraser=减去，fill_erase，2026-09）
+
+> 背景：两个画笔节点（SFImageBrushMask / SFImageCropExpandBrushMask）右键菜单识别出的遮罩（SAM 文本/点/框、人物部位、YOLO、导入遮罩）此前一律并入（并集）。用户先提"加一个添加/减去开关按钮"，随后拍板更简方案：**复用现有 Brush/Erase 模式**——Brush（合体节点 Crop 模式同）结果添加；Eraser 模式从现有遮罩中减去识别区域；导入遮罩同样跟随。
+
+- 语义与数据：新增笔触模式 `fill_erase`（与 `fill` 成对：fill 多边形整体置 1，fill_erase 多边形整体清 0/打洞）。改写只发生在共享并入点 `sf_brush_ai.js::mergeStrokes`（读 `cfg.getState(node).brush_mode === "erase"`，把 incoming 的 `mode==="fill"` 映射为 `fill_erase`）——五条结果来源全走此函数，后端五条路由零改动（模式是客户端编辑决策而非推理参数）。结果仍是普通笔触项：Undo/Clear/Invert/预览/lean_key 全沿用，**无新状态字段、无 UI 变化**。
+- 后端 `sf_utils/brush_mask.py`：`parse_state_strokes` mode 白名单加 `fill_erase`；`rasterize_strokes` 的 fill 分支同吃两种，`_fill_polygon(..., erase=True)` 用 PIL 直接以 `fill=0` 在现遮罩上描画（多边形内清 0、外部不动）——画序语义与 brush/erase 一致，后画的 fill/brush 可补回。
+- 前端 `sf_brush_mask_lib.js::paintStrokeMask`：`erase` 与 `fill_erase` 都走 `destination-out`，区别只在 `drawStrokePath(..., fill)` 的 fill 参数（erase 按线宽、fill_erase 按多边形整体）；主画布禁 destination-out 的纪律不破。
+- 文案：减模式 toast 用「减去 N 个填充笔触」（**不套 mergedPrefix**——YOLO 的 prefix 是 "YOLO 并入"，会读成"并入减去"）；SAM 点/框进入提示追加"（Eraser 模式：识别结果从遮罩中减去）"。
+- 测试：纯逻辑 `test_brush_mask.py`（打洞 + 先减后加画序 + 白名单保留）、`test_brush_mask_sam.py`、`test_crop_expand_brush_mask.py`（execute 层 fill→fill_erase 交集打洞）；前端 lib test 补 destination-out 多边形断言；两个 smoke 的 stub_api 支持 `globalThis.__aiResponse` 按用例返回 strokes，断言 Brush/Crop=fill、Eraser=fill_erase（合体节点直接调共享 `runYolo` 验证映射与文案）。
+- 陷阱：① smoke 里 `findIndex(closePath)` 会命中前一笔 fill 的 closePath，须限定在 destination-out 之后查找（`(o,i)=> i>dstIdx`）；② 合体节点 Erase 仍只擦笔触层（扩展区结构性保留）——fill_erase 从 overlay 减去，`_compose_expand` 的扩展区不受影响。

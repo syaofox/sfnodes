@@ -103,7 +103,7 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"),
     `export function showImageBrowser() {}\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
-    `export const api = { fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => ({}) }; } };\n`);
+    `export const api = { fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => (globalThis.__aiResponse || {}) }; } };\n`);
   // 纯库用真实实现
   fs.copyFileSync(path.join(webDir, "sf_brush_mask_lib.js"), path.join(tmpDir, "sf_brush_mask_lib.js"));
   fs.copyFileSync(path.join(webDir, "sf_canvas_align_lib.js"), path.join(tmpDir, "sf_canvas_align_lib.js"));
@@ -231,6 +231,27 @@ function makeCtx(ops) {
   const yoloBody = yoloCall ? JSON.parse(yoloCall.body) : null;
   check("YOLO POST 含 imgsz/classes", !!yoloBody && yoloBody.imgsz === 960
     && JSON.stringify(yoloBody.classes) === "[1,2]" && yoloBody.kind === "bbox");
+
+  // 模式即运算：Brush 模式识别结果保持 fill；Eraser 模式改写为 fill_erase
+  const aiResp = { strokes: [{ mode: "fill", size: 0, points: [[0, 0], [2, 0], [2, 2]] }], coverage: 0.5 };
+  const captureCfg = (captured) => ({
+    toastTag: "SF Brush Mask", logTag: "[SF Brush Mask]",
+    getState: (n) => JSON.parse(n.properties.sfBrushMaskState),
+    patchState: () => {},
+    addStrokes: (_n, inc) => { captured.push(...inc); },
+  });
+  globalThis.__aiResponse = aiResp;
+  let aiCaptured = [];
+  await aiMod.runYolo(captureCfg(aiCaptured), node, "bbox", "a.pt", 0.3, "rect", 640, []);
+  check("Brush 模式识别结果保持 fill", aiCaptured.length === 1 && aiCaptured[0].mode === "fill");
+  node.properties.sfBrushMaskState = JSON.stringify({
+    ...JSON.parse(node.properties.sfBrushMaskState), brush_mode: "erase",
+  });
+  aiCaptured = [];
+  await aiMod.runYolo(captureCfg(aiCaptured), node, "bbox", "a.pt", 0.3, "rect", 640, []);
+  check("Eraser 模式识别结果转 fill_erase", aiCaptured.length === 1 && aiCaptured[0].mode === "fill_erase"
+    && aiCaptured[0].points.length === 3);
+  globalThis.__aiResponse = null;
 
   // 反选预览：白底打洞（paintInvertMask 在离屏画布 destination-out）
   node.properties.sfBrushMaskState = JSON.stringify({

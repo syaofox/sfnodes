@@ -150,6 +150,21 @@ m = pure.rasterize_strokes([
 ], 9, 9)
 check("erase 清零", m[4, 4] == 0.0 and np.allclose(m, 0.0))
 
+# fill_erase（AI 结果在 Eraser 模式写入）：多边形打洞，画序可被后续 fill 补回
+m = pure.rasterize_strokes([
+    {"mode": "fill", "size": 0, "points": [(1, 1), (6, 1), (6, 6), (1, 6)]},
+    {"mode": "fill_erase", "size": 0, "points": [(3, 3), (5, 3), (5, 5), (3, 5)]},
+], 8, 8)
+check("fill_erase 打洞", m[4, 4] == 0.0 and m[2, 2] == 1.0)
+m = pure.rasterize_strokes([
+    {"mode": "fill_erase", "size": 0, "points": [(1, 1), (6, 1), (6, 6), (1, 6)]},
+    {"mode": "fill", "size": 0, "points": [(3, 3), (5, 3), (5, 5), (3, 5)]},
+], 8, 8)
+check("先减后加画序可补回", m[4, 4] == 1.0 and m[2, 2] == 0.0)
+ps = pure.parse_state_strokes({"src_w": 100, "src_h": 100, "strokes": [
+    {"mode": "fill_erase", "size": 0, "points": [[1, 1], [5, 1], [5, 5], [1, 5]]}]})
+check("state 保留 fill_erase", len(ps) == 1 and ps[0]["mode"] == "fill_erase")
+
 # ── execute()：磁盘源 + 缺源退化 ──
 from PIL import Image
 
@@ -185,6 +200,18 @@ img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({
     "src_w": 6, "src_h": 5, "invert": True, "strokes": [],
 }))
 check("反选空笔触全白", np.allclose(np.asarray(mask_t), 1.0))
+
+# fill_erase：从 fill 遮罩中打洞减去识别区域（Eraser 模式 AI 结果）
+img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({
+    "src_path": "sfnodes_crop/crop_src_brushx.png",
+    "src_w": 6, "src_h": 5, "brush_size": 3,
+    "strokes": [
+        {"mode": "fill", "size": 0, "points": [[0, 0], [5, 0], [5, 4], [0, 4]]},
+        {"mode": "fill_erase", "size": 0, "points": [[2, 2], [3, 2], [3, 3], [2, 3]]},
+    ],
+}))
+arr = np.asarray(mask_t)[0]
+check("execute fill→fill_erase 打洞", arr[2, 2] == 0.0 and arr[0, 0] == 1.0)
 
 img_t, mask_t, w, h, fname = node.execute(SFBrushMaskJson=json.dumps({"src_path": ""}))
 check("无源默认 512", (w, h) == (512, 512) and np.asarray(img_t).shape == (1, 512, 512, 3))

@@ -16,6 +16,9 @@ Ctrl+V 粘贴），用画笔在图上直接绘制遮罩（brush=白/erase=擦除
     预览用的 opacity/color 不进注入——改颜色不重跑）。
   - mask 恒二值（brush 置 1 / erase 置 0）：Opacity 与取色仅前端预览透明度，
     后端忽略（与原版语义一致，DESCRIPTION 注明）。
+  - 右键 AI/工具菜单（SF 扩展，原版无）：识别/导入结果为 fill 多边形笔触，
+    按当前模式并入——Brush 模式添加、Eraser 模式改写为 ``fill_erase`` 打洞
+    （从现有遮罩中减去识别区域，见 ``sf_utils/brush_mask.py``）。
   - 输出多一个 ``filename``（src_path 原样 input 相对路径，可直连 LoadImage，
     未加载时为空串）。
 
@@ -56,8 +59,10 @@ class SFImageBrushMask:
         "Shift+左键=负点、Enter 执行）、人物部位遮罩（MediaPipe：脸/发/身体/衣服/"
         "背景）、YOLO 检测/分割（models/ultralytics/{bbox,segm} 权重，需已装 "
         "ultralytics）、导入遮罩文件为笔触、反选遮罩（面板 Invert 按钮或右键菜单"
-        "切换，ON 时按钮呈琥珀色提示输出已取反），结果均转为"
-        "填充笔触并入列表统一管理（可擦除/撤销/清除）。多人用 person:3（:N 为"
+        "切换，ON 时按钮呈琥珀色提示输出已取反）。识别/导入结果按当前模式并入"
+        "列表统一管理（可擦除/撤销/清除）：Brush 模式转为填充笔触添加；"
+        "Eraser 模式转为打洞笔触，从现有遮罩中减去识别区域（导入遮罩同样跟随）。"
+        "多人用 person:3（:N 为"
         "每类最多检出数），多类用逗号分隔。工作流执行期间模型类菜单不可用"
         "（避免与运行时模型加载并发冲突），请等任务结束再试。\n\n"
         "图片持久化到 input/sfnodes_crop/，工作流保存/重载/刷新不丢图。输出 "

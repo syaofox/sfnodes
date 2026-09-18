@@ -1,7 +1,7 @@
 // sf_crop_expand_brush_mask.js 主扩展冒烟测试（Node 直接运行：
 // node tests/test_crop_expand_brush_mask_smoke.js）
 // 覆盖（两节点合体的关键路径）：
-//   1. 双列控件几何（11 + 10 + 2）与三模式单选切换
+//   1. 双列控件几何（11 + 11 + 2）与三模式单选切换
 //   2. Crop 模式：手柄命中起拖 + 冻结快照改框 + buttons:0 释放兜底 + 落定后
 //      不再改框 + 右键不起拖
 //   3. Brush 模式：源图区内落笔/扩展区（源图外）不起笔/手柄不误触框
@@ -101,7 +101,7 @@ const makeState = (patch = {}) => JSON.stringify({
   // 桩模块
   fs.writeFileSync(path.join(tmpDir, "stub_app.js"), "export const app = globalThis.app;\n");
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
-    "export const api = { addEventListener() {}, fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => ({}) }; } };\n");
+    "export const api = { addEventListener() {}, fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => (globalThis.__aiResponse || {}) }; } };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     "export const CropAPI = { uploadSrc: async () => ({}) };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"), "export function showImageBrowser() {}\n");
@@ -356,6 +356,25 @@ const makeState = (patch = {}) => JSON.stringify({
   const boxCall = (globalThis.__apiCalls || []).find((c) => c.url.includes("/brush_mask/sam") && c.body);
   const boxBody = boxCall ? JSON.parse(boxCall.body) : null;
   check("框选 POST 含 bbox", !!boxBody && Array.isArray(boxBody.bbox) && boxBody.bbox.length === 4);
+
+  // 模式即运算：Crop/Brush 模式识别结果保持 fill；Eraser 模式改写 fill_erase
+  const aiMod2 = await import(path.join(tmpDir, "sf_brush_ai.js"));
+  const captureCfg2 = (captured) => ({
+    toastTag: "SF Crop Expand Brush Mask", logTag: "[SF Crop Expand Brush Mask]",
+    getState: (n) => JSON.parse(n.properties[STATE_PROP]),
+    patchState: () => {},
+    addStrokes: (_n, inc) => { captured.push(...inc); },
+  });
+  globalThis.__aiResponse = { strokes: [{ mode: "fill", size: 0, points: [[1, 1], [2, 1], [2, 2]] }], coverage: 0.25 };
+  node.properties[STATE_PROP] = makeState({ src_path: "sfnodes_crop/x.png", brush_mode: "crop" });
+  let aiCap2 = [];
+  await aiMod2.runYolo(captureCfg2(aiCap2), node, "bbox", "a.pt", 0.3, "rect", 640, []);
+  check("Crop 模式识别结果保持 fill", aiCap2.length === 1 && aiCap2[0].mode === "fill");
+  node.properties[STATE_PROP] = makeState({ src_path: "sfnodes_crop/x.png", brush_mode: "erase" });
+  aiCap2 = [];
+  await aiMod2.runYolo(captureCfg2(aiCap2), node, "bbox", "a.pt", 0.3, "rect", 640, []);
+  check("Eraser 模式识别结果转 fill_erase", aiCap2.length === 1 && aiCap2[0].mode === "fill_erase");
+  globalThis.__aiResponse = null;
 
   // 反选预览：源图区白底打洞（离屏 destination-out）
   node.properties[STATE_PROP] = makeState({

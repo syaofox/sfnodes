@@ -23,8 +23,9 @@
 //   - 源图链路：sf_crop_source.js（Load/Browse/拖放/Ctrl+V → input/sfnodes_crop/）
 //   - 比例预设弹窗：sf_crop_expand_ratios.js
 //   - AI/工具右键菜单：sf_brush_ai.js（与 SFImageBrushMask 单源：SAM 文本/
-//     点选/框选、人物部位、YOLO、导入遮罩、反选、统一卸载；工作流执行期间
-//     后端 409 熔断，见 experience/nodes-image.md §91·§93）
+//     点选/框选、人物部位、YOLO、导入遮罩、反选、统一卸载；识别/导入结果按
+//     当前模式并入——Eraser 模式 fill_erase 打洞减去（Crop/Brush 添加）；
+//     工作流执行期间后端 409 熔断，见 experience/nodes-image.md §91·§93·§99）
 //   - 画笔步长设置/[ ]/滚轮：sf_brush_tools.js
 //   - 图索引：sf_pause_kit.js（buildClassNodeIndex/findNodeByPromptId 单源）
 //   - 释放兜底/cursor 补丁：sf_common.js
@@ -112,7 +113,8 @@ const DEFAULT_STATE = {
   brush_mode: "crop", // crop | brush | erase（三模式单选）
   // 反选（影响输出 → 进 lean 注入；合体节点语义 = 扩展区 ∪ (1 - 笔触)）：
   invert: false,
-  // 菜单参数记忆（不进 lean 注入；结果均以 fill 笔触进 strokes）
+  // 菜单参数记忆（不进 lean 注入；结果以 fill/fill_erase 笔触进 strokes——
+  // 由 sf_brush_ai 按当前模式改写：Eraser=fill_erase 打洞，Crop/Brush=fill 添加）
   sam_prompt: "",
   sam_threshold: 0.5,
   sam_refine: 2,
@@ -189,8 +191,9 @@ const SOURCE_CFG = {
 };
 
 // ── AI/工具右键菜单（共享 UI：sf_brush_ai.js；后端 brush_mask_sam/tools.py）──
-// fill 笔触并入统一列表；extra 为菜单参数记忆字段（不进 lean 注入）；
-// 点/框模式经本 cfg 的坐标换算接入节点画布（含裁剪框出界偏移）。
+// 结果按当前模式并入统一列表（Eraser=fill_erase 打洞减去，Crop/Brush=fill
+// 添加，由 sf_brush_ai.mergeStrokes 单点改写）；extra 为菜单参数记忆字段
+//（不进 lean 注入）；点/框模式经本 cfg 的坐标换算接入节点画布（含裁剪框出界偏移）。
 const AI_CFG = {
   toastTag: "SF Crop Expand Brush Mask",
   logTag: "[SF Crop Expand Brush Mask]",

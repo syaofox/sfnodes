@@ -4,8 +4,8 @@
 
   - 拖拽一个可**出界**的裁剪框（负坐标 / 超出边界 = 外扩区域），执行时输出
     crop_w×crop_h 画布：与源图交集贴回原像素，出界区域填充 fill_color；
-  - 用画笔在源图上直接涂抹额外重绘区域（brush 涂白 / erase 擦除 / fill 多边形，
-    与 SFImageBrushMask 完全同语义）。
+  - 用画笔在源图上直接涂抹额外重绘区域（brush 涂白 / erase 擦除 / fill 多边形
+    添加 / fill_erase 多边形打洞，与 SFImageBrushMask 完全同语义）。
 
 mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区结构性保留，Erase 只擦除
 笔触层。笔触以**源图像素坐标**记录（前端钳制在源图内），随图移动，只有落在
@@ -66,8 +66,10 @@ class SFImageCropExpandBrushMask:
         "（models/ultralytics/{bbox,segm} 权重，需已装 ultralytics）、导入遮罩"
         "文件为笔触、反选遮罩（面板 Invert 按钮或右键菜单切换，ON 时按钮呈琥珀色）。"
         "反选只作用于笔触层：mask = 扩展区 ∪ (1 - 笔触)，"
-        "扩展区始终保留重绘。结果均转为填充笔触并入列表统一管理（可擦除/撤销/"
-        "清除）。工作流执行期间模型类菜单不可用（避免与运行时模型加载并发冲突），"
+        "扩展区始终保留重绘。识别/导入结果按当前模式并入列表统一管理（可擦除/"
+        "撤销/清除）：Brush（及 Crop）模式转为填充笔触添加；Eraser 模式转为"
+        "打洞笔触，从现有遮罩（笔触层）中减去识别区域（导入遮罩同样跟随）。"
+        "工作流执行期间模型类菜单不可用（避免与运行时模型加载并发冲突），"
         "请等任务结束再试。\n\n"
         "mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）——笔触以源图坐标记录并"
         "随图移动，只有落在裁剪框内的部分进入输出；Erase 只擦除笔触，扩展区"
@@ -125,8 +127,8 @@ class SFImageCropExpandBrushMask:
         src_path = meta.get("src_path", "") or ""
         src = load_src_rgb(src_path, "[SFImageCropExpandBrushMask]")
 
-        # 笔触层：源图坐标系栅格化（brush/erase/fill 同 BrushMask 语义），交由
-        # _compose_expand 在交集贴回处并入扩展区遮罩。缺源图时忽略（无坐标可贴）。
+        # 笔触层：源图坐标系栅格化（brush/erase/fill/fill_erase 同 BrushMask
+        # 语义），交由 _compose_expand 在交集贴回处并入扩展区遮罩。缺源图时忽略。
         overlay = None
         if src is not None and src.ndim == 3 and src.shape[2] >= 3:
             sh, sw = int(src.shape[0]), int(src.shape[1])

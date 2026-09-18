@@ -232,10 +232,11 @@ export function drawStrokePath(ctx, pts, m, lineW, style, fill) {
 }
 
 // paintStrokeMask(cvs, strokes, opts) → ctx：离屏画布按画序合成二值遮罩笔触
-// （真擦除预览）——brush/fill 以 opts.paintStyle 覆盖，erase 以 destination-out
-// 打洞（主画布禁用 destination-out，会连照片一起擦掉）。离屏按源图像素绘制
-// （lineW 取源图笔刷直径），后端 rasterize_strokes 为同款画序，预览与输出
-// 逐像素一致。opts.current 为进行中笔触 {mode, size, points}（可选）。
+// （真擦除预览）——brush/fill 以 opts.paintStyle 覆盖，erase 按线宽、
+// fill_erase 按多边形整体走 destination-out 打洞（主画布禁用 destination-out，
+// 会连照片一起擦掉）。离屏按源图像素绘制（lineW 取源图笔刷直径），后端
+// rasterize_strokes 为同款画序，预览与输出逐像素一致。opts.current 为进行中
+// 笔触 {mode, size, points}（可选）。
 export function paintStrokeMask(cvs, strokes, opts = {}) {
   const defaultSize = opts.defaultSize || 80;
   const paintStyle = opts.paintStyle || "rgba(255,255,255,1)";
@@ -247,9 +248,9 @@ export function paintStrokeMask(cvs, strokes, opts = {}) {
   const unit = { scale: 1, offsetX: 0, offsetY: 0 };
   const paint = (s) => {
     const mode = s.mode || "brush";
-    if (mode === "erase") {
+    if (mode === "erase" || mode === "fill_erase") {
       mx.globalCompositeOperation = "destination-out";
-      drawStrokePath(mx, s.points, unit, s.size || defaultSize, "rgba(0,0,0,1)", false);
+      drawStrokePath(mx, s.points, unit, s.size || defaultSize, "rgba(0,0,0,1)", mode === "fill_erase");
       mx.globalCompositeOperation = "source-over";
     } else {
       drawStrokePath(mx, s.points, unit, s.size || defaultSize, paintStyle, mode === "fill");
