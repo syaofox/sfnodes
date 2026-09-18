@@ -30,13 +30,16 @@
 //     部位、YOLO、导入遮罩、反选、统一卸载，忙时熔断预检）在 sf_brush_ai.js
 //     （与 SFImageCropExpandBrushMask 同一实现，见 §91·§93；识别/导入结果
 //     按当前模式并入——Brush=fill 添加 / Eraser=fill_erase 打洞减去，见 §99）；
-//     右下角 cursor 补写在 sf_common。
+//     多边形套索（多次点选闭合填充，Brush=fill 添加 / Eraser=fill_erase 打洞）
+//     在 sf_brush_poly.js（与合体节点同一实现，见 §101）；右下角 cursor
+//     补写在 sf_common。
 //   - 最小尺寸钳制（computeSize 包装）同 sf_crop_expand.js（§44 同款）。
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
 import { getSfAccent, installPasteHandler, primaryButtonReleased, installNodeReleaseGuard, removeNodeReleaseGuard, installResizeCornerCursor, pickColorInput, rgbStringToHex, hexToRgbString, sfCursorWidth, registerSfLineWidthSettings } from "./sf_common.js";
-import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert } from "./sf_brush_ai.js";
+import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert, cancelSamMode } from "./sf_brush_ai.js";
+import { togglePoly, handlePolyPointer, handlePolyDblClick, drawPolyOverlay, cancelPoly, disposePoly } from "./sf_brush_poly.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
 import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
 import { buildClassNodeIndex, findNodeByPromptId } from "./sf_pause_kit.js";
@@ -59,6 +62,7 @@ import {
   paintInvertMask,
   colorTextStyle,
   INVERT_ON_COLOR,
+  POLY_ON_COLOR,
 } from "./sf_brush_mask_lib.js";
 
 const CLASS = "SFImageBrushMask";
@@ -78,6 +82,8 @@ const DEFAULT_STATE = {
   brush_opacity: 0.5,
   brush_color: "255,255,255",
   brush_mode: "brush",
+  // 多边形套索开关（交互语义；闭合前不影响输出，不进 lean 注入，§101）：
+  brush_poly: false,
   // 反选（影响输出 → 进 lean 注入）：
   invert: false,
   // eraser_color 惰性遗留（ECol 按钮已随真擦除预览移除，无读取方，旧工作流无感）
@@ -139,6 +145,7 @@ const SOURCE_CFG = {
   imgProp: "_sfBrushImg",
   getState,
   onStored: ({ srcPath, w, h }, node) => {
+    cancelPoly(node);  // 换图后旧顶点坐标失效，丢弃未闭合会话
     setState(node, { src_path: srcPath, src_w: w, src_h: h, strokes: [] });
   },
 };
@@ -161,6 +168,7 @@ function toolText(id) {
   return {
     brush: "Brush",
     erase: "Erase",
+    poly: "Poly",
     clear: "Clear",
     undo: "Undo",
     invert: "Invert",
@@ -194,6 +202,7 @@ function buildControls() {
     w: COL_W,
     h: COL_H,
     isToggle: id === "brush" || id === "erase",
+    isPoly: id === "poly",
     isInvert: id === "invert",
     isColor: id === "brushColor" ? "brush" : null,
   }));
@@ -222,6 +231,11 @@ function buttonAction(node, id) {
   else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacity(st.brush_opacity, +1, brushOpacityStep() / 100) });
   else if (id === "brushColor") { pickColor(node); return; }
   else if (id === "invert") { toggleInvert(AI_CFG, node); return; }  // 状态位按钮（与右键菜单同一实现）
+  else if (id === "poly") {  // 多边形套索开关（turningOn 时先关 SAM 模式，互斥）
+    if (!st.brush_poly) cancelSamMode(node);
+    togglePoly(AI_CFG, node);
+    return;
+  }
   else return;
   stateChanged(node);
 }
@@ -266,6 +280,13 @@ const AI_CFG = {
     const m = metricsOf(node);
     return { x: m.offsetX, y: m.offsetY };
   },
+  // 多边形套索落点（sf_brush_poly 用）：显示区内的点钳制到源图（画笔同款）
+  toSource: (node, lx, ly) => {
+    const st = getState(node);
+    const p = localToImage(lx, ly, metricsOf(node));
+    return clampToImage(p.x, p.y, st.src_w, st.src_h);
+  },
+  cancelPoly: (node) => cancelPoly(node),  // beginSamMode 互斥（Poly 会话丢弃）
 };
 
 // ── 节点尺寸自适应 ────────────────────────────────────────────────────────
@@ -333,6 +354,8 @@ function setupDrawing(node) {
       if (b.isColor) {
         const rgb = String(st.brush_color || "255,255,255").split(",").map((v) => parseInt(String(v).trim(), 10));
         ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
+      } else if (b.isPoly && st.brush_poly) {
+        ctx.fillStyle = POLY_ON_COLOR;  // 套索 ON：状态色（绿，随开关变色）
       } else if (b.isInvert && st.invert) {
         ctx.fillStyle = INVERT_ON_COLOR;  // 反选 ON：状态色
       } else if (b.isToggle && (
@@ -346,7 +369,8 @@ function setupDrawing(node) {
       ctx.strokeStyle = "rgba(150,150,150,0.6)";
       ctx.strokeRect(bx, by, bw, bh);
       ctx.fillStyle = b.isColor ? colorTextStyle(st.brush_color)
-        : (b.isInvert && st.invert ? "rgba(255,255,255,0.95)" : "rgba(220,220,220,0.9)");
+        : ((b.isInvert && st.invert) || (b.isPoly && st.brush_poly)
+          ? "rgba(255,255,255,0.95)" : "rgba(220,220,220,0.9)");
       ctx.font = b.y === BOTTOM_Y ? "11px Arial" : (b.isInvert ? "9px Arial" : "10px Arial");
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -402,8 +426,9 @@ function setupDrawing(node) {
     // 笔刷光环：悬停图片区时显示实际笔刷直径（inpaint _drawCursor 同款语义）。
     // 半径随显示 scale 自适应，Size 步进/滚轮实时生效；离开节点后靠
     // canvas.node_over 门控隐藏（无额外监听，hover 切换自带重绘）。
-    // app.canvas 为空时（冒烟测试）视为悬停。
-    const cursor = node._sfAiSam ? null : node._sfBrushCursor;
+    // app.canvas 为空时（冒烟测试）视为悬停。SAM/Poly 模式下不画光环
+    //（改由覆盖层画点/橡皮筋/十字光标语义）。
+    const cursor = (node._sfAiSam || st.brush_poly) ? null : node._sfBrushCursor;
     const hovering = !app.canvas || app.canvas.node_over === node;
     if (cursor && hovering) {
       const isErase = st.brush_mode === "erase";
@@ -431,12 +456,15 @@ function setupDrawing(node) {
     // SAM 点选/框选覆盖层（点/橡皮筋/提示条；模式激活时不画光环）
     drawSamOverlay(node, ctx, (x, y) => imageToLocal(x, y, m), { x: m.offsetX, y: m.offsetY });
 
+    // 多边形套索覆盖层（折线/橡皮筋/顶点/提示条；sf_brush_poly 共享实现）
+    drawPolyOverlay(AI_CFG, node, ctx, (x, y) => imageToLocal(x, y, m), { x: m.offsetX, y: m.offsetY });
+
     // 底信息行文本（右对齐截断，落在按钮之上，两者无重叠）
     ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
     ctx.textAlign = "right";
     const fullText = `Brush ${Math.round(st.brush_size)} · Op ${Math.round(st.brush_opacity * 100)}% · Strokes ${st.strokes.length}` +
-      `${st.invert ? " · Inv" : ""} · ${st.src_w}\u00d7${st.src_h}`;
+      `${st.brush_poly ? " · Poly" : ""}${st.invert ? " · Inv" : ""} · ${st.src_w}\u00d7${st.src_h}`;
     const maxTextW = nodeW - shiftRight - 6 - (106 + 6); // 底行按钮右缘 106 + 间隙 6
     let label = fullText;
     if (ctx.measureText(fullText).width > maxTextW) {
@@ -505,6 +533,9 @@ function setupInteractions(node) {
     // SAM 点选/框选模式（显示区内消费；控件命中已先行）
     if (handleSamPointer(AI_CFG, node, "down", e, [lx, ly])) return true;
 
+    // 多边形套索（显示区内消费；SAM 优先。落点/点首点闭合/右键取消）
+    if (handlePolyPointer(AI_CFG, node, "down", e, [lx, ly])) return true;
+
     // 画布区：左键落笔
     const st = getState(node);
     const m = metricsOf(node);
@@ -525,6 +556,8 @@ function setupInteractions(node) {
     const [lx, ly] = lp;
     // SAM 点选/框选模式优先（消费移动；框模式拖橡皮筋 + crosshair）
     if (handleSamPointer(AI_CFG, node, "move", e, lp)) return true;
+    // 多边形套索：记录橡皮筋光标 + crosshair（覆盖层自取会话 cursor）
+    if (handlePolyPointer(AI_CFG, node, "move", e, lp)) return true;
     // 光环位置常驻记录（画与不画都记；图片区外置空，绘制侧再经 node_over 门控）
     const mm = metricsOf(node);
     node._sfBrushCursor =
@@ -555,7 +588,10 @@ function setupInteractions(node) {
     return finalizeStroke(node, graphCanvas?.canvas);
   };
 
-  node.onDblClick = () => finalizeStroke(node, null);
+  node.onDblClick = () => {
+    if (handlePolyDblClick(AI_CFG, node)) return;
+    finalizeStroke(node, null);
+  };
 
   // 释放兜底（window capture，复用 sf_common）：画布 processMouseUp 会
   // stopPropagation 且仅对 node_over 回调 → 出界/纯点击释放收不到，bubble
@@ -675,6 +711,7 @@ app.registerExtension({
     nodeType.prototype.onRemoved = function () {
       if (onRemoved) onRemoved.apply(this, []);
       removeNodeReleaseGuard(this, { hook: "_sfBrushReleaseGuard" });
+      disposePoly(this);  // 清套索会话 + 解绑 Poly 键盘监听
     };
 
     // 官方快捷键通道：画布 processKey 把 keydown 分发给选中节点的 onKeyDown。

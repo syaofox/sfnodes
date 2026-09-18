@@ -2,7 +2,8 @@
 // 覆盖：TOOL_COL 列定义 / stepBrushSize / stepOpacity / ensureMinSize /
 // hitResizeCornerSE / computeDisplayMetrics / localToImage-imageToLocal 往返 /
 // clampToImage / parseStroke 三格式兼容（与 sf_utils/brush_mask.py 双端镜像）/
-// parseBrushData / buildBrushData。
+// parseBrushData / buildBrushData / 多边形套索纯逻辑（polyStrokeForMode /
+// polyCanClose / polyShouldAppend / hitPolyFirst，§101）。
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,11 +25,12 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 (async () => {
   const L = await import(tmpUrl);
 
-  // ── TOOL_COL（左竖列顺序：模式 → 破坏性 → 步进 → 取色；ECol 已随真擦除移除）──
-  check("竖列 10 项", L.TOOL_COL.length === 10);
-  check("竖列顺序（invert 在 Clear/Undo 后）", JSON.stringify(L.TOOL_COL) === JSON.stringify(
-    ["brush", "erase", "clear", "undo", "invert", "sizeMinus", "sizePlus", "opaMinus", "opaPlus", "brushColor"]));
+  // ── TOOL_COL（左竖列顺序：模式+Poly → 破坏性 → 步进 → 取色；ECol 已随真擦除移除）──
+  check("竖列 11 项", L.TOOL_COL.length === 11);
+  check("竖列顺序（poly 紧接 Erase，invert 在 Clear/Undo 后）", JSON.stringify(L.TOOL_COL) === JSON.stringify(
+    ["brush", "erase", "poly", "clear", "undo", "invert", "sizeMinus", "sizePlus", "opaMinus", "opaPlus", "brushColor"]));
   check("反选 ON 状态色常量", L.INVERT_ON_COLOR === "rgba(196,124,34,0.95)");
+  check("套索 ON 状态色常量（绿，随开关变色）", L.POLY_ON_COLOR === "rgba(46,160,67,0.95)");
   check("列几何", L.COL_TOP === 16 && L.COL_W === 30 && L.COL_H === 18 && L.COL_STEP === 22);
 
   // ── stepBrushSize（步长 2，钳制 1..200）──
@@ -111,6 +113,23 @@ const approx = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
   const wire = L.buildBrushData([{ mode: "brush", size: 20, points: [{ x: 10, y: 10 }, { x: 20, y: 20 }] }]);
   check("build 形状", wire === "brush:20:1:10,10;20,20");
   check("往返一致", L.parseBrushData(wire)[0].points.length === 2);
+
+  // ── 多边形套索纯逻辑（§101）──
+  check("polyCanClose <3 点", L.polyCanClose([[1, 1], [2, 2]]) === false);
+  check("polyCanClose 3 点", L.polyCanClose([[1, 1], [2, 2], [3, 3]]) === true);
+  check("polyCanClose 非数组", L.polyCanClose(null) === false);
+  check("polyShouldAppend 空列表", L.polyShouldAppend([], 5, 5) === true);
+  check("polyShouldAppend 与末点重合（双击第二击）", L.polyShouldAppend([[5, 5]], 5, 5) === false);
+  check("polyShouldAppend 末点近邻", L.polyShouldAppend([[5, 5]], 5.5, 5.5, 1) === false);
+  check("polyShouldAppend 足够远", L.polyShouldAppend([[5, 5]], 8, 9, 1) === true);
+  check("hitPolyFirst 命中首点", L.hitPolyFirst([[10, 10], [50, 50]], 13, 14, 5) === true);
+  check("hitPolyFirst 容差外", L.hitPolyFirst([[10, 10]], 16, 10, 5) === false);
+  check("hitPolyFirst 空列表", L.hitPolyFirst([], 0, 0, 99) === false);
+  const psFill = L.polyStrokeForMode("brush", [[1.4, 2.6], [3, 4], [5, 6]]);
+  check("polyStrokeForMode Brush=fill 取整", psFill.mode === "fill" && psFill.size === 0
+    && JSON.stringify(psFill.points) === JSON.stringify([[1, 3], [3, 4], [5, 6]]));
+  check("polyStrokeForMode Crop=fill", L.polyStrokeForMode("crop", [[0, 0]]).mode === "fill");
+  check("polyStrokeForMode Erase=fill_erase", L.polyStrokeForMode("erase", [[0, 0]]).mode === "fill_erase");
 
   console.log();
   if (failures.length) { console.log(`${failures.length} FAILED: ${failures}`); process.exit(1); }

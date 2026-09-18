@@ -42,6 +42,8 @@ MODS = [
     "sf_crop_source", "sf_crop_expand_ratios", "sf_brush_tools",
     # AI/工具右键菜单共享 UI（brush 两节点：SAM/人物/YOLO/导入/反选/卸载）
     "sf_brush_ai",
+    # 多边形套索共享 UI（brush 两节点：多次点选闭合，Brush=fill / Eraser=fill_erase）
+    "sf_brush_poly",
     # Inpaint 家族
     "sf_inpaint", "sf_inpaint_core", "sf_inpaint_geometry",
     "sf_inpaint_paint", "sf_inpaint_render",

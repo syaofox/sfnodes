@@ -46,13 +46,13 @@ function makeCanvas(w = 10, h = 10) {
   const Brush = await import(pathToFileURL(path.join(tmpDir, "sf_brush_mask_lib.js")).href);
 
   // ── 组合布局 ──
-  check("TOOL_COL 11 项且 Crop 置顶", L.TOOL_COL.length === 11 && L.TOOL_COL[0] === "crop"
+  check("TOOL_COL 12 项且 Crop 置顶", L.TOOL_COL.length === 12 && L.TOOL_COL[0] === "crop"
     && JSON.stringify(L.TOOL_COL.slice(1)) === JSON.stringify(Brush.TOOL_COL));
   check("列1/列2 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34);
   check("TOOL_COL_X = shiftLeft + 列1宽 + 间距", L.TOOL_COL_X === L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap);
   check("EXTRA_LEFT = 列2宽 + 间距 = 40", L.EXTRA_LEFT === 40);
-  check("MIN 360×300", L.MIN_NODE_WIDTH === 360 && L.MIN_NODE_HEIGHT === 300);
-  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([360, 300]));
+  check("MIN 360×320（列2 12 项含 Poly）", L.MIN_NODE_WIDTH === 360 && L.MIN_NODE_HEIGHT === 320);
+  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([360, 320]));
   check("ensureMinSize 放行大尺寸", JSON.stringify(L.ensureMinSize(800, 600)) === JSON.stringify([800, 600]));
 
   // ── 双列显示坐标系（比基库多让 EXTRA_LEFT）──

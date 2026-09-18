@@ -10,6 +10,10 @@
 // 原版 YCNodes 的横向 Size/Opacity 拖拽滑块在 30px 竖列里放不下，改为
 // 步进器（Size± 步长 2 / Opa± 步长 5%，纯函数 stepBrushSize/stepOpacity），
 // 实时数值进底行信息文本。
+//
+// 多边形套索（§101）的顶点纯逻辑也在此（polyCanClose/polyShouldAppend/
+// hitPolyFirst/polyStrokeForMode）：结果复用既有 fill / fill_erase 笔触
+// （Brush=添加 / Eraser=打洞），前端会话在 sf_brush_poly.js。
 // ==========================================================================
 
 // 布局常量（与 sf_crop_expand_lib.js LAYOUT 同形）：左侧工具列
@@ -22,9 +26,12 @@ export const LAYOUT = { shiftLeft: 10, shiftRight: 80, toolColW: 34, toolColGap:
 // eraserColor 已移除（真擦除预览无红色可染，见 §45.9）。
 // invert（反选遮罩状态位）置 Clear/Undo 之后：ON 时按钮显示 INVERT_ON_COLOR，
 // 便于在节点上直接观察"输出遮罩已取反"（§95）。
+// poly（多边形套索开关）紧接 Erase：与 Brush/Erase 组合使用（Brush=fill 添加 /
+// Erase=fill_erase 打洞），非独立模式，见 §101。
 export const TOOL_COL = [
   "brush",
   "erase",
+  "poly",
   "clear",
   "undo",
   "invert",
@@ -37,6 +44,9 @@ export const TOOL_COL = [
 
 // 反选按钮 ON 状态色（琥珀；区别于强调色的模式高亮，明暗主题下都醒目）
 export const INVERT_ON_COLOR = "rgba(196,124,34,0.95)";
+
+// 套索 ON 状态色（绿；与强调色的模式高亮、INVERT 琥珀均区分，按钮随开关变色）
+export const POLY_ON_COLOR = "rgba(46,160,67,0.95)";
 
 export const COL_TOP = 16;
 export const COL_W = 30;
@@ -103,7 +113,7 @@ export function stepOpacity(cur, dir, step = OPA_STEP) {
 // - 宽度：底行 Load(44)/Browse(48)（右缘 106）+ 最小文本窗 ~100（信息文本
 //   溢出时截断 "…"，节点拉宽即恢复全文）+ shiftRight/边距 → 取整 320；
 //   推导：10（左缩进）+ 106（按钮）+ 6（间隙）+ 100（文本）+ 86（右槽区）≈ 308。
-// - 高度：竖列 10 项（列顶 16 起，步进 22，底 =16+10*22-4=232）+ 底行 26 +
+// - 高度：竖列 11 项（列顶 16 起，步进 22，底 =16+11*22-4=254）+ 底行 26 +
 //   上下边距 → 取整 320（竖列缩短后仍保持，与旧存量 size 兼容）。
 // 双端拖拽 resize 的最小值都取自 node.computeSize()（前端包实测 onDrag 里
 // clamp 到 computeSize）——主扩展包装 computeSize 返回 ensureMinSize 结果
@@ -353,4 +363,40 @@ export function buildBrushData(strokes, opacity = 1.0) {
       return `${s.mode || "brush"}:${s.size ?? 80}:${opacity}:${pts}`;
     })
     .join("|");
+}
+
+// ── 多边形套索纯逻辑（§101）────────────────────────────────────────────
+// 顶点会话由 sf_brush_poly.js 管理；闭合后复用后端/预览既有的 fill /
+// fill_erase 笔触（Brush=添加 / Eraser=打洞），本组只做纯几何判定。
+
+// polyStrokeForMode(brushMode, points) → 笔触对象
+// Eraser 模式（brush_mode === "erase"）= fill_erase（从现有遮罩打洞减去）；
+// 其余（Brush/Crop）= fill（添加）。size 恒 0（fill 类笔触 size 无意义，
+// 与后端 mask_to_fill_strokes 一致），顶点取整为像素整数。
+export function polyStrokeForMode(brushMode, points) {
+  const pts = (points || []).map((p) => [Math.round(p[0]), Math.round(p[1])]);
+  return { mode: brushMode === "erase" ? "fill_erase" : "fill", size: 0, points: pts };
+}
+
+// polyCanClose(points) → 顶点数 >= 3（后端 rasterize 同款下限）
+export function polyCanClose(points) {
+  return Array.isArray(points) && points.length >= 3;
+}
+
+// polyShouldAppend(points, x, y, minDist) → 新顶点是否值得追加（与末顶点
+// 距离 > minDist；空列表恒 true）。双击闭合的第二击与末点重合 → false，
+// 避免写入重复顶点破坏首点吸附/面积判定。
+export function polyShouldAppend(points, x, y, minDist = 1) {
+  if (!Array.isArray(points) || points.length === 0) return true;
+  const last = points[points.length - 1];
+  return Math.hypot(x - last[0], y - last[1]) > minDist;
+}
+
+// hitPolyFirst(points, x, y, tol) → 点击是否命中首顶点（闭合触发）。
+// points 为 [[x,y],...]；调用方须传同一坐标系的点/容差（主扩展传局部
+// 坐标 + 显示像素容差，免去 scale 换算）。
+export function hitPolyFirst(points, x, y, tol) {
+  if (!Array.isArray(points) || points.length === 0) return false;
+  const p = points[0];
+  return Math.hypot(x - p[0], y - p[1]) <= tol;
 }

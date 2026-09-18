@@ -139,6 +139,9 @@ const makeState = (patch = {}) => JSON.stringify({
       ['from "/scripts/api.js"', 'from "./stub_api.js"'],
       ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
     ]],
+    ["sf_brush_poly.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+    ]],
   ]) {
     let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
     for (const [from, to] of rules) mod = mod.replaceAll(from, to);
@@ -169,9 +172,9 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__graph._nodes.push(node);
   nodeType.prototype.onNodeCreated.call(node);
 
-  check("控件 24 项（列1 11 + 列2 11 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 24);
+  check("控件 25 项（列1 11 + 列2 12 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 25);
   check("释放兜底 hook 已装", !!node._sfCEBReleaseGuard);
-  check("computeSize 钳最小值", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([360, 300]));
+  check("computeSize 钳最小值（列2 12 项 → 高 320）", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([360, 320]));
 
   // 右键菜单（sf_brush_ai 共享安装器）
   const menuOpts = [];
@@ -205,27 +208,27 @@ const makeState = (patch = {}) => JSON.stringify({
   const gc = () => ({ canvas: { style: {} }, setDirty() {} });
   const state = () => JSON.parse(node.properties[STATE_PROP]);
 
-  // ── Crop 模式：手柄起拖（显示区 offsetX=90, offsetY=42, scale=190/512）──
+  // ── Crop 模式：手柄起拖（显示区 offsetX=90, offsetY=52, scale=190/512）──
   const cropBtn = node._sfCEBCtrls.find((b) => b.id === "crop");
   check("列2 Crop 按钮几何", cropBtn.x === 50 && cropBtn.y === 16);
   check("默认 Crop 模式", state().brush_mode === "crop");
 
-  const started = node.onMouseDown({ button: 0, buttons: 1 }, [90, 42]); // NW 手柄
+  const started = node.onMouseDown({ button: 0, buttons: 1 }, [90, 52]); // NW 手柄
   check("左键命中手柄起拖", started === true && !!node._sfCEBDrag);
   const before = state();
-  node.onMouseMove({ buttons: 1 }, [110, 62], gc());
+  node.onMouseMove({ buttons: 1 }, [110, 72], gc());
   const after = state();
   check("按住拖动改变裁剪框", after.crop_x > before.crop_x && after.crop_w < before.crop_w);
   // 释放丢失：buttons:0 立即落定，不再改框
   const held = state();
-  node.onMouseMove({ buttons: 0 }, [130, 82], gc());
+  node.onMouseMove({ buttons: 0 }, [130, 92], gc());
   check("buttons:0 清空拖拽状态", node._sfCEBDrag == null);
   const finalized = state();
   check("buttons:0 仅取整落定", Math.abs(finalized.crop_x - held.crop_x) <= 1);
-  node.onMouseMove({ buttons: 1 }, [160, 110], gc());
+  node.onMouseMove({ buttons: 1 }, [160, 120], gc());
   check("落定后再移动不改框", state().crop_x === finalized.crop_x);
   // 右键不起拖
-  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [90, 42]) === false);
+  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [90, 52]) === false);
 
   // ── 三模式切换（列2 按钮：Brush = TOOL_COL[1] → y=38, x=50..80）──
   node.onMouseDown({ button: 0, buttons: 1 }, [65, 47]);
@@ -250,13 +253,43 @@ const makeState = (patch = {}) => JSON.stringify({
 
   // 扩展区（源图外）不起笔：裁剪框外扩后显示区含扩展区
   node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush" });
-  // scale = 190/712；img(-50,-50) → local(90+50*0.2669, 42+50*0.2669) ≈ (103.3, 55.3)
-  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [103, 55]);
+  // scale = 190/712；img(-50,-50) → local(90+50*0.2669, 52+50*0.2669) ≈ (103.3, 65.3)
+  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [103, 65]);
   check("扩展区不起笔", s3 === false && !node._sfCEBDrawing);
-  // 源图内（img 10,10 → local 90+110*0.2669=119.4, 42+110*0.2669=71.4）可起笔
-  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [119, 71]);
+  // 源图内（img 10,10 → local 90+110*0.2669=119.4, 52+110*0.2669=81.4）可起笔
+  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [119, 81]);
   check("扩展框内源图区仍可起笔", s4 === true && node._sfCEBDrawing === true);
   node.onMouseUp({}, [], gc());
+
+  // ── 多边形套索（§101）：Crop 下点击 Poly 自动切 Brush；落点限源图内 ──
+  node.properties[STATE_PROP] = makeState({ brush_mode: "crop" });
+  const polyBtn = node._sfCEBCtrls.find((b) => b.id === "poly");
+  check("列2 Poly 按钮存在（状态位）", !!polyBtn && polyBtn.isPoly === true);
+  node.onMouseDown({ button: 0, buttons: 1 }, [polyBtn.x + 15, polyBtn.y + 9]);
+  check("Crop 下开启 Poly 自动切 Brush", state().brush_mode === "brush" && state().brush_poly === true);
+  const polyOnOps = [];
+  node.onDrawForeground(makeFullCtx(polyOnOps));
+  check("Poly ON 用状态色（绿）", polyOnOps.some((o) => o.op === "fillRect" && o.fill === "rgba(46,160,67,0.95)"));
+  // 三次落点（scale=190/512=0.3711, offset=(90,52)）：img(50,50)→(109,71) 等
+  node.onMouseDown({ button: 0, buttons: 1 }, [109, 71]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [146, 71]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [146, 108]);
+  check("套索三点会话", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 3);
+  const polyOpsC = [];
+  node.onDrawForeground(makeFullCtx(polyOpsC));
+  check("套索顶点默认小尺寸（2×2 方块）", polyOpsC.some((o) => o.op === "fillRect" && o.args[2] === 2 && o.args[3] === 2));
+  node.onDblClick();
+  check("双击闭合写入 fill 笔触", state().strokes.length === 1 && state().strokes[0].mode === "fill"
+    && state().strokes[0].points.length === 3);
+  // 扩展区不落点（裁剪框外扩后显示区含扩展区）
+  node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush", brush_poly: true });
+  const extHit = node.onMouseDown({ button: 0, buttons: 1 }, [100, 60]);
+  check("套索在扩展区不落点", extHit === false && node._sfBrushPoly == null);
+  const srcHit = node.onMouseDown({ button: 0, buttons: 1 }, [119, 81]); // img(10,10)
+  check("套索在源图内落点", srcHit === true && !!node._sfBrushPoly && node._sfBrushPoly.points.length === 1);
+  // 按钮关闭：丢弃未闭合会话
+  node.onMouseDown({ button: 0, buttons: 1 }, [polyBtn.x + 15, polyBtn.y + 9]);
+  check("关闭 Poly 丢弃会话", node._sfBrushPoly == null && state().brush_poly === false);
 
   // ── 笔触预览：离屏合成真擦除 ──
   node.properties[STATE_PROP] = makeState({
@@ -322,6 +355,10 @@ const makeState = (patch = {}) => JSON.stringify({
       && frameDef.type === "slider" && frameDef.attrs?.min === 0.5 && frameDef.attrs?.max === 3
       && frameDef.attrs?.step === 0.25
       && cursorDef.type === "slider" && cursorDef.attrs?.step === 0.25);
+    const polyDef = globalThis.__settingDefs["sfnodes.Canvas.PolyVertexSize"];
+    check("套索顶点尺寸设置已注册（默认 2 / slider 1–8 step 0.5）",
+      polyDef?.defaultValue === 2 && polyDef.type === "slider"
+      && polyDef.attrs?.min === 1 && polyDef.attrs?.max === 8 && polyDef.attrs?.step === 0.5);
   }
 
   // ── window capture 释放兜底 + onRemoved 解绑 ──

@@ -1203,3 +1203,18 @@ slice_track_data(track_data, start=0, length=0)
 - 文案：减模式 toast 用「减去 N 个填充笔触」（**不套 mergedPrefix**——YOLO 的 prefix 是 "YOLO 并入"，会读成"并入减去"）；SAM 点/框进入提示追加"（Eraser 模式：识别结果从遮罩中减去）"。
 - 测试：纯逻辑 `test_brush_mask.py`（打洞 + 先减后加画序 + 白名单保留）、`test_brush_mask_sam.py`、`test_crop_expand_brush_mask.py`（execute 层 fill→fill_erase 交集打洞）；前端 lib test 补 destination-out 多边形断言；两个 smoke 的 stub_api 支持 `globalThis.__aiResponse` 按用例返回 strokes，断言 Brush/Crop=fill、Eraser=fill_erase（合体节点直接调共享 `runYolo` 验证映射与文案）。
 - 陷阱：① smoke 里 `findIndex(closePath)` 会命中前一笔 fill 的 closePath，须限定在 destination-out 之后查找（`(o,i)=> i>dstIdx`）；② 合体节点 Erase 仍只擦笔触层（扩展区结构性保留）——fill_erase 从 overlay 减去，`_compose_expand` 的扩展区不受影响。
+
+## 101. 画笔节点多边形套索（多次点选闭合填充，Brush=添加 / Eraser=减去，2026-09）
+
+> 背景：用户要求 Brush/Erase 增加"多次点选闭合涂抹"（PS 多边形套索）。复用既有 fill/fill_erase（§99）与预览/笔触管理 → **零后端改动**。已确认：工具列 Poly 状态开关（紧接 Erase）、Brush=添加 / Erase=减去、合体节点 Crop 下点击自动切 Brush、PS 风格闭合键位。
+
+- 数据/复用：闭合 = 普通笔触 `{mode: "fill"|"fill_erase", size: 0, points}`（Eraser 模式 fill_erase 打洞）→ Undo/Clear/Invert/lean 注入/栅格化/预览全沿用；`sf_utils/brush_mask.py` 与 `paintStrokeMask` 零改动。顶点纯逻辑进 `sf_brush_mask_lib.js`（`polyStrokeForMode`/`polyCanClose`/`polyShouldAppend`/`hitPolyFirst`，可 .mjs 直测）。
+- 共享 UI `web/sf_brush_poly.js`（两节点单源，仿 sf_brush_ai）：`togglePoly`（宿主 buttonAction 统一入口；关闭丢弃会话 + 卸键盘）、`handlePolyPointer`（down/move）、`handlePolyDblClick`、`drawPolyOverlay`、`cancelPoly`/`disposePoly`。会话 `node._sfBrushPoly = {points, cursor}` 为内存态（闭合前不进 lean/工作流）；键盘 capture 仅 Poly 开启期安装，Enter/Esc/Backspace 消费、输入框放行。
+- 交互：左键落点（相邻 <1 图像像素忽略 → 双击第二击不写重复顶点）、点首点（显示像素 10px 容差）/双击/Enter 闭合、<3 点取消并 toast、Backspace/Delete 删末点、Esc「有会话取消会话 / 无会话关工具」、右键取消；关闭/换图/删节点清理会话。
+- 宿主差异：落点接口 `AI_CFG.toSource`——画笔节点钳制到源图（同自由笔）；合体节点源图外（扩展区）返回 null 拒绝（扩展区恒遮罩白，同画笔落笔限制）。合体节点 Crop 模式点击 Poly 自动切 Brush；两节点信息文本加 Poly 状态。
+- 按钮状态色：`POLY_ON_COLOR = "rgba(46,160,67,0.95)"`（绿）——Poly 按钮随开关变色，与模式强调色、INVERT 琥珀均区分；两宿主共用同一常量（sf_brush_mask_lib），ON 时文字转白。⚠ 本轮实装踩坑：画笔节点只在 `buildControls` 加了 `isPoly` 标记，漏了绘制分支（合体节点有）→ 真机按钮开关不变色；**共享标记 + 各宿主各自绘制分支**的模式下，新增状态位必须两边都断言 ON 色 fillRect（smoke 无法跨端发现"标记齐但绘制漏"）。
+- 顶点标记尺寸可调：`sfnodes.Canvas.PolyVertexSize`（sf_common 注册 + `sfPolyVertexSize()` 每帧直读，slider 1–8 step 0.5，**默认 2**——用户反馈原 4×4 方块过大；普通顶点画 `size×size` 方块、首点圆半径 = `size/2+1`（靠近闭合再 +2 高亮））。smoke 桩 `__bmSettingVals` 可驱动尺寸断言（2×2 默认 / 5×5 自定义），合体 smoke 用真实 sf_common 断言设置项注册。
+- 模式互斥：开 Poly 时宿主 `cancelSamMode`；`beginSamMode` 调 `cfg.cancelPoly?.()`（sf_brush_ai 单行），双方向互为兜底（`polyReady` 检查 `_sfAiSam`，SAM 指针处理优先）。
+- 布局影响（⚠）：TOOL_COL 插入第 3 项（brush, erase, poly）→ 画笔列 10→11（MIN 320 仍够，列底 254 < 284）；合体列2 11→12 → MIN 高 300→**320**（列底 276 + 底行 26 + 边距；存量节点载入时 `clampNodeSize` 自动抬升）。合体 smoke 里所有 offsetY=42 的写死坐标随之 +10（42→52）。
+- 测试：lib .mjs 补 TOOL_COL 11 与四个纯函数；brush smoke 补按钮开关/三次落点/Backspace/Enter 不足 3 点/点首点闭合 fill/Erase 双击 fill_erase/覆盖层/Esc 两段语义/关闭丢弃；合体 smoke 补 Crop 自动切 Brush、双击 fill、扩展区拒绝、关闭丢弃；合体 lib test 更新 TOOL_COL 12 与 MIN 360×320。
+- 陷阱：① `polyShouldAppend` 必须挡双击第二击，否则重复顶点破坏首点吸附（首点取数组第 0 项）；② 首点闭合判定用局部坐标 + `cfg.fromImage`，别在共享模块里猜 scale（两节点 metrics 公式不同，合体还有 displayMin 偏移）；③ Poly 键盘监听模块级单活动节点（同 SAM），换节点/删节点须 `disposePoly`，否则 Esc/Backspace 会被陈旧节点吞掉（Backspace 还会拦掉前端删节点）；④ 关 Poly 必须丢弃未闭合会话，否则再次开启会续上旧点；⑤ 合体 `toSource` 拒绝时直接 `return false`，把点击交还宿主后续分支（Crop 拖框等）而非消费掉。

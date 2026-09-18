@@ -60,18 +60,21 @@ export function sfAccent() {
   return getSfAccent() || "#f66744";
 }
 
-// ── 画布线条粗细（sfnodes.Canvas.* 设置，三画布节点共用）──────────────────
+// ── 画布线条/标记（sfnodes.Canvas.* 设置，三画布节点共用）─────────────────
 //
-// 拆分两个设置便于分别调（§97）：
+// 拆分三个设置便于分别调（§97·§101）：
 //   FrameWidth  : 裁剪框边框 / 源图边界虚线 / SAM 框选橡皮筋（辅助细线取其 1/2）
 //   CursorWidth : 画笔光环（鼠标指示）
-// 每帧直读（getSettingValue 是轻量 map 查找）；非法/未配置回退默认 1.0。
+//   PolyVertexSize : 多边形套索顶点标记尺寸（方形边长；首点圆半径 = 尺寸/2+1）
+// 每帧直读（getSettingValue 是轻量 map 查找）；非法/未配置回退默认 1.0 / 2。
 // 辅助细线（九宫格/手柄描边/显示区网格/SAM 点描边）用 sfFrameThin()：
 // max(0.5, frame×0.5) → 默认 1.0 时 0.5，保持"框 > 辅助线"的层级。
 export const FRAME_WIDTH_SETTING = "sfnodes.Canvas.FrameWidth";
 export const CURSOR_WIDTH_SETTING = "sfnodes.Canvas.CursorWidth";
+export const POLY_VERTEX_SETTING = "sfnodes.Canvas.PolyVertexSize";
 export const FRAME_WIDTH_DEFAULT = 1.0;
 export const CURSOR_WIDTH_DEFAULT = 1.0;
+export const POLY_VERTEX_DEFAULT = 2; // 顶点标记边长（原内联 4，用户要求改小）
 
 function _readWidthSetting(id, fallback) {
   try {
@@ -97,6 +100,16 @@ export function sfCursorWidth() {
   return _readWidthSetting(CURSOR_WIDTH_SETTING, CURSOR_WIDTH_DEFAULT);
 }
 
+// 多边形套索顶点标记尺寸（默认 2；钳制 1..20 防非法配置画出巨型方块）
+export function sfPolyVertexSize() {
+  try {
+    const v = Number(globalThis.app?.ui?.settings?.getSettingValue?.(POLY_VERTEX_SETTING));
+    return Number.isFinite(v) && v >= 1 ? Math.min(20, v) : POLY_VERTEX_DEFAULT;
+  } catch {
+    return POLY_VERTEX_DEFAULT;
+  }
+}
+
 let _sfLineWidthSettingsRegistered = false;
 export function registerSfLineWidthSettings() {
   if (_sfLineWidthSettingsRegistered) return;
@@ -115,6 +128,13 @@ export function registerSfLineWidthSettings() {
       defaultValue: CURSOR_WIDTH_DEFAULT,
       type: "slider",
       attrs: { min: 0.5, max: 3, step: 0.25 },
+    });
+    app.ui.settings.addSetting({
+      id: POLY_VERTEX_SETTING,
+      name: "SF Nodes: polygon lasso vertex dot size (px)",
+      defaultValue: POLY_VERTEX_DEFAULT,
+      type: "slider",
+      attrs: { min: 1, max: 8, step: 0.5 },
     });
   } catch {
     // 设置系统不可用则退化为默认值

@@ -17,7 +17,6 @@
 import {
   LAYOUT as CROP_LAYOUT,
   MIN_NODE_WIDTH as CROP_MIN_WIDTH,
-  MIN_NODE_HEIGHT as CROP_MIN_HEIGHT,
   computeDisplayMetrics as _baseMetrics,
   ensureMinSize as _baseEnsureMin,
 } from "./sf_crop_expand_lib.js";
@@ -42,10 +41,11 @@ export const EXTRA_LEFT = LAYOUT.toolColW + LAYOUT.toolColGap;
 
 // 最小节点尺寸：
 // - 宽度：CropExpand 320（显示区 190）再加列2 的 40 → 360；
-// - 高度：由列1 的 11 项（colTop=16 起、步进 22、底 254）+ 底行 26 + 边距
-//   驱动 → 300（与 CropExpand 相同；列2 只 10 项，不构成瓶颈）。
+// - 高度：由列2 的 12 项（Crop + BrushMask 11 项含 Poly，colTop=16 起、步进
+//   22、底 276）+ 底行 26 + 边距驱动 → 320（列1 11 项底 254 不再是瓶颈；
+//   Poly 加入前为 300，存量节点载入时自动抬升，见 §101）。
 export const MIN_NODE_WIDTH = CROP_MIN_WIDTH + EXTRA_LEFT; // 360
-export const MIN_NODE_HEIGHT = CROP_MIN_HEIGHT;             // 300
+export const MIN_NODE_HEIGHT = 320;                        // 320（列2 12 项）
 
 // ensureMinSize(w, h) → [w, h]（组合节点下限；computeSize 包装与
 // clampNodeSize 共用）。

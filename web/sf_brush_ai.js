@@ -34,6 +34,7 @@
 //   fromImage(node, x, y) -> {x,y},   源图像素 → 节点局部,
 //   inDisplay(node, lx, ly) -> bool,  局部坐标是否落在显示区,
 //   displayOrigin(node) -> {x,y},     显示区左上角（点/框模式提示条锚点）,
+//   cancelPoly(node)（可选）,          进入 SAM 模式前关掉多边形套索会话（§101）,
 // }
 // ==========================================================================
 
@@ -313,6 +314,7 @@ export function beginSamMode(cfg, node, kind) {
     sfToast({ summary: cfg.toastTag, detail: "先加载源图再跑 SAM", severity: "warn", fallbackTag: cfg.toastTag });
     return;
   }
+  if (cfg.cancelPoly) cfg.cancelPoly(node); // 与多边形套索互斥（§101：丢弃未闭合会话）
   if (_activeSamNode && _activeSamNode !== node) cancelSamMode(_activeSamNode);
   cancelSamMode(node);
   node._sfAiSam = { kind, pos: [], neg: [], box: null, dragging: false };

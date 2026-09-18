@@ -71,7 +71,7 @@ function makeCtx(ops) {
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
     `export const CropAPI = { uploadSrc: async () => ({}) };\n`);
   fs.writeFileSync(path.join(tmpDir, "stub_common.js"),
-    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {}; export const installResizeCornerCursor = () => {}; export const pickColorInput = () => {}; export const rgbStringToHex = () => "#ffffff"; export const hexToRgbString = () => "255,255,255"; export const applyAdaptiveCanvasOnly = () => {}; export const injectCSSOnce = () => {}; export function sfFrameWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.FrameWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function sfFrameThin() { return Math.max(0.5, sfFrameWidth() * 0.5); } export function sfCursorWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.CursorWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function registerSfLineWidthSettings() { globalThis.__bmSettingDefs["sfnodes.Canvas.FrameWidth"] = { id: "sfnodes.Canvas.FrameWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; globalThis.__bmSettingDefs["sfnodes.Canvas.CursorWidth"] = { id: "sfnodes.Canvas.CursorWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; }\n`);
+    `export const sfToast = () => {}; export const buildSourceURL = () => "http://fake/view.png"; export const getSfAccent = () => null; export const installPasteHandler = () => {}; export const parseAnnotatedImageValue = () => null; export const sfApiUrl = (p) => p; export const primaryButtonReleased = (e) => !!(e && typeof e.buttons === "number" && (e.buttons & 1) === 0); export const installNodeReleaseGuard = () => {}; export const removeNodeReleaseGuard = () => {}; export const installResizeCornerCursor = () => {}; export const pickColorInput = () => {}; export const rgbStringToHex = () => "#ffffff"; export const hexToRgbString = () => "255,255,255"; export const applyAdaptiveCanvasOnly = () => {}; export const injectCSSOnce = () => {}; export function sfFrameWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.FrameWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function sfFrameThin() { return Math.max(0.5, sfFrameWidth() * 0.5); } export function sfCursorWidth() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.CursorWidth"]); return Number.isFinite(v) && v > 0 ? v : 1; } export function sfPolyVertexSize() { const v = Number(globalThis.__bmSettingVals["sfnodes.Canvas.PolyVertexSize"]); return Number.isFinite(v) && v >= 1 ? Math.min(20, v) : 2; } export function registerSfLineWidthSettings() { globalThis.__bmSettingDefs["sfnodes.Canvas.FrameWidth"] = { id: "sfnodes.Canvas.FrameWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; globalThis.__bmSettingDefs["sfnodes.Canvas.CursorWidth"] = { id: "sfnodes.Canvas.CursorWidth", defaultValue: 1.0, type: "slider", attrs: { min: 0.5, max: 3, step: 0.25 } }; }\n`);
   // 共享模块用真实实现（源图链路 / 画笔工具），仅改写其 import 指向桩
   for (const [srcFile, dstFile, rules] of [
     ["sf_crop_source.js", "sf_crop_source.js", [
@@ -94,6 +94,10 @@ function makeCtx(ops) {
       ['from "/scripts/api.js"', 'from "./stub_api.js"'],
       ['from "./sf_common.js"', 'from "./stub_common.js"'],
       ['from "./sf_crop_core.js"', 'from "./stub_core.js"'],
+    ]],
+    ["sf_brush_poly.js", "sf_brush_poly.js", [
+      ['from "/scripts/app.js"', 'from "./stub_app.js"'],
+      ['from "./sf_common.js"', 'from "./stub_common.js"'],
     ]],
   ]) {
     let mod = fs.readFileSync(path.join(webDir, srcFile), "utf8");
@@ -136,7 +140,7 @@ function makeCtx(ops) {
   node.size = [420, 320];
   node.flags = {};
   nodeType.prototype.onNodeCreated.call(node);
-  check("控件 12 项（竖列 10 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 12);
+  check("控件 13 项（竖列 11 + 底行 2）", node._sfBrushCtrls && node._sfBrushCtrls.length === 13);
 
   // 跑一帧真实绘制
   const ops = [];
@@ -347,6 +351,79 @@ function makeCtx(ops) {
   const ops5 = [];
   node.onDrawForeground(makeCtx(ops5));
   check("非悬停不画光环", !ops5.some((o) => o.op === "arc"));
+
+  // ── 多边形套索（§101）：多次点选闭合填充（Brush=fill / Erase=fill_erase）──
+  const polyState = () => JSON.parse(node.properties.sfBrushMaskState);
+  const polyBtn = node._sfBrushCtrls.find((b) => b.id === "poly");
+  check("Poly 按钮存在（竖列状态位）", !!polyBtn && polyBtn.isPoly === true);
+  const clickPoly = () => node.onMouseDown({ button: 0, buttons: 1 }, [polyBtn.x + 15, polyBtn.y + 9]);
+  let __tsPoly = 900000;
+  const firePolyKey = (key) => {
+    for (const fn of globalThis.__bmKeys.keydown || []) {
+      fn({ key, timeStamp: __tsPoly++, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {}, stopPropagation() {} });
+    }
+  };
+  clickPoly();
+  check("Poly 开启（状态位）", polyState().brush_poly === true);
+  // ON 状态色：按钮随开关变色（绿 POLY_ON_COLOR，区别模式强调色/INVERT 琥珀）
+  const polyOnOps = [];
+  node.onDrawForeground(makeCtx(polyOnOps));
+  check("Poly ON 用状态色（绿）", polyOnOps.some((o) => o.op === "fillRect" && o.fill === "rgba(46,160,67,0.95)"));
+  // 控件命中优先：Poly 模式下仍可切模式按钮
+  node.onMouseDown({ button: 0, buttons: 1 }, [25, 17]);
+  check("Poly 模式可切回 Brush", polyState().brush_mode === "brush" && polyState().brush_poly === true);
+  // 显示区三次落点（scale=2.74, offset=(58,10)：img(10,10)→(85,37) 等）
+  node.onMouseDown({ button: 0, buttons: 1 }, [85, 37]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 37]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 174]);
+  check("三点会话收集顶点", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 3);
+  firePolyKey("Backspace");
+  check("Backspace 删末点", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 2);
+  firePolyKey("Enter");
+  check("不足 3 点 Enter 不闭合", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 2
+    && polyState().strokes.length === 0);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 174]); // 补回第三点
+  node.onMouseDown({ button: 0, buttons: 1 }, [85, 37]);   // 点首点闭合
+  const fillState = polyState();
+  check("点首点闭合写入 fill 笔触", fillState.strokes.length === 1 && fillState.strokes[0].mode === "fill"
+    && fillState.strokes[0].points.length === 3 && fillState.strokes[0].size === 0);
+  check("闭合后清会话（开关保留）", node._sfBrushPoly == null && fillState.brush_poly === true);
+  // Erase 模式 + 双击闭合 → fill_erase 打洞
+  const eraseBtn = node._sfBrushCtrls.find((b) => b.id === "erase");
+  node.onMouseDown({ button: 0, buttons: 1 }, [eraseBtn.x + 15, eraseBtn.y + 9]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [85, 37]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 37]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 174]);
+  node.onDblClick();
+  const eraseState = polyState();
+  check("双击闭合 Erase 模式写入 fill_erase", eraseState.strokes.length === 2
+    && eraseState.strokes[1].mode === "fill_erase");
+  // 覆盖层：提示条 + 首顶点圆点（不抛错）
+  node.onMouseDown({ button: 0, buttons: 1 }, [85, 37]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [222, 37]);
+  const polyOps = [];
+  let polyDrawErr = null;
+  try { node.onDrawForeground(makeCtx(polyOps)); } catch (e) { polyDrawErr = e; }
+  check("套索覆盖层绘制不抛错", polyDrawErr === null);
+  check("套索覆盖层画提示条", polyOps.some((o) => o.op === "fillText" && String(o.args[0]).includes("Poly:")));
+  check("套索覆盖层画顶点/首点圆", polyOps.some((o) => o.op === "arc"));
+  // 顶点标记尺寸走设置 sfnodes.Canvas.PolyVertexSize（默认 2=2×2 方块，原内联 4）
+  check("套索顶点默认小尺寸（2×2 方块）", polyOps.some((o) => o.op === "fillRect" && o.args[2] === 2 && o.args[3] === 2));
+  globalThis.__bmSettingVals["sfnodes.Canvas.PolyVertexSize"] = 5;
+  const polyOpsBig = [];
+  node.onDrawForeground(makeCtx(polyOpsBig));
+  check("套索顶点尺寸随设置（5×5）", polyOpsBig.some((o) => o.op === "fillRect" && o.args[2] === 5 && o.args[3] === 5));
+  delete globalThis.__bmSettingVals["sfnodes.Canvas.PolyVertexSize"];
+  // Esc：有会话先取消会话，再 Esc 关闭工具并解绑键盘
+  firePolyKey("Escape");
+  check("Esc 取消会话（开关保留）", node._sfBrushPoly == null && polyState().brush_poly === true);
+  firePolyKey("Escape");
+  check("再 Esc 关闭 Poly", polyState().brush_poly === false);
+  // 按钮关闭：重开后关闭丢弃未闭合会话
+  clickPoly();
+  node.onMouseDown({ button: 0, buttons: 1 }, [85, 37]);
+  clickPoly();
+  check("按钮关闭丢弃会话", node._sfBrushPoly == null && polyState().brush_poly === false);
 
   // 笔刷 shortcut [ ]：选中本类节点才生效
   const sizeOf = () => JSON.parse(node.properties.sfBrushMaskState).brush_size;
