@@ -16,8 +16,11 @@
 // 非默认值/截断）时，选中行文本区叠加半透明强调色背景块（hl 层 absolute
 // 全局坐标 + scrollTop 同步裁切）+ 行号变强调色联动；wrap 开启时高亮随
 // 镜像测量行高展开（与行号同源，scrollTop 重同步后两者一致对齐）。
-// 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位），防极端
-// 行数卡顿。
+// hl 只含选中块、内容高远小于文本 → 用 ::before（--sf-pl-hl-pad 撑到
+// textarea.scrollHeight）垫高滚动区，否则 scrollTop 被钳制、高亮滚出视口
+// 后钉在视口边缘（幽灵高亮）。
+// 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位，行窗口起点/
+// padding 均计入 textarea 的 6px 顶部内边距保持同基线），防极端行数卡顿。
 //
 // ==========================================================================
 
@@ -69,6 +72,7 @@ function injectCSS() {
 .sf-pl-gn.sf-pl-on { color:${"var(--sf-acc, #f66744)"}; font-weight:bold; }
 .sf-pl-tawrap { flex:1 1 0; min-height:0; position:relative; display:flex; }
 .sf-pl-hl { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.sf-pl-hl::before { content:""; display:block; height:var(--sf-pl-hl-pad, 0px); }
 .sf-pl-hl-row { position:absolute; left:0; right:0; height:16.8px;
   background:${"var(--sf-acc, #f66744)"}; opacity:0.16; }
 .sf-pl-ta { flex:1 1 0; min-height:0; width:100%; box-sizing:border-box;
@@ -289,11 +293,14 @@ function buildEditor(node, textWidget) {
       }
       gutter.replaceChildren(frag);
     } else {
-      const first = Math.max(0, Math.floor(ta.scrollTop / LINE_H));
+      // 行 i 正文顶边 = 6 + i*LINE_H。窗口起点须扣除该 6px：否则行边界后
+      // 6px 区间内上一行仍有可见残段却不渲染（行号空档）。内联 paddingTop
+      // 会覆盖 CSS 的 6px，故两处 padding 都补回 6px 保持与正文/高亮同基线
+      const first = Math.max(0, Math.floor((ta.scrollTop - 6) / LINE_H));
       const visible = Math.max(1, Math.ceil(gutter.clientHeight / LINE_H) + 2);
       const last = Math.min(rows.length, first + visible);
-      gutter.style.paddingTop = `${first * LINE_H}px`;
-      gutter.style.paddingBottom = `${Math.max(0, rows.length - last) * LINE_H}px`;
+      gutter.style.paddingTop = `${6 + first * LINE_H}px`;
+      gutter.style.paddingBottom = `${Math.max(0, rows.length - last) * LINE_H + 6}px`;
       for (let i = first; i < last; i++) {
         const s = document.createElement("span");
         s.className = "sf-pl-gn";
@@ -315,6 +322,12 @@ function buildEditor(node, textWidget) {
       gutter.replaceChildren(frag);
     }
     hl.replaceChildren(hlFrag);
+    // hl 只含选中行高亮块，内容高远小于文本高 → scrollTop 同步会被浏览器
+    // 钳制（高亮滚出视口后钉在视口边缘盖住无关文本，即"幽灵高亮"）。
+    // ::before 垫高到文本全高（尾项补偿横向滚动条造成的两框 clientHeight
+    // 差），使 hl 可滚范围 ≥ textarea，scrollTop 同步不被钳制
+    hl.style.setProperty("--sf-pl-hl-pad",
+      `${ta.scrollHeight + Math.max(0, hl.clientHeight - ta.clientHeight)}px`);
     // 渲染改变 gutter/hl 内容高度 → 浏览器可能钳制其 scrollTop 与 ta 失步
     // （resize/删文本后 ta 的 scrollTop 被钳制也不触发 scroll 事件）→ 强制重同步
     gutter.scrollTop = ta.scrollTop;

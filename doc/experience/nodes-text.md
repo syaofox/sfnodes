@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -527,3 +527,24 @@
 - **设置读值时机**：`onChange` 参数即新值、`getSettingValue` 此刻仍是旧值（与本包 Accent 设置同坑，见 `sf_lora_stack`）；Provider 切回 DeepSeek 时据此复位 base/model。
 - **方向自动判定**：`has_chinese_character` 只覆盖基本汉字区 U+4E00–U+9FFF，混合文本含任一汉字即判 zh2en——对提示词场景足够；纯符号/数字判 en2zh。
 - **可测性**：网络层与纯逻辑分离，`tests/test_translation.py` 覆盖方向/目标语言/messages/payload（含 thinking 两态）/响应解析/错误提取；冒烟测试补设置注册（幂等 + 默认值）与按钮存在性断言。
+
+---
+
+## 102. SFPromptList 高亮"幽灵条"：hl 层内容矮于文本 → scrollTop 被钳制（+ 虚拟化 6px 基线错位）
+
+> 背景：`web/sf_prompt_list.js`（2026-09）。`start_index`/`max_rows` 切片高亮的 `hl` 层只渲染选中行高亮块，靠 `hl.scrollTop = ta.scrollTop` 与 textarea 同步；实测高亮滚出视口后仍钉在编辑器边缘盖住无关文本。
+
+### 1. 根因：overflow:hidden overlay 的 scrollTop 会被内容高钳制
+
+- `hl`（`position:absolute; inset:0; overflow:hidden`）子元素是绝对定位高亮块，内容高 = 最后一个高亮块底边。高亮范围在文本头部时（典型：`max_rows=1` 只高亮第 0 行）`scrollHeight == clientHeight` → 设置 `hl.scrollTop` 恒被浏览器钳制为 0，高亮块不随文本滚动（幽灵高亮）。`gutter` 无此问题：它渲染全部行或 padding 占位，内容高与文本一致。
+- 冒烟测试 mock 的 `scrollTop` 是普通属性、不做钳制，所以单测一直"通过"——**凡依赖浏览器滚动/布局钳制的实现，mock 要么复现钳制、要么断言内容高不变量**（本次补后者）。
+- 实机诊断（`platform.md` §2.9 分段脚本）：D2 `ta.scrollTop=300 / hl.scrollTop=0`；D3 高亮块 `getBoundingClientRect().top` 位移 0；D4 独立最小复现（同 CSS 结构）无撑高 `{scrollTop:0, blockTop:8}` vs 有撑高 `{scrollTop:300, blockTop:-292}`。
+- **诊断陷阱**：DOM widget 位于画布 DOM 层内、随 canvas zoom 缩放，`getBoundingClientRect()` 返回**屏幕像素**；拿 rect 位移与 `scrollTop` 位移对比必须乘画布缩放。本次修复后实测 zoom≈0.63：`scrollTop` 0→300 时 rect 位移 `-189 ≈ -300×0.63`，一度被误判为"同步只走了一半"。判断滚动同步一律以 `scrollTop`（布局像素）为准，或先 `k = el.getBoundingClientRect().height / el.clientHeight` 换算。
+- 修法：`hl::before { height: var(--sf-pl-hl-pad, 0) }`，`renderGutter` 末尾写 `--sf-pl-hl-pad = ta.scrollHeight + max(0, hl.clientHeight - ta.clientHeight)`（尾项补偿横向滚动条造成的两框 clientHeight 差）。用伪元素而非 spacer 子节点：不占 `hl.children` 结构，现有测试索引零改动。替代方案均劣：每行渲染透明块（DOM 翻倍）、滚动时逐块改 top（每帧 O(n)）。
+- 通用结论：**任何靠 `scrollTop` 同步的 overlay（backdrop/高亮层/行号层），内容高必须 ≥ 被同步的滚动容器**；`sf_prompt_tags` 把全文放进 backdrop 天然满足，本节点漏了这步。
+
+### 2. 顺带修复：虚拟化分支 6px 基线错位 + 窗口起点残段
+
+- `>500` 行虚拟化分支用内联 `paddingTop` 覆盖 CSS 的 `6px` 顶部内边距（正文行 i 顶边 = `6 + i*LINE_H`）→ 行号整体比正文/高亮块（用 `6 + i*LINE_H`）高 6px；且 `first = floor(scrollTop / LINE_H)` 未扣 6px，行边界后 6px 区间内上一行仍有可见残段却不渲染（行号空档）。
+- 修法：`first = max(0, floor((scrollTop - 6) / LINE_H))`；`paddingTop = 6 + first*LINE_H`；`paddingBottom = max(0, rows-last)*LINE_H + 6`。
+- 测试回归：`tests/test_prompt_list_smoke.js` 新增"高亮层撑高已设置""虚拟化顶部同基线""虚拟化滚动同基线"，虚拟化滚动用例 `scrollTop` 加 6 对齐窗口起点公式。

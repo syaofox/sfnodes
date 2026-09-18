@@ -21,7 +21,7 @@ function check(name, cond) {
 // ── mock DOM（惰性元素）──
 function makeEl() {
     return {
-        style: {}, dataset: {}, children: [], _handlers: {},
+        style: { setProperty(k, v) { this[k] = v; } }, dataset: {}, children: [], _handlers: {},
         className: "", textContent: "", innerHTML: "", value: "", placeholder: "",
         type: "", title: "", spellcheck: true, id: "",
         clientHeight: 200, clientWidth: 400, offsetWidth: 415, scrollHeight: 200, scrollTop: 0,
@@ -162,6 +162,10 @@ function makeNode() {
     // 默认全覆盖（start=0, max_rows=1000）→ 无高亮（仅裁剪时高亮）
     check("默认无高亮块", (hl.children[0]?.children || []).length === 0);
     check("默认行号无高亮", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === false);
+
+    // hl 仅含选中块 → 内容高 << 文本高，scrollTop 同步会被浏览器钳制（幽灵
+    // 高亮）——::before 用该变量垫到文本全高；任何渲染路径都必须设置
+    check("高亮层撑高已设置", parseFloat(hl.style["--sf-pl-hl-pad"]) >= ta.scrollHeight);
 
     // wrap 默认关闭 → textarea wrap="off"（水平滚动不换行）
     check("wrap 默认关闭", ta.wrap === "off");
@@ -377,6 +381,8 @@ function makeNode() {
     const vRows = gutter.children[0]?.children || [];
     check("虚拟化窗口行号", vRows.length >= 10 && vRows[0].textContent === "0" && vRows[vRows.length - 1].textContent === String(vRows.length - 1));
     check("虚拟化底部占位", parseFloat(gutter.style.paddingBottom) > 0);
+    // 内联 paddingTop 覆盖 CSS 的 6px → 必须补回，否则行号比正文高 6px
+    check("虚拟化顶部同基线", parseFloat(gutter.style.paddingTop) === 6);
 
     // 虚拟化滚动到中部 → 窗口跟随（防抖后重渲染）
     ta.scrollTop = 3000;
@@ -392,12 +398,14 @@ function makeNode() {
     ta._handlers.scroll();
     await new Promise((r) => setTimeout(r, 120));
     check("虚拟化窗口顶部无高亮", (hl.children[0]?.children || []).length === 0);
-    ta.scrollTop = 100 * (12 * 1.4);
+    // +6：让逻辑行 100 的正文顶边恰在内容顶部（= 窗口起点公式的 6px 偏移）
+    ta.scrollTop = 100 * (12 * 1.4) + 6;
     ta._handlers.scroll();
     await new Promise((r) => setTimeout(r, 120));
     const hlV = hl.children[0]?.children || [];
     check("虚拟化窗口高亮", hlV.length >= 10 && parseFloat(hlV[0]?.style.top) === 6 + 100 * (12 * 1.4));
     check("虚拟化行号联动", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true);
+    check("虚拟化滚动同基线", parseFloat(gutter.style.paddingTop) === 6 + 100 * (12 * 1.4));
     startWidget.value = 0;
     startWidget.callback();
 
@@ -405,7 +413,7 @@ function makeNode() {
     const rows601 = Array.from({ length: 600 }, (_, i) => "line" + i);
     rows601.splice(300, 0, "");
     ta.value = rows601.join("\n");
-    ta.scrollTop = 300 * (12 * 1.4);
+    ta.scrollTop = 300 * (12 * 1.4) + 6; // +6：逻辑行 300（空行）恰在内容顶部
     ta._handlers.scroll();
     await new Promise((r) => setTimeout(r, 120));
     const gapRows = gutter.children[0]?.children || [];
