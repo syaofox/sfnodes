@@ -21,6 +21,12 @@
 // 后钉在视口边缘（幽灵高亮）。
 // 行数超过 MAX_FULL_LINES 时切换可视区虚拟渲染（padding 占位，行窗口起点/
 // padding 均计入 textarea 的 6px 顶部内边距保持同基线），防极端行数卡顿。
+// 模式开关（头部 Edit/Select）：点选模式下 textarea readOnly，用原生文本
+// 选择做行选择反馈（自带边缘自动滚动/Shift 与方向键扩选），selectionStart/
+// End → 逻辑行区间 → selectionToRange 吸附空白行 → 写回 start_index/
+// max_rows 原生 widget（现有回调包装链触发高亮重渲染）；行号栏支持单击选
+// 单行/按住拖动选多行（window 捕获 pointermove + rAF 合并重渲染，span 带
+// dataset.line）。模式状态存 node.properties.sfPromptListSelect（默认编辑）。
 //
 // ==========================================================================
 
@@ -29,6 +35,9 @@ import { applyAdaptiveCanvasOnly, injectCSSOnce, installWheelZoomPassthrough, is
 
 const CLASS = "SFPromptList";
 const WIDGET_TYPE = "sf_prompt_list_editor";
+
+// 点选模式持久化键（node.properties，随工作流保存；缺省/删除 = 编辑模式）
+const SELECT_KEY = "sfPromptListSelect";
 
 // 固定垂直预算（textarea 吸收节点拉伸，按最小值计入防 paint 膨胀，
 // sf_prompt_reader 同款模式）
@@ -48,6 +57,31 @@ function needsMeasure(text, cw) {
   return text.includes("\t") || text.length * 12 > cw;
 }
 
+// 点选模式：逻辑行区间 a..b（闭区间，允许乱序/越界）→ 输出索引切片
+// {start, maxRows}。idxOf[i] = 逻辑行 i 的输出 index（-1 = skip_empty 过滤
+// 掉的空白行）；区间内取首/末有效行，maxRows 含区间内被跳过的空白行对应的
+// 输出行（与后端 start_index + max_rows 切片语义一致）。整段全为空白（或
+// 单击空白行）时就近吸附：先向下找最近有效行，再向上；无有效行返回 null。
+function selectionToRange(a, b, idxOf) {
+  const n = idxOf.length;
+  if (!n) return null;
+  if (a > b) { const t = a; a = b; b = t; }
+  a = Math.max(0, Math.min(a, n - 1));
+  b = Math.max(0, Math.min(b, n - 1));
+  let start = -1;
+  let end = -1;
+  for (let i = a; i <= b; i++) {
+    const k = idxOf[i];
+    if (k < 0) continue;
+    if (start < 0) start = k;
+    end = k;
+  }
+  if (start >= 0) return { start, maxRows: end - start + 1 };
+  for (let i = b + 1; i < n; i++) if (idxOf[i] >= 0) return { start: idxOf[i], maxRows: 1 };
+  for (let i = a - 1; i >= 0; i--) if (idxOf[i] >= 0) return { start: idxOf[i], maxRows: 1 };
+  return null;
+}
+
 function injectCSS() {
   injectCSSOnce("sf-pl-css", `
 .sf-pl-root { position:relative; display:flex; flex-direction:column; flex:1 1 0;
@@ -60,6 +94,13 @@ function injectCSS() {
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sf-pl-count { flex:0 0 auto; font-size:10px; color:var(--sf-text-faint);
   white-space:nowrap; user-select:none; }
+.sf-pl-mode { flex:0 0 auto; box-sizing:border-box; display:inline-flex; align-items:center;
+  background:var(--sf-surface); border:1px solid var(--sf-border-soft); border-radius:4px;
+  color:var(--sf-text); cursor:pointer; font:10px 'Segoe UI',-apple-system,sans-serif;
+  padding:2px 8px; transition:background .1s,color .1s,border-color .1s; }
+.sf-pl-mode:hover { border-color:${"var(--sf-acc, #f66744)"}; color:var(--sf-text-strong); }
+.sf-pl-mode.on { background:${"var(--sf-acc, #f66744)"}; border-color:${"var(--sf-acc, #f66744)"};
+  color:var(--sf-text-strong); }
 .sf-pl-editor { flex:1 1 0; min-height:0; display:flex;
   background:var(--sf-input-bg); border:1px solid var(--sf-border-soft); border-radius:5px; overflow:hidden; }
 .sf-pl-editor:focus-within { border-color:${"var(--sf-acc, #f66744)"}; }
@@ -79,6 +120,10 @@ function injectCSS() {
   background:transparent; color:var(--sf-text); border:0; outline:none; resize:none;
   font:12px monospace; line-height:1.4; padding:6px 8px; }
 .sf-pl-ta::placeholder { color:var(--sf-text-faint); font-style:italic; }
+.sf-pl-ta.sf-pl-select { cursor:crosshair; }
+.sf-pl-ta.sf-pl-select::selection { background:color-mix(in srgb, ${"var(--sf-acc, #f66744)"} 35%, transparent); }
+.sf-pl-select-mode .sf-pl-gn { cursor:pointer; }
+.sf-pl-select-mode .sf-pl-gn:hover { color:var(--sf-text-strong); background:var(--sf-surface-hover); }
 `);
 }
 
@@ -117,9 +162,12 @@ function buildEditor(node, textWidget) {
   hlbl.className = "sf-pl-hlbl";
   hlbl.textContent = "multiline_text";
   hlbl.title = "每行将作为列表的一项；行号从 0 开始（仅编辑辅助，不影响输出）";
+  const modeBtn = document.createElement("button");
+  modeBtn.type = "button";
+  modeBtn.className = "sf-pl-mode";
   const count = document.createElement("span");
   count.className = "sf-pl-count";
-  hdr.append(hlbl, count);
+  hdr.append(hlbl, modeBtn, count);
 
   const editor = document.createElement("div");
   editor.className = "sf-pl-editor";
@@ -169,6 +217,33 @@ function buildEditor(node, textWidget) {
     }
     return false;
   };
+
+  // ── 点选模式（Edit/Select 开关；默认编辑，状态存 node.properties）──
+  // readOnly 阻止编辑但保留原生文本选择：拖选自带边缘自动滚动、Shift+点击
+  // 与方向键扩选——selectionStart/End 即选择范围，无需自绘指针几何/预览层
+  let selectMode = !!(node.properties && node.properties[SELECT_KEY]);
+
+  function applySelectMode(on) {
+    selectMode = !!on;
+    ta.readOnly = selectMode;
+    ta.classList.toggle("sf-pl-select", selectMode);
+    root.classList.toggle("sf-pl-select-mode", selectMode);
+    modeBtn.classList.toggle("on", selectMode);
+    modeBtn.textContent = selectMode ? "Select" : "Edit";
+    modeBtn.title = selectMode
+      ? "点选模式：单击选单行、拖选 / Shift+点击选多行，自动设置 start_index / max_rows；点击切回编辑模式"
+      : "编辑模式；点击进入点选模式（鼠标选择行自动设置 start_index / max_rows）";
+    node.properties = node.properties || {};
+    if (selectMode) node.properties[SELECT_KEY] = true;
+    else delete node.properties[SELECT_KEY];
+    node.setDirtyCanvas?.(true, true);
+  }
+  modeBtn.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+  modeBtn.addEventListener("click", (e) => {
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    applySelectMode(!selectMode);
+  });
 
   // ── 行高测量（wrap 开启时软换行精确对齐）──
   // mirror 与 textarea 同几何（同 padding 同字体同换行参数）且**同一布局
@@ -236,6 +311,9 @@ function buildEditor(node, textWidget) {
   // max_rows 非默认值/实际截断）时，选中行行号加 .sf-pl-on + 文本区叠加
   // 背景块（hl 层 absolute 全局坐标 + scrollTop 同步裁切；wrap 开启时随
   // 镜像测量行高展开，与行号同源对齐）
+  //
+  // lastIdxOf = 最近一次渲染的映射，点选提交直接复用（不重算）
+  let lastIdxOf = [];
   function renderGutter() {
     const rows = ta.value.split("\n");
     const skip = skipEmptyOn();
@@ -245,6 +323,7 @@ function buildEditor(node, textWidget) {
     for (let i = 0; i < rows.length; i++) {
       idxOf[i] = skip && !rows[i].trim() ? -1 : valid++;
     }
+    lastIdxOf = idxOf;
     // 切片范围（与后端语义一致：start clamp 到有效行末、end 按 max_rows 截断）
     const startRaw = Math.max(0, intOf("start_index", 0));
     const start = Math.min(startRaw, Math.max(0, valid - 1));
@@ -281,6 +360,7 @@ function buildEditor(node, textWidget) {
           if (selected(i)) s.classList.add("sf-pl-on");
         }
         s.style.height = h + "px";
+        s.dataset.line = String(i); // 点选模式：行号点击 → 逻辑行号
         if (hlOn(i)) {
           const b = document.createElement("div");
           b.className = "sf-pl-hl-row";
@@ -311,6 +391,7 @@ function buildEditor(node, textWidget) {
           s.textContent = String(idxOf[i]);
           if (selected(i)) s.classList.add("sf-pl-on");
         }
+        s.dataset.line = String(i); // 点选模式：行号点击 → 逻辑行号
         if (hlOn(i)) {
           const b = document.createElement("div");
           b.className = "sf-pl-hl-row";
@@ -340,6 +421,126 @@ function buildEditor(node, textWidget) {
     renderTimer = setTimeout(renderGutter, 80);
     node._sfPromptListRenderTimer = renderTimer;
   }
+
+  // ── 点选提交：原生选择 → 逻辑行区间 → 输出索引写回 start_index/max_rows ──
+  // 字符位置 → 逻辑行号（charCodeAt 10 = \n）；readOnly 下 selectionStart/End
+  // 同样有效
+  function lineOfChar(value, pos) {
+    let line = 0;
+    const end = Math.max(0, Math.min(pos, value.length));
+    for (let i = 0; i < end; i++) if (value.charCodeAt(i) === 10) line++;
+    return line;
+  }
+
+  // 写原生 widget（.value + callback 经 setupNode 已有包装链触发 _sfPlSync
+  // 高亮重渲染）；按 widget min/max 钳制（超长文本行数可超 start_index 上限）
+  function setNativeWidget(name, value) {
+    const w = (node.widgets || []).find((x) => x && x.name === name);
+    if (!w) return;
+    const opt = w.options || {};
+    let v = value;
+    if (typeof opt.min === "number") v = Math.max(opt.min, v);
+    if (typeof opt.max === "number") v = Math.min(opt.max, v);
+    if (w.value === v) return;
+    w.value = v;
+    try { w.callback?.(v); } catch { /* 回调异常不阻断点选 */ }
+  }
+
+  function applyRange(range) {
+    if (!range) return;
+    setNativeWidget("start_index", range.start);
+    setNativeWidget("max_rows", range.maxRows);
+    root._sfPlUpdateWatch?.(); // 同步轮询快照，防 checkWatch 误判重渲染
+    node.setDirtyCanvas?.(true, true);
+  }
+
+  function commitSelection() {
+    if (!selectMode) return;
+    const value = ta.value;
+    const a = lineOfChar(value, ta.selectionStart ?? 0);
+    const b = lineOfChar(value, ta.selectionEnd ?? 0);
+    applyRange(selectionToRange(a, b, lastIdxOf));
+  }
+
+  // 行号点击：直接按逻辑行号提交（虚拟化窗口行同样带 dataset.line）
+  function pickLine(line) {
+    if (!selectMode || !Number.isFinite(line)) return;
+    applyRange(selectionToRange(line, line, lastIdxOf));
+  }
+
+  // ── 行号栏拖动多选（点选模式）──
+  // pointerdown 定锚点 → 实时扩展（rAF 合并重渲染）；重渲染会重建 span，故
+  // pointermove/up 挂 window 捕获按命中元素 dataset.line 跟踪，不 setPointerCapture
+  let gutterDrag = null;
+  let gutterDragTimer = null;
+  function lineFromTarget(t) {
+    const span = t?.closest?.(".sf-pl-gn");
+    const line = Number(span?.dataset?.line);
+    return Number.isFinite(line) ? line : null;
+  }
+  function gutterDragStart(line) {
+    if (!selectMode || !Number.isFinite(line)) return;
+    gutterDrag = { anchor: line, focus: line };
+    applyRange(selectionToRange(line, line, lastIdxOf));
+  }
+  function gutterDragMove(line) {
+    if (!gutterDrag || !selectMode || !Number.isFinite(line)) return;
+    gutterDrag.focus = line;
+    if (gutterDragTimer) return; // 本帧已排队，合并一次重渲染
+    const timer = requestAnimationFrame(() => {
+      gutterDragTimer = null;
+      if (gutterDrag) applyRange(selectionToRange(gutterDrag.anchor, gutterDrag.focus, lastIdxOf));
+    });
+    gutterDragTimer = timer || 0; // 测试 mock 同步执行且返回 undefined
+  }
+  function gutterDragEnd() {
+    if (!gutterDrag) return;
+    const { anchor, focus } = gutterDrag;
+    gutterDrag = null;
+    if (gutterDragTimer) {
+      try { globalThis.cancelAnimationFrame?.(gutterDragTimer); } catch { /* ignore */ }
+      gutterDragTimer = null;
+    }
+    applyRange(selectionToRange(anchor, focus, lastIdxOf));
+  }
+  function onGutterPointerMove(e) {
+    if (e.buttons === 0) { onGutterPointerEnd(); return; } // 窗口外松手漏 pointerup 兜底
+    const line = lineFromTarget(e.target);
+    if (line !== null) gutterDragMove(line);
+  }
+  function onGutterPointerEnd() {
+    window.removeEventListener("pointermove", onGutterPointerMove, true);
+    window.removeEventListener("pointerup", onGutterPointerEnd, true);
+    window.removeEventListener("pointercancel", onGutterPointerEnd, true);
+    gutterDragEnd();
+  }
+  gutter.addEventListener("pointerdown", (e) => {
+    if (!selectMode) return;
+    if (gutterDrag) onGutterPointerEnd(); // 上次拖拽漏收尾（窗口外松手）自愈
+    const line = lineFromTarget(e.target);
+    if (line === null) return;
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    gutterDragStart(line);
+    window.addEventListener("pointermove", onGutterPointerMove, true);
+    window.addEventListener("pointerup", onGutterPointerEnd, true);
+    window.addEventListener("pointercancel", onGutterPointerEnd, true);
+  });
+
+  // select 事件覆盖拖选；click/mouseup/keyup 兜底单击与键盘扩选；rAF 合并
+  let commitScheduled = false;
+  function scheduleCommit() {
+    if (!selectMode || commitScheduled) return;
+    commitScheduled = true;
+    requestAnimationFrame(() => {
+      commitScheduled = false;
+      commitSelection();
+    });
+  }
+  ta.addEventListener("select", scheduleCommit);
+  ta.addEventListener("click", scheduleCommit);
+  ta.addEventListener("mouseup", scheduleCommit);
+  ta.addEventListener("keyup", scheduleCommit);
 
   // 编辑器 → 原生 widget（值真源）。短文本即时渲染行号，长文本防抖
   ta.addEventListener("input", () => {
@@ -415,6 +616,16 @@ function buildEditor(node, textWidget) {
 
   root._sfPlSync = syncFromWidget;
   root._sfPlSchedule = scheduleRender;
+  // 点选模式钩子（onConfigure 恢复 / 测试直调）
+  root._sfPlSetSelectMode = applySelectMode;
+  root._sfPlConfigMode = () => applySelectMode(!!(node.properties && node.properties[SELECT_KEY]));
+  root._sfPlApplySelection = commitSelection;
+  root._sfPlPickLine = pickLine;
+  root._sfPlGutterDragStart = gutterDragStart;
+  root._sfPlGutterDragMove = gutterDragMove;
+  root._sfPlGutterDragEnd = gutterDragEnd;
+  applySelectMode(selectMode);
+
   return root;
 }
 
@@ -477,7 +688,9 @@ app.registerExtension({
     const origConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = origConfigure?.apply(this, arguments);
-      this._sfPromptListRoot?._sfPlSync();
+      const root = this._sfPromptListRoot;
+      root?._sfPlConfigMode?.(); // 点选模式随 properties 恢复
+      root?._sfPlSync();
       return r;
     };
 

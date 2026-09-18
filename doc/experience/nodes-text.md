@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102、§103）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -548,3 +548,24 @@
 - `>500` 行虚拟化分支用内联 `paddingTop` 覆盖 CSS 的 `6px` 顶部内边距（正文行 i 顶边 = `6 + i*LINE_H`）→ 行号整体比正文/高亮块（用 `6 + i*LINE_H`）高 6px；且 `first = floor(scrollTop / LINE_H)` 未扣 6px，行边界后 6px 区间内上一行仍有可见残段却不渲染（行号空档）。
 - 修法：`first = max(0, floor((scrollTop - 6) / LINE_H))`；`paddingTop = 6 + first*LINE_H`；`paddingBottom = max(0, rows-last)*LINE_H + 6`。
 - 测试回归：`tests/test_prompt_list_smoke.js` 新增"高亮层撑高已设置""虚拟化顶部同基线""虚拟化滚动同基线"，虚拟化滚动用例 `scrollTop` 加 6 对齐窗口起点公式。
+
+---
+
+## 103. SFPromptList 点选模式：原生选择映射行区间 → 自动写 start_index/max_rows
+
+> 背景：`web/sf_prompt_list.js`（2026-09）。头部 Edit/Select 开关（默认编辑，状态存 `node.properties.sfPromptListSelect`）：点选模式下 textarea `readOnly`，单击选单行、拖选 / Shift+点击选多行，自动设置 `start_index` / `max_rows`。
+
+### 1. 机制
+
+- **用原生 textarea 选择代替自绘指针几何**：`readOnly` 下 `selectionStart/End` 仍然有效，拖选自带边缘自动滚动、Shift+点击与方向键扩选——`lineOfChar` 扫 `\n` 反推逻辑行区间，无需 y→行命中测试、无需预览层（原生选择就是拖选反馈）。
+- **纯函数 `selectionToRange(a, b, idxOf)`**：区间内取首/末有效输出 index，`maxRows = end - start + 1`（与后端 `start_index + max_rows` 切片语义一致，区间内跳过的空白行对应输出行计入）；区间全空白（skip_empty 开）或单击空白行时就近吸附：先向下找最近有效行，再向上；无有效行返回 null。`tests/test_prompt_list_lines_js.js` 以 extractFn 方式单测（13 例）。
+- **写回走现有回调包装链**：`setNativeWidget` 按 widget `options.min/max` 钳制后 `.value = v; callback?.(v)`（与 `sf_inpaint.js` 的 `setNodeWidget` 同范式；Vue number widget 同样生效），callback 已在 setupNode 包装 → 触发 `_sfPlSync()` 高亮重渲染；随后 `_sfPlUpdateWatch()` 同步轮询快照，防 checkWatch 误判"无变化"。
+- **提交时机**：`select` 事件实时提交（rAF 合并）+ `click/mouseup/keyup` 兜底单击与键盘扩选。
+- **行号栏点击/拖动多选**：行号 span 带 `dataset.line`，单击选单行、按住拖动实时扩展区间（pointerdown 定锚点 → window 捕获 pointermove 按命中元素 dataset 跟踪 → pointerup 收尾，rAF 合并重渲染）；**重渲染会重建 span，故不能用 setPointerCapture**（捕获目标被移除），window 捕获 + 命中元素 dataset 才能在重建后继续跟踪；虚拟化窗口行同样可用。拖拽漏收尾自愈：pointermove `buttons===0` 或下次 pointerdown 先补收尾（窗口外松手不派发 pointerup）。
+- **模式恢复**：`onConfigure` 调 `_sfPlConfigMode()` 按 properties 重新应用（不写入 `start_index/max_rows`，退出模式不重置已选范围）。
+
+### 2. 边界
+
+- `start_index`/`max_rows` 上限 9999，超长文本行数可超上限 → `setNativeWidget` 必须按 options 钳制，否则 API 校验报错。
+- 点选模式不锁 widget 面板：用户仍可手动改 INT 值；点选只在鼠标/键盘选择动作时写回。
+- 测试：`tests/test_prompt_list_lines_js.js`（selectionToRange）+ `test_prompt_list_smoke.js`（开关/readOnly/properties/区间写回/高亮块/空白吸附/行号点击/行号拖动含空白与反向/编辑态不提交/退出恢复）。

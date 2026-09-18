@@ -154,7 +154,8 @@ function makeNode() {
     const ta = root.children[1].children[1].children[1];
     const hl = root.children[1].children[1].children[0];
     const gutter = root.children[1].children[0];
-    const count = root.children[0].children[1];
+    const modeBtn = root.children[0].children[1]; // hdr: [label, mode, count]
+    const count = root.children[0].children[2];
     check("初始 1 行", gutter.children[0]?.children?.length === 1);
     check("初始行号 0", gutter.children[0]?.children?.[0]?.textContent === "0");
     check("初始计数", count.textContent === "1/1 line");
@@ -166,6 +167,10 @@ function makeNode() {
     // hl 仅含选中块 → 内容高 << 文本高，scrollTop 同步会被浏览器钳制（幽灵
     // 高亮）——::before 用该变量垫到文本全高；任何渲染路径都必须设置
     check("高亮层撑高已设置", parseFloat(hl.style["--sf-pl-hl-pad"]) >= ta.scrollHeight);
+
+    // 模式开关：默认编辑模式（readOnly 关、按钮 Edit、properties 不写键）
+    check("模式按钮默认 Edit", modeBtn.textContent === "Edit" && !modeBtn.classList.contains("on"));
+    check("默认编辑模式", !ta.readOnly && node.properties.sfPromptListSelect === undefined);
 
     // wrap 默认关闭 → textarea wrap="off"（水平滚动不换行）
     check("wrap 默认关闭", ta.wrap === "off");
@@ -424,6 +429,79 @@ function makeNode() {
     ta.value = "a\nb";
     ta._handlers.input();
     check("缩回全渲染", gutter.style.paddingBottom === "" && gutter.children[0]?.children?.length === 2);
+
+    // ── 点选模式：开关 → 原生选择 → 写回 start_index/max_rows ──
+    modeBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    check("切点选模式 readOnly", ta.readOnly === true && modeBtn.classList.contains("on") === true);
+    check("模式持久化 properties", node.properties.sfPromptListSelect === true);
+
+    // "a\n\nb\nc"（skip 开 → idxOf=[0,-1,1,2]）：拖选逻辑行 0..2（字符 0..3）
+    // → 有效输出行 0/1 → start=0, max_rows=2
+    ta.value = "a\n\nb\nc";
+    ta._handlers.input();
+    ta.selectionStart = 0;
+    ta.selectionEnd = 3;
+    root._sfPlApplySelection();
+    check("点选区间写回 start", startWidget.value === 0 && maxRowsWidget.value === 2);
+    check("点选区间高亮块", (hl.children[0]?.children || []).length === 2
+        && parseFloat(hl.children[0]?.children?.[0]?.style.top) === 6
+        && Math.abs(parseFloat(hl.children[0]?.children?.[1]?.style.top) - (6 + 2 * (12 * 1.4))) < 0.01);
+    check("点选区间行号联动", gutter.children[0]?.children?.[0]?.classList.contains("sf-pl-on") === true
+        && gutter.children[0]?.children?.[2]?.classList.contains("sf-pl-on") === true
+        && gutter.children[0]?.children?.[3]?.classList.contains("sf-pl-on") === false);
+
+    // 单击空白行（逻辑行 1，字符位置 2）→ 向下吸附到 "b"（输出 index 1）
+    ta.selectionStart = 2;
+    ta.selectionEnd = 2;
+    root._sfPlApplySelection();
+    check("点选空白行吸附", startWidget.value === 1 && maxRowsWidget.value === 1);
+
+    // 行号点击 → 逻辑行 3（"c"）→ 输出 index 2
+    root._sfPlPickLine(3);
+    check("点选行号点击", startWidget.value === 2 && maxRowsWidget.value === 1);
+
+    // 行号拖动多选：锚点 0 → 拖到空白行 1（区间 0..1 仅输出 0）→ 拖到 3
+    root._sfPlGutterDragStart(0);
+    check("行号拖动起点", startWidget.value === 0 && maxRowsWidget.value === 1);
+    root._sfPlGutterDragMove(1);
+    check("行号拖动含空白", startWidget.value === 0 && maxRowsWidget.value === 1);
+    root._sfPlGutterDragMove(3);
+    check("行号拖动扩展", startWidget.value === 0 && maxRowsWidget.value === 3);
+    root._sfPlGutterDragEnd();
+    check("行号拖动高亮块", (hl.children[0]?.children || []).length === 3);
+
+    // 反向拖动（锚点 3 → 0）与正向等价
+    root._sfPlGutterDragStart(3);
+    root._sfPlGutterDragMove(0);
+    root._sfPlGutterDragEnd();
+    check("行号反向拖动", startWidget.value === 0 && maxRowsWidget.value === 3);
+
+    // 事件接线：pointerdown 命中行号 span（dataset.line）→ 进入拖动并选该行
+    gutter._handlers.pointerdown({
+        target: { closest: () => ({ dataset: { line: "2" } }) },
+        pointerId: 1, preventDefault() {}, stopPropagation() {},
+    });
+    check("行号 pointerdown 接线", startWidget.value === 1 && maxRowsWidget.value === 1);
+    root._sfPlGutterDragEnd();
+
+    // skip 关闭：区间与输出 index 一一对应（0..2 → start=0, max_rows=3）
+    skipWidget.value = false;
+    skipWidget.callback();
+    ta.selectionStart = 0;
+    ta.selectionEnd = 3;
+    root._sfPlApplySelection();
+    check("点选 skip 关一一对应", startWidget.value === 0 && maxRowsWidget.value === 3);
+    skipWidget.value = true;
+    skipWidget.callback();
+
+    // 编辑模式提交无效；退出点选恢复编辑并清除 properties
+    modeBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    ta.selectionStart = 0;
+    ta.selectionEnd = 0;
+    root._sfPlApplySelection();
+    check("编辑模式不提交", startWidget.value === 0 && maxRowsWidget.value === 3);
+    check("退出点选恢复编辑", !ta.readOnly && modeBtn.classList.contains("on") === false);
+    check("模式持久化清除", node.properties.sfPromptListSelect === undefined);
 
     // onRemoved 清理
     FakeType.prototype.onRemoved.call(node);
