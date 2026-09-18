@@ -327,3 +327,32 @@ SFForLoopEnd
 - `read_comfy_settings` 加 `_SETTINGS_CACHE = {"key": (path, st_mtime_ns, st_size), "data": dict}`：每次调用只做一次 `os.stat`，命中直接返回缓存（无 open/JSON 解析）；文件被前端保存后 mtime/size 变化 → 自然失效，**改动即时生效的承诺不变**。stat 失败（文件缺失）不缓存；损坏 JSON 随文件键缓存为空 dict。返回的是缓存对象，调用方（`get_llm_config`、`scail2_mem.read_options`）只读，勿修改。
 - 收益：SCAIL-2 每个 ref/render/extract/execute 调用都会 `read_options()`，长视频工作流反复读同一文件（§82.3 说读盘复用唯一实现），缓存后只剩 stat 开销；LLM 节点/路由每节点读配置同样受益。
 - 测试：`tests/test_llm_client.py` 追加缓存用例——缺失→`{}`、首次读取、**同 mtime/size 改写命中旧缓存**、mtime 变后重读、损坏 JSON→`{}`（`_settings_path` monkeypatch 到临时文件）。
+
+## 105. SFWanMotionBoost：Wan I2V 慢动作增强（委托原生 + 逐通道保均值色彩保护，2026-09）
+
+> 背景：4-step 蒸馏 LoRA（lightx2v 等）图生视频普遍动作幅度小/慢动作。社区第三方 `ComfyUI-PainterI2V` 的做法是把原生 `WanImageToVideo` 的 concat 灰填充帧相对首帧放大（`diff_centered * motion_amplitude`）。分析其实现（本日对话）发现：只支持单帧、`diff.mean(dim=(1,3,4))` 跨通道去均值导致 latent 通道 DC 漂移（偏灰/偏绿，作者 advanced 版自认并另做近似补救）、clamp ±6 固定且截断后均值不回正、`reference_latents` 对标准 Wan2.2 I2V 是死代码、整段复制原生节点逻辑导致原生后续改进无法继承。本节点（`nodes/video/wan_motion_boost.py` + `sf_utils/wan_motion_boost.py`）为收敛实现。
+
+### 105.1 机制：占位帧 latent 为何能驱动运动
+
+- 原生 `WanImageToVideo` 把首帧（多帧时前 n 帧）真实 latent + 其余 0.5 灰填充帧整段 VAE 编码写入 `concat_latent_image`，并以 `concat_mask`（0=条件帧、1=占位帧）标记；采样时 `WAN21.concat_cond` 把 mask 取反后与 concat `cat`，经 `BaseModel._apply_model`（comfy/model_base.py:219）拼到噪声 latent 通道上进入 patch_embedding——**mask=0 的占位帧 latent 值仍参与前向**，改写它们可间接推动模型生成更大动作。
+- 缩放只动「占位帧 − 最后一个条件帧」的差异分量：条件帧与基准帧逐元素不变，动作信息在去均值后的空间结构分量中，放大该分量即放大运动而不改颜色统计。
+
+### 105.2 色彩保护：逐通道均值 vs Painter 原版跨通道均值
+
+- **默认 `color_protect=True`**：`diff_mean = mean(diff, dim=(3,4), keepdim=True)`（每帧每通道）→ 缩放前后**每帧每通道均值恒等**（latent 通道 DC ↔ 颜色/亮度），数学上零漂移；`latent_clamp`（默认 6.0，0=关）截断后再补 `mean(rest) - mean(scaled)` 精确回正。
+- **`color_protect=False`（复现档）**：对齐 PainterI2V 的 `dim=(1,3,4)`（跨通道+空间）per-frame 标量均值——通道间 DC 可漂移，正是其偏灰/偏绿的来源；仅用于 A/B 对比。
+- 第三方 advanced 版的「漂移检测 + `correct_strength*0.03` 拉回 + 暗部提亮」是跨通道漂移的近似补救（18% 阈值、逐 `range(batch_size)` 循环有越界隐患）；本节点在源头消除漂移。
+
+### 105.3 与 PainterI2V 的其余差异
+
+- **委托原生而非复制**：`WanImageToVideo.execute` 全权负责 concat/mask/多帧 `start_image`/`MAX_RESOLUTION`（经 `sf_utils/common.node_result` 解包，§98 同款路径），本节点只在返回 conditioning 上后处理——原生后续改进自动继承；第三方节点整段复制且 `start_image[:1]` 砍掉多帧。
+- **去掉 placebo**：不再注入 `reference_latents`。`WAN21.extra_conds` 虽会把它转成 `reference_latent`，但 `WanModel` 只在 `self.ref_conv is not None` 时消费（comfy/ldm/wan/model.py:696）——标准 Wan2.1/2.2 I2V checkpoint 无 `ref_conv.weight` 即无消费者、静默忽略；只有 SCAIL/Animate/WanDancer 等带 ref_conv 的变体才吃该条件（由各自原生节点注入）。
+- **类型校验**：可选 `model` 输入，`isinstance(model.model, comfy.model_base.WAN21)` 非真时 warning + 原样直通（WAN22/Animate/S2V 等均为 WAN21 子类）；不接则不做拦截。
+- **GGUF 量化模型同样有效**：机制只改 conditioning 里的 concat 张量、不碰权重，`latent_clamp` 也基于 latent 量级而非权重 dtype；`UnetLoaderGGUF` 只把 patcher 类换成 `GGUFModelPatcher`（`ComfyUI-GGUF/nodes.py:176-183` 的 `clone` 仅改 `__class__`），`.model` 仍是 `comfy.model_base.WAN21` 家族实例，故可选 `model` 校验也识别 GGUF。注意 GGUF 工作流若走 WanVideoWrapper（Kijai）而非原生 `WanImageToVideo`，本节点不适用（conditioning 契约不同），LoRA 由 GGUF 节点的量化层补丁处理，与本节点无交互。
+- 不接 `start_image` 或 `motion_amplitude <= 1.0` 时不触碰 conditioning，直接返回原生对象；无 concat（T2V）条目安全跳过。
+- `placeholder_start` 只认「前段条件帧 + 后段连续占位帧」结构（全条件/全占位/首尾帧条件等一律返回 None 不处理）；无 mask 时按单帧假设 start=1（与原生 I2V 单帧一致）。
+
+### 105.4 测试（tests/test_wan_motion_boost.py）
+
+- numpy 代理 stub `torch`（仅 `mean/clamp/cat` 三个模块级函数）+ stub `nodes`/`comfy.model_base`/`comfy_extras.nodes_wan`（Fake execute 记录调用参数与输出、`.result` 解包路径）；注意手动注入 `sys.modules` 的子模块要同时设父包属性（`comfy.model_base = model_base`），否则节点内 `import comfy.model_base` 抛 AttributeError 被 `_is_wan_model` 的 except 吞成「判定为 Wan」。
+- 覆盖：`placeholder_start` 结构识别（单/多帧、全条件/全占位/非后段连续/无 mask/短序列）、逐通道保均值与结构放大、跨通道复现档、clamp 后均值回正与关闭保护漂移、`latent_clamp=0`、多帧基准=最后条件帧、不改原张量、conditioning 同张量去重与 dict 拷贝语义、execute 委托参数透传/amp=1/无 start_image/非 Wan 直通/GGUFModelPatcher（`.model=WAN21`）识别、结构元数据与根注册键。
