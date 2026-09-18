@@ -113,7 +113,6 @@ from .nodes.model.krea2_edit import SFKrea2ModelConfig, SFKrea2EditApply
 from .nodes.model.regional_lora import SFRegionalLoRA
 from .nodes.model.wan_window_lora import SFWanWindowLoRA
 from .nodes.model.wan_window_planner import SFWanWindowPlanner
-from .nodes.model.sage_attention import SFPatchSageAttention
 from .nodes.image.compare import ImageCompare
 from .nodes.image.pause_image import SFPauseImage
 from .nodes.image.pause_latent import SFPauseLatent
@@ -429,8 +428,6 @@ NODE_CLASS_MAPPINGS = {
     "SFKrea2ConfigPreparer": SFKrea2ConfigPreparer,
     "SFKrea2EditTextEncode": SFKrea2EditTextEncode,
     "SFKrea2EditApply": SFKrea2EditApply,
-    # SageAttention 补丁节点
-    "SFPatchSageAttention": SFPatchSageAttention,
     # Flux 分辨率节点
     "SFFluxResolution": FluxResolution,
     # 画布分辨率预设节点
@@ -663,8 +660,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFKrea2ConfigPreparer": "SF Krea2 Config Preparer",
     "SFKrea2EditTextEncode": "SF Krea2 Edit Text Encode",
     "SFKrea2EditApply": "SF Krea2 Edit Apply",
-    # SageAttention 补丁节点
-    "SFPatchSageAttention": "SF Patch Sage Attention",
     # Flux 分辨率节点
     "SFFluxResolution": "SF Flux Resolution Calculator",
     # 画布分辨率预设节点
