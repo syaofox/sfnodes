@@ -595,3 +595,29 @@
 - **pandas ParserError 语义要复刻**：上游 read_csv 对不等宽行直接报错 → load 失败 → 全空输出；最初实现「短行补空」更宽容但与上游分叉，黄金对照抓出后改为「各行列数必须等于首行，否则判失败」。
 - **转义解码要防乱码**：上游 `separator.encode().decode("unicode_escape")` 按 UTF-8 编码后按 latin-1 解码，中文分隔符（如 `，`）会变乱码；改用 `encode("latin-1", "backslashreplace").decode("unicode_escape")`（ASCII 输入行为不变、非 ASCII 保留），且 selectors 切分与数据解析共用同一解码值（上游 selectors 用原始串，`\t` 时不自洽）。
 - 上游无前端 JS，本节点同样纯后端；`string_or_base64` 输入保留幂等（空输入 → 全空输出）。
+
+---
+
+## 108. SFPromptList 自动 total：前端开关反写所驱动循环的 total（绕开依赖环，2026-09）
+
+> 背景：`SFPromptList.start_index` 常被 `SFForLoopStart.index` 驱动实现"每轮取一行"，而循环 `total` 只能手填且必须等于行数（用户多个工作流：lorapose 系列、批量修改图片、cosepose 等，行数一变 total 就失准）。
+
+### 1. 为什么不做 count 输出直连
+
+- 给 SFPromptList 加 `count` 输出接到 `SFForLoopStart.total` 会形成依赖环：`PromptList.start_index ← ForLoopStart.index` + `ForLoopStart.total ← PromptList.count`。ComfyUI 在 `/prompt` 提交时由 `execution.py::validate_inputs` 的 `visiting` 栈静态检出，直接报 `dependency_cycle`，连执行机会都没有；`lazy`/`rawLink` 都绕不过静态环检测。
+- 后端替代（`SFForLoopStart` 用隐藏 `PROMPT` 扫描"被自己 index 驱动的 SFPromptList"取行数）无环但需重启容器、且在核心循环节点里耦合 PromptList 的 widget 结构，未采用。
+
+### 2. 设计（`web/sf_prompt_list.js`）
+
+- **前端反向写目标 widget**：与 `SFComboSelector` 同范式（前端读图结构后写另一个节点的 widget）。`total` 保持普通 widget（排队时序列化取值），不产生连线。
+- **开关默认关**（`node.properties.sfPromptListAutoTotal`，随工作流保存；头部 `Auto total` 按钮，与 Edit/Select 同 `.sf-pl-mode` 样式）：既有工作流存在"故意 total < 行数"（`cosepose` 32 行只跑前 16 条英文），无条件同步会改写其行为。
+- **计数语义**：有效行数（skip_empty 开=非空行；关=逻辑行），与头部 `n/m lines` 同源，忽略 `start_index/max_rows` 切片（`effectiveCount` 纯函数）；clamp 到 total widget 的 min/max（空文本 → 1）。
+- **只认 index 驱动**：解析 `start_index` 输入连线（`graph.links` 对象表/Map 双兼容 + `getNodeById`/`_nodes` 回退，同 `sf_combo_selector.js`），源节点须为 `SFForLoopStart` 且 `outputs[origin_slot].name === "index"`，否则不写（防误接其他输出）。
+- **多列表驱动同一循环取 max**：行数短的列表后端切片会 clamp 到末行，迭代次数以最长列表为准；扫 `graph._nodes` 聚合避免渲染顺序竞争。
+- **触发点**：`renderGutter()` 末尾（文本/过滤开关/切片变化）、400ms `checkWatch` 兜底（连线在工作流加载后才恢复）、开关点击即时、`onConfigure` 恢复属性后同步。
+- **部署**：纯 `web/` 改动，同步后浏览器硬刷新即可，**无需重启容器**。
+
+### 3. 测试
+
+- `tests/test_prompt_list_lines_js.js`：`effectiveCount` 8 例（skip 开/关、全空白、空文本、null、首尾空行）。
+- `tests/test_prompt_list_smoke.js`：默认关不写、开启同步/持久化、编辑实时更新、skip 切换、clamp min、多列表取 max、非 index 输出不写、未连线不写、关闭不写、onConfigure 恢复。

@@ -34,8 +34,9 @@ function extractFn(name) {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_pl_lines_"));
     const modPath = path.join(tmpDir, "lib.mjs");
     fs.writeFileSync(modPath, extractFn("needsMeasure") + "\n" + extractFn("selectionToRange")
-        + "\nexport { needsMeasure, selectionToRange };");
-    const { needsMeasure, selectionToRange } = await import(modPath);
+        + "\n" + extractFn("effectiveCount")
+        + "\nexport { needsMeasure, selectionToRange, effectiveCount };");
+    const { needsMeasure, selectionToRange, effectiveCount } = await import(modPath);
 
     check("短行不测量", !needsMeasure("abc", 100));                       // 36 ≤ 100
     check("恰好一行不测量", !needsMeasure("abcdefghij", 120));            // 120 ≤ 120 边界
@@ -65,6 +66,16 @@ function extractFn(name) {
     check("sel 全空白区间向上吸附", JSON.stringify(selectionToRange(2, 2, [-1, 0, -1])) === '{"start":0,"maxRows":1}');
     check("sel 全空白返回 null", selectionToRange(0, 2, [-1, -1, -1]) === null);
     check("sel 空文本返回 null", selectionToRange(0, 0, []) === null);
+
+    // ── effectiveCount：自动 total 的有效行数（与头部计数同语义）──
+    check("count skip 开计非空行", effectiveCount("a\n\nb\nc", true) === 3);
+    check("count skip 关计逻辑行", effectiveCount("a\n\nb\nc", false) === 4);
+    check("count 全空白 skip 开为 0", effectiveCount("  \n\t\n", true) === 0);
+    check("count 全空白 skip 关为 3", effectiveCount("  \n\t\n", false) === 3);
+    check("count 空文本 skip 开为 0", effectiveCount("", true) === 0);
+    check("count 空文本 skip 关为 1", effectiveCount("", false) === 1);
+    check("count null 不炸", effectiveCount(null, true) === 0 && effectiveCount(undefined, false) === 1);
+    check("count 首尾空行", effectiveCount("\nfirst\n", true) === 1);
 
     console.log(failures.length ? `\n${failures.length} FAILED` : "\nAll passed");
     process.exit(failures.length ? 1 : 0);

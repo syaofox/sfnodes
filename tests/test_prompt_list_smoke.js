@@ -154,8 +154,9 @@ function makeNode() {
     const ta = root.children[1].children[1].children[1];
     const hl = root.children[1].children[1].children[0];
     const gutter = root.children[1].children[0];
-    const modeBtn = root.children[0].children[1]; // hdr: [label, mode, count]
-    const count = root.children[0].children[2];
+    const modeBtn = root.children[0].children[1]; // hdr: [label, mode, auto, count]
+    const autoBtn = root.children[0].children[2];
+    const count = root.children[0].children[3];
     check("初始 1 行", gutter.children[0]?.children?.length === 1);
     check("初始行号 0", gutter.children[0]?.children?.[0]?.textContent === "0");
     check("初始计数", count.textContent === "1/1 line");
@@ -171,6 +172,10 @@ function makeNode() {
     // 模式开关：默认编辑模式（readOnly 关、按钮 Edit、properties 不写键）
     check("模式按钮默认 Edit", modeBtn.textContent === "Edit" && !modeBtn.classList.contains("on"));
     check("默认编辑模式", !ta.readOnly && node.properties.sfPromptListSelect === undefined);
+
+    // 自动 total 开关：默认关（按钮无强调态、properties 不写键）
+    check("auto total 按钮默认关", autoBtn.textContent === "Auto total" && !autoBtn.classList.contains("on"));
+    check("auto total 默认不写 properties", node.properties.sfPromptListAutoTotal === undefined);
 
     // wrap 默认关闭 → textarea wrap="off"（水平滚动不换行）
     check("wrap 默认关闭", ta.wrap === "off");
@@ -502,6 +507,95 @@ function makeNode() {
     check("编辑模式不提交", startWidget.value === 0 && maxRowsWidget.value === 3);
     check("退出点选恢复编辑", !ta.readOnly && modeBtn.classList.contains("on") === false);
     check("模式持久化清除", node.properties.sfPromptListSelect === undefined);
+
+    // ── 自动 total：前端反向写所驱动 SFForLoopStart.total（默认关）──
+    // 构造循环节点 + start_index 连线（link 5 → loop 的 index 输出 slot 1）
+    const totalWidget = { name: "total", value: 1, options: { min: 1, max: 100000 }, callback: null };
+    const loop = {
+        id: "L1", comfyClass: "SFForLoopStart", type: "SFForLoopStart",
+        outputs: [{ name: "flow" }, { name: "index" }, { name: "value1" }],
+        widgets: [totalWidget], size: [210, 98], properties: {},
+        setDirtyCanvas() { this._dirty = true; },
+    };
+    node.inputs = [{ name: "start_index", link: 5 }];
+    node.graph = {
+        links: { 5: { origin_id: "L1", origin_slot: 1 } },
+        _nodes: [node, loop],
+        getNodeById(id) { return String(id) === "L1" ? loop : null; },
+        setDirtyCanvas() {},
+    };
+    ta.value = "a\n\nb\nc"; // skip 开 → 3 有效行
+    ta._handlers.input();
+    check("auto total 默认关不写", totalWidget.value === 1 && !autoBtn.classList.contains("on"));
+
+    autoBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    check("auto total 开启同步", totalWidget.value === 3 && autoBtn.classList.contains("on") === true);
+    check("auto total 持久化", node.properties.sfPromptListAutoTotal === true);
+
+    // 编辑文本 → 实时更新；关 skip_empty → 空行计入
+    ta.value = "a\nb";
+    ta._handlers.input();
+    check("auto total 编辑更新", totalWidget.value === 2);
+    skipWidget.value = false;
+    skipWidget.callback();
+    ta.value = "a\n\nb";
+    ta._handlers.input();
+    check("auto total skip 关空行计数", totalWidget.value === 3);
+    skipWidget.value = true;
+    skipWidget.callback();
+    check("auto total 恢复 skip", totalWidget.value === 2);
+
+    // 全空文本 → clamp 到 widget min（1）
+    ta.value = "";
+    ta._handlers.input();
+    check("auto total 空文本 clamp min", totalWidget.value === 1);
+
+    // 多列表驱动同一循环 → 取最大行数（短列表 clamp 到末行）
+    const otherList = {
+        id: "P2", comfyClass: "SFPromptList", type: "SFPromptList",
+        inputs: [{ name: "start_index", link: 6 }],
+        widgets: [
+            { name: "multiline_text", value: "1\n2\n3\n4\n5" },
+            { name: "skip_empty", value: true },
+        ],
+        properties: {},
+    };
+    node.graph.links[6] = { origin_id: "L1", origin_slot: 1 };
+    node.graph._nodes.push(otherList);
+    ta.value = "a\nb";
+    ta._handlers.input();
+    check("auto total 多列表取 max", totalWidget.value === 5);
+    node.graph._nodes.pop(); // 移除多列表影响，后续用例回到单列表
+    delete node.graph.links[6];
+
+    // 非 index 输出（flow slot 0）→ 不写
+    node.graph.links[5] = { origin_id: "L1", origin_slot: 0 };
+    totalWidget.value = 7;
+    root._sfPlSyncLoopTotal();
+    check("auto total 非 index 输出不写", totalWidget.value === 7);
+
+    // 未连线 → 不写（走轮询兜底路径也不炸）
+    node.inputs = [];
+    totalWidget.value = 8;
+    root._sfPlCheckWatch();
+    check("auto total 未连线不写", totalWidget.value === 8);
+    node.inputs = [{ name: "start_index", link: 5 }];
+
+    // 关闭开关 → 清除 properties 且不再写
+    autoBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    totalWidget.value = 9;
+    ta.value = "x";
+    ta._handlers.input();
+    check("auto total 关闭不写", totalWidget.value === 9
+        && node.properties.sfPromptListAutoTotal === undefined
+        && autoBtn.classList.contains("on") === false);
+
+    // onConfigure 恢复属性 → 重新开启并同步（模拟工作流加载）
+    node.properties.sfPromptListAutoTotal = true;
+    node.graph.links[5] = { origin_id: "L1", origin_slot: 1 };
+    FakeType.prototype.onConfigure.call(node);
+    check("auto total onConfigure 恢复", autoBtn.classList.contains("on") === true && totalWidget.value === 1);
+    delete node.properties.sfPromptListAutoTotal;
 
     // onRemoved 清理
     FakeType.prototype.onRemoved.call(node);

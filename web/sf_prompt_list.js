@@ -28,6 +28,12 @@
 // 单行/按住拖动选多行（window 捕获 pointermove + rAF 合并重渲染，span 带
 // dataset.line）。模式状态存 node.properties.sfPromptListSelect（默认编辑）。
 //
+// Auto total 开关（默认关，状态存 node.properties.sfPromptListAutoTotal）：
+// 开启后把有效行数写入由本节点 start_index 驱动的 SFForLoopStart.total。
+// count 输出直连 total 会与 index→start_index 构成依赖环（ComfyUI 静态
+// 校验报 dependency_cycle），故只能前端反向写目标 widget；多列表驱动同一
+// 循环时取行数最大值。默认关避免改写"故意 total < 行数"的工作流。
+//
 // ==========================================================================
 
 import { app } from "/scripts/app.js";
@@ -38,6 +44,9 @@ const WIDGET_TYPE = "sf_prompt_list_editor";
 
 // 点选模式持久化键（node.properties，随工作流保存；缺省/删除 = 编辑模式）
 const SELECT_KEY = "sfPromptListSelect";
+
+// 自动 total 持久化键（node.properties，随工作流保存；缺省/删除 = 关闭）
+const AUTO_TOTAL_KEY = "sfPromptListAutoTotal";
 
 // 固定垂直预算（textarea 吸收节点拉伸，按最小值计入防 paint 膨胀，
 // sf_prompt_reader 同款模式）
@@ -165,9 +174,13 @@ function buildEditor(node, textWidget) {
   const modeBtn = document.createElement("button");
   modeBtn.type = "button";
   modeBtn.className = "sf-pl-mode";
+  const autoBtn = document.createElement("button");
+  autoBtn.type = "button";
+  autoBtn.className = "sf-pl-mode";
+  autoBtn.textContent = "Auto total";
   const count = document.createElement("span");
   count.className = "sf-pl-count";
-  hdr.append(hlbl, modeBtn, count);
+  hdr.append(hlbl, modeBtn, autoBtn, count);
 
   const editor = document.createElement("div");
   editor.className = "sf-pl-editor";
@@ -244,6 +257,107 @@ function buildEditor(node, textWidget) {
     e.stopPropagation?.();
     applySelectMode(!selectMode);
   });
+
+  // ── 自动 total：把有效行数同步到所驱动的 SFForLoopStart.total ──
+  // count 输出直连 total 会与 index→start_index 构成依赖环（ComfyUI 的
+  // validate_inputs 静态校验报 dependency_cycle），故由前端反向写目标
+  // widget。默认关：既有工作流存在"故意 total < 行数"（32 行只跑前 16 条
+  // 等），无条件同步会改写其行为。开启后文本/过滤开关/连线变化实时同步。
+  let autoTotal = !!(node.properties && node.properties[AUTO_TOTAL_KEY]);
+
+  // 有效行数：skip_empty 开 → 非空行数（与头部计数/后端输出一致）；关 →
+  // 逻辑行数（空行也算）。与头部计数同源，忽略 start_index/max_rows 切片
+  function effectiveCount(text, skip) {
+    const rows = String(text == null ? "" : text).split("\n");
+    return skip ? rows.filter((r) => r.trim()).length : rows.length;
+  }
+
+  // 取 link（兼容旧版对象表与 Vue 新版 Map，同 sf_combo_selector.js）
+  function linkOf(id) {
+    const graph = node.graph;
+    if (!graph) return null;
+    if (graph.links?.get) return graph.links.get(id) ?? null;
+    return graph.links?.[id] ?? null;
+  }
+
+  function nodeById(graph, id) {
+    if (!graph) return null;
+    const byApi = graph.getNodeById?.(id);
+    if (byApi) return byApi;
+    return (graph._nodes || []).find((n) => String(n.id) === String(id)) ?? null;
+  }
+
+  // 本节点 start_index 是否由某循环的 index 输出驱动 → 返回该 SFForLoopStart
+  function drivenLoop() {
+    const graph = node.graph;
+    const input = (node.inputs || []).find((i) => i && i.name === "start_index");
+    if (!graph || !input || input.link == null) return null;
+    const link = linkOf(input.link);
+    const src = link && nodeById(graph, link.origin_id);
+    if (!src || (src.comfyClass ?? src.type) !== "SFForLoopStart") return null;
+    const out = (src.outputs || [])[link.origin_slot];
+    return out && out.name === "index" ? src : null;
+  }
+
+  // link 是否指向 loop 的 index 输出（多列表聚合时用，loop 已确认类型）
+  function isLoopIndexLink(link, loop) {
+    if (!link || String(link.origin_id) !== String(loop.id)) return false;
+    const out = (loop.outputs || [])[link.origin_slot];
+    return !!out && out.name === "index";
+  }
+
+  // 同一循环可被多个 PromptList 驱动（start_index ← 同一 index），取最大
+  // 行数：行数少的列表会被后端切片 clamp 到末行，迭代次数以最长列表为准
+  function loopTotalFor(loop) {
+    let best = effectiveCount(textWidget ? textWidget.value : "", skipEmptyOn());
+    for (const other of (node.graph?._nodes || [])) {
+      if (!other || other === node || (other.comfyClass ?? other.type) !== "SFPromptList") continue;
+      const inp = (other.inputs || []).find((i) => i && i.name === "start_index");
+      if (!inp || inp.link == null) continue;
+      const link = linkOf(inp.link);
+      if (!link || !isLoopIndexLink(link, loop)) continue;
+      const tw = (other.widgets || []).find((w) => w && w.name === "multiline_text");
+      const sw = (other.widgets || []).find((w) => w && w.name === "skip_empty");
+      best = Math.max(best, effectiveCount(tw ? tw.value : "", sw ? !!sw.value : true));
+    }
+    return best;
+  }
+
+  function syncLoopTotal() {
+    if (!autoTotal) return;
+    const loop = drivenLoop();
+    if (!loop) return;
+    const w = (loop.widgets || []).find((x) => x && x.name === "total");
+    if (!w) return;
+    const opt = w.options || {};
+    let v = loopTotalFor(loop);
+    if (typeof opt.min === "number") v = Math.max(opt.min, v);
+    if (typeof opt.max === "number") v = Math.min(opt.max, v);
+    if (w.value === v) return;
+    w.value = v;
+    loop.setDirtyCanvas?.(true, true);
+  }
+
+  function applyAutoTotal(on) {
+    autoTotal = !!on;
+    autoBtn.classList.toggle("on", autoTotal);
+    autoBtn.textContent = autoTotal ? "Auto total \u2713" : "Auto total";
+    autoBtn.title = autoTotal
+      ? "自动 total：已开启——有效行数自动写入由 start_index 驱动的 SF For Loop Start.total；点击关闭"
+      : "自动 total：点击开启——把有效行数自动写入由 start_index 驱动的 SF For Loop Start.total（默认关，避免改写故意缩短的循环）";
+    node.properties = node.properties || {};
+    if (autoTotal) node.properties[AUTO_TOTAL_KEY] = true;
+    else delete node.properties[AUTO_TOTAL_KEY];
+    node.setDirtyCanvas?.(true, true);
+    syncLoopTotal();
+  }
+  autoBtn.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+  autoBtn.addEventListener("click", (e) => {
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    applyAutoTotal(!autoTotal);
+  });
+  applyAutoTotal(autoTotal);
 
   // ── 行高测量（wrap 开启时软换行精确对齐）──
   // mirror 与 textarea 同几何（同 padding 同字体同换行参数）且**同一布局
@@ -413,6 +527,8 @@ function buildEditor(node, textWidget) {
     // （resize/删文本后 ta 的 scrollTop 被钳制也不触发 scroll 事件）→ 强制重同步
     gutter.scrollTop = ta.scrollTop;
     hl.scrollTop = ta.scrollTop;
+    // 文本/过滤开关变化后同步自动 total（关闭时 syncLoopTotal 直接返回）
+    syncLoopTotal();
   }
 
   let renderTimer = null;
@@ -607,6 +723,8 @@ function buildEditor(node, textWidget) {
     const prev = watchVals;
     updateWatch();
     if (prev !== null && prev !== watchVals) syncFromWidget();
+    // 兜底：连线在编辑器构建之后恢复（工作流加载）时，渲染路径可能尚未跑过
+    syncLoopTotal();
   }
   updateWatch();
   root._sfPlCheckWatch = checkWatch;
@@ -619,6 +737,10 @@ function buildEditor(node, textWidget) {
   // 点选模式钩子（onConfigure 恢复 / 测试直调）
   root._sfPlSetSelectMode = applySelectMode;
   root._sfPlConfigMode = () => applySelectMode(!!(node.properties && node.properties[SELECT_KEY]));
+  // 自动 total 钩子（onConfigure 恢复 / 测试直调）
+  root._sfPlSetAutoTotal = applyAutoTotal;
+  root._sfPlConfigAutoTotal = () => applyAutoTotal(!!(node.properties && node.properties[AUTO_TOTAL_KEY]));
+  root._sfPlSyncLoopTotal = syncLoopTotal;
   root._sfPlApplySelection = commitSelection;
   root._sfPlPickLine = pickLine;
   root._sfPlGutterDragStart = gutterDragStart;
@@ -690,6 +812,7 @@ app.registerExtension({
       const r = origConfigure?.apply(this, arguments);
       const root = this._sfPromptListRoot;
       root?._sfPlConfigMode?.(); // 点选模式随 properties 恢复
+      root?._sfPlConfigAutoTotal?.(); // 自动 total 开关随 properties 恢复
       root?._sfPlSync();
       return r;
     };
