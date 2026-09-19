@@ -8,7 +8,8 @@ region/cond 段、slot）与错位警告。跑队列前看一眼，确认 N 与�
 `_StubHandler` 供给），region 数学复用原生 `IndexListContextWindow`；
 原生改算法，planner 自动跟进。UNIFORM 系按 step 0 求值并强制漂移警告。
 
-无 torch 依赖，无前端，单 STRING 输出。
+无 torch 依赖，无前端；输出 report（Markdown）+ 4 个输入参数透传
+（原始实帧值；schedule 转原生值并以 COMBO 槽型直连原生 Wan Context Windows）。
 """
 
 import json
@@ -218,13 +219,23 @@ class SFWanWindowPlanner:
             },
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("report",)
+    RETURN_TYPES = ("STRING", "INT", "INT", "INT", "COMBO")
+    RETURN_NAMES = ("report", "total_frames", "context_length", "context_overlap",
+                    "schedule")
+    OUTPUT_TOOLTIPS = (
+        "Markdown 对照表（配置回显/映射表/警告/参数设置建议）。",
+        "透传总实帧，可直连视频长度等下游。",
+        "透传窗长（实帧），可直连原生 Wan Context Windows 的 context_length。",
+        "透传重叠（实帧），可直连原生 Wan Context Windows 的 context_overlap。",
+        "透传 schedule（原生值 standard_static/standard_uniform/looped_uniform/batched），"
+        "COMBO 槽型，可直连原生 Wan Context Windows 的 context_schedule。",
+    )
     FUNCTION = "plan"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("SF Wan Window Planner：只算不跑。输入总帧/窗长/重叠/schedule + "
-                   "槽数 + cond 数，输出窗口 latent/实帧区间 × cond 段 × slot 对照表与错位警告。"
-                   "排队前核对 N 与映射。")
+                   "槽数 + cond 数，输出窗口 latent/实帧区间 × cond 段 × slot 对照表与错位警告；"
+                   "4 个输入参数各透传一个输出（实帧原值；schedule 输出原生值、COMBO 槽型，"
+                   "可直连原生 Wan Context Windows）。排队前核对 N 与映射。")
 
     def plan(self, total_frames, context_length, context_overlap, schedule,
              n_slots, n_conds):
@@ -243,7 +254,10 @@ class SFWanWindowPlanner:
         }, tips)
         logger = get_logger(__name__)
         logger.info("[SFWanWindowPlanner]\n%s", report)
-        return (report,)
+        # schedule 输出转原生值（输入用简写别名，原生节点只认 standard_static/... 枚举值）
+        native_schedule = _SCHEDULES.get(schedule, schedule)
+        return (report, int(total_frames), int(context_length),
+                int(context_overlap), native_schedule)
 
 
 logger = get_logger(__name__)

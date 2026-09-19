@@ -5,6 +5,7 @@
 #   - region 走原生类（n_conds=3 → 0/1/2/2）、slot 取模
 #   - cond 数警告：回绕/闲置段/复用段；schedule 警告：uniform 漂移/batched 硬切
 #   - 非法 schedule 抛错；节点结构与 plan() 端到端
+#   - 5 输出：report 占第 0 位 + 4 输入参数透传（schedule 输出原生值 + COMBO 槽型）
 import importlib.util
 import os
 import sys
@@ -29,9 +30,10 @@ CALLS = []
 
 
 class Schedules:
-    STATIC_STANDARD = "static"
-    UNIFORM_STANDARD = "uniform"
-    UNIFORM_LOOPED = "looped"
+    # 真实原生常量（不是别名），保证 schedule 透传值断言不假绿
+    STATIC_STANDARD = "standard_static"
+    UNIFORM_STANDARD = "standard_uniform"
+    UNIFORM_LOOPED = "looped_uniform"
     BATCHED = "batched"
 
 
@@ -58,9 +60,9 @@ def _canned(name, windows):
 
 
 FUNCS = {
-    "static": fake_static,
-    "uniform": _canned("uniform", [[0, 1, 2], [2, 3, 4]]),
-    "looped": _canned("looped", [[3, 4, 0]]),
+    "standard_static": fake_static,
+    "standard_uniform": _canned("uniform", [[0, 1, 2], [2, 3, 4]]),
+    "looped_uniform": _canned("looped", [[3, 4, 0]]),
     "batched": _canned("batched", [[0, 1], [2, 3]]),
 }
 
@@ -174,11 +176,20 @@ check("structure: 6 输入齐", set(it["required"]) == {
     "schedule", "n_slots", "n_conds"})
 check("structure: schedule 选项", list(it["required"]["schedule"][0]) == [
     "static", "uniform", "looped", "batched"])
-check("structure: RETURN STRING", node.RETURN_TYPES == ("STRING",)
-      and node.RETURN_NAMES == ("report",))
+check("structure: 5 输出（report 占第 0 位）",
+      node.RETURN_TYPES == ("STRING", "INT", "INT", "INT", "COMBO")
+      and node.RETURN_NAMES == ("report", "total_frames", "context_length",
+                                "context_overlap", "schedule"))
+check("structure: OUTPUT_TOOLTIPS 齐", len(node.OUTPUT_TOOLTIPS) == 5)
+check("structure: schedule 四档映射原生值",
+      [nmod._SCHEDULES[k] for k in ("static", "uniform", "looped", "batched")]
+      == ["standard_static", "standard_uniform", "looped_uniform", "batched"])
 check("structure: CATEGORY/DESCRIPTION",
       node.CATEGORY == "sfnodes/model" and bool(node.DESCRIPTION))
-report = node.plan(241, 81, 16, "static", 4, 3)[0]
+out = node.plan(241, 81, 16, "static", 4, 3)
+report = out[0]
+check("plan(): 参数透传（schedule 原生值）",
+      out[1:] == (241, 81, 16, "standard_static"))
 check("plan(): 实帧换算进表", "61 latent" in report and "1-81" in report)
 check("plan(): 含 cond 列", "cond 段" in report)
 check("plan(): Markdown 节", all(s in report for s in

@@ -543,6 +543,8 @@
 - **警告三类**：窗数≠槽数（回绕/闲槽）、cond 段闲置、schedule 警告（UNIFORM 漂移/BATCHED 硬切）；多窗复用同一段（STATIC 尾窗）属正常不警告，表格自明。
 - **测试**：`tests/test_wan_window_planner.py` 44 断言（mock 原生 schedule + 窗类；用户真实配置 241/81/16/static/4槽/3段端到端出表；非法 schedule 抛错）。
 - **§39.6.1 Markdown 报告 + 设置建议（2026-09）**：输出改为四节 Markdown（配置回显/映射表/警告/参数设置建议）；新增 `flush_totals`（齐平数列 k=1..8，L=21/O=4 得 81/149/217/285…即 `68a+13`，算出而非硬编码）与 `suggest_settings`（总数就近两档齐平值、槽数=窗数、schedule/窗长/重叠原则性建议；cond 数只判形状不代设）。多窗复用同一段属正常不警告（表格自明），避免警告 blindness。
+- **§39.6.2 参数透传输出（2026-09）**：输入参数追加为独立输出（`RETURN_TYPES/NAMES/OUTPUT_TOOLTIPS`，`report` 保持第 0 位旧连线安全），值一律**原始输入**（实帧，不换算 latent、不 clamp），Planner 兼作窗口参数单一设置源（§39.6.2.1 起 schedule 改原生值 + COMBO 槽型）。`plan_windows` 已支持的 `context_stride/closed_loop` 未暴露（控制改动范围，保持现有 6 项）。
+  - **§39.6.2.1 schedule 连接修复（2026-09）**：实测 `schedule` 无法连原生 `Wan Context Windows` 的 `context_schedule`。两个叠加根因：① 原生输入是 V3 `io.Combo.Input`，槽型为 **`COMBO`**（不是 STRING），前端 `isValidConnection` 只做类型精确匹配（`COMBO`/`*` 才可连）；② 原生选项值是 `standard_static/standard_uniform/looped_uniform/batched`，planner 输入用简写别名（static/uniform/…），即便连上后端也会 `value_not_in_list`（`execution.py:1047` 对 V3 combo 按 `options` 校验）。修法：`schedule` 输出槽型改 `"COMBO"`、值经 `_SCHEDULES.get(schedule, schedule)` 转原生名（**输入侧保留别名**，避免旧工作流值不在新 options 被前端静默改成首项；COMBO 槽型沿用 SFConvertAnything §84 约定）。同时按用户要求撤掉 `n_slots/n_conds` 输出（7→5）。测试同步：mock 的 `ContextSchedules` 常量改用真实原生值（否则别名 mock 会让透传断言假绿）+ 断言 `out[1:] == (241, 81, 16, "standard_static")`。
 
 
 
