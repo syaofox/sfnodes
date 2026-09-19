@@ -1,4 +1,4 @@
-# 经验归档：平台机制（ComfyUI 前后端通用）（§1、§2）
+# 经验归档：平台机制（ComfyUI 前后端通用）（§1、§2、§106）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -133,6 +133,8 @@ Object.defineProperty(app, 'dragOverNode', {
 
 ### 9. 实际环境调试方式（console 诊断脚本，用户配合执行）
 
+> ⚠️ 部分更新（2026-09）：后端/API 层实机调试已可直接进行，见 §106；本节"一律 console 脚本"仅前端 UI 层仍适用，浏览器访问禁令依旧有效。
+
 > 背景：SFAnyPack 首槽自动改名 bug（2026-08）。静态分析 + bundle 反查多轮仍未定位，最终靠用户粘贴 console 诊断脚本锁定根因：数据层改名成功但 UI 不刷新 → 槽名渲染读的是 `localized_name` 而非 `name`（见 §10）。
 
 - **不要自行用浏览器访问 ComfyUI**：agent 浏览器访问 `localhost:8188` 会 404/不可用，且用户浏览器 tab 可能正在跑任务（打开即见用户真实工作流，勿动）。实际环境验证一律走"分段 console 诊断脚本 + 用户粘贴反馈"。
@@ -252,3 +254,19 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **自管理边界**：Vue badge 实例打 `_sfRuntimeBadge` 标记，`findIndex` 只替换/删除自己的，不影响官方 NodeId/生命周期/API 价格等 badge。Classic 的绘制同样只读 `node.executionDuration`。
 - **开关**：`sfnodes.NodeRuntime.Enabled`（boolean，**默认 false**，Easy-Use 默认 true）；`onChange(false)` 立即 `clearAll()` 清除耗时与 badge，开启后需下一轮执行才有数据。`execution_start` 无条件清空（即使关闭，避免残留）。
 - **测试**：`tests/test_node_runtime_lib.mjs`（formatDuration/accumulateSeconds/resolveNodeId 双形态/badge 标记）+ `tests/test_node_runtime_js.js`（受控 `Date.now`；executing 以 primitive id 触发模拟真实前端，断言开关门槛、Classic executionDuration 结算 + onDrawForeground 绘制文案/折叠与关闭跳过、Vue badge 生成/重建、execution_start 清空、onChange(false) 清除）。
+
+---
+
+## 106. 容器内 API 实机调试（免浏览器，2026-09）
+
+> 背景：运行实例为 docker `comfyui-docker`（compose 在宿主 `/mnt/github/comfyui-docker/docker-compose.yml`，端口 `8188:8188`），此前实机验证只允许"用户执行 console 脚本"（§9）。实测 agent 可经 HTTP API 与 `docker exec` 直接对后端实机诊断：宿主 `curl http://localhost:8188/...` 与容器内 `docker exec comfyui-docker curl -s http://127.0.0.1:8188/...` 均可达（8188 已发布到宿主）；`/object_info`、`/queue`、`/api/sfnodes/workflows/index` 实测均 200。UI/DOM 层仍走 §9。
+
+- **可自行操作（后端/API 层）**：
+  - `GET /object_info/{节点类名}`：验节点注册与 INPUT_TYPES / RETURN_TYPES / RETURN_NAMES / tooltip（`server.py::node_info()` 每次请求惰性读取类属性，见 patterns.md §79.2——改动重启后即见，无需前端 JS）；
+  - `GET /queue`、`GET /history`（含 `/history/{prompt_id}`）、`GET /system_stats`：队列/历史/运行状态；
+  - 自定义路由：`GET /api/sfnodes/...`（workflows/index、prompt_reader/list 等）直接验证；POST 写路由（workflows/meta、preview/flip、translate 等）仅用测试数据且可回滚，勿污染用户真实数据；
+  - `docker logs comfyui-docker`：启动注册日志与 traceback（各路由注册成功行），排查"路由 404 / 节点未注册"的第一现场；
+  - `docker exec comfyui-docker python3 -c "..."`：真实运行时环境一次性检查（容器 Python 3.12.x vs 宿主 3.14.x 行为差异见 patterns.md §27.1；`pip show comfyui-frontend-package` 查前端版本）。
+- **执行级验证（POST /prompt）**：构造轻量测试工作流（少量纯计算/文本节点，**不加载大模型**）POST `/prompt`，再轮询 `GET /history/{prompt_id}` 取结果——等价于"请用户 UI 添加节点跑一遍"的后端替代；队列与用户任务共用，注意不抢占 GPU/长时间占用。
+- **部署同步（重启须用户同意）**：宿主工作副本与容器挂载副本（当前 `/mnt/github/comfyui-docker/custom_nodes/sfnodes`，以实际挂载为准）是独立 git 副本，改动须显式同步后重启容器才在实机生效；**重启打断用户任务，先确认**。entrypoint 的 `.update` 机制会 `git reset --hard origin/HEAD` 清除部署副本全部未提交改动——手工同步不持久。
+- **浏览器禁令仍有效**：agent 浏览器/浏览器自动化访问用户 ComfyUI 页面会干扰用户 tab 与工作流；UI/DOM/Vue 渲染、画布交互、widget 行为无法经 API 验证，仍按 §9 分段 console 脚本交用户执行（节点由用户 UI 添加，新版前端无 graph.createNode）。

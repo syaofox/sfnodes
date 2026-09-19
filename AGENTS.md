@@ -74,8 +74,8 @@ class SFMyNode:
 6. 图像张量 `[B,H,W,C]`；遮罩张量 `[B,H,W]`
 7. JS Widget 用 `app.registerExtension` 注册；纯工具模块仅 export 函数由使用者 import
 8. 动态槽位类 JS 复用 `web/sf_dynamic_slots.js` 公共库，勿重复实现
-9. 部署为 docker：后端改动需重启容器；`web/` JS 改动需同步该目录且浏览器硬刷新（Ctrl+Shift+R）才生效
-10. **实际环境调试禁止自行浏览器访问 ComfyUI**（404 且干扰用户工作流）：一律分段 console 诊断脚本（版本检查→节点状态→事件日志→数据层→UI 层）交用户执行反馈 → experience/platform.md §2.9；节点请用户 UI 添加（新版前端无 graph.createNode）
+9. 部署为 docker：宿主机工作副本与运行实例是**独立副本**，改动须同步到实际挂载目录（当前 `/mnt/github/comfyui-docker/custom_nodes/sfnodes`，以实际挂载为准）；后端改动需重启容器——**重启会打断用户任务，必须先征得用户同意**；`web/` JS 改动同步后需浏览器硬刷新（Ctrl+Shift+R）才生效
+10. **实机调试**：禁止浏览器/浏览器自动化访问用户 ComfyUI 页面（干扰用户 tab 与工作流）。① **后端/API 层可自行调试**：`docker exec comfyui-docker curl -s http://127.0.0.1:8188/...` 或宿主 `curl http://localhost:8188/...`——`GET /object_info/{节点}` 验注册与输入/输出槽、`/api/sfnodes/...` 路由自测、`POST /prompt` 跑轻量测试工作流（不加载大模型）、`docker logs` 查错、`docker exec ... python3` 验容器运行时行为；测试数据勿污染用户数据/队列 → experience/platform.md §106；② **前端/UI 层仍须用户配合**：分段 console 诊断脚本（版本检查→节点状态→事件日志→数据层→UI 层）交用户执行反馈，节点请用户 UI 添加（新版前端无 graph.createNode）→ experience/platform.md §2.9
 11. **新增节点/功能前先查复用**（见 Code Style），禁止内联副本——语义分叉是 bug 温床。去重/重构注意：① 独立语句的包装块不在函数体内按名删除会漏；② 文件已有某模块 import 时脚本补 import 可能跳过致缺符号（被 try/catch 吞掉极难排查）；③ ESM 结构错误用 `node --input-type=module --check < file` 验证
 12. 新增/删除 py/js 文件同步 `doc/architecture.md` 条目；沉淀新经验按主题写入 `doc/experience/` 对应主题文件（下一个全局 §N）并同步 README.md 索引表；**确属新类别且现有主题均不适配时可新建主题文件**（英文短名对齐节点族，标题注明所含章节）
 
