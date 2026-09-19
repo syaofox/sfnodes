@@ -176,6 +176,7 @@ from .nodes.text import prompt_reader_routes  # noqa: F401  # 副作用注册 /a
 from .nodes.text import translate_routes  # noqa: F401  # 副作用注册 /api/sfnodes/translate 路由（SFPauseText 翻译按钮）
 from .nodes.text.long_text_to_list import SFLongTextToList
 from .nodes.text.text_list_affix import SFTextListAffix
+from .nodes.text.spreadsheet_outputlist import SFSpreadsheetOutputList
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.qwen_edit import (
@@ -400,6 +401,7 @@ NODE_CLASS_MAPPINGS = {
     "SFCharacterSelect": SFCharacterSelect,
     "SFLongTextToList": SFLongTextToList,
     "SFTextListAffix": SFTextListAffix,
+    "SFSpreadsheetOutputList": SFSpreadsheetOutputList,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFUniversalSlider": SFUniversalSlider,
@@ -632,6 +634,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFCharacterSelect": "SF Character Select",
     "SFLongTextToList": "SF Long Text To List",
     "SFTextListAffix": "SF Text List Affix",
+    "SFSpreadsheetOutputList": "SF Spreadsheet OutputList",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFUniversalSlider": "SF Universal Slider",

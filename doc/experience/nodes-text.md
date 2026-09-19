@@ -569,3 +569,29 @@
 - `start_index`/`max_rows` 上限 9999，超长文本行数可超上限 → `setNativeWidget` 必须按 options 钳制，否则 API 校验报错。
 - 点选模式不锁 widget 面板：用户仍可手动改 INT 值；点选只在鼠标/键盘选择动作时写回。
 - 测试：`tests/test_prompt_list_lines_js.js`（selectionToRange）+ `test_prompt_list_smoke.js`（开关/readOnly/properties/区间写回/高亮块/空白吸附/行号点击/行号拖动含空白与反向/编辑态不提交/退出恢复）。
+
+---
+
+## 107. SFSpreadsheetOutputList：表格输出列表（复刻 ComfyUI-outputlists-combiner，仅文本表格）
+
+> 背景：`nodes/text/spreadsheet_outputlist.py` + `sf_utils/spreadsheet.py`（2026-09）。1:1 复刻 geroldmeisinger/ComfyUI-outputlists-combiner `SpreadsheetOutputList` 的文本路径（CSV/TSV/Markdown），Excel/ODS 按用户选择裁掉；上游用 pandas，本实现收敛为 stdlib csv 纯逻辑（零新增依赖，requirements.txt 未动）。
+
+### 1. 行为规格（已逐例对照上游 pandas 原码）
+
+- 输入键对齐上游原名：`rows_and_cols / separator / is_topdown / num_headers / select_nth / string_or_base64`；输出 7 路 `count / values_dict / values_list / item_a~d`（后六路 `OUTPUT_IS_LIST`，`DICT`/`ARRAY` 为核心 V3 类型名）。
+- 别名双轨：列别名 `[表头, 列名]`（A、B…ZZZZ），行别名 `[行头, 1 基行号]`，任一都能作 selector；`values_dict` 同时含两套键。
+- top-down：跳 `num_headers` 行，记录=数据行，selector 解析到列；left-to-right：跳 `num_headers` 列，记录=数据列，selector 解析到行（含表头行）——因此 ltr 下用列名当 selector 不命中（返回全空），行头/行号才行。
+- Markdown 表：`|` 分隔产生首尾空列（占 A/D）；`---|---`/`:---:` 行不参与表头取名，但**仍是数据行**（`find_header` 跳过 ≠ 记录跳过）。
+- 黄金对照：27 例（top-down/ltr、表头/列名/行号选择器、`select_nth`、`num_headers` 0/超界、Markdown 对齐行、引号内换行、多字符分隔符 `::`、CRLF/BOM/注释空行、只有表头等）与容器内上游原码逐例比对，除两处刻意加固外**完全一致**。
+- 测试：`tests/test_spreadsheet_outputlist.py` 88 条断言 + 1000 项列名往返循环（纯函数 + `execute` 全链 + 契约）。
+
+### 2. 与上游的两处刻意差异（已确认）
+
+- **base64 文本**：上游把 base64 串当 CSV 解析（得到空/垃圾），本实现 strict base64 且解出合法 UTF-8 时用解码文本；解出 Office 魔数（`PK\x03\x04` / CFB，含 xlsx/ods/xls）抛明确错误，杜绝上游「缺 openpyxl 时静默输出 base64 垃圾」。
+- **行内 `#`**：上游 pandas `comment="#"` 连行内余下内容一起剥（`val # note` → `val`）；本实现仅跳过行首 `#`（README 语义），字段原样保留。影响面：`values_dict` 键名会含 `"val # note"`，值不变。
+
+### 3. 踩坑
+
+- **pandas ParserError 语义要复刻**：上游 read_csv 对不等宽行直接报错 → load 失败 → 全空输出；最初实现「短行补空」更宽容但与上游分叉，黄金对照抓出后改为「各行列数必须等于首行，否则判失败」。
+- **转义解码要防乱码**：上游 `separator.encode().decode("unicode_escape")` 按 UTF-8 编码后按 latin-1 解码，中文分隔符（如 `，`）会变乱码；改用 `encode("latin-1", "backslashreplace").decode("unicode_escape")`（ASCII 输入行为不变、非 ASCII 保留），且 selectors 切分与数据解析共用同一解码值（上游 selectors 用原始串，`\t` 时不自洽）。
+- 上游无前端 JS，本节点同样纯后端；`string_or_base64` 输入保留幂等（空输入 → 全空输出）。
