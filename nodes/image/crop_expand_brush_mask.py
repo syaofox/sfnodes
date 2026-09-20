@@ -7,19 +7,20 @@
   - 用画笔在源图上直接涂抹额外重绘区域（brush 涂白 / erase 擦除 / fill 多边形
     添加 / fill_erase 多边形打洞，与 SFImageBrushMask 完全同语义）。
 
-mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区结构性保留，Erase 只擦除
-笔触层。笔触以**源图像素坐标**记录（前端钳制在源图内），随图移动，只有落在
-裁剪框内的部分进入输出——与后端 `_compose_expand(overlay=)` 的贴回口径一致。
+mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区默认结构性保留（Ext 开关
+可关掉并入，此时 mask = 笔触层），Erase 只擦除笔触层。笔触以**源图像素坐标**
+记录（前端钳制在源图内），随图移动，只有落在裁剪框内的部分进入输出——与后端
+`_compose_expand(overlay=)` 的贴回口径一致。
 
 复用（零新增路由 / 零新依赖）：
-  - `crop_expand._clamp_crop` / `_compose_expand(overlay=)`（扩展画布合成）
+  - `crop_expand._clamp_crop` / `_compose_expand(overlay=, include_ext=)`（扩展画布合成）
   - `sf_utils.brush_mask.parse_state_strokes` / `rasterize_strokes` / `lean_key`
   - `crop._safe_join` / `crop.load_src_rgb`（input/sfnodes_crop/ 源图读取）
   - `sf_utils.common._parse_fill_color` / `parse_json_dict as _parse_state`
 
 状态收敛为单个隐藏输入 `SFCropExpandBrushMaskJson` STRING（前端 graphToPrompt
-注入 lean 字段：src/crop/fill/strokes/brush_size；比例与画笔预览字段不进注入，
-改画笔颜色不重跑）——patterns §4 先例。
+注入 lean 字段：src/crop/fill/strokes/brush_size/invert/include_ext；比例与画笔
+预览字段不进注入，改画笔颜色不重跑）——patterns §4 先例。
 """
 
 import os
@@ -40,9 +41,10 @@ _HIDDEN_INPUT = "SFCropExpandBrushMaskJson"
 
 def _state_key(meta):
     """IS_CHANGED 结果键（不含源文件签名）：裁剪域 + 填充色 + 笔触 lean
-    （预览字段由 lean_key 排除）。"""
+    （预览字段由 lean_key 排除）+ 扩展区开关（Ext，§113）。"""
     x, y, w, h = _clamp_crop(meta)
-    return f"{x}:{y}:{w}:{h}:{meta.get('fill_color', '')}|{_brush_lean_key(meta)}"
+    ext = "1" if meta.get("include_ext", True) else "0"
+    return f"{x}:{y}:{w}:{h}:{meta.get('fill_color', '')}|{_brush_lean_key(meta)}|ext={ext}"
 
 
 class SFImageCropExpandBrushMask:
@@ -54,8 +56,10 @@ class SFImageCropExpandBrushMask:
         "左列：裁剪比例预设（Free/1:1/16:9 等，非 Free 时拖拽保持比例）与 "
         "Custom 自定义比例（全局库，可保存/删除定义）、Reset（框回满幅）、Color"
         "（扩展区填充色）。中列：Crop/Brush/Erase 模式切换、Clear 清空与 Undo "
-        "撤销笔触、Invert 反选、笔刷 Size± 与预览 Opa± 步进（悬停滚轮快调；"
-        "选中节点时 C/B/E 快捷键切模式、[ ] 调尺寸）、Pen 笔刷取色。右列："
+        "撤销笔触、Invert 反选、Ext 扩展区遮罩开关（默认 ON=扩展区计入 mask；"
+        "OFF 时 mask 只含笔触层、扩展区不重绘）、笔刷 Size± 与预览 Opa± 步进"
+        "（悬停滚轮快调；选中节点时 C/B/E 快捷键切模式、[ ] 调尺寸）、Pen 笔刷"
+        "取色。右列："
         "FlipH/FlipV 水平/垂直翻转与 RotL/RotR 逆/顺时针旋转 90°——源图整体"
         "变换（裁剪框与笔触随图联动、笔触仍粘在画面内容上），每次操作把变换后"
         "的源图另存为新文件并自动更新输出；旋转 90° 后比例预设复位为 Free。"
@@ -69,15 +73,16 @@ class SFImageCropExpandBrushMask:
         "Shift+左键=负点、Enter 执行）、人物部位遮罩（MediaPipe）、YOLO 检测/分割"
         "（models/ultralytics/{bbox,segm} 权重，需已装 ultralytics）、导入遮罩"
         "文件为笔触、反选遮罩（面板 Invert 按钮或右键菜单切换，ON 时按钮呈琥珀色）。"
-        "反选只作用于笔触层：mask = 扩展区 ∪ (1 - 笔触)，"
-        "扩展区始终保留重绘。识别/导入结果按当前模式并入列表统一管理（可擦除/"
+        "反选只作用于笔触层：Ext ON（扩展区计入）时 mask = 扩展区 ∪ (1 - 笔触)，"
+        "扩展区保留重绘；Ext OFF 时源图交集内 = 1 - 笔触、扩展区仍不重绘。"
+        "识别/导入结果按当前模式并入列表统一管理（可擦除/"
         "撤销/清除）：Brush（及 Crop）模式转为填充笔触添加；Eraser 模式转为"
         "打洞笔触，从现有遮罩（笔触层）中减去识别区域（导入遮罩同样跟随）。"
         "工作流执行期间模型类菜单不可用（避免与运行时模型加载并发冲突），"
         "请等任务结束再试。\n\n"
-        "mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）——笔触以源图坐标记录并"
-        "随图移动，只有落在裁剪框内的部分进入输出；Erase 只擦除笔触，扩展区"
-        "始终保留（外绘掩码直接可用）。\n\n"
+        "mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值；Ext 开关 OFF 时 = 笔触层）"
+        "——笔触以源图坐标记录并随图移动，只有落在裁剪框内的部分进入输出；"
+        "Erase 只擦除笔触，扩展区默认保留（外绘掩码直接可用）。\n\n"
         "图片持久化到 input/sfnodes_crop/（复用 SFImageCrop 的上传路由），工作流"
         "保存/重载不丢图。输出 画布、遮罩、宽、高，以及 filename——源图在 input "
         "目录下的存储路径（可直连 LoadImage，未加载时为空串）。"
@@ -109,8 +114,8 @@ class SFImageCropExpandBrushMask:
 
     @classmethod
     def IS_CHANGED(cls, SFCropExpandBrushMaskJson="{}", **kwargs):
-        """Re-run when the crop/fill/strokes/source change. Keys on the source
-        file's (mtime_ns, size) — patterns §3 禁 NaN；预览字段不进键。"""
+        """Re-run when the crop/fill/strokes/source/Ext switch change. Keys on the
+        source file's (mtime_ns, size) — patterns §3 禁 NaN；预览字段不进键。"""
         meta = _parse_state(SFCropExpandBrushMaskJson)
         key = _state_key(meta)
         src_path = meta.get("src_path", "")
@@ -123,6 +128,8 @@ class SFImageCropExpandBrushMask:
     def execute(self, SFCropExpandBrushMaskJson="{}", **kwargs):
         meta = _parse_state(SFCropExpandBrushMaskJson)
         x, y, w, h = _clamp_crop(meta)
+        # Ext 开关（默认 True=扩展区计入遮罩；前端面板切换，§113）
+        include_ext = bool(meta.get("include_ext", True))
         try:
             fill_rgb = _parse_fill_color(meta.get("fill_color") or "#000000")
         except Exception:
@@ -148,12 +155,16 @@ class SFImageCropExpandBrushMask:
             if strokes:
                 overlay = rasterize_strokes(strokes, sw, sh)
 
-        img_arr, mask_arr = _compose_expand(src, x, y, w, h, fill_rgb, overlay)
+        img_arr, mask_arr = _compose_expand(src, x, y, w, h, fill_rgb, overlay,
+                                            include_ext=include_ext)
         if meta.get("invert"):
-            # 反选只作用于笔触层：扩展区 ∪ (1 - 笔触)——扩展区是结构性重绘区，
-            # 不被反选取消（仅笔刷节点是纯 1 - 笔触）
+            # 反选只作用于笔触层（§113 与 Ext 开关联动）：
+            # - Ext ON：扩展区 ∪ (1 - 笔触)（扩展区是结构性重绘区，不被反选取消）；
+            # - Ext OFF：扩展区恒黑（反选不把它带回来），源图交集内 = 1 - 笔触。
+            # inv 先乘 (1 - 扩展区) 把反选结果圈定在源图交集内，一处公式覆盖两态。
             _, ext_mask = _compose_expand(src, x, y, w, h, fill_rgb, None)
-            mask_arr = np.maximum(ext_mask, 1.0 - mask_arr)
+            inv = (1.0 - mask_arr) * (1.0 - ext_mask)
+            mask_arr = np.maximum(ext_mask, inv) if include_ext else inv
 
         image = torch.from_numpy(img_arr)[None,]   # [1, H, W, 3]
         mask = torch.from_numpy(mask_arr)[None,]   # [1, H, W]

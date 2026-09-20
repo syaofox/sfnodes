@@ -46,15 +46,16 @@ function makeCanvas(w = 10, h = 10) {
   const Brush = await import(pathToFileURL(path.join(tmpDir, "sf_brush_mask_lib.js")).href);
 
   // ── 组合布局 ──
-  check("TOOL_COL 12 项且 Crop 置顶", L.TOOL_COL.length === 12 && L.TOOL_COL[0] === "crop"
-    && JSON.stringify(L.TOOL_COL.slice(1)) === JSON.stringify(Brush.TOOL_COL));
+  check("TOOL_COL 13 项：Crop 置顶 + Ext 插在 Invert 后", L.TOOL_COL.length === 13 && L.TOOL_COL[0] === "crop"
+    && L.TOOL_COL[6] === "invert" && L.TOOL_COL[7] === "includeExt"
+    && JSON.stringify(L.TOOL_COL.filter((id) => id !== "crop" && id !== "includeExt")) === JSON.stringify(Brush.TOOL_COL));
   check("ORIENT_COL 4 项（flipH/flipV/rotL/rotR）", JSON.stringify(L.ORIENT_COL) === JSON.stringify(["flipH", "flipV", "rotL", "rotR"]));
   check("列1/列2/列3 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34 && L.LAYOUT.orientColW === 34);
   check("TOOL_COL_X = shiftLeft + 列1宽 + 间距", L.TOOL_COL_X === L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap);
   check("ORIENT_COL_X = 列2 右缘 + 间距", L.ORIENT_COL_X === L.TOOL_COL_X + L.LAYOUT.toolColW + L.LAYOUT.toolColGap);
   check("EXTRA_LEFT = 列2 + 列3（含间距）= 80", L.EXTRA_LEFT === 80);
-  check("MIN 400×340（列3 只加宽不加高）", L.MIN_NODE_WIDTH === 400 && L.MIN_NODE_HEIGHT === 340);
-  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([400, 340]));
+  check("MIN 400×360（列2 13 项含 Ext + 列3 只加宽）", L.MIN_NODE_WIDTH === 400 && L.MIN_NODE_HEIGHT === 360);
+  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([400, 360]));
   check("ensureMinSize 放行大尺寸", JSON.stringify(L.ensureMinSize(800, 600)) === JSON.stringify([800, 600]));
 
   // ── 列头/分组排布（§109）──
@@ -64,8 +65,8 @@ function makeCanvas(w = 10, h = 10) {
     && L.COL3_GROUPS.reduce((a, b) => a + b, 0) === L.ORIENT_COL.length);
   check("列1 行位（组间 +3）", JSON.stringify(L.columnYs(L.COL1_GROUPS)) ===
     JSON.stringify([26, 48, 70, 92, 114, 136, 158, 180, 205, 227, 249]));
-  check("列2 行位（组间 +3，末项 Pen 277）", JSON.stringify(L.columnYs(L.COL2_GROUPS)) ===
-    JSON.stringify([26, 48, 70, 92, 117, 139, 161, 186, 208, 230, 252, 277]));
+  check("列2 行位（组间 +3，末项 Pen 299）", JSON.stringify(L.columnYs(L.COL2_GROUPS)) ===
+    JSON.stringify([26, 48, 70, 92, 117, 139, 161, 183, 208, 230, 252, 274, 299]));
   check("列3 行位（单组四项）", JSON.stringify(L.columnYs(L.COL3_GROUPS)) ===
     JSON.stringify([26, 48, 70, 92]));
 

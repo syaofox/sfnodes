@@ -59,10 +59,10 @@ export const FIRST_ROW_Y = COL_TOP + HEADER_H; // 26
 
 // 每列按语义分组的项数（之和必须等于对应列的按钮数）：
 // - 列1：比例预设 | Custom/Reset/Fill；
-// - 列2：模式 | Clear/Undo/Invert | S±/O± | Pen；
+// - 列2：模式 | Clear/Undo/Invert/Ext | S±/O± | Pen（Ext 见 §113）；
 // - 列3：翻转/旋转 4 项一组（无组间分隔）。
 export const COL1_GROUPS = [RATIO_PRESETS_COL.length, 3]; // [8, 3]
-export const COL2_GROUPS = [4, 3, 4, 1];                  // = TOOL_COL 12 项
+export const COL2_GROUPS = [4, 4, 4, 1];                  // = TOOL_COL 13 项
 export const COL3_GROUPS = [4];                           // = ORIENT_COL 4 项
 
 // columnYs(groups, topY) → 逐项 y 数组（组内步进 COL_STEP，组间额外 GROUP_EXTRA）。
@@ -82,12 +82,13 @@ export function columnYs(groups, topY = FIRST_ROW_Y) {
 
 // 最小节点尺寸：
 // - 宽度：CropExpand 320（显示区 190）再加列2 + 列3 的 80 → 400；
-// - 高度：由列2 的 12 项（Crop + BrushMask 11 项含 Poly，首行 26 起、步进 22、
-//   三处分隔 +3、底 295）+ 底行 26 + 边距驱动 → 340（列1 11 项底 267、列3 4 项
-//   底 110 都不是瓶颈；§101 加 Poly 前为 300、§90 起为 320，存量节点载入时
-//   自动抬升见 §109；§112 加列3 只加宽不加高）。
+// - 高度：由列2 的 13 项（Crop + BrushMask 11 项含 Poly + Ext，首行 26 起、
+//   步进 22、三处分隔 +3、末项 Pen 299 底 317）+ 底行 26 + 边距驱动 → 360
+//   （列1 11 项底 267、列3 4 项底 110 都不是瓶颈；§101 加 Poly 前为 300、
+//   §90 起为 320、§109 起为 340，存量节点载入时自动抬升见 §109；
+//   §112 加列3 只加宽，§113 加 Ext 抬 20 高）。
 export const MIN_NODE_WIDTH = CROP_MIN_WIDTH + EXTRA_LEFT; // 400
-export const MIN_NODE_HEIGHT = 340;                        // 340（列2 12 项 + 列头/分隔）
+export const MIN_NODE_HEIGHT = 360;                        // 360（列2 13 项 + 列头/分隔）
 
 // ensureMinSize(w, h) → [w, h]（组合节点下限；computeSize 包装与
 // clampNodeSize 共用）。
@@ -102,8 +103,16 @@ export function computeDisplayMetrics(state, nodeW, nodeH, frozen) {
 }
 
 // 列2 按钮顺序：Crop 模式置顶 + BrushMask 工具列原序（Brush/Erase/Clear/Undo/
-// Size±/Opa±/BCol），三模式为单选按钮。
-export const TOOL_COL = ["crop", ...BRUSH_TOOL_COL];
+// Size±/Opa±/BCol），三模式为单选按钮；includeExt（扩展区遮罩开关，§113）在
+// Invert 之后插入——用 indexOf 定位，不复制共享列表（BRUSH_TOOL_COL 增删项
+// 自动跟随；COL2_GROUPS 需与插入位置一致）。
+const _extInsertAt = BRUSH_TOOL_COL.indexOf("invert") + 1;
+export const TOOL_COL = [
+  "crop",
+  ...BRUSH_TOOL_COL.slice(0, _extInsertAt),
+  "includeExt",
+  ...BRUSH_TOOL_COL.slice(_extInsertAt),
+];
 
 // ── 源图翻转/旋转（列3 ORIENT，§112）─────────────────────────────────────
 // 操作语义 = 源图整体变换：裁剪框与笔触随图联动重映射（笔触仍粘在画面内容

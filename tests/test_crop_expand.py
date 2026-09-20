@@ -150,6 +150,13 @@ check("无源遮罩全白", np.allclose(mask, 1.0))
 img, mask = mod._compose_expand(src, 100, 100, 8, 8, (0, 0, 255))
 check("不相交遮罩全白", np.allclose(mask, 1.0))
 
+# include_ext=False（§113 Ext 开关）：遮罩不含扩展区，图像/交集贴回不变
+img, mask = mod._compose_expand(src, -2, -2, 8, 8, (0, 0, 255), None, include_ext=False)
+check("include_ext=False 扩展区遮罩黑", np.allclose(mask[0:2, :], 0.0) and np.allclose(mask[:, 6:8], 0.0))
+check("include_ext=False 交集仍黑 + 图像不变", np.allclose(mask, 0.0) and np.allclose(img[2:6, 2:6, 0], 1.0))
+img, mask = mod._compose_expand(None, 0, 0, 4, 4, (128, 128, 128), None, include_ext=False)
+check("include_ext=False 无源遮罩全黑", np.allclose(mask, 0.0))
+
 # ── execute()：磁盘源 + 缺源退化 ──
 from PIL import Image
 

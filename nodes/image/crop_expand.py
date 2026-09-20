@@ -51,20 +51,27 @@ def _clamp_crop(meta):
     return x, y, w, h
 
 
-def _compose_expand(src, crop_x, crop_y, crop_w, crop_h, fill_rgb, overlay=None):
+def _compose_expand(src, crop_x, crop_y, crop_w, crop_h, fill_rgb, overlay=None,
+                    include_ext=True):
     """Composite the expansion canvas. Pure numpy.
 
     src: (H, W, 3) float32 0..1 RGB, or None (no source → pure fill canvas).
     overlay: 可选的源图坐标系 (H, W) float32 遮罩（SFImageCropExpandBrushMask
     的笔触层）——在源图交集贴回处与扩展区遮罩取并集（1.0 = 重绘）；无源图时
     忽略（点已无坐标可贴）。默认 None 时逐字节保持原行为。
+    include_ext: False 时遮罩初始全 0（扩展区不计入遮罩；交集置 0 与 overlay
+    并入逻辑不变）——SFImageCropExpandBrushMask 的 Ext 开关用（§113）。默认
+    True 时逐字节保持原行为。
     Returns (image (crop_h, crop_w, 3) float32, mask (crop_h, crop_w) float32)
     with mask 1.0 = extended region (white), 0.0 = original-image region.
     """
     canvas = np.empty((crop_h, crop_w, 3), dtype=np.float32)
     canvas[...] = (np.array(fill_rgb, dtype=np.float32) / 255.0).reshape(1, 1, 3)
 
-    mask = np.ones((crop_h, crop_w), dtype=np.float32)
+    if include_ext:
+        mask = np.ones((crop_h, crop_w), dtype=np.float32)
+    else:
+        mask = np.zeros((crop_h, crop_w), dtype=np.float32)
 
     if src is not None and src.ndim == 3 and src.shape[2] >= 3:
         src = src[..., :3]

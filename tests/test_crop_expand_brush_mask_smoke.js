@@ -101,7 +101,7 @@ const makeState = (patch = {}) => JSON.stringify({
   brush_size: 80, strokes: [], brush_opacity: 0.5,
   brush_color: "255,255,255", brush_mode: "crop",
   sam_prompt: "", sam_threshold: 0.5, sam_refine: 2,
-  invert: false, person_parts: [], person_confidence: 0.4, person_refine: false,
+  invert: false, include_ext: true, person_parts: [], person_confidence: 0.4, person_refine: false,
   yolo_kind: "bbox", yolo_model: "", yolo_conf: 0.25, yolo_box_shape: "rect",
   yolo_imgsz: 640, yolo_classes: [],
   ...patch,
@@ -185,22 +185,25 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__graph._nodes.push(node);
   nodeType.prototype.onNodeCreated.call(node);
 
-  check("控件 29 项（列1 11 + 列2 12 + 列3 4 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 29);
+  check("控件 30 项（列1 11 + 列2 13 + 列3 4 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 30);
   check("释放兜底 hook 已装", !!node._sfCEBReleaseGuard);
-  check("computeSize 钳最小值（三列 + 列2 12 项 → 400×340）", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([400, 340]));
+  check("computeSize 钳最小值（三列 + 列2 13 项 → 400×360）", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([400, 360]));
 
   // ── 列头/分组/重命名（§109·§112）──
   const hdrOps = [];
   node.onDrawForeground(makeFullCtx(hdrOps));
   const drawnTexts = hdrOps.filter((o) => o.op === "fillText").map((o) => String(o.args[0]));
   check("列头 RATIO/TOOLS/ORIENT 绘制", drawnTexts.includes("RATIO") && drawnTexts.includes("TOOLS") && drawnTexts.includes("ORIENT"));
-  check("歧义按钮重命名 Fill/Pen", drawnTexts.includes("Fill") && drawnTexts.includes("Pen"));
+  check("歧义按钮重命名 Fill/Pen/Ext", drawnTexts.includes("Fill") && drawnTexts.includes("Pen") && drawnTexts.includes("Ext"));
   check("首行下移列头 10px（crop y=26）", node._sfCEBCtrls.find((b) => b.id === "crop").y === 26);
   check("列3 按钮几何（ORIENT_COL_X=90 起 4 项）",
     ["flipH", "flipV", "rotL", "rotR"].every((id, i) => {
       const b = node._sfCEBCtrls.find((c) => c.id === id);
       return b && b.x === 90 && b.y === 26 + i * 22 && b.isOrient === true;
     }));
+  check("列2 Ext 按钮在 Invert 之后（y 183）",
+    node._sfCEBCtrls.find((b) => b.id === "invert").y === 161
+    && node._sfCEBCtrls.find((b) => b.id === "includeExt").y === 183);
 
   // 右键菜单（sf_brush_ai 共享安装器）
   const menuOpts = [];
@@ -230,6 +233,34 @@ const makeState = (patch = {}) => JSON.stringify({
   node.onMouseDown({ button: 0, buttons: 1 }, [invBtn2.x + 15, invBtn2.y + 9]);
   check("再点按钮关闭反选", JSON.parse(node.properties[STATE_PROP]).invert === false);
 
+  // ── Ext 扩展区遮罩开关（§113）：默认 ON（强调色底）；OFF 时提示/标记跟随 ──
+  const extBtn = node._sfCEBCtrls.find((b) => b.id === "includeExt");
+  check("Ext 按钮存在（列2 Invert 后）", !!extBtn && extBtn.y === 183);
+  check("Ext 默认 ON", JSON.parse(node.properties[STATE_PROP]).include_ext === true);
+  const extFill = (ops) => ops.find((o) => o.op === "fillRect"
+    && o.args[0] === extBtn.x && o.args[1] === extBtn.y && o.args[2] === 30 && o.args[3] === 18);
+  const extOnOps = [];
+  node.onDrawForeground(makeFullCtx(extOnOps));
+  check("Ext ON 用强调色底", !!extFill(extOnOps) && extFill(extOnOps).fill === "rgba(100,150,255,0.9)");
+  node.onMouseDown({ button: 0, buttons: 1 }, [extBtn.x + 15, extBtn.y + 9]);
+  check("点击 Ext 切 OFF", JSON.parse(node.properties[STATE_PROP]).include_ext === false);
+  const extOffOps = [];
+  node.onDrawForeground(makeFullCtx(extOffOps));
+  check("Ext OFF 按钮恢复中性面", !!extFill(extOffOps) && extFill(extOffOps).fill !== "rgba(100,150,255,0.9)");
+  check("Ext OFF 信息栏显示 NoExt", extOffOps.some((o) => o.op === "fillText" && String(o.args[0]).includes("NoExt")));
+  // 扩展区白提示跟随 mask 语义：ON 画 / OFF 不画
+  node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, include_ext: true });
+  const hintOnOps = [];
+  node.onDrawForeground(makeFullCtx(hintOnOps));
+  check("Ext ON 画扩展区白提示", hintOnOps.some((o) => o.op === "fillRect" && o.fill === "rgba(255,255,255,0.18)"));
+  node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, include_ext: false });
+  const hintOffOps = [];
+  node.onDrawForeground(makeFullCtx(hintOffOps));
+  check("Ext OFF 不画扩展区白提示", !hintOffOps.some((o) => o.op === "fillRect" && o.fill === "rgba(255,255,255,0.18)"));
+  node.onMouseDown({ button: 0, buttons: 1 }, [extBtn.x + 15, extBtn.y + 9]);
+  check("再点 Ext 切回 ON", JSON.parse(node.properties[STATE_PROP]).include_ext === true);
+  node.properties[STATE_PROP] = makeState();
+
 
   const gc = () => ({ canvas: { style: {} }, setDirty() {} });
   const state = () => JSON.parse(node.properties[STATE_PROP]);
@@ -253,27 +284,27 @@ const makeState = (patch = {}) => JSON.stringify({
     globalThis.__canvas.node_over = null;
   }
 
-  // ── Crop 模式：手柄起拖（显示区 offsetX=130, offsetY=62, scale=190/512）──
+  // ── Crop 模式：手柄起拖（显示区 offsetX=130, offsetY=72, scale=190/512）──
   const cropBtn = ctrl("crop");
   check("列2 Crop 按钮几何", cropBtn.x === 50 && cropBtn.y === 26);
   check("默认 Crop 模式", state().brush_mode === "crop");
 
-  const started = node.onMouseDown({ button: 0, buttons: 1 }, [130, 62]); // NW 手柄
+  const started = node.onMouseDown({ button: 0, buttons: 1 }, [130, 72]); // NW 手柄
   check("左键命中手柄起拖", started === true && !!node._sfCEBDrag);
   const before = state();
-  node.onMouseMove({ buttons: 1 }, [150, 82], gc());
+  node.onMouseMove({ buttons: 1 }, [150, 92], gc());
   const after = state();
   check("按住拖动改变裁剪框", after.crop_x > before.crop_x && after.crop_w < before.crop_w);
   // 释放丢失：buttons:0 立即落定，不再改框
   const held = state();
-  node.onMouseMove({ buttons: 0 }, [170, 102], gc());
+  node.onMouseMove({ buttons: 0 }, [170, 112], gc());
   check("buttons:0 清空拖拽状态", node._sfCEBDrag == null);
   const finalized = state();
   check("buttons:0 仅取整落定", Math.abs(finalized.crop_x - held.crop_x) <= 1);
-  node.onMouseMove({ buttons: 1 }, [200, 130], gc());
+  node.onMouseMove({ buttons: 1 }, [200, 140], gc());
   check("落定后再移动不改框", state().crop_x === finalized.crop_x);
   // 右键不起拖
-  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [130, 62]) === false);
+  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [130, 72]) === false);
 
   // ── 三模式切换（列2 按钮；坐标按控件几何解析）──
   clickCtrl("brush");
@@ -285,12 +316,12 @@ const makeState = (patch = {}) => JSON.stringify({
 
   // ── Brush 模式：源图区内落笔 / 扩展区不起笔 ──
   clickCtrl("brush");
-  const s1 = node.onMouseDown({ button: 0, buttons: 1 }, [150, 110]);
+  const s1 = node.onMouseDown({ button: 0, buttons: 1 }, [150, 120]);
   check("源图区内起笔", s1 === true && node._sfCEBDrawing === true);
-  node.onMouseMove({ buttons: 1 }, [170, 120], { canvas: {} });
+  node.onMouseMove({ buttons: 1 }, [170, 130], { canvas: {} });
   check("拖动追加笔触点", node._sfCEBCur.length >= 2);
   // 落笔拖动时光环跟随（曾只在悬停分支更新 → 圆环停在起笔前位置）
-  check("落笔拖动时光环跟随鼠标", JSON.stringify(node._sfCEBCursor) === JSON.stringify([170, 120]));
+  check("落笔拖动时光环跟随鼠标", JSON.stringify(node._sfCEBCursor) === JSON.stringify([170, 130]));
   node.onMouseUp({}, [], gc());
   const st2 = state();
   check("落定写入笔触（brush）", st2.strokes.length === 1 && st2.strokes[0].mode === "brush" && st2.strokes[0].points.length >= 2);
@@ -298,11 +329,11 @@ const makeState = (patch = {}) => JSON.stringify({
 
   // 扩展区（源图外）不起笔：裁剪框外扩后显示区含扩展区
   node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush" });
-  // scale = 190/712；img(-50,-50) → local(130+50*0.2669, 62+50*0.2669) ≈ (143.3, 75.3)
-  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [143, 75]);
+  // scale = 190/712；img(-50,-50) → local(130+50*0.2669, 72+50*0.2669) ≈ (143.3, 85.3)
+  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [143, 85]);
   check("扩展区不起笔", s3 === false && !node._sfCEBDrawing);
-  // 源图内（img 10,10 → local 130+110*0.2669=159.4, 62+110*0.2669=91.4）可起笔
-  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [159, 91]);
+  // 源图内（img 10,10 → local 130+110*0.2669=159.4, 72+110*0.2669=101.4）可起笔
+  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [159, 101]);
   check("扩展框内源图区仍可起笔", s4 === true && node._sfCEBDrawing === true);
   node.onMouseUp({}, [], gc());
 
@@ -315,10 +346,10 @@ const makeState = (patch = {}) => JSON.stringify({
   const polyOnOps = [];
   node.onDrawForeground(makeFullCtx(polyOnOps));
   check("Poly ON 用状态色（绿）", polyOnOps.some((o) => o.op === "fillRect" && o.fill === "rgba(46,160,67,0.95)"));
-  // 三次落点（scale=190/512=0.3711, offset=(130,62)）：img(50,50)→(149,81) 等
-  node.onMouseDown({ button: 0, buttons: 1 }, [149, 81]);
-  node.onMouseDown({ button: 0, buttons: 1 }, [186, 81]);
-  node.onMouseDown({ button: 0, buttons: 1 }, [186, 118]);
+  // 三次落点（scale=190/512=0.3711, offset=(130,72)）：img(50,50)→(149,91) 等
+  node.onMouseDown({ button: 0, buttons: 1 }, [149, 91]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [186, 91]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [186, 128]);
   check("套索三点会话", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 3);
   const polyOpsC = [];
   node.onDrawForeground(makeFullCtx(polyOpsC));
@@ -328,9 +359,9 @@ const makeState = (patch = {}) => JSON.stringify({
     && state().strokes[0].points.length === 3);
   // 扩展区不落点（裁剪框外扩后显示区含扩展区）
   node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush", brush_poly: true });
-  const extHit = node.onMouseDown({ button: 0, buttons: 1 }, [143, 75]);
+  const extHit = node.onMouseDown({ button: 0, buttons: 1 }, [143, 85]);
   check("套索在扩展区不落点", extHit === false && node._sfBrushPoly == null);
-  const srcHit = node.onMouseDown({ button: 0, buttons: 1 }, [159, 91]); // img(10,10)
+  const srcHit = node.onMouseDown({ button: 0, buttons: 1 }, [159, 101]); // img(10,10)
   check("套索在源图内落点", srcHit === true && !!node._sfBrushPoly && node._sfBrushPoly.points.length === 1);
   // 按钮关闭：丢弃未闭合会话
   node.onMouseDown({ button: 0, buttons: 1 }, [polyBtn.x + 15, polyBtn.y + 9]);
@@ -407,12 +438,14 @@ const makeState = (patch = {}) => JSON.stringify({
     fill_color: "#112233", brush_size: 30,
     strokes: [{ mode: "brush", size: 30, points: [[1, 2]] }],
     brush_opacity: 0.9, brush_color: "1,2,3", brush_mode: "erase", aspect_ratio: "16:9",
+    invert: true, include_ext: false,
   });
   const prompted = await globalThis.app.graphToPrompt();
   const payloadRaw = prompted.output["1"].inputs.SFCropExpandBrushMaskJson;
   const payload = JSON.parse(payloadRaw);
   check("注入隐藏输入", !!payloadRaw && payload.crop_x === -10 && payload.fill_color === "#112233");
   check("注入含笔触", JSON.stringify(payload.strokes) === JSON.stringify([{ mode: "brush", size: 30, points: [[1, 2]] }]));
+  check("注入含反选/Ext 开关", payload.invert === true && payload.include_ext === false);
   check("注入排除预览字段", payload.brush_color === undefined && payload.brush_opacity === undefined
     && payload.brush_mode === undefined && payload.aspect_ratio === undefined);
 
@@ -455,7 +488,7 @@ const makeState = (patch = {}) => JSON.stringify({
 
   // ── window capture 释放兜底 + onRemoved 解绑 ──
   node.properties[STATE_PROP] = makeState({ brush_mode: "brush" });
-  node.onMouseDown({ button: 0, buttons: 1 }, [150, 110]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [150, 120]);
   check("释放监听用例已起笔", node._sfCEBDrawing === true);
   fireWin("pointerup");
   check("window 释放监听落定", node._sfCEBDrawing === false && state().strokes.length === 1);
@@ -469,8 +502,8 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__apiCalls = [];
   menuOpts.find((o) => o.content.includes("框选")).callback();
   check("进入框选模式", !!node._sfAiSam && node._sfAiSam.kind === "box");
-  node.onMouseDown({ button: 0, buttons: 1 }, [140, 70]);
-  node.onMouseMove({ buttons: 1 }, [180, 110], { canvas: { style: {} }, setDirty() {} });
+  node.onMouseDown({ button: 0, buttons: 1 }, [140, 80]);
+  node.onMouseMove({ buttons: 1 }, [180, 120], { canvas: { style: {} }, setDirty() {} });
   check("框选记录橡皮筋", !!node._sfAiSam.box && node._sfAiSam.box.x2 > node._sfAiSam.box.x1);
   // 覆盖层绘制：虚线框 + 提示条，不抛错（曾缺 imageToLocal import → 整帧中断）
   const boxOps = [];
@@ -544,7 +577,7 @@ const makeState = (patch = {}) => JSON.stringify({
     globalThis.__settingVals["sfnodes.Canvas.CursorWidth"] = 2;
     const wCrop = drawModeOps("crop");
     check("裁剪框线宽随 FrameWidth（边框 2.5 / 细线 1.25）", lws(wCrop).includes(2.5) && lws(wCrop).includes(1.25));
-    node._sfCEBCursor = [170, 120];
+    node._sfCEBCursor = [170, 130];
     globalThis.__canvas.node_over = node;
     const wBrush = drawModeOps("brush");
     check("光环线宽随 CursorWidth（2）", lws(wBrush).includes(2));

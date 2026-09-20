@@ -1310,3 +1310,26 @@ slice_track_data(track_data, start=0, length=0)
 - 被否决方案：**状态位 `src_rot/flip` + 后端 `np.rot90/flip`**（原文件不动、无 8-bit 重编码，但要改后端/重启容器，且 `filename` 指向未变换的原文件，与节点输出不一致）。当前方案的代价：浏览器 canvas 重编码（8-bit）与孤儿文件累积，与既有上传链路同性质。
 - 未加键盘快捷键：前端默认单键 `r/w/n/m/a/./p/v/h` 已占用（§92 核查表），字母键大小写不敏感也无法用 Shift 区分。
 - 测试：lib test 更新三列布局/MIN/`columnYs`/显示坐标系（`extraLeft=80`）+ `orientState` 四变换期望值/逆变换恒等/纯函数/非法 op；smoke 更新控件 29 项、`computeSize [400,340]`、ORIENT 列头/列3 几何，新增 rotR（画布宽高交换 + rotate π/2 + drawImage 全尺寸 + 上传 + 状态重映射）、flipH、无源图不上传断言。⚠ 旧测试里按旧布局写死的显示区坐标全部 +40 偏移（§109 同款教训），其中 `[100,70]` 这类点还落进新列按钮命中区（会误触发旋转）——显示区交互坐标一律按 metrics/控件几何解析。
+
+## 113. 组合节点扩展区遮罩开关 Ext（include_ext，2026-09）
+
+> 背景：用户反馈"crop 超过图片大小时，如果有遮罩，扩展出来的部分应该不要遮罩"——即希望 mask 输出能只含笔触层、扩展区不参与重绘。拍板方案：**面板加开关（默认包含扩展区）**而非条件语义/永久排除；反选只反笔触层；预览白提示跟随 mask 语义。
+
+### 1. 语义（三处联动）
+
+- `include_ext=true`（默认，现状）：mask = 扩展区 ∪ 笔触；反选 = 扩展区 ∪ (1 - 笔触)（扩展区结构性保留）。
+- `include_ext=false`：mask = 笔触层本身（无笔触则全黑）；**反选 = 源图交集内 1 - 笔触，扩展区仍恒黑**——开关对扩展区有最终决定权，反选不会把它带回来（否则 Ext OFF 在 Invert 下形同虚设；选项文案里的"1 - 笔触"按"只反笔触层"的标签语义落地，不按全画布字面）。
+- 预览：扩展区白色提示只在 `include_ext=true` 时绘制；信息栏 OFF 时追加 `| NoExt`。
+
+### 2. 后端
+
+- `crop_expand._compose_expand(..., overlay=None, include_ext=True)`：`False` 时遮罩初始全 0（交集置 0 / overlay 并入不变）；默认 True 逐字节保持原行为（兄弟节点零影响）。
+- `crop_expand_brush_mask.execute`：`include_ext = bool(meta.get("include_ext", True))`；反选统一为 `inv = (1 - mask_arr) * (1 - ext_mask)`，`mask_arr = max(ext_mask, inv) if include_ext else inv`——一处公式覆盖两态（`ext_mask` 恒按含扩展区合成一次）。
+- `_state_key` 追加 `|ext=0/1`（IS_CHANGED；缺省 ≡ 显式 true，存量工作流不误重跑）。注意 `sf_utils.brush_mask.lean_key` 是画笔节点共享键，**没有**为 Ext 改动它（Ext 只属合体节点）。
+
+### 3. 前端
+
+- 列2 在 Invert 之后插入 `Ext` 按钮（`TOOL_COL` 用 `BRUSH_TOOL_COL.indexOf("invert")+1` 定位插入，不复制共享列表）；`COL2_GROUPS [4,3,4,1]→[4,4,4,1]`（13 项）→ **MIN 高 340→360**（宽仍 400）。ON 用 accent 底（同模式按钮语言），OFF 回中性面。
+- `DEFAULT_STATE.include_ext=true`；`leanState` 注入 `include_ext: st.include_ext !== false`；`HINTS` 新增 Ext + 改写 Invert 文案；白提示 `isExtended(...) && st.include_ext !== false` 门控。
+- 测试：lib 更新 TOOL_COL 13 项/Ext 插入位/COL2 行位（末项 Pen 299）/MIN 400×360；smoke 更新 30 控件、`computeSize [400,360]`、显示区写死坐标 **y +10**（nodeH 340→360 → offsetY 62→72，§109 同款教训）、Ext 切换（accent 底/NoExt/白提示门控/lean 注入）；后端两测试补 include_ext 三态 execute + `_compose_expand(include_ext=False)` + `_state_key` 精确串（`...|inv=0|ext=1`）。
+- ⚠ 含后端改动 → 同步挂载目录后需重启容器才生效（前端硬刷新只覆盖 JS）。

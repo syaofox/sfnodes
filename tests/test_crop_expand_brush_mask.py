@@ -127,6 +127,13 @@ check("无源图 overlay 忽略", np.allclose(mask, 1.0))
 img, mask = mod._compose_expand(src, 0, 0, 4, 4, (0, 0, 0), np.zeros((2, 2), dtype=np.float32))
 check("overlay 尺寸不匹配忽略", np.allclose(mask, 0.0))
 
+# include_ext=False（§113 Ext 开关）：扩展区不进遮罩，overlay 并入不变
+img, mask = mod._compose_expand(src, -2, -2, 8, 8, (0, 0, 255), overlay, include_ext=False)
+check("include_ext=False 扩展区黑", np.allclose(mask[0:2, :], 0.0) and np.allclose(mask[:, 6:8], 0.0))
+check("include_ext=False overlay 点仍并入", mask[3, 3] == 1.0 and mask[2:6, 2:6].sum() == 1.0)
+img, mask = mod._compose_expand(None, 0, 0, 4, 4, (128, 128, 128), overlay, include_ext=False)
+check("include_ext=False 无源全黑（overlay 忽略）", np.allclose(mask, 0.0))
+
 # ── _state_key ──
 key_a = mod._state_key({"crop_x": 1, "crop_y": 2, "crop_w": 3, "crop_h": 4, "fill_color": "#000000",
                         "strokes": [], "brush_size": 80})
@@ -134,8 +141,11 @@ key_b = mod._state_key({"crop_x": 1, "crop_y": 2, "crop_w": 3, "crop_h": 4, "fil
                         "strokes": [{"mode": "brush", "size": 2, "points": [[0, 0]]}], "brush_size": 80})
 key_c = mod._state_key({"crop_x": 1, "crop_y": 2, "crop_w": 3, "crop_h": 4, "fill_color": "#ffffff",
                         "strokes": [], "brush_size": 80})
+key_ext = mod._state_key({"crop_x": 1, "crop_y": 2, "crop_w": 3, "crop_h": 4, "fill_color": "#000000",
+                          "strokes": [], "brush_size": 80, "include_ext": False})
 check("_state_key 笔触变化", key_a != key_b)
 check("_state_key 填充色变化", key_a != key_c)
+check("_state_key Ext 切换（缺省 true vs false）", key_a != key_ext)
 
 # ── execute()：磁盘源 + 笔触联合 ──
 from PIL import Image
@@ -269,7 +279,7 @@ key_d = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=json
 }))
 check("IS_CHANGED 预览字段不进键", key_a == key_d)
 key_e = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson="{}")
-check("IS_CHANGED 无源返回状态键", key_e == "0:0:512:512:|" + "|||80|[]|inv=0")
+check("IS_CHANGED 无源返回状态键", key_e == "0:0:512:512:|" + "|||80|[]|inv=0|ext=1")
 
 # 反选：合体节点 = 扩展区 ∪ (1 - 笔触)，扩展区不被反选取消
 state_inv = json.dumps({
@@ -286,6 +296,46 @@ check("反选：笔触点变黑", mi[0, 4, 4] == 0.0)
 check("反选：扩展区仍白", np.allclose(mi[0, 0:2, :], 1.0))
 key_inv = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=state_inv)
 check("反选进 IS_CHANGED 键", key_inv != key_a)
+
+# ── Ext 开关（§113）：OFF 时 mask 只含笔触层，扩展区黑 ──
+state_noext = json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
+    "fill_color": "#0000ff", "brush_size": 2,
+    "include_ext": False,
+    "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+})
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_noext)
+mn = np.asarray(mask_t)
+check("Ext OFF：扩展区黑", np.allclose(mn[0, 0:2, :], 0.0) and np.allclose(mn[0, :, 6:8], 0.0))
+check("Ext OFF：笔触点仍白（画布 4,4）", mn[0, 4, 4] == 1.0)
+check("Ext OFF：交集非笔触黑（画布 2,2）", mn[0, 2, 2] == 0.0)
+check("Ext OFF：输出图像不变（交集红像素）", np.allclose(np.asarray(img_t)[0][4, 4, 0], 1.0))
+
+# Ext OFF + 反选：mask = 1 - 笔触（与画笔节点同语义）
+state_noext_inv = json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
+    "fill_color": "#0000ff", "brush_size": 2,
+    "include_ext": False, "invert": True,
+    "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+})
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_noext_inv)
+mni = np.asarray(mask_t)
+check("Ext OFF+反选：笔触点黑", mni[0, 4, 4] == 0.0)
+check("Ext OFF+反选：非笔触交集白", mni[0, 2, 2] == 1.0)
+check("Ext OFF+反选：扩展区仍黑", np.allclose(mni[0, 0:2, :], 0.0))
+
+# Ext 进 IS_CHANGED 键；缺省与显式 true 同键（存量工作流不误重跑）
+key_noext = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=state_noext)
+key_true = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -2, "crop_w": 8, "crop_h": 8,
+    "fill_color": "#0000ff", "brush_size": 2, "include_ext": True,
+    "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+}))
+check("Ext 切换进 IS_CHANGED 键", key_noext != key_a)
+check("Ext 缺省 ≡ 显式 true", key_true == key_a)
 
 # 结果
 print()

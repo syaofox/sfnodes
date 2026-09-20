@@ -6,7 +6,8 @@
 //   ① 拖拽可出界的裁剪框（比例预设 / Reset / 填充色；出界区 = 扩展区）
 //   ② 画笔涂抹额外重绘区（Crop/Brush/Erase 三模式；笔触以源图像素坐标记录，
 //      随图移动，只有落在裁剪框内的部分进入输出）
-// 输出扩展画布 + 并集遮罩（扩展区 ∪ 笔触，白=重绘，恒二值）。
+// 输出扩展画布 + 并集遮罩（扩展区 ∪ 笔触，白=重绘，恒二值；面板 Ext 开关
+// 可关掉扩展区并入，此时 mask = 笔触层，见 §113）。
 //
 // 三列布局（sf_crop_expand_brush_mask_lib）：列1 = 比例预设（CropExpand 同款），
 // 列2 = 画笔工具（BrushMask TOOL_COL 前置 Crop 模式），列3 = 翻转/旋转
@@ -129,8 +130,12 @@ const DEFAULT_STATE = {
   // 多边形套索开关（交互语义；闭合前不影响输出，不进 lean 注入；Crop 模式
   // 点击入口按钮会自动切 Brush，见 §101）：
   brush_poly: false,
-  // 反选（影响输出 → 进 lean 注入；合体节点语义 = 扩展区 ∪ (1 - 笔触)）：
+  // 反选（影响输出 → 进 lean 注入；合体节点语义 = 扩展区 ∪ (1 - 笔触)；
+  // Ext OFF 时源图交集内 = 1 - 笔触、扩展区不带回，见 include_ext）：
   invert: false,
+  // 扩展区遮罩开关（影响输出 → 进 lean 注入；默认 ON=扩展区计入 mask，
+  // OFF=mask 只含笔触层、扩展区不重绘，§113）：
+  include_ext: true,
   // 菜单参数记忆（不进 lean 注入；结果以 fill/fill_erase 笔触进 strokes——
   // 由 sf_brush_ai 按当前模式改写：Eraser=fill_erase 打洞，Crop/Brush=fill 添加）
   sam_prompt: "",
@@ -182,6 +187,7 @@ function leanState(st) {
     brush_size: st.brush_size || 80,
     strokes: Array.isArray(st.strokes) ? st.strokes : [],
     invert: !!st.invert,
+    include_ext: st.include_ext !== false,
   };
 }
 
@@ -253,7 +259,8 @@ const AI_CFG = {
 
 // ── 控件（三列 + 底行：绘制与命中共用同一几何）───────────────────────────
 // 列1（x=shiftLeft）：比例预设（Free 置顶）+ Custom/Reset/Fill；
-// 列2（x=TOOL_COL_X）：Crop/Brush/Erase 三模式 + Clear/Undo/S±/O±/Pen；
+// 列2（x=TOOL_COL_X）：Crop/Brush/Erase 三模式 + Clear/Undo/Invert/Ext +
+// S±/O±/Pen（Ext = 扩展区计入遮罩开关，§113）；
 // 列3（x=ORIENT_COL_X）：FlipH/FlipV/RotL/RotR（源图整体翻转/旋转，§112）；
 // 底行（y 运行时解析）：Load/Browse + 信息文本。
 // 每列按 COL1_GROUPS/COL2_GROUPS/COL3_GROUPS 分组排布（columnYs），主扩展按
@@ -268,6 +275,7 @@ function toolText(id) {
     clear: "Clear",
     undo: "Undo",
     invert: "Invert",
+    includeExt: "Ext",
     sizeMinus: "S−",
     sizePlus: "S+",
     opaMinus: "O−",
@@ -289,7 +297,8 @@ const HINTS = {
   poly: "Poly 套索：多次点选，双击/Enter 闭合；Brush 添加 / Erase 打洞",
   clear: "清空全部笔触",
   undo: "撤销最后一笔（含套索与 AI 识别结果）",
-  invert: "反选遮罩：输出 = 扩展区 ∪ (1 − 笔触)",
+  invert: "反选遮罩：反选笔触层（Ext ON 时扩展区仍保留重绘）",
+  includeExt: "扩展区计入遮罩（ON：出界区重绘，外绘默认；OFF：mask 只含笔触层）",
   sizeMinus: "笔刷直径减小（[ / ] 或悬停滚轮）",
   sizePlus: "笔刷直径增大（[ / ] 或悬停滚轮）",
   opaMinus: "笔触预览透明度降低",
@@ -406,6 +415,7 @@ function buttonAction(node, id) {
   else if (id === "opaPlus") setState(node, { brush_opacity: stepOpacityFromSettings(st.brush_opacity, +1) });
   else if (id === "brushColor") { pickColor(node); return; }
   else if (id === "invert") { toggleInvert(AI_CFG, node); return; }  // 状态位按钮（与右键菜单同一实现）
+  else if (id === "includeExt") setState(node, { include_ext: st.include_ext === false });  // ON=计入（默认）
   else if (id === "poly") {  // 多边形套索开关：Crop 下自动切 Brush（Poly 是画笔工具）
     if (!st.brush_poly) {
       cancelSamMode(node);  // 与 SAM 模式互斥
@@ -554,6 +564,8 @@ function drawButtons(ctx, node, st, th, accent) {
       ctx.fillStyle = st.fill_color || "#000000";
     } else if (b.isToggle && b.id === st.brush_mode) {
       ctx.fillStyle = accent;
+    } else if (b.id === "includeExt" && st.include_ext !== false) {
+      ctx.fillStyle = accent;  // Ext ON（默认）：强调色底，同模式按钮语言（§113）
     } else if (b.isPoly && st.brush_poly) {
       ctx.fillStyle = POLY_ON_COLOR;  // 套索 ON：状态色（绿，随开关变色，区别模式强调色）
     } else if (b.isInvert && st.invert) {
@@ -738,13 +750,14 @@ function setupDrawing(node) {
     ctx.strokeRect(srcX, srcY, srcW, srcH);
     ctx.setLineDash([]);
 
-    // 扩展区提示（裁剪框内、源图外的区域：mask 恒为白）——evenodd 挖去源图
+    // 扩展区提示（裁剪框内、源图外的区域：扩展区计入 mask 时为白）——evenodd
+    // 挖去源图；Ext OFF（扩展区不计入）时不画，提示跟随 mask 语义（§113）
     const rect = { x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h };
     const x1 = m.offsetX + (rect.x - m.displayMinX) * m.scale;
     const y1 = m.offsetY + (rect.y - m.displayMinY) * m.scale;
     const x2 = x1 + rect.w * m.scale;
     const y2 = y1 + rect.h * m.scale;
-    if (isExtended(rect, st.src_w, st.src_h)) {
+    if (isExtended(rect, st.src_w, st.src_h) && st.include_ext !== false) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(x1, y1, x2 - x1, y2 - y1);
@@ -757,7 +770,8 @@ function setupDrawing(node) {
 
     // 裁剪框（框外压暗 + 框线/九宫格/手柄；sf_crop_expand_lib 共享绘制）
     // 仅 Crop 模式显示：Brush/Erase 时隐藏框组件（压暗/手柄/九宫格会干扰涂抹
-    // 观察，手柄在非 Crop 模式本就不可交互）；扩展区白提示保留（§96）
+    // 观察，手柄在非 Crop 模式本就不可交互）；扩展区白提示保留（§96，Ext OFF
+    // 时不画见 §113）
     if (st.brush_mode === "crop") {
       drawCropBox(ctx, rect, st.src_w, st.src_h, m, sfFrameWidth());
     }
@@ -800,7 +814,7 @@ function setupDrawing(node) {
     const ext = isExtended(rect, st.src_w, st.src_h) ? " (Extended)" : "";
     const fullText = `Src: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}` +
       ` | Brush: ${Math.round(st.brush_size)} | Strokes: ${st.strokes.length}` +
-      `${st.brush_poly ? " | Poly" : ""}${st.invert ? " | Inv" : ""}`;
+      `${st.brush_poly ? " | Poly" : ""}${st.invert ? " | Inv" : ""}${st.include_ext === false ? " | NoExt" : ""}`;
     const hint = (hovering && !dragging && !node._sfCEBDrawing && node._sfCEBHover)
       ? controlHint(node._sfCEBHover) : "";
     const fullLabel = hint || fullText;
