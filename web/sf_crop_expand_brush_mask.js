@@ -10,6 +10,8 @@
 //
 // 双列布局（sf_crop_expand_brush_mask_lib）：列1 = 比例预设（CropExpand 同款），
 // 列2 = 画笔工具（BrushMask TOOL_COL 前置 Crop 模式）；显示区多让一列宽度。
+// 两列带列头（RATIO/TOOLS）与组间分隔线、底部歧义按钮重命名（Fill/Pen）、
+// 悬停底行改显按钮中文说明，见 §109。
 //
 // 状态真源 node.properties.sfCropExpandBrushMaskState（JSON 字符串，随工作流
 // 保存），经 graphToPrompt 钩子注入隐藏输入 SFCropExpandBrushMaskJson（只注入
@@ -72,10 +74,8 @@ import {
   drawCropBox,
 } from "./sf_crop_expand_lib.js";
 import {
-  COL_TOP,
   COL_W,
   COL_H,
-  COL_STEP,
   clampToImage,
   stepBrushSize,
   stepOpacity,
@@ -89,6 +89,10 @@ import {
   LAYOUT,
   TOOL_COL,
   TOOL_COL_X,
+  HEADER_H,
+  COL1_GROUPS,
+  COL2_GROUPS,
+  columnYs,
   ensureMinSize,
   computeDisplayMetrics,
 } from "./sf_crop_expand_brush_mask_lib.js";
@@ -242,9 +246,11 @@ const AI_CFG = {
 };
 
 // ── 控件（双列 + 底行：绘制与命中共用同一几何）───────────────────────────
-// 列1（x=shiftLeft）：比例预设（Free 置顶）+ Custom/Reset/Color；
-// 列2（x=TOOL_COL_X）：Crop/Brush/Erase 三模式 + Clear/Undo/S±/O±/BCol；
+// 列1（x=shiftLeft）：比例预设（Free 置顶）+ Custom/Reset/Fill；
+// 列2（x=TOOL_COL_X）：Crop/Brush/Erase 三模式 + Clear/Undo/S±/O±/Pen；
 // 底行（y 运行时解析）：Load/Browse + 信息文本。
+// 每列按 COL1_GROUPS/COL2_GROUPS 分组排布（columnYs），主扩展按同一数组画
+// 分组分隔线（§109）。
 
 function toolText(id) {
   return {
@@ -259,8 +265,38 @@ function toolText(id) {
     sizePlus: "S+",
     opaMinus: "O−",
     opaPlus: "O+",
-    brushColor: "BCol",
+    brushColor: "Pen",
   }[id] || id;
+}
+
+// 悬停说明（底行信息文本临时替换为按钮用途；列头/分隔之外的"缩写按钮"解释，
+// 中文文案与右侧菜单一致）。比例按钮（含 Custom）在 controlHint 单独拼。
+const HINTS = {
+  crop: "Crop 模式：拖拽裁剪框，框可拖出源图形成扩展区",
+  brush: "Brush 模式：涂抹添加重绘遮罩",
+  erase: "Erase 模式：擦除笔触（真擦除，按画序生效）",
+  poly: "Poly 套索：多次点选，双击/Enter 闭合；Brush 添加 / Erase 打洞",
+  clear: "清空全部笔触",
+  undo: "撤销最后一笔（含套索与 AI 识别结果）",
+  invert: "反选遮罩：输出 = 扩展区 ∪ (1 − 笔触)",
+  sizeMinus: "笔刷直径减小（[ / ] 或悬停滚轮）",
+  sizePlus: "笔刷直径增大（[ / ] 或悬停滚轮）",
+  opaMinus: "笔触预览透明度降低",
+  opaPlus: "笔触预览透明度提高",
+  brushColor: "画笔颜色（仅预览与 AI 染色，输出为二值遮罩）",
+  reset: "裁剪框复位到整幅源图",
+  fillColor: "扩展区填充色（裁剪框内、源图外）",
+  custom: "自定义比例（全局预设库，可保存/删除）",
+  load: "加载本地图片（也可拖放或 Ctrl+V 粘贴）",
+  browse: "浏览输入目录图片",
+};
+
+function controlHint(b) {
+  if (b.isRatio) {
+    if (b.ratioKey === "custom") return HINTS.custom;
+    return `裁剪框比例：${b.text}${b.ratioKey === "free" ? "（不约束）" : ""}`;
+  }
+  return HINTS[b.id] || "";
 }
 
 // 底行按钮的 y 标记为 "bottom"：节点高度运行时可变，绘制/命中时经 buttonRect
@@ -278,10 +314,12 @@ function buttonRect(b, node) {
 
 function buildControls() {
   const buttons = [];
-  const colButton = (i, x, b) => ({ ...b, x, y: COL_TOP + i * COL_STEP, w: COL_W, h: COL_H });
-  // 列1：Free 置顶 + 7 预设 + Custom/Reset/Color 收尾（CropExpand 同款）
+  const col1Ys = columnYs(COL1_GROUPS);
+  const col2Ys = columnYs(COL2_GROUPS);
+  const colButton = (x, y, b) => ({ ...b, x, y, w: COL_W, h: COL_H });
+  // 列1：Free 置顶 + 7 预设 + Custom/Reset/Fill 收尾（CropExpand 同款）
   RATIO_PRESETS_COL.forEach((key, i) => {
-    buttons.push(colButton(i, LAYOUT.shiftLeft, {
+    buttons.push(colButton(LAYOUT.shiftLeft, col1Ys[i], {
       id: "ratio:" + key,
       text: ratioLabel(key),
       isRatio: true, ratioKey: key,
@@ -289,26 +327,26 @@ function buildControls() {
     }));
   });
   buttons.push(
-    colButton(RATIO_PRESETS_COL.length, LAYOUT.shiftLeft, {
+    colButton(LAYOUT.shiftLeft, col1Ys[RATIO_PRESETS_COL.length], {
       id: "ratio:custom",
       text: ratioLabel("custom"),
       isRatio: true, ratioKey: "custom",
       action: (node) => openRatioDialog(node),
     }),
-    colButton(RATIO_PRESETS_COL.length + 1, LAYOUT.shiftLeft, {
+    colButton(LAYOUT.shiftLeft, col1Ys[RATIO_PRESETS_COL.length + 1], {
       id: "reset",
       text: "Reset",
       action: (node) => resetCrop(node),
     }),
-    colButton(RATIO_PRESETS_COL.length + 2, LAYOUT.shiftLeft, {
+    colButton(LAYOUT.shiftLeft, col1Ys[RATIO_PRESETS_COL.length + 2], {
       id: "fillColor",
-      text: "Color", isColor: true,
+      text: "Fill", isColor: true,
       action: (node) => pickFillColor(node),
     }),
   );
   // 列2：Crop/Brush/Erase 三模式置顶 + BrushMask 工具列原序
   TOOL_COL.forEach((id, i) => {
-    buttons.push(colButton(i, TOOL_COL_X, {
+    buttons.push(colButton(TOOL_COL_X, col2Ys[i], {
       id,
       text: toolText(id),
       isToggle: id === "crop" || id === "brush" || id === "erase",
@@ -505,17 +543,56 @@ function setupDrawing(node) {
     // 内容→文本"分层，后画盖先画）
     const colTop = shiftLeft - 4;
     const colBottom = nodeH - shiftLeft - bottomH;
-    for (const [x, w] of [
-      [shiftLeft - 4, ratioColW + 2],
-      [TOOL_COL_X - 4, LAYOUT.toolColW + 2],
-    ]) {
+    const columns = [
+      { x: shiftLeft - 4, w: ratioColW + 2, btnX: shiftLeft, groups: COL1_GROUPS, header: "RATIO", accent: true },
+      { x: TOOL_COL_X - 4, w: LAYOUT.toolColW + 2, btnX: TOOL_COL_X, groups: COL2_GROUPS, header: "TOOLS", accent: false },
+    ];
+    for (const c of columns) {
       ctx.fillStyle = th.panel2;
       ctx.beginPath();
-      ctx.roundRect(x, colTop, w, colBottom - colTop, 4);
+      ctx.roundRect(c.x, colTop, c.w, colBottom - colTop, 4);
       ctx.fill();
       ctx.strokeStyle = th.border;
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, colTop, w, colBottom - colTop);
+      ctx.strokeRect(c.x, colTop, c.w, colBottom - colTop);
+    }
+    // 列头 chip（RATIO 用强调色、TOOLS 用中性面）——两列一眼可分（§109）
+    const chipY = 8;
+    const chipH = HEADER_H + 4;
+    ctx.font = "bold 8px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const c of columns) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(c.x + 2, chipY, c.w - 4, chipH, 3);
+      ctx.globalAlpha = c.accent ? 0.22 : 1;
+      ctx.fillStyle = c.accent ? accent : th.surface;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = th.border;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = c.accent ? accent : th.textDim;
+      ctx.fillText(c.header, c.x + c.w / 2, chipY + chipH / 2 + 0.5);
+      ctx.restore();
+    }
+    // 组间分隔线（画在 columnYs 让出的 GROUP_EXTRA 空隙中央；同一数组推算，
+    // 与按钮排布单源）
+    ctx.strokeStyle = th.border;
+    ctx.lineWidth = 1;
+    for (const c of columns) {
+      const ys = columnYs(c.groups);
+      let idx = 0;
+      for (let g = 0; g < c.groups.length - 1; g++) {
+        idx += c.groups[g];
+        // 上一组末行底部与下一组首行顶部的中央（组间空隙 = 常规间距 + GROUP_EXTRA）
+        const y = (ys[idx - 1] + COL_H + ys[idx]) / 2 + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(c.btnX + 2, y);
+        ctx.lineTo(c.btnX + COL_W - 2, y);
+        ctx.stroke();
+      }
     }
     const bottomY = nodeH - shiftLeft - BTN_H;
     ctx.fillStyle = th.panel2;
@@ -656,17 +733,21 @@ function setupDrawing(node) {
     // 多边形套索覆盖层（折线/橡皮筋/顶点/提示条；sf_brush_poly 共享实现）
     drawPolyOverlay(AI_CFG, node, ctx, (x, y) => imageToLocal(x, y, m), { x: m.offsetX, y: m.offsetY });
 
-    // 信息文本（与底行按钮同排，右对齐到输出槽区前；空间不足时截断 "…"）
-    ctx.fillStyle = LiteGraph.NODE_TEXT_COLOR;
-    ctx.font = "10px Arial";
-    ctx.textAlign = "right";
+    // 信息文本（与底行按钮同排，右对齐到输出槽区前；空间不足时截断 "…"）。
+    // 悬停控件时改显该按钮的中文说明（§109；拖拽/落笔期间不打扰）。
     const ext = isExtended(rect, st.src_w, st.src_h) ? " (Extended)" : "";
     const fullText = `Src: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}` +
       ` | Brush: ${Math.round(st.brush_size)} | Strokes: ${st.strokes.length}` +
       `${st.brush_poly ? " | Poly" : ""}${st.invert ? " | Inv" : ""}`;
+    const hint = (hovering && !dragging && !node._sfCEBDrawing && node._sfCEBHover)
+      ? controlHint(node._sfCEBHover) : "";
+    const fullLabel = hint || fullText;
+    ctx.fillStyle = hint ? th.textStrong : LiteGraph.NODE_TEXT_COLOR;
+    ctx.font = "10px Arial";
+    ctx.textAlign = "right";
     const maxTextW = nodeW - shiftRight - 6 - (106 + 6); // 底行按钮右缘 106 + 间隙 6
-    let label = fullText;
-    if (ctx.measureText(fullText).width > maxTextW) {
+    let label = fullLabel;
+    if (ctx.measureText(fullLabel).width > maxTextW) {
       while (label.length > 1 && ctx.measureText(label + "\u2026").width > maxTextW) {
         label = label.slice(0, -1);
       }
@@ -843,6 +924,17 @@ function setupInteractions(node) {
         stateChanged(node);
       }
       return true;
+    }
+
+    // 控件悬停记录（底行信息文本改显按钮中文说明；只在变化时重绘，§109）
+    let hoverBtn = null;
+    for (const b of node._sfCEBCtrls) {
+      const [bx, by, bw, bh] = buttonRect(b, node);
+      if (lx >= bx && lx <= bx + bw && ly >= by && ly <= by + bh) { hoverBtn = b; break; }
+    }
+    if (hoverBtn !== node._sfCEBHover) {
+      node._sfCEBHover = hoverBtn;
+      if (app.graph) app.graph.setDirtyCanvas(true, true);
     }
 
     // 悬停 cursor：Crop 模式按手柄；其余模式写回 default（防模式切换后残留

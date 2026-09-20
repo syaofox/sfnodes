@@ -1231,3 +1231,13 @@ slice_track_data(track_data, start=0, length=0)
 - 懒推理：`FaceEngine.get(..., need_landmark/need_embedding)` 按需跑模块（旧 `FaceAnalysis.get` 每次都跑全部已加载模型）；`get_face` 只检测 → `get_bbox`/`get_single_bbox` 不再白算关键点/识别，顺带提速。`Face` 为载体 dict（键+属性双访问 + `normed_embedding` 属性）；`SFFaceAnalysisModels` 的 `FACEANALYSIS` 输出对象改为 `FaceEngine`（无消费者）。
 - 测试：`tests/test_face_onnx.py`（mock cv2/onnxruntime/torch/torchvision/folder_paths）覆盖纯函数（anchor/distance2bbox/kps/NMS/Umeyama/bbox 变换）+ fake session 解码（含空检出）+ engine（allowed_modules/懒推理）+ 兼容层（多尺寸回退/面积排序/get_embeds/get_keypoints）。
 - 容器 parity 方法（可复用为回归手段）：`docker cp sf_utils/face_onnx.py` 到容器 /tmp，与 `insightface.app.FaceAnalysis` 同图对拍 bbox/kps/106 点/embedding——`buffalo_l` 8 图 + `antelopev2` 4 图均 PASS（bbox/kps ≤0.0001px，106 点 ≤0.005px，余弦 ≥0.999999）。
+
+## 109. 组合节点双列视觉分层（列头 / 分组 / 重命名 / 悬停说明，2026-09）
+
+> 背景：SFImageCropExpandBrushMask（§90）两列 34px 面板同底色、间隔仅 4px，23 个同款按钮实际读作一整块按钮墙；且语义交叉（列1 Color=扩展区填充色 vs 列2 BCol=画笔色；Reset/Clear/Undo 分属两列但上下相邻；Crop 模式在列2，而"裁剪"比例预设整列在列1）。用户反馈"既不美观也容易混淆"，选定**方案 A：按钮位置全不变**，只做视觉分层 + 悬停中文说明（否决了"删列1 改比例弹窗"的方案 B 与"Crop 模式换列"的 A+）。
+
+- 布局纯逻辑（`sf_crop_expand_brush_mask_lib.js`）：`HEADER_H=10`（首行 y 16→26）、`GROUP_EXTRA=3`（组间在常规 4px 间距上额外让 3px）、`FIRST_ROW_Y=COL_TOP+HEADER_H`、`COL1_GROUPS=[8,3]`（比例 | Custom/Reset/Fill）、`COL2_GROUPS=[4,3,4,1]`（模式 | Clear/Undo/Invert | S±/O± | Pen）、`columnYs(groups, topY)` 生成逐项 y（列2 末项 Pen=277、底 295）。MIN 高 320→**340**。⚠ 存量 320 节点载入时 `clampNodeSize` 自动抬升 20px（工作流无需手工改）。
+- 主扩展绘制：面板顶画列头 chip（RATIO 用 `getSfAccent()` 0.22 透明底 + accent 字，TOOLS 用 `th.surface` + `th.textDim`），两列一眼可分；组间分隔线用**同一个 `columnYs` 数组**推算（画在空隙中央）——绘制与命中共用 `buttonRect`，无第二套公式；`Color→Fill`、`BCol→Pen` 消除"两个色块按钮"歧义。
+- 悬停说明：`HINTS`（id→中文文案）+ `controlHint`（比例按钮单独拼"裁剪框比例：…"）；`onMouseMove` 末尾用 `buttonRect` 扫按钮记录 `node._sfCEBHover`（**只在变化时** `setDirtyCanvas`，避免每帧重绘），`onDrawForeground` 在 `canvas.node_over === node` 且非拖拽/落笔时用提示替换底行右侧信息文本（截断逻辑复用）。离开节点靠 `node_over` 门控不显示，无需 onMouseLeave。
+- 测试：lib test 更新 MIN 340 + 列头/分组常量 + `columnYs` 行位快照；smoke 更新 `computeSize [360,340]`、显示区 `offsetY 52→62`（nodeH 变大 → 全体显示区写死坐标 +10，同 §101 的教训）、新增列头/重命名/悬停断言；按钮点击坐标一律改为按 `_sfCEBCtrls.find(id)` 解析，不再写死行号。
+- 被否决方案存档：B = 删列1、比例收进 `sf_popup` 弹窗（画布可再宽 40px、外观最简，但切比例多一步且测试坐标大改）；A+ = Crop 模式移到列1（列1 纯裁剪/列2 纯画笔，但三模式单选按钮被拆到两列）。

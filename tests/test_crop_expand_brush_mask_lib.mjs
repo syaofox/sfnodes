@@ -51,9 +51,18 @@ function makeCanvas(w = 10, h = 10) {
   check("列1/列2 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34);
   check("TOOL_COL_X = shiftLeft + 列1宽 + 间距", L.TOOL_COL_X === L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap);
   check("EXTRA_LEFT = 列2宽 + 间距 = 40", L.EXTRA_LEFT === 40);
-  check("MIN 360×320（列2 12 项含 Poly）", L.MIN_NODE_WIDTH === 360 && L.MIN_NODE_HEIGHT === 320);
-  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([360, 320]));
+  check("MIN 360×340（列2 12 项含 Poly + 列头/分隔）", L.MIN_NODE_WIDTH === 360 && L.MIN_NODE_HEIGHT === 340);
+  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([360, 340]));
   check("ensureMinSize 放行大尺寸", JSON.stringify(L.ensureMinSize(800, 600)) === JSON.stringify([800, 600]));
+
+  // ── 列头/分组排布（§109）──
+  check("列头/组间常量", L.HEADER_H === 10 && L.GROUP_EXTRA === 3 && L.FIRST_ROW_Y === 26);
+  check("分组项数覆盖两列按钮", L.COL1_GROUPS.reduce((a, b) => a + b, 0) === 8 + 3
+    && L.COL2_GROUPS.reduce((a, b) => a + b, 0) === L.TOOL_COL.length);
+  check("列1 行位（组间 +3）", JSON.stringify(L.columnYs(L.COL1_GROUPS)) ===
+    JSON.stringify([26, 48, 70, 92, 114, 136, 158, 180, 205, 227, 249]));
+  check("列2 行位（组间 +3，末项 Pen 277）", JSON.stringify(L.columnYs(L.COL2_GROUPS)) ===
+    JSON.stringify([26, 48, 70, 92, 117, 139, 161, 186, 208, 230, 252, 277]));
 
   // ── 双列显示坐标系（比基库多让 EXTRA_LEFT）──
   const st = { cropX: 0, cropY: 0, cropW: 512, cropH: 512, srcW: 512, srcH: 512 };
