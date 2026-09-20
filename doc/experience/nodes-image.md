@@ -1298,3 +1298,15 @@ slice_track_data(track_data, start=0, length=0)
 ### 3. 测试
 
 - 两测试文件：schema（`source_key` 在 required 且 forceInput、无 `source`/`signature`）、`required_source_key` 空串报错、`check_lazy_status`/`execute` 空 key 报错、meta 写 `source_key`、旧 meta `source` 字段兼容读、命中守卫（带上游数据且键命中不重写）、原子写回归；§110 的 source 分轮用例移除。
+
+## 112. 组合节点源图翻转/旋转工具（第三列 ORIENT，纯前端落盘改写，2026-09）
+
+> 背景：SFImageCropExpandBrushMask 需要"翻转图片和旋转图片"的编辑工具。用户拍板：作用对象=**源图整体联动**（裁剪框与笔触随图变换、笔触仍粘在画面内容上）；操作集=水平/垂直翻转 + 逆/顺时针 90°（不做任意角度——裁剪框将不再轴对齐）；位置=**新增第三列 ORIENT**（只加宽不加高）；实现=**纯前端落盘改写**（零后端改动、无需重启容器）。
+
+- 布局（`sf_crop_expand_brush_mask_lib.js`）：`ORIENT_COL=["flipH","flipV","rotL","rotR"]`、`COL3_GROUPS=[4]`（单组无分隔线）、`ORIENT_COL_X=TOOL_COL_X+toolColW+toolColGap=90`、`EXTRA_LEFT=40→80`、`MIN_NODE_WIDTH=320+80=400`（高仍 340，列3 4 项底 110 非瓶颈）。存量 360 宽节点载入 `clampNodeSize` 自动抬宽 40px。
+- 变换纯函数 `orientState(st, op)`（返回状态补丁，不改入参）：裁剪框连续坐标 `flipH: x'=W-x-w`／`flipV: y'=H-y-h`／`rotL: (x,y,w,h)'=(y, W-x-w, h, w)`／`rotR: (H-y-h, x, h, w)`；笔触按**整型像素索引**（与后端 `rasterize_strokes` 口径一致）：镜像 `W-1-x`/`H-1-y`，旋转 `rotL: (y, W-1-x)`／`rotR: (H-1-y, x)`。旋转后宽高互换 → `aspect_ratio` 复位 `"free"`（翻转不动）。`flipH²`/`rotL∘rotR` 恒等还原（lib test 断言）。
+- 源图重绘与上传（`sf_crop_source.js` 新增，三节点共享源图链路内）：`renderOrientedImage(img, op)` 1:1 离屏 canvas（旋转交换画布宽高；canvas 变换的屏幕映射与像素索引公式等价——如 rotR 的 `translate+rotate(π/2)` 把源像素中心映射到 `(H-y, x)`，floor 后即 `H-1-y`）；`orientSource(node, op, cfg)` 校验源图已就绪（无源图/未解码/上传失败 → `sfToast` 返回 null），PNG dataURL 走既有 `CropAPI.uploadSrc` 落盘为**新文件**（不删旧文件：与换图行为一致，且复制节点共享的 `src_path` 不被就地改写；代价是每次操作一份新源图）。
+- 主扩展 `applyOrientation`：`_sfCEBOrientBusy` 串行化连续点击；patch 在**上传成功后**按当时状态计算（等待期内的框/笔触编辑不被旧快照覆盖），并以 `src_path` 是否变化判定等待期换图 → 丢弃本次变换；落定前 `cancelPoly`/`cancelSamMode` + 清 `_sfCEBDrag`/`_sfCEBDrawing`/`_sfCEBCur`；`setState(remap + 新 src_path)` 后 `new Image()` 载入 dataURL 替换预览。`filename` 输出与节点输出始终一致（文件本身就是变换后的图）。
+- 被否决方案：**状态位 `src_rot/flip` + 后端 `np.rot90/flip`**（原文件不动、无 8-bit 重编码，但要改后端/重启容器，且 `filename` 指向未变换的原文件，与节点输出不一致）。当前方案的代价：浏览器 canvas 重编码（8-bit）与孤儿文件累积，与既有上传链路同性质。
+- 未加键盘快捷键：前端默认单键 `r/w/n/m/a/./p/v/h` 已占用（§92 核查表），字母键大小写不敏感也无法用 Shift 区分。
+- 测试：lib test 更新三列布局/MIN/`columnYs`/显示坐标系（`extraLeft=80`）+ `orientState` 四变换期望值/逆变换恒等/纯函数/非法 op；smoke 更新控件 29 项、`computeSize [400,340]`、ORIENT 列头/列3 几何，新增 rotR（画布宽高交换 + rotate π/2 + drawImage 全尺寸 + 上传 + 状态重映射）、flipH、无源图不上传断言。⚠ 旧测试里按旧布局写死的显示区坐标全部 +40 偏移（§109 同款教训），其中 `[100,70]` 这类点还落进新列按钮命中区（会误触发旋转）——显示区交互坐标一律按 metrics/控件几何解析。

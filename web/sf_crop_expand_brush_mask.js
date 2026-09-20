@@ -8,10 +8,11 @@
 //      随图移动，只有落在裁剪框内的部分进入输出）
 // 输出扩展画布 + 并集遮罩（扩展区 ∪ 笔触，白=重绘，恒二值）。
 //
-// 双列布局（sf_crop_expand_brush_mask_lib）：列1 = 比例预设（CropExpand 同款），
-// 列2 = 画笔工具（BrushMask TOOL_COL 前置 Crop 模式）；显示区多让一列宽度。
-// 两列带列头（RATIO/TOOLS）与组间分隔线、底部歧义按钮重命名（Fill/Pen）、
-// 悬停底行改显按钮中文说明，见 §109。
+// 三列布局（sf_crop_expand_brush_mask_lib）：列1 = 比例预设（CropExpand 同款），
+// 列2 = 画笔工具（BrushMask TOOL_COL 前置 Crop 模式），列3 = 翻转/旋转
+// （源图整体联动，§112）；显示区多让两列宽度。三列带列头（RATIO/TOOLS/
+// ORIENT）与组间分隔线、底部歧义按钮重命名（Fill/Pen）、悬停底行改显按钮
+// 中文说明，见 §109·§112。
 //
 // 状态真源 node.properties.sfCropExpandBrushMaskState（JSON 字符串，随工作流
 // 保存），经 graphToPrompt 钩子注入隐藏输入 SFCropExpandBrushMaskJson（只注入
@@ -22,7 +23,8 @@
 //   - 几何/冻结快照防飘移/手柄/绘制：sf_crop_expand_lib.js
 //   - 步进/命中/笔触渲染：sf_brush_mask_lib.js（paintStrokeMask/colorTextStyle）
 //   - 组合布局：sf_crop_expand_brush_mask_lib.js
-//   - 源图链路：sf_crop_source.js（Load/Browse/拖放/Ctrl+V → input/sfnodes_crop/）
+//   - 源图链路：sf_crop_source.js（Load/Browse/拖放/Ctrl+V → input/sfnodes_crop/；
+//     翻/转经 orientSource 重绘上传新源图）
 //   - 比例预设弹窗：sf_crop_expand_ratios.js
 //   - AI/工具右键菜单：sf_brush_ai.js（与 SFImageBrushMask 单源：SAM 文本/
 //     点选/框选、人物部位、YOLO、导入遮罩、反选、统一卸载；识别/导入结果按
@@ -53,7 +55,7 @@ import {
   sfCursorWidth,
   registerSfLineWidthSettings,
 } from "./sf_common.js";
-import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource } from "./sf_crop_source.js";
+import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource, orientSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
 import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert, cancelSamMode } from "./sf_brush_ai.js";
 import { togglePoly, handlePolyPointer, handlePolyDblClick, drawPolyOverlay, cancelPoly, disposePoly } from "./sf_brush_poly.js";
@@ -88,11 +90,15 @@ import {
 import {
   LAYOUT,
   TOOL_COL,
+  ORIENT_COL,
   TOOL_COL_X,
+  ORIENT_COL_X,
   HEADER_H,
   COL1_GROUPS,
   COL2_GROUPS,
+  COL3_GROUPS,
   columnYs,
+  orientState,
   ensureMinSize,
   computeDisplayMetrics,
 } from "./sf_crop_expand_brush_mask_lib.js";
@@ -245,12 +251,13 @@ const AI_CFG = {
   cancelPoly: (node) => cancelPoly(node),  // beginSamMode 互斥（Poly 会话丢弃）
 };
 
-// ── 控件（双列 + 底行：绘制与命中共用同一几何）───────────────────────────
+// ── 控件（三列 + 底行：绘制与命中共用同一几何）───────────────────────────
 // 列1（x=shiftLeft）：比例预设（Free 置顶）+ Custom/Reset/Fill；
 // 列2（x=TOOL_COL_X）：Crop/Brush/Erase 三模式 + Clear/Undo/S±/O±/Pen；
+// 列3（x=ORIENT_COL_X）：FlipH/FlipV/RotL/RotR（源图整体翻转/旋转，§112）；
 // 底行（y 运行时解析）：Load/Browse + 信息文本。
-// 每列按 COL1_GROUPS/COL2_GROUPS 分组排布（columnYs），主扩展按同一数组画
-// 分组分隔线（§109）。
+// 每列按 COL1_GROUPS/COL2_GROUPS/COL3_GROUPS 分组排布（columnYs），主扩展按
+// 同一数组画分组分隔线（§109）。
 
 function toolText(id) {
   return {
@@ -266,6 +273,10 @@ function toolText(id) {
     opaMinus: "O−",
     opaPlus: "O+",
     brushColor: "Pen",
+    flipH: "FlipH",
+    flipV: "FlipV",
+    rotL: "RotL",
+    rotR: "RotR",
   }[id] || id;
 }
 
@@ -289,6 +300,10 @@ const HINTS = {
   custom: "自定义比例（全局预设库，可保存/删除）",
   load: "加载本地图片（也可拖放或 Ctrl+V 粘贴）",
   browse: "浏览输入目录图片",
+  flipH: "水平翻转源图（左右镜像；裁剪框与笔触随图联动）",
+  flipV: "垂直翻转源图（上下镜像；裁剪框与笔触随图联动）",
+  rotL: "逆时针旋转源图 90°（比例预设复位 Free）",
+  rotR: "顺时针旋转源图 90°（比例预设复位 Free）",
 };
 
 function controlHint(b) {
@@ -355,6 +370,15 @@ function buildControls() {
       isColor: id === "brushColor",
     }));
   });
+  // 列3：翻转/旋转（源图整体联动；isOrient 用 9px 小字号，§112）
+  const col3Ys = columnYs(COL3_GROUPS);
+  ORIENT_COL.forEach((id, i) => {
+    buttons.push(colButton(ORIENT_COL_X, col3Ys[i], {
+      id,
+      text: toolText(id),
+      isOrient: true,
+    }));
+  });
   // 底行：Load/Browse（与信息文本同排，y 运行时解析；按钮右缘 106）
   buttons.push(
     { id: "load", text: "Load", x: 10, y: BOTTOM_Y, w: 44, h: 21 },
@@ -370,6 +394,7 @@ function buttonAction(node, id) {
   if (id === "reset") { resetCrop(node); return; }
   if (id === "fillColor") { pickFillColor(node); return; }
   if (id.startsWith("ratio:")) { setAspect(node, id.slice(6)); return; }
+  if (ORIENT_COL.includes(id)) { applyOrientation(node, id); return; }
   if (id === "crop" || id === "brush" || id === "erase") setState(node, { brush_mode: id });
   else if (id === "clear") setState(node, { strokes: [] });
   else if (id === "undo") {
@@ -443,6 +468,42 @@ function pickColor(node) {
   }, "#ffffff");
 }
 
+// ── 源图翻转/旋转（列3 ORIENT，§112）─────────────────────────────────────
+// 源图整体变换：canvas 重绘 → 上传新源图 → orientState 联动重映射裁剪框/
+// 笔触/src_w/h（笔触粘内容）→ 替换预览 <img>。不删旧文件（与换图行为一致，
+// 复制节点共享的源图不被就地改写）；连续点击用 busy 标记串行化（第二次点击
+// 时第一次尚未落定，若并行会把旧图再变换一次）。patch 在上传成功后按当时
+// 状态计算（上传等待期内的框/笔触编辑不被旧快照覆盖）；若等待期内源图被
+// 替换（src_path 变了）则丢弃本次变换，避免把新图状态按旧图变换重映射。
+async function applyOrientation(node, op) {
+  if (node._sfCEBOrientBusy) return;
+  const srcBefore = getState(node).src_path;
+  node._sfCEBOrientBusy = true;
+  try {
+    const res = await orientSource(node, op, SOURCE_CFG);
+    if (!res) return;
+    const st = getState(node);
+    if (st.src_path !== srcBefore) return;
+    const patch = orientState(st, op);
+    if (!patch) return;
+    cancelPoly(node);      // 旧顶点坐标随图变换失效
+    cancelSamMode(node);   // 与 SAM 点选/框选互斥
+    node._sfCEBDrag = null;
+    node._sfCEBDrawing = false;
+    node._sfCEBCur = [];
+    setState(node, { ...patch, src_path: res.srcPath });
+    const img = new Image();
+    img.onload = () => {
+      node._sfCEBImg = img;
+      if (app.graph) app.graph.setDirtyCanvas(true, true);
+    };
+    img.src = res.dataURL;
+    stateChanged(node);
+  } finally {
+    node._sfCEBOrientBusy = false;
+  }
+}
+
 // ── 自定义比例预设弹窗（sf_crop_expand_ratios 共享实现）────────────────────
 function openRatioDialog(node) {
   const st = getState(node);
@@ -513,7 +574,7 @@ function drawButtons(ctx, node, st, th, accent) {
     else if ((b.isInvert && st.invert) || (b.isPoly && st.brush_poly)) ctx.fillStyle = "rgba(255,255,255,0.95)";
     else ctx.fillStyle = th.textStrong;
 
-    ctx.font = b.y === BOTTOM_Y ? "11px Arial" : (b.isInvert ? "9px Arial" : "10px Arial");
+    ctx.font = b.y === BOTTOM_Y ? "11px Arial" : (b.isInvert || b.isOrient ? "9px Arial" : "10px Arial");
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     let text = b.text;
@@ -539,13 +600,14 @@ function setupDrawing(node) {
     const dragging = !!node._sfCEBDrag;
     const m = metricsOf(node, dragging ? node._sfCEBDrag.frozen : null);
 
-    // 双列底条 + 底行背景（必须先于按钮：§45.8 半透明 chrome 按"背景→控件→
+    // 三列底条 + 底行背景（必须先于按钮：§45.8 半透明 chrome 按"背景→控件→
     // 内容→文本"分层，后画盖先画）
     const colTop = shiftLeft - 4;
     const colBottom = nodeH - shiftLeft - bottomH;
     const columns = [
       { x: shiftLeft - 4, w: ratioColW + 2, btnX: shiftLeft, groups: COL1_GROUPS, header: "RATIO", accent: true },
       { x: TOOL_COL_X - 4, w: LAYOUT.toolColW + 2, btnX: TOOL_COL_X, groups: COL2_GROUPS, header: "TOOLS", accent: false },
+      { x: ORIENT_COL_X - 4, w: LAYOUT.orientColW + 2, btnX: ORIENT_COL_X, groups: COL3_GROUPS, header: "ORIENT", accent: false },
     ];
     for (const c of columns) {
       ctx.fillStyle = th.panel2;

@@ -37,6 +37,14 @@ globalThis.__canvas = { style: {}, node_over: null, selected_nodes: null, pointe
 globalThis.__dirtyCount = 0;
 globalThis.__graph.setDirtyCanvas = () => { globalThis.__dirtyCount++; };
 
+// Image 桩：src 赋值即视为已解码（applyOrientation 上传后替换预览 <img>；
+// onload 在 onload 已挂载的前提下同步触发）
+globalThis.Image = class {
+  constructor() { this.onload = null; this.complete = false; this.naturalWidth = 0; this.naturalHeight = 0; }
+  set src(v) { this._src = v; this.complete = true; if (this.onload) this.onload(); }
+  get src() { return this._src; }
+};
+
 const createdCanvases = [];
 function makeFullCtx(ops) {
   const st = {};
@@ -58,7 +66,11 @@ globalThis.document = {
   createElement(tag) {
     if (tag !== "canvas") return { style: {}, appendChild() {}, querySelector() { return null; }, click() {} };
     const ops = [];
-    const c = { width: 0, height: 0, ops, getContext: () => makeFullCtx(ops) };
+    const c = {
+      width: 0, height: 0, ops,
+      getContext: () => makeFullCtx(ops),
+      toDataURL(type) { ops.push({ op: "toDataURL", args: [type] }); return "data:image/png;base64,stub"; },
+    };
     createdCanvases.push(c);
     return c;
   },
@@ -78,6 +90,7 @@ globalThis.api = { addEventListener() {}, fetchApi: async () => ({ ok: true, jso
 const fireWin = (type, ev) => {
   for (const l of winListeners.filter((l) => l.type === type)) l.fn(ev || { type });
 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const CLASS = "SFImageCropExpandBrushMask";
 const STATE_PROP = "sfCropExpandBrushMaskState";
@@ -103,7 +116,7 @@ const makeState = (patch = {}) => JSON.stringify({
   fs.writeFileSync(path.join(tmpDir, "stub_api.js"),
     "export const api = { addEventListener() {}, fetchApi: async (url, opts) => { (globalThis.__apiCalls ??= []).push({ url, body: opts && opts.body }); return { ok: true, json: async () => (globalThis.__aiResponse || {}) }; } };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_core.js"),
-    "export const CropAPI = { uploadSrc: async () => ({}) };\n");
+    "export const CropAPI = { uploadSrc: async (id, dataURL) => { (globalThis.__uploadCalls ??= []).push({ id, dataURL }); return { path: 'sfnodes_crop/crop_src_' + id + '.png' }; } };\n");
   fs.writeFileSync(path.join(tmpDir, "stub_browser.js"), "export function showImageBrowser() {}\n");
   fs.writeFileSync(path.join(tmpDir, "stub_popup.js"), "export function attachPopupDismiss() {}\n");
   // 真实 sf_common：剥 import，走 globalThis
@@ -172,17 +185,22 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__graph._nodes.push(node);
   nodeType.prototype.onNodeCreated.call(node);
 
-  check("控件 25 项（列1 11 + 列2 12 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 25);
+  check("控件 29 项（列1 11 + 列2 12 + 列3 4 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 29);
   check("释放兜底 hook 已装", !!node._sfCEBReleaseGuard);
-  check("computeSize 钳最小值（列2 12 项 + 列头 → 高 340）", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([360, 340]));
+  check("computeSize 钳最小值（三列 + 列2 12 项 → 400×340）", JSON.stringify(nodeType.prototype.computeSize.call(node)) === JSON.stringify([400, 340]));
 
-  // ── 列头/分组/重命名（§109）──
+  // ── 列头/分组/重命名（§109·§112）──
   const hdrOps = [];
   node.onDrawForeground(makeFullCtx(hdrOps));
   const drawnTexts = hdrOps.filter((o) => o.op === "fillText").map((o) => String(o.args[0]));
-  check("列头 RATIO/TOOLS 绘制", drawnTexts.includes("RATIO") && drawnTexts.includes("TOOLS"));
+  check("列头 RATIO/TOOLS/ORIENT 绘制", drawnTexts.includes("RATIO") && drawnTexts.includes("TOOLS") && drawnTexts.includes("ORIENT"));
   check("歧义按钮重命名 Fill/Pen", drawnTexts.includes("Fill") && drawnTexts.includes("Pen"));
   check("首行下移列头 10px（crop y=26）", node._sfCEBCtrls.find((b) => b.id === "crop").y === 26);
+  check("列3 按钮几何（ORIENT_COL_X=90 起 4 项）",
+    ["flipH", "flipV", "rotL", "rotR"].every((id, i) => {
+      const b = node._sfCEBCtrls.find((c) => c.id === id);
+      return b && b.x === 90 && b.y === 26 + i * 22 && b.isOrient === true;
+    }));
 
   // 右键菜单（sf_brush_ai 共享安装器）
   const menuOpts = [];
@@ -235,27 +253,27 @@ const makeState = (patch = {}) => JSON.stringify({
     globalThis.__canvas.node_over = null;
   }
 
-  // ── Crop 模式：手柄起拖（显示区 offsetX=90, offsetY=62, scale=190/512）──
+  // ── Crop 模式：手柄起拖（显示区 offsetX=130, offsetY=62, scale=190/512）──
   const cropBtn = ctrl("crop");
   check("列2 Crop 按钮几何", cropBtn.x === 50 && cropBtn.y === 26);
   check("默认 Crop 模式", state().brush_mode === "crop");
 
-  const started = node.onMouseDown({ button: 0, buttons: 1 }, [90, 62]); // NW 手柄
+  const started = node.onMouseDown({ button: 0, buttons: 1 }, [130, 62]); // NW 手柄
   check("左键命中手柄起拖", started === true && !!node._sfCEBDrag);
   const before = state();
-  node.onMouseMove({ buttons: 1 }, [110, 82], gc());
+  node.onMouseMove({ buttons: 1 }, [150, 82], gc());
   const after = state();
   check("按住拖动改变裁剪框", after.crop_x > before.crop_x && after.crop_w < before.crop_w);
   // 释放丢失：buttons:0 立即落定，不再改框
   const held = state();
-  node.onMouseMove({ buttons: 0 }, [130, 102], gc());
+  node.onMouseMove({ buttons: 0 }, [170, 102], gc());
   check("buttons:0 清空拖拽状态", node._sfCEBDrag == null);
   const finalized = state();
   check("buttons:0 仅取整落定", Math.abs(finalized.crop_x - held.crop_x) <= 1);
-  node.onMouseMove({ buttons: 1 }, [160, 130], gc());
+  node.onMouseMove({ buttons: 1 }, [200, 130], gc());
   check("落定后再移动不改框", state().crop_x === finalized.crop_x);
   // 右键不起拖
-  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [90, 62]) === false);
+  check("右键不起拖", node.onMouseDown({ button: 2, buttons: 2 }, [130, 62]) === false);
 
   // ── 三模式切换（列2 按钮；坐标按控件几何解析）──
   clickCtrl("brush");
@@ -280,11 +298,11 @@ const makeState = (patch = {}) => JSON.stringify({
 
   // 扩展区（源图外）不起笔：裁剪框外扩后显示区含扩展区
   node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush" });
-  // scale = 190/712；img(-50,-50) → local(90+50*0.2669, 62+50*0.2669) ≈ (103.3, 75.3)
-  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [103, 75]);
+  // scale = 190/712；img(-50,-50) → local(130+50*0.2669, 62+50*0.2669) ≈ (143.3, 75.3)
+  const s3 = node.onMouseDown({ button: 0, buttons: 1 }, [143, 75]);
   check("扩展区不起笔", s3 === false && !node._sfCEBDrawing);
-  // 源图内（img 10,10 → local 90+110*0.2669=119.4, 62+110*0.2669=91.4）可起笔
-  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [119, 91]);
+  // 源图内（img 10,10 → local 130+110*0.2669=159.4, 62+110*0.2669=91.4）可起笔
+  const s4 = node.onMouseDown({ button: 0, buttons: 1 }, [159, 91]);
   check("扩展框内源图区仍可起笔", s4 === true && node._sfCEBDrawing === true);
   node.onMouseUp({}, [], gc());
 
@@ -297,10 +315,10 @@ const makeState = (patch = {}) => JSON.stringify({
   const polyOnOps = [];
   node.onDrawForeground(makeFullCtx(polyOnOps));
   check("Poly ON 用状态色（绿）", polyOnOps.some((o) => o.op === "fillRect" && o.fill === "rgba(46,160,67,0.95)"));
-  // 三次落点（scale=190/512=0.3711, offset=(90,62)）：img(50,50)→(109,81) 等
-  node.onMouseDown({ button: 0, buttons: 1 }, [109, 81]);
-  node.onMouseDown({ button: 0, buttons: 1 }, [146, 81]);
-  node.onMouseDown({ button: 0, buttons: 1 }, [146, 118]);
+  // 三次落点（scale=190/512=0.3711, offset=(130,62)）：img(50,50)→(149,81) 等
+  node.onMouseDown({ button: 0, buttons: 1 }, [149, 81]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [186, 81]);
+  node.onMouseDown({ button: 0, buttons: 1 }, [186, 118]);
   check("套索三点会话", !!node._sfBrushPoly && node._sfBrushPoly.points.length === 3);
   const polyOpsC = [];
   node.onDrawForeground(makeFullCtx(polyOpsC));
@@ -310,13 +328,60 @@ const makeState = (patch = {}) => JSON.stringify({
     && state().strokes[0].points.length === 3);
   // 扩展区不落点（裁剪框外扩后显示区含扩展区）
   node.properties[STATE_PROP] = makeState({ crop_x: -100, crop_y: -100, crop_w: 712, crop_h: 712, brush_mode: "brush", brush_poly: true });
-  const extHit = node.onMouseDown({ button: 0, buttons: 1 }, [100, 70]);
+  const extHit = node.onMouseDown({ button: 0, buttons: 1 }, [143, 75]);
   check("套索在扩展区不落点", extHit === false && node._sfBrushPoly == null);
-  const srcHit = node.onMouseDown({ button: 0, buttons: 1 }, [119, 91]); // img(10,10)
+  const srcHit = node.onMouseDown({ button: 0, buttons: 1 }, [159, 91]); // img(10,10)
   check("套索在源图内落点", srcHit === true && !!node._sfBrushPoly && node._sfBrushPoly.points.length === 1);
   // 按钮关闭：丢弃未闭合会话
   node.onMouseDown({ button: 0, buttons: 1 }, [polyBtn.x + 15, polyBtn.y + 9]);
   check("关闭 Poly 丢弃会话", node._sfBrushPoly == null && state().brush_poly === false);
+
+  // ── 翻转/旋转（列3 ORIENT，§112）：canvas 重绘 + 上传新源图 + 状态联动重映射 ──
+  node.properties[STATE_PROP] = makeState({
+    src_path: "sfnodes_crop/crop_src_cebm_src.png",
+    src_w: 512, src_h: 300,
+    crop_x: 10, crop_y: 20, crop_w: 100, crop_h: 200,
+    strokes: [{ mode: "brush", size: 20, points: [[0, 0], [511, 299]] }],
+    aspect_ratio: "16:9", brush_mode: "brush",
+  });
+  globalThis.__uploadCalls = [];
+  node._sfCEBImg = { complete: true, naturalWidth: 512, naturalHeight: 300 };
+  createdCanvases.length = 0;
+  clickCtrl("rotR");
+  await sleep(20);
+  const stR = state();
+  const orientCvs = createdCanvases[createdCanvases.length - 1];
+  check("rotR canvas 宽高交换（300×512）", orientCvs && orientCvs.width === 300 && orientCvs.height === 512);
+  check("rotR 画布 rotate(π/2) + drawImage 全尺寸", !!orientCvs
+    && orientCvs.ops.some((o) => o.op === "rotate" && Math.abs(o.args[0] - Math.PI / 2) < 1e-9)
+    && orientCvs.ops.some((o) => o.op === "drawImage" && o.args[1] === -256 && o.args[2] === -150
+      && o.args[3] === 512 && o.args[4] === 300));
+  check("rotR 上传新源图（cebm_ 前缀）", (globalThis.__uploadCalls || []).length === 1
+    && String(globalThis.__uploadCalls[0].id).startsWith("cebm_")
+    && globalThis.__uploadCalls[0].dataURL === "data:image/png;base64,stub");
+  check("rotR 状态尺寸交换", stR.src_w === 300 && stR.src_h === 512);
+  check("rotR 裁剪框重映射 (H-y-h, x)", stR.crop_x === 80 && stR.crop_y === 10 && stR.crop_w === 200 && stR.crop_h === 100);
+  check("rotR 笔触重映射 (H-1-y, x)", JSON.stringify(stR.strokes[0].points) === JSON.stringify([[299, 0], [0, 511]]));
+  check("rotR 比例复位 free", stR.aspect_ratio === "free");
+  check("rotR 更新 src_path + 替换预览 img", stR.src_path === "sfnodes_crop/crop_src_" + globalThis.__uploadCalls[0].id + ".png"
+    && node._sfCEBImg && node._sfCEBImg.src === "data:image/png;base64,stub");
+
+  // 翻转：尺寸不变、框/笔触镜像（在 rotR 后的 300×512 状态上继续；
+  // 预览 img 由 Image 桩替换后无尺寸，这里按新状态补齐）
+  globalThis.__uploadCalls = [];
+  node._sfCEBImg = { complete: true, naturalWidth: 300, naturalHeight: 512 };
+  clickCtrl("flipH");
+  await sleep(20);
+  const stF = state();
+  check("flipH 尺寸不变 + 框镜像 W-x-w", stF.src_w === 300 && stF.src_h === 512
+    && stF.crop_x === 20 && stF.crop_y === 10 && stF.crop_w === 200 && stF.crop_h === 100);
+  check("flipH 笔触镜像 W-1-x", JSON.stringify(stF.strokes[0].points) === JSON.stringify([[0, 0], [299, 511]]));
+  // 无源图：只提示不上传
+  node.properties[STATE_PROP] = makeState({ src_path: "" });
+  globalThis.__uploadCalls = [];
+  clickCtrl("flipV");
+  await sleep(20);
+  check("无源图点击不触发上传", (globalThis.__uploadCalls || []).length === 0);
 
   // ── 笔触预览：离屏合成真擦除 ──
   node.properties[STATE_PROP] = makeState({
@@ -404,8 +469,8 @@ const makeState = (patch = {}) => JSON.stringify({
   globalThis.__apiCalls = [];
   menuOpts.find((o) => o.content.includes("框选")).callback();
   check("进入框选模式", !!node._sfAiSam && node._sfAiSam.kind === "box");
-  node.onMouseDown({ button: 0, buttons: 1 }, [100, 70]);
-  node.onMouseMove({ buttons: 1 }, [140, 110], { canvas: { style: {} }, setDirty() {} });
+  node.onMouseDown({ button: 0, buttons: 1 }, [140, 70]);
+  node.onMouseMove({ buttons: 1 }, [180, 110], { canvas: { style: {} }, setDirty() {} });
   check("框选记录橡皮筋", !!node._sfAiSam.box && node._sfAiSam.box.x2 > node._sfAiSam.box.x1);
   // 覆盖层绘制：虚线框 + 提示条，不抛错（曾缺 imageToLocal import → 整帧中断）
   const boxOps = [];

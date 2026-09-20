@@ -8,6 +8,8 @@
 // 落盘后的状态回写，收敛于此）：
 //   dataURL → CropAPI.uploadSrc 落盘 input/sfnodes_crop/ → cfg.onStored 回写
 //   宿主状态 → <img> 预览；工作流重载经 /view 恢复（buildSourceURL + cacheBust）。
+//   orientSource（§112）：当前 <img> 按 90°/镜像重绘 → 上传为新源图，返回
+//   { srcPath, dataURL }；状态重映射由宿主纯库（orientState）负责。
 //
 // cfg: {
 //   uploadPrefix: "cropexpand_" | "brushmask_" | "cebm_" | ...（upload_src 文件名前缀）,
@@ -174,4 +176,54 @@ export function installSourceDrop(node, cfg) {
     e.stopPropagation();
     return true;
   };
+}
+
+// ── 源图翻转/旋转（列3 ORIENT，§112）─────────────────────────────────────
+// renderOrientedImage(img, op)：把 <img> 按 op 1:1 重绘到等像素离屏 canvas
+// （flipH 左右镜像 / flipV 上下镜像 / rotL 逆时针 90° / rotR 顺时针 90°；
+// 旋转交换画布宽高）。canvas 旋转的屏幕映射与 orientState 的像素索引公式
+// 一致（rotR: x'=H-1-y, y'=x），纯几何可 FakeCanvas 直测。
+
+export function renderOrientedImage(img, op) {
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  const swap = op === "rotL" || op === "rotR";
+  const cvs = document.createElement("canvas");
+  cvs.width = swap ? h : w;
+  cvs.height = swap ? w : h;
+  const ctx = cvs.getContext("2d");
+  ctx.translate(cvs.width / 2, cvs.height / 2);
+  if (op === "flipH") ctx.scale(-1, 1);
+  else if (op === "flipV") ctx.scale(1, -1);
+  else if (op === "rotL") ctx.rotate(-Math.PI / 2);
+  else if (op === "rotR") ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  return cvs;
+}
+
+// orientSource(node, op, cfg)：未加载/解码未完成/上传失败 → toast 返回 null；
+// 成功上传为新源图（新 src_path；旧文件不删——与换图行为一致，且复制节点的
+// 共享源图不被就地改写），返回 { srcPath, dataURL } 供宿主替换预览。
+export async function orientSource(node, op, cfg) {
+  const st = cfg.getState(node);
+  const img = node[cfg.imgProp];
+  if (!st?.src_path) {
+    sfToast({ summary: cfg.toastTag, detail: "请先加载图片", severity: "warn", fallbackTag: cfg.toastTag });
+    return null;
+  }
+  if (!img || !img.complete || !(img.naturalWidth > 0)) {
+    sfToast({ summary: cfg.toastTag, detail: "源图尚未加载完成", severity: "warn", fallbackTag: cfg.toastTag });
+    return null;
+  }
+  try {
+    const dataURL = renderOrientedImage(img, op).toDataURL("image/png");
+    const res = await CropAPI.uploadSrc(cfg.uploadPrefix + Date.now(), dataURL);
+    const srcPath = res?.path || "";
+    if (!srcPath) throw new Error("upload failed");
+    return { srcPath, dataURL };
+  } catch (err) {
+    console.error(`${cfg.logTag} orient failed:`, err);
+    sfToast({ summary: cfg.toastTag, detail: "翻转/旋转失败", severity: "error", fallbackTag: cfg.toastTag });
+    return null;
+  }
 }

@@ -48,29 +48,34 @@ function makeCanvas(w = 10, h = 10) {
   // ── 组合布局 ──
   check("TOOL_COL 12 项且 Crop 置顶", L.TOOL_COL.length === 12 && L.TOOL_COL[0] === "crop"
     && JSON.stringify(L.TOOL_COL.slice(1)) === JSON.stringify(Brush.TOOL_COL));
-  check("列1/列2 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34);
+  check("ORIENT_COL 4 项（flipH/flipV/rotL/rotR）", JSON.stringify(L.ORIENT_COL) === JSON.stringify(["flipH", "flipV", "rotL", "rotR"]));
+  check("列1/列2/列3 同宽 34", L.LAYOUT.ratioColW === 34 && L.LAYOUT.toolColW === 34 && L.LAYOUT.orientColW === 34);
   check("TOOL_COL_X = shiftLeft + 列1宽 + 间距", L.TOOL_COL_X === L.LAYOUT.shiftLeft + L.LAYOUT.ratioColW + L.LAYOUT.ratioColGap);
-  check("EXTRA_LEFT = 列2宽 + 间距 = 40", L.EXTRA_LEFT === 40);
-  check("MIN 360×340（列2 12 项含 Poly + 列头/分隔）", L.MIN_NODE_WIDTH === 360 && L.MIN_NODE_HEIGHT === 340);
-  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([360, 340]));
+  check("ORIENT_COL_X = 列2 右缘 + 间距", L.ORIENT_COL_X === L.TOOL_COL_X + L.LAYOUT.toolColW + L.LAYOUT.toolColGap);
+  check("EXTRA_LEFT = 列2 + 列3（含间距）= 80", L.EXTRA_LEFT === 80);
+  check("MIN 400×340（列3 只加宽不加高）", L.MIN_NODE_WIDTH === 400 && L.MIN_NODE_HEIGHT === 340);
+  check("ensureMinSize 抬升", JSON.stringify(L.ensureMinSize(10, 10)) === JSON.stringify([400, 340]));
   check("ensureMinSize 放行大尺寸", JSON.stringify(L.ensureMinSize(800, 600)) === JSON.stringify([800, 600]));
 
   // ── 列头/分组排布（§109）──
   check("列头/组间常量", L.HEADER_H === 10 && L.GROUP_EXTRA === 3 && L.FIRST_ROW_Y === 26);
-  check("分组项数覆盖两列按钮", L.COL1_GROUPS.reduce((a, b) => a + b, 0) === 8 + 3
-    && L.COL2_GROUPS.reduce((a, b) => a + b, 0) === L.TOOL_COL.length);
+  check("分组项数覆盖三列按钮", L.COL1_GROUPS.reduce((a, b) => a + b, 0) === 8 + 3
+    && L.COL2_GROUPS.reduce((a, b) => a + b, 0) === L.TOOL_COL.length
+    && L.COL3_GROUPS.reduce((a, b) => a + b, 0) === L.ORIENT_COL.length);
   check("列1 行位（组间 +3）", JSON.stringify(L.columnYs(L.COL1_GROUPS)) ===
     JSON.stringify([26, 48, 70, 92, 114, 136, 158, 180, 205, 227, 249]));
   check("列2 行位（组间 +3，末项 Pen 277）", JSON.stringify(L.columnYs(L.COL2_GROUPS)) ===
     JSON.stringify([26, 48, 70, 92, 117, 139, 161, 186, 208, 230, 252, 277]));
+  check("列3 行位（单组四项）", JSON.stringify(L.columnYs(L.COL3_GROUPS)) ===
+    JSON.stringify([26, 48, 70, 92]));
 
-  // ── 双列显示坐标系（比基库多让 EXTRA_LEFT）──
+  // ── 三列显示坐标系（比基库多让 EXTRA_LEFT = 列2+列3）──
   const st = { cropX: 0, cropY: 0, cropW: 512, cropH: 512, srcW: 512, srcH: 512 };
   const m = L.computeDisplayMetrics(st, 360, 300, null);
-  // areaW = 360-80-10-34-6-40 = 190；areaH = 300-20-26 = 254 → scale = 190/512
-  check("组合 scale", approx(m.scale, 190 / 512));
-  check("组合 offsetX 让出两列", approx(m.offsetX, 10 + 34 + 6 + 40));
-  check("组合 offsetY 居中", approx(m.offsetY, 10 + (254 - 190) / 2));
+  // areaW = 360-80-10-34-6-80 = 150；areaH = 300-20-26 = 254 → scale = 150/512
+  check("组合 scale", approx(m.scale, 150 / 512));
+  check("组合 offsetX 让出三列", approx(m.offsetX, 10 + 34 + 6 + 80));
+  check("组合 offsetY 居中", approx(m.offsetY, 10 + (254 - 150) / 2));
   // 与基库显式 extraLeft 等价
   const mb = Crop.computeDisplayMetrics(st, 360, 300, null, L.EXTRA_LEFT);
   check("组合 metrics ≡ 基库 extraLeft", m.scale === mb.scale && m.offsetX === mb.offsetX && m.offsetY === mb.offsetY);
@@ -88,6 +93,57 @@ function makeCanvas(w = 10, h = 10) {
   check("imageToLocal 互逆", approx(back.x, 30) && approx(back.y, 40));
   check("基库 ensureMinSize 显式下限",
     JSON.stringify(Crop.ensureMinSize(1, 1, 500, 600)) === JSON.stringify([500, 600]));
+
+  // ── orientState（源图整体翻转/旋转，§112）──
+  // W=100,H=60；框 (10,20,30,40)；笔触两点 (0,0)/(99,59)
+  const ost = {
+    src_w: 100, src_h: 60,
+    crop_x: 10, crop_y: 20, crop_w: 30, crop_h: 40,
+    strokes: [{ mode: "brush", size: 8, points: [[0, 0], [99, 59]] }],
+    aspect_ratio: "16:9",
+  };
+  const ostJSON = JSON.stringify(ost);
+  const flat = (s) => JSON.stringify(s.strokes);
+  {
+    const r = L.orientState(ost, "flipH");
+    check("flipH 尺寸不变 + 框镜像 W-x-w", r.src_w === 100 && r.src_h === 60
+      && r.crop_x === 60 && r.crop_y === 20 && r.crop_w === 30 && r.crop_h === 40);
+    check("flipH 笔触镜像 W-1-x", flat(r) === JSON.stringify([{ mode: "brush", size: 8, points: [[99, 0], [0, 59]] }]));
+    check("flipH 保留比例预设", r.aspect_ratio === "16:9");
+  }
+  {
+    const r = L.orientState(ost, "flipV");
+    check("flipV 尺寸不变 + 框镜像 H-y-h", r.src_w === 100 && r.src_h === 60
+      && r.crop_x === 10 && r.crop_y === 0 && r.crop_w === 30 && r.crop_h === 40);
+    check("flipV 笔触镜像 H-1-y", flat(r) === JSON.stringify([{ mode: "brush", size: 8, points: [[0, 59], [99, 0]] }]));
+  }
+  {
+    const r = L.orientState(ost, "rotL");
+    check("rotL 尺寸交换 + 框 (y, W-x-w)", r.src_w === 60 && r.src_h === 100
+      && r.crop_x === 20 && r.crop_y === 60 && r.crop_w === 40 && r.crop_h === 30);
+    check("rotL 笔触 (y, W-1-x)", flat(r) === JSON.stringify([{ mode: "brush", size: 8, points: [[0, 99], [59, 0]] }]));
+    check("rotL 比例复位 free", r.aspect_ratio === "free");
+  }
+  {
+    const r = L.orientState(ost, "rotR");
+    check("rotR 尺寸交换 + 框 (H-y-h, x)", r.src_w === 60 && r.src_h === 100
+      && r.crop_x === 0 && r.crop_y === 10 && r.crop_w === 40 && r.crop_h === 30);
+    check("rotR 笔触 (H-1-y, x)", flat(r) === JSON.stringify([{ mode: "brush", size: 8, points: [[59, 0], [0, 99]] }]));
+    check("rotR 比例复位 free", r.aspect_ratio === "free");
+  }
+  // 逆变换恒等（旋转 ±90 互逆、镜像自逆）：尺寸/框/笔触全部还原
+  for (const [op, inv] of [["flipH", "flipH"], ["flipV", "flipV"], ["rotL", "rotR"], ["rotR", "rotL"]]) {
+    const a = L.orientState(ost, op);
+    const b = L.orientState({ ...ost, ...a }, inv);
+    check(`${op} + ${inv} 恒等还原`, b.src_w === 100 && b.src_h === 60
+      && b.crop_x === 10 && b.crop_y === 20 && b.crop_w === 30 && b.crop_h === 40
+      && flat(b) === flat(ost));
+  }
+  check("orientState 不改入参", JSON.stringify(ost) === ostJSON);
+  check("未知 op 返回 null", L.orientState(ost, "rot180") === null);
+  check("非法尺寸返回 null", L.orientState({ ...ost, src_w: 0 }, "flipH") === null
+    && L.orientState({ ...ost, src_h: -1 }, "rotR") === null);
+  check("无 strokes 安全（空数组）", flat(L.orientState({ ...ost, strokes: undefined }, "flipH")) === "[]");
 
   // ── colorTextStyle ──
   check("取色文字 白底黑字", Brush.colorTextStyle("#ffffff") === "rgba(0,0,0,0.9)");
