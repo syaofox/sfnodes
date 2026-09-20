@@ -1,19 +1,6 @@
 _CATEGORY = "sfnodes/image"
 
 
-def _parse_indices(spec, n_obj):
-    if spec is None or not str(spec).strip():
-        return list(range(n_obj))
-    out = []
-    for part in str(spec).split(","):
-        token = part.strip()
-        if token.isdigit():
-            idx = int(token)
-            if 0 <= idx < n_obj:
-                out.append(idx)
-    return out
-
-
 def _empty_result(track_data):
     out = dict(track_data)
     out["packed_masks"] = None
@@ -36,6 +23,8 @@ def _full_frame_result(track_data, n_frames, orig_size, pack_masks, torch):
 
 
 def invert_track_data(track_data, object_indices="", unpack_masks=None, pack_masks=None, torch=None):
+    from ...sf_utils.track_data_ops import parse_object_indices
+
     packed = track_data.get("packed_masks")
     n_frames = track_data.get("n_frames")
     orig_size = track_data.get("orig_size")
@@ -44,7 +33,7 @@ def invert_track_data(track_data, object_indices="", unpack_masks=None, pack_mas
         return _full_frame_result(track_data, n_frames, orig_size, pack_masks, torch)
 
     n_obj = packed.shape[1]
-    indices = _parse_indices(object_indices, n_obj)
+    indices = parse_object_indices(object_indices, n_obj)
     if not indices:
         return _empty_result(track_data)
 

@@ -4,7 +4,8 @@
 拼接回全长（每段位或塌单身份 + 空隙补零），以及 `SFTrackDataSubtract` 的
 track_data 层逐帧相减（排除男性/阴茎/精液等）、`SFTrackDataAdd` 的逐帧
 并集合成单身份、`SFTrackDataMerge` 的逐槽先减后加组合、
-`SFTrackDataSlice` 的时间维区间切片。位打包复用核心
+`SFTrackDataSlice` 的时间维区间切片、`SFTrackDataToMask` 的单帧遮罩输出、
+`SFInvertTrackData` 与 `SFTrackDataToMask` 共用的对象索引解析。位打包复用核心
 `comfy.ldm.sam3.tracker.pack_masks/unpack_masks`（由调用方注入）。
 
 track_data 形状约定：`packed_masks` 为 `[T, N, H, W//8]` 位打包张量
@@ -15,6 +16,25 @@ track_data 形状约定：`packed_masks` 为 `[T, N, H, W//8]` 位打包张量
 
 def is_track_data(value):
     return isinstance(value, dict) and "packed_masks" in value
+
+
+def parse_object_indices(spec, n_obj):
+    """解析逗号分隔的对象索引：空/None=全部；非法与越界项忽略（可能返回空表）。
+
+    语义对齐核心 `SAM3_TrackToMask`（`isdigit` 过滤 + 越界忽略），
+    `SFInvertTrackData` 与 `frame_mask_from_track_data` 共用。
+    """
+    count = int(n_obj)
+    if spec is None or not str(spec).strip():
+        return list(range(count))
+    out = []
+    for part in str(spec).split(","):
+        token = part.strip()
+        if token.isdigit():
+            index = int(token)
+            if index < count:
+                out.append(index)
+    return out
 
 
 def slice_track_data(track_data, start=0, length=0):
@@ -41,6 +61,44 @@ def slice_track_data(track_data, start=0, length=0):
     out["packed_masks"] = packed[start:end].contiguous()
     out["n_frames"] = span
     return out
+
+
+def frame_mask_from_track_data(track_data, frame_index=0, object_indices="",
+                               unpack_masks=None, torch=None, interpolate=None):
+    """取 track_data 指定帧的选中对象并集，还原真实分辨率输出 MASK `[1, H, W]`。
+
+    用于 `SFTrackDataToMask`（从 `SFSAM3ReanchorTrack` 等追踪结果取单帧遮罩）：
+
+    - `frame_index` 支持负值（相对末尾，-1=最后一帧，同 `slice_track_data`）；越界报错；
+    - `object_indices` 逗号分隔（越界/非法项忽略），空=全部对象；无有效对象输出全零；
+    - 空追踪（`packed_masks is None` / 0 对象）输出全零（需 `orig_size` 有效）；
+    - 输出尺寸取 `orig_size`（追踪器方形工作网格 ≠ 真实宽高），双线性插值 +
+      `align_corners=False` 与核心 `SAM3_TrackToMask` 一致；`orig_size` 缺失/非法报错；
+    - 输出 `[1, H, W]` float（device 随输入）；不修改原 track_data。
+    """
+    packed = track_data.get("packed_masks")
+    total = int(packed.shape[0]) if packed is not None else int(track_data.get("n_frames") or 0)
+    index = int(frame_index or 0)
+    if index < 0:
+        index += total
+    if total <= 0 or index < 0 or index >= total:
+        raise ValueError(f"SF Track Data To Mask: 帧索引 {frame_index} 越界（总帧数 {total}）")
+
+    orig = track_data.get("orig_size") or (0, 0)
+    height, width = int(orig[0]), int(orig[1])
+    if height <= 0 or width <= 0:
+        raise ValueError("SF Track Data To Mask: orig_size 缺失或非法，无法确定输出尺寸")
+
+    indices = parse_object_indices(object_indices, packed.shape[1]) if packed is not None else []
+    if not indices:
+        return torch.zeros((1, height, width), dtype=torch.float32,
+                           device=getattr(packed, "device", None))
+
+    union = packed[:, indices[0]]
+    for other in indices[1:]:
+        union = union | packed[:, other]
+    frame = unpack_masks(union)[index].unsqueeze(0).unsqueeze(0).float()  # [1, 1, h, w]
+    return interpolate(frame, size=(height, width), mode="bilinear", align_corners=False)[0]
 
 
 def concat_track_data_segments(segments, total_frames, torch=None):

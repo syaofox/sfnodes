@@ -34,6 +34,7 @@ from .nodes.image.track_data_add import SFTrackDataAdd
 from .nodes.image.track_data_merge import SFTrackDataMerge
 from .nodes.image.track_data_cache import SFTrackDataCache
 from .nodes.image.track_data_slice import SFTrackDataSlice
+from .nodes.image.track_data_to_mask import SFTrackDataToMask
 from .nodes.image.save_image_exact import SFSaveImageExact
 from .nodes.image.scale import (
     GetImageSize,
@@ -279,6 +280,7 @@ NODE_CLASS_MAPPINGS = {
     "SFTrackDataMerge": SFTrackDataMerge,
     "SFTrackDataCache": SFTrackDataCache,
     "SFTrackDataSlice": SFTrackDataSlice,
+    "SFTrackDataToMask": SFTrackDataToMask,
     "SFSaveImageExact": SFSaveImageExact,
     # 图片缩放节点
     "SFGetImageSize": GetImageSize,
@@ -512,6 +514,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFTrackDataMerge": "SF Track Data Merge",
     "SFTrackDataCache": "SF Track Data Cache",
     "SFTrackDataSlice": "SF Track Data Slice",
+    "SFTrackDataToMask": "SF Track Data To Mask",
     "SFSaveImageExact": "SF Save Image Exact",
     # 图片缩放节点
     "SFGetImageSize": "SF Get Image Size",

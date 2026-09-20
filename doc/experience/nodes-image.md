@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§64、§65、§66、§67、§75、§76、§80、§81、§83、§85、§88）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -1333,3 +1333,19 @@ slice_track_data(track_data, start=0, length=0)
 - `DEFAULT_STATE.include_ext=true`；`leanState` 注入 `include_ext: st.include_ext !== false`；`HINTS` 新增 Ext + 改写 Invert 文案；白提示 `isExtended(...) && st.include_ext !== false` 门控。
 - 测试：lib 更新 TOOL_COL 13 项/Ext 插入位/COL2 行位（末项 Pen 299）/MIN 400×360；smoke 更新 30 控件、`computeSize [400,360]`、显示区写死坐标 **y +10**（nodeH 340→360 → offsetY 62→72，§109 同款教训）、Ext 切换（accent 底/NoExt/白提示门控/lean 注入）；后端两测试补 include_ext 三态 execute + `_compose_expand(include_ext=False)` + `_state_key` 精确串（`...|inv=0|ext=1`）。
 - ⚠ 含后端改动 → 同步挂载目录后需重启容器才生效（前端硬刷新只覆盖 JS）。
+
+## 114. SFTrackDataToMask：track_data 指定帧输出遮罩（2026-09）
+
+> 背景：`SFSAM3ReanchorTrack`（§98）输出整段单身份 track_data，需要"取某一帧的遮罩"（首帧/尾帧/关键帧）做合成或局部重绘区域。原做法 `SFTrackDataSlice(start=帧, length=1)` → `SAM3_TrackToMask` 两个节点，本节点收敛为一步。
+
+### 1. 纯逻辑 frame_mask_from_track_data（sf_utils/track_data_ops.py）
+
+- 帧总数优先 `packed.shape[0]`、无 packed 回退 `n_frames`（与 slice/pad 同约定）；`frame_index` 支持负值（相对末尾，-1=最后一帧），**越界报错不夹紧**——静默取错帧比报错更难查（与 slice 的夹紧语义不同，节点 tooltip 已注明）。
+- 对象并集：新增公共 `parse_object_indices`（空/None=全部、isdigit 过滤、越界忽略），选中对象 packed 按位或 → `unpack_masks` → 取帧；无有效对象输出全零。`SFInvertTrackData` 同步改为复用该函数并删除本地 `_parse_indices` 副本（语义逐项一致）。
+- 尺寸还原必须用 `orig_size`（追踪器方形工作网格 ≠ 真实宽高，§81.5），`interpolate(size=orig_size, mode="bilinear", align_corners=False)` 与核心 `SAM3_TrackToMask` 完全一致；`orig_size` 缺失/非法报错，**不退回工作网格**（避免 1:1 变形；空追踪同理）。
+- 输出 `[1,H,W]` float（device 随 packed；空路径 `torch.zeros`）；不改输入 dict。
+
+### 2. 节点与测试
+
+- `nodes/image/track_data_to_mask.py`：`SFTrackDataToMask`（category `sfnodes/image`，`RETURN_NAMES=("mask",)`），required `track_data`/`frame_index`（min -1000000）+ optional `object_indices`；无前端 JS。
+- 测试 `tests/test_track_data_to_mask.py`：numpy 位序桩 + FakeArr + 记录式 interpolate 桩，覆盖负索引/越界报错/对象子集/非法索引全零/空追踪/`orig_size` 报错/插值参数（size·mode·align_corners）/输入不变/execute 集成；`tests/test_invert_track.py` 补包结构注册（invert_track 改为函数内相对导入公共解析器后需要）。
