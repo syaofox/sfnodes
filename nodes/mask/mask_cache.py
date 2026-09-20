@@ -7,19 +7,21 @@
   空列表，核心 ``graph.add_node`` 对 lazy 输入不建依赖 → 上游分割节点整条
   分支根本不执行（真跳过，不只是缓存结果）；未命中才请求 ``masks``，拿到
   上游结果后落盘，下次即命中。
-- 缓存键 = ``name`` + ``signature``（可选，接点选坐标等）+ ``source``（可选，
-  接源视频帧/参考图，首末帧哈希）。任一不匹配或 ``force=True`` 即视为失效
-  并重算覆盖。``signature`` 语义为"完全相同才命中"，未接线时为空串参与比较。
+- 缓存键 = ``name`` + ``source_key``（required 非空文本，唯一失效键，见
+  experience/nodes-image.md §111）。键不匹配或 ``force=True`` 即视为失效并
+  重算覆盖；节点不再做源图/帧哈希指纹，视频/图片的失效信号由用户以文本键
+  显式提供（如路径/文件名 + 帧窗口 + 分辨率）。
 
 落盘文件（同名前缀三件）：
 - ``<name>.safetensors``：uint8 ``[T,H,W]`` 遮罩（0-255 量化，保留软遮罩）
-- ``<name>.json``：元数据（n_frames/height/width/signature/source/name）
+- ``<name>.json``：元数据（n_frames/height/width/source_key/name）
 - ``<name>.png``：预览拼图（最多 4 帧横排，便于文件管理器查看）
 
 无前端依赖，纯后端；列表路由供前端下拉刷新。
 """
 
 import os
+import time
 
 import numpy as np
 
@@ -30,7 +32,7 @@ _CACHE_DIRNAME = "mask_cache"
 _LAZY = {"lazy": True}
 _PREVIEW_FRAMES = 4
 
-# 通用缓存纯逻辑（名字清洗/路径/源指纹/元数据/命中/列表）单源收敛于
+# 通用缓存纯逻辑（名字清洗/路径/失效键/元数据/命中/列表）单源收敛于
 # sf_utils.cache_store（与 SFTrackDataCache 共用）；此处保留同名薄包装，
 # 调用点与测试（monkeypatch cache_dir）零改动。
 
@@ -45,11 +47,7 @@ def clean_name(raw) -> str:
 
 def _resolve_name(name, name_text=""):
     """缓存名解析单源：name_text 非空（列表取首个非空项）优先，否则回退下拉 name。"""
-    candidates = name_text if isinstance(name_text, (list, tuple)) else (name_text,)
-    for cand in candidates:
-        if isinstance(cand, str) and cand.strip():
-            return cand
-    return name if isinstance(name, str) else ""
+    return cache_store.first_nonempty_text(name_text) or (name if isinstance(name, str) else "")
 
 
 def cache_paths(name):
@@ -71,16 +69,12 @@ def quantize_masks(masks):
     return np.rint(a).astype(np.uint8)
 
 
-def source_signature(source) -> str:
-    return cache_store.source_signature(source)
-
-
 def read_meta(name):
     return cache_store.read_meta(cache_dir(), name)
 
 
-def cache_hit(name, signature="", source_sig="") -> bool:
-    return cache_store.cache_hit(cache_dir(), name, signature, source_sig)
+def cache_hit(name, key="") -> bool:
+    return cache_store.cache_hit(cache_dir(), name, key)
 
 
 def list_cache_names() -> list:
@@ -101,7 +95,7 @@ def _write_preview(png_path, arr):
     Image.fromarray(strip, mode="L").save(png_path)
 
 
-def save_mask_cache(name, masks, signature="", source_sig="", torch=None, sf=None,
+def save_mask_cache(name, masks, source_key="", torch=None, sf=None,
                     write_preview=True):
     """遮罩落盘。返回 arr.shape。torch/sf 可注入（测试）。"""
     paths = cache_paths(name)
@@ -113,20 +107,22 @@ def save_mask_cache(name, masks, signature="", source_sig="", torch=None, sf=Non
         import torch
     if sf is None:
         import safetensors.torch as sf
-    sf.save_file({"masks": torch.from_numpy(arr)}, st_path)
+    t0 = time.perf_counter()
+    cache_store.atomic_save_tensors(sf, {"masks": torch.from_numpy(arr)}, st_path)
     cache_store.write_meta(cache_dir(), name, {
         "name": clean_name(name),
         "n_frames": int(arr.shape[0]),
         "height": int(arr.shape[1]),
         "width": int(arr.shape[2]),
-        "signature": str(signature or ""),
-        "source": str(source_sig or ""),
+        "source_key": str(source_key or ""),
     })
     if write_preview:
         try:
             _write_preview(png_path, arr)
         except Exception as e:
             print(f"[SFMaskCache] 预览图写入失败（忽略）: {e}")
+    print(f"[SFMaskCache] 已写缓存 {clean_name(name)}: {int(arr.shape[0])} 帧, "
+          f"{arr.nbytes / 1e6:.1f} MB, {time.perf_counter() - t0:.2f}s")
     return arr.shape
 
 
@@ -160,19 +156,16 @@ class SFMaskCache:
                     {"default": False, "label_on": "recompute", "label_off": "use cache",
                      "tooltip": "True=忽略缓存强制重算并覆盖（改了上游想更新时用）"},
                 ),
+                "source_key": (
+                    "STRING",
+                    {"forceInput": True,
+                     "tooltip": "唯一失效键（必接非空）：接视频路径/文件名 + 帧窗口 + 分辨率等文本；变化即缓存失效重算。空串报错"},
+                ),
             },
             "optional": {
                 "masks": (
                     "MASK",
                     {**_LAZY, "tooltip": "上游遮罩（如 SeC 视频分割）。命中缓存时本输入不求值，上游整条不执行"},
-                ),
-                "signature": (
-                    "STRING",
-                    {"forceInput": True, "default": "", "tooltip": "可选签名（如 PointsEditor 点选坐标）；变化即缓存失效重算"},
-                ),
-                "source": (
-                    "IMAGE",
-                    {"tooltip": "可选源图/视频帧；首末帧哈希入缓存键，换源即失效"},
                 ),
                 "name_text": (
                     "STRING",
@@ -187,37 +180,42 @@ class SFMaskCache:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
     DESCRIPTION = ("按名字持久化逐帧遮罩到 user/sfnodes/mask_cache/：命中缓存时通过 lazy 输入跳过上游分割"
-                   "（如 SeC）直接读盘，未命中/签名或源变化/force 才重算并覆盖。可选用 source 源图哈希与 "
-                   "signature（点选坐标等）做缓存失效键，另存 PNG 预览拼图便于查看。"
-                   "缓存名可由可选 name_text 文本输入覆盖（非空优先，接文件名/SFParsePath 等）。")
+                   "（如 SeC）直接读盘，未命中/键变化/force 才重算并覆盖。"
+                   "缓存键 = 名字 + source_key（required 非空文本：视频路径/文件名 + 帧窗口 + 分辨率等），"
+                   "变化即失效重算；不再做源图帧哈希。"
+                   "缓存名可由可选 name_text 文本输入覆盖（非空优先，接文件名/SFParsePath 等）。"
+                   "另存 PNG 预览拼图便于查看。")
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
         # name 选项由前端从磁盘动态重建，超出 INPUT_TYPES 静态初始列表，跳过 "not in list" 校验
         return True
 
-    def check_lazy_status(self, name, force=False, signature="", source=None, name_text="", **kwargs):
+    def check_lazy_status(self, name, force=False, name_text="", source_key="", **kwargs):
+        key = cache_store.required_source_key(source_key)
         # masks 未接线（纯读取场景）：无需拉取
         if "masks" not in kwargs:
             return []
         if force:
             return ["masks"]
-        if cache_hit(_resolve_name(name, name_text), str(signature or ""), source_signature(source)):
+        if cache_hit(_resolve_name(name, name_text), key):
             return []
         return ["masks"]
 
-    def execute(self, name, force=False, signature="", source=None, masks=None, name_text=""):
+    def execute(self, name, force=False, masks=None, name_text="", source_key=""):
         nm = clean_name(_resolve_name(name, name_text))
         if not nm:
             raise ValueError("SF Mask Cache: 请填写合法的缓存名（name_text 或下拉不能为空/非法）")
-        sig = str(signature or "")
-        src = source_signature(source)
+        key = cache_store.required_source_key(source_key)
         if masks is None:
             # 命中路径（上游被跳过）或纯读取
             if not os.path.isfile(cache_paths(nm)[0]):
                 raise RuntimeError(f"SF Mask Cache: 缓存 '{nm}' 不存在，且未连接 masks（无法计算）")
             return (load_mask_cache(nm),)
-        save_mask_cache(nm, masks, signature=sig, source_sig=src)
+        # 命中且上游仍被算出（其他消费者/force 误开）：数据等价，跳过整文件重写
+        if not force and cache_hit(nm, key):
+            return (masks,)
+        save_mask_cache(nm, masks, source_key=key)
         return (masks,)
 
 

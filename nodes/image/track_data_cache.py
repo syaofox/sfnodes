@@ -4,18 +4,22 @@
 是 SAM3 追踪的原始 track_data（``{packed_masks, n_frames, scores, orig_size}``），
 因此**完整保留多对象身份与 scores**，不走 `SAM3_TrackToMask` 的并集塌缩。
 命中时 ``check_lazy_status`` 返回空列表 → ``SAM3_VideoTrack`` 整条不执行。
+缓存键 = 名字 + ``source_key``（required 且非空，见 experience/nodes-image.md
+§111）：视频/图片的失效信号由用户以文本键显式提供（如路径/文件名 + 帧窗口 +
+分辨率），节点不再做源图/帧哈希指纹，命中判定也不会求值整段视频。
 
-通用缓存纯逻辑（名字清洗/路径/源指纹/元数据/命中/列表/路由）单源收敛于
+通用缓存纯逻辑（名字清洗/路径/失效键/元数据/命中/列表/路由）单源收敛于
 ``sf_utils.cache_store``；本文件只负责 track_data 的 safetensors 存取与
 多对象预览。存储目录 ``user/sfnodes/track_cache/``：
 
 - ``<name>.safetensors``：``packed_masks``（uint8 ``[T,N,H,W//8]``，原样位打包）、
   ``scores``（float32 ``[N]``）；无对象时写 ``_empty`` 占位以满足 save_file
-- ``<name>.json``：``{name,n_frames,height,width,num_objects,signature,source}``
+- ``<name>.json``：``{name,n_frames,height,width,num_objects,source_key}``
 - ``<name>.png``：最多 4 帧预览，按对象上色（失败忽略）
 """
 
 import os
+import time
 
 import numpy as np
 
@@ -43,27 +47,19 @@ def clean_name(raw) -> str:
 
 def _resolve_name(name, name_text=""):
     """缓存名解析单源：name_text 非空（列表取首个非空项）优先，否则回退下拉 name。"""
-    candidates = name_text if isinstance(name_text, (list, tuple)) else (name_text,)
-    for cand in candidates:
-        if isinstance(cand, str) and cand.strip():
-            return cand
-    return name if isinstance(name, str) else ""
+    return cache_store.first_nonempty_text(name_text) or (name if isinstance(name, str) else "")
 
 
 def cache_paths(name):
     return cache_store.cache_paths(cache_dir(), name)
 
 
-def source_signature(source) -> str:
-    return cache_store.source_signature(source)
-
-
 def read_meta(name):
     return cache_store.read_meta(cache_dir(), name)
 
 
-def cache_hit(name, signature="", source_sig="") -> bool:
-    return cache_store.cache_hit(cache_dir(), name, signature, source_sig)
+def cache_hit(name, key="") -> bool:
+    return cache_store.cache_hit(cache_dir(), name, key)
 
 
 def list_cache_names() -> list:
@@ -97,7 +93,7 @@ def _write_preview(png_path, packed_np):
     Image.fromarray(strip, mode="RGB").save(png_path)
 
 
-def save_track_cache(name, track_data, signature="", source_sig="", torch=None, sf=None,
+def save_track_cache(name, track_data, source_key="", torch=None, sf=None,
                      write_preview=True):
     """track_data 落盘。返回输入 dict。torch/sf 可注入（测试）。"""
     paths = cache_paths(name)
@@ -122,24 +118,28 @@ def save_track_cache(name, track_data, signature="", source_sig="", torch=None, 
         np.asarray([float(s) for s in scores], dtype=np.float64))
     if packed is None:
         tensors["_empty"] = torch.from_numpy(np.zeros((0,), dtype=np.uint8))
-    sf.save_file(tensors, st_path)
 
     n_frames = int(track_data.get("n_frames", packed_np.shape[0] if packed_np is not None else 0))
+    num_objects = int(packed_np.shape[1]) if packed_np is not None else 0
     orig = track_data.get("orig_size") or (0, 0)
+    t0 = time.perf_counter()
+    cache_store.atomic_save_tensors(sf, tensors, st_path)
     cache_store.write_meta(cache_dir(), name, {
         "name": clean_name(name),
         "n_frames": n_frames,
         "height": int(orig[0]),
         "width": int(orig[1]),
-        "num_objects": int(packed_np.shape[1]) if packed_np is not None else 0,
-        "signature": str(signature or ""),
-        "source": str(source_sig or ""),
+        "num_objects": num_objects,
+        "source_key": str(source_key or ""),
     })
     if write_preview:
         try:
             _write_preview(png_path, packed_np)
         except Exception as e:
             print(f"[SFTrackDataCache] 预览图写入失败（忽略）: {e}")
+    mb = (packed_np.nbytes if packed_np is not None else 0) / 1e6
+    print(f"[SFTrackDataCache] 已写缓存 {clean_name(name)}: {n_frames} 帧 × {num_objects} 对象, "
+          f"{mb:.1f} MB, {time.perf_counter() - t0:.2f}s")
     return track_data
 
 
@@ -185,19 +185,16 @@ class SFTrackDataCache:
                     {"default": False, "label_on": "recompute", "label_off": "use cache",
                      "tooltip": "True=忽略缓存强制重算并覆盖（改了上游想更新时用）"},
                 ),
+                "source_key": (
+                    "STRING",
+                    {"forceInput": True,
+                     "tooltip": "唯一失效键（必接非空）：接视频路径/文件名 + 帧窗口 + 分辨率等文本；变化即缓存失效重算。空串报错"},
+                ),
             },
             "optional": {
                 "track_data": (
                     "SAM3_TRACK_DATA",
                     {**_LAZY, "tooltip": "上游 SAM3 追踪数据（SAM3 Video Track）。命中缓存时本输入不求值，追踪整条不执行"},
-                ),
-                "signature": (
-                    "STRING",
-                    {"forceInput": True, "default": "", "tooltip": "可选签名（如文本 prompt / 点选坐标）；变化即缓存失效重算"},
-                ),
-                "source": (
-                    "IMAGE",
-                    {"tooltip": "可选源图/视频帧；首末帧哈希入缓存键，换源即失效"},
                 ),
                 "name_text": (
                     "STRING",
@@ -213,36 +210,41 @@ class SFTrackDataCache:
     CATEGORY = _CATEGORY
     DESCRIPTION = ("在 SAM3_TRACK_DATA 层持久化追踪结果到 user/sfnodes/track_cache/：命中缓存时通过 lazy 输入"
                    "跳过 SAM3_VideoTrack 直接读盘，完整保留多对象身份与 scores（区别于 MASK 层缓存的并集塌缩）。"
-                   "可选用 source 源图哈希与 signature 做缓存失效键，另存按对象上色的 PNG 预览拼图。"
-                   "缓存名可由可选 name_text 文本输入覆盖（非空优先，接文件名/SFParsePath 等）。")
+                   "缓存键 = 名字 + source_key（required 非空文本：视频路径/文件名 + 帧窗口 + 分辨率等），"
+                   "变化即失效重算；不再做源图帧哈希，命中判定不求值整段视频。"
+                   "缓存名可由可选 name_text 文本输入覆盖（非空优先，接文件名/SFParsePath 等）。"
+                   "另存按对象上色的 PNG 预览拼图。")
 
     @classmethod
     def VALIDATE_INPUTS(cls, **kwargs):
         # name 选项由前端从磁盘动态重建，超出 INPUT_TYPES 静态初始列表，跳过 "not in list" 校验
         return True
 
-    def check_lazy_status(self, name, force=False, signature="", source=None, name_text="", **kwargs):
+    def check_lazy_status(self, name, force=False, name_text="", source_key="", **kwargs):
+        key = cache_store.required_source_key(source_key)
         # track_data 未接线（纯读取场景）：无需拉取
         if "track_data" not in kwargs:
             return []
         if force:
             return ["track_data"]
-        if cache_hit(_resolve_name(name, name_text), str(signature or ""), source_signature(source)):
+        if cache_hit(_resolve_name(name, name_text), key):
             return []
         return ["track_data"]
 
-    def execute(self, name, force=False, signature="", source=None, track_data=None, name_text=""):
+    def execute(self, name, force=False, track_data=None, name_text="", source_key=""):
         nm = clean_name(_resolve_name(name, name_text))
         if not nm:
             raise ValueError("SF Track Data Cache: 请填写合法的缓存名（name_text 或下拉不能为空/非法）")
-        sig = str(signature or "")
-        src = source_signature(source)
+        key = cache_store.required_source_key(source_key)
         if track_data is None:
             # 命中路径（上游被跳过）或纯读取
             if not os.path.isfile(cache_paths(nm)[0]):
                 raise RuntimeError(f"SF Track Data Cache: 缓存 '{nm}' 不存在，且未连接 track_data（无法计算）")
             return (load_track_cache(nm),)
-        save_track_cache(nm, track_data, signature=sig, source_sig=src)
+        # 命中且上游仍被算出（其他消费者/force 误开）：数据等价，跳过整文件重写
+        if not force and cache_hit(nm, key):
+            return (track_data,)
+        save_track_cache(nm, track_data, source_key=key)
         return (track_data,)
 
 

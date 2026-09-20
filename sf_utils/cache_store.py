@@ -1,17 +1,20 @@
 """共享的磁盘缓存纯逻辑：SFMaskCache / SFTrackDataCache 共用。
 
 两个缓存节点各持独立目录（``user/sfnodes/<subdir>/``），但"名字清洗 / 三件
-路径 / 源图指纹 / 元数据读写 / 命中判定 / 列表 / 列表路由"完全同构，此前
+路径 / 失效键解析 / 元数据读写 / 命中判定 / 列表 / 列表路由"完全同构，此前
 在 mask_cache 内实现；抽到此处收敛为单源，节点只在 save/load 层处理各自的
 张量布局（MASK / SAM3_TRACK_DATA），避免语义分叉。
+
+缓存键 = 缓存名 + ``source_key``（唯一失效键，required 非空；见 §111）：节点
+不再做源图/帧哈希指纹，视频/图片的失效信号由用户以文本键显式提供。
 
 纯函数（无 ComfyUI 硬依赖），可独立测试。``register_list_route`` 惰性 import
 server/aiohttp（无 ComfyUI 时静默跳过）。
 """
 
-import hashlib
 import json
 import os
+import threading
 
 import numpy as np
 
@@ -40,34 +43,55 @@ def cache_paths(base_dir, name):
     return base + ".safetensors", base + ".json", base + ".png"
 
 
+def first_nonempty_text(raw) -> str:
+    """取首个非空字符串（list/tuple 依序尝试）并 strip；无则返回 ""。
+
+    link 输入在调度层可能表现为列表（多调用），"空则回退"的输入解析
+    （缓存名 name_text / 失效键 source_key）共用此语义。
+    """
+    candidates = raw if isinstance(raw, (list, tuple)) else (raw,)
+    for cand in candidates:
+        if isinstance(cand, str) and cand.strip():
+            return cand.strip()
+    return ""
+
+
+def required_source_key(raw) -> str:
+    """解析并校验唯一失效键 ``source_key``：非空即返回（strip），空则报错。
+
+    两个缓存节点共用同一错误文案与语义——键是 required 且必须非空，
+    避免"接了线但为空串"退化成仅按名字命中的静默旧缓存。
+    """
+    key = first_nonempty_text(raw)
+    if not key:
+        raise ValueError("source_key 不能为空（缓存唯一失效键：如 视频路径/文件名 + 帧窗口/分辨率文本）")
+    return key
+
+
+def atomic_save_tensors(sf, tensors, path) -> None:
+    """safetensors 原子写：pid+tid 临时名 + os.replace；失败清理临时文件后抛错。
+
+    与 ``disk_state.atomic_write_bytes`` 同约定（临时名带 pid + 线程 id 防并发
+    撞名）；不整块序列化进内存——``save_file`` 直接写临时路径再原子替换，
+    避免中断留下半截缓存被后续命中误读。
+    """
+    tmp = "%s.%d.%d.tmp" % (path, os.getpid(), threading.get_ident())
+    try:
+        sf.save_file(tensors, tmp)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def to_numpy(x):
     try:
         return x.detach().cpu().numpy()
     except AttributeError:
         return np.asarray(x)
-
-
-def source_signature(source) -> str:
-    """源图像批 [B,H,W,C] 的轻量指纹：形状 + 首/末帧 16×16 下采样哈希。
-
-    源未接线/形状不符返回 ""。只取首末帧避免整批哈希的开销（驱动视频可能
-    几十帧）。"""
-    if source is None:
-        return ""
-    a = to_numpy(source)
-    if a.ndim != 4:
-        return ""
-    b = int(a.shape[0])
-    idxs = [0] if b <= 1 else [0, b - 1]
-    h = hashlib.sha256()
-    h.update(str(a.shape).encode())
-    for i in idxs:
-        f = a[i]
-        step_y = max(1, f.shape[0] // 16)
-        step_x = max(1, f.shape[1] // 16)
-        f = f[::step_y, ::step_x]
-        h.update(np.ascontiguousarray((np.clip(f, 0, 1) * 255).astype(np.uint8)).tobytes())
-    return h.hexdigest()[:16]
 
 
 def write_meta(base_dir, name, meta):
@@ -90,12 +114,17 @@ def read_meta(base_dir, name):
         return None
 
 
-def cache_hit(base_dir, name, signature="", source_sig="") -> bool:
+def cache_hit(base_dir, name, key="") -> bool:
+    """命中判定：meta 的 ``source_key`` 与当前键完全相同。
+
+    旧版缓存文件（§111 前）存的是 ``source``（帧哈希）与 ``signature``，
+    这里回退读旧字段——旧值必然与文本键不同 → 首次 miss 重写一次后稳定。
+    """
     meta = read_meta(base_dir, name)
     if meta is None:
         return False
-    return (str(meta.get("signature", "")) == str(signature or "")
-            and str(meta.get("source", "")) == str(source_sig or ""))
+    stored = meta.get("source_key", meta.get("source", ""))
+    return str(stored) == str(key or "")
 
 
 def list_names(base_dir) -> list:

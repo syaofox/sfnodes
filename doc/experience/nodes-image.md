@@ -652,6 +652,8 @@
 - `tests/test_mask_to_track_data.py`：numpy 严格位序 pack 桩 + `FakeArr`（`dim/unsqueeze`）+ `torch.nn.functional.pad` 桩；覆盖 3D/2D、非 8 倍数补零、多对象报错、空帧/None、execute 集成、双字典键一致。
 
 ## 66. SFMaskCache：遮罩磁盘缓存 + lazy 跳过上游（2026-09）
+> ⚠ 已被 §111 取代：`source`/`signature` 已删除，缓存键收口为「名字 + required 非空 `source_key`」。本节保留为历史设计记录。
+
 
 > 背景：SeC 视频分割要加载 4B 模型，同样的视频/图片重跑一次很慢。需求是把驱动/参考的提取遮罩按源持久化，下次直接复用。
 
@@ -683,6 +685,8 @@
 - `tests/test_mask_cache.py`：内存 `safetensors/torch` 桩 + tempdir（monkeypatch `mod.cache_dir`）；覆盖结构/注册、clean_name/quantize/source_signature、save→load 往返、cache_hit 三态、list/read_meta、`check_lazy_status` 各分支、execute 读/写/缺失报错。相对导入经 `sys.modules` 注册 `sfnodes` 包占位（test_save_image_exact.py 同款）。
 
 ## 67. SFTrackDataCache：SAM3_TRACK_DATA 层缓存 + 缓存逻辑单源抽取（2026-09）
+> ⚠ 已被 §111 取代：`source`/`signature` 已删除，缓存键收口为「名字 + required 非空 `source_key`」。本节保留为历史设计记录。
+
 
 > 背景：§66 的 SFMaskCache 只在 MASK 层缓存，若上游是 SAM3.1 追踪（`SAM3_TRACK_DATA`），走 `SAM3_TrackToMask → 缓存 → SFMaskToTrackData` 会把**多对象并集塌缩成单身份、丢失 scores**。需要 track_data 层缓存。
 
@@ -1241,3 +1245,56 @@ slice_track_data(track_data, start=0, length=0)
 - 悬停说明：`HINTS`（id→中文文案）+ `controlHint`（比例按钮单独拼"裁剪框比例：…"）；`onMouseMove` 末尾用 `buttonRect` 扫按钮记录 `node._sfCEBHover`（**只在变化时** `setDirtyCanvas`，避免每帧重绘），`onDrawForeground` 在 `canvas.node_over === node` 且非拖拽/落笔时用提示替换底行右侧信息文本（截断逻辑复用）。离开节点靠 `node_over` 门控不显示，无需 onMouseLeave。
 - 测试：lib test 更新 MIN 340 + 列头/分组常量 + `columnYs` 行位快照；smoke 更新 `computeSize [360,340]`、显示区 `offsetY 52→62`（nodeH 变大 → 全体显示区写死坐标 +10，同 §101 的教训）、新增列头/重命名/悬停断言；按钮点击坐标一律改为按 `_sfCEBCtrls.find(id)` 解析，不再写死行号。
 - 被否决方案存档：B = 删列1、比例收进 `sf_popup` 弹窗（画布可再宽 40px、外观最简，但切比例多一步且测试坐标大改）；A+ = Crop 模式移到列1（列1 纯裁剪/列2 纯画笔，但三模式单选按钮被拆到两列）。
+
+## 110. 缓存节点 source 惰性化 + source_key 轻量键：长视频命中不再整段求值、命中不重写（2026-09）
+
+> ⚠ 已被 §111 取代：`source`/`signature` 已删除，缓存键收口为「名字 + required 非空 `source_key`」。本节保留为历史设计记录。
+
+> 背景：用户 5090 上测试 2 分钟视频（1920 帧 @1280×896），只要把 `SFTrackDataCache`/`SFMaskCache` 接进链路，"读取视频"阶段就极慢——即使缓存命中、tracker 已被 lazy 跳过。根因：`source`(IMAGE) 不是 lazy，ComfyUI 执行节点前必先递归求值所有非 lazy 输入 → **整段视频被解码/常驻**（≈26 GB），只为在 `check_lazy_status` 里算首末帧 16×16 哈希；长视频每次 miss 还会整段重追踪 + 整文件重写 packed（1008² 工作网格 ≈ 127 KB/帧 → 1920 帧 ≈ 244 MB/对象），同名覆盖（`cache_store.cache_paths` 只由 name 决定）→ 观感即"频繁写盘 + 读取极慢"。
+
+### 1. 方案：source 转 lazy + 新增 source_key（两节点同构）
+
+- `source` 加 `lazy: True`；optional 末尾追加 `source_key`(STRING, forceInput, default "")。**非空时优先于 source 作为缓存键的源分量**（直接存 meta 的 `source` 字段，零 schema 变更）；旧工作流不接则行为与现状一致（仍求 source 算首末帧哈希）。
+- `check_lazy_status` 分轮（`source` 有意**不作为显式形参**，否则被 Python 绑定后无法从 `**kwargs` 判别"已接线未求值"）：
+  1. `track_data`/`masks` 未接线（不在 kwargs）→ `[]`（纯读取）；
+  2. 无轻量键且 `"source" in kwargs and kwargs["source"] is None`（已接线未求值）→ 返回 `["source"]` 先补算指纹；
+  3. `force` → 返回上游输入；
+  4. 键 = `source_key or source_signature(source)`；命中 → `[]`，否则拉上游。
+  - 有 `source_key` 时全程不请求 `source` → **命中判定不触发视频解码**；force 且无键时也先补 source，保证重算后 meta 仍写真实帧哈希。
+- `execute`：`src = _resolve_source_key(source_key) or source_signature(source)`（key 非空时短路，不碰 source 张量）；新增守卫 `if not force and cache_hit(nm, sig, src): return (上游数据)`——上游因其他消费者仍被算出/force 误开时不再整文件重写。
+- 共享：`cache_store.first_nonempty_text`（list/tuple 取首个非空 str）单源供 name_text/source_key；`cache_store.atomic_save_tensors`（pid+tid 临时名 + `os.replace`，不整块进内存）替换裸 `sf.save_file`；落盘后打印一行（名字/帧数/对象数/MB/耗时）便于诊断写盘频率。
+- ⚠ **source_key 必须覆盖所有影响追踪输入的变量**（视频路径 + `frame_load_cap`/`skip_first_frames` + 追踪参数等）。只接文件名时改帧窗口会命中旧数据；长视频推荐"整段追踪一次 + 缓存放循环外 + 循环内 `SFTrackDataSlice`"（§87/§88），或把窗口文本一起串进 key。
+
+### 2. 兼容与测试
+
+- `source` 转 lazy 对旧工作流透明（未接 source_key 时语义/缓存文件不变）；接 source_key 后旧条目首次 miss 重写一次即稳定。两节点（`nodes/image/track_data_cache.py`、`nodes/mask/mask_cache.py`）同步，`cache_store` 共享。
+- `tests/test_track_data_cache.py`·`test_mask_cache.py`：FakeSF 增加 `.tmp` 名归一化 + `save_paths` 记录；覆盖 source lazy/分轮请求、source_key 命中不请求 source、force+无键先拉 source、key 优先写入 meta、**命中带上游数据不重写守卫**、原子写（先写 .tmp、无残留、最终文件存在）。
+- 本次踩坑：把 `source` 从 `check_lazy_status` 形参移除后，旧测试里第 4 个位置实参（原 source）会落到 `name_text`，与 `name_text=` 关键字调用冲突（TypeError）；测试统一改 keyword 传参。ComfyUI 侧始终 keyword 调用，无影响。
+
+### 3. 长视频工作流接线示例（`[scail2]SCAIL2_手绘遮罩_分段追踪_原生` 实改）
+
+- 顶层用 `VHS_LoadVideo.filename`（§79 补丁输出）+ `frame_count`（已加载帧数）+ 画幅宽/高，经 3 个 `SFAnyToString`（prefix `n=`/`w=`/`h=`，pad_digits=0）与 `SFTextConcatenate`（delimiter `|`）拼成 `rimp2.mp4|n=64|w=512|h=896`，接两个追踪子图新增的 promoted `source_key`（子图内 cache.source_key）；`source` 连线保留作回退（键非空时不求值）。
+- 覆盖：换视频、换 `frame_load_cap`/`select_every_nth`（frame_count 变）、换分辨率（w/h 变）。**不覆盖** `skip_first_frames` 同 cap 变化（skip 是未连线 widget）——改 skip 用缓存实例的「刷新缓存」(force)，或把 skip 也接进键。
+- 该工作流首次运行因键从帧哈希变文本而 miss 一次（重追踪 + 写新 meta），之后命中不再整段求值。
+
+## 111. 缓存节点接口收口：source/signature 移除，source_key 成为唯一失效键（破坏性，2026-09）
+
+> 背景：§110 引入 source_key 后仍保留 source（帧哈希，lazy）与 signature（文本）双键，"键源二选一/优先级/懒求值分轮"复杂度高，长视频下 source 帧哈希仍会逼迫整段求值。用户拍板收口：**缓存键 = 名字 + `source_key`**，`source`/`signature` 一并删除，接受破坏性（旧工作流缺 required 直接校验报错）。
+
+### 1. 接口与语义
+
+- `SFTrackDataCache` / `SFMaskCache` 的 `source_key`(STRING, forceInput) 移到 **required**（必接）；`source`(IMAGE, lazy)、`signature`(STRING) 删除。optional 只剩 lazy 上游（`track_data`/`masks`）与 `name_text`；widget 型输入（name/force）顺序不变，旧工作流 `widgets_values` 不受影响。
+- `cache_store.required_source_key(raw)`：list/tuple 取首个非空并 strip；**空串（含接了线但值为 ""）抛 `ValueError`**，不静默退化。两节点共用同一错误文案。
+- meta 字段：`signature`/`source` 合并为 `source_key`（新写只写该字段）；`cache_hit(base_dir, name, key)` 回退读旧 `source` 字段 → §111 前的缓存首次必然 miss、重写一次后稳定。
+- 代码删减：`cache_store.source_signature` 与 `import hashlib` 删除；`check_lazy_status` 去掉 source 分轮（不再返回 `["source"]`），只剩「上游未接线→[] / force→拉上游 / 键命中→[] / 否则拉上游」；`execute` 去掉签名与 source 分支；两节点的 `_resolve_source_key` 包装删除，改用共享 `required_source_key`。
+
+### 2. 迁移指引（旧工作流会报 "Required input is missing"）
+
+- **视频源**：`VHS_LoadVideo.filename`（§79 补丁输出）+ `frame_count`（已加载帧数）+ 画幅宽/高 → `SFAnyToString`（prefix `n=`/`w=`/`h=`，pad_digits=0）→ `SFTextConcatenate`（delimiter `|`），示例 `rimp2.mp4|n=64|w=512|h=896`（§110.3 的实改范式）。
+- **图片源**：没有自动帧哈希可用，需自备文本身份（图片路径/文件名、点选坐标文本、手填 `PrimitiveString` 等）。`skip_first_frames` 同 cap 变化等未进键的改动，用实例「刷新缓存」(force) 重算。
+- **提示词仍留在缓存名**（`name_text` 链）而非塞进 key：名字 = 存储槽（同视频多对象各自一份），key = 有效性指纹；只把提示词放 key 会让多对象共用同一文件、切换时互相覆盖。
+- `source_key` 是唯一自动失效信号：不接或空串都会报错，避免"以为有键其实只按名字命中"的静默旧缓存。
+
+### 3. 测试
+
+- 两测试文件：schema（`source_key` 在 required 且 forceInput、无 `source`/`signature`）、`required_source_key` 空串报错、`check_lazy_status`/`execute` 空 key 报错、meta 写 `source_key`、旧 meta `source` 字段兼容读、命中守卫（带上游数据且键命中不重写）、原子写回归；§110 的 source 分轮用例移除。
