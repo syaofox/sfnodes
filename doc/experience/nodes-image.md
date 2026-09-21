@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -1429,3 +1429,27 @@ slice_track_data(track_data, start=0, length=0)
 
 - `tests/test_image_browser_js.js` 文本提取 `ensureNativeImageOption` 直跑：缺失补齐 / 已在列表不重复 / 空与空白值 / 非字符串 / 无 image widget / node 为空 / options 非数组不抛错；`applyNativeLoadImagePick` 断言 pick 同时补 options。
 - 实机验证：同步 `web/image_browser.js` 到挂载目录（无后端改动、不重启），浏览器硬刷新后重开该工作流，红框与报错应消失。
+- 后续（§120）：递归列表整体合并进原生 combo 后，子目录值天然在 options 内；本节的单值补齐保留作兜底（fetch 失败 / 列表缓存之后新增的文件）。
+
+## 120. 原生 LoadImage combo 递归列出 input 全部子目录图片（仅前端列表扩张，2026-09）
+
+> 背景：§119 只保证“当前值”在 options 内，原生下拉仍选不到子目录图。用户要求“加载所有子目录下所有图片，仅 combo 列表”——即只扩张原生 `image` 下拉，不改后端行为。
+
+### 1. 机制
+
+- 复用 Image Browser 的列表路由 `/api/sfnodes/images/list?type=input`（`browser.py` 的 `os.walk` 全递归 + `filter_files_content_types`），取 `path`（相对 input 的 forward-slash 路径，与 `get_annotated_filepath` 读取侧一致）。
+- `mergeNativeImageOptions(node, paths)`（可测纯函数）：`options.values` 须为数组 → 按 `Set` 去重 push 缺失项 → 有变更才 `sort()`（与后端 `sorted()` 顺序一致）→ 返回是否变更；非数组 options / 空 paths / 无 widget 一律 false 不抛错。
+- 拉取一次缓存：模块级 promise（`cache: "no-store"`），`nodeCreated`/`loadedGraphNode` 对 `LoadImage`/`LoadImageMask` 各挂一个 `.then`——**fetch 完成前创建的节点在完成时统一补齐，之后创建的节点微任务内即时合并**（不需要重扫全图）；失败静默保持根目录列表。
+- 仅前端 `widget.options.values` 扩张，`/object_info` 与后端 `INPUT_TYPES`/`VALIDATE_INPUTS` 原样——原生下拉此前只能选根目录图（`os.listdir`），本补丁后可直接选子目录图，同时满足 §119 的“值必须在 options 内”不变量。
+- 不门控 `sfnodes.LoadImage.BrowseButton.Enabled`：列表扩张与按钮显隐解耦（关按钮后原生下拉仍可选子目录图）。
+
+### 2. 取舍与注意
+
+- 下拉条目数 = input 全量图片（用户实例 1019 条），仅影响原生 `LoadImage`/`LoadImageMask` 的 image 下拉；`refreshNativeBrowseButtons` 的按钮增删逻辑不受影响（同名去重只看 button 类型）。
+- 列表缓存不感知会话内新增文件：新上传/粘贴产生的子目录值由 §119 的单值补齐兜底；刷新/重启后缓存重建。
+- ⚠ 与 §119 同属“前端列表/widget 层补丁”，后端 combo 仍是根目录——第三方扩展若按 `object_info` 判定可选值需自知此差异。
+
+### 3. 测试
+
+- `tests/test_image_browser_js.js`：`mergeNativeImageOptions` 合并去重排序 / 重复合并不再生效 / 空或非数组 paths / options 非数组 / 无 widget 与 node 为空；非字符串项被忽略。
+- 实机验证：硬刷新后原生 LoadImage 下拉应出现子目录图，选中后保存重开无红框（§119 场景）。

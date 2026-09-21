@@ -38,13 +38,14 @@ function extractFn(name) {
         extractFn("getImageFolderFromValue"),
         extractFn("folderExists"),
         extractFn("ensureNativeImageOption"),
+        extractFn("mergeNativeImageOptions"),
         extractFn("applyNativeLoadImagePick"),
         extractFn("findNativeBrowseButton"),
-        "export { getImageFolderFromValue, folderExists, ensureNativeImageOption, applyNativeLoadImagePick, findNativeBrowseButton };",
+        "export { getImageFolderFromValue, folderExists, ensureNativeImageOption, mergeNativeImageOptions, applyNativeLoadImagePick, findNativeBrowseButton };",
     ].join("\n\n");
     const modPath = path.join(tmpDir, "lib.mjs");
     fs.writeFileSync(modPath, mjs);
-    const { getImageFolderFromValue, folderExists, ensureNativeImageOption, applyNativeLoadImagePick, findNativeBrowseButton } = await import(modPath);
+    const { getImageFolderFromValue, folderExists, ensureNativeImageOption, mergeNativeImageOptions, applyNativeLoadImagePick, findNativeBrowseButton } = await import(modPath);
 
     // ── getImageFolderFromValue ──
     check("空值 → input 根", (() => { const r = getImageFolderFromValue(""); return r.type === "input" && r.folder === ""; })());
@@ -93,6 +94,27 @@ function extractFn(name) {
         check("options/values 非数组返回 false 不抛错", ensureNativeImageOption(noArray) === false
             && ensureNativeImageOption({ widgets: [{ name: "image", value: "faces/a.png", options: { values: () => [] } }] }) === false);
         check("node 为 null 返回 false", ensureNativeImageOption(null) === false);
+    })();
+
+    // ── mergeNativeImageOptions（§120：递归列表合并进原生 combo）──
+    (() => {
+        const node = {
+            widgets: [{ name: "image", value: "z.png", options: { values: ["z.png"] } }],
+        };
+        const paths = ["faces/a.png", "z.png", "faces/a.png", "", "sub/deep/b.png", 3, null];
+        check("合并去重且排序", mergeNativeImageOptions(node, paths) === true
+            && JSON.stringify(node.widgets[0].options.values)
+                === JSON.stringify(["faces/a.png", "sub/deep/b.png", "z.png"]));
+        check("重复合并不再生效", mergeNativeImageOptions(node, paths) === false
+            && node.widgets[0].options.values.length === 3);
+
+        check("空/非数组 paths 返回 false", mergeNativeImageOptions(node, []) === false
+            && mergeNativeImageOptions(node, null) === false);
+
+        const noArray = { widgets: [{ name: "image", value: "a.png" }] };
+        check("options 非数组返回 false 不抛错", mergeNativeImageOptions(noArray, ["b.png"]) === false);
+        check("无 image widget / node 为空返回 false", mergeNativeImageOptions({ widgets: [] }, ["b.png"]) === false
+            && mergeNativeImageOptions(null, ["b.png"]) === false);
     })();
 
     // ── applyNativeLoadImagePick ──

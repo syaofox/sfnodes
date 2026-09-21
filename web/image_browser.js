@@ -772,6 +772,26 @@ export function ensureNativeImageOption(node) {
     return true;
 }
 
+// 递归列表（§120）：把 sfnodes 的 input 全量子目录图片列表合并进原生
+// image combo 的 options.values，让原生下拉直接可选子目录图——仅前端
+// 列表扩张，不触碰后端 INPUT_TYPES/VALIDATE_INPUTS。幂等（按值去重 +
+// 排序），fetch 失败静默保持根目录列表。
+export function mergeNativeImageOptions(node, paths) {
+    const w = node?.widgets?.find(w => w.name === "image");
+    const values = w?.options?.values;
+    if (!Array.isArray(values) || !Array.isArray(paths) || paths.length === 0) return false;
+    const seen = new Set(values);
+    let changed = false;
+    for (const p of paths) {
+        if (typeof p !== "string" || !p || seen.has(p)) continue;
+        seen.add(p);
+        values.push(p);
+        changed = true;
+    }
+    if (changed) values.sort();
+    return changed;
+}
+
 export function applyNativeLoadImagePick(node, value) {
     const w = node?.widgets?.find(w => w.name === "image");
     if (!w || value == null) return false;
@@ -807,6 +827,31 @@ function addNativeBrowseButton(node) {
             selectedValue: imageWidget?.value || "",
             onPick: (value) => applyNativeLoadImagePick(node, value),
         });
+    });
+}
+
+// 递归图片列表：懒拉取一次（复用 Image Browser 的列表路由），每个原生节点
+// 的 nodeCreated/loadedGraphNode 都会挂 then——先于 fetch 完成创建的节点在
+// 完成时统一补齐，之后创建的节点微任务内即时合并。
+const NATIVE_IMAGE_LIST_URL = "/api/sfnodes/images/list?type=input";
+let _nativeImagePathsPromise = null;
+
+function fetchNativeImagePaths() {
+    if (!_nativeImagePathsPromise) {
+        _nativeImagePathsPromise = api.fetchApi(NATIVE_IMAGE_LIST_URL, { cache: "no-store" })
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => Array.isArray(data)
+                ? data.map(it => it?.path).filter(p => typeof p === "string" && p)
+                : null)
+            .catch(() => null);
+    }
+    return _nativeImagePathsPromise;
+}
+
+function ensureNativeImageList(node) {
+    fetchNativeImagePaths().then(paths => {
+        if (!paths || !mergeNativeImageOptions(node, paths)) return;
+        node.setDirtyCanvas?.(true, true);
     });
 }
 
@@ -848,12 +893,14 @@ app.registerExtension({
     nodeCreated(node) {
         if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
         if (isNativeBrowseEnabled()) addNativeBrowseButton(node);
+        ensureNativeImageList(node);
     },
     // 工作流加载后补回 options（configure 恢复的 widget 值先于此钩子，
     // loadedGraphNode 先于核心缺失媒体校验管线）——不受按钮设置门控：
     // 粘贴/上传产生的子目录值同样受益。
     loadedGraphNode(node) {
         if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
+        ensureNativeImageList(node);
         if (ensureNativeImageOption(node)) node.setDirtyCanvas?.(true, true);
     },
 });
