@@ -1,10 +1,14 @@
 // SF 画布聚合菜单测试（Node 直接运行：node tests/test_canvas_menu_js.js）
 // 覆盖（.mjs 拷贝链真实加载，test_lora_browser_smoke.js 同款手法）：
 // - 全包唯一画布入口：有 getCanvasMenuItems 的扩展仅 sfnodes.CanvasMenu
-// - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/内存（便签节点保留，仅不占入口）
+// - 画布入口带前导 null 分隔线；节点入口无（Vue 单选会变菜单顶部横线）
+// - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/预设/工作流/内存/便签
 // - 节点右键入口：getNodeMenuItems(node) 返回同一菜单（门槛与画布一致，任意节点可用）
-// - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（画布入口 6 动作，节点入口 +3 项 Mouse Node）
+// - 对齐门槛：<2 选中出 disabled 提示行（无 callback）；2 选中出 SF Align
+//   （画布入口 6 动作，节点入口 +3 项 Mouse Node）；排序 Align 最前
 // - 驱动 Align Width: Widest → 两节点同宽
+// - 驱动 Add SF Note → 便签落图（右键 pointerdown 捕获位置优先，缺省中心兜底）
+// - 驱动 SF LoRA Presets → 独立面板挂载
 // - 驱动 Free VRAM → POST /free{unload_models,free_memory} + 成功 toast
 // - 驱动 Free RAM → POST /api/sfnodes/memory/ram + toast 含释放量
 const fs = require("fs");
@@ -21,7 +25,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 // ── DOM stubs（sf_note 顶层补丁 + 各模块按需）──
 function makeEl(tag) {
     return {
-        tag, children: [], style: {}, dataset: {}, _handlers: {}, id: "",
+        tag, children: [], dataset: {}, _handlers: {}, id: "",
+        style: { setProperty() {}, removeProperty() {}, getPropertyValue: () => "" },
         textContent: "", className: "",
         setAttribute() {}, removeAttribute() {},
         addEventListener(t, fn) { ((this._handlers[t] = this._handlers[t] || []).push(fn)); },
@@ -34,6 +39,7 @@ function makeEl(tag) {
         focus() {}, blur() {}, select() {},
     };
 }
+const bodyAppends = [];
 globalThis.document = {
     createElement: (t) => makeEl(t),
     createTextNode: (t) => ({ text: t }),
@@ -41,16 +47,21 @@ globalThis.document = {
     querySelector: () => null,
     querySelectorAll: () => [],
     head: { appendChild() {} },
-    body: { appendChild() {} },
+    body: { appendChild(el) { bodyAppends.push(el); } },
     hidden: false,
     addEventListener() {},
     removeEventListener() {},
 };
+const windowListeners = {};
 globalThis.window = {
     innerWidth: 1280, innerHeight: 800,
-    addEventListener() {}, removeEventListener() {},
+    addEventListener(t, fn) { (windowListeners[t] = windowListeners[t] || []).push(fn); },
+    removeEventListener() {},
     open() {},
 };
+function fireWindow(type, ev) {
+    for (const fn of windowListeners[type] || []) fn(ev);
+}
 // LiteGraph 全套（sf_note 注册/补丁/兜底建节点用）
 const registeredTypes = {};
 globalThis.LiteGraph = {
@@ -90,7 +101,10 @@ const fetchCalls = [];
 const registered = [];
 globalThis.app = {
     canvas: {
-        canvas: { clientWidth: 800, clientHeight: 600 },
+        canvas: {
+            clientWidth: 800, clientHeight: 600,
+            getBoundingClientRect: () => ({ left: 0, top: 0 }),
+        },
         ds: { offset: [0, 0], scale: 1 },
         selected_nodes: [],
     },
@@ -123,6 +137,7 @@ const MODS = [
     "sf_lora_browser.js", "sf_lora_browser_ui.js", "sf_lora_browser_lib.js",
     "sf_lora_stack_core.js", "sf_lora_stack_api.js",
     "sf_lora_stack_settings.js", "sf_lora_stack_info.js",
+    "sf_lora_preset_manager.js", "sf_lora_preset_filter.js",
     "sf_common.js", "sf_markdown.js", "sf_lora_shared_info.js", "sf_lora_info.js",
 ];
 for (const n of MODS) {
@@ -144,21 +159,32 @@ for (const n of MODS) {
         !registered.some((e) => e.name === "sfnodes.CanvasAlign" || e.name === "sfnodes.MemoryMenu"));
     const menuExt = menuOwners[0];
 
-    const sub = () => menuExt.getCanvasMenuItems()[0].submenu.options;
+    const canvasItems = () => menuExt.getCanvasMenuItems();
+    const sub = () => canvasItems()[1].submenu.options;
     const byContent = (arr, c) => arr.find((o) => o && o.content === c);
 
     // ── 0 选中 ──
     globalThis.app.canvas.selected_nodes = [];
-    let items = menuExt.getCanvasMenuItems();
-    check("顶层唯一项 📦 SF Menu", items.length === 1
-        && items[0].content === "📦 SF Menu" && items[0].has_submenu === true);
+    let items = canvasItems();
+    check("画布入口前导分隔线 + 📦 SF Menu", items.length === 2 && items[0] === null
+        && items[1].content === "📦 SF Menu" && items[1].has_submenu === true);
     let opts = sub();
-    check("0 选中含浏览器/工作流/内存",
-        !!byContent(opts, "SF LoRA Browser") && !!byContent(opts, "SF Workflows")
-        && !!byContent(opts, "SF Memory"));
-    check("0 选中无 SF Align", !byContent(opts, "SF Align"));
+    check("0 选中含浏览器/预设/工作流/内存/便签",
+        !!byContent(opts, "SF LoRA Browser") && !!byContent(opts, "SF LoRA Presets")
+        && !!byContent(opts, "SF Workflows") && !!byContent(opts, "SF Memory")
+        && !!byContent(opts, "Add SF Note"));
+    const hint = byContent(opts, "SF Align (select ≥2 nodes)");
+    check("0 选中 Align 提示行 disabled 无 callback",
+        !!hint && hint.disabled === true && typeof hint.callback !== "function");
+    check("0 选中无 SF Align 子菜单", !byContent(opts, "SF Align"));
     check("0 选中无 SF Node Color", !byContent(opts, "SF Node Color…"));
-    check("画布菜单无 Add SF Note 入口", !byContent(opts, "Add SF Note"));
+    const order0 = opts.map((o) => o && o.content);
+    check("排序：Align 提示最前、工具项 Browser→Presets→Workflows→Memory→Note",
+        order0[0] === "SF Align (select ≥2 nodes)"
+        && order0.indexOf("SF LoRA Browser") < order0.indexOf("SF LoRA Presets")
+        && order0.indexOf("SF LoRA Presets") < order0.indexOf("SF Workflows")
+        && order0.indexOf("SF Workflows") < order0.indexOf("SF Memory")
+        && order0.indexOf("SF Memory") < order0.indexOf("Add SF Note"));
 
     // ── 节点右键入口（getNodeMenuItems）──
     check("聚合器提供节点菜单入口", typeof menuExt.getNodeMenuItems === "function");
@@ -167,11 +193,13 @@ for (const n of MODS) {
     check("节点右键同一顶层项 📦 SF Menu", nItems.length === 1
         && nItems[0].content === "📦 SF Menu" && nItems[0].has_submenu === true);
     let nOpts = nItems[0].submenu.options;
-    check("节点菜单 0 选中含浏览器/工作流/内存",
-        !!byContent(nOpts, "SF LoRA Browser") && !!byContent(nOpts, "SF Workflows")
-        && !!byContent(nOpts, "SF Memory"));
-    check("节点菜单 0 选中无 SF Align/SF Node Color",
-        !byContent(nOpts, "SF Align") && !byContent(nOpts, "SF Node Color…"));
+    check("节点菜单 0 选中含浏览器/预设/工作流/内存/便签",
+        !!byContent(nOpts, "SF LoRA Browser") && !!byContent(nOpts, "SF LoRA Presets")
+        && !!byContent(nOpts, "SF Workflows") && !!byContent(nOpts, "SF Memory")
+        && !!byContent(nOpts, "Add SF Note"));
+    check("节点菜单 0 选中 Align 提示行、无子菜单/Node Color",
+        !!byContent(nOpts, "SF Align (select ≥2 nodes)")
+        && !byContent(nOpts, "SF Align") && !byContent(nOpts, "SF Node Color…"));
 
     // ── 2 选中：对齐出现 ──
     const n1 = { size: [100, 60], pos: [0, 0], setDirtyCanvas() {} };
@@ -180,6 +208,8 @@ for (const n of MODS) {
     opts = sub();
     const align = byContent(opts, "SF Align");
     check("2 选中出现 SF Align", !!align && align.has_submenu === true);
+    check("2 选中提示行消失且 Align 居首",
+        !byContent(opts, "SF Align (select ≥2 nodes)") && opts[0] === align);
     const nodeColor = byContent(opts, "SF Node Color…");
     check("2 选中出现 SF Node Color", !!nodeColor && typeof nodeColor.callback === "function");
     nOpts = nodeItems()[0].submenu.options;
@@ -231,6 +261,33 @@ for (const n of MODS) {
     check("RAM 调自建路由",
         fetchCalls.some((c) => c.url.includes("/api/sfnodes/memory/ram") && c.opts.method === "POST"));
     check("RAM toast 含释放量", toasts.some((t) => t.severity === "success" && /1000MB/.test(t.detail || "")));
+
+    // ── 驱动 Add SF Note（先注册自定义节点类型，test_note_js 先例）──
+    const noteExt = registered.find((e) => e.name === "sfnodes.Note");
+    noteExt?.registerCustomNodes?.();
+    let beforeNotes = graphNodes.length;
+    byContent(sub(), "Add SF Note").callback();
+    await tick();
+    check("Add SF Note 便签落图（无右键位置走视口中心兜底）",
+        graphNodes.length === beforeNotes + 1
+        && graphNodes[graphNodes.length - 1]?.type === "SF Note"
+        && Array.isArray(graphNodes[graphNodes.length - 1]?.pos));
+
+    // ── 模拟右键 pointerdown（capture 记录）→ 落点=鼠标位置 ──
+    fireWindow("pointerdown", { button: 2, clientX: 500, clientY: 400 });
+    beforeNotes = graphNodes.length;
+    byContent(sub(), "Add SF Note").callback();
+    await tick();
+    const atNote = graphNodes[graphNodes.length - 1];
+    check("Add SF Note 落点=右键画布坐标",
+        graphNodes.length === beforeNotes + 1
+        && atNote?.pos?.[0] === 500 && atNote?.pos?.[1] === 400);
+
+    // ── 驱动 SF LoRA Presets（独立模式：无 node 也挂载面板）──
+    bodyAppends.length = 0;
+    byContent(sub(), "SF LoRA Presets").callback();
+    await tick();
+    check("SF LoRA Presets 面板挂载", bodyAppends.some((el) => el && el.id === "sf-lpm-overlay"));
 
     if (failures.length) {
         console.log(`\n${failures.length} FAILED: ${failures}`);

@@ -217,11 +217,11 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 15. 画布菜单聚合（📦 SF Menu 唯一顶层入口，做"新增画布右键项"必知）
 
-> 背景：包内 4 处画布背景菜单（对齐/浏览器/工作流/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组 + 自定义项内排序靠前），`tests/test_canvas_menu_js.js` 锁定。（便签 SF Note 节点保留可搜索添加，2026-09 起不再占菜单入口。）
+> 背景：包内 4 处画布背景菜单（对齐/浏览器/工作流/内存）曾各占顶层入口（2026-09），收敛为 `web/sf_canvas_menu.js` 唯一 `📦 SF Menu`（emoji 前缀视觉分组），`tests/test_canvas_menu_js.js` 锁定。现行子项（2026-09 扩充，§125）：`SF Align ▶`（<2 选中时退化为 disabled 提示行）/ `SF Node Color…` / `SF LoRA Browser` / `SF LoRA Presets` / `SF Workflows` / `SF Memory ▶` / `Add SF Note`——上下文相关项（Align/Node Color）在前，全局工具随后。
 
-- **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
-- **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套；Align 内为单层平铺（9 动作 + disabled 分组头，见 §11 压平备注）。
-- **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。
+- **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser` / 预设管理 `openLoraPresetManager` / 便签 `addNoteFromMenu`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
+- **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器改放 disabled 提示行 `SF Align (select ≥2 nodes)`（无 callback，fail-safe）；≥2 才包一层 `SF Align` 嵌套，内为单层平铺（动作 + disabled 分组头，见 §11 压平备注）。
+- **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 排序 + 逐项驱动（便签落图/Presets 面板挂载/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。
 - **节点右键入口（2026-09）**：聚合器同时注册 `getNodeMenuItems(node)` 返回同一 `📦 SF Menu`（组装抽为 `buildSfMenuOptions` 双钩子共用）；前端建节点菜单前已选中右键节点，选中集门槛语义不变。机制与实证见 §123。
 
 ### 16. 主题令牌层：sfnodes DOM UI 跟随 ComfyUI Color Palette（做"自定义弹层/面板适配明暗"必知）
@@ -322,6 +322,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **形态与门槛**：节点入口与画布入口返回同一 `{content:"📦 SF Menu", has_submenu:true, submenu:{options}}`；不按节点类型过滤（任意节点可用），门槛留在构建器侧（`buildAlignMenuItems` <2 返回 []、`buildNodeColorMenuItem` 无选中返回 null）。
 - **已知边界**：节点菜单路径不跑画布路径的 `contextMenu.*` 翻译（原样显示，无影响）；扩展项 append 在原生项之后、legacy 项之前。
 - **测试**：`tests/test_canvas_menu_js.js` 断言 `getNodeMenuItems` 存在、顶层同项、0/2 选中门槛与画布一致；不影响 `test_lora_browser_smoke.js` / `test_note_js.js` 的"已移交聚合器"回归（它们只查 `getCanvasMenuItems`）。
+- **Vue nodes 模式限制（1.53.6 实证，仅记录）**：Vue 的 `NodeContextMenu`（`useMoreOptionsMenu`）只在 `selectedNodes.length === 1` 时才合并 `canvas.getNodeMenuOptions(node)` 的结果——**≥2 选中时扩展项完全不出现**（走 Vue 原生选择菜单）。即 Vue nodes 下多选右键节点看不到 📦 SF Menu（Mouse Node 对齐不可达）；单选时可见（LiteGraph 块前置，菜单顶部）但 Align 因 <2 不注入。默认 `Comfy.VueNodes.Enabled=false`（Classic 不受影响），本包按 Classic 为主不另做兼容。
 
 ---
 
@@ -334,3 +335,16 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **多选保持的前端依据**：右键**已选中**节点不会清空选择——Classic `processSelect(node, e, true)` 命中 `else return`（force 且已选中，选中集不变）；Vue `handleNodeRightClick` 已选中时跳过重选。故流程为「Ctrl/Shift 多选 → 右键其中一个（基准）→ SF Align ▶ …: Mouse Node」；右键**未选中**节点会塌缩为单选（`<2` 不注入 SF Align，属预期）。
 - **纯逻辑**：`sf_canvas_align_lib.js` 的 `calcTargetWidth(nodes, mode, refNode)` / `calcTargetHeight(...)` 新增 `refNode` 形参（`"first"` 档删除）；`buildAlignMenuItems(refNode)` 签名扩展，聚合器 `buildSfMenuOptions(refNode)` / `buildSfMenuItem(refNode)` 贯通。
 - **测试**：`tests/test_canvas_align.mjs`（mouse 档取 refNode 尺寸 / 缺基准 0 / 集成锚点）、`tests/test_canvas_menu_js.js`（画布入口 6 动作无 Mouse Node、节点入口 9 动作、驱动 Width: Mouse Node 以右键节点为准）。
+
+---
+
+## 125. SF Menu 内容扩充与画布分隔线（2026-09）
+
+> 背景：📦 SF Menu 子项扩充与打磨（`web/sf_canvas_menu.js`）：新增 `SF LoRA Presets`、`Add SF Note`，画布入口加前导分隔线，Align 不可用时出 disabled 提示行，排序改为上下文相关项在前。`tests/test_canvas_menu_js.js` 锁定。
+
+- **画布入口前导 `null` 分隔线、节点入口不加**：LiteGraph `ContextMenu` 与 Vue 转换器都把 `null` 当分隔线（`convertContextMenuToOptions`：`n===null → {type:'divider'}`）；画布菜单原生项之后紧跟本包项，加 null 视觉分组。节点入口不能加——Vue 单选时 LiteGraph 块整体前置，前导 null 会变成**菜单顶部横线**。
+- **`SF LoRA Presets` 独立模式**：`openLoraPresetManager()` 无 ctx 直接可用——`canSave = ctx.canSave !== false && !!ctx.node` 门控隐藏"保存当前为预设"整块（含 readState 动态 import，全在 canSave 分支内），其余 `ctx.node` 访问均 `if (ctx.node)` / `?.` 守卫；列表/搜索/编辑/删除/重命名不依赖节点。回调包一层 `() => openLoraPresetManager()`，避免 LiteGraph 把 `option.value` 当 ctx 传入。
+- **`Add SF Note` 回归 + 落点=鼠标位置**：`sf_note.js` 的 `addNoteFromMenu(pos)` 此前只 export 未接线（§15 曾"便签不占菜单入口"），现接回 SF Menu 尾部（`Comfy.AddNode` 优先、`LiteGraph.createNode` 兜底）；落点改造：**菜单项点击时鼠标已移到菜单上**，位置必须在菜单构建时捕获——聚合器模块顶层装 `window` capture `pointerdown`（`button===2`）记录画布坐标，换算与前端 `adjustMouseEvent` 同式（`(clientX-rect.left)/ds.scale - ds.offset[0]`），Classic/Vue 通用且早于前端建菜单（Classic 在 pointerup 的 `onClick` 里 `processContextMenu`）；缺省回退 `canvas.graph_mouse` → 视口中心+抖动（键盘开菜单等无 pointerdown 场景）。pos 有效时节点左上角落点即鼠标位置（无抖动）。
+- **Align 提示行**：`buildAlignMenuItems` 仍 `<2 返回 []`（门槛留在构建器侧），聚合器改放 `{content:"SF Align (select ≥2 nodes)", disabled:true}`（无 callback，fail-safe）提升可发现性；≥2 时正常嵌套子菜单。
+- **排序**：Align/Node Color（随选中集出现，上下文相关）在前，`SF LoRA Browser → SF LoRA Presets → SF Workflows → SF Memory → Add SF Note` 随后（LoRA 两工具相邻）。
+- **测试**：`tests/test_canvas_menu_js.js` 增补——画布前导 null / 节点无 null、0 选中提示行 disabled 无 callback 且居首、2 选中提示行消失、排序链、`Add SF Note` 落图（先 `registerCustomNodes()`，test_note_js 先例）、`SF LoRA Presets` 面板挂载（`document.body.appendChild` spy + overlay id）；DOM 桩 `style` 补 `setProperty/removeProperty/getPropertyValue`。

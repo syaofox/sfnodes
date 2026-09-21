@@ -18,7 +18,8 @@
 // - 画布背景菜单 "Add SF Note" 走聚合菜单（web/sf_canvas_menu.js 📦 SF Menu，
 //   入口逻辑 addNoteFromMenu export）：官方 Comfy.AddNode 优先，
 //   LiteGraph.createNode + graph.add 兜底（sf_lora_browser 同款顺序），
-//   落点画布视口中心 + 随机抖动
+//   落点 = 菜单构建时捕获的右键画布坐标（聚合器传入 pos）；缺省回退
+//   画布视口中心 + 随机抖动
 // - 换行引擎三函数（parseSegments/buildCharList/wrapCharList）复用
 //   sf_note_lib.js 真源（禁内联副本），tests/test_note_lib.mjs 锁定语义
 // ==========================================================================
@@ -812,7 +813,7 @@ function installDblClickCursorFixOnce() {
     document.head.appendChild(st);
 }
 
-// ── 画布中心落点 + 建节点（Comfy.AddNode 优先，LiteGraph 兜底）──
+// ── 落点（右键位置优先，缺省画布中心）+ 建节点（Comfy.AddNode 优先，LiteGraph 兜底）──
 function canvasCenterPos() {
     try {
         const canvas = app.canvas;
@@ -826,7 +827,7 @@ function canvasCenterPos() {
     }
 }
 
-async function addSFNote() {
+async function addSFNote(pos) {
     const before = new Set(app.graph?._nodes || []);
     let node = null;
     try {
@@ -843,8 +844,14 @@ async function addSFNote() {
         if (!node) throw new Error("SFNote node type is not registered.");
         app.graph.add(node);
     }
-    const [x, y] = canvasCenterPos();
-    node.pos = [x + Math.round((Math.random() - 0.5) * 60), y + Math.round((Math.random() - 0.5) * 40)];
+    const at = Array.isArray(pos) && Number.isFinite(pos[0]) && Number.isFinite(pos[1]) ? pos : null;
+    if (at) {
+        // 菜单构建时捕获的右键画布坐标：节点左上角落点即鼠标位置（无抖动）。
+        node.pos = [Math.round(at[0]), Math.round(at[1])];
+    } else {
+        const [x, y] = canvasCenterPos();
+        node.pos = [x + Math.round((Math.random() - 0.5) * 60), y + Math.round((Math.random() - 0.5) * 40)];
+    }
     return node;
 }
 
@@ -857,8 +864,9 @@ app.registerExtension({
 
 // 画布菜单动作（供聚合菜单 web/sf_canvas_menu.js 📦 SF Menu 调用；
 // 本扩展不再自行注册 getCanvasMenuItems，分散入口已收敛到聚合器）。
-export function addNoteFromMenu() {
-    addSFNote().catch((err) => console.error("[SFNote]", err));
+// pos：聚合器在菜单构建时捕获的右键画布坐标；缺省回退视口中心 + 抖动。
+export function addNoteFromMenu(pos) {
+    addSFNote(pos).catch((err) => console.error("[SFNote]", err));
 }
 
 patchGlobalsOnce();
