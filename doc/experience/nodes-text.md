@@ -1,4 +1,4 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102、§103）
+# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102、§103、§115）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -621,3 +621,29 @@
 
 - `tests/test_prompt_list_lines_js.js`：`effectiveCount` 8 例（skip 开/关、全空白、空文本、null、首尾空行）。
 - `tests/test_prompt_list_smoke.js`：默认关不写、开启同步/持久化、编辑实时更新、skip 切换、clamp min、多列表取 max、非 index 输出不写、未连线不写、关闭不写、onConfigure 恢复。
+
+---
+
+## 115. SFImagePromptRewriter：图像提示词改写节点（自写观察者协议 + 复用 LLM 客户端）
+
+> 背景：移植 T8 的 Qwen Image 2.1 Prompt Enhancer 思路——把文字 brief（可选参考图）改写为英文观察者式画面描述 + 独立比例元数据。T8 的 SKILL.md 无授权/溯源声明，故**协议文本自写**（方法吸收，措辞不复制）；渠道体系也不复刻，直接复用 sfnodes 既有 `sfnodes.LLM.*` 设置与 `sf_utils/llm_client.py`。
+
+### 1. 分层与复用
+
+- **协议纯逻辑** `sf_utils/prompt_rewrite.py`：`SYSTEM_PROMPT`（8 步观察者协议：固定事实逐字保留/任务指令不回声 → 画幅与比例 → 开场句 → 8–14 方位短语盘点 + 图内文字阅读序 → 分区/单主体两种走帧 → 图内文字直引号原文 → 光照独立句 → 收尾单句构图；400–500 词、观察式、hedge、禁品牌、正文英文图内文字保原语言）+ `build_messages`/`extract_json`/`validate_response`/`correction_messages`，无 torch/app 依赖。
+- **节点** `nodes/text/image_prompt_rewriter.py::SFImagePromptRewriter`：10 个 required widget（prompt/wh_ratio/max_output_chars/transparent_alpha/temperature/max_tokens/vision_megapixels/detail/seed/send_seed）+ optional `image_1..10` 动态槽；输出 `rewritten_prompt` / `wh_ratio` / `report_json`。
+- **复用**：`llm_client.chat_completion_sync`（同步请求 + 共享 LRU + seed 进缓存键）、`get_llm_config`（Settings → SF LLM，节点不接触密钥）、`image_content_parts`/`image_to_data_url`、`common.frame_to_pil`（与 SFImageInterrogatorAPI 单源，取帧/alpha 黑底预乘）、`common.ordered_slot_items`（与 SFImageBatch/SFMaskBatch 单源，数字序槽位收集）、前端 `sf_dynamic_slots.installDynamicSlots`。
+
+### 2. 关键决策
+
+- **模式自动判定**：有参考图 = 图像编辑（逐帧计数、按序标注 Image 1..N），无图 = 文生图；免去 T8 的显式 `input_mode` 及其"模式与图数不符"的无效状态。参考图按连接槽序逐帧展开（一个 batch 的每帧算一张），总数 >10 报错。
+- **比例只作元数据**：`wh_ratio` 选项与 `canvas_size.py` 的 Qwen-Image 官方 7 档对齐（auto/1:1/16:9/9:16/4:3/3:4/3:2/2:3），便于下游按比例选画布；固定比例时正文出现该字面量触发一次纠正，但**先剥离直引号内文字**再判断（图内 "1:1" 招牌不误伤）。
+- **严格契约 + 有界纠正**：恰好 `rewritten_prompt`+`wh_ratio` 两键、比例合法且与所选一致、透明模式正文需 RGBA/alpha channel/transparent background 三语义；结构失败或超长各最多一次纠正（温度固定 0.1）。
+- **不丢稿**：结构纠正后仍不合规 → 保留首稿非空原文 + 空 `wh_ratio` + report.error（不静默截断）；超长纠正失败 → 保留首次已合法结果并标 `over_limit`（优于 T8 的 structured=false）；空响应才抛错（工作流红）。
+- **`max_tokens` 默认 4096**（llm_client 对 DeepSeek 恒关 thinking，不占推理预算）；参考图默认 1MP JPEG data URL 控制体积，`vision_megapixels`/`detail` 可调。
+
+### 3. 测试
+
+- `tests/test_prompt_rewrite.py`：常量/消息构造（模式/比例/透明/长度/图片部分）/JSON 提取（围栏/前后缀）/契约校验（键集合、比例一致与引号豁免、透明三语义、over_limit）/纠正消息。
+- `tests/test_image_prompt_rewriter.py`：打桩 `chat_completion_sync`（不发真实请求）——输入校验、多图有序部分数、纠正温度 0.1、失败保留首稿、空响应抛错、超长纠正与失败保留、report 字段。
+- `tests/test_llm_client.py` 补 `image_content_parts` 多图断言；`tests/test_image_interrogator_api.py` 回归共享 `frame_to_pil` 委托。

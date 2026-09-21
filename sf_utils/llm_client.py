@@ -166,17 +166,34 @@ def build_chat_payload(model, messages, *, temperature=None, max_tokens=None,
     return payload
 
 
-def build_image_content(text, data_url, detail="auto"):
-    """user 消息 content 数组：文本 + 图片（OpenAI 兼容 image_url 部分）。
+def image_content_parts(data_urls, detail="auto"):
+    """一张或多张图片 data URL → OpenAI 兼容 image_url content 部分列表。
 
+    data_urls 接受单个字符串或字符串序列（空值跳过）；detail ∈ {low, high, auto}。
+    图片只允许出现在 user 消息。
+    """
+    if isinstance(data_urls, str):
+        urls = [data_urls] if data_urls else []
+    else:
+        urls = [u for u in (data_urls or []) if u]
+    parts = []
+    for url in urls:
+        image_url = {"url": url}
+        if detail:
+            image_url["detail"] = detail
+        parts.append({"type": "image_url", "image_url": image_url})
+    return parts
+
+
+def build_image_content(text, data_url, detail="auto"):
+    """user 消息 content 数组：文本 + 一张或多张图片（OpenAI 兼容 image_url 部分）。
+
+    data_url 接受单个 data URL 或 data URL 序列（多图按序排列，供多参考图场景）。
     detail ∈ {low, high, auto}；DeepSeek 亦支持。图片只允许出现在 user 消息。
     """
-    image_url = {"url": data_url}
-    if detail:
-        image_url["detail"] = detail
     return [
         {"type": "text", "text": text if isinstance(text, str) else str(text)},
-        {"type": "image_url", "image_url": image_url},
+        *image_content_parts(data_url, detail),
     ]
 
 

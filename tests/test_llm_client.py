@@ -22,6 +22,7 @@ from sf_utils.llm_client import (  # noqa: E402
     chat_completion_sync,
     extract_api_error,
     get_llm_config,
+    image_content_parts,
     image_to_data_url,
     is_deepseek,
     make_cache_key,
@@ -116,6 +117,13 @@ check("content 文本段", content[0] == {"type": "text", "text": "描述这张�
 check("content 图片段", content[1] == {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA", "detail": "high"}})
 check("content 非字符串文本", build_image_content(123, "u", "auto")[0]["text"] == "123")
 check("content 无 detail 不写字段", "detail" not in build_image_content("t", "u", "")[1]["image_url"])
+multi = build_image_content("多图", ["data:image/jpeg;base64,AA", "data:image/jpeg;base64,BB"], "low")
+check("多图 content 三段", len(multi) == 3 and multi[0]["type"] == "text")
+check("多图按序", [p["image_url"]["url"][-2:] for p in multi[1:]] == ["AA", "BB"])
+check("多图 detail 一致", all(p["image_url"]["detail"] == "low" for p in multi[1:]))
+check("空列表仅文本段", len(build_image_content("t", [], "auto")) == 1)
+check("列表内空值跳过", len(image_content_parts(["", "data:x"])) == 1)
+check("单串与列表等价", image_content_parts("data:x") == image_content_parts(["data:x"]))
 
 # ── 响应解析 ──
 ok = {"choices": [{"message": {"content": "  hello  "}}]}

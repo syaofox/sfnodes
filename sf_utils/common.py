@@ -81,6 +81,40 @@ def collect_indexed(kwargs, prefix):
     return out
 
 
+def ordered_slot_items(kwargs, prefix):
+    """按槽位编号（数字序）返回有序 [(名, 值)]；None 槽跳过（collect_indexed 单源）。
+
+    `sorted(kwargs)` 是字典序，槽数 >9 时 image_10 会排到 image_2 之前——这里按
+    编号整数排序修正。nodes/image/batch.py 两节点与 SFImagePromptRewriter 共用。
+    """
+    return [("{}{}".format(prefix, i), v) for i, v in sorted(collect_indexed(kwargs, prefix).items())]
+
+
+def frame_to_pil(image, index):
+    """IMAGE 张量 [B,H,W,C] 取指定帧转 PIL RGB；alpha 按黑底预乘。
+
+    index 支持负值（-1 = 末帧），越界抛 ValueError。SFImageInterrogatorAPI 与
+    SFImagePromptRewriter 共用（原 interrogator 节点内联实现提升至此）。
+    """
+    import numpy as np
+    from PIL import Image
+
+    total = int(image.shape[0])
+    idx = index if index >= 0 else total + index
+    if idx < 0 or idx >= total:
+        raise ValueError(f"frame_index 越界：{index}（batch 帧数 {total}）")
+    frame = image[idx]
+    if hasattr(frame, "detach"):
+        frame = frame.detach().cpu().numpy()
+    arr = np.asarray(frame)
+    arr = np.clip(arr.astype("float32"), 0.0, 1.0)
+    if arr.ndim == 3 and arr.shape[-1] >= 4:
+        arr = arr[..., :3] * arr[..., 3:4]
+    elif arr.ndim == 3 and arr.shape[-1] != 3:
+        arr = arr[..., :3]
+    return Image.fromarray((arr * 255.0 + 0.5).astype("uint8"), "RGB")
+
+
 def node_result(value):
     """把核心 V3 节点 execute 的返回值归一为 tuple。
 

@@ -14,11 +14,10 @@ API key / base_url / model 来自 ComfyUI Settings（`sfnodes.LLM.*`，见 web/s
 结果为空抛异常（工作流红色报错，UI 显示原因）。
 """
 
-import numpy as np
-
 # 顶层包导入时 `...` 正常；测试以 `nodes.model.image_interrogator_api` 顶层导入时
 # `...` 越界，回退绝对导入（krea2.py 同款可移植性兜底）。
 try:
+    from ...sf_utils.common import frame_to_pil
     from ...sf_utils.llm_client import (
         build_image_content,
         chat_completion_sync,
@@ -26,6 +25,7 @@ try:
         image_to_data_url,
     )
 except Exception:  # pragma: no cover - 测试/移植性兜底
+    from sf_utils.common import frame_to_pil  # type: ignore
     from sf_utils.llm_client import (  # type: ignore
         build_image_content,
         chat_completion_sync,
@@ -130,24 +130,8 @@ class SFImageInterrogatorAPI:
 
     @staticmethod
     def _frame_to_pil(image, index):
-        """取 [B,H,W,C] 中指定帧为 PIL RGB（alpha 按黑底预乘，与本地版一致）。"""
-        from PIL import Image
-
-        total = int(image.shape[0])
-        idx = index if index >= 0 else total + index
-        if idx < 0 or idx >= total:
-            raise ValueError(f"frame_index 越界：{index}（batch 帧数 {total}）")
-        frame = image[idx]
-        if hasattr(frame, "detach"):
-            frame = frame.detach().cpu().numpy()
-        arr = np.asarray(frame)
-        arr = np.clip(arr.astype("float32"), 0.0, 1.0)
-        if arr.ndim == 3 and arr.shape[-1] >= 4:
-            # 透明区按黑底预乘，避免残留 RGB 被视觉模型当作真实颜色
-            arr = arr[..., :3] * arr[..., 3:4]
-        elif arr.ndim == 3 and arr.shape[-1] != 3:
-            arr = arr[..., :3]
-        return Image.fromarray((arr * 255.0 + 0.5).astype("uint8"), "RGB")
+        """取 [B,H,W,C] 中指定帧为 PIL RGB（alpha 按黑底预乘；共享实现见 sf_utils/common）。"""
+        return frame_to_pil(image, index)
 
     @classmethod
     def _encode_frame(cls, image, index, megapixels):
