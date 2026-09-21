@@ -5,6 +5,11 @@
 // by the legacy slot-dead-space painter and the Nodes 2.0 cards canvas.
 
 import { previewResize } from "./sf_load_image_resize.js";
+// 接线输入读取（isWired/readWiredInt）已收敛到无依赖纯模块 sf_dynamic_slots.js
+// （SFImageCropExpandBrushMask 接线比例共用）；此处 re-export 保持公共 API 不变。
+import { isWired, readWiredInt } from "./sf_dynamic_slots.js";
+
+export { isWired, readWiredInt };
 
 // ── state read/write (pattern mirrors sf_load_image.js, prop name parameterised) ──
 
@@ -22,30 +27,8 @@ export function writeState(node, stateProp, state) {
 }
 
 // ── wired inputs ─────────────────────────────────────────────────────────────
-
-export function isWired(node, name) {
-  const inp = node?.inputs?.find((i) => i.name === name);
-  return !!(inp && inp.link != null);
-}
-
-// Best-effort read of a wired INT input's value at edit time. Plain INT widget
-// sources are only trusted when there's exactly ONE numeric widget
-// (unambiguous); multi-widget nodes (seed/steps/cfg…) and combo/string sources
-// return null — callers then fall back to a "set by wires" readout / post-run
-// dims rather than a wrong number.
-export function readWiredInt(node, name) {
-  const inp = node?.inputs?.find((i) => i.name === name);
-  if (!inp || inp.link == null) return null;
-  let l = node?.graph?.links?.[inp.link];
-  if (!l && typeof node?.graph?.links?.get === "function") l = node.graph.links.get(inp.link);
-  if (!l) return null;
-  const up = node.graph.getNodeById(l.origin_id);
-  if (!up) return null;
-  const nums = (up.widgets || []).filter((x) => typeof x.value === "number");
-  // 镜像 Python _apply_wired_size 的 int() 截断（2.7 -> 2）：Math.round 会
-  // 把 2.7 报成 3，而真实执行是 2，预览对输出说谎。
-  return nums.length === 1 && Number.isFinite(nums[0].value) ? Math.trunc(nums[0].value) : null;
-}
+// isWired / readWiredInt 定义在 sf_dynamic_slots.js（本模块顶部 import + re-export，
+// 与 SFImageCropExpandBrushMask 的接线比例共用同一实现）。
 
 // Central wired-input state: which axes are wired + their best-effort values.
 export function wireInfo(node) {

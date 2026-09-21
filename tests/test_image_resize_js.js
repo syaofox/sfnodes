@@ -134,7 +134,7 @@ function makeNode(graph) {
 
 (async () => {
     // ── 1. lib 纯函数 ──
-    stageJs(["sf_image_resize_lib.js", "sf_load_image_resize.js"]);
+    stageJs(["sf_image_resize_lib.js", "sf_load_image_resize.js", "sf_dynamic_slots.js"]);
     const L = await import(path.join(tmpDir, "sf_image_resize_lib.mjs"));
     const { effectiveWiredState, wireInfo, readWiredInt, isWired, readState, writeState, getReadoutInfo } = L;
 
@@ -223,7 +223,7 @@ function makeNode(graph) {
 
     // ── 2. 主扩展冒烟 ──
     stageJs(["sf_common.js", "sf_image_resize.js", "sf_image_resize_ui.js", "sf_image_resize_lib.js",
-        "sf_load_image_resize.js", "sf_load_image_ui.js", "sf_load_image_api.js"]);
+        "sf_load_image_resize.js", "sf_load_image_ui.js", "sf_load_image_api.js", "sf_dynamic_slots.js"]);
     const M = await import(path.join(tmpDir, "sf_image_resize.mjs"));
     check("扩展已注册", globalThis.app._ext?.name === "sfnodes.ImageResize");
     const ext = globalThis.app._ext;

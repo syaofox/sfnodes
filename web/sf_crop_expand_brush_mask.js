@@ -20,6 +20,11 @@
 // lean 字段：src/crop/fill/brush_size/strokes——比例与画笔预览字段不进注入，
 // 改画笔颜色不重跑；Python hidden 已声明，schema 内不被剥离）。
 //
+// 接线宽高比（可选输入 aspect_w/aspect_h，§118）：两项都接且可读时裁剪框
+// 优先保持该比例——接入即时同步刷新（onConnectionsChange）、上游值变化下一拍
+// 跟随、加载路径 onAfterGraphConfigured 补同步；接线期间面板预设只记住不生效；
+// 槽名 ZW 隐藏（核心渲染会画在自定义面板之上），信息栏显示 AR。
+//
 // 共享实现（禁止内联副本）：
 //   - 几何/冻结快照防飘移/手柄/绘制：sf_crop_expand_lib.js
 //   - 步进/命中/笔触渲染：sf_brush_mask_lib.js（paintStrokeMask/colorTextStyle）
@@ -55,7 +60,10 @@ import {
   sfFrameThin,
   sfCursorWidth,
   registerSfLineWidthSettings,
+  isGraphLoading,
+  sfToast,
 } from "./sf_common.js";
+import { ZW } from "./sf_dropdown_lib.js";
 import { pickFile, browseSource, restoreSourceImage, installSourceDrop, storeSource, orientSource } from "./sf_crop_source.js";
 import { openCustomRatioDialog, ratioLabel } from "./sf_crop_expand_ratios.js";
 import { installBrushMenu, handleSamPointer, drawSamOverlay, toggleInvert, cancelSamMode } from "./sf_brush_ai.js";
@@ -102,6 +110,9 @@ import {
   orientState,
   ensureMinSize,
   computeDisplayMetrics,
+  RATIO_INPUTS,
+  wiredAspect,
+  effectiveRatio,
 } from "./sf_crop_expand_brush_mask_lib.js";
 import { registerBrushKeys, registerBrushStepSettings, brushSizeStep, brushOpacityStep } from "./sf_brush_tools.js";
 
@@ -170,6 +181,43 @@ function setState(node, patch) {
 
 function stateChanged(node) {
   if (app.graph) app.graph.setDirtyCanvas(true, true);
+}
+
+// ── 接线宽高比（可选输入 aspect_w / aspect_h，§118）────────────────────────
+// 两项都接且值可读 → 裁剪框即时按 w:h 刷新（onConnectionsChange 同步调用，
+// 不靠下一次拖拽）；上游动态值读不到时输出由后端 execute 同公式兜底，信息栏
+// 显示 "AR wire"。接线期间面板预设只记住不生效（断开后恢复）。
+
+// 槽名会被核心渲染画在自定义面板之上（重叠 RATIO 列顶部）→ 零宽惯例隐藏
+// （sf_dropdown 同款；diff 门控不无谓标脏），信息栏与 tooltip 承担说明。
+function hideRatioSlotLabels(node) {
+  for (const inp of node.inputs || []) {
+    if (inp && RATIO_INPUTS.includes(inp.name) && inp.label !== ZW) inp.label = ZW;
+  }
+}
+
+// 接线比例套到裁剪框（宽度为准、垂直居中，复用 applyRatioToRect）；逐字段
+// diff 命中才写状态（工作流加载路径不为一致状态标脏）。返回是否真的改了。
+function syncWiredRatio(node) {
+  const wa = wiredAspect(node);
+  if (!wa.ratio) return false;
+  const st = getState(node);
+  const rect = applyRatioToRect({ x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, wa.ratio);
+  if (rect.x === st.crop_x && rect.y === st.crop_y && rect.w === st.crop_w && rect.h === st.crop_h) {
+    return false;
+  }
+  setState(node, { crop_x: rect.x, crop_y: rect.y, crop_w: rect.w, crop_h: rect.h });
+  stateChanged(node);
+  return true;
+}
+
+function ratioOverrideToast() {
+  sfToast({
+    summary: "SF Crop Expand Brush Mask",
+    detail: "比例由接线输入决定（aspect_w:aspect_h）；断开接线后本设置才生效",
+    severity: "warn",
+    fallbackTag: "SF Crop Expand Brush Mask",
+  });
 }
 
 // lean 注入载荷：只含影响结果的字段（比例/画笔预览字段不进注入——改画笔颜色
@@ -315,10 +363,13 @@ const HINTS = {
   rotR: "顺时针旋转源图 90°（比例预设复位 Free）",
 };
 
-function controlHint(b) {
+function controlHint(b, node) {
   if (b.isRatio) {
-    if (b.ratioKey === "custom") return HINTS.custom;
-    return `裁剪框比例：${b.text}${b.ratioKey === "free" ? "（不约束）" : ""}`;
+    const wa = node ? wiredAspect(node) : null;
+    const wiredNote = wa?.wired
+      ? `（接线比例优先：${wa.w != null ? `${wa.w}:${wa.h}` : "由上游值决定"}）` : "";
+    if (b.ratioKey === "custom") return HINTS.custom + wiredNote;
+    return `裁剪框比例：${b.text}${b.ratioKey === "free" ? "（不约束）" : ""}${wiredNote}`;
   }
   return HINTS[b.id] || "";
 }
@@ -440,11 +491,15 @@ function stepOpacityFromSettings(cur, dir) {
 
 function resetCrop(node) {
   const st = getState(node);
+  // 复位到整幅源图；接线比例可读时一并套用（预览=输出，否则等执行才被修正）
+  const wa = wiredAspect(node);
+  let rect = { x: 0, y: 0, w: st.src_w, h: st.src_h };
+  if (wa.ratio) rect = applyRatioToRect(rect, wa.ratio);
   setState(node, {
-    crop_x: 0,
-    crop_y: 0,
-    crop_w: st.src_w,
-    crop_h: st.src_h,
+    crop_x: rect.x,
+    crop_y: rect.y,
+    crop_w: rect.w,
+    crop_h: rect.h,
     aspect_ratio: "free",
   });
   stateChanged(node);
@@ -455,7 +510,14 @@ function setAspect(node, key) {
     openRatioDialog(node);
     return;
   }
-  const st = setState(node, { aspect_ratio: key });
+  setState(node, { aspect_ratio: key });
+  if (wiredAspect(node).wired) {
+    // 接线优先：预设只记住（断开接线后生效），当前裁剪框不动
+    ratioOverrideToast();
+    stateChanged(node);
+    return;
+  }
+  const st = getState(node);
   const ratio = ratioFromAspect(key);
   if (ratio) {
     const rect = applyRatioToRect({ x: st.crop_x, y: st.crop_y, w: st.crop_w, h: st.crop_h }, ratio);
@@ -496,6 +558,14 @@ async function applyOrientation(node, op) {
     if (st.src_path !== srcBefore) return;
     const patch = orientState(st, op);
     if (!patch) return;
+    // 接线比例可读时套用到变换后的框：旋转会交换宽高（比例不再成立），
+    // 不套用则预览与后端 execute 的修正结果不一致
+    const wa = wiredAspect(node);
+    if (wa.ratio) {
+      const rect = applyRatioToRect(
+        { x: patch.crop_x, y: patch.crop_y, w: patch.crop_w, h: patch.crop_h }, wa.ratio);
+      Object.assign(patch, { crop_x: rect.x, crop_y: rect.y, crop_w: rect.w, crop_h: rect.h });
+    }
     cancelPoly(node);      // 旧顶点坐标随图变换失效
     cancelSamMode(node);   // 与 SAM 点选/框选互斥
     node._sfCEBDrag = null;
@@ -521,7 +591,14 @@ function openRatioDialog(node) {
     initialCustom: { w: st.custom_w ?? 1, h: st.custom_h ?? 1 },
     toastTag: "SF Crop Expand Brush Mask",
     applyCustom: (w, h) => {
-      const s = setState(node, { custom_w: w, custom_h: h, aspect_ratio: "custom" });
+      setState(node, { custom_w: w, custom_h: h, aspect_ratio: "custom" });
+      if (wiredAspect(node).wired) {
+        // 接线优先：自定义比例只记住（断开接线后生效），当前裁剪框不动
+        ratioOverrideToast();
+        stateChanged(node);
+        return;
+      }
+      const s = getState(node);
       const rect = applyRatioToRect({ x: s.crop_x, y: s.crop_y, w: s.crop_w, h: s.crop_h }, w / h);
       setState(node, { crop_x: rect.x, crop_y: rect.y, crop_w: rect.w, crop_h: rect.h });
       stateChanged(node);
@@ -611,6 +688,24 @@ function setupDrawing(node) {
     const accent = getSfAccent() || "rgba(100,150,255,0.9)";
     const dragging = !!node._sfCEBDrag;
     const m = metricsOf(node, dragging ? node._sfCEBDrag.frozen : null);
+
+    // 接线宽高比（§118）：信息栏标记；上游 widget 值变化（无事件）靠绘制比对
+    // 检测——发现比例变化时下一拍重同步裁剪框（不在绘制中改状态，避免重绘环）
+    const wa = wiredAspect(node);
+    const arText = wa.wired
+      ? `AR ${wa.w != null ? `${wa.w}:${wa.h}` : "wire"}`
+      : (wa.partial ? "AR 半接" : "");
+    if (wa.wired && wa.ratio != null) {
+      const sig = `${wa.w}:${wa.h}`;
+      // 首次可读（如图片预览稍后载入才有尺寸）或比例变化 → 下一拍套用；
+      // syncWiredRatio 内部 diff 门控，重复无副作用
+      if (node._sfCEBWiredRatioSeen == null || node._sfCEBWiredRatioSeen !== sig) {
+        setTimeout(() => syncWiredRatio(node), 0);
+      }
+      node._sfCEBWiredRatioSeen = sig;
+    } else if (!wa.wired) {
+      node._sfCEBWiredRatioSeen = null;
+    }
 
     // 三列底条 + 底行背景（必须先于按钮：§45.8 半透明 chrome 按"背景→控件→
     // 内容→文本"分层，后画盖先画）
@@ -814,9 +909,10 @@ function setupDrawing(node) {
     const ext = isExtended(rect, st.src_w, st.src_h) ? " (Extended)" : "";
     const fullText = `Src: ${st.src_w}\u00d7${st.src_h} | Crop: ${Math.round(st.crop_w)}\u00d7${Math.round(st.crop_h)}${ext}` +
       ` | Brush: ${Math.round(st.brush_size)} | Strokes: ${st.strokes.length}` +
-      `${st.brush_poly ? " | Poly" : ""}${st.invert ? " | Inv" : ""}${st.include_ext === false ? " | NoExt" : ""}`;
+      `${st.brush_poly ? " | Poly" : ""}${st.invert ? " | Inv" : ""}${st.include_ext === false ? " | NoExt" : ""}` +
+      `${arText ? ` | ${arText}` : ""}`;
     const hint = (hovering && !dragging && !node._sfCEBDrawing && node._sfCEBHover)
-      ? controlHint(node._sfCEBHover) : "";
+      ? controlHint(node._sfCEBHover, node) : "";
     const fullLabel = hint || fullText;
     ctx.fillStyle = hint ? th.textStrong : LiteGraph.NODE_TEXT_COLOR;
     ctx.font = "10px Arial";
@@ -979,7 +1075,8 @@ function setupInteractions(node) {
 
     if (dragging) {
       const drag = node._sfCEBDrag;
-      const ratio = ratioFromAspect(st.aspect_ratio, st.custom_w, st.custom_h);
+      // 比例优先级：接线宽高比（可读）> 面板预设；接线不可读时不约束
+      const ratio = effectiveRatio(st, wiredAspect(node));
       drag.curRect = updateCropByDrag(drag, drag.handle, p.x, p.y, ratio);
       setState(node, {
         crop_x: drag.curRect.x, crop_y: drag.curRect.y,
@@ -1125,6 +1222,7 @@ app.registerExtension({
         this.properties[STATE_PROP] = JSON.stringify(DEFAULT_STATE);
       }
       clampNodeSize(this);
+      hideRatioSlotLabels(this);  // 新增输入槽名隐藏（ZW），见 §118
       this._sfCEBCtrls = buildControls();
       setupDrawing(this);
       setupInteractions(this);
@@ -1140,15 +1238,55 @@ app.registerExtension({
 
     const onConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (info) {
-      if (onConfigure) onConfigure.apply(this, [info]);
-      // 恢复源图预览（状态本体在 properties 里，已随 info 恢复）
-      clampNodeSize(this);
-      if (!this._sfCEBCtrls) {
-        this._sfCEBCtrls = buildControls();
-        setupDrawing(this);
-        setupInteractions(this);
+      // 加载期守卫：连接恢复不应触发比例同步（链接在 configure 之后才恢复，
+      // 由 onAfterGraphConfigured 统一补同步）
+      this._sfCEBConfiguring = true;
+      try {
+        if (onConfigure) onConfigure.apply(this, [info]);
+        // 恢复源图预览（状态本体在 properties 里，已随 info 恢复）
+        clampNodeSize(this);
+        if (!this._sfCEBCtrls) {
+          this._sfCEBCtrls = buildControls();
+          setupDrawing(this);
+          setupInteractions(this);
+        }
+        hideRatioSlotLabels(this);  // configure 可能重建 inputs（§118）
+        restoreSourceImage(this, SOURCE_CFG);
+      } finally {
+        this._sfCEBConfiguring = false;
       }
-      restoreSourceImage(this, SOURCE_CFG);
+    };
+
+    // 接线事件：aspect_w/aspect_h 任一接入/断开 → 同步即时刷新裁剪框
+    // （开启工作流时 configure 直赋 links 不触发本事件，由 onAfterGraphConfigured
+    // 补一次；isGraphLoading 守卫加载期的杂散回调）
+    const INPUT_TYPE = (typeof LiteGraph !== "undefined" && LiteGraph.INPUT != null) ? LiteGraph.INPUT : 1;
+    const origConnectionsChange = nodeType.prototype.onConnectionsChange;
+    nodeType.prototype.onConnectionsChange = function (type, index, connected, linkInfo, slotInfo) {
+      const r = origConnectionsChange ? origConnectionsChange.apply(this, arguments) : undefined;
+      const name = this.inputs?.[index]?.name ?? slotInfo?.name;
+      if (type === INPUT_TYPE && name && RATIO_INPUTS.includes(name)
+          && !this._sfCEBConfiguring && !isGraphLoading()) {
+        syncWiredRatio(this);  // 主路径：同步套用（同一帧可见）
+        // 补同步重试（全为幂等 + diff 门控）：0ms 兜新版前端 link 表滞后
+        // （platform §12 坑 3）；200/1000ms 兜上游图片预览异步载入后才可读
+        // （LoadImage → GetImageSize 链，§118）
+        for (const d of [0, 200, 1000]) setTimeout(() => syncWiredRatio(this), d);
+        if (app.graph) app.graph.setDirtyCanvas(true, true);
+      }
+      return r;
+    };
+
+    // 工作流加载/粘贴恢复连线：链路已就绪后按接线比例补同步（diff 门控，
+    // 一致状态不写 properties → 打开工作流不标脏）
+    const origAfterGraphConfigured = nodeType.prototype.onAfterGraphConfigured;
+    nodeType.prototype.onAfterGraphConfigured = function () {
+      const r = origAfterGraphConfigured ? origAfterGraphConfigured.apply(this, arguments) : undefined;
+      hideRatioSlotLabels(this);
+      syncWiredRatio(this);
+      // 图片预览/上游 widgets 在配置完成后才逐步就绪 → 幂等补同步
+      for (const d of [200, 1000]) setTimeout(() => syncWiredRatio(this), d);
+      return r;
     };
 
     const onRemoved = nodeType.prototype.onRemoved;

@@ -88,6 +88,12 @@ it = mod.SFImageCropExpandBrushMask.INPUT_TYPES()
 check("required 为空", it["required"] == {})
 check("hidden 声明 SFCropExpandBrushMaskJson", it["hidden"]["SFCropExpandBrushMaskJson"][0] == "STRING")
 check("hidden 默认 {}", it["hidden"]["SFCropExpandBrushMaskJson"][1]["default"] == "{}")
+# 可选接线宽高比（§118）：INT + forceInput，不在 required（widgets_values 位置不变）
+check("optional 恰好 aspect_w/aspect_h", set(it["optional"].keys()) == {"aspect_w", "aspect_h"})
+check("aspect 输入 INT + forceInput", all(
+    it["optional"][k][0] == "INT" and it["optional"][k][1].get("forceInput") is True
+    for k in ("aspect_w", "aspect_h")))
+check("aspect 不在 required", "aspect_w" not in it["required"] and "aspect_h" not in it["required"])
 
 # 注册键一致性（根 __init__.py 文本检查，避免全包导入）
 init_src = open(os.path.join(root, "__init__.py"), encoding="utf-8").read()
@@ -99,6 +105,24 @@ check("导入语句存在", "from .nodes.image.crop_expand_brush_mask import SFI
 check("_clamp_crop 默认值", mod._clamp_crop({}) == (0, 0, 512, 512))
 check("_clamp_crop 超限钳制", mod._clamp_crop(
     {"crop_x": -99999, "crop_y": 99999, "crop_w": 99999, "crop_h": 0}) == (-4096, 4096, 8192, 1))
+
+# ── _apply_aspect_ratio（接线宽高比优先，§118；镜像前端 applyRatioToRect）──
+check("_js_round .5 向上（Math.round 镜像）",
+      mod._js_round(2.5) == 3 and mod._js_round(3.5) == 4 and mod._js_round(-2.5) == -2)
+check("比例套用：宽度为准 + 垂直居中",
+      mod._apply_aspect_ratio(10, 20, 80, 40, 16, 9) == (10, 18, 80, 45))
+check("比例套用：已合比例幂等",
+      mod._apply_aspect_ratio(0, 112, 512, 288, 16, 9) == (0, 112, 512, 288))
+check("比例套用：半接不生效", mod._apply_aspect_ratio(1, 2, 3, 4, 16, None) == (1, 2, 3, 4))
+check("比例套用：反向半接不生效", mod._apply_aspect_ratio(1, 2, 3, 4, None, 9) == (1, 2, 3, 4))
+check("比例套用：0/负值不生效",
+      mod._apply_aspect_ratio(1, 2, 3, 4, 16, 0) == (1, 2, 3, 4)
+      and mod._apply_aspect_ratio(1, 2, 3, 4, -16, 9) == (1, 2, 3, 4))
+check("比例套用：非数不生效", mod._apply_aspect_ratio(1, 2, 3, 4, "a", "b") == (1, 2, 3, 4))
+check("比例套用：高度下限 10（MIN_SIZE 镜像）",
+      mod._apply_aspect_ratio(0, 0, 10, 10, 100, 1) == (0, 0, 10, 10))
+check("比例套用：极端比例高度夹紧 8192",
+      mod._apply_aspect_ratio(0, 0, 8192, 1, 1, 1000) == (0, -4095, 8192, 8192))
 
 # ── _compose_expand(overlay=)：扩展区 ∪ 笔触 ──
 import numpy as np
@@ -230,6 +254,40 @@ state_clip = json.dumps({
 img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_clip)
 check("execute 框外笔触裁掉", np.allclose(np.asarray(mask_t), 0.0))
 
+# 接线宽高比（§118）：execute 按 aspect_w:aspect_h 修正裁剪框（宽度为准、
+# 垂直居中），优先于状态里的 crop_h；半接/非法值不生效。
+# 40×40 @2:1 → 40×20 且垂直居中（原中心 y=-20+20=0 → 新 y=-10）：
+# 源图 (2,2) → 画布 (4,12)，源图交集左缘 x<0 为扩展区
+state_ar = json.dumps({
+    "src_path": SRC_PATH,
+    "crop_x": -2, "crop_y": -20, "crop_w": 40, "crop_h": 40,
+    "fill_color": "#0000ff", "brush_size": 2,
+    "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+})
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_ar, aspect_w=2, aspect_h=1)
+ma = np.asarray(mask_t)
+check("接线比例：2:1 → 40×20（覆盖状态 crop_h）", (w, h) == (40, 20) and ma.shape == (1, 20, 40))
+check("接线比例：交集红像素贴回", np.allclose(np.asarray(img_t)[0, 12, 2, 0], 1.0))
+check("接线比例：扩展区仍白（左列）", np.allclose(ma[0, :, 0:2], 1.0))
+check("接线比例：笔触映射到画布 (4,12)", ma[0, 12, 4] == 1.0)
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_ar, aspect_w=2)
+check("接线比例：半接（仅 w）不生效", (w, h) == (40, 40))
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_ar, aspect_h=1)
+check("接线比例：半接（仅 h）不生效", (w, h) == (40, 40))
+img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=state_ar, aspect_w=0, aspect_h=1)
+check("接线比例：非法值（0）不生效", (w, h) == (40, 40))
+# 反选路径同样用修正后尺寸（扩展区 ∪ (1-笔触)）
+img_t, mask_t, w, h, fname = node.execute(
+    SFCropExpandBrushMaskJson=json.dumps({
+        "src_path": SRC_PATH,
+        "crop_x": -2, "crop_y": -20, "crop_w": 40, "crop_h": 40,
+        "fill_color": "#000000", "brush_size": 2, "invert": True,
+        "strokes": [{"mode": "brush", "size": 2, "points": [[2, 2]]}],
+    }), aspect_w=2, aspect_h=1)
+mari = np.asarray(mask_t)
+check("接线比例+反选：尺寸 40×20 且笔触点黑", (w, h) == (40, 20) and mari[0, 12, 4] == 0.0)
+check("接线比例+反选：扩展区仍白", np.allclose(mari[0, :, 0:2], 1.0))
+
 # 缺源图退化：笔触忽略 + 纯填充 + 全白
 img_t, mask_t, w, h, fname = node.execute(SFCropExpandBrushMaskJson=json.dumps({
     "src_path": "sfnodes_crop/missing.png",
@@ -280,6 +338,9 @@ key_d = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=json
 check("IS_CHANGED 预览字段不进键", key_a == key_d)
 key_e = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson="{}")
 check("IS_CHANGED 无源返回状态键", key_e == "0:0:512:512:|" + "|||80|[]|inv=0|ext=1")
+# 接线输入不进隐藏状态键（值变化由 ComfyUI 输入缓存键负责；此处只验形参兼容）
+key_ar = mod.SFImageCropExpandBrushMask.IS_CHANGED(SFCropExpandBrushMaskJson=state_base, aspect_w=16, aspect_h=9)
+check("IS_CHANGED 容忍 aspect kwargs 且不进键", key_ar == key_a)
 
 # 反选：合体节点 = 扩展区 ∪ (1 - 笔触)，扩展区不被反选取消
 state_inv = json.dumps({

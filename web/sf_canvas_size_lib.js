@@ -68,6 +68,29 @@ export function customOptionValue(name, w, h) {
   return `${w}x${h} (${name})`;
 }
 
+// parseCanvasSizeLabel(value) → {w, h} | null
+// 解析分辨率 combo 值的前缀 "1024x1024 (1:1)" / "1024x768" → 静态宽高，与后端
+// canvas_size._parse_resolution 同口径（取首个空格前的 "WxH"；分组头/畸形值
+// 返回 null——不学后端回退 1024，调用方宁可不套用也不套错比例）。
+export function parseCanvasSizeLabel(value) {
+  if (typeof value !== "string") return null;
+  const m = /^(\d+)x(\d+)(?:\s|$)/.exec(value);
+  if (!m) return null;
+  const w = parseInt(m[1], 10);
+  const h = parseInt(m[2], 10);
+  if (!(w > 0 && h > 0)) return null;
+  return { w, h };
+}
+
+// readResolutionWidgetSize(node) → {w, h} | null
+// 上游节点带名为 resolution 的 combo（SFCanvasSizePreset / EmptyLatentByAspectRatio /
+// SDXLEmptyLatentSizePicker 同族）时解析其静态宽高——接线宽高比/尺寸在编辑期
+// 即时生效用（§118：分辨率预设接线过去读不到，接入不刷新）。
+export function readResolutionWidgetSize(node) {
+  const wdg = (node?.widgets || []).find((x) => x?.name === "resolution");
+  return wdg ? parseCanvasSizeLabel(wdg.value) : null;
+}
+
 // mergeResolutionValues(officialValues, customPresets) → combo 完整 values
 // 常规调用是伪模型场景（officialValues=[]）：`--Custom--` 分组头 + 自定义项。
 // 自定义项与官方值重复则跳过（避免 combo 内重复选项）；无自定义项时保持官方表

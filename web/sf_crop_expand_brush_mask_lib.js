@@ -20,7 +20,10 @@ import {
   RATIO_PRESETS_COL,
   computeDisplayMetrics as _baseMetrics,
   ensureMinSize as _baseEnsureMin,
+  ratioFromAspect,
 } from "./sf_crop_expand_lib.js";
+import { isWired, linkedInput, readWiredInt } from "./sf_dynamic_slots.js";
+import { readResolutionWidgetSize } from "./sf_canvas_size_lib.js";
 import {
   LAYOUT as BRUSH_LAYOUT,
   TOOL_COL as BRUSH_TOOL_COL,
@@ -113,6 +116,84 @@ export const TOOL_COL = [
   "includeExt",
   ...BRUSH_TOOL_COL.slice(_extInsertAt),
 ];
+
+// ── 接线宽高比（可选输入 aspect_w / aspect_h，§118）──────────────────────
+// 语义：两项都接线才生效（缺一不生效，避免歧义）；值可读时 ratio = w/h；
+// 上游是动态值（多 widget / 非数值源）时 ratio = null——编辑期不约束拖拽，
+// 后端 execute 用同一公式兜底修正输出。接线期间面板预设只记住不生效。
+export const RATIO_INPUTS = ["aspect_w", "aspect_h"];
+
+// upstreamImageSize(up, maxDepth) → {w, h} | null
+// 沿上游节点的已接线 IMAGE 输入回溯，读带预览尺寸的节点
+// （node.imgs[0].naturalWidth/Height——LoadImage/解码/缩放类的画布预览）。
+// GetImageSize 这类"输出只有 INT、无 widget"的取尺寸节点由此在编辑期可读
+// （§118 实测修复）。**只穿过不输出 IMAGE 的元数据节点**：输出 IMAGE 的
+// 节点（如缩放）尺寸以自身预览为准，预览未就绪就返回 null——
+// 继续往下游/上游猜源图尺寸会把目标比例套错。深度 8 + visited 防环。
+function upstreamImageSize(up, maxDepth = 8) {
+  const seen = new Set();
+  let cur = up;
+  for (let d = 0; d < maxDepth && cur; d++) {
+    if (seen.has(cur)) return null;
+    seen.add(cur);
+    const img = Array.isArray(cur.imgs) ? cur.imgs[0] : null;
+    const w = Number(img?.naturalWidth) || 0;
+    const h = Number(img?.naturalHeight) || 0;
+    if (w > 0 && h > 0) return { w, h };
+    const isImage = (s) => {
+      const types = String(s?.type || "").split(",").map((x) => x.trim().toUpperCase());
+      return types.includes("IMAGE");
+    };
+    if ((cur.outputs || []).some(isImage)) return null;  // 输出图节点：无预览不猜
+    const slot = (cur.inputs || []).find((i) => i?.link != null && i.link !== -1 && isImage(i));
+    if (!slot) return null;
+    let l = cur.graph?.links?.[slot.link];
+    if (!l && typeof cur.graph?.links?.get === "function") l = cur.graph.links.get(slot.link);
+    cur = l ? cur.graph?.getNodeById?.(l.origin_id) : null;
+  }
+  return null;
+}
+
+// readWiredDim(node, inputName, axis) → number | null
+// 读一个接线端口的数值，分量由**目标端口（接入顺序）**决定：第一个输入
+// aspect_w = 宽、第二个 aspect_h = 高；上游输出槽名不参与判断——宽高反序
+// 接线与顺序接线结果一致（不做反比，用户拍板"按接入顺序决定 crop 框 w/h"）：
+//   1. 上游唯一数值 widget（PrimitiveInt 等，readWiredInt）——值本身即可；
+//   2. 否则从上游可静态读取的尺寸源取目标端口对应分量：
+//      a. resolution combo 静态值（"1024x1024 (1:1)" / "1024x768"——
+//         SFCanvasSizePreset/EmptyLatentByAspectRatio 等分辨率预设）；
+//      b. 沿 IMAGE 输入回溯预览尺寸（LoadImage → GetImageSize 等取尺寸节点）。
+//      取不到尺寸源返回 null——宁可不套也不猜。
+function readWiredDim(node, inputName, axis) {
+  const v = readWiredInt(node, inputName);
+  if (v != null) return v;
+  const li = linkedInput(node, inputName);
+  if (!li) return null;
+  const size = readResolutionWidgetSize(li.node) || upstreamImageSize(li.node);
+  return size ? (axis === "width" ? size.w : size.h) : null;
+}
+
+// wiredAspect(node) → { wired, partial, ratio, w, h }
+// wired=true 仅当两项都接线；partial=true 仅当恰好接了一项；ratio 可读且
+// 两项均为正整数时为 w/h，否则 null（w/h 同时为 null）。
+export function wiredAspect(node) {
+  const wWired = isWired(node, RATIO_INPUTS[0]);
+  const hWired = isWired(node, RATIO_INPUTS[1]);
+  if (!wWired && !hWired) return { wired: false, partial: false, ratio: null, w: null, h: null };
+  if (wWired !== hWired) return { wired: false, partial: true, ratio: null, w: null, h: null };
+  const w = readWiredDim(node, RATIO_INPUTS[0], "width");
+  const h = readWiredDim(node, RATIO_INPUTS[1], "height");
+  const ok = w != null && h != null && w > 0 && h > 0;
+  return { wired: true, partial: false, ratio: ok ? w / h : null, w: ok ? w : null, h: ok ? h : null };
+}
+
+// effectiveRatio(st, wa) → number | null：接线优先——可读=接线比例，
+// 不可读=不约束（null，避免用面板预设误导预览）；未接线/半接回退面板预设
+// （Free/自定义等，ratioFromAspect 同口径）。
+export function effectiveRatio(st, wa) {
+  if (wa && wa.wired) return wa.ratio;
+  return ratioFromAspect(st.aspect_ratio, st.custom_w, st.custom_h);
+}
 
 // ── 源图翻转/旋转（列3 ORIENT，§112）─────────────────────────────────────
 // 操作语义 = 源图整体变换：裁剪框与笔触随图联动重映射（笔触仍粘在画面内容

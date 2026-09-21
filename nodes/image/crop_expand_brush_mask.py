@@ -21,8 +21,14 @@ mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区默认
 状态收敛为单个隐藏输入 `SFCropExpandBrushMaskJson` STRING（前端 graphToPrompt
 注入 lean 字段：src/crop/fill/strokes/brush_size/invert/include_ext；比例与画笔
 预览字段不进注入，改画笔颜色不重跑）——patterns §4 先例。
+
+可选接线宽高比（§118）：`aspect_w` / `aspect_h` 两个 INT 输入，两项都接且为
+正整数时，裁剪框优先保持该比例（宽度为准、高度自动并垂直居中）——前端接入
+即同步刷新裁剪框，后端 execute 用 `_apply_aspect_ratio` 同公式兜底（上游值
+前端读不到时输出仍守比例）。见 experience/nodes-image.md §118。
 """
 
+import math
 import os
 
 import numpy as np
@@ -32,11 +38,41 @@ from ...sf_utils.brush_mask import lean_key as _brush_lean_key
 from ...sf_utils.brush_mask import parse_state_strokes, rasterize_strokes
 from ...sf_utils.common import _parse_fill_color, parse_json_dict as _parse_state  # 隐藏状态解析（单源，见 common）
 from .crop import _safe_join, load_src_rgb
-from .crop_expand import _clamp_crop, _compose_expand
+from .crop_expand import _clamp_crop, _compose_expand, _DIM_MAX
 
 _CATEGORY = "sfnodes/image"
 
 _HIDDEN_INPUT = "SFCropExpandBrushMaskJson"
+
+# 接线比例套用的高度下限（镜像前端 sf_crop_expand_lib.MIN_SIZE=10，
+# 保证预览与输出同公式；`_clamp_crop` 的域下限 1 更大）
+_RATIO_MIN_H = 10
+
+
+def _js_round(v):
+    """Math.round 镜像（.5 向上取整；Python round 是银行家舍入，不能直接用）。"""
+    return int(math.floor(v + 0.5))
+
+
+def _apply_aspect_ratio(x, y, w, h, aspect_w, aspect_h):
+    """接线宽高比优先（§118）：`aspect_w`/`aspect_h` 两项都接且为正整数时，
+    保持 x/w（宽度为准），高度按 `w / (aspect_w / aspect_h)` 计算并在原中心
+    垂直居中——逐行镜像前端 `sf_crop_expand_lib.applyRatioToRect`。
+
+    缺项 / 非数 / ≤0（只接一项、断开、上游缺值）原样返回，此时面板比例状态
+    照常生效。高度另受 `_DIM_MAX` 夹紧防极端比例爆画布（前端无上限夹紧，
+    仅 1:1000 类极端比例下预览与输出会差一个上限，安全性优先）。"""
+    try:
+        rw = int(aspect_w)
+        rh = int(aspect_h)
+    except (TypeError, ValueError):
+        return x, y, w, h
+    if rw <= 0 or rh <= 0:
+        return x, y, w, h
+    root = rw / rh
+    new_h = max(_RATIO_MIN_H, min(_DIM_MAX, _js_round(w / root)))
+    new_y = _js_round((y + h / 2) - new_h / 2)
+    return x, new_y, w, new_h
 
 
 def _state_key(meta):
@@ -83,6 +119,10 @@ class SFImageCropExpandBrushMask:
         "mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值；Ext 开关 OFF 时 = 笔触层）"
         "——笔触以源图坐标记录并随图移动，只有落在裁剪框内的部分进入输出；"
         "Erase 只擦除笔触，扩展区默认保留（外绘掩码直接可用）。\n\n"
+        "可选接线宽高比：aspect_w / aspect_h 两个 INT 输入（如接分辨率节点的宽高）。"
+        "两项都接且为正整数时，裁剪框优先保持该比例——以宽度为准、高度自动并在"
+        "原中心垂直居中；接线期间面板比例预设只记住不生效（断开后恢复）。上游值"
+        "前端读不到时（动态值）预览不约束，但执行时后端仍按接线值修正输出。\n\n"
         "图片持久化到 input/sfnodes_crop/（复用 SFImageCrop 的上传路由），工作流"
         "保存/重载不丢图。输出 画布、遮罩、宽、高，以及 filename——源图在 input "
         "目录下的存储路径（可直连 LoadImage，未加载时为空串）。"
@@ -92,6 +132,12 @@ class SFImageCropExpandBrushMask:
     def INPUT_TYPES(cls):
         return {
             "required": {},
+            # 可选接线宽高比（§118）：forceInput 无 widget（widgets_values 位置
+            # 不变，旧工作流零影响）；两项都接才生效，值经 execute 兜底修正。
+            "optional": {
+                "aspect_w": ("INT", {"forceInput": True, "tooltip": "可选宽高比分子（如分辨率节点的宽度）。与 aspect_h 同时接线时裁剪框优先保持 aspect_w:aspect_h——宽度为准、高度自动；接线期间面板比例预设只记住不生效。"}),
+                "aspect_h": ("INT", {"forceInput": True, "tooltip": "可选宽高比分母（如分辨率节点的高度）。与 aspect_w 同时接线时裁剪框优先保持该比例；上游值前端不可读时执行阶段仍按接线值修正输出。"}),
+            },
             # 隐藏状态输入：必须在 Python 侧声明，否则前端 validatePrompt 会把
             # schema 外输入从 prompt 剥离（patterns §4）。前端同名 STRING 值经
             # graphToPrompt 注入。
@@ -125,9 +171,12 @@ class SFImageCropExpandBrushMask:
             return f"{st.st_mtime_ns}:{st.st_size}:{key}"
         return key
 
-    def execute(self, SFCropExpandBrushMaskJson="{}", **kwargs):
+    def execute(self, SFCropExpandBrushMaskJson="{}", aspect_w=None, aspect_h=None, **kwargs):
         meta = _parse_state(SFCropExpandBrushMaskJson)
         x, y, w, h = _clamp_crop(meta)
+        # 接线宽高比优先（§118）：两项都接且为正整数时修正 x/y/w/h
+        # （宽度为准、垂直居中，镜像前端 applyRatioToRect）
+        x, y, w, h = _apply_aspect_ratio(x, y, w, h, aspect_w, aspect_h)
         # Ext 开关（默认 True=扩展区计入遮罩；前端面板切换，§113）
         include_ext = bool(meta.get("include_ext", True))
         try:

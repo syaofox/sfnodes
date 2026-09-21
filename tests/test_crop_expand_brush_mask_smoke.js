@@ -32,7 +32,10 @@ globalThis.window = {
 globalThis.LiteGraph = { NODE_TEXT_COLOR: "#ffffff" };
 globalThis.__settingVals = {};
 globalThis.__settingDefs = {};
-globalThis.__graph = { _nodes: [], setDirtyCanvas() {} };
+globalThis.__graph = { _nodes: [], links: {}, setDirtyCanvas() {} };
+// 接线输入读取（readWiredInt）用：按 id 找上游桩节点（含数值 widget）
+globalThis.__graph.getNodeById = (id) =>
+  (globalThis.__graph._nodes || []).find((n) => String(n.id) === String(id)) || null;
 globalThis.__canvas = { style: {}, node_over: null, selected_nodes: null, pointer: null, graph_mouse: null };
 globalThis.__dirtyCount = 0;
 globalThis.__graph.setDirtyCanvas = () => { globalThis.__dirtyCount++; };
@@ -130,6 +133,9 @@ const makeState = (patch = {}) => JSON.stringify({
     ["sf_crop_expand_lib.js", []],
     ["sf_brush_mask_lib.js", []],
     ["sf_crop_expand_brush_mask_lib.js", []],
+    ["sf_dynamic_slots.js", []],
+    ["sf_dropdown_lib.js", []],
+    ["sf_canvas_size_lib.js", []],
     ["sf_canvas_align_lib.js", []],
     ["sf_pause_text_lib.js", []],
     ["sf_crop_source.js", [
@@ -182,7 +188,15 @@ const makeState = (patch = {}) => JSON.stringify({
   node.type = CLASS;
   node.flags = {};
   node.pos = [0, 0];
-  globalThis.__graph._nodes.push(node);
+  // 可选接线宽高比输入槽（§118；正式 schema 由后端声明，此处模拟恢复结果）
+  node.inputs = [
+    { name: "aspect_w", type: "INT", link: null },
+    { name: "aspect_h", type: "INT", link: null },
+  ];
+  node.graph = globalThis.__graph;
+  const upAspectW = { id: 101, widgets: [{ value: 16 }] };
+  const upAspectH = { id: 102, widgets: [{ value: 9 }] };
+  globalThis.__graph._nodes.push(node, upAspectW, upAspectH);
   nodeType.prototype.onNodeCreated.call(node);
 
   check("控件 30 项（列1 11 + 列2 13 + 列3 4 + 底行 2）", node._sfCEBCtrls && node._sfCEBCtrls.length === 30);
@@ -271,6 +285,217 @@ const makeState = (patch = {}) => JSON.stringify({
     const b = ctrl(id);
     return node.onMouseDown({ button: 0, buttons: 1 }, [b.x + 15, b.y + 9]);
   };
+
+  // ── 接线宽高比（可选 aspect_w/aspect_h，§118）：接入即时刷新 + 优先级 ──
+  {
+    const wireIdx = (name) => node.inputs.findIndex((i) => i.name === name);
+    const wire = (name, linkId, upstreamId) => {
+      const idx = wireIdx(name);
+      node.inputs[idx].link = linkId;
+      globalThis.__graph.links[linkId] = { origin_id: upstreamId, origin_slot: 0 };
+      nodeType.prototype.onConnectionsChange.call(
+        node, 1, idx, true, globalThis.__graph.links[linkId], node.inputs[idx]);
+    };
+    const cut = (name, linkId) => {
+      const idx = wireIdx(name);
+      node.inputs[idx].link = null;
+      delete globalThis.__graph.links[linkId];
+      nodeType.prototype.onConnectionsChange.call(node, 1, idx, false, null, node.inputs[idx]);
+    };
+    const drawTexts = () => {
+      const ops = [];
+      node.onDrawForeground(makeFullCtx(ops));
+      return ops.filter((o) => o.op === "fillText").map((o) => String(o.args[0]));
+    };
+
+    node.properties[STATE_PROP] = makeState();
+    check("接线槽名已隐藏（ZW 零宽）", node.inputs
+      .filter((i) => i.name.startsWith("aspect_"))
+      .every((i) => i.label === "\u200B"));
+
+    // 只接 aspect_w（半接）→ 不生效，信息栏标记
+    wire("aspect_w", 11, 101);
+    await sleep(5);
+    check("半接不生效（裁剪框不变）", state().crop_w === 512 && state().crop_h === 512);
+    check("半接信息栏标记 AR 半接", drawTexts().some((t) => t.includes("AR 半接")));
+
+    // 再接 aspect_h → 同步即时套用 16:9（宽度为准、垂直居中）
+    wire("aspect_h", 12, 102);
+    check("接入即时套用 16:9", state().crop_x === 0 && state().crop_y === 112
+      && state().crop_w === 512 && state().crop_h === 288);
+    check("信息栏显示 AR 16:9", drawTexts().some((t) => t.includes("AR 16:9")));
+    await sleep(5); // 延迟重试落定（幂等）
+
+    // 拖拽守接线比例（NW 手柄 img(0,112) → local(130,113.56)）
+    const startedAR = node.onMouseDown({ button: 0, buttons: 1 }, [130, 114]);
+    node.onMouseMove({ buttons: 1 }, [150, 134], gc());
+    const dragged = state();
+    check("拖拽守接线比例 16:9", startedAR === true
+      && Math.abs(dragged.crop_w / dragged.crop_h - 16 / 9) < 0.02);
+    node.onMouseUp({}, [], gc());
+
+    // 接线期间点面板预设：记住但不套用（裁剪框不动）
+    const beforePreset = state();
+    clickCtrl("ratio:1:1");
+    const afterPreset = state();
+    check("预设被记住（aspect_ratio=1:1）", afterPreset.aspect_ratio === "1:1");
+    check("预设不改变裁剪框", afterPreset.crop_w === beforePreset.crop_w
+      && afterPreset.crop_h === beforePreset.crop_h);
+
+    // 重载路径：不一致状态按接线比例补同步（onAfterGraphConfigured）
+    node.properties[STATE_PROP] = makeState({ aspect_ratio: "1:1" });
+    nodeType.prototype.onAfterGraphConfigured.call(node);
+    check("onAfterGraphConfigured 补同步", state().crop_h === 288 && state().crop_y === 112);
+
+    // 上游 widget 值变化（无事件）→ 绘制检测到比例变化后下一拍同步
+    upAspectW.widgets[0].value = 8;
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("上游比例变化 → 裁剪框跟随（8:9 → 512×576）", state().crop_h === 576 && state().crop_y === -32);
+    upAspectW.widgets[0].value = 16;
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("上游恢复 16:9 → 裁剪框恢复", state().crop_h === 288 && state().crop_y === 112);
+
+    // 断开：裁剪框保留；全部断开后面板预设恢复约束（1:1 拖拽）
+    cut("aspect_h", 12);
+    await sleep(5);
+    check("断开一项后半接标记", drawTexts().some((t) => t.includes("AR 半接")));
+    cut("aspect_w", 11);
+    await sleep(5);
+    check("全部断开后无 AR 标记", !drawTexts().some((t) => t.includes("AR ")));
+    node.onMouseDown({ button: 0, buttons: 1 }, [130, 114]);
+    node.onMouseMove({ buttons: 1 }, [150, 134], gc());
+    check("断开后面板预设恢复约束（1:1）", Math.abs(state().crop_w / state().crop_h - 1) < 0.02);
+    node.onMouseUp({}, [], gc());
+
+    // 还原默认状态（后续用例基线）
+    node.properties[STATE_PROP] = makeState();
+    node._sfCEBDrag = null;
+    node._sfCEBDrawing = false;
+    node._sfCEBCur = [];
+    node._sfCEBWiredRatioSeen = null;
+  }
+
+  // ── 分辨率预设上游（§118 实测修复）：combo 无数值 widget，按上游输出槽名
+  // width/height + resolution 值（"1024x1024 (1:1)"）静态解析即时套用 ──
+  {
+    const upSize = {
+      id: 103, type: "SFCanvasSizePreset",
+      widgets: [
+        { name: "model", value: "Z-Image (Turbo)" },
+        { name: "resolution", value: "1024x1024 (1:1)" },
+      ],
+      outputs: [{ name: "width" }, { name: "height" }, { name: "resolution" }, { name: "aspect_ratio" }],
+    };
+    globalThis.__graph._nodes.push(upSize);
+    const wireFrom = (name, linkId, slot) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = linkId;
+      globalThis.__graph.links[linkId] = { origin_id: 103, origin_slot: slot };
+      nodeType.prototype.onConnectionsChange.call(
+        node, 1, idx, true, globalThis.__graph.links[linkId], node.inputs[idx]);
+    };
+    const cutWire = (name, linkId) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = null;
+      delete globalThis.__graph.links[linkId];
+      nodeType.prototype.onConnectionsChange.call(node, 1, idx, false, null, node.inputs[idx]);
+    };
+
+    node.properties[STATE_PROP] = makeState({ src_path: "x.png", src_w: 633, src_h: 844, crop_w: 633, crop_h: 844 });
+    wireFrom("aspect_w", 21, 0);
+    wireFrom("aspect_h", 22, 1);
+    check("分辨率预设接线立即套用（633×633 居中 y=106）", state().crop_w === 633
+      && state().crop_h === 633 && state().crop_y === 106);
+
+    // 换分辨率 combo（无事件）→ 绘制比对下一拍跟随
+    upSize.widgets[1].value = "1024x768 (4:3)";
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("换分辨率跟随（4:3 → 633×475 居中 y=185）", state().crop_h === 475 && state().crop_y === 185);
+
+    // 畸形值（分组头）→ 不套用，保持原框
+    upSize.widgets[1].value = "--1MP--";
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("畸形分辨率不套用（保持原框）", state().crop_h === 475 && state().crop_y === 185);
+
+    cutWire("aspect_h", 22);
+    cutWire("aspect_w", 21);
+    await sleep(5);
+    node.properties[STATE_PROP] = makeState();
+    node._sfCEBWiredRatioSeen = null;
+  }
+
+  // ── 图片链上游（LoadImage → GetImageSize，§118 实测修复）：GetImageSize 无
+  // widget，沿其 IMAGE 输入回溯 LoadImage 预览尺寸即时套用 ──
+  {
+    const loadImg = {
+      id: 104, type: "LoadImage", graph: globalThis.__graph,
+      inputs: [], widgets: [{ name: "image", value: "a.webp" }], imgs: [],
+    };
+    const sizeNode = {
+      id: 105, type: "GetImageSize", graph: globalThis.__graph, widgets: [],
+      inputs: [{ name: "image", type: "IMAGE", link: 41 }],
+      outputs: [{ name: "width" }, { name: "height" }, { name: "batch_size" }],
+    };
+    globalThis.__graph._nodes.push(loadImg, sizeNode);
+    globalThis.__graph.links[41] = { origin_id: 104, origin_slot: 0 };
+    const wireFromSize = (name, linkId, slot) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = linkId;
+      globalThis.__graph.links[linkId] = { origin_id: 105, origin_slot: slot };
+      nodeType.prototype.onConnectionsChange.call(
+        node, 1, idx, true, globalThis.__graph.links[linkId], node.inputs[idx]);
+    };
+    const cutSize = (name, linkId) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = null;
+      delete globalThis.__graph.links[linkId];
+      nodeType.prototype.onConnectionsChange.call(node, 1, idx, false, null, node.inputs[idx]);
+    };
+
+    // 预览未就绪（图片尚未载入）→ 接线不套用
+    node.properties[STATE_PROP] = makeState();
+    wireFromSize("aspect_w", 31, 0);
+    wireFromSize("aspect_h", 32, 1);
+    check("图片链上游预览未就绪不套用", state().crop_h === 512);
+
+    // 预览异步就绪 → 补同步重试套用 4:3
+    loadImg.imgs = [{ naturalWidth: 800, naturalHeight: 600 }];
+    await sleep(300);
+    check("图片链上游预览就绪后补同步（4:3 → 512×384）", state().crop_h === 384
+      && state().crop_y === 64);
+
+    // 换图（预览尺寸变化）→ 绘制比对下一拍跟随（16:9）
+    loadImg.imgs = [{ naturalWidth: 1920, naturalHeight: 1080 }];
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("图片链上游换图跟随（16:9 → 512×288）", state().crop_h === 288 && state().crop_y === 112);
+
+    // 反序接线（width→aspect_h、height→aspect_w）：分量仍由端口定 →
+    // 与顺序接线结果一致（第一个输入=宽、第二个=高，上游槽名不参与）
+    cutSize("aspect_h", 32);
+    cutSize("aspect_w", 31);
+    wireFromSize("aspect_h", 32, 0);  // width  → aspect_h
+    wireFromSize("aspect_w", 31, 1);  // height → aspect_w
+    check("图片链上游反序接线与顺序一致（16:9 不变）", state().crop_h === 288
+      && state().crop_y === 112);
+    // 换竖图 1080×1920 验证端口取分量仍在工作（9:16）
+    loadImg.imgs = [{ naturalWidth: 1080, naturalHeight: 1920 }];
+    node.onDrawForeground(makeFullCtx([]));
+    await sleep(10);
+    check("图片链上游换竖图跟随（9:16 → 512×910）", state().crop_h === 910
+      && state().crop_y === -199);
+
+    cutSize("aspect_h", 32);
+    cutSize("aspect_w", 31);
+    delete globalThis.__graph.links[41];
+    await sleep(5);
+    node.properties[STATE_PROP] = makeState();
+    node._sfCEBWiredRatioSeen = null;
+  }
 
   // 悬停按钮 → 底行改显中文说明（§109）
   {

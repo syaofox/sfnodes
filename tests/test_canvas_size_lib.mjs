@@ -62,6 +62,23 @@ function check(name, cond) {
     // customOptionValue
     check("选项编码", L.customOptionValue("My Wide", 1600, 900) === "1600x900 (My Wide)");
 
+    // parseCanvasSizeLabel（接线宽高比静态预读，§118）
+    check("解析带比例标签", JSON.stringify(L.parseCanvasSizeLabel("1024x1024 (1:1)")) === '{"w":1024,"h":1024}');
+    check("解析裸 WxH", JSON.stringify(L.parseCanvasSizeLabel("1024x768")) === '{"w":1024,"h":768}');
+    check("解析自定义项编码", JSON.stringify(L.parseCanvasSizeLabel("1600x900 (My Wide)")) === '{"w":1600,"h":900}');
+    check("畸形/分组头/非串回 null", L.parseCanvasSizeLabel("abc") === null
+        && L.parseCanvasSizeLabel("--1MP--") === null
+        && L.parseCanvasSizeLabel("1024") === null
+        && L.parseCanvasSizeLabel("1024x0") === null
+        && L.parseCanvasSizeLabel(null) === null);
+
+    // readResolutionWidgetSize（上游 resolution combo）
+    check("读 resolution widget", JSON.stringify(L.readResolutionWidgetSize(
+        { widgets: [{ name: "model", value: "x" }, { name: "resolution", value: "704x1408 (0.5)" }] }))
+        === '{"w":704,"h":1408}');
+    check("无 resolution widget 回 null", L.readResolutionWidgetSize({ widgets: [{ name: "value", value: 5 }] }) === null
+        && L.readResolutionWidgetSize(null) === null);
+
     // mergeResolutionValues
     const official = ["--1MP--", "1024x1024 (1:1)", "1280x720 (16:9)"];
     check("无自定义保持原样", JSON.stringify(L.mergeResolutionValues(official, [])) === JSON.stringify(official));

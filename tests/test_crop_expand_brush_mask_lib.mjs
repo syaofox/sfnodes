@@ -12,7 +12,8 @@ import { pathToFileURL } from "node:url";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf_cebm_lib_test_"));
-for (const f of ["sf_crop_expand_lib.js", "sf_brush_mask_lib.js", "sf_crop_expand_brush_mask_lib.js"]) {
+for (const f of ["sf_crop_expand_lib.js", "sf_brush_mask_lib.js", "sf_crop_expand_brush_mask_lib.js",
+  "sf_dynamic_slots.js", "sf_canvas_size_lib.js"]) {
   fs.copyFileSync(path.join(here, "..", "web", f), path.join(tmpDir, f));
 }
 
@@ -145,6 +146,182 @@ function makeCanvas(w = 10, h = 10) {
   check("非法尺寸返回 null", L.orientState({ ...ost, src_w: 0 }, "flipH") === null
     && L.orientState({ ...ost, src_h: -1 }, "rotR") === null);
   check("无 strokes 安全（空数组）", flat(L.orientState({ ...ost, strokes: undefined }, "flipH")) === "[]");
+
+  // ── 接线宽高比 wiredAspect / effectiveRatio（§118）──
+  // 每项输入独立上游节点（各自恰好一个数值 widget）；link 断开为 null。
+  const wiredNode = (wVal, hVal) => {
+    const links = {};
+    const nodes = {};
+    if (wVal !== undefined) {
+      links[11] = { origin_id: 101, origin_slot: 0 };
+      nodes[101] = { widgets: [{ value: wVal }] };
+    }
+    if (hVal !== undefined) {
+      links[12] = { origin_id: 102, origin_slot: 0 };
+      nodes[102] = { widgets: [{ value: hVal }] };
+    }
+    return {
+      inputs: [
+        { name: "aspect_w", link: wVal !== undefined ? 11 : null },
+        { name: "aspect_h", link: hVal !== undefined ? 12 : null },
+      ],
+      graph: { links, getNodeById: (id) => nodes[id] || null },
+    };
+  };
+  const freeSt = { aspect_ratio: "free", custom_w: 1, custom_h: 1 };
+  {
+    const wa = L.wiredAspect(wiredNode(1920, 1080));
+    check("wiredAspect 双接可读", wa.wired === true && wa.partial === false
+      && approx(wa.ratio, 16 / 9) && wa.w === 1920 && wa.h === 1080);
+    check("wiredAspect 半接（仅 w）", (() => {
+      const r = L.wiredAspect(wiredNode(16, undefined));
+      return r.wired === false && r.partial === true && r.ratio === null;
+    })());
+    check("wiredAspect 半接（仅 h）", (() => {
+      const r = L.wiredAspect(wiredNode(undefined, 9));
+      return r.wired === false && r.partial === true;
+    })());
+    check("wiredAspect 全未接", (() => {
+      const r = L.wiredAspect(wiredNode(undefined, undefined));
+      return r.wired === false && r.partial === false;
+    })());
+    // 值不可读：上游多数值 widget（seed/steps 类）→ ratio null（编辑期不约束）
+    const unreadable = wiredNode(16, 9);
+    unreadable.graph.getNodeById = () => ({ widgets: [{ value: 1 }, { value: 2 }] });
+    check("wiredAspect 不可读 → ratio null", (() => {
+      const r = L.wiredAspect(unreadable);
+      return r.wired === true && r.ratio === null && r.w === null && r.h === null;
+    })());
+    check("wiredAspect 非法值（0/负）→ ratio null", (() => {
+      const r = L.wiredAspect(wiredNode(0, 9));
+      const r2 = L.wiredAspect(wiredNode(-16, 9));
+      return r.wired === true && r.ratio === null && r2.ratio === null;
+    })());
+    // readWiredInt 截断镜像（2.7 -> 2，与后端 int() 同口径）
+    check("wiredAspect 值截断", L.wiredAspect(wiredNode(16.7, 9.2)).w === 16);
+  }
+  // 分辨率预设上游（§118 实测修复）：combo 无数值 widget，按上游输出槽名
+  // width/height + resolution 值静态解析；槽名不符/畸形值不套用
+  const sizeNode = (resValue, slotNames = ["width", "height", "resolution", "aspect_ratio"]) => {
+    const linkIds = { w: 31, h: 32 };
+    return {
+      inputs: [
+        { name: "aspect_w", link: linkIds.w },
+        { name: "aspect_h", link: linkIds.h },
+      ],
+      graph: {
+        links: {
+          [linkIds.w]: { origin_id: 201, origin_slot: 0 },
+          [linkIds.h]: { origin_id: 201, origin_slot: 1 },
+        },
+        getNodeById: () => ({
+          id: 201, type: "SFCanvasSizePreset",
+          widgets: [{ name: "model", value: "Z-Image (Turbo)" }, { name: "resolution", value: resValue }],
+          outputs: slotNames.map((name) => ({ name })),
+        }),
+      },
+    };
+  };
+  {
+    const wa = L.wiredAspect(sizeNode("1024x1024 (1:1)"));
+    check("分辨率预设上游：1024x1024 → ratio 1", wa.wired === true && approx(wa.ratio, 1)
+      && wa.w === 1024 && wa.h === 1024);
+    const wa2 = L.wiredAspect(sizeNode("1024x768 (4:3)"));
+    check("分辨率预设上游：4:3", approx(wa2.ratio, 4 / 3) && wa2.w === 1024 && wa2.h === 768);
+    check("分辨率预设上游：裸 WxH", approx(L.wiredAspect(sizeNode("704x1408")).ratio, 704 / 1408));
+    check("分辨率预设上游：畸形值 → ratio null", L.wiredAspect(sizeNode("bogus")).ratio === null);
+    // 上游槽名不参与判断：分量由目标端口定（第一输入=宽、第二=高）
+    check("分辨率预设上游：分量由端口定（槽名不参与）", approx(
+      L.wiredAspect(sizeNode("960x544 (16:9)", ["LATENT", "batch_size", "foo"])).ratio, 960 / 544));
+    // 槽位序号不固定（[LATENT, width, height] 形态：width=1/height=2）按槽名识别
+    const shifted = sizeNode("960x544 (16:9)", ["LATENT", "width", "height"]);
+    shifted.graph.links[31].origin_slot = 1;
+    shifted.graph.links[32].origin_slot = 2;
+    check("分辨率预设上游：槽位序号不参与", approx(L.wiredAspect(shifted).ratio, 960 / 544));
+    // 反序接线：分量仍由端口定 → 结果与顺序接线一致（不做反比）
+    const sizeRev = sizeNode("1024x768 (4:3)");
+    sizeRev.graph.links[31].origin_slot = 1;
+    sizeRev.graph.links[32].origin_slot = 0;
+    check("分辨率预设上游：反序接线与顺序一致", (() => {
+      const r = L.wiredAspect(sizeRev);
+      return approx(r.ratio, 4 / 3) && r.w === 1024 && r.h === 768;
+    })());
+    // 只有一项走分辨率预设时仍按半接/双接判定
+    const partial = sizeNode("1024x1024 (1:1)");
+    partial.inputs[1].link = null;
+    check("分辨率预设上游：半接不生效", L.wiredAspect(partial).partial === true);
+  }
+  // 图片链上游（LoadImage → GetImageSize，§118 实测修复）：GetImageSize 无
+  // widget，沿其 IMAGE 输入回溯 LoadImage 预览尺寸（imgs[0].naturalWidth/Height）
+  const imgChainNode = (w, h, { withPreview = true, midHop = false, midPreview = null } = {}) => {
+    const g = { links: {}, getNodeById: (id) => nodes[id] || null };
+    const nodes = {};
+    const loadImage = { id: 401, type: "LoadImage", inputs: [], widgets: [], imgs: [] };
+    if (withPreview) loadImage.imgs = [{ naturalWidth: w, naturalHeight: h }];
+    const getSize = {
+      id: 402, type: "GetImageSize", widgets: [], graph: g,
+      inputs: [{ name: "image", type: "IMAGE", link: 41 }],
+      outputs: [{ name: "width" }, { name: "height" }, { name: "batch_size" }],
+    };
+    nodes[401] = loadImage; nodes[402] = getSize;
+    if (midHop) {
+      const scale = {
+        id: 403, type: "ImageScale", widgets: [], graph: g,
+        inputs: [{ name: "image", type: "IMAGE", link: 42 }], outputs: [{ name: "IMAGE", type: "IMAGE" }],
+        imgs: midPreview ? [{ naturalWidth: midPreview[0], naturalHeight: midPreview[1] }] : [],
+      };
+      nodes[403] = scale;
+      getSize.inputs[0].link = 43;
+      g.links[43] = { origin_id: 403, origin_slot: 0 };
+      g.links[42] = { origin_id: 401, origin_slot: 0 };
+    } else {
+      g.links[41] = { origin_id: 401, origin_slot: 0 };
+    }
+    loadImage.graph = g;
+    return {
+      inputs: [{ name: "aspect_w", link: 31 }, { name: "aspect_h", link: 32 }],
+      graph: {
+        links: {
+          31: { origin_id: 402, origin_slot: 0 },
+          32: { origin_id: 402, origin_slot: 1 },
+        },
+        getNodeById: (id) => nodes[id] || null,
+      },
+    };
+  };
+  {
+    const wa = L.wiredAspect(imgChainNode(800, 600));
+    check("图片链上游：LoadImage → GetImageSize（4:3）", approx(wa.ratio, 4 / 3) && wa.w === 800 && wa.h === 600);
+    check("图片链上游：预览未就绪 → ratio null", L.wiredAspect(imgChainNode(800, 600, { withPreview: false })).ratio === null);
+    check("图片链上游：中间输出图节点无预览 → 不猜（null）",
+      L.wiredAspect(imgChainNode(1920, 1080, { midHop: true })).ratio === null);
+    check("图片链上游：中间节点预览为准（非源图）", approx(
+      L.wiredAspect(imgChainNode(1920, 1080, { midHop: true, midPreview: [1024, 1024] })).ratio, 1));
+    // 上游槽名不参与：随便接哪个输出都按"端口 = 分量"取
+    const oddSlot = imgChainNode(800, 600);
+    oddSlot.graph.links[32].origin_slot = 2;   // batch_size → aspect_h（仍按高取）
+    check("图片链上游：分量由端口定（槽名不参与）", approx(L.wiredAspect(oddSlot).ratio, 4 / 3));
+    // 反序接线（height→aspect_w、width→aspect_h）：分量仍由端口定 → 与顺序一致
+    const reversed = imgChainNode(800, 600);
+    reversed.graph.links[31].origin_slot = 1;  // → aspect_w
+    reversed.graph.links[32].origin_slot = 0;  // → aspect_h
+    const rw = L.wiredAspect(reversed);
+    check("图片链上游：反序接线与顺序一致", approx(rw.ratio, 800 / 600) && rw.w === 800 && rw.h === 600);
+  }
+  {
+    const panelSt = { aspect_ratio: "16:9", custom_w: 1, custom_h: 1 };
+    check("effectiveRatio 接线可读优先于面板", approx(L.effectiveRatio(panelSt, L.wiredAspect(wiredNode(4, 3))), 4 / 3));
+    check("effectiveRatio 接线不可读 → 不约束（null）", (() => {
+      const n = wiredNode(4, 3);
+      n.graph.getNodeById = () => ({ widgets: [{ value: 1 }, { value: 2 }] });
+      return L.effectiveRatio(panelSt, L.wiredAspect(n)) === null;
+    })());
+    check("effectiveRatio 半接回退面板", approx(L.effectiveRatio(panelSt, L.wiredAspect(wiredNode(4, undefined))), 16 / 9));
+    check("effectiveRatio 未接回退面板", approx(L.effectiveRatio(panelSt, L.wiredAspect(wiredNode(undefined, undefined))), 16 / 9));
+    check("effectiveRatio 未接 Free → null", L.effectiveRatio(freeSt, L.wiredAspect(wiredNode(undefined, undefined))) === null);
+    check("effectiveRatio 未接自定义", approx(L.effectiveRatio(
+      { aspect_ratio: "custom", custom_w: 21, custom_h: 9 }, L.wiredAspect(wiredNode(undefined, undefined))), 21 / 9));
+  }
 
   // ── colorTextStyle ──
   check("取色文字 白底黑字", Brush.colorTextStyle("#ffffff") === "rgba(0,0,0,0.9)");

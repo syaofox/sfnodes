@@ -34,6 +34,37 @@ export const isSlotConnected = (slot) => {
     return Array.isArray(slot.links) && slot.links.length > 0;
 };
 
+// 具名输入槽是否已接线（link 断开为 null，旧版可能 -1）。
+export function isWired(node, name) {
+    const inp = node?.inputs?.find((i) => i.name === name);
+    return !!(inp && inp.link != null && inp.link !== -1);
+}
+
+// 具名输入槽的上游接线：{node, link, slot}（未接线/链接表缺项/上游缺失 → null）。
+// slot = link.origin_slot，调用方可按上游输出槽名/序号判断语义。
+export function linkedInput(node, name) {
+    const inp = node?.inputs?.find((i) => i.name === name);
+    if (!inp || inp.link == null || inp.link === -1) return null;
+    let l = node?.graph?.links?.[inp.link];
+    if (!l && typeof node?.graph?.links?.get === "function") l = node.graph.links.get(inp.link);
+    if (!l) return null;
+    const up = node.graph.getNodeById(l.origin_id);
+    if (!up) return null;
+    return { node: up, link: l, slot: l.origin_slot };
+}
+
+// 尽力读取已接线 INT 输入在编辑时的值（SFImageResize/SFImageCropExpandBrushMask
+// 共用）：仅信任"恰好一个数值 widget"的上游（无歧义）；多数值 widget
+// （seed/steps/cfg…）与 combo/字符串来源返回 null——调用方回退为"由接线输入
+// 决定"而不是显示错误数字。数值按 int 截断（2.7 -> 2，镜像后端 int()；
+// Math.round 会把 2.7 报成 3，预览对输出说谎）。
+export function readWiredInt(node, name) {
+    const li = linkedInput(node, name);
+    if (!li) return null;
+    const nums = (li.node.widgets || []).filter((x) => typeof x.value === "number");
+    return nums.length === 1 && Number.isFinite(nums[0].value) ? Math.trunc(nums[0].value) : null;
+}
+
 // 返回与槽位数组其他元素不重名的名字（重名会破坏 prompt 序列化的输入键）。
 export const uniqueName = (slots, selfIndex, base) => {
     if (!Array.isArray(slots) || slots.length === 0) return base;

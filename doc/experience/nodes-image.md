@@ -1349,3 +1349,46 @@ slice_track_data(track_data, start=0, length=0)
 
 - `nodes/image/track_data_to_mask.py`：`SFTrackDataToMask`（category `sfnodes/image`，`RETURN_NAMES=("mask",)`），required `track_data`/`frame_index`（min -1000000）+ optional `object_indices`；无前端 JS。
 - 测试 `tests/test_track_data_to_mask.py`：numpy 位序桩 + FakeArr + 记录式 interpolate 桩，覆盖负索引/越界报错/对象子集/非法索引全零/空追踪/`orig_size` 报错/插值参数（size·mode·align_corners）/输入不变/execute 集成；`tests/test_invert_track.py` 补包结构注册（invert_track 改为函数内相对导入公共解析器后需要）。
+
+## 118. 组合节点接线宽高比（aspect_w/aspect_h，双端镜像，2026-09）
+
+> 背景：用户要求 SFImageCropExpandBrushMask 增加"宽高比（两个输入项，可选），接入时 crop 按该宽高比优先"。拍板：`aspect_w`/`aspect_h`（INT forceInput）**两项都接且为正整数才生效**；前端接入即时刷新裁剪框 + 后端 execute 同公式兜底；接线期间面板比例预设只记住不生效（断开后恢复）；槽名与自定义面板重叠用 ZW 隐藏。
+
+### 1. 双端语义与镜像
+
+- 接口：Python `INPUT_TYPES` 增 `"optional": {"aspect_w": ("INT", {"forceInput": True}), "aspect_h": 同}`——forceInput 无 widget，`widgets_values` 位置不变，旧工作流零影响；execute 形参 `aspect_w=None, aspect_h=None`（未接时缺省 None，ComfyUI 输入缓存键已含接线值，`IS_CHANGED`/`_state_key` 无需改）。
+- 套用公式（宽度为准、高度自动、垂直居中）：保持 x/w，`h = max(10, round(w / (rw/rh)))`，`y = round(cy - h/2)`——前端 `sf_crop_expand_lib.applyRatioToRect` 原样，后端 `crop_expand_brush_mask._apply_aspect_ratio` 逐行镜像；**MIN_SIZE=10 一并镜像**（小框大比例时两端同夹紧，否则预览与输出差几像素）。
+- ⚠ `Math.round` 的 .5 向上取整不能用 Python `round`（银行家舍入）→ `_js_round = int(math.floor(v + 0.5))`（负数也正确：-2.5 → -2）；除法写成 `w / (rw / rh)` 与 JS 同一次浮点运算。h 另受 `crop_expand._DIM_MAX`（8192）夹紧，防 1:1000 类极端比例爆画布（该边界下比例不精确，可接受）。
+- 半接/0/负/非数一律原样返回（半接即完全不生效，避免"缺的一项按 1 算"的歧义）。
+
+### 2. 前端即时刷新与优先级
+
+- `wiredAspect(node)`/`effectiveRatio(st, wa)` 纯逻辑在 `sf_crop_expand_brush_mask_lib.js`：`wired` 仅两项都接；值可读才给 `ratio`（否则 null）；`effectiveRatio` 接线优先——可读=接线比例，**不可读=null（编辑期不约束，不用面板预设误导预览）**，未接/半接回退 `ratioFromAspect`。
+- 即时刷新路径：`onConnectionsChange`（INPUT）+ `LiteGraph.INPUT` 常量兜底、`isGraphLoading()`/`_sfCEBConfiguring` 守卫 → **同步** `syncWiredRatio`（同帧可见）+ `setTimeout(0)` 幂等补一次（platform §12 坑 3：新版前端 link 表可能滞后）；`onAfterGraphConfigured` 覆盖打开工作流恢复连线（configure 直赋 links 不触发连接事件）；**上游 widget 值变化无事件** → `onDrawForeground` 比对 `_sfCEBWiredRatioSeen`（w:h 串），变化则下一拍同步（不在绘制中改状态，防重绘环）。
+- `syncWiredRatio` 逐字段 diff 命中才 `setState`——一致状态绝不写 properties，打开工作流不标脏（onAfterGraphConfigured 每次加载都会调用）。
+- 语义落点：拖拽用 `effectiveRatio`；`setAspect`/Custom Apply 在 `wired` 时只写状态 + toast「比例由接线输入决定」；`resetCrop`/`applyOrientation` 结果再套一次可读接线比例（旋转会交换宽高，不套则预览≠执行）；信息栏 `| AR 16:9`（可读原值）/`| AR wire`（不可读）/`| AR 半接`；比例按钮悬停说明追加接线注记。
+- 槽名冲突（本轮实测发现）：核心渲染顺序是 `onDrawForeground` **先于** `drawSlots`（bundle 内 `drawNode`：`e.onDrawForeground?.()` → `e.drawSlots(...)`），槽名与槽点画在自定义面板之上——输入槽名 `aspect_w` 会盖住 RATIO 列顶部两个按钮。处理：复用 `sf_dropdown_lib.ZW`（零宽空格）写 `slot.label` 隐藏（diff 门控；onNodeCreated/onConfigure/onAfterGraphConfigured 三处调用，configure 可能重建 inputs），说明由 tooltip/信息栏/悬停 hint 承担；零几何改动（MIN 仍 400×360）。
+
+### 3. 复用与测试
+
+- `isWired`/`readWiredInt` 从 `sf_image_resize_lib.js` **上移到 `sf_dynamic_slots.js`**（`isSlotConnected` 已在此，无依赖纯模块），resize lib `import` + re-export 保持公共 API 与测试不变——否则组合 lib 要拖入整个 resize 家族（含 `sf_load_image_resize.js`）。`readWiredInt` 顺手补 `link === -1` 断开判定（旧版形态，与 `isSlotConnected` 对齐）；另出 `linkedInput(node,name) → {node,link,slot}`（接线解析单源，数值/分辨率两种读取共用）。
+- 后端 `tests/test_crop_expand_brush_mask.py`：schema（optional/forceInput/不在 required）、`_apply_aspect_ratio`（双接/幂等/半接/0 负/非数/MIN/8192 夹紧/`_js_round` .5 行为）、execute（2:1 → 40×20 覆盖状态 crop_h、交集贴回、笔触映射、反选路径、半接非法不生效）、`IS_CHANGED` 容忍 aspect kwargs。
+- 纯逻辑 `tests/test_crop_expand_brush_mask_lib.mjs`：拷贝清单加 `sf_dynamic_slots.js`；覆盖 wiredAspect（双接/半接/全未接/多 widget 不可读/0 负/截断）与 effectiveRatio（接线优先/不可读 null/半接与未接回退面板/自定义）。
+- smoke `tests/test_crop_expand_brush_mask_smoke.js`：FakeNode 补 `inputs` + `graph.links/getNodeById`、桩上游（`{id, widgets:[{value}]}`）；断言接入即时套用（512×288@16:9）、半接与断开标记、拖拽守比例（断开后回面板 1:1）、预设记住不套用、`onAfterGraphConfigured` 补同步、上游值变化下一拍跟随（8:9 → 512×576 再恢复）、信息栏 AR 文案、槽名 ZW。⚠ `tests/test_image_resize_js.js` 的 `stageJs` 清单需追加 `sf_dynamic_slots.js`（resize lib 新增相对导入）。
+- ⚠ 含后端改动 → 同步挂载目录后需重启容器才生效（前端硬刷新只覆盖 JS）。
+
+### 3.5 实测修复：分辨率预设上游读不到（2026-09）
+
+- **症状**：用户工作流把 `SFCanvasSizePreset` 的 `width`/`height` 接进 aspect_w/aspect_h，接入后裁剪框不动；workflow 里槽名已是 ZW（新 JS 已生效），但 `crop_h` 仍是源高——`readWiredInt` 只信任"唯一数值 widget"，分辨率预设是 combo（`1024x1024 (1:1)`）→ 返回 null，比例不可读。
+- **修法（静态预读，不改数据协议）**：`sf_canvas_size_lib.js` 出 `parseCanvasSizeLabel`（镜像后端 `_parse_resolution` 的 "WxH" 前缀解析，畸形值返回 **null 而非回退 1024**——宁可不套也不套错比例）与 `readResolutionWidgetSize`；组合 lib 的 `readWiredDim` 读取顺序 = 唯一数值 widget → 上游带 `resolution` combo 时按其静态值取分量（分量由目标端口定，见下条 ⚠）。上游输出槽名/槽序完全不参与，`[LATENT,width,height]` 形态（SDXLEmptyLatentSizePicker/EmptyLatentByAspectRatio）随便接哪路都按端口取。
+- 由此 combo 切换也走既有"绘制比对下一拍同步"路径（`_sfCEBWiredRatioSeen` 用 `w:h` 串），换分辨率即时跟随；提示词等含 "1024x1024" 字样的 widget 不会误读（只认名为 `resolution` 的 widget）。
+- 测试：`test_canvas_size_lib.mjs` 补解析/读数；`test_crop_expand_brush_mask_lib.mjs` 拷贝清单加 `sf_canvas_size_lib.js`，覆盖 1:1 / 4:3 / 裸 WxH / 畸形 / 槽名与槽序不参与 / 反序与顺序一致；smoke 以 633×844 源 + `1024x1024 (1:1)` 上游复现用户场景（立即套用 633×633 居中 y=106 → 换 4:3 跟随 475/y=185 → 畸形值不套用）。⚠ smoke 拷贝清单同步加 `sf_canvas_size_lib.js`（组合 lib 新增相对导入）。
+
+### 3.6 实测修复 2：LoadImage → GetImageSize 链（2026-09）
+
+- **症状**：`LoadImage`（node 5）→ `GetImageSize`（node 6，输出 width/height）→ aspect_w/aspect_h；`GetImageSize` 无 widget、输出 INT 由运行时算，前端静态读取仍 null → 不刷新。
+- **修法（预览尺寸回溯）**：`readWiredDim` 的尺寸源回退之一（与 resolution combo 并列）= `upstreamImageSize`——沿上游已接线 **IMAGE** 输入回溯，读首个带预览尺寸的节点（`node.imgs[0].naturalWidth/Height`，LoadImage/解码/缩放类的画布预览；深度 8 + visited 防环）。
+- ⚠ **只穿过不输出 IMAGE 的元数据节点**（GetImageSize 输出纯 INT）：输出 IMAGE 的节点（缩放类）尺寸以**自身预览**为准，无预览即返回 null，绝不再穿到源图猜——否则 `ImageScale(stretch)` 之类会拿源图比例套目标比例（"不猜"优于"套错"）。
+- **异步就绪两条路径**：① 接线/加载时 0/200/1000ms 幂等补同步（图片预览是异步载入的）；② `onDrawForeground` 的 `_sfCEBWiredRatioSeen` 判定改为 **null 或变化都触发**同步（首次可读也可能是预览晚到，之前只看变化会漏掉第一次）。
+- 测试：lib 覆盖直接链 4:3 / 预览未就绪 null / 中间输出图节点无预览不猜 / 中间节点预览为准（非源图）/ 槽名不参与（端口定分量）；smoke 覆盖"未就绪不套用 → 预览就绪补同步 4:3（512×384 居中 y=64）→ 换图 16:9 跟随（512×288/y=112）→ 反序接线 16:9 不变 → 换竖图 9:16（512×910/y=-199）"。
+- ⚠ **分量只看目标端口（接入顺序），上游槽名一律不参与**（用户拍板"不需要分接入的是 w 还是 h，按接入顺序决定 crop 框 w/h"）：第一输入 aspect_w=宽、第二 aspect_h=高，无论上游输出叫 width/height/batch_size——宽高**反序接线与顺序接线结果完全一致**（不做反比）。演进史：初版按"上游槽名 == 目标端口轴"严格比对（反序判不可读 → 不刷新）→ 改按上游槽名认分量（反序取反比，第二语义、认知负担）→ 最终收口为端口定分量。lib/smoke 断言：分辨率预设 `960x544` 接任意槽名输出 → 960:544；图片链反序接线 16:9 不变、换竖图 1080×1920 → 9:16（512×910 y=-199）。
