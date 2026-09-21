@@ -1,4 +1,4 @@
-# 经验归档：平台机制（ComfyUI 前后端通用）（§1、§2、§106）
+# 经验归档：平台机制（ComfyUI 前后端通用）（§1、§2、§106、§121）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -270,3 +270,41 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **执行级验证（POST /prompt）**：构造轻量测试工作流（少量纯计算/文本节点，**不加载大模型**）POST `/prompt`，再轮询 `GET /history/{prompt_id}` 取结果——等价于"请用户 UI 添加节点跑一遍"的后端替代；队列与用户任务共用，注意不抢占 GPU/长时间占用。
 - **部署同步（重启须用户同意）**：宿主工作副本与容器挂载副本（当前 `/mnt/github/comfyui-docker/custom_nodes/sfnodes`，以实际挂载为准）是独立 git 副本，改动须显式同步后重启容器才在实机生效；**重启打断用户任务，先确认**。entrypoint 的 `.update` 机制会 `git reset --hard origin/HEAD` 清除部署副本全部未提交改动——手工同步不持久。
 - **浏览器禁令仍有效**：agent 浏览器/浏览器自动化访问用户 ComfyUI 页面会干扰用户 tab 与工作流；UI/DOM/Vue 渲染、画布交互、widget 行为无法经 API 验证，仍按 §9 分段 console 脚本交用户执行（节点由用户 UI 添加，新版前端无 graph.createNode）。
+
+---
+
+## 121. legacy（Classic）模式 widget 宽度冻结（前端 1.53.6 bug 内置规避，2026-09）
+
+> 背景：第三方包 [ComfyUI-LegacyWidgetWidthFix](https://github.com/pekkAi-dev/ComfyUI-LegacyWidgetWidthFix)（规避 Comfy-Org/ComfyUI_frontend#12443，上游 #11574 引入的回归；修复 PR #12444 截至 2026-09 仍未合并）。需求为不引入第三方包、在 sfnodes 内做等价处理 → `web/sf_widget_width_lib.js` + `web/sf_widget_width_fix.js`。
+
+### 1. 根因链（前端 1.53.6 打包产物实测）
+
+- Vue 的 `WidgetLegacy` 组件在 **Classic（LiteGraph）模式仍挂载**，其 `draw()` 每帧无条件执行 `widgetInstance.width = DOM容器getBoundingClientRect().width`。打包代码原文（`settingStore-*.js`，变量名压缩）：`s.y=0,s.width=e,n.value.height=(t+2)*RP,n.value.width=e*RP;`。
+- LiteGraph 渲染器消费宽度是**回退式**：`drawWidgets` 里 `let l=s.width||r`（`r=this.renderingSize[0]`）；`DomWidgets.vue` 是 `posWidget.width ?? posNode.width`。widget 出厂时 `width` 本是 **undefined**，所以回退生效；一旦被 Vue 写成数字，`node.size[0]` 就被永久忽略 → 拖节点/改宽后 widget 冻结在原宽度（溢出/悬空），移动节点也会触发。
+- 结论：**上游不修就必须阻止这个写入落到 widget 上**——清理一次没用（下一次 draw 又写回），必须换成受控访问器。
+
+### 2. 修复形态（`sf_widget_width_lib.js` 纯逻辑）
+
+- `guardWidgetWidth(widget, isVueNodes)`：幂等（`_sfWidgetWidthGuarded` 标记），把实例 `width` 换成 `Object.defineProperty` 访问器（`configurable/enumerable: true`，保留同构）——**Vue 模式读写透传；Classic 模式写入丢弃、读取 undefined**（回到出厂未定义态，让 `width || nodeWidth` 回退）。模式判断是 getter/setter 内**动态**执行，切渲染器无需重装。
+- `guardNodeWidgets` / `sweepGraphWidgets`：扫 `node.widgets`（DOM/custom widget 都在内）；图遍历兼容 `_nodes` 与 `nodes`、`graph.subgraphs`（Map）与节点 `.subgraph` 两形态，`Set` 去重防子图互引死循环。
+- `patchWidgetFactories(LGraphNode, isVueNodes)`：包装 `prototype.addWidget` + `prototype.addCustomWidget`（`addWidget` 内部委托 `addCustomWidget`，DOM widget 助手 `addWidget(node,widget)` 也走 `addCustomWidget`），之后创建的 widget 即时受控；`_sfWidgetWidthPatched` 防重复包装。
+- 探测回调异常时**保守透传**（不误丢合法写入）。
+
+### 3. 安装三路（`sf_widget_width_fix.js`，扩展名 `sfnodes.WidgetWidthFix`）
+
+1. 模块加载即 `install()` + `sweepAll()`：全局 `LiteGraph.LGraphNode` / `globalThis.LGraphNode` 包装 + 现有图扫描；
+2. `init()/setup()/afterConfigureGraph()` 再 install+sweep（图对象在 setup 后才就绪；加载工作流后补扫）；
+3. `nodeCreated()` / `loadedGraphNode()` 逐节点补扫，兜底不经过 addWidget 自建 widget 的扩展。
+
+无设置开关、始终生效：上游修好后写入只发生在 Vue 模式（守卫透传）→ 自动 no-op，可长期保留。跨扩展全局生效是刻意选择（bug 在前端渲染器层，范围限 sfnodes 会让混用工作流的其它包继续冻结）。
+
+### 4. 风险与边界
+
+- Classic 下若有扩展**故意**依赖数字 `widget.width`（自绘/命中计算）会读到 undefined；LiteGraph 核心与 vueNodes 核心消费点全是 `width || nodeWidth` / `?? nodeWidth`，正是目标回退。仓库内已 grep 无 `widget.width =` 用法。
+- 若同时装了第三方 LegacyWidgetWidthFix 包：双方各自幂等守卫，先装者生效，语义一致，无冲突。
+- 上游一旦合并 #12444/#15331，本模块无需改动（透传语义与上游修复方向一致），也可删除。
+
+### 5. 测试
+
+`tests/test_sf_widget_width_lib.mjs`（Node 直跑）：守卫读写语义（Classic 丢弃读 undefined / Vue 透传 / 动态切档保留值 / 属性可配置）/ 幂等 / 探测异常透传 / 节点扫描计数 / 全图遍历（`_nodes`·`nodes`·subgraph Map·节点 `.subgraph`·防环）/ 工厂包装（两条路径即时守卫、二次安装不叠包、空原型安全）。
+`tests/test_widget_width_fix_js.js`（.mjs 拷贝链真实加载主模块）：扩展注册名 / 模块加载即工厂包装 + 全图扫描（已有节点·subgraph·节点 `.subgraph`）/ 新 widget 即时受控 / Classic 写丢弃·Vue 透传 / init·setup 幂等不叠包 / nodeCreated·loadedGraphNode·afterConfigureGraph 三路补扫。

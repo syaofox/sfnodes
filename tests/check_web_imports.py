@@ -108,6 +108,8 @@ MODS = [
     "sf_points_bg_lib", "sf_points_bg",
     # SeC 数值上限补丁（前端 INT 缺 max 默认 2048 的规避）
     "sf_sec_limits",
+    # legacy widget 宽度冻结修复（包装 LGraphNode 工厂 + 全图守卫；纯逻辑 + 主模块）
+    "sf_widget_width_lib", "sf_widget_width_fix",
     # Convert Anything（combo→输出槽改型，复用 any_pack.setSlotType）
     "sf_convert_anything",
     # SimpleMath / SFNumber（number_type→输出槽改型，复用 any_pack.setSlotType）
