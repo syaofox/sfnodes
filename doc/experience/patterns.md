@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89、§116）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89、§116、§122）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -587,3 +587,36 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 - **排查提示**：该报错发生在 `execute()` 返回**之后**——先确认产物是否已生成，别急着怀疑合并/写盘逻辑。
 - **测试**：结构测试（INPUT_TYPES/常量）覆盖不到返回形态；须 mock `folder_paths` + `comfy_api.latest{InputImpl,Types,io,ui}` 实跑 `execute()`，断言返回对象带 `.result` 元组且 `.ui.as_dict()` 可用（`tests/test_video_concat.py` 第 4 节）。
 - **关联**：`nodes-video.md` §87.4（SFVideoConcat）。
+
+## 122. 手改工作流 JSON：前端槽位归一化与子图输入提升（2026-09）
+
+> 背景：给 `[scail2]SCAIL2_分段.json`（循环分段 + 子图）手工追加「跨段无缝」外锚时踩到两个前端机制坑——① 循环节点动态槽在 UI 保存后被前端归一化，手改时按旧形状追加重名槽；② 外锚输入在子图内部，需提升为子图输入。本节为手改 workflow JSON 的通用结论（前端 1.53.6 实测 + `comfyui_frontend_package` 打包源码核对）。
+
+### 1. 循环节点槽位：必须以「前端保存后的文件」为基线
+
+- 前端加载/保存会归一化动态槽（`recoverDynamicSide`，§89 / `web/loop_flow.js`）：`want = max(已连动态槽数 + 1, 初始 1)` —— 不足补齐（多一个备用槽）、尾部未接槽回收。
+- 实测（3 个状态槽的循环）：UI 保存后 `SFForLoopStart` 多出备用输出 `value4`、`SFForLoopEnd` 多出备用输入 `initial_value4`；`SFForLoopEnd` 未接的输出 `value3+` 被裁到 `[value1, value2]`。
+- 手改槽位前**按名查重/查备用槽**：已有备用槽就复用（接链接即可），没有才追加——否则写出同名槽（JSON 合法、静态检查也不报，前端加载后链接错位/槽序混乱）。
+- 规格：`SFForLoopStart` 输出 `flow/index/value1..19`（slot 0/1/2..），输入 `initial_value1..19`（前端按此序渲染，`total` widget 插在中间）；`SFForLoopEnd` 输出 `value1..19`。改完把 `last_node_id`/`last_link_id` 抬到最大值（前端据此分配新 id）。
+
+### 2. 子图实例 ↔ 子图定义：输入按索引映射
+
+- `definitions.subgraphs[].inputs` 数组顺序 = 实例节点 `inputs` 数组顺序，前端**按索引**恢复链接：`SubgraphNode.configure` 先用 `subgraph.inputNode.slots` 重建实例 inputs，再由 `LGraphNode.configure` 用 `info.inputs[i].link` 按索引挂链；排队展平时 `ExecutableNodeDTO.resolveInput` 对子图内部 `origin_id: -10` 的连线用 `origin_slot`（= 子图输入槽索引）回取实例输入槽上的外部链接。
+- 提升一个新输入的完整清单（缺一即断链/槽错位）：
+  1. `definitions.subgraphs[].inputs` 追加 `{id: uuid4, name, type, linkIds: [内部连线 id], localized_name, label?, pos}`；
+  2. 子图 `links` 追加 `{id, origin_id: -10, origin_slot: <子图输入槽索引>, target_id: <内层节点 id>, target_slot: <内层输入槽>, type}`；
+  3. 实例节点 `inputs` 追加同名同类型条目（保持与子图输入等长同序）；
+  4. `subgraph.state.lastLinkId` 抬到新内部连线 id 之上（前端 `mintLinkId` 用）。
+- 内层目标是 **widget 型输入**（如 INT `previous_frame_count`）时，入口自动成为实例上的 promoted widget（可接线；接线时 widget 值被忽略）：`_resolveInputWidget` 走 `subgraphInput.linkIds → 内层输入 → getWidgetFromSlot`。此时实例 `widgets_values`（位置数组）须按 promoted widget 输入顺序对齐（新项追加末尾）、`widgets_values_named` 同步加键；非 widget 型（如 IMAGE）是普通槽，槽的 shape 由 `getSlotShape` 取各 linkIds 内层目标 shape 的一致性。
+- 子图实例的 `outputs` 由子图 `outputs` 重建，未接的下游链接不会写回；`flow`/`rawLink` 类输入（循环 flow）不受影响。
+
+### 3. 验证（无 UI）
+
+- 写「子图展开 + `/object_info`」静态校验器：按上述索引规则展平成节点表，检查类注册 / required 输入 / 连线端点与槽位 / 类型（`*` 通配、combo 宽松）/ 静态环 / `SFForLoopEnd` 的 flow 来源与状态回喂可达性；**改前基线与改后都跑**做差分，比只跑改后更能发现回归。
+- 实机轻量验证（不加载大模型，§106）：`POST /prompt` 跑多槽循环累积、音频节点（core `LoadAudio` 提取 mp4 音轨 → `PreviewAudio`）等，`GET /history` 取结果后 `POST /history {"delete": [id]}` 清理测试记录。
+
+### 4. 案例：SCAIL2 外锚分段（关联 §87/§98）
+
+- 提升 `previous_frames`(IMAGE) / `previous_frame_count`(INT) 两输入即可把原生 `WanSCAILToVideo` 的外锚接进循环状态；**`video_frame_offset` 不必提升**——原生 `max(0, offset - 锚帧数)` 使传 0 时仍从段首起算。
+- 无缝三件套：`skip = 段序 × 步长`、`步长 = 每段帧数 - 重叠帧数`、输出用 `SFImageBatchRange` 丢弃头部重叠帧；尾部重叠帧作下一段锚帧（状态槽）。**每段帧数须 ≡ 1 (mod 4)**：否则解码帧数比输入少 1~3 帧，段输出比步长短 → 相邻段边界出现跳帧。
+- 重叠分段后**每段不能再挂音轨**（音轨与丢弃后的画面相差重叠帧数）：改由整段 `LoadAudio` 接到 `SFVideoConcat.audio` 合并时统一注入（§87.4）。
