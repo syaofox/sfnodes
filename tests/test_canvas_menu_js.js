@@ -3,7 +3,7 @@
 // - 全包唯一画布入口：有 getCanvasMenuItems 的扩展仅 sfnodes.CanvasMenu
 // - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/内存（便签节点保留，仅不占入口）
 // - 节点右键入口：getNodeMenuItems(node) 返回同一菜单（门槛与画布一致，任意节点可用）
-// - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（单层平铺 9 动作 + disabled 分组头）
+// - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（画布入口 6 动作，节点入口 +3 项 Mouse Node）
 // - 驱动 Align Width: Widest → 两节点同宽
 // - 驱动 Free VRAM → POST /free{unload_models,free_memory} + 成功 toast
 // - 驱动 Free RAM → POST /api/sfnodes/memory/ram + toast 含释放量
@@ -186,21 +186,32 @@ for (const n of MODS) {
     check("节点菜单 2 选中出现 SF Align/SF Node Color",
         !!byContent(nOpts, "SF Align") && !!byContent(nOpts, "SF Node Color…"));
     const flat = align ? align.submenu.options.map((o) => o.content) : [];
-    check("Align 单层平铺 9 动作",
-        ["Width: Widest", "Width: Narrowest", "Width: First Selected",
-            "Height: Tallest", "Height: Shortest", "Height: First Selected",
-            "Size: Widest & Tallest", "Size: Narrowest & Shortest", "Size: First Selected"]
-            .every((c) => flat.includes(c)));
+    check("Align 画布入口 6 动作且无 Mouse Node",
+        ["Width: Widest", "Width: Narrowest",
+            "Height: Tallest", "Height: Shortest",
+            "Size: Widest & Tallest", "Size: Narrowest & Shortest"]
+            .every((c) => flat.includes(c))
+        && flat.length === 9 && flat.every((c) => !String(c).includes("Mouse Node")));
     check("Align 无三级嵌套", align.submenu.options.every((o) => !o.submenu));
     check("分组头 Width/Height/Size 置灰不可点",
         ["Width", "Height", "Size"].every((c) => {
             const h = byContent(align.submenu.options, c);
             return h && h.disabled === true && typeof h.callback !== "function";
         }));
+    // 节点入口：node 作为 Mouse Node 基准传入，三项出现
+    const nAlign = byContent(menuExt.getNodeMenuItems(n2)[0].submenu.options, "SF Align");
+    const nodeFlat = nAlign ? nAlign.submenu.options.map((o) => o.content) : [];
+    check("Align 节点入口 9 动作（含 Mouse Node）",
+        ["Width: Mouse Node", "Height: Mouse Node", "Size: Mouse Node"]
+            .every((c) => nodeFlat.includes(c)) && nodeFlat.length === 12);
     // 驱动 Width: Widest：两节点同宽（取最宽 150）
     const widest = byContent(align.submenu.options, "Width: Widest");
     widest.callback();
     check("Widest 对齐同宽", n1.size[0] === 150 && n2.size[0] === 150);
+    // 驱动节点入口 Width: Mouse Node：以右键节点 n2（150）为基准，n1 从 300 回缩
+    n1.size[0] = 300;
+    byContent(nAlign.submenu.options, "Width: Mouse Node").callback();
+    check("Mouse Node 以基准节点为准", n1.size[0] === 150 && n2.size[0] === 150);
     globalThis.app.canvas.selected_nodes = [];
 
     // ── 驱动 Free VRAM ──

@@ -6,7 +6,8 @@
 // 双入口共用同一组装（buildSfMenuOptions）：getCanvasMenuItems（空白处右键）
 // 与 getNodeMenuItems(node)（节点右键，前端 GraphView 会收编进节点菜单；
 // 右键节点时前端已先行选中该节点，选中集构建器语义不变，见
-// experience/platform.md §123）。
+// experience/platform.md §123）。节点入口把 node 作为 Align 的 Mouse Node
+// 基准传入（空白右键无基准，该三项不注入，见 §124）。
 // 各动作实现仍在原特性文件（零逻辑复制），本文件只做组装：
 //   对齐 buildAlignMenuItems（sf_canvas_align.js）/ 节点任意色 buildNodeColorMenuItem
 //   （sf_node_color.js）/ 内存 buildMemoryMenuItem（sf_memory_menu.js）/
@@ -25,13 +26,13 @@ import { buildMemoryMenuItem } from "./sf_memory_menu.js";
 import { openWorkflowsPanel } from "./sf_workflows.js";
 import { openLoraBrowser } from "./sf_lora_browser.js";
 
-function buildSfMenuOptions() {
+function buildSfMenuOptions(refNode) {
     const options = [
         { content: "SF LoRA Browser", callback: openLoraBrowser },
         { content: "SF Workflows", callback: openWorkflowsPanel },
     ];
     // 对齐是多选操作：<2 节点不注入（sf_canvas_align 原守卫语义）。
-    const align = buildAlignMenuItems();
+    const align = buildAlignMenuItems(refNode);
     if (align.length) {
         options.push({
             content: "SF Align",
@@ -46,11 +47,11 @@ function buildSfMenuOptions() {
     return options;
 }
 
-function buildSfMenuItem() {
+function buildSfMenuItem(refNode) {
     return {
         content: "📦 SF Menu",
         has_submenu: true,
-        submenu: { options: buildSfMenuOptions() },
+        submenu: { options: buildSfMenuOptions(refNode) },
     };
 }
 
@@ -61,8 +62,8 @@ app.registerExtension({
         return [buildSfMenuItem()];
     },
 
-    // 节点右键：与画布入口同一菜单（node 参数不参与组装，任意节点可用）。
+    // 节点右键：同一菜单，node 兼作 Align 的 Mouse Node 基准（任意节点可用）。
     getNodeMenuItems(node) {
-        return [buildSfMenuItem()];
+        return [buildSfMenuItem(node)];
     },
 });

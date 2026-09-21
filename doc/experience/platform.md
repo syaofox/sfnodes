@@ -180,14 +180,14 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 ### 11. 画布多选尺寸对齐（做"画布背景右键多选操作"必知）
 
-> 背景：`SF Align` 画布多选尺寸对齐（2026-08，`web/sf_canvas_align*.js`）：系统右键已有对齐/分布，无统一尺寸；需求为选中 ≥2 节点后对齐宽度（Widest/Narrowest/First Selected）、高度（Tallest/Shortest/First Selected）与等大（Widest& Tallest / Narrowest&Shortest / First Selected 同时改两维）。
+> 背景：`SF Align` 画布多选尺寸对齐（2026-08，`web/sf_canvas_align*.js`）：系统右键已有对齐/分布，无统一尺寸；需求为选中 ≥2 节点后对齐宽度（Widest/Narrowest/Mouse Node）、高度（Tallest/Shortest/Mouse Node）与等大（Widest& Tallest / Narrowest&Shortest / Mouse Node 同时改两维）。原 `First Selected`（选中集首项）因点选顺序不可靠已删除，改为鼠标所在节点，见 §124。
 
 - **入口是 `getCanvasMenuItems`，不是 `getExtraMenuOptions`**：后者是节点右键（单节点），前者是画布背景右键；多选操作必须走画布菜单。`sf_workflows` / `sf_lora_browser` 同款入口，无需 monkey-patch `LGraphCanvas.prototype.getCanvasMenuOptions`（随前端版本易碎）。
 - **选中集四形态兼容**：`app.canvas.selected_nodes` 在不同 ComfyUI/前端版本为 `Object` / `Array` / `Map` / `Set` 四种之一；`Map values()` / `Set` 需 `[...sel.values()]` / `[...sel]`，`Object` 走 `Object.values`。为空时回退扫描 `graph._nodes` 上 `is_selected` / `flags.is_selected`（Vue 模式的框选标记）。**单选时不回退扫描**，避免把悬停误判为多选。`<2` 节点不注入菜单，保持右键纯净。
 - **菜单子菜单键名**：LiteGraph `ContextMenu` 认 `has_submenu: true` + `submenu: { options: [...] }`；ComfyUI 前端透传该结构，Classic/Vue 双兼容。仅改对象键名即可修复"子菜单不展开"，零逻辑风险。
 - **尺寸语义**：读 `size[0]/size[1]` 优先，回退 `computeSize()[0/1]`（节点新建时 size 可能未落盘）；写时 `Math.max(target, computeSize()[d])` 钳制到最小尺寸，避免缩到不可渲染；单维对齐保持另一维不变，等大 `alignNodesSize` 同时写两维（分别钳制）。`beforeChange/afterChange + setDirtyCanvas(true,true)` 保证撤销与重绘。
 - **纯逻辑边界**：`sf_canvas_align_lib.js` 无 `app` 依赖，六函数 `getSelectedNodes / calcTargetWidth / calcTargetHeight / alignNodesWidth / alignNodesHeight / alignNodesSize` 可拷 `.mjs` 直测；`sf_canvas_align.js` 仅做接线（`import {app} from "/scripts/app.js"`，满足 `check_web_imports.py` B2/B3）。
-- **菜单压平（2026-09）**：用户嫌 `SF Menu ▶ SF Align ▶ Width/Height/Size ▶ 动作` 四跳太深，`SF Align` 子菜单内改为单层平铺 12 行（3 个 `disabled` 分组头 + 9 动作，标签带组前缀 `Width:/Height:/Size:` 保唯一；分组头无 callback，点击无操作 fail-safe）。§15 的三级嵌套担忧随之消除。
+- **菜单压平（2026-09）**：用户嫌 `SF Menu ▶ SF Align ▶ Width/Height/Size ▶ 动作` 四跳太深，`SF Align` 子菜单内改为单层平铺（3 个 `disabled` 分组头 + 动作，标签带组前缀 `Width:/Height:/Size:` 保唯一；分组头无 callback，点击无操作 fail-safe）。§15 的三级嵌套担忧随之消除。动作数随入口变化：画布入口 6 项，节点入口另加 3 项 Mouse Node（§124）。
 
 ### 12. Vue 新版 LLink 字段差异与通用 combo 选择器（做"连接感知/选项同步"类功能必知）
 
@@ -322,3 +322,15 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **形态与门槛**：节点入口与画布入口返回同一 `{content:"📦 SF Menu", has_submenu:true, submenu:{options}}`；不按节点类型过滤（任意节点可用），门槛留在构建器侧（`buildAlignMenuItems` <2 返回 []、`buildNodeColorMenuItem` 无选中返回 null）。
 - **已知边界**：节点菜单路径不跑画布路径的 `contextMenu.*` 翻译（原样显示，无影响）；扩展项 append 在原生项之后、legacy 项之前。
 - **测试**：`tests/test_canvas_menu_js.js` 断言 `getNodeMenuItems` 存在、顶层同项、0/2 选中门槛与画布一致；不影响 `test_lora_browser_smoke.js` / `test_note_js.js` 的"已移交聚合器"回归（它们只查 `getCanvasMenuItems`）。
+
+---
+
+## 124. SF Align 基准改为鼠标所在节点（First Selected 退场，2026-09）
+
+> 背景：`SF Align` 的 `First Selected` 三项（§11）依赖选中集首项，实测点选顺序不确定（`selected_nodes` 四形态顺序语义不同：Array/Set/Map 为加入顺序，旧 Object 形态 `Object.values` 按键升序＝节点 id 序），用户改用「鼠标所在的节点」作基准。
+
+- **基准捕获时机是菜单构建时**，不是动作执行时：点击菜单项时鼠标已移到菜单上。节点入口 `getNodeMenuItems(node)` 的 node 参数即右键节点，聚合器把它透传给 `buildAlignMenuItems(refNode)`；动作闭包捕获 refNode。
+- **画布空白右键无基准**：三项 Mouse Node 不注入（画布入口 6 动作；节点入口 9 动作），避免死行。`calcTargetWidth/Height` 的 `"mouse"` 档在无 refNode 时返回 0（动作守卫 `if (!tw) return` 兜底）。
+- **多选保持的前端依据**：右键**已选中**节点不会清空选择——Classic `processSelect(node, e, true)` 命中 `else return`（force 且已选中，选中集不变）；Vue `handleNodeRightClick` 已选中时跳过重选。故流程为「Ctrl/Shift 多选 → 右键其中一个（基准）→ SF Align ▶ …: Mouse Node」；右键**未选中**节点会塌缩为单选（`<2` 不注入 SF Align，属预期）。
+- **纯逻辑**：`sf_canvas_align_lib.js` 的 `calcTargetWidth(nodes, mode, refNode)` / `calcTargetHeight(...)` 新增 `refNode` 形参（`"first"` 档删除）；`buildAlignMenuItems(refNode)` 签名扩展，聚合器 `buildSfMenuOptions(refNode)` / `buildSfMenuItem(refNode)` 贯通。
+- **测试**：`tests/test_canvas_align.mjs`（mouse 档取 refNode 尺寸 / 缺基准 0 / 集成锚点）、`tests/test_canvas_menu_js.js`（画布入口 6 动作无 Mouse Node、节点入口 9 动作、驱动 Width: Mouse Node 以右键节点为准）。

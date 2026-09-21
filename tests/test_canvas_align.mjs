@@ -32,8 +32,9 @@ function fakeNode(w, h, minW, minH) {
   const n3 = fakeNode(280, 90, 160);
   check("widest 三节点", L.calcTargetWidth([n1, n2, n3], "widest") === 320);
   check("narrowest 三节点", L.calcTargetWidth([n1, n2, n3], "narrowest") === 200);
-  check("first 取首位", L.calcTargetWidth([n1, n2, n3], "first") === 200);
-  check("first 单节点", L.calcTargetWidth([n2], "first") === 320);
+  check("mouse 取基准节点", L.calcTargetWidth([n1, n2, n3], "mouse", n3) === 280);
+  check("mouse 单节点", L.calcTargetWidth([n2], "mouse", n2) === 320);
+  check("mouse 缺基准 0", L.calcTargetWidth([n1, n2], "mouse") === 0);
   check("空数组 0", L.calcTargetWidth([], "widest") === 0);
   check("无 computeSize 回退 size", L.calcTargetWidth([{ size: [150, 80] }], "widest") === 150);
   check("默认 widest", L.calcTargetWidth([n1, n3]) === 280);
@@ -42,7 +43,8 @@ function fakeNode(w, h, minW, minH) {
   // ── calcTargetHeight ──
   check("tallest 三节点", L.calcTargetHeight([n1, n2, n3], "tallest") === 120);
   check("shortest 三节点", L.calcTargetHeight([n1, n2, n3], "shortest") === 90);
-  check("height first 首位", L.calcTargetHeight([n1, n2, n3], "first") === 100);
+  check("height mouse 基准", L.calcTargetHeight([n1, n2, n3], "mouse", n2) === 120);
+  check("height mouse 缺基准 0", L.calcTargetHeight([n1, n2], "mouse") === 0);
   check("height 空数组 0", L.calcTargetHeight([], "tallest") === 0);
   check("height 默认 tallest", L.calcTargetHeight([n1, n3]) === 100);
   check("height shortest 空 0", L.calcTargetHeight([], "shortest") === 0);
@@ -143,11 +145,11 @@ function fakeNode(w, h, minW, minH) {
 
   // ── 集成 ──
   {
-    const first = fakeNode(250, 100, 100);
     const other = fakeNode(300, 120, 100);
-    const tw = L.calcTargetWidth([first, other], "first");
-    L.alignNodesWidth([first, other], tw);
-    check("first 锚点后同宽 250", first.size[0] === 250 && other.size[0] === 250);
+    const ref = fakeNode(250, 100, 100);
+    const tw = L.calcTargetWidth([other, ref], "mouse", ref);
+    L.alignNodesWidth([other, ref], tw);
+    check("mouse 锚点后同宽 250", other.size[0] === 250 && ref.size[0] === 250);
   }
   {
     const a = fakeNode(200, 100, 160);
@@ -167,21 +169,21 @@ function fakeNode(w, h, minW, minH) {
     check("narrowest 钳制：b 缩到 200", b.size[0] === 200);
   }
   {
-    // height first 锚点
-    const a = fakeNode(200, 100, 100, 80);
-    const b = fakeNode(200, 150, 100, 80);
-    const th = L.calcTargetHeight([a, b], "first");
+    // height mouse 锚点
+    const a = fakeNode(200, 150, 100, 80);
+    const b = fakeNode(200, 100, 100, 80);
+    const th = L.calcTargetHeight([a, b], "mouse", b);
     L.alignNodesHeight([a, b], th);
-    check("height first 锚点 100", a.size[1] === 100 && b.size[1] === 100);
+    check("height mouse 锚点 100", a.size[1] === 100 && b.size[1] === 100);
   }
   {
-    // size 集成：first 同时对齐
-    const a = fakeNode(200, 100, 100, 100);
+    // size 集成：mouse 同时对齐
     const b = fakeNode(300, 150, 100, 100);
-    const tw = L.calcTargetWidth([a, b], "first");
-    const th = L.calcTargetHeight([a, b], "first");
-    L.alignNodesSize([a, b], tw, th);
-    check("size first 同步 200x100", a.size[0] === 200 && a.size[1] === 100 && b.size[0] === 200 && b.size[1] === 100);
+    const ref = fakeNode(200, 100, 100, 100);
+    const tw = L.calcTargetWidth([b, ref], "mouse", ref);
+    const th = L.calcTargetHeight([b, ref], "mouse", ref);
+    L.alignNodesSize([b, ref], tw, th);
+    check("size mouse 同步 200x100", ref.size[0] === 200 && ref.size[1] === 100 && b.size[0] === 200 && b.size[1] === 100);
   }
 
   if (failures.length) {

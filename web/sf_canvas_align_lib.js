@@ -62,9 +62,10 @@ function nodeWidth(n) {
     return 0;
 }
 
-export function calcTargetWidth(nodes, mode) {
+export function calcTargetWidth(nodes, mode, refNode) {
     if (!Array.isArray(nodes) || nodes.length === 0) return 0;
-    if (mode === "first") return nodeWidth(nodes[0]);
+    // "mouse"：基准 = 打开菜单时鼠标下的节点（菜单构建时捕获，调用方传入）
+    if (mode === "mouse") return nodeWidth(refNode);
     if (mode === "narrowest") {
         let min = Infinity;
         for (const n of nodes) {
@@ -94,9 +95,9 @@ function nodeHeight(n) {
     return 0;
 }
 
-export function calcTargetHeight(nodes, mode) {
+export function calcTargetHeight(nodes, mode, refNode) {
     if (!Array.isArray(nodes) || nodes.length === 0) return 0;
-    if (mode === "first") return nodeHeight(nodes[0]);
+    if (mode === "mouse") return nodeHeight(refNode);
     if (mode === "shortest") {
         let min = Infinity;
         for (const n of nodes) {
