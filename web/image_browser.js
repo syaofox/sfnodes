@@ -756,11 +756,27 @@ app.registerExtension({
 // widget 并触发其 callback——核心 image_upload 借此刷新预览。原生 LoadImage
 // 的 VALIDATE_INPUTS 带 image 参数，使后端 combo 列表校验被跳过（execution.py
 // validate_prompt 的 `x not in validate_function_inputs` 守卫），故 output 图片
-// 的 "xxx [output]" 注解值也可直接提交，无需污染原生下拉 options。
+// 的 "xxx [output]" 注解值也可直接提交。
+//
+// 注意：新前端（1.53+）的“缺失媒体”校验只认 combo 成员资格——原生 image
+// combo 仅列 input 根目录（LoadImage 用 os.listdir），子目录值会被误判
+// missing（红框 + "A required media input has no file selected."，见 §119）。
+// 因此值必须补进 options.values（核心上传流程 addToComboValues 同款不变量）。
+export function ensureNativeImageOption(node) {
+    const w = node?.widgets?.find(w => w.name === "image");
+    const value = w?.value;
+    if (typeof value !== "string" || !value.trim()) return false;
+    const values = w.options?.values;
+    if (!Array.isArray(values) || values.includes(value)) return false;
+    values.push(value);
+    return true;
+}
+
 export function applyNativeLoadImagePick(node, value) {
     const w = node?.widgets?.find(w => w.name === "image");
     if (!w || value == null) return false;
     w.value = value;
+    ensureNativeImageOption(node);
     if (typeof w.callback === "function") w.callback(value);
     node.setDirtyCanvas?.(true, true);
     return true;
@@ -832,6 +848,13 @@ app.registerExtension({
     nodeCreated(node) {
         if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
         if (isNativeBrowseEnabled()) addNativeBrowseButton(node);
+    },
+    // 工作流加载后补回 options（configure 恢复的 widget 值先于此钩子，
+    // loadedGraphNode 先于核心缺失媒体校验管线）——不受按钮设置门控：
+    // 粘贴/上传产生的子目录值同样受益。
+    loadedGraphNode(node) {
+        if (!NATIVE_LOAD_IMAGE_TYPES.includes(node?.comfyClass)) return;
+        if (ensureNativeImageOption(node)) node.setDirtyCanvas?.(true, true);
     },
 });
 

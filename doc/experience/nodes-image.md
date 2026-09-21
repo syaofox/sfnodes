@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -743,6 +743,8 @@
 
 ## 71. 官方原生 LoadImage/LoadImageMask 挂 Browse 按钮（复用 showImageBrowser 选择器模式，2026-09）
 
+> ⚠️ §71.2 的"无需污染 options"结论仅对**后端**成立（VALIDATE_INPUTS 跳过 combo 校验）：新前端 1.53+ 的客户端"缺失媒体"校验只认 combo 成员资格，子目录值会被误判红框，见 §119（2026-09）。
+
 > 背景：希望官方原生 Load Image 也拥有 SF Load Image Browser 的"浏览图片"能力，纯前端、不改 Python。
 
 ### 1. 复用与实现
@@ -1404,3 +1406,26 @@ slice_track_data(track_data, start=0, length=0)
   - 由此：**反接即反比**（§3.6 的"反序一致"作废）；`[LATENT,width,height]` 形态仍按槽名识别（槽位序号不参与）。
 - **回退**：一次"注入归一"尝试（前端 graphToPrompt 注入 `wire_aspect=[w,h]` 强制正接）与用户语义相反，已移除（未提交上线）。
 - **测试**：lib `wiredAspect`（分辨率预设反序 → 3:4、槽名不符 → null；图片链反序 → 600:800、batch_size → null）；smoke 图片链反接（1920×1080 → 512×910、换竖图 → 512×288）；后端 execute 接线值优先用例不变。
+
+## 119. 原生 LoadImage 子目录值被新前端误判“缺失媒体”（options 补齐修复，2026-09）
+
+> 背景：用户经 §71 的 Browse 按钮给原生 LoadImage 选了 `input/` 子目录图，图片预览正常、执行也读得到，但保存后重开工作流报 “A required media input has no file selected.” + 节点红框。§71.2 的后端结论（`VALIDATE_INPUTS` 跳过 combo 校验）依然成立——问题在**新前端的客户端校验**。
+
+### 1. 根因链（前端 1.53.6 实测）
+
+- 原生 `LoadImage.INPUT_TYPES` 的 image combo **只列 input 根目录**（`nodes.py` 用 `os.listdir` + `isfile`，非递归）：运行实例 `/object_info/LoadImage` 373 条全是根目录文件，input 下 646 个子目录文件一条没有。因此原生下拉本来就选不到子目录图，只有 Browse/粘贴/上传能产生子目录值。
+- 前端 `settingStore-*.js::scanNodeMediaCandidates`：对 input 媒体 combo（`image_upload` 且非 `[output]` 注解）判定 `isMissing = !resolveComboValues(widget).includes(value)`（`resolveComboValues` 即 `widget.options.values`）；**成员资格是唯一标准**，不查文件是否存在。output 注解值走 `verifyMediaCandidates` 资产核验，不在此列。
+- 触发时机：`loadGraphData` 里 `runMissingMediaPipeline` 在 `configure → loadedGraphNode → afterConfigureGraph → afterLoadGraph` 之后执行 → **工作流一加载就红框 + error catalog 报错**，与图片实际可读无关。
+- 核心自己的上传/粘贴流程用 `addToComboValues(m, formattedPath)` 把值补进 `options.values`，并同样会给 `pasted/` 子目录值与 `[input]` 注解值——即“值必须在 options 里”是前端现成的不变量，只是外部写入（我们的 pick）没遵守。
+
+### 2. 修复（纯前端，零后端改动）
+
+- `web/image_browser.js` 新增纯函数 `ensureNativeImageOption(node)`：值须为非空字符串、`options.values` 为数组且不含该值 → push（对齐 `addToComboValues` 语义；函数/对象形态的 options 不碰）。
+- 两条路径调用：① `applyNativeLoadImagePick` 写值后补齐（选图当场生效）；② 扩展 `sfnodes.native_load_image_browse` 增加 `loadedGraphNode(node)` 钩子（先于缺失媒体管线，见上时序），仅匹配 `LoadImage`/`LoadImageMask`，**不受** `sfnodes.LoadImage.BrowseButton.Enabled` 门控——关按钮后粘贴/上传产生的子目录值同样修好。
+- 副作用/取舍：该选中路径会作为额外一项出现在原生下拉末尾（仅当前值一条，非全量子目录）；文件改名/删除后残留到刷新为止。替代方案（原生 image combo 前端改递归列表 / 上游改校验）更侵入且不可控，不采纳。
+- ⚠ 兼容性：`options.values` 非数组（未来可能改函数/对象）时静默跳过——宁可不补也不改坏 widget。
+
+### 3. 测试
+
+- `tests/test_image_browser_js.js` 文本提取 `ensureNativeImageOption` 直跑：缺失补齐 / 已在列表不重复 / 空与空白值 / 非字符串 / 无 image widget / node 为空 / options 非数组不抛错；`applyNativeLoadImagePick` 断言 pick 同时补 options。
+- 实机验证：同步 `web/image_browser.js` 到挂载目录（无后端改动、不重启），浏览器硬刷新后重开该工作流，红框与报错应消失。

@@ -37,13 +37,14 @@ function extractFn(name) {
         `const NATIVE_BROWSE_BUTTON_NAME = ${JSON.stringify(btnNameMatch[1])};`,
         extractFn("getImageFolderFromValue"),
         extractFn("folderExists"),
+        extractFn("ensureNativeImageOption"),
         extractFn("applyNativeLoadImagePick"),
         extractFn("findNativeBrowseButton"),
-        "export { getImageFolderFromValue, folderExists, applyNativeLoadImagePick, findNativeBrowseButton };",
+        "export { getImageFolderFromValue, folderExists, ensureNativeImageOption, applyNativeLoadImagePick, findNativeBrowseButton };",
     ].join("\n\n");
     const modPath = path.join(tmpDir, "lib.mjs");
     fs.writeFileSync(modPath, mjs);
-    const { getImageFolderFromValue, folderExists, applyNativeLoadImagePick, findNativeBrowseButton } = await import(modPath);
+    const { getImageFolderFromValue, folderExists, ensureNativeImageOption, applyNativeLoadImagePick, findNativeBrowseButton } = await import(modPath);
 
     // ── getImageFolderFromValue ──
     check("空值 → input 根", (() => { const r = getImageFolderFromValue(""); return r.type === "input" && r.folder === ""; })());
@@ -69,6 +70,31 @@ function extractFn(name) {
     check("同名前缀目录不算（face vs faces）", !folderExists(items, "face"));
     check("空列表下子目录无效", !folderExists([], "faces"));
 
+    // ── ensureNativeImageOption（§119：补进原生 image combo 的 options）──
+    (() => {
+        const node = {
+            widgets: [{ name: "image", value: "faces/a.png", options: { values: ["a.png"] } }],
+        };
+        check("缺失值补进 options", ensureNativeImageOption(node) === true
+            && node.widgets[0].options.values.includes("faces/a.png"));
+        check("已在 options 不重复补", ensureNativeImageOption(node) === false
+            && node.widgets[0].options.values.filter((v) => v === "faces/a.png").length === 1);
+
+        const empty = { widgets: [{ name: "image", value: "  ", options: { values: [] } }] };
+        check("空/空白值不补", ensureNativeImageOption(empty) === false && empty.widgets[0].options.values.length === 0);
+
+        const nonString = { widgets: [{ name: "image", value: 3, options: { values: [] } }] };
+        check("非字符串值不补", ensureNativeImageOption(nonString) === false);
+
+        const noWidget = { widgets: [{ name: "channel", value: "a.png", options: { values: [] } }] };
+        check("无 image widget 返回 false", ensureNativeImageOption(noWidget) === false);
+
+        const noArray = { widgets: [{ name: "image", value: "faces/a.png" }] };
+        check("options/values 非数组返回 false 不抛错", ensureNativeImageOption(noArray) === false
+            && ensureNativeImageOption({ widgets: [{ name: "image", value: "faces/a.png", options: { values: () => [] } }] }) === false);
+        check("node 为 null 返回 false", ensureNativeImageOption(null) === false);
+    })();
+
     // ── applyNativeLoadImagePick ──
     (() => {
         const calls = [];
@@ -81,6 +107,13 @@ function extractFn(name) {
             && node.widgets[0].value === "out/a.png [output]");
         check("pick 触发 widget callback", calls.length === 1 && calls[0] === "out/a.png [output]");
         check("pick 触发 setDirtyCanvas", dirty.length === 1);
+
+        const withOptions = {
+            widgets: [{ name: "image", value: "a.png", options: { values: ["a.png"] } }],
+            setDirtyCanvas: () => {},
+        };
+        check("pick 同时补 options", applyNativeLoadImagePick(withOptions, "faces/a.png") === true
+            && withOptions.widgets[0].options.values.includes("faces/a.png"));
 
         const noCb = { widgets: [{ name: "image", value: "" }], setDirtyCanvas: () => {} };
         check("无 callback 不抛错且返回 true", applyNativeLoadImagePick(noCb, "x.png") === true);
