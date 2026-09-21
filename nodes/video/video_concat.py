@@ -75,5 +75,4 @@ class SFVideoConcat:
                 except OSError:
                     pass
 
-        preview = ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)])
-        return {"ui": preview, "result": (output_path,)}
+        return io.NodeOutput(output_path, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))

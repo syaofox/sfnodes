@@ -6,9 +6,12 @@
 #   - nodes/video/video_concat.py 节点结构：CATEGORY/RETURN_TYPES/RETURN_NAMES/
 #     FUNCTION/DESCRIPTION/OUTPUT_NODE、INPUT_TYPES 关键项与全部 tooltip
 #   - 根 __init__.py 注册键一致（SFVideoConcat 出现两次）
+#   - execute 返回形态（回归）：必须走 io.NodeOutput + ui.PreviewVideo，
+#     不能返回 {"ui": PreviewVideo, ...}（legacy 分支只收 dict，会 .keys() 报错）
 import importlib.util
 import os
 import sys
+import tempfile
 import types
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -80,6 +83,115 @@ for group in ("required", "optional"):
 with open(os.path.join(root, "__init__.py"), encoding="utf-8") as fh:
     root_src = fh.read()
 check("根注册 SFVideoConcat 双字典", root_src.count('"SFVideoConcat"') == 2)
+
+# ── 4. execute 返回形态（回归：PreviewVideo 不能塞 legacy ui）──
+# 注册 sfnodes 包结构使节点内 `from ...sf_utils.video_concat import ...` 可解析
+for _pkg, _rel in [("sfnodes", "."), ("sfnodes.nodes", "nodes"),
+                   ("sfnodes.nodes.video", "nodes/video"), ("sfnodes.sf_utils", "sf_utils")]:
+    _m = types.ModuleType(_pkg)
+    _m.__path__ = [os.path.join(root, _rel)]
+    sys.modules.setdefault(_pkg, _m)
+
+calls = {}
+
+
+class FakeVideoFromFile:
+    def __init__(self, path):
+        self.path = path
+
+
+class FakeVideoFromList:
+    def __init__(self, videos, complete_audio=None, codec=None):
+        calls["videos"] = [v.path for v in videos]
+        calls["complete_audio"] = complete_audio
+
+    def get_dimensions(self):
+        return (64, 64)
+
+    def save_to(self, path, format=None, codec=None):
+        calls["save_path"] = path
+        with open(path, "wb") as fh:
+            fh.write(b"fake")
+
+
+class FakeVideoContainer:
+    def __init__(self, fmt):
+        self.fmt = fmt
+
+    @staticmethod
+    def get_extension(fmt):
+        return {"mp4": "mp4", "mkv": "mkv", "webm": "webm"}[fmt]
+
+
+class FakeVideoCodec:
+    def __init__(self, name):
+        self.name = name
+
+
+class FakeNodeOutput:
+    def __init__(self, *args, ui=None):
+        self.args = args
+        self.ui = ui
+
+    @property
+    def result(self):
+        return self.args if self.args else None
+
+
+class FakeSavedResult:
+    def __init__(self, file, subfolder, folder_type):
+        self.file, self.subfolder, self.folder_type = file, subfolder, folder_type
+
+
+class FakePreviewVideo:
+    def __init__(self, saved):
+        self.saved = saved
+
+    def as_dict(self):
+        return {"images": [{"filename": s.file, "subfolder": s.subfolder} for s in self.saved],
+                "animated": (True,)}
+
+
+class FakeFolderType:
+    output = "output"
+    temp = "temp"
+
+
+_mock_api = types.ModuleType("comfy_api")
+_mock_api.__path__ = []
+_mock_latest = types.ModuleType("comfy_api.latest")
+_mock_latest.InputImpl = types.SimpleNamespace(VideoFromFile=FakeVideoFromFile,
+                                               VideoFromList=FakeVideoFromList)
+_mock_latest.Types = types.SimpleNamespace(VideoContainer=FakeVideoContainer, VideoCodec=FakeVideoCodec)
+_mock_latest.io = types.SimpleNamespace(NodeOutput=FakeNodeOutput, FolderType=FakeFolderType)
+_mock_latest.ui = types.SimpleNamespace(PreviewVideo=FakePreviewVideo, SavedResult=FakeSavedResult)
+sys.modules["comfy_api"] = _mock_api
+sys.modules["comfy_api.latest"] = _mock_latest
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    fake_fp = types.ModuleType("folder_paths")
+    fake_fp.get_output_directory = lambda: tmpdir
+    fake_fp.get_save_image_path = lambda prefix, out_dir, width, height: (tmpdir, "verify", 1, "Wan21_SCAIL2", None)
+    sys.modules["folder_paths"] = fake_fp
+
+    p1 = os.path.join(tmpdir, "seg_a.mp4")
+    p2 = os.path.join(tmpdir, "seg_b.mp4")
+    for path in (p1, p2):
+        with open(path, "wb") as fh:
+            fh.write(b"x")
+
+    # 真实工作流形态：SFBatchAnything 累加后的 (bool, [paths], bool, [paths])
+    res = SFVideoConcat().execute(segments=(True, [p1], True, [p2]),
+                                  filename_prefix="Wan21_SCAIL2/verify", format="mp4")
+    out_path = os.path.join(tmpdir, "verify_00001_.mp4")
+
+check("execute 返回 NodeOutput（非 legacy dict）", isinstance(res, FakeNodeOutput))
+check("execute result 为输出路径 tuple", getattr(res, "result", None) == (out_path,))
+check("execute ui 可 as_dict（PreviewVideo）",
+      isinstance(getattr(res, "ui", None), FakePreviewVideo) and bool(res.ui.as_dict().get("images")))
+check("VideoFromList 收到两段且 complete_audio=None",
+      calls.get("videos") == [p1, p2] and calls.get("complete_audio") is None)
+check("save_to 输出路径与 result 一致", calls.get("save_path") == out_path)
 
 print()
 if failures:

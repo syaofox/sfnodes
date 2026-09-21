@@ -1,4 +1,4 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89）
+# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89、§116）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -578,3 +578,12 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 - **测试**：`tests/test_loop_slots_recovery.mjs`（FakeNode 6 组：补齐/回收/全空裁剪/While `start=0`/与 installDynamicSlots 协同/连接事件仍有效）。
 - **踩坑**：测"连接后自动加槽"时须先把 `slot.link`/`slot.links` 置好再触发 `onConnectionsChange`（LiteGraph 时序是连线建立后才回调），否则 `allConnected=false` 不加槽，容易误判为代码 bug。
 - **关联**：`nodes-video.md` §87 的外部分段循环依赖 2 个状态槽，加载本恢复后才不丢链接。
+
+## 116. OUTPUT_NODE 预览返回：legacy `{"ui": ...}` 只收 dict，PreviewVideo 必须走 `io.NodeOutput`（2026-09）
+
+- **症状**：工作流执行到 SFVideoConcat 末尾报 `AttributeError: 'PreviewVideo' object has no attribute 'keys'`（容器 `execution.py` 的 `get_output_from_returns`），prompt 标红，但合并产物其实已正常落盘。
+- **根因**：legacy 返回 `{"ui": preview, "result": (...)}` 里 `preview` 是 `ui.PreviewVideo` 对象；执行器 legacy 分支只把 `r['ui']` 原样收进 `uis`，最后统一做 `uis[0].keys()`（容器 `execution.py:358-362`、`:421`）。只有 V3 `io.NodeOutput` 分支会调 `r.ui.as_dict()`（`:376-380`）。
+- **修复**：`return io.NodeOutput(result, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))`——核心 SaveVideo（`comfy_extras/nodes_video.py`）与 `nodes/video/save_video.py` 同款；`NodeOutput.result` 取 `args` 元组（`comfy_api/latest/_io.py::NodeOutput`），与 `RETURN_TYPES` 对齐。
+- **排查提示**：该报错发生在 `execute()` 返回**之后**——先确认产物是否已生成，别急着怀疑合并/写盘逻辑。
+- **测试**：结构测试（INPUT_TYPES/常量）覆盖不到返回形态；须 mock `folder_paths` + `comfy_api.latest{InputImpl,Types,io,ui}` 实跑 `execute()`，断言返回对象带 `.result` 元组且 `.ui.as_dict()` 可用（`tests/test_video_concat.py` 第 4 节）。
+- **关联**：`nodes-video.md` §87.4（SFVideoConcat）。

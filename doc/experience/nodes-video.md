@@ -245,6 +245,7 @@ SFForLoopEnd
 - **音频**：分段时各段不接 VHS 的 audio（否则每段音轨与段内容错位）；`SFVideoConcat.audio` 接整段 `VHS_LoadVideo.audio`（lazy AUDIO dict）统一注入，`VideoFromList` 的 `complete_audio` 自动截到视频长度（`len(images)/frame_rate × sample_rate`）。
 - **cleanup**：可选删除段文件（默认关，便于失败排查）。
 - 若合并文件在 output 目录，可通过 `LoadVideo` + `ConcatenateVideo` 继续做后处理（Video 对象为文件引用，仍不装帧）。
+- **预览返回**：`ui.PreviewVideo` 必须经 `io.NodeOutput(result, ui=...)` 返回；legacy `{"ui": ...}` 只接受 dict，否则执行器 `uis[0].keys()` 报错（详见 §116）。
 
 ### 87.5 已知开销与边界
 
