@@ -23,9 +23,10 @@ mask 输出 = 扩展区 ∪ 笔触（白=重绘，恒二值）：扩展区默认
 预览字段不进注入，改画笔颜色不重跑）——patterns §4 先例。
 
 可选接线宽高比（§118）：`aspect_w` / `aspect_h` 两个 INT 输入，两项都接且为
-正整数时，裁剪框优先保持该比例（宽度为准、高度自动并垂直居中）——前端接入
-即同步刷新裁剪框，后端 execute 用 `_apply_aspect_ratio` 同公式兜底（上游值
-前端读不到时输出仍守比例）。见 experience/nodes-image.md §118。
+正整数时，裁剪框优先保持该比例（宽度为准、高度自动并垂直居中）——接线数值
+原样当分子/分母：前端按接线来源的输出槽名（width/height）静态预读、反接即
+取反比（§118.3.7），后端 execute 用 `_apply_aspect_ratio` 同公式兜底；
+前端读不到时预览不约束，执行仍按接线原始数值修正输出。
 """
 
 import math
@@ -121,8 +122,9 @@ class SFImageCropExpandBrushMask:
         "Erase 只擦除笔触，扩展区默认保留（外绘掩码直接可用）。\n\n"
         "可选接线宽高比：aspect_w / aspect_h 两个 INT 输入（如接分辨率节点的宽高）。"
         "两项都接且为正整数时，裁剪框优先保持该比例——以宽度为准、高度自动并在"
-        "原中心垂直居中；接线期间面板比例预设只记住不生效（断开后恢复）。上游值"
-        "前端读不到时（动态值）预览不约束，但执行时后端仍按接线值修正输出。\n\n"
+        "原中心垂直居中；接线期间面板比例预设只记住不生效（断开后恢复）。接线数值"
+        "原样当分子/分母：把宽高反接即得到转置比例（如 200×300 的图反接后按 "
+        "300:200 约束）；读不到时（动态值）预览不约束，执行阶段后端按接线值修正输出。\n\n"
         "图片持久化到 input/sfnodes_crop/（复用 SFImageCrop 的上传路由），工作流"
         "保存/重载不丢图。输出 画布、遮罩、宽、高，以及 filename——源图在 input "
         "目录下的存储路径（可直连 LoadImage，未加载时为空串）。"
@@ -175,7 +177,8 @@ class SFImageCropExpandBrushMask:
         meta = _parse_state(SFCropExpandBrushMaskJson)
         x, y, w, h = _clamp_crop(meta)
         # 接线宽高比优先（§118）：两项都接且为正整数时修正 x/y/w/h
-        # （宽度为准、垂直居中，镜像前端 applyRatioToRect）
+        # （宽度为准、垂直居中，镜像前端 applyRatioToRect）；接线数值原样当
+        # 分子/分母——反接（height→aspect_w、width→aspect_h）即取反比（§118.3.7）
         x, y, w, h = _apply_aspect_ratio(x, y, w, h, aspect_w, aspect_h)
         # Ext 开关（默认 True=扩展区计入遮罩；前端面板切换，§113）
         include_ext = bool(meta.get("include_ext", True))

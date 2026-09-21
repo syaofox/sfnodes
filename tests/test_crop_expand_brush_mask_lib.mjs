@@ -230,21 +230,21 @@ function makeCanvas(w = 10, h = 10) {
     check("分辨率预设上游：4:3", approx(wa2.ratio, 4 / 3) && wa2.w === 1024 && wa2.h === 768);
     check("分辨率预设上游：裸 WxH", approx(L.wiredAspect(sizeNode("704x1408")).ratio, 704 / 1408));
     check("分辨率预设上游：畸形值 → ratio null", L.wiredAspect(sizeNode("bogus")).ratio === null);
-    // 上游槽名不参与判断：分量由目标端口定（第一输入=宽、第二=高）
-    check("分辨率预设上游：分量由端口定（槽名不参与）", approx(
-      L.wiredAspect(sizeNode("960x544 (16:9)", ["LATENT", "batch_size", "foo"])).ratio, 960 / 544));
+    // 槽名不是 width/height（如 LATENT/batch_size）→ 不可读（宁可不套也不猜）
+    check("分辨率预设上游：槽名不符 → ratio null", L.wiredAspect(
+      sizeNode("960x544 (16:9)", ["LATENT", "batch_size", "foo"])).ratio === null);
     // 槽位序号不固定（[LATENT, width, height] 形态：width=1/height=2）按槽名识别
     const shifted = sizeNode("960x544 (16:9)", ["LATENT", "width", "height"]);
     shifted.graph.links[31].origin_slot = 1;
     shifted.graph.links[32].origin_slot = 2;
-    check("分辨率预设上游：槽位序号不参与", approx(L.wiredAspect(shifted).ratio, 960 / 544));
-    // 反序接线：分量仍由端口定 → 结果与顺序接线一致（不做反比）
+    check("分辨率预设上游：槽位序号不参与（按槽名）", approx(L.wiredAspect(shifted).ratio, 960 / 544));
+    // 反序接线（height→aspect_w、width→aspect_h）：接线值优先 → 取反比（§118.3.7）
     const sizeRev = sizeNode("1024x768 (4:3)");
     sizeRev.graph.links[31].origin_slot = 1;
     sizeRev.graph.links[32].origin_slot = 0;
-    check("分辨率预设上游：反序接线与顺序一致", (() => {
+    check("分辨率预设上游：反序接线取反比（3:4）", (() => {
       const r = L.wiredAspect(sizeRev);
-      return approx(r.ratio, 4 / 3) && r.w === 1024 && r.h === 768;
+      return approx(r.ratio, 768 / 1024) && r.w === 768 && r.h === 1024;
     })());
     // 只有一项走分辨率预设时仍按半接/双接判定
     const partial = sizeNode("1024x1024 (1:1)");
@@ -297,16 +297,16 @@ function makeCanvas(w = 10, h = 10) {
       L.wiredAspect(imgChainNode(1920, 1080, { midHop: true })).ratio === null);
     check("图片链上游：中间节点预览为准（非源图）", approx(
       L.wiredAspect(imgChainNode(1920, 1080, { midHop: true, midPreview: [1024, 1024] })).ratio, 1));
-    // 上游槽名不参与：随便接哪个输出都按"端口 = 分量"取
+    // 上游槽名决定分量：batch_size 不是 width/height → 不可读（不再按端口猜）
     const oddSlot = imgChainNode(800, 600);
-    oddSlot.graph.links[32].origin_slot = 2;   // batch_size → aspect_h（仍按高取）
-    check("图片链上游：分量由端口定（槽名不参与）", approx(L.wiredAspect(oddSlot).ratio, 4 / 3));
-    // 反序接线（height→aspect_w、width→aspect_h）：分量仍由端口定 → 与顺序一致
+    oddSlot.graph.links[32].origin_slot = 2;   // batch_size → aspect_h
+    check("图片链上游：槽名不符（batch_size）→ ratio null", L.wiredAspect(oddSlot).ratio === null);
+    // 反序接线（height→aspect_w、width→aspect_h）：接线值优先 → 取反比
     const reversed = imgChainNode(800, 600);
     reversed.graph.links[31].origin_slot = 1;  // → aspect_w
     reversed.graph.links[32].origin_slot = 0;  // → aspect_h
     const rw = L.wiredAspect(reversed);
-    check("图片链上游：反序接线与顺序一致", approx(rw.ratio, 800 / 600) && rw.w === 800 && rw.h === 600);
+    check("图片链上游：反序接线取反比（600:800）", approx(rw.ratio, 600 / 800) && rw.w === 600 && rw.h === 800);
   }
   {
     const panelSt = { aspect_ratio: "16:9", custom_w: 1, custom_h: 1 };

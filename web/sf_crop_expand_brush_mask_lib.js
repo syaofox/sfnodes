@@ -154,21 +154,24 @@ function upstreamImageSize(up, maxDepth = 8) {
   return null;
 }
 
-// readWiredDim(node, inputName, axis) → number | null
-// 读一个接线端口的数值，分量由**目标端口（接入顺序）**决定：第一个输入
-// aspect_w = 宽、第二个 aspect_h = 高；上游输出槽名不参与判断——宽高反序
-// 接线与顺序接线结果一致（不做反比，用户拍板"按接入顺序决定 crop 框 w/h"）：
+// readWiredDim(node, inputName) → number | null
+// 读一个接线端口在执行时会拿到的那个数值（前端静态近似）：
 //   1. 上游唯一数值 widget（PrimitiveInt 等，readWiredInt）——值本身即可；
-//   2. 否则从上游可静态读取的尺寸源取目标端口对应分量：
-//      a. resolution combo 静态值（"1024x1024 (1:1)" / "1024x768"——
-//         SFCanvasSizePreset/EmptyLatentByAspectRatio 等分辨率预设）；
-//      b. 沿 IMAGE 输入回溯预览尺寸（LoadImage → GetImageSize 等取尺寸节点）。
-//      取不到尺寸源返回 null——宁可不套也不猜。
-function readWiredDim(node, inputName, axis) {
+//   2. 否则按**接线来源的输出槽名**从上游可静态读取的尺寸源取分量：
+//      "width" / "height" → 对应分量（resolution combo 静态值，或沿 IMAGE
+//      输入回溯预览尺寸，如 LoadImage → GetImageSize）；
+//      槽名不是 width/height（如 batch_size）或尺寸源不可读 → null。
+// 槽名决定分量 = 接线决定数值：反接（height→aspect_w、width→aspect_h）
+// 即取反比（§118.3.7，用户拍板"反接后要得到转置比例"）。取不到返回 null——
+// 宁可不套也不猜，执行期由后端按接线原始数值兜底。
+function readWiredDim(node, inputName) {
   const v = readWiredInt(node, inputName);
   if (v != null) return v;
   const li = linkedInput(node, inputName);
   if (!li) return null;
+  const sourceName = String(li.node?.outputs?.[li.slot]?.name || "").toLowerCase();
+  const axis = (sourceName === "width" || sourceName === "height") ? sourceName : null;
+  if (!axis) return null;
   const size = readResolutionWidgetSize(li.node) || upstreamImageSize(li.node);
   return size ? (axis === "width" ? size.w : size.h) : null;
 }
@@ -181,8 +184,8 @@ export function wiredAspect(node) {
   const hWired = isWired(node, RATIO_INPUTS[1]);
   if (!wWired && !hWired) return { wired: false, partial: false, ratio: null, w: null, h: null };
   if (wWired !== hWired) return { wired: false, partial: true, ratio: null, w: null, h: null };
-  const w = readWiredDim(node, RATIO_INPUTS[0], "width");
-  const h = readWiredDim(node, RATIO_INPUTS[1], "height");
+  const w = readWiredDim(node, RATIO_INPUTS[0]);
+  const h = readWiredDim(node, RATIO_INPUTS[1]);
   const ok = w != null && h != null && w > 0 && h > 0;
   return { wired: true, partial: false, ratio: ok ? w / h : null, w: ok ? w : null, h: ok ? h : null };
 }

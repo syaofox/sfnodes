@@ -474,20 +474,20 @@ const makeState = (patch = {}) => JSON.stringify({
     await sleep(10);
     check("图片链上游换图跟随（16:9 → 512×288）", state().crop_h === 288 && state().crop_y === 112);
 
-    // 反序接线（width→aspect_h、height→aspect_w）：分量仍由端口定 →
-    // 与顺序接线结果一致（第一个输入=宽、第二个=高，上游槽名不参与）
+    // 反序接线（height→aspect_w、width→aspect_h）：接线值优先 → 取反比
+    // （图片 1920×1080 反接后按 9:16 约束，§118.3.7）
     cutSize("aspect_h", 32);
     cutSize("aspect_w", 31);
     wireFromSize("aspect_h", 32, 0);  // width  → aspect_h
     wireFromSize("aspect_w", 31, 1);  // height → aspect_w
-    check("图片链上游反序接线与顺序一致（16:9 不变）", state().crop_h === 288
-      && state().crop_y === 112);
-    // 换竖图 1080×1920 验证端口取分量仍在工作（9:16）
+    check("图片链上游反序接线取反比（1920×1080 → 512×910）", state().crop_h === 910
+      && state().crop_y === -199);
+    // 换竖图 1080×1920 → 反接后按 16:9 约束（转置回横图）
     loadImg.imgs = [{ naturalWidth: 1080, naturalHeight: 1920 }];
     node.onDrawForeground(makeFullCtx([]));
     await sleep(10);
-    check("图片链上游换竖图跟随（9:16 → 512×910）", state().crop_h === 910
-      && state().crop_y === -199);
+    check("图片链上游换竖图反接（1080×1920 → 512×288）", state().crop_h === 288
+      && state().crop_y === 112);
 
     cutSize("aspect_h", 32);
     cutSize("aspect_w", 31);

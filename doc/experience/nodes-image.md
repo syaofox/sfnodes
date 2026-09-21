@@ -1380,11 +1380,13 @@ slice_track_data(track_data, start=0, length=0)
 ### 3.5 实测修复：分辨率预设上游读不到（2026-09）
 
 - **症状**：用户工作流把 `SFCanvasSizePreset` 的 `width`/`height` 接进 aspect_w/aspect_h，接入后裁剪框不动；workflow 里槽名已是 ZW（新 JS 已生效），但 `crop_h` 仍是源高——`readWiredInt` 只信任"唯一数值 widget"，分辨率预设是 combo（`1024x1024 (1:1)`）→ 返回 null，比例不可读。
-- **修法（静态预读，不改数据协议）**：`sf_canvas_size_lib.js` 出 `parseCanvasSizeLabel`（镜像后端 `_parse_resolution` 的 "WxH" 前缀解析，畸形值返回 **null 而非回退 1024**——宁可不套也不套错比例）与 `readResolutionWidgetSize`；组合 lib 的 `readWiredDim` 读取顺序 = 唯一数值 widget → 上游带 `resolution` combo 时按其静态值取分量（分量由目标端口定，见下条 ⚠）。上游输出槽名/槽序完全不参与，`[LATENT,width,height]` 形态（SDXLEmptyLatentSizePicker/EmptyLatentByAspectRatio）随便接哪路都按端口取。
+- **修法（静态预读，不改数据协议）**：`sf_canvas_size_lib.js` 出 `parseCanvasSizeLabel`（镜像后端 `_parse_resolution` 的 "WxH" 前缀解析，畸形值返回 **null 而非回退 1024**——宁可不套也不套错比例）与 `readResolutionWidgetSize`；组合 lib 的 `readWiredDim` 读取顺序 = 唯一数值 widget → 上游带 `resolution` combo 时按其静态值取分量（分量由目标端口定，见下条 ⚠）。上游输出槽名/槽序完全不参与，`[LATENT,width,height]` 形态（SDXLEmptyLatentSizePicker/EmptyLatentByAspectRatio）随便接哪路都按端口取（该分量规则已被 §118.3.7 取代：改为按接线来源输出槽名取值，反接即反比）。
 - 由此 combo 切换也走既有"绘制比对下一拍同步"路径（`_sfCEBWiredRatioSeen` 用 `w:h` 串），换分辨率即时跟随；提示词等含 "1024x1024" 字样的 widget 不会误读（只认名为 `resolution` 的 widget）。
 - 测试：`test_canvas_size_lib.mjs` 补解析/读数；`test_crop_expand_brush_mask_lib.mjs` 拷贝清单加 `sf_canvas_size_lib.js`，覆盖 1:1 / 4:3 / 裸 WxH / 畸形 / 槽名与槽序不参与 / 反序与顺序一致；smoke 以 633×844 源 + `1024x1024 (1:1)` 上游复现用户场景（立即套用 633×633 居中 y=106 → 换 4:3 跟随 475/y=185 → 畸形值不套用）。⚠ smoke 拷贝清单同步加 `sf_canvas_size_lib.js`（组合 lib 新增相对导入）。
 
 ### 3.6 实测修复 2：LoadImage → GetImageSize 链（2026-09）
+
+> ⚠️ 本节"分量按目标端口定、反序与顺序一致"的语义已被 §118.3.7 取代（2026-09）——现按接线来源输出槽名取值，反接即反比。
 
 - **症状**：`LoadImage`（node 5）→ `GetImageSize`（node 6，输出 width/height）→ aspect_w/aspect_h；`GetImageSize` 无 widget、输出 INT 由运行时算，前端静态读取仍 null → 不刷新。
 - **修法（预览尺寸回溯）**：`readWiredDim` 的尺寸源回退之一（与 resolution combo 并列）= `upstreamImageSize`——沿上游已接线 **IMAGE** 输入回溯，读首个带预览尺寸的节点（`node.imgs[0].naturalWidth/Height`，LoadImage/解码/缩放类的画布预览；深度 8 + visited 防环）。
@@ -1392,3 +1394,13 @@ slice_track_data(track_data, start=0, length=0)
 - **异步就绪两条路径**：① 接线/加载时 0/200/1000ms 幂等补同步（图片预览是异步载入的）；② `onDrawForeground` 的 `_sfCEBWiredRatioSeen` 判定改为 **null 或变化都触发**同步（首次可读也可能是预览晚到，之前只看变化会漏掉第一次）。
 - 测试：lib 覆盖直接链 4:3 / 预览未就绪 null / 中间输出图节点无预览不猜 / 中间节点预览为准（非源图）/ 槽名不参与（端口定分量）；smoke 覆盖"未就绪不套用 → 预览就绪补同步 4:3（512×384 居中 y=64）→ 换图 16:9 跟随（512×288/y=112）→ 反序接线 16:9 不变 → 换竖图 9:16（512×910/y=-199）"。
 - ⚠ **分量只看目标端口（接入顺序），上游槽名一律不参与**（用户拍板"不需要分接入的是 w 还是 h，按接入顺序决定 crop 框 w/h"）：第一输入 aspect_w=宽、第二 aspect_h=高，无论上游输出叫 width/height/batch_size——宽高**反序接线与顺序接线结果完全一致**（不做反比）。演进史：初版按"上游槽名 == 目标端口轴"严格比对（反序判不可读 → 不刷新）→ 改按上游槽名认分量（反序取反比，第二语义、认知负担）→ 最终收口为端口定分量。lib/smoke 断言：分辨率预设 `960x544` 接任意槽名输出 → 960:544；图片链反序接线 16:9 不变、换竖图 1080×1920 → 9:16（512×910 y=-199）。
+
+### 3.7 语义订正：接线值优先（反序取反比，2026-09）
+
+> ⚠️ 本节取代 §3.5/§3.6 的"分量按目标端口（接入顺序）定、上游槽名不参与、反序与顺序一致"结论。用户实际需求是**接线决定数值**：把 GetImageSize 的 height 接进 aspect_w、width 接进 aspect_h，就要得到转置比例（如源图 200×300 → crop 按 300:200 约束）。
+
+- **症状**：反接（height→aspect_w、width→aspect_h）时预览/输出仍按源图 w:h（或前后端结论相反），得不到转置比例。
+- **修法**：`readWiredDim` 的分量由**接线来源的输出槽名**决定——`link.origin_slot` 对应上游输出的 `name` 为 `width` / `height` 时分别取尺寸源的宽 / 高分量；槽名不符（如 `batch_size`）或尺寸源不可读 → null（宁可不套也不猜），执行期由后端按接线原始数值兜底。后端 `_apply_aspect_ratio` 一直就是"接线数值原样当分子/分母"，无需改动。
+  - 由此：**反接即反比**（§3.6 的"反序一致"作废）；`[LATENT,width,height]` 形态仍按槽名识别（槽位序号不参与）。
+- **回退**：一次"注入归一"尝试（前端 graphToPrompt 注入 `wire_aspect=[w,h]` 强制正接）与用户语义相反，已移除（未提交上线）。
+- **测试**：lib `wiredAspect`（分辨率预设反序 → 3:4、槽名不符 → null；图片链反序 → 600:800、batch_size → null）；smoke 图片链反接（1920×1080 → 512×910、换竖图 → 512×288）；后端 execute 接线值优先用例不变。
