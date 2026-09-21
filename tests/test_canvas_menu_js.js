@@ -2,6 +2,7 @@
 // 覆盖（.mjs 拷贝链真实加载，test_lora_browser_smoke.js 同款手法）：
 // - 全包唯一画布入口：有 getCanvasMenuItems 的扩展仅 sfnodes.CanvasMenu
 // - 顶层唯一项 "📦 SF Menu"（has_submenu）；子菜单含浏览器/工作流/内存（便签节点保留，仅不占入口）
+// - 节点右键入口：getNodeMenuItems(node) 返回同一菜单（门槛与画布一致，任意节点可用）
 // - 对齐门槛：0 选中无 SF Align；2 选中出现 SF Align（单层平铺 9 动作 + disabled 分组头）
 // - 驱动 Align Width: Widest → 两节点同宽
 // - 驱动 Free VRAM → POST /free{unload_models,free_memory} + 成功 toast
@@ -159,6 +160,19 @@ for (const n of MODS) {
     check("0 选中无 SF Node Color", !byContent(opts, "SF Node Color…"));
     check("画布菜单无 Add SF Note 入口", !byContent(opts, "Add SF Note"));
 
+    // ── 节点右键入口（getNodeMenuItems）──
+    check("聚合器提供节点菜单入口", typeof menuExt.getNodeMenuItems === "function");
+    const nodeItems = () => menuExt.getNodeMenuItems({ id: 1 });
+    let nItems = nodeItems();
+    check("节点右键同一顶层项 📦 SF Menu", nItems.length === 1
+        && nItems[0].content === "📦 SF Menu" && nItems[0].has_submenu === true);
+    let nOpts = nItems[0].submenu.options;
+    check("节点菜单 0 选中含浏览器/工作流/内存",
+        !!byContent(nOpts, "SF LoRA Browser") && !!byContent(nOpts, "SF Workflows")
+        && !!byContent(nOpts, "SF Memory"));
+    check("节点菜单 0 选中无 SF Align/SF Node Color",
+        !byContent(nOpts, "SF Align") && !byContent(nOpts, "SF Node Color…"));
+
     // ── 2 选中：对齐出现 ──
     const n1 = { size: [100, 60], pos: [0, 0], setDirtyCanvas() {} };
     const n2 = { size: [150, 80], pos: [0, 0], setDirtyCanvas() {} };
@@ -168,6 +182,9 @@ for (const n of MODS) {
     check("2 选中出现 SF Align", !!align && align.has_submenu === true);
     const nodeColor = byContent(opts, "SF Node Color…");
     check("2 选中出现 SF Node Color", !!nodeColor && typeof nodeColor.callback === "function");
+    nOpts = nodeItems()[0].submenu.options;
+    check("节点菜单 2 选中出现 SF Align/SF Node Color",
+        !!byContent(nOpts, "SF Align") && !!byContent(nOpts, "SF Node Color…"));
     const flat = align ? align.submenu.options.map((o) => o.content) : [];
     check("Align 单层平铺 9 动作",
         ["Width: Widest", "Width: Narrowest", "Width: First Selected",

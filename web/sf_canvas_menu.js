@@ -1,8 +1,12 @@
 // ==========================================================================
-// sf_canvas_menu.js — 本包画布背景右键聚合菜单（唯一顶层入口）
+// sf_canvas_menu.js — 本包聚合菜单（唯一顶层入口，画布背景右键 + 节点右键）
 //   📦 SF Menu ▶ SF LoRA Browser / SF Workflows /
 //                 SF Align ▶（≥2 选中节点时）/ SF Node Color…（≥1 选中节点时）/
 //                 SF Memory ▶
+// 双入口共用同一组装（buildSfMenuOptions）：getCanvasMenuItems（空白处右键）
+// 与 getNodeMenuItems(node)（节点右键，前端 GraphView 会收编进节点菜单；
+// 右键节点时前端已先行选中该节点，选中集构建器语义不变，见
+// experience/platform.md §123）。
 // 各动作实现仍在原特性文件（零逻辑复制），本文件只做组装：
 //   对齐 buildAlignMenuItems（sf_canvas_align.js）/ 节点任意色 buildNodeColorMenuItem
 //   （sf_node_color.js）/ 内存 buildMemoryMenuItem（sf_memory_menu.js）/
@@ -21,33 +25,44 @@ import { buildMemoryMenuItem } from "./sf_memory_menu.js";
 import { openWorkflowsPanel } from "./sf_workflows.js";
 import { openLoraBrowser } from "./sf_lora_browser.js";
 
+function buildSfMenuOptions() {
+    const options = [
+        { content: "SF LoRA Browser", callback: openLoraBrowser },
+        { content: "SF Workflows", callback: openWorkflowsPanel },
+    ];
+    // 对齐是多选操作：<2 节点不注入（sf_canvas_align 原守卫语义）。
+    const align = buildAlignMenuItems();
+    if (align.length) {
+        options.push({
+            content: "SF Align",
+            has_submenu: true,
+            submenu: { options: align },
+        });
+    }
+    // 任意节点颜色需 ≥1 选中节点（无选中返回 null，不注入）。
+    const nodeColor = buildNodeColorMenuItem();
+    if (nodeColor) options.push(nodeColor);
+    options.push(buildMemoryMenuItem());
+    return options;
+}
+
+function buildSfMenuItem() {
+    return {
+        content: "📦 SF Menu",
+        has_submenu: true,
+        submenu: { options: buildSfMenuOptions() },
+    };
+}
+
 app.registerExtension({
     name: "sfnodes.CanvasMenu",
 
     getCanvasMenuItems() {
-        const options = [
-            { content: "SF LoRA Browser", callback: openLoraBrowser },
-            { content: "SF Workflows", callback: openWorkflowsPanel },
-        ];
-        // 对齐是多选操作：<2 节点不注入（sf_canvas_align 原守卫语义）。
-        const align = buildAlignMenuItems();
-        if (align.length) {
-            options.push({
-                content: "SF Align",
-                has_submenu: true,
-                submenu: { options: align },
-            });
-        }
-        // 任意节点颜色需 ≥1 选中节点（无选中返回 null，不注入）。
-        const nodeColor = buildNodeColorMenuItem();
-        if (nodeColor) options.push(nodeColor);
-        options.push(buildMemoryMenuItem());
-        return [
-            {
-                content: "📦 SF Menu",
-                has_submenu: true,
-                submenu: { options },
-            },
-        ];
+        return [buildSfMenuItem()];
+    },
+
+    // 节点右键：与画布入口同一菜单（node 参数不参与组装，任意节点可用）。
+    getNodeMenuItems(node) {
+        return [buildSfMenuItem()];
     },
 });

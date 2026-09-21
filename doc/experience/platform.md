@@ -222,6 +222,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **聚合器只组装、零逻辑**：各特性删自己的 `getCanvasMenuItems`，改 export 动作（对齐 `buildAlignMenuItems` / 内存 `buildMemoryMenuItem` / 工作流 `openWorkflowsPanel` / 浏览器 `openLoraBrowser`），`commands`/热键/工具栏不动。export 必须用 `export function/const` 前缀式——`export {}` 花括号式会让 Function-eval 系测试（`test_note_js.js` 同款 strip 手法）报 SyntaxError。
 - **门槛语义保留在构建器侧**：对齐 `<2 节点返回 []`，聚合器仅当非空才包一层 `SF Align` 嵌套；Align 内为单层平铺（9 动作 + disabled 分组头，见 §11 压平备注）。
 - **测试**：`.mjs` 拷贝链真实加载（lora 冒烟同款）断言唯一入口 + 门槛 + 逐项驱动（便签落图/对齐同宽/VRAM 调 `/free`/RAM toast）；旧分散断言改为"已移交聚合器"回归（`ext.getCanvasMenuItems === undefined`）。
+- **节点右键入口（2026-09）**：聚合器同时注册 `getNodeMenuItems(node)` 返回同一 `📦 SF Menu`（组装抽为 `buildSfMenuOptions` 双钩子共用）；前端建节点菜单前已选中右键节点，选中集门槛语义不变。机制与实证见 §123。
 
 ### 16. 主题令牌层：sfnodes DOM UI 跟随 ComfyUI Color Palette（做"自定义弹层/面板适配明暗"必知）
 
@@ -241,7 +242,7 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **机制**：节点标题/节点体渲染直接读 `node.color` / `node.bgcolor`（`renderingColor`/`renderingBgColor` getter = `node.color || constructor.color || NODE_DEFAULT_COLOR`），且二者在序列化白名单内（`[...,color,bgcolor,...]`）→ **赋任意 hex 即生效并随工作流保存**，无需后端。`node.setColorOption({color,bgcolor})` 接受任意值（只是 `getColorOption()` 反查调色板会返回 null，原生选择器显示 No Color 属正常）；清除走 `setColorOption(null)` 等价原生「No Color」。
 - **取色 UI**：原生 `<input type="color">`（浏览器级取色器，仅 6 位 hex）+ hex 文本框（接受 `#RGB`/`#RRGGBB`/无 `#`，`normalizeHexColor` 归一）+ `localStorage` 最近色（机器私有）。撤销用 `graph.beforeChange()/afterChange()`（`sf_canvas_align` 先例），完成后 `canvas.setDirty(true,true)`。
 - **对比度限制（未处理）**：标题文字色取自 `constructor.title_text_color || canvas.node_title_color`（默认 `#999`，选中 `#FFF`，前端包全局行为），**不随 `node.color` 变** → 选浅色标题时文字可能偏淡。第三方 HouseKeeper 另按亮度自动切标题/正文黑白字；本包暂不做（改动最小、与原生调色板行为一致）。
-- **入口形态**：`📦 SF Menu ▶ SF Node Color…`（仅 ≥1 选中节点时注入，`buildNodeColorMenuItem` 无选中返回 null）。注意画布菜单只在**空白处**右键出现——右键节点得到的是 LiteGraph 节点菜单，故须先选中节点、再在空白处右键（用户确认的入口形态）。
+- **入口形态**：`📦 SF Menu ▶ SF Node Color…`（仅 ≥1 选中节点时注入，`buildNodeColorMenuItem` 无选中返回 null）。旧限制「画布菜单只在空白处右键出现、须先选中再空白右键」已被 §123 取代（2026-09 起节点右键也有 📦 SF Menu，且前端建菜单前已选中该节点）；原路径（先选中、空白处右键）依旧可用。
 - **测试**：`tests/test_node_color_lib.mjs`（纯逻辑：hex 归一/最近色 FIFO/apply/reset/read）+ `tests/test_node_color_js.js`（`.mjs` 拷贝链：菜单门槛/面板挂载/应用写色/撤销钩子/最近色持久化/清除/overlay 与 Esc 关闭）；`tests/test_canvas_menu_js.js` 增补菜单项门槛断言。
 
 ### 18. 节点运行时间显示（execution 事件计时 + Classic onDrawForeground / Vue node.badges 双路）
@@ -308,3 +309,16 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 
 `tests/test_sf_widget_width_lib.mjs`（Node 直跑）：守卫读写语义（Classic 丢弃读 undefined / Vue 透传 / 动态切档保留值 / 属性可配置）/ 幂等 / 探测异常透传 / 节点扫描计数 / 全图遍历（`_nodes`·`nodes`·subgraph Map·节点 `.subgraph`·防环）/ 工厂包装（两条路径即时守卫、二次安装不叠包、空原型安全）。
 `tests/test_widget_width_fix_js.js`（.mjs 拷贝链真实加载主模块）：扩展注册名 / 模块加载即工厂包装 + 全图扫描（已有节点·subgraph·节点 `.subgraph`）/ 新 widget 即时受控 / Classic 写丢弃·Vue 透传 / init·setup 幂等不叠包 / nodeCreated·loadedGraphNode·afterConfigureGraph 三路补扫。
+
+---
+
+## 123. SF Menu 节点右键入口（getNodeMenuItems 扩展钩子，2026-09）
+
+> 背景：📦 SF Menu（§15）原仅挂画布背景 `getCanvasMenuItems`，用户要求节点上右键也能弹出。实现：`web/sf_canvas_menu.js` 把组装抽为 `buildSfMenuOptions`，`getCanvasMenuItems` / `getNodeMenuItems(node)` 两钩子共用同一顶层项（零逻辑复制），`tests/test_canvas_menu_js.js` 锁定双入口一致。
+
+- **前端收编链（前端 1.53.6 打包产物实证）**：`GraphView-*.js` 包装 `LGraphCanvas.prototype.getNodeMenuOptions`——先取原生项，再 `collectNodeMenuItems(node)`（= `invokeExtensions("getNodeMenuItems", node).flat()`）append，最后 append legacy `getNodeMenuOptions` 项。Classic 由 `processContextMenu(node)` 走该函数，Vue 由 `canvas.getNodeMenuOptions(node)`（`useMoreOptionsMenu-*.js`）消费——双模式同一钩子，无需 monkey-patch。
+- **钩子返回值是菜单项数组**（同 `getCanvasMenuItems`，不是 `{title,options}` 对象）；`null` 项渲染为分隔线（`sf_outpaint.js` `[null, ...]` 先例）。本包早用者：`sf_lora_stack.js` / `sf_outpaint.js` 挂节点专属项，与聚合器全局项互不影响（都被 append 进同一数组）。
+- **右键即选中（选中集门槛语义不变的关键）**：Classic mousedown 的 `e.button===2` 分支先 `processSelect(node, e, true)` 再 `pointer.onClick ??= () => processContextMenu(node, e)`；Vue `handleNodeRightClick` 未选中时 `deselectAll + select(右键节点)`。故 SF Align（≥2）/ SF Node Color（≥1）在节点入口按同一门槛注入。
+- **形态与门槛**：节点入口与画布入口返回同一 `{content:"📦 SF Menu", has_submenu:true, submenu:{options}}`；不按节点类型过滤（任意节点可用），门槛留在构建器侧（`buildAlignMenuItems` <2 返回 []、`buildNodeColorMenuItem` 无选中返回 null）。
+- **已知边界**：节点菜单路径不跑画布路径的 `contextMenu.*` 翻译（原样显示，无影响）；扩展项 append 在原生项之后、legacy 项之前。
+- **测试**：`tests/test_canvas_menu_js.js` 断言 `getNodeMenuItems` 存在、顶层同项、0/2 选中门槛与画布一致；不影响 `test_lora_browser_smoke.js` / `test_note_js.js` 的"已移交聚合器"回归（它们只查 `getCanvasMenuItems`）。
