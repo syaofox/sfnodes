@@ -10,6 +10,8 @@
 路径解析（兼容 VHS_FILENAMES 的 `(bool, [paths])`、SF Batch Anything 累加
 后的 list/tuple 混合结构、跳过 PNG 与 -audio 中间文件）在纯逻辑
 `sf_utils/video_concat.py::collect_segment_paths`（无依赖，可直测）。
+cleanup 可选删除选中段与被 `-audio` 终版覆盖的中间视频，
+`cleanup_metadata` 再删除与段同 stem 的首帧元数据 PNG（两者默认关）。
 """
 
 import os
@@ -28,7 +30,8 @@ class SFVideoConcat:
             },
             "optional": {
                 "audio": ("AUDIO", {"tooltip": "可选完整音轨（如 VHS_LoadVideo 的音频输出）；分段时各段不带音轨，由这里统一注入，音轨长度过长时自动截到视频长度"}),
-                "cleanup": ("BOOLEAN", {"default": False, "tooltip": "合并成功后删除各段文件（不可恢复，默认保留）"}),
+                "cleanup": ("BOOLEAN", {"default": False, "tooltip": "合并成功后删除各段视频与被 -audio 终版覆盖的中间视频（不可恢复，默认保留）"}),
+                "cleanup_metadata": ("BOOLEAN", {"default": False, "tooltip": "配合 cleanup：同时删除各段首帧元数据 PNG（VHS 工作流/prompt 元数据的载体，删后不可恢复；默认保留）"}),
             },
         }
 
@@ -36,14 +39,14 @@ class SFVideoConcat:
     RETURN_NAMES = ("video_path",)
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "把分段落盘的多段视频按顺序自动合并为一个文件（核心 Video API remux，不重编码），可选注入整段音轨并在合并后清理段文件"
+    DESCRIPTION = "把分段落盘的多段视频按顺序自动合并为一个文件（核心 Video API remux，不重编码），可选注入整段音轨并在合并后清理段文件（可选连首帧 PNG 一并删除）"
     OUTPUT_NODE = True
 
-    def execute(self, segments, filename_prefix="Wan21_SCAIL2/final", format="mp4", audio=None, cleanup=False):
+    def execute(self, segments, filename_prefix="Wan21_SCAIL2/final", format="mp4", audio=None, cleanup=False, cleanup_metadata=False):
         import folder_paths
         from comfy_api.latest import InputImpl, Types, io, ui
 
-        from ...sf_utils.video_concat import collect_segment_paths
+        from ...sf_utils.video_concat import collect_discarded_paths, collect_metadata_paths, collect_segment_paths
 
         paths = collect_segment_paths(segments)
         if not paths:
@@ -69,7 +72,10 @@ class SFVideoConcat:
         merged.save_to(output_path, format=Types.VideoContainer(format), codec=Types.VideoCodec("auto"))
 
         if cleanup:
-            for path in paths:
+            targets = list(paths) + collect_discarded_paths(segments)
+            if cleanup_metadata:
+                targets += collect_metadata_paths(segments)
+            for path in dict.fromkeys(targets):
                 try:
                     os.remove(path)
                 except OSError:

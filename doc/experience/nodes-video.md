@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -243,7 +243,7 @@ SFForLoopEnd
 - **输入解析** `collect_segment_paths`：递归（深度≤8）提取字符串路径，保序去重；跳过 `.png`（VHS 首帧元数据）与被 `X-audio.mp4` 终版覆盖的 `X.mp4` 中间文件（VHS `output_files` 结构：`[png, mid.mp4, final-audio.mp4]`，`VHS_KeepIntermediate=False` 会删中间文件，故只保留终版）。
 - **合并**：`InputImpl.VideoFromFile(路径)` 逐段引用（`get_stream_source` 直接返回路径，零拷贝）→ `InputImpl.VideoFromList(videos, complete_audio=audio, codec=Types.VideoCodec("auto"))` → `save_to(output_path, format=Types.VideoContainer(format))`。各段与目标容器/编码签名一致时**纯 remux 不重编码**（`save_to` 内 `reuse_streams` 判定）；命名复用 `folder_paths.get_save_image_path`（`_00001_.mp4` 计数不覆盖）。
 - **音频**：分段时各段不接 VHS 的 audio（否则每段音轨与段内容错位）；`SFVideoConcat.audio` 接整段 `VHS_LoadVideo.audio`（lazy AUDIO dict）统一注入，`VideoFromList` 的 `complete_audio` 自动截到视频长度（`len(images)/frame_rate × sample_rate`）。
-- **cleanup**：可选删除段文件（默认关，便于失败排查）。
+- **cleanup**：可选删除选中段与被 `-audio` 终版覆盖的中间视频（默认关，便于失败排查）；`cleanup_metadata` 再删与段同 stem 的首帧元数据 PNG（默认关）。语义扩展与实现见 §117。
 - 若合并文件在 output 目录，可通过 `LoadVideo` + `ConcatenateVideo` 继续做后处理（Video 对象为文件引用，仍不装帧）。
 - **预览返回**：`ui.PreviewVideo` 必须经 `io.NodeOutput(result, ui=...)` 返回；legacy `{"ui": ...}` 只接受 dict，否则执行器 `uis[0].keys()` 报错（详见 §116）。
 
@@ -357,3 +357,25 @@ SFForLoopEnd
 
 - numpy 代理 stub `torch`（仅 `mean/clamp/cat` 三个模块级函数）+ stub `nodes`/`comfy.model_base`/`comfy_extras.nodes_wan`（Fake execute 记录调用参数与输出、`.result` 解包路径）；注意手动注入 `sys.modules` 的子模块要同时设父包属性（`comfy.model_base = model_base`），否则节点内 `import comfy.model_base` 抛 AttributeError 被 `_is_wan_model` 的 except 吞成「判定为 Wan」。
 - 覆盖：`placeholder_start` 结构识别（单/多帧、全条件/全占位/非后段连续/无 mask/短序列）、逐通道保均值与结构放大、跨通道复现档、clamp 后均值回正与关闭保护漂移、`latent_clamp=0`、多帧基准=最后条件帧、不改原张量、conditioning 同张量去重与 dict 拷贝语义、execute 委托参数透传/amp=1/无 start_image/非 Wan 直通/GGUFModelPatcher（`.model=WAN21`）识别、结构元数据与根注册键。
+
+## 117. SFVideoConcat cleanup 扩展：中间视频与首帧 PNG 的清理范围（2026-09）
+
+> 承接 §87.4。原 `cleanup` 只删 `collect_segment_paths` 选中的段（有 `-audio.mp4` 时即终版），被终版覆盖的无音轨中间 `X.mp4` 与 VHS 首帧元数据 `X.png` 不会被删，长任务磁盘回收不彻底。
+
+### 117.1 行为
+
+- `cleanup`（默认关）语义扩展：合并成功后删除 **选中段 + 被 `-audio` 终版覆盖的中间视频**（两集合互补）。
+- 新增 `cleanup_metadata`（BOOLEAN，默认关）：配合 `cleanup`，再删除**与段视频同 stem（`-audio` 剥离后）的首帧元数据 PNG**；PNG 是 VHS 保存工作流/prompt 元数据的载体，删后不可恢复，故单独开关。
+- 删除仍只在 `merged.save_to` 成功之后执行，`os.remove` 失败静默跳过；合并失败不删任何文件。
+
+### 117.2 实现
+
+- `sf_utils/video_concat.py`（纯逻辑，可直测）：
+  - `collect_discarded_paths(value)`：复用 `_walk`/`_is_video_path`/`_audio_override_name`，返回被 `-audio` 终版覆盖的中间视频（保序去重）。
+  - `collect_metadata_paths(value)`：`_base_video_name` 把 `X-audio.mp4` 还原为 `X.mp4`，只收集 stem 与视频候选一致的 `.png`（避免误删结构里无关 PNG）。
+- `nodes/video/video_concat.py`：cleanup 分支删 `dict.fromkeys(paths + collect_discarded_paths(segments) [+ collect_metadata_paths(segments)])`。
+
+### 117.3 测试与边界
+
+- `tests/test_video_concat.py`：1b 节纯逻辑（有/无 `-audio`、混合结构、大小写、无关 PNG 排除）+ 第 5 节 execute 级三场景（默认全保留 / `cleanup=True` 删段+中间且留 PNG / 加 `cleanup_metadata=True` 连 PNG 删）。
+- 边界：PNG 只在 stem 匹配时删；`VHS_KeepIntermediate=False`（VHS 前端设置）时中间视频不存在，`collect_discarded_paths` 自然返回空；`cleanup` 仍受 §87.4 的缓存重跑风险约束（已删文件被上游缓存引用时合并报“段文件不存在”）。
