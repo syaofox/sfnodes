@@ -86,6 +86,7 @@ from .nodes.image.rfmsr_upscale import SFRFMSRUpscale
 from .nodes.image.vosr2_upscale import SFVOSR2Upscale
 from .nodes.model.vosr2_loader import SFVOSR2ModelLoader
 from .nodes.model.vosr2_settings import SFVOSR2Settings
+from .nodes.model.te_speed_qwen import SFTESpeedQwenImage21
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
     AddCLIPSDXLParams,
@@ -341,6 +342,8 @@ NODE_CLASS_MAPPINGS = {
     "SFVOSR2Settings": SFVOSR2Settings,
     "SFVOSR2Upscale": SFVOSR2Upscale,
     "SFVOSR2Video": SFVOSR2Video,
+    # Qwen Image 2.1 采样加速（复刻 TE-Speed-QwenImage21）
+    "SFTESpeedQwenImage21": SFTESpeedQwenImage21,
     # 显示节点
     "SFDisplayAny": DisplayAny,
     "SFRemoveLatentMask": RemoveLatentMask,
@@ -583,6 +586,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFVOSR2Settings": "SF VOSR2 Settings",
     "SFVOSR2Upscale": "SF VOSR2 Upscale",
     "SFVOSR2Video": "SF VOSR2 Video Frames",
+    # Qwen Image 2.1 采样加速（复刻 TE-Speed-QwenImage21）
+    "SFTESpeedQwenImage21": "SF TE-Speed Qwen Image 2.1",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
     "SFRemoveLatentMask": "SF Remove Latent Mask",

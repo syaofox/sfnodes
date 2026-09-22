@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129、§132）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129、§132、§133）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -1528,4 +1528,43 @@ slice_track_data(track_data, start=0, length=0)
 - `tests/test_vosr2_size_js.js`（扩展注册 + 四模式映射 + 切换重放 + 无关节点/缺 widget 安全退出 + 无变化不刷新）。
 - `tools/vosr2_selftest.py` 补端到端三例：浮点 1.5×、总像素 0.02MP（145×145 非 16 倍数，走 pad 路径）、缩小 0.5×。
 
+## 133. SFTESpeedQwenImage21：TE-Speed-QwenImage21 干净室复刻（pyd 逆向 + 逐步输出预测）
 
+> 背景：复刻 `tl2012tl/TE-Speed-QwenImage21 v1.0`（2026-09）——仓库只发 Windows Cython `nodes.pyd`（由 `nodes.py` 编译的诊断版）+ `__init__.py` + README，无明文源码，也无同族明文 backend（不同于 §129 VOSR2）。全程靠 PE 逆向：解析导出表/`.rdata` 字符串表（302 条），按 `__Pyx_StringTabEntry` 反查 module state 槽位、常量池（双精度：0.06/0.08/0.18/0.86/1e-6/0.018 + 小整数 0/1/2/4/64/-1）、`PyMethodDef` 表定位全部函数入口，再 `objdump` 逐函数反汇编（Cython 3.1.2 直译，`PyObject_*` 调用序列可读）。落地产物 `sf_utils/te_speed_qwen.py`（纯逻辑）+ `nodes/model/te_speed_qwen.py`（节点）+ `tests/test_te_speed_qwen.py`。
+
+### 1. 原版节点接口（反汇编出的默认值，常量池已证实）
+
+- 类 `TESpeedQwenImage21`，display `TE-Speed Qwen Image 2.1`，category `TE-Speed/Qwen Image 2.1`，`FUNCTION=patch`，输出 `("MODEL","STRING")`/`("model","status")`。
+- 输入：`model`；`attention` = `[kitchen_int8, default, sdpa, sageattn, flashattn]`（默认 kitchen_int8）；`step_cache` = `[te_predictor]`（单值占位）；`reuse_threshold` 0.06（0~3）；`start_percent`/`end_percent` 0.0（**0 = auto → 内部 profile 0.18/0.86**）；`predictor_error_limit` 0.08（0.01~1）；`verbose` True。
+- 内部 profile 常量（反汇编常量池）：`max_consecutive=1`、`refresh_interval=4`、`signature_stride=64`、超限冷却 `2` 步、外推因子钳 `[-1, 2]`、质量衰减下限 `0.25`、相对量 eps `1e-6`；`_PREDICTOR_PROFILE = (0.018, 1, 0.18, 0.86)`——0.018 除参与该元组外全模块无引用，按 patch 里 4 处「widget > 0 否则取 profile 值」的写法推断为 **reuse_threshold 的兜底值**（widget<=0 时生效），1/0.18/0.86 分别是 max_consecutive/窗口起止。
+
+### 2. 机制（复刻后语义一致）
+
+- 仅 `_is_qwen_image21`（扩散模型类名含 `QwenImage21`）生效，否则原样透传并给出 status。
+- 把 predictor 挂到 `model.model_options["transformer_options"]["te_speed_qwen_predictor_cache"]`，注册两个 wrapper：`WrappersMP.OUTER_SAMPLE`（`begin(sigmas)` 复位 + 结束打印命中/误差统计；原版从 `executor.class_obj.model_options` 取 cache）+ `WrappersMP.DIFFUSION_MODEL`（逐步决策）。原版用 `comfy.patcher_extension.add_wrapper_with_key(..., is_model_options=True)`；**本包改进为 `ModelPatcher.add_wrapper_with_key`**（regional_lora 先例，clone 安全，由 `sampler_helpers.prepare_model_patcher` 并入 transformer_options，两条 wrapper 通道都通）。
+- attention 覆盖走核心 `transformer_options["optimized_attention_override"]`（与 `ModelPatcher.set_model_optimized_attention` 同契约：闭包 `override(original, *args, **kwargs)` + 异常回退 `original`，`container_function` 透传），后端函数直接复用 `comfy.ldm.modules.attention` 的 `attention_pytorch/attention_sage/attention_flash/attention_comfy_kitchen_int8` + 三个 `*_IS_AVAILABLE`，**不新增依赖**。
+- 逐步算法（`TEPredictor`）：按 `transformer_options["uuids"]` 逐分支 state；`branches = x.shape[0] // len(uuids)`，第 i 个 uuid 取 `x[i*branches:(i+1)*branches]`（ComfyUI `sampling_function` 的 chunk 顺序即「逐 uuid 的 cond/uncond 行」）；`signature = x.detach().reshape(-1)[::64].float()`（**必须转 fp32**：潜变量 bf16，量化误差会污染相对变化）；`relative_change = mean|Δsig| / clamp_min(mean|prev|, 1e-6)`。
+- 8 道闸门全过才跳过模型：窗口（`_active`：`step/total_steps ∈ [start,end]`，越界/等于 total 即出窗）、signature 历史、`previous/older_output` 齐备、shape 一致、`consecutive < 1`、`age < 4`、`prediction_cooldown <= 0`、`change <= threshold`。失败原因按顺序取第一个（原版 `decide` 的 checks 标签：outside_window / no_previous_input / history_incomplete / shape_changed / consecutive_limit / refresh_due / prediction_cooldown / latent_change）。
+- 预测：`prev + (prev - older) * clamp((t - prev_t)/(prev_t - older_t), -1, 2) * clamp(1 - err/limit, 0.25, 1)`；真实步顺带校准 `mean|pred-real| / clamp_min(mean|real|, 1e-6)`，超限置冷却 2（日志 `calibration: error=.. limit=.. cooldown=2`），冷却每真实步 -1。
+- 统计：`diffusion_calls/full_steps/predicted_steps/hits/prediction_errors(≤64)/decision_counts`，控制台打印 config/begin/decision/predicted %d/%d/error avg-max-samples。
+
+### 3. 复刻中的语义坑（逆向时才看清，改代码前必读）
+
+- **`total_steps = len(sigmas)`**（不是 len-1）；`_step_index` 首次调用即 `1.0`，同一 timestep 内**幂等**（`decide` 与 `predict_output` 各调一次，靠 `abs(last - t) < 1e-6` 去重）——所以第 1 个采样步 percent 就落在 `1/len(sigmas)` 上，窗口 [0.18,0.86] 会跳过首尾若干步。
+- **外推因子分母是带符号的** `prev_t - older_t`（`abs` 只用于 `<1e-6` 的退化守卫）：匀速调度下因子恰为 1（自然的一步延续）；若误用 `abs` 会把方向搞反（t 递减调度下预测往反方向外推）。
+- **pending 校准**是「本步预测 vs 本步真实输出」：wrapper 每步都调 `predict_output`（即使闸门失败），跳过的步用 `pending_prediction` 当输出；真实步先算预测再 `record_full` 比对（同一步，误差可信）。跳过步 `record_hit` **不更新真实输出历史**（只更新指纹/计数），避免二次外推误差累积。
+- 冷却的置值与递减在**同一** `record_full` 里（先置 2 再当步 -1），所以超限后下个真实步才归零，日志里看到的 `cooldown=2` 与状态里的 1 不是矛盾。
+- **`pending_prediction` 的时序为逆向推断**：原 pyd 中 `predict_output` 里 `state.pending_prediction = prediction` 与 wrapper 侧 `pending_prediction = None` 的先后在二进制里存在「本步 vs 下一步」歧义，且 `_active`/`predict_output` 都调用 `_step_index`（幂等去重）说明二者按同一步协作；本实现取**同一步**语义（每步都算预测，跳过的步直接用当输出，真实步用同一步预测校准，误差含义更强）。实机若发现命中率/误差与预期不符，优先核查此处。
+- bypass 条件：`x.ndim != 4`、`len(uuids) == 0`、`x.shape[0] % len(uuids) != 0`（非张量/批次不整除）→ 直接透传原模型并打印 bypass 日志；预测仅在 `WrappersMP.DIFFUSION_MODEL` 通道存在（核心 Qwen Image 2.1 forward 已用 `WrapperExecutor` 包了 `_forward`，见 `comfy/ldm/qwen_image21/model.py:300`）。
+
+### 4. 与需求确认的差异（刻意）
+
+- `attention` 默认 `default`（原版默认 kitchen_int8）——本包不默认改动注意力后端；其余 4 档照原样保留并按可用性回退（status 里给 `attention=<x> unavailable (default used)`）。
+- 去掉只有一个取值的 `step_cache` 占位下拉；保留第二输出 `status`（**配置摘要**，因为采样统计发生在 wrapper 里、节点 execute 时还没跑）。
+- 节点名按仓规：`SFTESpeedQwenImage21` / 显示名 `SF TE-Speed Qwen Image 2.1` / `sfnodes/model`。
+
+### 5. 测试与验证边界
+
+- `tests/test_te_speed_qwen.py`：numpy 版 FakeTensor + mock `WrappersMP`，覆盖常量/窗口 auto/指纹 stride/相对变化/step 幂等与窗口边界/8 闸门逐一/外推公式与因子钳制/质量衰减与下限/校准冷却/命中不写历史/非目标模型透传/attention 各档与回退/全流程 full→full→hit→full 的调用次数与统计/多分支/各类 bypass。
+- **本机无法实机验证**：无 Qwen Image 2.1 权重与 GPU，pyd 也只在 Windows 可加载 ⇒ 复刻是「行为等价 + 逆向依据」而非逐位一致；实机请以控制台统计（命中率/误差/加速比）与画质对照确认 `reuse_threshold`。
+- 定位同原版：不替代官方 Prefix KV Cache（`QwenImage21Cache`），也不建议把标准模型改极低步数——本节点保持原采样调度、只减少模型调用次数。
