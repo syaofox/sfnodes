@@ -10,7 +10,8 @@ def _parse_entry(s: str) -> tuple:
     else:
         dirname, filename = "", norm
     stem, ext = os.path.splitext(filename)
-    return dirname, filename, ext, stem
+    folder = dirname.rstrip("/").rsplit("/", 1)[-1] if dirname else ""
+    return dirname, filename, ext, stem, folder
 
 
 class SFParsePath:
@@ -25,13 +26,14 @@ class SFParsePath:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("path", "filename", "extension", "stem")
-    OUTPUT_IS_LIST = (True, True, True, True)
-    OUTPUT_TOOLTIPS = ("路径（不含文件名；纯文件名时为空字符串）", "文件名（含扩展名）", "扩展名（含点，如 .png；无扩展名为空）", "不含扩展名的文件名")
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("path", "filename", "extension", "stem", "parent_folder")
+    OUTPUT_IS_LIST = (True, True, True, True, True)
+    OUTPUT_TOOLTIPS = ("路径（不含文件名；纯文件名时为空字符串）", "文件名（含扩展名）", "扩展名（含点，如 .png；无扩展名为空）", "不含扩展名的文件名",
+                       "所在文件夹的名称（目录最后一级，如 /a/b/c.png → b；纯文件名时为空字符串）")
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
-    DESCRIPTION = "解析文件路径或文件名（自动识别全路径/纯文件名），输出路径、文件名、扩展名、不含扩展名的文件名；连接列表源时逐项解析输出列表"
+    DESCRIPTION = "解析文件路径或文件名（自动识别全路径/纯文件名），输出路径、文件名、扩展名、不含扩展名的文件名、所在文件夹名称；连接列表源时逐项解析输出列表"
 
     def execute(self, paths):
         return tuple([x] for x in _parse_entry(paths))
