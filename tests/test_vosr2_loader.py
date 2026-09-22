@@ -332,14 +332,14 @@ check("同形状合并分组", inferencer.VOSR2Inferencer._shape_groups(
 check("单张分组", inferencer.VOSR2Inferencer._shape_groups(_FakeBatch([(4, 4, 3)])) == [(0, 1)])
 
 inf = inferencer.VOSR2Inferencer(None)
-pbar = inf._make_progress(_FakeBatch([(512, 512, 3)]), upscale=4, tile_size=512,
-                          tile_overlap=32, settings=d, progress=True)
+pbar = inf._make_progress(_FakeBatch([(512, 512, 3)]), inferencer.TargetSizeSpec(mode="scale", scale=4),
+                          tile_size=512, tile_overlap=32, settings=d, progress=True)
 expected_tiles = inferencer.dit_tile_count(2048, 2048, 512, 32)
 check("进度总量 = 项数 × 瓦片数", pbar.total == expected_tiles and expected_tiles > 1)
-pbar_small = inf._make_progress(_FakeBatch([(64, 64, 3)]), upscale=1, tile_size=512,
-                                tile_overlap=32, settings=d, progress=True)
+pbar_small = inf._make_progress(_FakeBatch([(64, 64, 3)]), inferencer.TargetSizeSpec(mode="scale", scale=1),
+                                tile_size=512, tile_overlap=32, settings=d, progress=True)
 check("小图进度总量 = 项数", pbar_small.total == 1)
-check("关闭进度返回 None", inf._make_progress(_FakeBatch([(64, 64, 3)]), 1, 512, 32, d, False) is None)
+check("关闭进度返回 None", inf._make_progress(_FakeBatch([(64, 64, 3)]), inferencer.TargetSizeSpec(mode="scale", scale=1), 512, 32, d, False) is None)
 
 if failures:
     print(f"\n{len(failures)} 项失败: {failures}")

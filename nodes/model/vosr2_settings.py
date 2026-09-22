@@ -16,8 +16,70 @@ from .vosr2.settings import (
     VOSR2Settings,
     validate_settings,
 )
+from .vosr2.sizing import MAX_TARGET, MIN_TARGET, SIZE_MODES, TargetSizeSpec
 
 _CATEGORY = "sfnodes/model"
+
+
+def size_input_types():
+    """目标尺寸四模式的公共 widget 定义（SFVOSR2Upscale / SFVOSR2Video 共用，禁止内联副本）。"""
+    return {
+        "size_mode": (
+            list(SIZE_MODES),
+            {
+                "default": "scale",
+                "tooltip": (
+                    "目标尺寸模式：scale = 倍率（允许 <1 缩小）；total pixels = 目标总像素"
+                    "（百万像素，1.00 = 1024×1024）；longer dimension = 长边；"
+                    "shorter dimension = 短边。除 scale 外均保持源图宽高比"
+                ),
+            },
+        ),
+        "scale": (
+            "FLOAT",
+            {
+                "default": 4.0, "min": 0.05, "max": 16.0, "step": 0.05,
+                "tooltip": "缩放倍率（输出 = 输入 × scale，非整数亦可；<1 为缩小，质量未验证）；仅 size_mode=scale 生效",
+            },
+        ),
+        "total_pixels": (
+            "FLOAT",
+            {
+                "default": 1.0, "min": 0.01, "max": 64.0, "step": 0.01,
+                "tooltip": "目标总像素（百万像素）：1.00 = 1024×1024 = 1,048,576 像素"
+                           "（与原生 ImageScaleToTotalPixels 一致）；仅 size_mode=total pixels 生效",
+            },
+        ),
+        "longer_size": (
+            "INT",
+            {
+                "default": 1024, "min": MIN_TARGET, "max": MAX_TARGET, "step": 8,
+                "tooltip": "长边目标像素数（保持宽高比）；仅 size_mode=longer dimension 生效",
+            },
+        ),
+        "shorter_size": (
+            "INT",
+            {
+                "default": 1024, "min": MIN_TARGET, "max": MAX_TARGET, "step": 8,
+                "tooltip": "短边目标像素数（保持宽高比）；仅 size_mode=shorter dimension 生效",
+            },
+        ),
+    }
+
+
+def build_size_spec(size_mode, scale, total_pixels, longer_size, shorter_size):
+    """由节点 widget 构造并校验 TargetSizeSpec（非法参数直接报错）。"""
+    spec = TargetSizeSpec(
+        mode=size_mode,
+        scale=scale,
+        total_pixels=total_pixels,
+        longer_size=longer_size,
+        shorter_size=shorter_size,
+    )
+    error = spec.validate()
+    if error:
+        raise ValueError(f"VOSR2 目标尺寸参数非法: {error}")
+    return spec
 
 
 class SFVOSR2Settings:

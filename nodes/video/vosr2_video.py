@@ -7,6 +7,7 @@ VOSR 2.0 是逐帧模型（无时序注意力），视频只是 IMAGE 批次。T
 - DINOv2 时序缓存：相邻帧同位置瓦片的像素签名差 <= cache_threshold 时复用上一帧
   特征（特征存 CPU），每 cache_refresh 帧强制刷新 —— 静帧/慢镜头显著省时
 - 逐帧 seed = seed + 帧号；进度条按「帧 × 瓦片」报总进度
+- 目标尺寸与图片节点同源（倍率/总像素/长边/短边四模式，见 SFVOSR2Settings.size_input_types）
 """
 
 import torch
@@ -14,6 +15,7 @@ import torch
 from ...sf_utils.logger import get_logger
 from ..model.vosr2.inferencer import DinoTemporalCache, VOSR2Inferencer
 from ..model.vosr2.settings import normalize_settings
+from ..model.vosr2_settings import build_size_spec, size_input_types
 
 logger = get_logger(__name__)
 
@@ -29,11 +31,7 @@ class SFVOSR2Video:
             "required": {
                 "model": ("VOSR2_MODEL", {"tooltip": "来自 SFVOSR2ModelLoader"}),
                 "images": ("IMAGE", {"tooltip": "视频帧序列（IMAGE 批次，按帧序处理）"}),
-                "upscale": (
-                    "INT",
-                    {"default": 4, "min": 1, "max": 16, "step": 1,
-                     "tooltip": "整数倍放大（输出 = 输入 × upscale）"},
-                ),
+                **size_input_types(),
                 "seed": (
                     "INT",
                     {"default": 42, "min": 0, "max": 2**63 - 1,
@@ -89,10 +87,12 @@ class SFVOSR2Video:
     CATEGORY = _CATEGORY
     DESCRIPTION = "VOSR 2.0 视频帧超分（逐帧 + DINOv2 时序缓存 + 分块批量，模型由 SFVOSR2ModelLoader 加载）"
 
-    def upscale(self, model, images, upscale, seed, color_alignment, color_downsample,
+    def upscale(self, model, images, size_mode, scale, total_pixels, longer_size, shorter_size,
+                seed, color_alignment, color_downsample,
                 tile_size, tile_overlap, vae_tile_size, vae_tile_overlap, force_offload,
                 settings=None):
         settings = normalize_settings(settings)
+        spec = build_size_spec(size_mode, scale, total_pixels, longer_size, shorter_size)
         model.set_memory_policy(settings.memory_policy)
         model.set_torch_compile(settings.torch_compile)
 
@@ -103,13 +103,13 @@ class SFVOSR2Video:
         )
         frames = int(images.shape[0])
         logger.info(
-            f"VOSR2 视频超分: {frames} 帧 ×{upscale}, "
+            f"VOSR2 视频超分: {frames} 帧, {spec.describe()}, "
             f"tile={tile_size}/{tile_overlap}, vae_tile={vae_tile_size}/{vae_tile_overlap}, "
             f"{settings.describe()}"
         )
         inferencer = VOSR2Inferencer(model)
         result = inferencer.upscale(
-            images, upscale, seed, settings=settings,
+            images, spec, seed, settings=settings,
             color_alignment=color_alignment, color_downsample=color_downsample,
             tile_size=tile_size, tile_overlap=tile_overlap,
             vae_tile_size=vae_tile_size, vae_tile_overlap=vae_tile_overlap,

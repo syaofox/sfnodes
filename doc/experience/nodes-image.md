@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129、§132）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -1501,4 +1501,31 @@ slice_track_data(track_data, start=0, length=0)
 - `tools/vosr2_selftest.py`（容器内自检，不加载权重）：真实 torch/comfy 导入 + 节点 schema + DiT 小模型前向（含动态 RoPE）+ VAE 分块一致性 + FakeBundle 端到端 + 模拟 OOM 降级。**该自检首轮即抓出 3 个宿主 mock 测试覆盖不到的 bug**：`vision_features` 删除 `batch` 参数后调用点未同步（TypeError）、DiT 瓦片逐项 in-place `+=` 的 rhs 带 B 维（`output with shape [4,8,8] doesn't match broadcast shape [1,4,8,8]`）、`upscale()` 漏 `movedim(1, -1)` 导致返回 BCHW 而非 BHWC。
 - 顺带修掉上游隐患：`_pad_to_square`/`_pad_to_multiple` 的 reflect pad 在 pad >= 该维尺寸时非法（2:1 长宽比或小图直接崩），`pad_reflect_safe` 退化为 replicate（仅影响贴边像素）。
 - 实机未测（用户选择暂不下载 7GB 权重）；后续实测重点：分块拼批 OOM 降级路径、staged 换载耗时、torch.compile 首次编译与回退日志。
+
+## 132. VOSR2 目标尺寸四模式（倍率/总像素/长边/短边，2026-09）
+
+> 背景：用户问「upscale 必须整数倍吗？能否按总像素数（如 1 百万）」。原实现 `upscale: INT 1~16`（对齐上游 `-u` 与 TE/ylc 节点）。模型本身不要求整数——管线是「双三次预缩放到目标尺寸 → pad 16 倍数 → VAE 编码 → DiT 一步去噪 → 解码 → 裁回目标尺寸」，DiT 动态 RoPE + 未分块时 pad 成方形，任意目标尺寸都能跑。
+
+### 1. 机制
+
+- 纯逻辑 `nodes/model/vosr2/sizing.py`：`TargetSizeSpec(mode, scale, total_pixels, longer_size, shorter_size)` + `resolve(orig_w, orig_h) -> (w, h, clamped)`；**缩放数学复用 `sf_utils/resize_engine`** 的 `multiplier_to_wh` / `total_pixels_to_wh` / `longer_dimension_to_wh` / `shorter_dimension_to_wh`（与 SFImageResizePlus 单源，禁止内联副本）。
+- `total pixels` 用 **binary-MP 约定**：1.00 = 1024×1024 = 1,048,576 px（与原生 `ImageScaleToTotalPixels` 一致，非 10⁶ SI-MP）。
+- 钳制 `[16, 8192]`：超上限按最长边**等比**缩小（保持宽高比），低于下限逐维抬到 16；`clamped` 标志回传给日志。
+- 推理层按**源形状分组**逐组解析目标尺寸（同组共享），`_resize_to_target(images, (th, tw))` 直接吃目标尺寸；进度总量/告警改用目标尺寸。
+- 节点 widget 由 `SFVOSR2Settings.size_input_types()` 单源提供（图片/视频两节点共用），`size_mode` 置顶、四个参数 widget 跟随；前端 `web/sf_vosr2_size.js` 复用 `sf_widget_visibility_lib` 做模式联动显隐（`MODE_WIDGETS` 纯映射 + `applySizeModeVisibility` 纯函数）。
+- 允许缩小（`scale` 下限 0.05 / 总像素小于源图）；`coerce_target_size` 兼容数字入参（视作倍率），旧调用与测试零改动。
+
+### 2. 取舍与告警
+
+- 缩小（target < 源图）属「缩放 + 修复」，VOSR2 未按此训练 → 执行时告警「质量未验证」。
+- 目标 >4096px 告警显存/耗时；>512px 未开 tile_size、>1024px 未开 vae_tile_size 的原有告警沿用目标尺寸口径。
+- 极端长宽比/极小倍率会触发钳制（16/8192），日志带「已钳制」标记。
+- 模式切换只影响显隐，隐藏 widget 的值仍随工作流保存与提交（`sf_widget_visibility_lib` 语义）。
+
+### 3. 测试
+
+- `tests/test_vosr2_sizing.py`（纯逻辑：四模式数学 / MP 约定 / 宽高比保持 / 双向钳制 / 校验 / coerce）。
+- `tests/test_vosr2_size_js.js`（扩展注册 + 四模式映射 + 切换重放 + 无关节点/缺 widget 安全退出 + 无变化不刷新）。
+- `tools/vosr2_selftest.py` 补端到端三例：浮点 1.5×、总像素 0.02MP（145×145 非 16 倍数，走 pad 路径）、缩小 0.5×。
+
 

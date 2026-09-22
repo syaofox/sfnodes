@@ -151,7 +151,7 @@ docker exec comfyui-docker python3 /tmp/sfnodes_selftest/tools/vosr2_selftest.py
   `__init__.py`（避免连带加载全部节点与依赖），因此只需拷贝：
   `tools/`、`nodes/model/vosr2/`、`nodes/model/vosr2_loader.py`、
   `nodes/model/vosr2_settings.py`、`nodes/image/vosr2_upscale.py`、
-  `nodes/video/vosr2_video.py`、`sf_utils/logger.py`。
+  `nodes/video/vosr2_video.py`、`sf_utils/logger.py`、`sf_utils/resize_engine.py`。
 - `COMFYUI_ROOT` 指定 ComfyUI 源码根（默认 `/home/comfy/app`）。
 - 退出码 0 全通过 / 1 有失败 / 2 环境不满足；`torch.cuda.OutOfMemoryError` 用模拟
   异常触发降级分支，无需真的爆显存。

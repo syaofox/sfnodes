@@ -26,6 +26,7 @@ import comfy.utils
 
 from .color_fix import apply_color_alignment
 from .settings import VOSR2Settings, normalize_settings
+from .sizing import TargetSizeSpec, coerce_target_size
 from .tiled_vae import _gaussian_weights, pad_reflect_safe
 from .tiling import (
     PAD_MULTIPLE,
@@ -77,10 +78,10 @@ def _generate_noise_batch(shape_per_item, seed: int, batch_size: int, device, dt
     )
 
 
-def _resize_to_target(images_bhwc01: torch.Tensor, upscale: int, device) -> torch.Tensor:
+def _resize_to_target(images_bhwc01: torch.Tensor, size_hw, device) -> torch.Tensor:
+    """双三次预缩放到目标尺寸 (h, w)（任意尺寸，非整数倍亦可）。"""
     x = images_bhwc01.movedim(-1, 1).to(device).float()  # BCHW [0, 1]
-    _, _, h, w = x.shape
-    return F.interpolate(x, size=(h * upscale, w * upscale), mode="bicubic").clamp(0.0, 1.0)
+    return F.interpolate(x, size=tuple(size_hw), mode="bicubic").clamp(0.0, 1.0)
 
 
 def _chunks(seq, size):
@@ -160,7 +161,7 @@ class VOSR2Inferencer:
     def upscale(
         self,
         images_bhwc01: torch.Tensor,
-        upscale: int,
+        target: TargetSizeSpec,
         seed: int,
         settings: VOSR2Settings = None,
         color_alignment: str = "wavelet",
@@ -174,14 +175,20 @@ class VOSR2Inferencer:
         slot_offset: int = 0,
         item_batch: int = 0,
     ) -> torch.Tensor:
-        """IMAGE 批次 [B,H,W,C] → 超分结果（逐项 seed+i，逐项色彩对齐）。"""
+        """IMAGE 批次 [B,H,W,C] → 超分结果（逐项 seed+i，逐项色彩对齐）。
+
+        `target` 为目标尺寸规格（`TargetSizeSpec`，也接受数字 = 倍率）：按源形状
+        分组逐组解析目标尺寸，同组项共享目标尺寸。
+        """
         if images_bhwc01.shape[-1] != 3:
             raise ValueError(f"VOSR2 需要 3 通道 RGB IMAGE，得到 {images_bhwc01.shape[-1]} 通道。")
         if images_bhwc01.shape[0] == 0:
             raise ValueError("VOSR2 输入为空批次（0 张图片/帧）。")
         settings = normalize_settings(settings)
-        if upscale < 1:
-            raise ValueError(f"upscale 必须 >= 1，得到 {upscale}")
+        spec = coerce_target_size(target)
+        error = spec.validate()
+        if error:
+            raise ValueError(f"VOSR2 目标尺寸参数非法: {error}")
 
         tile_size_eff = self._effective_tile_size(tile_size, settings)
         if tile_size_eff > 0 and tile_overlap >= tile_size_eff:
@@ -193,14 +200,24 @@ class VOSR2Inferencer:
 
         device = self.bundle.dit_patcher.load_device
         batch_size = item_batch if item_batch and item_batch > 0 else settings.resolved_image_batch()
-        self._warn_if_untiled(images_bhwc01, upscale, tile_size_eff, vae_tile_size)
+        self._warn_if_untiled(images_bhwc01, spec, tile_size_eff, vae_tile_size)
 
-        pbar = self._make_progress(images_bhwc01, upscale, tile_size_eff, tile_overlap, settings, progress)
+        pbar = self._make_progress(images_bhwc01, spec, tile_size_eff, tile_overlap, settings, progress)
 
         outputs = []
+        logged_target = False
         for group_start, group_end in self._shape_groups(images_bhwc01):
             group = images_bhwc01[group_start:group_end]
-            resized = _resize_to_target(group, upscale, device)
+            src_h, src_w = int(group.shape[1]), int(group.shape[2])
+            target_w, target_h, clamped = spec.resolve(src_w, src_h)
+            if not logged_target:
+                logger.info(
+                    "[VOSR2] 目标尺寸: %sx%s → %sx%s (%s%s)",
+                    src_w, src_h, target_w, target_h, spec.describe(),
+                    "，已钳制到 16~8192" if clamped else "",
+                )
+                logged_target = True
+            resized = _resize_to_target(group, (target_h, target_w), device)
             for chunk_start, chunk in self._item_chunks(resized, batch_size):
                 base_seed = seed + group_start + chunk_start
                 outputs.append(self._run_chunk(
@@ -213,14 +230,15 @@ class VOSR2Inferencer:
 
     # ------------------------------------------------------------ 进度
 
-    def _make_progress(self, images, upscale, tile_size, tile_overlap, settings, progress):
+    def _make_progress(self, images, spec, tile_size, tile_overlap, settings, progress):
         if not progress:
             return None
         total = 0
         for start, end in self._shape_groups(images):
-            h, w = images[start:end].shape[1:3]
-            padded_h = h * upscale + pad_to_multiple_amount(h * upscale)
-            padded_w = w * upscale + pad_to_multiple_amount(w * upscale)
+            h, w = int(images[start].shape[0]), int(images[start].shape[1])
+            target_w, target_h, _ = spec.resolve(w, h)
+            padded_h = target_h + pad_to_multiple_amount(target_h)
+            padded_w = target_w + pad_to_multiple_amount(target_w)
             tiled = tile_size > 0 and settings.use_tiling(padded_h, padded_w, tile_size)
             per_item = dit_tile_count(padded_h, padded_w, tile_size, tile_overlap) if tiled else 1
             total += (end - start) * per_item
@@ -489,19 +507,29 @@ class VOSR2Inferencer:
         return 0
 
     @staticmethod
-    def _warn_if_untiled(images, upscale, tile_size, vae_tile_size):
-        """超过原生 512px 未分块 / 整图 VAE 解码的告警（上游 README 口径）。"""
-        max_h = int(images.shape[1]) * upscale
-        max_w = int(images.shape[2]) * upscale
-        if tile_size <= 0 and (max_h > 512 or max_w > 512):
+    def _warn_if_untiled(images, spec, tile_size, vae_tile_size):
+        """超过原生 512px 未分块 / 整图 VAE 解码 / 缩小 的告警（上游 README 口径）。"""
+        src_h, src_w = int(images.shape[1]), int(images.shape[2])
+        target_w, target_h, _ = spec.resolve(src_w, src_h)
+        if tile_size <= 0 and (target_h > 512 or target_w > 512):
             logger.warning(
                 "[VOSR2] 输出 %sx%s 超过原生 512px 且 tile_size=0：质量可能下降，建议 tile_size=512",
-                max_w, max_h,
+                target_w, target_h,
             )
-        if vae_tile_size <= 0 and (max_h > 1024 or max_w > 1024):
+        if vae_tile_size <= 0 and (target_h > 1024 or target_w > 1024):
             logger.warning(
                 "[VOSR2] 输出 %sx%s 且 vae_tile_size=0：整图 VAE 解码易 OOM，建议 vae_tile_size=1024",
-                max_w, max_h,
+                target_w, target_h,
+            )
+        if target_h < src_h or target_w < src_w:
+            logger.warning(
+                "[VOSR2] 目标 %sx%s 小于源图 %sx%s（缩小属缩放+修复，VOSR2 未按此训练，质量未验证）",
+                target_w, target_h, src_w, src_h,
+            )
+        if max(target_h, target_w) > 4096:
+            logger.warning(
+                "[VOSR2] 目标 %sx%s 超过 4096px：显存占用与耗时显著上升，建议开启 tile_size/vae_tile_size",
+                target_w, target_h,
             )
 
     def _effective_vae_tile(self, vae_tile_size, padded_h, padded_w, settings):

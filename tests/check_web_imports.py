@@ -20,6 +20,8 @@ MODS = [
     # 共享库
     "sf_common", "sf_dynamic_slots", "sf_markdown", "sf_lora_shared_info", "sf_lora_info",
     "image_browser", "sf_widget_visibility_lib",
+    # VOSR2 节点（目标尺寸模式联动显隐）
+    "sf_vosr2_size",
     # LoRA Stack 家族
     "sf_lora_stack", "sf_lora_stack_core", "sf_lora_stack_api",
     "sf_lora_stack_render", "sf_lora_stack_interaction",

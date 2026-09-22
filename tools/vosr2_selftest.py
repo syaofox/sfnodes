@@ -155,6 +155,7 @@ check("色彩对齐 wavelet downsample",
 # ── 5. FakeBundle 端到端管线（分块 / 整图 / 批 / 种子 / 非方形）──
 from sfnodes.nodes.model.vosr2.inferencer import DinoTemporalCache, VOSR2Inferencer
 from sfnodes.nodes.model.vosr2.settings import VOSR2Settings
+from sfnodes.nodes.model.vosr2.sizing import TargetSizeSpec
 
 
 class _FakePatcher:
@@ -265,6 +266,27 @@ check("分块路径时序缓存命中", cache_tiled.hits > 0 and cache_tiled.mis
       f"hits={cache_tiled.hits} misses={cache_tiled.misses}")
 check("分块路径缓存输出形状", tuple(out_cached_tiled.shape) == (2, 128, 128, 3), out_cached_tiled.shape)
 
+# ── 6c. 目标尺寸模式端到端（浮点倍率 / 总像素 / 缩小）──
+with torch.no_grad():
+    out_15 = inf.upscale(torch.rand(1, 64, 32, 3), TargetSizeSpec(mode="scale", scale=1.5), 21,
+                         settings=s_full, tile_size=0, tile_overlap=0, vae_tile_size=0,
+                         vae_tile_overlap=0, progress=False)
+check("浮点 1.5x 输出尺寸", tuple(out_15.shape) == (1, 96, 48, 3), out_15.shape)
+
+with torch.no_grad():
+    out_mp = inf.upscale(torch.rand(1, 64, 64, 3),
+                         TargetSizeSpec(mode="total pixels", total_pixels=0.02), 22,
+                         settings=s_full, tile_size=0, tile_overlap=0, vae_tile_size=0,
+                         vae_tile_overlap=0, progress=False)
+# 0.02MP = 20972px，64x64=4096 → 倍率≈2.263 → 145x145（非 16 倍数，走 pad 路径）
+check("总像素 0.02MP 输出尺寸", tuple(out_mp.shape) == (1, 145, 145, 3), out_mp.shape)
+
+with torch.no_grad():
+    out_down = inf.upscale(torch.rand(1, 64, 64, 3), TargetSizeSpec(mode="scale", scale=0.5), 23,
+                           settings=s_full, tile_size=0, tile_overlap=0, vae_tile_size=0,
+                           vae_tile_overlap=0, progress=False)
+check("缩小 0.5x 输出尺寸", tuple(out_down.shape) == (1, 32, 32, 3), out_down.shape)
+
 # ── 7. 视频节点执行（FakeBundle 注入 + 时序缓存路径）──
 class _FakeModel(FakeBundle):
     def set_memory_policy(self, policy):
@@ -286,8 +308,9 @@ fake_model = _FakeModel()
     "speed", "auto", "auto", False, False, False, 2, 2, 1, 2, 0, True, 1.0, 0
 )
 with torch.no_grad():
-    (video_out,) = node.upscale(fake_model, torch.rand(3, 64, 64, 3), 1, 5, "wavelet", 1,
-                                64, 0, 64, 0, False, settings)
+    (video_out,) = node.upscale(fake_model, torch.rand(3, 64, 64, 3),
+                                "scale", 1.0, 1.0, 1024, 1024,
+                                5, "wavelet", 1, 64, 0, 64, 0, False, settings)
 check("视频节点输出形状", tuple(video_out.shape) == (3, 64, 64, 3), video_out.shape)
 check("视频节点应用设置", fake_model.policy == "auto" and fake_model.compile is False)
 
