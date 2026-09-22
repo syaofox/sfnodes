@@ -376,6 +376,11 @@ class SFRegionalLoRA:
                     "tooltip": "接与主提示词相同的 Krea2 CLIP，用于逐区域编码提示词。"
                                "悬空时区域提示词被忽略（纯 LoRA 模式）。",
                 }),
+                "image": ("IMAGE", {
+                    "tooltip": "可选参考图（图生图的输入图），只在节点画布上作为背景显示，"
+                               "方便对齐绘制区域框；接了它时 mask_preview 采用图片尺寸。"
+                               "不参与 LoRA/提示词计算。",
+                }),
             },
             "hidden": {
                 "SFRegionsJson": ("STRING", {"default": DEFAULT_REGIONS_JSON}),
@@ -392,7 +397,7 @@ class SFRegionalLoRA:
                    "文生图。支持 kohya/diffusers 格式，fp8 量化模型安全。")
 
     def apply(self, model, canvas_width=1024, canvas_height=1024, base_strength=1.0,
-              seam_feather=0.08, sparse_threshold=0.01, clip=None,
+              seam_feather=0.08, sparse_threshold=0.01, clip=None, image=None,
               SFRegionsJson=DEFAULT_REGIONS_JSON):
         regions = parse_regions(SFRegionsJson)
         active = []
@@ -544,13 +549,26 @@ class SFRegionalLoRA:
             patched.set_model_attn1_patch(session.attn_mask_patch)
 
         # -- rainbow mask preview + info --------------------------------------
-        preview = render_preview(boxes, int(canvas_width), int(canvas_height))
+        # 接了参考图（图生图）时预览跟随图片尺寸/比例，画布背景与预览一致；
+        # 长边超过 2048 时等比缩小（预览纯可视化，省内存）。
+        pv_w, pv_h = int(canvas_width), int(canvas_height)
+        image_size = None
+        if torch.is_tensor(image) and image.dim() >= 3:
+            ih, iw = int(image.shape[-3]), int(image.shape[-2])
+            if ih > 0 and iw > 0:
+                image_size = (iw, ih)
+                scale = min(1.0, 2048.0 / max(iw, ih))
+                pv_w = max(1, int(round(iw * scale)))
+                pv_h = max(1, int(round(ih * scale)))
+        preview = render_preview(boxes, pv_w, pv_h)
         preview_t = torch.from_numpy(preview)
 
         info = json.dumps({
             "n_regions": len(prepared),
             "prompt_mode": prompt_mode,
             "prompt_tokens": int(prompt_tokens.shape[1]) if prompt_tokens is not None else 0,
+            "preview_size": [pv_w, pv_h],
+            "image_size": list(image_size) if image_size else None,
             "grid": "derived from live latent at first model call (canvas size only affects preview)",
             "regions": [
                 {"name": p["name"], "lora": p["lora"], "prompt": p["prompt"],

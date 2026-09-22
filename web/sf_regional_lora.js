@@ -14,12 +14,13 @@
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
-import { isGraphLoading } from "./sf_common.js";
+import { isGraphLoading, getUpstreamImageURL } from "./sf_common.js";
+import { isWired } from "./sf_dynamic_slots.js";
 import * as lib from "./sf_regional_lora_lib.js";
 
 // 版本标记：诊断"浏览器是否加载了新 JS"（硬刷新后 window.__sfRegionalLoRAVersion
-// 应为 5；undefined/旧值 = 缓存）。每次改 web/ 时递增。
-const EXT_VERSION = 5;
+// 应为 6；undefined/旧值 = 缓存）。每次改 web/ 时递增。
+const EXT_VERSION = 6;
 window.__sfRegionalLoRAVersion = EXT_VERSION;
 
 const NODE_TYPE = "SFRegionalLoRA";
@@ -108,6 +109,7 @@ function buildCanvasWidget(node) {
   canvas.style.cursor = "crosshair";
 
   let bgImage = null; // visual reference only, never serialized
+  let imgRect = null; // 图像在画布内的 contain 矩形（CSS 像素；无图=整块画布）
 
   function draw() {
     const dpr = window.devicePixelRatio || 1;
@@ -121,16 +123,20 @@ function buildCanvasWidget(node) {
     ctx.fillStyle = "#15151a";
     ctx.fillRect(0, 0, cw, chh);
 
+    // "contain" fit: show the WHOLE image, letterboxed — never crop, since
+    // faces can sit anywhere in the frame. Box coords are image-normalized,
+    // so every mapping (draw/hit/mouse) uses this rect, not the raw canvas:
+    // otherwise a canvas whose aspect differs from the image would offset
+    // the boxes from the visible picture.
+    const rect = bgImage
+      ? lib.containRect(cw, chh, bgImage.width, bgImage.height)
+      : { x: 0, y: 0, w: cw, h: chh };
+    imgRect = rect;
+
     if (bgImage) {
-      // "contain" fit: show the WHOLE image, letterboxed — never crop, since
-      // faces can sit anywhere in the frame.
-      const ir = bgImage.width / bgImage.height, cr = cw / chh;
-      let dw, dh, dx, dy;
-      if (ir > cr) { dw = cw; dh = dw / ir; dx = 0; dy = (chh - dh) / 2; }
-      else { dh = chh; dw = dh * ir; dx = (cw - dw) / 2; dy = 0; }
-      ctx.drawImage(bgImage, dx, dy, dw, dh);
+      ctx.drawImage(bgImage, rect.x, rect.y, rect.w, rect.h);
       ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(dx, dy, dw, dh);
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
 
     ctx.strokeStyle = "#3a3a42";
@@ -139,8 +145,8 @@ function buildCanvasWidget(node) {
     const regions = lib.readRegions(node);
     regions.forEach((reg, i) => {
       const col = hueColor(i, regions.length);
-      const x = (reg.x ?? 0) * cw, y = (reg.y ?? 0) * chh;
-      const w = (reg.w ?? 0.3) * cw, h = (reg.h ?? 0.3) * chh;
+      const x = rect.x + (reg.x ?? 0) * rect.w, y = rect.y + (reg.y ?? 0) * rect.h;
+      const w = (reg.w ?? 0.3) * rect.w, h = (reg.h ?? 0.3) * rect.h;
       ctx.globalAlpha = reg.enable !== false ? 1 : 0.35;
       ctx.fillStyle = hueColor(i, regions.length, bgImage ? 0.08 : 0.15);
       ctx.fillRect(x, y, w, h);
@@ -176,14 +182,39 @@ function buildCanvasWidget(node) {
     } else {
       ctx.fillStyle = "#666";
       ctx.font = "10px sans-serif";
-      ctx.fillText("drop an image here, or load the latest output, to line up faces", 6, chh - 6);
+      ctx.fillText("wire the image input, drop an image, or load the latest output", 6, chh - 6);
     }
   }
 
-  function onImageLoaded(img) {
-    bgImage = img;
-    draw();
+  // 背景图变化后按图片比例同步画布高度（只在变大时增长，避免抖动）。
+  function syncCanvasSize() {
+    try {
+      const sz = node.computeSize();
+      node.size[0] = Math.max(node.size[0], sz[0]);
+      node.size[1] = Math.max(node.size[1], sz[1]);
+    } catch (e) {}
     node.setDirtyCanvas(true, true);
+  }
+
+  function onImageLoaded(img, fromWire) {
+    bgImage = img;
+    node.__rc_bgFromWire = !!fromWire;
+    syncCanvasSize();
+    draw();
+  }
+
+  // 接线输入（image）→ 画布背景：上游 LoadImage 走 /view（带 cache-buster，
+  // 换文件即刷新）；生成型上游走 node.imgs 的实时预览。手动拖放/按钮为回退。
+  function loadWiredImage() {
+    const url = getUpstreamImageURL(node, node.__rc_bgURL);
+    if (!url) return false;
+    node.__rc_bgURL = url;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => onImageLoaded(img, true);
+    img.onerror = () => {};
+    img.src = url;
+    return true;
   }
 
   const container = document.createElement("div");
@@ -206,7 +237,7 @@ function buildCanvasWidget(node) {
     if (!url) return;
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => onImageLoaded(img);
+    img.onload = () => onImageLoaded(img, false);
     img.src = url;
   };
 
@@ -221,26 +252,25 @@ function buildCanvasWidget(node) {
   toolbar.appendChild(autoLabel);
   container.appendChild(toolbar);
 
-  let executedHandler = null;
-  autoCheckbox.addEventListener("change", () => {
-    if (autoCheckbox.checked) {
-      executedHandler = (e) => {
-        const url = imageOutputURLFromExecutedEvent(e.detail);
-        if (!url) return;
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => onImageLoaded(img);
-        img.src = url;
-      };
-      api.addEventListener("executed", executedHandler);
-    } else if (executedHandler) {
-      api.removeEventListener("executed", executedHandler);
-      executedHandler = null;
+  // 常驻 executed 监听：接线了 image 就跟随上游刷新（图生图每跑一次上游出图
+  // 即更新背景）；否则勾选 auto 时回退到"载入最近输出"。
+  const onExecutedEvent = (e) => {
+    if (isWired(node, "image")) {
+      loadWiredImage();
+      return;
     }
-  });
+    if (!autoCheckbox.checked) return;
+    const url = imageOutputURLFromExecutedEvent(e.detail);
+    if (!url) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => onImageLoaded(img, false);
+    img.src = url;
+  };
+  api.addEventListener("executed", onExecutedEvent);
   const oldRemoved = node.onRemoved;
   node.onRemoved = function () {
-    if (executedHandler) api.removeEventListener("executed", executedHandler);
+    api.removeEventListener("executed", onExecutedEvent);
     oldRemoved && oldRemoved.apply(this, arguments);
   };
 
@@ -249,6 +279,10 @@ function buildCanvasWidget(node) {
     setValue() {},
     getMinHeight() {
       const w = node.size ? node.size[0] - 20 : 220;
+      if (bgImage && bgImage.width > 0) {
+        const h = w * (bgImage.height / bgImage.width);
+        return Math.round(Math.max(120, Math.min(h, 640))) + 26;
+      }
       return Math.round(Math.max(140, Math.min(w * 1.1, 380))) + 26;
     },
     hideOnZoom: false,
@@ -257,10 +291,14 @@ function buildCanvasWidget(node) {
   widget.__rc_canvas = true;
 
   // -- interaction: move / resize boxes, click-to-clear-bg, drag-drop image --
+  // 坐标一律换算到"图像矩形"（imgRect）归一化空间。
   let drag = null;
   const toNorm = (e) => {
     const r = canvas.getBoundingClientRect();
-    return [lib.clamp01((e.clientX - r.left) / r.width), lib.clamp01((e.clientY - r.top) / r.height)];
+    const rect = imgRect || { x: 0, y: 0, w: r.width, h: r.height };
+    if (!(rect.w > 0) || !(rect.h > 0)) return [0, 0];
+    return [lib.clamp01((e.clientX - r.left - rect.x) / rect.w),
+            lib.clamp01((e.clientY - r.top - rect.y) / rect.h)];
   };
   const onDown = (e) => {
     if (drag) onUp(e); // stale drag from a lost up-event
@@ -269,17 +307,21 @@ function buildCanvasWidget(node) {
     const [nx, ny] = toNorm(e);
 
     if (bgImage) {
-      const px = nx * r.width, py = ny * r.height;
+      const px = e.clientX - r.left, py = e.clientY - r.top;
       const bx0 = r.width - CLEARBTN - 6, by0 = 6;
       if (px >= bx0 && px <= bx0 + CLEARBTN && py >= by0 && py <= by0 + CLEARBTN) {
-        bgImage = null; draw();
+        bgImage = null;
+        node.__rc_bgFromWire = false;
+        syncCanvasSize();
+        draw();
         e.preventDefault(); e.stopPropagation();
         return;
       }
     }
 
     const regions = lib.readRegions(node);
-    const hit = lib.hitTestRegions(regions, nx, ny, r.width, r.height, HANDLE);
+    const rect = imgRect || { w: r.width, h: r.height };
+    const hit = lib.hitTestRegions(regions, nx, ny, rect.w, rect.h, HANDLE);
     if (hit && hit.mode === "move") {
       const reg = regions[hit.i];
       drag = { i: hit.i, mode: "move", ox: nx - (reg.x ?? 0), oy: ny - (reg.y ?? 0) };
@@ -356,7 +398,8 @@ function buildCanvasWidget(node) {
     if (drag) return;
     const r = canvas.getBoundingClientRect();
     const [nx, ny] = toNorm(e);
-    const hit = lib.hitTestRegions(lib.readRegions(node), nx, ny, r.width, r.height, HANDLE);
+    const rect = imgRect || { w: r.width, h: r.height };
+    const hit = lib.hitTestRegions(lib.readRegions(node), nx, ny, rect.w, rect.h, HANDLE);
     canvas.style.cursor = hit ? (hit.mode === "move" ? "move" : "nwse-resize") : "crosshair";
   });
 
@@ -371,7 +414,7 @@ function buildCanvasWidget(node) {
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
-        img.onload = () => onImageLoaded(img);
+        img.onload = () => onImageLoaded(img, false);
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
@@ -381,13 +424,44 @@ function buildCanvasWidget(node) {
     if (url) {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => onImageLoaded(img);
+      img.onload = () => onImageLoaded(img, false);
       img.src = url;
     }
   });
 
+  // -- wired image input triggers: connect / workflow load / graph ready -----
+  const oldConnChange = node.onConnectionsChange;
+  node.onConnectionsChange = function (type, index, connected, linkInfo, ioSlot) {
+    oldConnChange && oldConnChange.apply(this, arguments);
+    try {
+      const slot = ioSlot || this.inputs?.[index] || this.outputs?.[index];
+      if (!slot || slot.name !== "image") return;
+      if (connected) {
+        loadWiredImage();
+      } else if (node.__rc_bgFromWire) {
+        // 拔线：清掉接线来源的背景（手动拖放的图不受影响）
+        bgImage = null;
+        node.__rc_bgFromWire = false;
+        syncCanvasSize();
+        draw();
+      }
+    } catch (err) {}
+  };
+
+  // 工作流加载：链接与上游 widget 值恢复晚于 onNodeCreated（Vue 更晚），
+  // 多时机幂等重取（同 safeRebuildRows 的时序保险思路）。
+  const oldConfigure = node.onConfigure;
+  node.onConfigure = function () {
+    const ret = oldConfigure && oldConfigure.apply(this, arguments);
+    const refresh = () => loadWiredImage();
+    queueMicrotask(refresh);
+    setTimeout(refresh, 0);
+    setTimeout(refresh, 300);
+    return ret;
+  };
+
   try { new ResizeObserver(() => draw()).observe(canvas); } catch (e) {}
-  setTimeout(draw, 50);
+  setTimeout(() => { if (!loadWiredImage()) draw(); }, 50);
   node.__rc_draw = draw;
 
   const oldResize = node.onResize;

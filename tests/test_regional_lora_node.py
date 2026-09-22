@@ -183,6 +183,7 @@ check("structure: required model/canvas/params",
       set(it["required"]) == {"model", "canvas_width", "canvas_height",
                               "base_strength", "seam_feather", "sparse_threshold"})
 check("structure: clip optional input", "clip" in it.get("optional", {}))
+check("structure: image optional input", "image" in it.get("optional", {}))
 check("structure: RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "IMAGE", "STRING"))
 check("structure: CATEGORY", node.CATEGORY == "sfnodes/model")
 check("structure: DESCRIPTION", bool(node.DESCRIPTION))
@@ -207,6 +208,18 @@ check("apply: both regions matched 3/3",
 check("apply: strengths passed", info["regions"][0]["strength"] == 1.0)
 check("apply: clone used", patcher.clone_called == 1)
 check("apply: wrapper mounted", patcher.wrapper is not None)
+
+# ── apply：接了参考图 → mask_preview 跟随图片尺寸（图生图画布背景对齐用）──
+patcher_img = FakePatcher([])
+patcher_img.model.diffusion_model = FakeDiT(
+    ["blocks.0.attn.wq", "blocks.0.attn.wk", "blocks.0.mlp.gate"])
+out_img = node.apply(model=patcher_img, image=FakeTensor(shape=(1, 256, 512, 3)),
+                     canvas_width=512, canvas_height=512,
+                     SFRegionsJson=regions_json())
+check("image: preview follows image size", tuple(out_img[1].shape) == (1, 256, 512, 3))
+info_img = json.loads(out_img[2])
+check("image: info preview/image size",
+      info_img["preview_size"] == [512, 256] and info_img["image_size"] == [512, 256])
 
 # ── session.run：executor 透传 + hook 注册/移除 ────────────────────────────
 diag = patcher.model.diffusion_model._mods

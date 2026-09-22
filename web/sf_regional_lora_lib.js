@@ -9,6 +9,20 @@ export function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
+// Contain-fit rect of an image inside the canvas (letterbox, never crop).
+// 区域框坐标是图像归一化坐标：绘制/命中/鼠标换算都以这个矩形为基（画布
+// 与背景图比例不一致时不会错位）。无图/非法尺寸返回整块画布。
+export function containRect(cw, ch, iw, ih) {
+  if (!(cw > 0) || !(ch > 0) || !(iw > 0) || !(ih > 0)) return { x: 0, y: 0, w: cw, h: ch };
+  const ir = iw / ih, cr = cw / ch;
+  if (ir > cr) {
+    const w = cw, h = w / ir;
+    return { x: 0, y: (ch - h) / 2, w, h };
+  }
+  const h = ch, w = h * ir;
+  return { x: (cw - w) / 2, y: 0, w, h };
+}
+
 export function defaultRegion(i, n) {
   const cols = Math.max(1, n);
   return {

@@ -728,9 +728,16 @@
 - 前端逐区域 prompt 用**单行原生 text widget**，不用 `ComfyWidgets["STRING"](multiline)`：行控件随区域增删整体重建，DOM 多行 widget 会带 `minNodeSize=[400,200]` 且移除时可能留孤儿 textarea（Classic 渲染）。画布框内叠加提示词摘要补足可读性。
 - **live getter 绑定在经典画布渲染下会吞编辑（2026-09 实机回归）**：`bindRegionValue` 用 `Object.defineProperty(widget,"value")` 让显示始终读 JSON 真源（防工作流加载期陈旧写回）。Vue 渲染路径的 `createWidgetUpdateHandler` 传**原始新值**给 callback，正常；但经典（canvas）路径交互走 `BaseWidget.setValue`：`let i=this.value; this.value=a; this.callback?.(this.value,…)`——回调里的 `this.value` 经 getter 读到的仍是**旧 JSON**，回调把旧值写回 → 用户编辑静默丢失（诊断特征：`node.widgets` 行齐全、JSON 永远不变、直接 `w.setValue()` 也不写回）。修复：`bindRegionValue` 包装实例 `setValue`——先跑原流程（保留 `onWidgetChanged`/图版本自增），再把新值写入 JSON 真源；外部陈旧写回（直接赋 `widget.value`，不走 setValue）仍被 getter 忽略。回归锁：`tests/test_regional_lora_js.js` 的 "classic setValue writes through / getter reflects classic edit / stale external write still ignored"。
 
-### 5. 测试
+### 5. 画布背景图输入（image，2026-09）
+
+- **接口**：optional `image`（IMAGE）——纯前端可视化用途，不参与 LoRA/提示词计算；接了它时后端 `mask_preview` 跟随图片尺寸（长边 >2048 等比缩小，省内存），`info` 增 `preview_size`/`image_size`。
+- **前端取图复用 `sf_common.getUpstreamImageURL(node, cachedUrl)`**（crop 家族同款）：上游 LoadImage 读 widget 值 → `/view` + cache-buster（换文件即刷新）；生成型上游读 `node.imgs` 实时预览。刷新时机：`onConnectionsChange`（接线/拔线）、`onConfigure`（microtask + 0/300ms，Vue 链接与上游 widget 值恢复晚于 onNodeCreated）、常驻 `executed` 监听（接线时跟随上游出图，优先于 "auto after each run" 的最近输出回退）；手动拖放/按钮会清掉 `__rc_bgFromWire`，拔线只清接线来源的背景。
+- **对齐关键：图像矩形坐标系（`lib.containRect`）**。旧实现把框画在整块画布归一化坐标、背景图 contain 适配留黑边 → 画布比例与图不符时框与可见图像错位。现在绘制/命中/鼠标换算全部走 contain 矩形（无图时退化为整块画布）；`getMinHeight` 也按图片比例给高度（夹 120..640，载图后经 `computeSize` 增长节点，只增不减防抖动）。
+- 回归锁：`tests/test_regional_lora_js.js` 的 containRect 四例（宽图/高图居中、同比例填满、非法尺寸退化整块画布）；`tests/test_regional_lora_node.py` 的 image 预览尺寸与 info 字段。
+
+### 6. 测试
 
 - `tests/test_regional_engine.py`：prompt 解析/缺省/非字符串、`active_token_indices` 的 text_len 偏移与回退、`build_prompt_attn_mask` 全分支（基础列恒真/成员放行/外来列屏蔽/uncond 全屏蔽/空 blocks/退化与越界块/阈值下成员）。
 - `tests/test_regional_lora_prompts.py`：mock torch/clip 全链路——逐区域编码与 info、context 追加与 cond/uncond 行、attn patch 形状与守卫、prompt-only/strength-0/加载失败保留、encode 失败降级、no-clip/legacy JSON 纯 LoRA 模式。
-- 前端 `tests/test_regional_lora_js.js`：defaultRegion 带 `prompt:""`、`bindRegionValue` 对 prompt 的读写与 legacy 缺省。
+- 前端 `tests/test_regional_lora_js.js`：defaultRegion 带 `prompt:""`、`bindRegionValue` 对 prompt 的读写与 legacy 缺省、classic setValue 写回、containRect。
 - **考古经验**：源码丢失但 `.pyc` 仍在 `__pycache__`（host 与部署副本时间戳不同，部署副本保留了 feature 版）。`python3.14` 直接 `marshal.loads(pyc[16:])` + `dis` 可还原函数签名/常量/控制流；测试 pyc 的断言字符串能还原覆盖清单。以后清理 `__pycache__` 前注意其可能的考古价值。

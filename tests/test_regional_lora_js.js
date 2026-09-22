@@ -42,6 +42,21 @@ check("read: roundtrip", lib.readRegions(fakeNode)[0].strength === 1.2);
 check("read: garbage json -> []", lib.readRegions({ widgets: [{ name: "SFRegionsJson", value: "{oops" }] }).length === 0);
 check("read: missing widget -> []", lib.readRegions({ widgets: [] }).length === 0);
 
+// ── containRect（背景图 contain 矩形：框/鼠标/命中都在此坐标系）──────────
+const rcWide = lib.containRect(200, 200, 400, 100);
+check("contain: wide image fits width + centered", rcWide.x === 0 && rcWide.w === 200
+  && rcWide.h === 50 && rcWide.y === 75);
+const rcTall = lib.containRect(200, 200, 100, 400);
+check("contain: tall image fits height + centered", rcTall.y === 0 && rcTall.h === 200
+  && rcTall.w === 50 && rcTall.x === 75);
+const rcSame = lib.containRect(200, 100, 400, 200);
+check("contain: same aspect fills canvas", rcSame.x === 0 && rcSame.y === 0
+  && rcSame.w === 200 && rcSame.h === 100);
+check("contain: invalid sizes -> full canvas", (() => {
+  const r = lib.containRect(200, 100, 0, 100);
+  return r.x === 0 && r.y === 0 && r.w === 200 && r.h === 100;
+})());
+
 // ── normalizeRect / applyResize ───────────────────────────────────────────
 const nr = lib.normalizeRect({ x: -0.2, y: 0.1, w: 0.5, h: 0.5 });
 check("normalize: negative x clamped (w kept)", nr.x === 0 && nr.w === 0.5);
