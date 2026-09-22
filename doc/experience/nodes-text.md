@@ -331,6 +331,14 @@
 - **修复 = 照搬 SF LoRA Stack 下拉定位**（`sf_lora_stack_dropdown.js` 的 `place()`，§39.10 同族经验）：① `left` 视口钳位；② 打开时比较上/下可用空间**定一次方向**（相等向下，内容变化不翻转防跳变）；③ `maxHeight = min(60vh, 方向空间)` + `top` 随高度重算，列表 `overflow-y:auto` 内部滚动 → 弹窗实际高度 ≤ 方向空间，永不越界；④ `renderDirPopup` 内容变化后重调 `place()`（空列表先 `place()` 一次预限高，避免首帧按未限高高度定位）。
 - 未迁移 `sf_popup.js` 三件套：`clampToViewport` 只有四向钳位、无翻转与限高，弱于 LoRA 方案；存量弹层不强制迁移（§26）。smoke 测试补定位断言（钳位/向下/向上翻转/限高四值）。
 
+### 8. Auto total：目录图片数反写所驱动循环的 total（2026-09）
+
+- **背景**：批量工作流常见接法 `SFForLoopStart.index → SFLoadImagesPath.skip_first_images`（配 `image_load_cap=1`，每轮取一张），循环 `total` 只能手填为目录图片数，目录一变就失准。此接法下 `frame_count` 直连 total 会构成依赖环（`LIP ← loop.index` + `loop.total ← LIP.frame_count`），`validate_inputs` 静态校验直接报 `dependency_cycle`。
+- **方案（照搬 §108 SFPromptList Auto total）**：底部 `Auto total` 开关（**默认关**——同 PromptList 防改写"故意 total < 文件数"的工作流；`node.properties.sfLoadImagesPathAutoTotal` 随工作流保存），前端反向写目标 `total` widget。目标识别 = **本节点任一输入连线源为 SFForLoopStart 且输出槽名 `index`**（与 skip_first_images 接法一致，比 PromptList 的单一 start_index 更宽）。写入值 = 当前目录一级图片数（`_currentFileCount`，与计数显示同一值，忽略 cap/skip/nth 切片）。
+- **守卫**：`total` 已转输入（`loop.inputs` 同名 link 非空）不写——连线优先（用户工作流存在 PrimitiveInt 驱动 total 的情形）；Path Mode 不写（无目录计数）；计数未拉取/为 0 不写（保留手填值）；多 LIP 驱动同一循环取 max（各节点 `_sfLipFileCount` 跨节点读，短目录只处理到自己末张、迭代数以最长目录为准，同 §108）。
+- **触发与清理**：目录信息拉取后（含缓存命中重绘路径）/ 开关点击 / `onConfigure` 恢复 / 400ms 轮询兜底（连线在工作流加载后才恢复）；`node.onRemoved` 清定时器。纯 `web/` 改动，浏览器硬刷新即生效（无需重启容器）。
+- 测试：smoke 新增 13 条（默认关/开启同步/目录变化/接线 total 跳过/非 index 跳过/Path Mode 跳过/多节点 max/未连线/关闭清除/onConfigure 恢复）。
+
 ---
 
 ## 23. SFPromptList：行号编辑器与 wrap 镜像测量

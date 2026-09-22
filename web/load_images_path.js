@@ -5,6 +5,10 @@
 // 数据通道：隐藏的 folder combo widget（值随 workflow 保存、graphToPrompt
 // 自动收集；目录不存在由后端 VALIDATE_INPUTS 校验提示）。
 // 目录浏览按需加载：每次进入/回退只 fetch 当前层（/subdirs?folder=）。
+// Auto total 开关（默认关，同 SFPromptList）：把当前目录图片数反向写入
+// 由本节点输入（如 skip_first_images ← index）驱动的 SFForLoopStart.total
+// ——count 输出直连 total 会与 index→skip_first_images 构成依赖环，故只能
+// 前端反向写目标 widget。
 // ============================================================
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
@@ -13,6 +17,7 @@ import { applyAdaptiveCanvasOnly, injectCSSOnce, sfApiUrl } from "./sf_common.js
 const SOURCES = ["input", "output"];
 const WIDGET_TYPE = "sf_lip_ui";
 const MIN_W = 320; // 源两档按钮行 + 面包屑行容纳所需的最小节点宽度
+const AUTO_TOTAL_KEY = "sfLoadImagesPathAutoTotal"; // 自动 total 持久化键（缺省/删除 = 关闭）
 
 // ── folder 值解析 ─────────────────────────────────────────────────────────
 // 目录模式判定只依赖前缀（input/output 或 default）——不检查列表
@@ -381,6 +386,7 @@ app.registerExtension({
             const v = currentValue();
             if (!force && v === _lastFetched) {
                 renderSubdirs();   // 缓存命中也要重绘（renderFromValue 刚清过计数）
+                syncLoopTotal();
                 return;
             }
             _lastFetched = v;
@@ -389,7 +395,9 @@ app.registerExtension({
             if (myReq !== _subdirsReq) return;   // 竞态：快速切换时旧响应丢弃
             _currentSubdirs = info.subdirs;
             _currentFileCount = info.fileCount;
+            node._sfLipFileCount = info.fileCount;   // 供同一循环的多 LIP 取 max
             renderSubdirs();
+            syncLoopTotal();
         };
 
         // ── 左右快速切换：在同级目录（父层的兄弟）间循环步进，
@@ -525,9 +533,13 @@ app.registerExtension({
         pathRow.append(input, applyBtn);
         root.appendChild(pathRow);
 
-        // ── 底部：刷新 ──
+        // ── 底部：Auto total + 刷新 ──
         const footRow = document.createElement("div");
         footRow.className = "sf-lip-row";
+        const autoTotalBtn = document.createElement("button");
+        autoTotalBtn.type = "button";
+        autoTotalBtn.className = "sf-lip-btn";
+        autoTotalBtn.textContent = "Auto total";
         const refreshBtn = document.createElement("button");
         refreshBtn.type = "button";
         refreshBtn.className = "sf-lip-btn";
@@ -536,8 +548,102 @@ app.registerExtension({
             loadCurrentSubdirs(true);   // 强制重新加载当前层
             if (app.graph) app.graph.setDirtyCanvas(true, true);
         });
-        footRow.append(refreshBtn);
+        footRow.append(autoTotalBtn, refreshBtn);
         root.appendChild(footRow);
+
+        // ── 自动 total：把当前目录图片数写入所驱动循环的 total（同 SFPromptList）──
+        // 本节点输出 count（frame_count）直连 total 会与 index 驱动本节点
+        // （常见 skip_first_images ← index，配 image_load_cap=1 每轮取一张）
+        // 构成依赖环，validate_inputs 静态校验直接报 dependency_cycle；故由
+        // 前端反向写目标 widget。默认关（properties.sfLoadImagesPathAutoTotal）：
+        // 既有工作流存在"故意 total < 文件数"（只处理前 N 张），无条件同步
+        // 会改写其行为。
+        let autoTotal = !!(node.properties && node.properties[AUTO_TOTAL_KEY]);
+
+        const linkOf = (id) => {
+            const graph = node.graph;
+            if (!graph) return null;
+            if (graph.links?.get) return graph.links.get(id) ?? null;
+            return graph.links?.[id] ?? null;
+        };
+        const nodeById = (graph, id) => {
+            if (!graph) return null;
+            const byApi = graph.getNodeById?.(id);
+            if (byApi) return byApi;
+            return (graph._nodes || []).find((n) => String(n.id) === String(id)) ?? null;
+        };
+        // 本节点任一输入是否由某循环的 index 输出驱动 → 返回该 SFForLoopStart
+        const drivenLoop = () => {
+            const graph = node.graph;
+            if (!graph) return null;
+            for (const input of node.inputs || []) {
+                if (!input || input.link == null) continue;
+                const link = linkOf(input.link);
+                const src = link && nodeById(graph, link.origin_id);
+                if (!src || (src.comfyClass ?? src.type) !== "SFForLoopStart") continue;
+                const out = (src.outputs || [])[link.origin_slot];
+                if (out && out.name === "index") return src;
+            }
+            return null;
+        };
+        // link 是否指向 loop 的 index 输出（多 LIP 聚合时用，loop 已确认类型）
+        const isLoopIndexLink = (link, loop) => {
+            if (!link || String(link.origin_id) !== String(loop.id)) return false;
+            const out = (loop.outputs || [])[link.origin_slot];
+            return !!out && out.name === "index";
+        };
+        // 同一循环可被多个 SFLoadImagesPath 驱动（各自 skip_first_images ←
+        // 同一 index），取最大图片数：图片少的节点只处理到自己目录的末张，
+        // 迭代次数以最长目录为准。
+        const loopTotalFor = (loop) => {
+            let best = Number(node._sfLipFileCount) || 0;
+            for (const other of node.graph?._nodes || []) {
+                if (!other || other === node || (other.comfyClass ?? other.type) !== "SFLoadImagesPath") continue;
+                const linked = (other.inputs || []).some((i) => i && i.link != null && isLoopIndexLink(linkOf(i.link), loop));
+                if (!linked) continue;
+                const count = Number(other._sfLipFileCount) || 0;
+                if (count > best) best = count;
+            }
+            return best;
+        };
+        const syncLoopTotal = () => {
+            if (!autoTotal || getMode() !== "dir") return;   // Path Mode 无目录计数
+            const loop = drivenLoop();
+            if (!loop) return;
+            const w = (loop.widgets || []).find((x) => x && x.name === "total");
+            if (!w) return;
+            const totalIn = (loop.inputs || []).find((i) => i && i.name === "total");
+            if (totalIn && totalIn.link != null) return;   // total 已转输入：连线优先
+            const count = loopTotalFor(loop);
+            if (!(count > 0)) return;   // 未拉取/空目录：不写，保留用户手填值
+            const opt = w.options || {};
+            let v = count;
+            if (typeof opt.min === "number") v = Math.max(opt.min, v);
+            if (typeof opt.max === "number") v = Math.min(opt.max, v);
+            if (w.value === v) return;
+            w.value = v;
+            loop.setDirtyCanvas?.(true, true);
+        };
+        const applyAutoTotal = (on) => {
+            autoTotal = !!on;
+            autoTotalBtn.classList.toggle("on", autoTotal);
+            autoTotalBtn.textContent = autoTotal ? "Auto total ✓" : "Auto total";
+            autoTotalBtn.title = autoTotal
+                ? "自动 total：已开启——当前目录图片数自动写入由 index 驱动的 SF For Loop Start.total；点击关闭"
+                : "自动 total：点击开启——把当前目录图片数自动写入由 index 驱动的 SF For Loop Start.total（默认关，避免改写故意缩短的循环）";
+            node.properties = node.properties || {};
+            if (autoTotal) node.properties[AUTO_TOTAL_KEY] = true;
+            else delete node.properties[AUTO_TOTAL_KEY];
+            node.setDirtyCanvas?.(true, true);
+            syncLoopTotal();
+        };
+        autoTotalBtn.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+        autoTotalBtn.addEventListener("click", (e) => {
+            e.preventDefault?.();
+            e.stopPropagation?.();
+            applyAutoTotal(!autoTotal);
+        });
+        applyAutoTotal(autoTotal);
 
         const widget = node.addDOMWidget("lip_ui", WIDGET_TYPE, root, {
             serialize: false,
@@ -561,13 +667,30 @@ app.registerExtension({
             return origResize?.apply(this, arguments);
         };
 
+        // 自动 total 钩子（onConfigure 恢复 / 测试直调）+ 400ms 轮询兜底：
+        // 连线在工作流加载后才恢复（渲染路径可能尚未跑过），轻量轮询补写；
+        // 关闭时 syncLoopTotal 只做一次布尔判断，开销可忽略。
+        root._sfLipSetAutoTotal = applyAutoTotal;
+        root._sfLipConfigAutoTotal = () => applyAutoTotal(!!(node.properties && node.properties[AUTO_TOTAL_KEY]));
+        root._sfLipSyncLoopTotal = syncLoopTotal;
+        root._sfLipCheckWatch = syncLoopTotal;
+        const watchTimer = setInterval(syncLoopTotal, 400);
+        const origRemoved = node.onRemoved;
+        node.onRemoved = function () {
+            clearInterval(watchTimer);
+            return origRemoved?.apply(this, arguments);
+        };
+
         // 初始渲染（combo 默认值已在 INPUT_TYPES 提供）
         renderFromValue();
 
         // 工作流加载：nodeCreated 早于 widget 值恢复，延迟到 configure 后补同步。
         // 渲染只读（不改序列化状态），无需 isGraphLoading 门控——门控会跳过
         // 尾窗内的恢复渲染，导致 DOM 停在初始状态。
-        const sync = () => renderFromValue();
+        const sync = () => {
+            renderFromValue();
+            root._sfLipConfigAutoTotal?.();   // properties 恢复后同步开关状态与 total
+        };
         queueMicrotask(sync);
         setTimeout(sync, 250);
         const origCfg = node.onConfigure;

@@ -99,6 +99,7 @@ const SUBDIR_TREE = {
     "input": { dirs: ["faces", "empty"], files: 5 },
     "input/faces": { dirs: ["sub1", "sub2"], files: 3 },
     "output": { dirs: ["render"], files: 0 },
+    "output/render": { dirs: [], files: 7 },
 };
 let subdirCalls = [];
 globalThis.fetch = async (url) => {
@@ -149,6 +150,7 @@ function makeNode() {
     return {
         comfyClass: "SFLoadImagesPath",
         widgets: [folderWidget],
+        inputs: [],
         addDOMWidget(name, type, el, opts) {
             const w = { name, type, element: el, options: opts || {}, value: null, computeSize() {} };
             this.widgets.push(w);
@@ -156,6 +158,7 @@ function makeNode() {
         },
         setDirtyCanvas() {},
         onConfigure: null,
+        onRemoved: null,
         properties: {},
         graph: { setDirtyCanvas() {} },
     };
@@ -247,7 +250,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     check("同值恢复不重复 fetch", !subdirCalls.includes("input/faces"));
 
     // ── 刷新按钮：强制重新加载当前层 ──
-    const refreshBtn = root.children[5].children[0];
+    const refreshBtn = root.children[5].children[1];
     refreshBtn._handlers.click();
     await wait(20);
     check("刷新强制重新 fetch 当前层", subdirCalls.includes("input/faces"));
@@ -312,6 +315,96 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     check("onConfigure 同步当前值显示", crumbsRestored.children.length === 3
         && crumbsRestored.children[0].textContent === "output" && crumbsRestored.children[2].textContent === "render");
     check("恢复后 fetch 当前层", subdirCalls.includes("output/render"));
+
+    // ── 自动 total：当前目录图片数反向写所驱动 SFForLoopStart.total（默认关）──
+    const autoTotalBtn = root.children[5].children[0];
+    check("auto total 按钮默认关", autoTotalBtn.textContent === "Auto total" && !autoTotalBtn.classList.contains("on"));
+    check("auto total 默认不写 properties", node.properties.sfLoadImagesPathAutoTotal === undefined);
+
+    // 构造循环节点 + skip_first_images 连线（link 5 → loop 的 index 输出 slot 1）
+    const totalWidget = { name: "total", value: 9, options: { min: 1, max: 100000 }, callback: null };
+    const loop = {
+        id: "L1", comfyClass: "SFForLoopStart", type: "SFForLoopStart",
+        outputs: [{ name: "flow" }, { name: "index" }, { name: "value1" }],
+        inputs: [{ name: "total", link: null }],
+        widgets: [totalWidget], properties: {},
+        setDirtyCanvas() { this._dirty = true; },
+    };
+    node.inputs = [{ name: "skip_first_images", link: 5 }];
+    node.graph = {
+        links: { 5: { origin_id: "L1", origin_slot: 1 } },
+        _nodes: [node, loop],
+        getNodeById(id) { return String(id) === "L1" ? loop : null; },
+        setDirtyCanvas() {},
+    };
+    folderWidget.value = "input";
+    if (node.onConfigure) node.onConfigure({});
+    await wait(20);
+    check("auto total 默认关不写", totalWidget.value === 9);
+
+    autoTotalBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    check("auto total 开启同步图片数", totalWidget.value === 5 && autoTotalBtn.classList.contains("on") === true);
+    check("auto total 持久化", node.properties.sfLoadImagesPathAutoTotal === true);
+
+    // 目录切换 → fetch 后实时更新
+    folderWidget.value = "input/faces";
+    if (node.onConfigure) node.onConfigure({});
+    await wait(20);
+    check("auto total 目录变化更新", totalWidget.value === 3);
+
+    // total 已转输入（有连线）→ 不写，连线优先
+    loop.inputs = [{ name: "total", link: 77 }];
+    totalWidget.value = 8;
+    root._sfLipSyncLoopTotal();
+    check("auto total 已接线的 total 不写", totalWidget.value === 8);
+    loop.inputs = [{ name: "total", link: null }];
+
+    // 非 index 输出（flow slot 0）→ 不写
+    node.graph.links[5] = { origin_id: "L1", origin_slot: 0 };
+    totalWidget.value = 7;
+    root._sfLipSyncLoopTotal();
+    check("auto total 非 index 输出不写", totalWidget.value === 7);
+    node.graph.links[5] = { origin_id: "L1", origin_slot: 1 };
+
+    // Path Mode 无目录计数 → 不写
+    root.children[1].children[1]._handlers.click();
+    totalWidget.value = 6;
+    root._sfLipSyncLoopTotal();
+    check("auto total 路径模式不写", totalWidget.value === 6);
+    root.children[1].children[0]._handlers.click();
+    await wait(20);
+
+    // 多 LIP 驱动同一循环 → 取最大图片数
+    const node2 = makeNode();
+    node2.widgets[0].value = "output/render";   // 7 张
+    ext.nodeCreated(node2);
+    node2.graph = node.graph;
+    node2.inputs = [{ name: "skip_first_images", link: 6 }];
+    node.graph.links[6] = { origin_id: "L1", origin_slot: 1 };
+    node.graph._nodes.push(node2);
+    await wait(20);
+    root._sfLipSyncLoopTotal();
+    check("auto total 多节点取 max", totalWidget.value === 7);
+    node.graph._nodes.pop();
+    delete node.graph.links[6];
+
+    // 未连线 → 不写（轮询兜底路径也不炸）
+    node.inputs = [];
+    totalWidget.value = 4;
+    root._sfLipCheckWatch();
+    check("auto total 未连线不写", totalWidget.value === 4);
+
+    // 关闭开关 → 不再写且清除 properties
+    autoTotalBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    check("auto total 关闭清除持久化", node.properties.sfLoadImagesPathAutoTotal === undefined
+        && autoTotalBtn.classList.contains("on") === false);
+
+    // onConfigure 恢复 properties → 重新开启并同步（模拟工作流加载）
+    node.properties.sfLoadImagesPathAutoTotal = true;
+    node.inputs = [{ name: "skip_first_images", link: 5 }];
+    if (node.onConfigure) node.onConfigure({});
+    await wait(20);
+    check("auto total 恢复后同步", totalWidget.value === 3 && autoTotalBtn.classList.contains("on") === true);
 
     console.log();
     if (failures.length) {
