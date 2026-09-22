@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）· §130 VOSR2 视频帧超分（逐帧 + DINOv2 时序缓存 + 帧拼批）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）· §130 VOSR2 视频帧超分（逐帧 + DINOv2 时序缓存 + 帧拼批）· §131 SFVideoCompare：TE_MAN 视频对比干净室复刻（temp H264 落盘 + av 探针 + 双 `<video>` 叠加播放）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -432,3 +432,43 @@ SFForLoopEnd
 - `tests/test_vosr2_loader.py`：缓存关闭不复用 / 几何变化清空 / 进度总量按帧×瓦片；`tests/test_vosr2_settings.py`：frame_batch 档位解析与 batch_override。
 - 实机未测（见 §129.5）；后续实测重点：静帧/慢镜头命中率、refresh 取值对闪烁的影响。
 
+## 131. SFVideoCompare：TE_MAN 视频对比干净室复刻（2026-09）
+
+> 背景：复刻 `tl2012tl/TE_MAN` 的「TE MAN 视频对比」（v3.7 新增，后端 `TE_Video_Comparer.pyd`）。该仓库 LICENSE 明示「仅供学习阅读，严禁复制/修改/衍生/发布」，后端 Cython 闭源、前端 `web/js/te_video_comparer.js` 为混淆代码——按 §126/§129 先例做**干净室复刻**：能力清单自 README v3.7 与 `.pyd` 字符串表还原，代码自写（未抄其实现/命名/结构）。落地 `nodes/video/video_compare.py`（SFVideoCompare）+ `sf_utils/video_compare.py`（纯逻辑 + av 探针）+ `web/sf_video_compare.js` / `sf_video_compare_lib.js`。
+
+### 131.1 能力还原（README + 字符串表）
+
+- 原版事实（`.pyd` 字符串）：类 `TEMANVideoComparerNode`，分类 `TE MAN/Utils`，`OUTPUT_NODE`，FUNCTION `compare_videos`；输入 `video_a`/`video_b` **均为 optional**（"对比视频 A/B"）；预览落盘 `get_temp_directory()` + `te_man_video_compare_<uuid>.mp4` + `VideoContainer.MP4`/`VideoCodec.H264`，再用 av 读 `frames`/`average_rate`/`time_base`/`duration`；ui 键 `a_videos`/`b_videos`；前端把内容信息写进 `node.properties`（原文键 `te_video_comparer_videos`）以刷新恢复。
+- 复刻范围：双输入叠加、鼠标移动分界线、点击暂停/继续、独立进度条、静音/音频 A/音频 B、0.25x-2x 速度、同步帧（总帧数相同才可用）、全屏、同步播放（结束自动重播）、信息随工作流保存。
+- **`onExecuted(message)` 收到的就是 ui dict**：宿主 `execution.py` 的 `executed` 消息 `output` = `ui_output`（容器内前端 `core-*.js` 同款消费），不需要自定义事件。
+
+### 131.2 后端：temp 落盘 + av 探针
+
+- 每路 `video.save_to(temp/sf_video_compare_<uuid>.mp4, format=MP4, codec=H264)`：源为 h264/mp4 时 `save_to` 内部 `reuse_streams` 走纯 remux（秒级），webm/av1 源转码（长视频耗时，与原版同）；uuid 文件名避免浏览器缓存旧内容。
+- `probe_video_meta`（`sf_utils/video_compare.py`）：`stream.frames` 为 0 时用 `时长×帧率` 兜底（webm 常缺帧数）；`stream.duration×time_base` 缺失回退 `container.duration/av.time_base`。
+- 节点是**纯查看器**：`RETURN_TYPES = ()` + `OUTPUT_NODE`（无输出槽），入队即执行并触发上游视频生成；两路都空返回空列表不报错。
+- 上游未变时 ComfyUI 节点缓存命中、`execute` 不重复执行 → 不会每次重跑都新落盘（仅缓存未命中才产生新 temp 文件；temp 目录由 ComfyUI 启动时清空）。
+
+### 131.3 前端：DOM widget 双视频叠加
+
+- 结构：控制行（5 按钮）+ 预览区（两 `<video>` absolute inset + 1px 分界线）+ 进度行（range + 时间标签）；B 以 `clip-path: inset(0 0 0 X%)` 裁切——分界线与裁切边界同坐标系（都是元素盒），两视频同宽高比时内容切分一致。
+- 分界线：`pointermove` 更新（hover 即跟随），`click` 切播放/暂停（原版同款：移动分界与点击暂停共存在同一区域）。
+- 播放同步：`syncToken` 防竞态 + rAF 循环 `keepVideosSynchronized`；任一视频结束即 `startPlayback(fromStart)` 从头重播；暂停后恢复先 `alignBToATime`（非帧同步档）。
+- 同步帧：仅当两路 `frame_count` 相等且 fps>0 时按钮可用；A 当前时间 → 帧号 → 按各自 fps 换算时间；`seekVideo` 带 700ms 超时（seek 失败不静默改状态）。
+- 状态恢复：`node.properties.sfVideoCompareVideos = {a,b}`（properties 随工作流自动序列化）；`onExecuted`/`onConfigure` 双路装载；`onRemoved` 释放 `<video>`（pause + removeAttribute + load，避免后台继续解码）、销毁菜单、摘 fullscreen/ResizeObserver/wheel 监听。
+- 悬停菜单挂 `document.fullscreenElement || document.body`（全屏内可见），`placeHoverMenu` 纯几何（上方优先→下方回退→四向钳位），离开按钮/菜单 160ms 隐藏。
+
+### 131.4 与原版的有意差异
+
+- 主题令牌配色（`--sf-*` / `--sf-acc`）跟随明暗/自定义主题，原版硬编码深色。
+- **单视频自动占满**：只接 B 时 position=0（`inset(0 0 0 0%)`）且隐藏分界线；原版只接 B 因固定 50% 裁切只显示右半（bug）。
+- 元数据缺帧数/时长时前后端双兜底（后端 av 探针、前端 `normalizeMeta` 用 帧数/帧率 反推时长）。
+- 滚轮透传用 `sf_common.installCanvasZoomPassthrough`（原版直调 `app.canvas._mousewheel_callback` 内部 API）；Vue 模式 `onResize` 不触发（§44），预览高度用 `ResizeObserver` + widget `computeSize` 兜住。
+- 按钮/菜单/`<video>` 在测试中以假 DOM 驱动（`tests/test_video_compare_js.js`），不需浏览器。
+
+### 131.5 测试
+
+- `tests/test_video_compare.py`：纯逻辑（命名/帧数兜底/条目归一）+ 桩 av 探针全分支 + 节点结构/根注册 + execute（`save_to` 参数 MP4+H264、ui 形状、单路/全空/失败抛错）。
+- `tests/test_video_compare_lib.mjs`：时间格式、元数据归一、帧/时间换算夹紧、分界线几何、预览高度、菜单定位四向。
+- `tests/test_video_compare_js.js`：假 DOM + FakeNode——扩展名/类型门控、widget 安装、onExecuted 装载（src/properties/分界线/按钮）、播放暂停、同步帧对齐与禁用、悬停菜单选择、分界线拖动、单视频占满、configure 恢复、onRemoved 清理。
+- 坑：测试剥 import 的 `loadStripped` 不能裸用 `/import[^;]+;/`——注释里出现 "import" 字样会跨行吞掉代码（本模块 lib 头注释即触发，改用 `^import[^;]+;/gm` 只剥行首）。

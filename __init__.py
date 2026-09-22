@@ -133,6 +133,7 @@ from .nodes.video.sam3_point_track import SFSAM3PointTrack
 from .nodes.video.sam3_reanchor_track import SFSAM3ReanchorTrack
 from .nodes.video.wan_motion_boost import SFWanMotionBoost
 from .nodes.video.vosr2_video import SFVOSR2Video
+from .nodes.video.video_compare import SFVideoCompare
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -382,6 +383,7 @@ NODE_CLASS_MAPPINGS = {
     "SFSCAIL2ReferenceSAMBuilder": SFSCAIL2ReferenceSAMBuilder,
     "SFSCAIL2SimpleVideo": SFSCAIL2SimpleVideo,
     "SFVideoConcat": SFVideoConcat,
+    "SFVideoCompare": SFVideoCompare,
     "SFSAM3PointTrack": SFSAM3PointTrack,
     "SFSAM3ReanchorTrack": SFSAM3ReanchorTrack,
     "SFWanMotionBoost": SFWanMotionBoost,
@@ -623,6 +625,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFSCAIL2ReferenceSAMBuilder": "SF SCAIL-2 Reference SAM Builder",
     "SFSCAIL2SimpleVideo": "SF SCAIL-2 Simple Video",
     "SFVideoConcat": "SF Video Concat",
+    "SFVideoCompare": "SF Video Compare",
     "SFSAM3PointTrack": "SF SAM3 Point Track",
     "SFSAM3ReanchorTrack": "SF SAM3 Reanchor Track",
     "SFWanMotionBoost": "SF Wan Motion Boost",

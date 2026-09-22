@@ -142,6 +142,8 @@ MODS = [
     "sf_scail2",
     # SCAIL-2 预处理内存优化设置（后端 scail2_mem 补丁开关/帧数/f16）
     "sf_scail2_mem_settings",
+    # 视频对比（TE_MAN 干净室复刻：纯逻辑 + 双 <video> 叠加播放 DOM 主模块）
+    "sf_video_compare", "sf_video_compare_lib",
 ]
 
 EXPORT_RE = re.compile(
