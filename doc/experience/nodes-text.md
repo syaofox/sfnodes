@@ -296,13 +296,13 @@
 
 ### 2. 渐进式按需加载
 
-- 后端 `GET /api/sfnodes/images_path/subdirs?folder=`：**复用 `_resolve_folder` 解析**（前缀/绝对路径/包含性安全校验一套逻辑），只列当前层一级子目录（隐藏目录过滤在 `_list_one_level_subdirs` 统一）。
+- 后端 `GET /api/sfnodes/images_path/subdirs?folder=`：**复用 `_resolve_folder` 解析**（前缀/绝对路径/包含性安全校验一套逻辑），只列当前层一级子目录（隐藏目录过滤在 `_list_one_level_subdirs` 统一）。响应 `{subdirs, file_count}`：`file_count` = 当前目录一级图片数（`_count_image_files`，与节点加载同用 `filter_files_content_types(["image"])`、不含递归），随同一次请求返回供前端计数显示。
 - 前端同值缓存（`_lastFetched`）：重复渲染/恢复不重复请求；刷新按钮/打开 popup 时 `force=true`。竞态用 reqId 单调（快速切换丢弃旧响应）。
 - 渲染只读**不加 isGraphLoading 门控**：门控会在 300ms 尾窗内跳过恢复渲染，尾窗后无触发 → DOM 停在初始状态与保存值不同步（渲染不写序列化状态，门控多余且有害）。
 
 ### 3. popup 下拉骨架（SFLoadImageResize 风格，选目录版）
 
-- 触发按钮 `[◀] [ 📁 当前目录名 2目录 ▼ ] [▶]`：name 显示当前目录（末段/源根）、counter 显示子目录数——**仿 SFLoadImageResize 的 name+counter 结构，两个渲染函数写不同元素**（曾把 name 同时写"目录名"与"X 个子目录"导致互相覆盖）。
+- 触发按钮 `[◀] [ 📁 当前目录名 2 目录 · 3 文件 ▼ ] [▶]`：name 显示当前目录（末段/源根）、counter 显示子目录数 + 一级图片数（为 0 的一段省略，`title` 写"当前目录：N 个子目录 · M 张图片"）——**仿 SFLoadImageResize 的 name+counter 结构，两个渲染函数写不同元素**（曾把 name 同时写"目录名"与"X 个子目录"导致互相覆盖）。`renderFromValue` 每次先清空计数（Path Mode 无当前目录概念防残留；`renderSubdirs` 另有 mode 守卫挡迟到响应），`loadCurrentSubdirs` **同值缓存命中也要调 `renderSubdirs` 重绘**（否则切回目录模式停在空计数）。
 - popup：锚点 getBoundingClientRect 下方 fixed 定位、宽度 max(锚点宽, 240)、头部显示完整路径、列表项点击即进入并关闭；空目录显示"（无子目录）"。
 - 关闭机制（同 SFLoadImageResize）：外部 mousedown/pointerdown/wheel（capture）+ Escape；`_openPopup` 引用 + `removeEventListener` 全摘（`_sfClose` 式清理，防泄漏）。
 - **不用 innerHTML 建子元素**：mock DOM（tests）不解析 innerHTML 字符串，显式 `createElement`/`append` 真实 DOM 与 mock 一致（曾因 `trigger.innerHTML = '<span class="name">…'` 在 mock 下拿不到子元素）。

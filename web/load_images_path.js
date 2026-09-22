@@ -137,6 +137,7 @@ app.registerExtension({
         };
 
         let _currentSubdirs = [];   // 当前层子目录（渐进式按需加载）
+        let _currentFileCount = 0;  // 当前层一级图片数（与目录信息同请求返回）
 
         const currentValue = () => String(folderWidget.value || "");
 
@@ -169,14 +170,17 @@ app.registerExtension({
             setValue(dirValue(st.source, parts.slice(0, length).join("/")));
         };
 
-        // 拉取指定目录的下一级子目录（无竞态缓存，供同级切换用）
-        const fetchSubdirs = async (folderVal) => {
+        // 拉取指定目录信息：下一级子目录 + 一级图片文件数（无竞态缓存，供同级切换用）
+        const fetchDirInfo = async (folderVal) => {
             try {
                 const resp = await fetch(sfApiUrl(`/api/sfnodes/images_path/subdirs?folder=${encodeURIComponent(folderVal)}`));
                 const data = resp.ok ? await resp.json() : null;
-                return Array.isArray(data?.subdirs) ? data.subdirs : [];
+                return {
+                    subdirs: Array.isArray(data?.subdirs) ? data.subdirs : [],
+                    fileCount: Number.isFinite(data?.file_count) ? data.file_count : 0,
+                };
             } catch {
-                return [];
+                return { subdirs: [], fileCount: 0 };
             }
         };
 
@@ -249,6 +253,12 @@ app.registerExtension({
                         : "—";
                 }
                 trigger.title = raw;
+                // Path Mode 无"当前目录"概念：清空计数，防残留旧目录计数
+                const counterEl = trigger.querySelector("[data-role='dir-count']");
+                if (counterEl) {
+                    counterEl.textContent = "";
+                    counterEl.title = "";
+                }
             }
 
             // 值变化 → 重新加载当前层子目录（loadCurrentSubdirs 内部有
@@ -256,13 +266,21 @@ app.registerExtension({
             if (mode === "dir") loadCurrentSubdirs();
         };
 
-        // ── 渲染：下拉按钮状态（当前目录名 + 子目录计数）──
+        // ── 渲染：下拉按钮状态（当前目录名 + 子目录数 + 图片文件数）──
         const renderSubdirs = () => {
             const trigger = root.querySelector("[data-role='dir-trigger']");
             if (!trigger) return;
             const counterEl = trigger.querySelector("[data-role='dir-count']");
             if (counterEl) {
-                counterEl.textContent = _currentSubdirs.length ? `${_currentSubdirs.length} 目录` : "";
+                const bits = [];
+                if (getMode() === "dir") {
+                    if (_currentSubdirs.length) bits.push(`${_currentSubdirs.length} 目录`);
+                    if (_currentFileCount) bits.push(`${_currentFileCount} 文件`);
+                }
+                counterEl.textContent = bits.join(" · ");
+                counterEl.title = bits.length
+                    ? `当前目录：${_currentSubdirs.length} 个子目录 · ${_currentFileCount} 张图片`
+                    : "";
             }
             // popup 打开时同步其内容
             if (_openPopup) renderDirPopup(_openPopup);
@@ -361,12 +379,16 @@ app.registerExtension({
         let _lastFetched = null;   // 同值缓存：重复渲染/恢复不重复请求
         const loadCurrentSubdirs = async (force = false) => {
             const v = currentValue();
-            if (!force && v === _lastFetched) return;
+            if (!force && v === _lastFetched) {
+                renderSubdirs();   // 缓存命中也要重绘（renderFromValue 刚清过计数）
+                return;
+            }
             _lastFetched = v;
             const myReq = ++_subdirsReq;
-            const list = await fetchSubdirs(v);
+            const info = await fetchDirInfo(v);
             if (myReq !== _subdirsReq) return;   // 竞态：快速切换时旧响应丢弃
-            _currentSubdirs = list;
+            _currentSubdirs = info.subdirs;
+            _currentFileCount = info.fileCount;
             renderSubdirs();
         };
 
@@ -377,7 +399,7 @@ app.registerExtension({
             const parts = st.sub ? st.sub.split("/") : [];
             if (!parts.length) return;   // 根层无同级
             const parentVal = dirValue(st.source, parts.slice(0, -1).join("/"));
-            const list = await fetchSubdirs(parentVal);
+            const { subdirs: list } = await fetchDirInfo(parentVal);
             if (!list.length) return;
             const cur = parts[parts.length - 1];
             let idx = list.indexOf(cur);

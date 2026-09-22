@@ -94,11 +94,11 @@ globalThis.requestAnimationFrame = (fn) => fn();
 globalThis.queueMicrotask = (fn) => fn();
 globalThis.navigator = {};
 
-// ── 目录树 mock：按 folder 值返回下一级子目录 ──
+// ── 目录树 mock：按 folder 值返回下一级子目录 + 一级图片文件数 ──
 const SUBDIR_TREE = {
-    "input": ["faces", "empty"],
-    "input/faces": ["sub1", "sub2"],
-    "output": ["render"],
+    "input": { dirs: ["faces", "empty"], files: 5 },
+    "input/faces": { dirs: ["sub1", "sub2"], files: 3 },
+    "output": { dirs: ["render"], files: 0 },
 };
 let subdirCalls = [];
 globalThis.fetch = async (url) => {
@@ -106,7 +106,8 @@ globalThis.fetch = async (url) => {
     if (u.includes("/api/sfnodes/images_path/subdirs")) {
         const folder = new URL(u, "http://localhost").searchParams.get("folder");
         subdirCalls.push(folder);
-        return { ok: true, json: async () => ({ subdirs: SUBDIR_TREE[folder] || [] }) };
+        const entry = SUBDIR_TREE[folder] || { dirs: [], files: 0 };
+        return { ok: true, json: async () => ({ subdirs: entry.dirs, file_count: entry.files }) };
     }
     throw new Error("unexpected fetch: " + u);
 };
@@ -213,7 +214,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     // 下拉按钮显示当前目录名（末段）
     const triggerName = root.querySelector("[data-role='dir-trigger']").children[0];
     check("下拉按钮显示当前目录名", triggerName.textContent === "faces");
-    check("子目录计数显示", root.querySelector("[data-role='dir-count']").textContent.includes("2"));
+    check("计数显示目录数+文件数", root.querySelector("[data-role='dir-count']").textContent === "2 目录 · 3 文件");
 
     // ── Esc 关闭 popup ──
     _bodyAppends.length = 0;
@@ -287,6 +288,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     // ── 模式切换：直接输入路径 ──
     root.children[1].children[1]._handlers.click();
     check("切到路径模式（值保持）", folderWidget.value === "input");
+    check("路径模式清空计数", root.querySelector("[data-role='dir-count']").textContent === "");
     const input = root.querySelector("[data-role='path-input']");
     check("路径输入框预填当前值", input.value === "input");
     input.value = "/data/images/custom";
@@ -297,6 +299,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     root.children[1].children[0]._handlers.click();
     check("切回目录模式回源根", folderWidget.value === "input");
     await wait(20);
+    // 同值缓存命中也要重绘计数（否则停在路径模式的空计数）
+    check("切回目录模式计数恢复", root.querySelector("[data-role='dir-count']").textContent === "2 目录 · 5 文件");
 
     // ── onConfigure 恢复：外部改值（如工作流加载）→ DOM 状态同步 + fetch 当前层 ──
     // 当前路径由面包屑承载（commit 2491fbb 移除了独立的 current 行）——

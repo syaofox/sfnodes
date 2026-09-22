@@ -207,6 +207,20 @@ def _list_subdirs(folder: str) -> list:
     return _list_one_level_subdirs(directory)
 
 
+def _count_image_files(folder: str) -> int:
+    """解析 folder 值并返回当前目录一级图片文件数（不含递归，供前端计数显示）。
+
+    与节点加载同一内容类型过滤（filter_files_content_types(["image"])）；
+    越界或不存在返回 0。"""
+    directory = _resolve_folder(folder)
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return 0
+    files = [os.path.join(directory, n) for n in names]
+    return len(folder_paths.filter_files_content_types([f for f in files if os.path.isfile(f)], ["image"]))
+
+
 def _register_routes():
     try:
         from server import PromptServer
@@ -226,7 +240,10 @@ def _register_routes():
         async def _list_subdirs_route(request: web.Request) -> web.Response:
             try:
                 folder = request.query.get("folder", "")
-                return web.json_response({"subdirs": _list_subdirs(folder)})
+                return web.json_response({
+                    "subdirs": _list_subdirs(folder),
+                    "file_count": _count_image_files(folder),
+                })
             except Exception:
                 return web.Response(status=500)
     except Exception:

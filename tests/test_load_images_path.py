@@ -48,7 +48,12 @@ folder_paths = types.ModuleType("folder_paths")
 folder_paths.get_user_directory = lambda: tmp_user
 folder_paths.get_input_directory = lambda: tmp_in
 folder_paths.get_output_directory = lambda: tmp_out
-folder_paths.filter_files_content_types = lambda files, types_: files
+_IMG_EXT = {"png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"}
+def _filter_files_content_types(files, types_):
+    if "image" not in types_:
+        return []
+    return [f for f in files if f.rsplit(".", 1)[-1].lower() in _IMG_EXT]
+folder_paths.filter_files_content_types = _filter_files_content_types
 sys.modules["folder_paths"] = folder_paths
 
 comfy = types.ModuleType("comfy")
@@ -74,6 +79,11 @@ spec.loader.exec_module(mod)
 # ── 目录准备 ──
 os.makedirs(os.path.join(tmp_in, "faces"), exist_ok=True)
 os.makedirs(os.path.join(tmp_out, "render"), exist_ok=True)
+with open(os.path.join(tmp_in, "root.png"), "w") as f:
+    f.write("x")
+for name in ("a.png", "b.jpg", "note.txt"):
+    with open(os.path.join(tmp_in, "faces", name), "w") as f:
+        f.write("x")
 
 # ── _list_folders ──
 folders = mod._list_folders()
@@ -126,6 +136,36 @@ check("隐藏目录跳过", ".hidden" not in mod._list_subdirs("input/faces"))
 check("三层路径", mod._list_subdirs("output/render") == ["deep"])
 check("不存在的目录返回空", mod._list_subdirs("input/nope") == [])
 check("越界路径钳制到 input 根（无逃逸）", mod._list_subdirs("../../etc") == mod._list_subdirs("input"))
+
+# ── _count_image_files：当前目录一级图片数（内容类型过滤，不含子目录）──
+check("根层图片数（1 张）", mod._count_image_files("input") == 1)
+check("子层图片数（a.png + b.jpg，note.txt 不算）", mod._count_image_files("input/faces") == 2)
+check("绝对路径图片数", mod._count_image_files(os.path.join(tmp_in, "faces")) == 2)
+check("不存在的目录图片数为 0", mod._count_image_files("input/nope") == 0)
+check("越界路径图片数钳到 input 根（无逃逸）", mod._count_image_files("../../etc") == 1)
+
+# ── 路由响应：subdirs + file_count（前端计数器数据源）──
+class _FakeRoutes:
+    def __init__(self): self.handlers = {}
+    def get(self, path):
+        def deco(fn):
+            self.handlers[path] = fn
+            return fn
+        return deco
+fake_routes = _FakeRoutes()
+server_mod = types.ModuleType("server")
+class _PromptServer: pass
+_PromptServer.instance = types.SimpleNamespace(routes=fake_routes)
+server_mod.PromptServer = _PromptServer
+sys.modules["server"] = server_mod
+mod._register_routes()
+route = fake_routes.handlers.get("/api/sfnodes/images_path/subdirs")
+check("subdirs 路由已注册", callable(route))
+import asyncio
+_resp = asyncio.run(route(types.SimpleNamespace(query={"folder": "input/faces"})))
+_payload = _resp.body[0]
+check("路由返回 subdirs", _payload["subdirs"] == ["sub1", "sub2"])
+check("路由返回 file_count", _payload["file_count"] == 2)
 
 print()
 if failures:
