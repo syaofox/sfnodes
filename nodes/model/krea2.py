@@ -37,8 +37,10 @@ except Exception:  # pragma: no cover - 移植性兜底
 # `nodes.model.krea2` 顶层包导入时 `...` 越界，回退绝对导入。
 try:
     from ...sf_utils.common import collect_indexed as _collect_indexed
+    from ...sf_utils.common import flatten_to_rgb as _flatten_to_rgb
 except Exception:  # pragma: no cover - 测试/移植性兜底
     from sf_utils.common import collect_indexed as _collect_indexed
+    from sf_utils.common import flatten_to_rgb as _flatten_to_rgb
 
 
 def _merged_presets(kind, builtin):
@@ -205,26 +207,6 @@ KREA2_PRESETS = {
 }
 
 _CATEGORY = "sfnodes/model"
-
-
-def _flatten_to_rgb(image):
-    """参考图通道归一为 RGB [B,H,W,C]：带 alpha 的按黑底预乘合成，最后 clamp 到 [0,1]。
-
-    直接切片 ``[..., :3]`` 会保留透明像素的任意 RGB 残留并被 VLM 当作真实颜色
-    "看到"；预乘黑底让透明区语义干净。必须在插值缩放之前调用——先缩放后合成
-    会把残留杂色扩散进不透明区域的边缘。
-    """
-    if image is None:
-        return None
-    if image.dim() == 3:  # (H,W,C) -> (1,H,W,C)，与 IMAGE [B,H,W,C] 惯例对齐
-        image = image.unsqueeze(0)
-    if image.shape[-1] >= 4:
-        rgb = image[..., :3]
-        alpha = image[..., 3:4]
-        image = rgb * alpha
-    elif image.shape[-1] != 3:
-        image = image[..., :3]
-    return image.clamp(0.0, 1.0)
 
 
 class TextEncodeKrea2:

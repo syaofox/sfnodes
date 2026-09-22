@@ -647,3 +647,33 @@
 - `tests/test_prompt_rewrite.py`：常量/消息构造（模式/比例/透明/长度/图片部分）/JSON 提取（围栏/前后缀）/契约校验（键集合、比例一致与引号豁免、透明三语义、over_limit）/纠正消息。
 - `tests/test_image_prompt_rewriter.py`：打桩 `chat_completion_sync`（不发真实请求）——输入校验、多图有序部分数、纠正温度 0.1、失败保留首稿、空响应抛错、超长纠正与失败保留、report 字段。
 - `tests/test_llm_client.py` 补 `image_content_parts` 多图断言；`tests/test_image_interrogator_api.py` 回归共享 `frame_to_pil` 委托。
+
+---
+
+## 126. SFQwenImage21PromptEnhancer：Qwen Image 2.1 提示词增强（复刻 TE_MAN，本地官方 PE + 通用 LLM + API）
+
+> 背景：复刻 TE_MAN `TE_Qwen_Image_2_1_Prompt_Enhancer`（2026-09）。原节点为 Cython `.pyd` 闭源，仓库 LICENSE 禁止复制/衍生，故为**干净室复刻**：能力从 `.pyd` 字符串表与 README 还原（三种增强方式 / 文生图·图生图 / 最多 8 参考图 / 输出语言 / 官方提示词规则），代码与协议文本自写，不抄其内部实现。落地 `sf_utils/qwen21_prompts.py`（官方提示词原文）+ `sf_utils/qwen21_enhance.py`（纯逻辑）+ `nodes/text/qwen21_prompt_enhancer.py`（节点）+ `web/sf_qwen21_prompt_enhancer.js`。
+
+### 1. 官方 PE 模型机制（本地官方PE 模式的依据）
+
+- 官方 PE 模型是 **Qwen3.5-VL 9B 微调**（HF `Qwen/Qwen-Image-2.1-PE-T2I`/`-I2I`；Comfy-Org 重打包 `text_encoders/qwen3.5_9b_qwen_image_2.1_pe_t2i/i2i.int8_convrot.safetensors`），系统提示词**随模型发布**（t2i 10KB / edit 18KB），答案契约是训练的一部分——官方 README 明示偏离提示词会静默漂移（`parse_ok:false`），故官方 PE 模式**逐字内嵌官方提示词**（`qwen21_prompts.py`，Qwen Research License，标注来源）；通用/API 模式用自写协议（方法吸收，措辞不复制）。
+- **ComfyUI 原生零依赖**：`CLIPLoader` 按张量形状自动识别 `qwen35_9b`（`model.language_model.layers.0.linear_attn.A_log` + hidden 4096，与 clip type 无关），`lm_head` 在位即可 `clip.generate()`；官方 chat_template 的 thinking 生成提示为 `<|im_start|>assistant\n<think>\n`（`enable_thinking=False` 时空 think 块抑制推理）。
+- **本地聊天文本必须手工构造**：`build_local_chat_text` 以 `<|im_start|>` 开头 → tokenizer 走 `skip_template` 分支（qwen35/qwen3vl 同款判定），system/user 轮 + `<|vision_start|><|image_pad|><|vision_end|>` 按图数前置于 user 文本（官方顺序：图片先于文本），assistant 预填 thinking 两态。tokenizer 的 `thinking` 参数此时不影响模板，仅保持接口一致。
+- 官方生产采样：t2i `presence_penalty=1.5`/`max_new_tokens=16256`，edit `0`/`24000`，temperature 1.0 / top_p 0.95 / top_k 20；官方 `max_length` 是**新 token 数**（`cap = embeds.shape[1] + max_length + 7`）。单图约 1MP（训练值），alpha 需在插值前黑底预乘（`process_qwen2vl_images` 按 3 通道归一，4 通道会广播报错）。
+- **`max_tokens` 必须可调**（实测教训）：官方上限（16256/24000）对 RTX 3060 12GB 这类低显存机器意味着进度条按上限估时（显示 1 小时+），实际模型到 EOS 即停（实测输出仅 296~425 tokens / 约 1 分钟），但万一模型跑飞就是真跑满上限。widget 默认 8192、0 = 官方 profile 上限（`_request_local` 里 `max_tokens if >0 else profile.max_new_tokens`）；撞上限被截断会触发截断守卫报错，不静默输出半截思考链。report 增 `generated_tokens` 便于核对实际生成长度。
+
+### 2. 关键决策与踩坑
+
+- **任务显式选择而非自动判定**：官方 PE 按任务分权重，接错模型效果骤降；图生图必须接图、文生图不接图（错配直接报错），比 §115 的自动判定更适合官方 PE。参考图按批次逐帧计数（与 §115 一致），上限 8（对齐 TE_MAN）。
+- **答案解析三级**：严格 JSON（逆序平衡括号扫描，容忍前置/后置散文与字符串内花括号）→ 字段级恢复（逐字段读引号串，容忍裸换行/截断，`recovered=True`）→ 原文兜底（`parse_ok=False`）；兼容官方训练里出现过的 `rewrited_prompt` 拼写。比例字段经 `normalize_ratios` 归一（非法清空 + 警告；官方互斥约定保留 `wh_ratio`）。
+- **截断守卫**：官方 PE + thinking 开启时，输出既无 `</think>` 又不是合法 JSON → 判为思考链被截断并报错（否则会把推理残段当提示词输出）；`thinking=False` 或 `recovered=True` 不触发。
+- **模型族软告警**：`clip.tokenizer.clip_name` 可读模型族（qwen35_9b / qwen3vl_8b），官方PE 模式下非 `qwen35*` 记入 report.warning 而非报错（用户可能故意试通用模型）。
+- **API 复用 `llm_client`**：节点不接触密钥（`sfnodes.LLM.*` 设置）；`chat_completion_sync` 只支持 temperature/seed（top_k/top_p/min_p/repetition_penalty 是本地专属），API 模式**不传 max_tokens**（对齐 TE_MAN「API 模式不发送此限制」）；seed 恒进 LRU 缓存键。
+- **`flatten_to_rgb` 提升共享**：原 `nodes/model/krea2.py` 私有 `_flatten_to_rgb` 提升到 `sf_utils/common.py:flatten_to_rgb`（krea2 以 `_flatten_to_rgb` 别名导入保持调用点不变），本节点与 SFImageInterrogator 共用，避免内联副本。
+- `unload_after` 对齐 SFVRAMCleanup：`unload_all_models + cleanup_models_gc + soft_empty_cache`，失败不阻断结果输出；会连带卸载其他节点模型（tooltip 已注明）。
+- 不提供 `context_length`/`do_sample` widget：前者由 ComfyUI/后端管理（llama.cpp `n_ctx` 不适用），后者由 temperature=0 表达贪心。
+
+### 3. 测试
+
+- `tests/test_qwen21_enhance.py`：profile 常量/官方与通用协议选择（中文覆盖指令）/本地聊天文本（占位与 thinking 两态）/思考链分割/答案解析全分支（多对象取最后、字符串花括号、拼写兼容、比例归一与互斥、字段级恢复、原文兜底）。
+- `tests/test_qwen21_prompt_enhancer.py`：FakeClip 记录 tokenize/generate（官方/通用协议、预填、视觉占位、图片 RGB 缩放、profile 采样参数、max_tokens 默认/0 回退/覆盖）+ 打桩 `chat_completion_sync`（API 文本/多图消息、参数透传、不传 max_tokens）+ 输入校验/兜底/报错/软告警/卸载调用，不发真实网络。

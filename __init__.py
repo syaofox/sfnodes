@@ -174,6 +174,7 @@ from .nodes.text.styles_selector import SFStylesSelector  # noqa: F401  # 副作
 from .nodes.text.id_clothing import SFIDClothingSelector
 from .nodes.text.character import SFCharacterSelect
 from .nodes.text.image_prompt_rewriter import SFImagePromptRewriter
+from .nodes.text.qwen21_prompt_enhancer import SFQwenImage21PromptEnhancer
 from .nodes.text import prompt_reader_routes  # noqa: F401  # 副作用注册 /api/sfnodes/prompt_reader/extract 路由
 from .nodes.text import translate_routes  # noqa: F401  # 副作用注册 /api/sfnodes/translate 路由（SFPauseText 翻译按钮）
 from .nodes.text.long_text_to_list import SFLongTextToList
@@ -403,6 +404,7 @@ NODE_CLASS_MAPPINGS = {
     "SFIDClothingSelector": SFIDClothingSelector,
     "SFCharacterSelect": SFCharacterSelect,
     "SFImagePromptRewriter": SFImagePromptRewriter,
+    "SFQwenImage21PromptEnhancer": SFQwenImage21PromptEnhancer,
     "SFLongTextToList": SFLongTextToList,
     "SFTextListAffix": SFTextListAffix,
     "SFSpreadsheetOutputList": SFSpreadsheetOutputList,
@@ -638,6 +640,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFIDClothingSelector": "SF ID Clothing Selector",
     "SFCharacterSelect": "SF Character Select",
     "SFImagePromptRewriter": "SF Image Prompt Rewriter",
+    "SFQwenImage21PromptEnhancer": "SF Qwen Image 2.1 Prompt Enhancer",
     "SFLongTextToList": "SF Long Text To List",
     "SFTextListAffix": "SF Text List Affix",
     "SFSpreadsheetOutputList": "SF Spreadsheet OutputList",

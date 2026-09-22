@@ -115,6 +115,27 @@ def frame_to_pil(image, index):
     return Image.fromarray((arr * 255.0 + 0.5).astype("uint8"), "RGB")
 
 
+def flatten_to_rgb(image):
+    """参考图通道归一为 RGB [B,H,W,C]：带 alpha 的按黑底预乘合成，最后 clamp 到 [0,1]。
+
+    直接切片 ``[..., :3]`` 会保留透明像素的任意 RGB 残留并被 VLM 当作真实颜色
+    "看到"；预乘黑底让透明区语义干净。必须在插值缩放之前调用——先缩放后合成
+    会把残留杂色扩散进不透明区域的边缘。SFImageInterrogator（Krea2 视觉编码）
+    与 SFQwenImage21PromptEnhancer 共用（原 nodes/model/krea2.py 私有实现提升）。
+    """
+    if image is None:
+        return None
+    if image.dim() == 3:  # (H,W,C) -> (1,H,W,C)，与 IMAGE [B,H,W,C] 惯例对齐
+        image = image.unsqueeze(0)
+    if image.shape[-1] >= 4:
+        rgb = image[..., :3]
+        alpha = image[..., 3:4]
+        image = rgb * alpha
+    elif image.shape[-1] != 3:
+        image = image[..., :3]
+    return image.clamp(0.0, 1.0)
+
+
 def node_result(value):
     """把核心 V3 节点 execute 的返回值归一为 tuple。
 
