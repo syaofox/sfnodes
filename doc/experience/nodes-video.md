@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）· §130 VOSR2 视频帧超分（逐帧 + DINOv2 时序缓存 + 帧拼批）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -407,3 +407,28 @@ SFForLoopEnd
 - 原拓扑：逐段驱动追踪（`SFSAM3ReanchorTrack` + `SFTrackDataSlice` + `SFAnyToString`）在子图内，子图为此暴露 3 个 `SAM3_TRACK_DATA` 输出（1 个纯透传仅供预览、1 个是死线：`SFMaskToTrackData` 把 mask 转回 track 后无人消费）。
 - 改法：三节点移到主图（仍逐段执行——依赖循环体内 `VHS_LoadVideo`，属循环体），子图新增输入 `driving_track_data` 喂 `SCAIL2ColoredMask`、只暴露 `IMAGE`；预览 / `ComfySwitchNode` / 追踪回退直连主图；子图内重复的 SAM3 `CheckpointLoaderSimple` 删除（与主图同名加载器合并）。
 - 结论：子图输出是「外部看内部结果」的唯一通道，纯透传不算多余；但当预览与下游都要用它时，把生产者外移更直观，且能消掉重复加载器与死线。
+
+## 130. VOSR2 视频帧超分：DINOv2 时序缓存 + 帧拼批（2026-09）
+
+> 承接 §129（VOSR2 节点族总览；视频是逐帧模型，无时序注意力，优化点全在「跳过重复计算」）。节点 `nodes/video/vosr2_video.py`（SFVOSR2Video），核心复用 `nodes/model/vosr2/inferencer.py` 的同一管线。
+
+### 130.1 机制
+
+- **逐帧独立推理**：VOSR 2.0 没有时间维，视频 = IMAGE 批次；第 i 帧 seed = `seed + i`，与图片批次语义一致（同种子可复现单帧结果）。
+- **DINOv2 时序缓存**（`DinoTemporalCache`）：DINO 特征只影响条件，相邻帧同位置瓦片高度相似。按瓦片键 `(hi, wi)` 存「上一帧该瓦片像素签名（16×16 均值池化）+ 特征（CPU）」；当前帧签名与缓存的最大绝对差 <= `cache_threshold` 即复用（特征搬回 device/dtype），`cache_refresh > 0` 时每 N 帧强制重算（防漂移累积）；瓦片几何（输出尺寸/瓦片边长/位置列表）变化整体失效。
+- **帧拼批**：`frame_batch`（默认按档位，manual 1 / speed 8）作为 item 批量传入同一 `upscale()`；拼批内每个瓦片位置对「未命中缓存的帧」子集调 DINO（`_vision_features_with_fallback`，OOM 减半降级），命中帧直接取缓存——批内混合命中/未命中是常态，勿按整批判定。
+- **进度**：总进度 = Σ 帧 × 瓦片数（`dit_tile_count`），逐瓦片 tick；执行结束打印缓存命中率（`hits/(hits+misses)`）。
+- **输出内存**：每帧解码后立即 `.cpu()` 并逐项色彩对齐，输出在 CPU 累积——视频长批次不按 GPU 常驻增长。
+
+### 130.2 坑与注意
+
+- 缓存特征存 CPU（1.4B 模型 + 16~64 瓦片/帧，显存存不下）；签名存的是「上一帧」，跳帧/乱序调用（slot 不连续）时只退化为少命中，不会错用旧特征。
+- `refresh` 语义是 `slot % refresh == 0` 强制重算（slot 0 必然重算）；`cache_refresh=0` 表示从不强制刷新。
+- 缓存只复用 DINO，不复用 latent/VAE 结果：VAE 编解码与 DiT 仍逐帧全算（VOSR2 的 DiT 条件含 LR 潜变量，跨帧复用会糊细节）。
+- 几何失效依赖位置列表相等判断（含瓦片边长），改 tile_size/vae_tile_size 无需手动清缓存。
+
+### 130.3 测试
+
+- `tests/test_vosr2_loader.py`：缓存关闭不复用 / 几何变化清空 / 进度总量按帧×瓦片；`tests/test_vosr2_settings.py`：frame_batch 档位解析与 batch_override。
+- 实机未测（见 §129.5）；后续实测重点：静帧/慢镜头命中率、refresh 取值对闪烁的影响。
+

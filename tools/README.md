@@ -132,3 +132,27 @@ w = get_key_weight(patched.model, 'diffusion_model.blocks.0.attn.wq.weight')[0].
 - Python 3.10+，`torch`（SVD 建议 GPU，6144²×224 层 CPU 也能跑但慢）、`safetensors`
 - 可选 `comfy_kitchen`（convrot 反旋转必需；在 ComfyUI 容器内天然可用）
 - 本机仅作编辑环境，实际运行在 docker 容器内（AGENTS.md 规则 1、12）
+
+---
+
+# vosr2_selftest.py — VOSR2 节点自检
+
+宿主机无 torch，VOSR2 的导入期契约与小模型前向只能在 ComfyUI 运行环境里验证。
+本脚本用容器内真实 torch/comfy 跑：节点 schema、LightningDiT 小模型前向（含动态
+RoPE）、Qwen VAE 编解码与分块一致性、色彩对齐、FakeBundle 端到端管线（分块/整图/
+批/种子/非方形/视频时序缓存）与 OOM 自动降级路径。**不加载权重、不占 GPU**。
+
+```bash
+# 把工作副本的 vosr2 相关文件拷进容器（或整包挂载/拷贝），然后：
+docker exec comfyui-docker python3 /tmp/sfnodes_selftest/tools/vosr2_selftest.py
+```
+
+- 脚本以自身位置推导包根（`<包>/tools/..`），直接指向工作副本、不执行根
+  `__init__.py`（避免连带加载全部节点与依赖），因此只需拷贝：
+  `tools/`、`nodes/model/vosr2/`、`nodes/model/vosr2_loader.py`、
+  `nodes/model/vosr2_settings.py`、`nodes/image/vosr2_upscale.py`、
+  `nodes/video/vosr2_video.py`、`sf_utils/logger.py`。
+- `COMFYUI_ROOT` 指定 ComfyUI 源码根（默认 `/home/comfy/app`）。
+- 退出码 0 全通过 / 1 有失败 / 2 环境不满足；`torch.cuda.OutOfMemoryError` 用模拟
+  异常触发降级分支，无需真的爆显存。
+- 实机（GPU + 真实权重）验证仍走节点 UI；本脚本只保证契约与管线形状/确定性。

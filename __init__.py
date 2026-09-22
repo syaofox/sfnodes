@@ -83,6 +83,9 @@ from .nodes.image.color_match_points import ImageColorMatchByPoints
 from .nodes.image.imitation_hue import ImitationHue
 from .nodes.image.lut import SFLoadLUT, SFApplyLUT, SFExtractLUT
 from .nodes.image.rfmsr_upscale import SFRFMSRUpscale
+from .nodes.image.vosr2_upscale import SFVOSR2Upscale
+from .nodes.model.vosr2_loader import SFVOSR2ModelLoader
+from .nodes.model.vosr2_settings import SFVOSR2Settings
 from .nodes.model.adv_clip import (
     AdvancedCLIPTextEncode,
     AddCLIPSDXLParams,
@@ -129,6 +132,7 @@ from .nodes.video.video_concat import SFVideoConcat
 from .nodes.video.sam3_point_track import SFSAM3PointTrack
 from .nodes.video.sam3_reanchor_track import SFSAM3ReanchorTrack
 from .nodes.video.wan_motion_boost import SFWanMotionBoost
+from .nodes.video.vosr2_video import SFVOSR2Video
 from .nodes.mask.pause_mask import SFPauseMask
 from .nodes.latent.klein_tiled_ksampler import SFKleinTiledKSampler
 from .nodes.image import preview_routes  # noqa: F401  # 副作用注册 /api/sfnodes/preview/* 路由
@@ -331,6 +335,11 @@ NODE_CLASS_MAPPINGS = {
     "SFExtractLUT": SFExtractLUT,
     # RFMSR 超分节点
     "SFRFMSRUpscale": SFRFMSRUpscale,
+    # VOSR2 超分节点（图片 / 视频 + 加载器 + 设置）
+    "SFVOSR2ModelLoader": SFVOSR2ModelLoader,
+    "SFVOSR2Settings": SFVOSR2Settings,
+    "SFVOSR2Upscale": SFVOSR2Upscale,
+    "SFVOSR2Video": SFVOSR2Video,
     # 显示节点
     "SFDisplayAny": DisplayAny,
     "SFRemoveLatentMask": RemoveLatentMask,
@@ -567,6 +576,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFExtractLUT": "SF Extract LUT",
     # RFMSR 超分节点
     "SFRFMSRUpscale": "SF RFMSR Upscale",
+    # VOSR2 超分节点
+    "SFVOSR2ModelLoader": "SF VOSR2 Model Loader",
+    "SFVOSR2Settings": "SF VOSR2 Settings",
+    "SFVOSR2Upscale": "SF VOSR2 Upscale",
+    "SFVOSR2Video": "SF VOSR2 Video Frames",
     # 显示节点
     "SFDisplayAny": "SF Display Any",
     "SFRemoveLatentMask": "SF Remove Latent Mask",

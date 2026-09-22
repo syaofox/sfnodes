@@ -1,4 +1,4 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120）
+# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129）
 
 > 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
 
@@ -1461,3 +1461,44 @@ slice_track_data(track_data, start=0, length=0)
 
 - `tests/test_image_browser_js.js`：`mergeNativeImageOptions` 合并去重排序 / 重复合并不再生效 / 空或非数组 paths / options 非数组 / 无 widget 与 node 为空；非字符串项被忽略。
 - 实机验证：硬刷新后原生 LoadImage 下拉应出现子目录图，选中后保存重开无红框（§119 场景）。
+
+## 129. VOSR2 超分节点族：TE-Speed-VOSR2 干净室复刻（2026-09）
+
+> 背景：用户要求复刻 `tl2012tl/TE-Speed-VOSR2`（ComfyUI 内 VOSR2 图片/视频超分加速节点，Windows 专用）。该包 4 个编排模块编译为 `.pyd`（Cython 3.1.2 limited API，构建路径 `yuan/_build_pyd/cython/*.c`，非加密/非授权校验），但其 `backend/` 为明文且与 `ylchen333/ComfyUI-VOSR2`（Apache-2.0）逐字节同源，模型侧源自 `cswry/VOSR`（Apache-2.0）。故按 Apache-2.0 上游干净室复刻 + 自行实现加速项（不复制无 LICENSE 的 TE 代码），落点 sfnodes（Linux/docker 可运行）。
+
+### 1. 原理与管线（已还原）
+
+- VOSR 2.0 = one-step 1.4B LightningDiT 流匹配模型，跑在 Qwen-Image 2D VAE（16ch）潜空间，DINOv2-L 第 17 层 patch 特征作条件（三件套绑定，不可替换）。
+- 契约（`nodes/model/vosr2/inferencer.py`）：双三次预放大 ×N → pad 16 倍数 → VAE 确定性编码（`latent_dist.mode()`，逐块采样会有接缝）→ DINO 特征 → 一步 Euler（t=1→0，`z - v(cat([lq,z]))`）→ VAE 解码 → 逐项色彩对齐（wavelet/adain/none）→ 裁回精确尺寸。
+- 未分块路径额外 pad 成方形（`forward_flexible` 断言方形输入）；分块路径瓦片恒为方形。
+- DiT/VAE 分块用潜空间高斯融合（Qwen VAE 是 RMSNorm2D 逐像素归一，无跨块统计量，纯加权融合即可，不需要 SD 系 pad+crop VAEHook）。
+
+### 2. 加速项（对 TE 字符串表行为的功能等价实现）
+
+- **分块批量**：DiT 瓦片按 `dit_tile_batch` 拼批（展平 `(item, tile)` 对，B 维一次前向）；DINO 瓦片按 `dino_batch` 拼批。OOM 捕获 `torch.cuda.OutOfMemoryError`/消息含 "out of memory" → 批量减半从头重试（累加器必须整体重置，否则重复累加）；VAE 解码 OOM → 瓦片减半（1024→512→256），整图（0）OOM → 改 1024 分块。
+- **显存策略 `memory_policy`**：staged = VAE 解码前 `comfy.model_management.free_memory(transformer_bytes + VAE_DECODE_RESERVE, device)` 释放 DiT/DINO 驻留（不销毁对象，下次 `load_models_gpu` 自动重载）；resident = 载入即 `force_full_load` 常驻；auto = 交给 ComfyUI 自身调度。`force_offload` 与 LRU 淘汰都走 `bundle.offload()`（保留对象，工作流其它节点仍可用——区别于 RFMSR 的「按名重取」模式，bundle 是图上传引用的对象，不能清引用）。
+- **torch.compile**：只包 `DiT.forward_flexible`（`dynamic=False`），首次调用编译；运行期异常自动回退 eager 并置 `_compile_failed`（不再自动重试，用户关闭再打开可重试）；无 triton 直接跳过；缓存目录 `TORCHINDUCTOR_CACHE_DIR`/`TRITON_CACHE_DIR` 指到 `get_temp_directory()/sfnodes_vosr2_compile`。RoPE 动态张量按 `(seq_len, device, dtype)` 缓存是 compile 友好的前提（否则每次前向新建闭包/张量）。
+- **SageAttention**：`lightningdit._vosr_attention` 直接复用 `comfy.ldm.modules.attention.attention_sage`（版本/布局/回退在核心内处理），`torch.compiler.is_compiling()` 时回退 SDPA（sage 自定义 CUDA op 不保证图兼容）。
+- **auto_expand_vae_tile**：按空闲显存保守预算（像素×3ch×4B×16 的中间激活）把 VAE 瓦片扩到 1024/1536/2048 中最大可行值（只扩不缩，OOM 仍走降级）。
+- **档位 `quality_profile`**：manual（各批量 1）/ speed（DiT 4 / DINO 4 / image 2 / frame 8）；字段 0 = 按档位，`batch_override` > 0 覆盖 item 批量。
+
+### 3. 路径、下载与兼容
+
+- 主目录 `models/sfnodes/vosr2/<bundle>/`（sfnodes 约定），同时扫描旧包目录 `models/vosr2/<bundle>/`（TE/ylc 布局）与**额外模型根**（`extra_model_paths.yaml` 的 models-ext 等：从 `folder_paths.folder_names_and_paths` 各已注册类别路径取父目录去重推导，因 yaml 按类别声明、没有 vosr2 类别）——已装旧包或把权重放 models-ext 的用户零重复下载；`resolve_bundle_dir` 优先内置主目录，未找到时下载仍落内置 `models/sfnodes/vosr2/`（`is_default: false` 语义）。
+- 首次使用自动从 HF `CSWRY/VOSR` 补齐缺失组件（`hf_hub_download(local_dir=...)` 保留仓库内相对路径；`VOSR2/args.json` → `<bundle>/args.json`）；DINO 仓库文件是 `.pth`，自动转 `dinov2_vitl14.safetensors`；`auto_download=False` 只校验报错。
+- `args.json` 严格校验 `REQUIRED_ARGS`（1.4B one-step 架构固定字段），不匹配直接报错而非半加载；checkpoint 流式逐张转 dtype + `load_state_dict(assign=True)`（comfy.ops aimdo 惰性层必须走 load_state_dict 的 `_load_from_state_dict`，手写遍历会静默丢权重）。
+
+### 4. 坑与注意
+
+- **构造/加载必须在 `torch.inference_mode(False)` 内**：节点 execute 跑在 inference_mode 下，此时构造 comfy.ops 惰性层不会注册 Parameter，`load_state_dict` 只见部分权重（ylc 同款坑）。
+- ModelPatcher 是 sfnodes 首次引入（此前只有 `comfy.sd` 委托 / LRU 手动管理）；bundle 对象随图传递，淘汰/卸载语义必须「换出显存、保留对象」。
+- `free_memory` 按需卸载（含用户其它模型），staged 与 force_offload 都会产生换载开销——README 明确 speed 档可能因换载反而更慢，节点 tooltip 同步提示。
+- 输出超过原生 512px 未开 tile_size / 超过 ~1024px 未开 vae_tile_size 会告警（上游质量与 OOM 口径）。
+
+### 5. 测试
+
+- `tests/test_vosr2_tiling.py`（纯逻辑：瓦片网格/潜空间参数/patch 对齐/pad/瓦片数）、`tests/test_vosr2_settings.py`（档位解析/0=自动/override/容错/校验）、`tests/test_vosr2_loader.py`（stub torch+comfy：路径发现与旧目录回退、args 校验、权重优先级、DINO 转换识别、dtype、key 清洗、策略/编译幂等、VAE 降级、批次分组与进度总量、时序缓存关闭态与几何失效）。
+- `tools/vosr2_selftest.py`（容器内自检，不加载权重）：真实 torch/comfy 导入 + 节点 schema + DiT 小模型前向（含动态 RoPE）+ VAE 分块一致性 + FakeBundle 端到端 + 模拟 OOM 降级。**该自检首轮即抓出 3 个宿主 mock 测试覆盖不到的 bug**：`vision_features` 删除 `batch` 参数后调用点未同步（TypeError）、DiT 瓦片逐项 in-place `+=` 的 rhs 带 B 维（`output with shape [4,8,8] doesn't match broadcast shape [1,4,8,8]`）、`upscale()` 漏 `movedim(1, -1)` 导致返回 BCHW 而非 BHWC。
+- 顺带修掉上游隐患：`_pad_to_square`/`_pad_to_multiple` 的 reflect pad 在 pad >= 该维尺寸时非法（2:1 长宽比或小图直接崩），`pad_reflect_safe` 退化为 replicate（仅影响贴边像素）。
+- 实机未测（用户选择暂不下载 7GB 权重）；后续实测重点：分块拼批 OOM 降级路径、staged 换载耗时、torch.compile 首次编译与回退日志。
+
