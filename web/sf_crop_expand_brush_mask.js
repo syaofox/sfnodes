@@ -22,8 +22,9 @@
 //
 // 接线宽高比（可选输入 aspect_w/aspect_h，§118）：两项都接且可读时裁剪框
 // 优先保持该比例——接入即时同步刷新（onConnectionsChange）、上游值变化下一拍
-// 跟随、加载路径 onAfterGraphConfigured 补同步；接线期间面板预设只记住不生效；
-// 槽名 ZW 隐藏（核心渲染会画在自定义面板之上），信息栏显示 AR。
+// 跟随、加载路径 onAfterGraphConfigured 补同步、节点内加载图片（onStored）后
+// 即时重套；接线期间面板预设只记住不生效；槽名 ZW 隐藏（核心渲染会画在自定义
+// 面板之上），信息栏显示 AR。
 //
 // 共享实现（禁止内联副本）：
 //   - 几何/冻结快照防飘移/手柄/绘制：sf_crop_expand_lib.js
@@ -240,7 +241,8 @@ function leanState(st) {
 }
 
 // ── 源图加载链路（sf_crop_source 共享实现）────────────────────────────────
-// 换图清空笔触（BrushMask 同款语义）+ 裁剪框回满幅（CropExpand 同款语义）。
+// 换图清空笔触（BrushMask 同款语义）+ 裁剪框回满幅（CropExpand 同款语义）；
+// 接线比例可读时在满幅基础上重套（与 resetCrop/applyOrientation 同语义，§118）。
 const SOURCE_CFG = {
   uploadPrefix: "cebm_",
   logTag: "[SF Crop Expand Brush Mask]",
@@ -260,6 +262,10 @@ const SOURCE_CFG = {
       aspect_ratio: "free",
       strokes: [],
     });
+    // 接线比例即时重套（diff 门控：一致不写状态）；seen 置空兜"此刻不可读、
+    // 稍后就绪但 w:h 串未变"（绘制判定 null 即触发，幂等无副作用，§3.6 同款）
+    node._sfCEBWiredRatioSeen = null;
+    syncWiredRatio(node);
   },
 };
 

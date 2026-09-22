@@ -41,11 +41,23 @@ globalThis.__dirtyCount = 0;
 globalThis.__graph.setDirtyCanvas = () => { globalThis.__dirtyCount++; };
 
 // Image 桩：src 赋值即视为已解码（applyOrientation 上传后替换预览 <img>；
-// onload 在 onload 已挂载的前提下同步触发）
+// onload 在 onload 已挂载的前提下同步触发）；__imgStubDims 供 storeSource
+// 的 imageDims 读取尺寸（节点内加载图片用例）
 globalThis.Image = class {
   constructor() { this.onload = null; this.complete = false; this.naturalWidth = 0; this.naturalHeight = 0; }
-  set src(v) { this._src = v; this.complete = true; if (this.onload) this.onload(); }
+  set src(v) {
+    this._src = v;
+    this.complete = true;
+    const d = globalThis.__imgStubDims;
+    if (d) { this.naturalWidth = d.w; this.naturalHeight = d.h; }
+    if (this.onload) this.onload();
+  }
   get src() { return this._src; }
+};
+
+// FileReader 桩：拖放路径 readAsDataURL 同步回 dataURL（onload 已先挂载）
+globalThis.FileReader = class {
+  readAsDataURL() { if (this.onload) this.onload({ target: { result: "data:image/png;base64,stub" } }); }
 };
 
 const createdCanvases = [];
@@ -493,6 +505,63 @@ const makeState = (patch = {}) => JSON.stringify({
     cutSize("aspect_w", 31);
     delete globalThis.__graph.links[41];
     await sleep(5);
+    node.properties[STATE_PROP] = makeState();
+    node._sfCEBWiredRatioSeen = null;
+  }
+
+  // ── 节点内加载图片（Load/Browse/拖放/粘贴）→ 接线比例即时重套（§118 实测修复）──
+  // 加载链路 storeSource → onStored 把裁剪框重置为新图满幅；接线比例须在同一步
+  // 重套，否则停留在新图原生比例（绘制兜底只比对 w:h 串，加载不改变该串）。
+  {
+    const upW = { id: 111, widgets: [{ value: 16 }] };
+    const upH = { id: 112, widgets: [{ value: 9 }] };
+    globalThis.__graph._nodes.push(upW, upH);
+    const wire = (name, linkId, upstreamId) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = linkId;
+      globalThis.__graph.links[linkId] = { origin_id: upstreamId, origin_slot: 0 };
+      nodeType.prototype.onConnectionsChange.call(
+        node, 1, idx, true, globalThis.__graph.links[linkId], node.inputs[idx]);
+    };
+    const cut = (name, linkId) => {
+      const idx = node.inputs.findIndex((i) => i.name === name);
+      node.inputs[idx].link = null;
+      delete globalThis.__graph.links[linkId];
+      nodeType.prototype.onConnectionsChange.call(node, 1, idx, false, null, node.inputs[idx]);
+    };
+    const drop = (x, y) => node.onDragDrop({
+      canvasX: x, canvasY: y,
+      dataTransfer: { files: [{ type: "image/png" }] },
+      preventDefault() {}, stopPropagation() {},
+    });
+
+    node.properties[STATE_PROP] = makeState();  // 512×512 满幅：显示区 (130..320, 72..262)
+    wire("aspect_w", 51, 111);
+    wire("aspect_h", 52, 112);
+    check("加载前接线即时套用（16:9 → 512×288）", state().crop_h === 288 && state().crop_y === 112);
+    await sleep(1100);  // 等接线重试（0/200/1000ms）全部落定，隔离本用例（防定时器掩盖）
+
+    // 拖放加载 640×480：满幅重置后立即按 16:9 重套（640×360 居中 y=60）
+    globalThis.__imgStubDims = { w: 640, h: 480 };
+    check("拖放图片被接管", drop(150, 120) === true);
+    await sleep(20);
+    check("加载图片后按接线比例重套（640×480 → 640×360 y=60）",
+      state().src_w === 640 && state().src_h === 480
+      && state().crop_w === 640 && state().crop_h === 360 && state().crop_y === 60);
+    check("加载后 aspect_ratio 复位 free（面板预设不参与）", state().aspect_ratio === "free");
+
+    // 未接线：加载保持整幅（不误套面板预设/旧接线）
+    cut("aspect_h", 52);
+    cut("aspect_w", 51);
+    await sleep(5);
+    globalThis.__imgStubDims = { w: 800, h: 600 };
+    check("未接线拖放仍被接管", drop(150, 120) === true);
+    await sleep(20);
+    check("未接线加载保持整幅（800×600）",
+      state().src_w === 800 && state().src_h === 600
+      && state().crop_w === 800 && state().crop_h === 600);
+
+    globalThis.__imgStubDims = null;
     node.properties[STATE_PROP] = makeState();
     node._sfCEBWiredRatioSeen = null;
   }

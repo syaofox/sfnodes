@@ -1366,7 +1366,7 @@ slice_track_data(track_data, start=0, length=0)
 ### 2. 前端即时刷新与优先级
 
 - `wiredAspect(node)`/`effectiveRatio(st, wa)` 纯逻辑在 `sf_crop_expand_brush_mask_lib.js`：`wired` 仅两项都接；值可读才给 `ratio`（否则 null）；`effectiveRatio` 接线优先——可读=接线比例，**不可读=null（编辑期不约束，不用面板预设误导预览）**，未接/半接回退 `ratioFromAspect`。
-- 即时刷新路径：`onConnectionsChange`（INPUT）+ `LiteGraph.INPUT` 常量兜底、`isGraphLoading()`/`_sfCEBConfiguring` 守卫 → **同步** `syncWiredRatio`（同帧可见）+ `setTimeout(0)` 幂等补一次（platform §12 坑 3：新版前端 link 表可能滞后）；`onAfterGraphConfigured` 覆盖打开工作流恢复连线（configure 直赋 links 不触发连接事件）；**上游 widget 值变化无事件** → `onDrawForeground` 比对 `_sfCEBWiredRatioSeen`（w:h 串），变化则下一拍同步（不在绘制中改状态，防重绘环）。
+- 即时刷新路径：`onConnectionsChange`（INPUT）+ `LiteGraph.INPUT` 常量兜底、`isGraphLoading()`/`_sfCEBConfiguring` 守卫 → **同步** `syncWiredRatio`（同帧可见）+ `setTimeout(0)` 幂等补一次（platform §12 坑 3：新版前端 link 表可能滞后）；`onAfterGraphConfigured` 覆盖打开工作流恢复连线（configure 直赋 links 不触发连接事件）；**上游 widget 值变化无事件** → `onDrawForeground` 比对 `_sfCEBWiredRatioSeen`（w:h 串），变化则下一拍同步（不在绘制中改状态，防重绘环）；**节点内加载图片**（`SOURCE_CFG.onStored`，Load/Browse/拖放/粘贴四入口）后同步重套（§3.8）。
 - `syncWiredRatio` 逐字段 diff 命中才 `setState`——一致状态绝不写 properties，打开工作流不标脏（onAfterGraphConfigured 每次加载都会调用）。
 - 语义落点：拖拽用 `effectiveRatio`；`setAspect`/Custom Apply 在 `wired` 时只写状态 + toast「比例由接线输入决定」；`resetCrop`/`applyOrientation` 结果再套一次可读接线比例（旋转会交换宽高，不套则预览≠执行）；信息栏 `| AR 16:9`（可读原值）/`| AR wire`（不可读）/`| AR 半接`；比例按钮悬停说明追加接线注记。
 - 槽名冲突（本轮实测发现）：核心渲染顺序是 `onDrawForeground` **先于** `drawSlots`（bundle 内 `drawNode`：`e.onDrawForeground?.()` → `e.drawSlots(...)`），槽名与槽点画在自定义面板之上——输入槽名 `aspect_w` 会盖住 RATIO 列顶部两个按钮。处理：复用 `sf_dropdown_lib.ZW`（零宽空格）写 `slot.label` 隐藏（diff 门控；onNodeCreated/onConfigure/onAfterGraphConfigured 三处调用，configure 可能重建 inputs），说明由 tooltip/信息栏/悬停 hint 承担；零几何改动（MIN 仍 400×360）。
@@ -1406,6 +1406,14 @@ slice_track_data(track_data, start=0, length=0)
   - 由此：**反接即反比**（§3.6 的"反序一致"作废）；`[LATENT,width,height]` 形态仍按槽名识别（槽位序号不参与）。
 - **回退**：一次"注入归一"尝试（前端 graphToPrompt 注入 `wire_aspect=[w,h]` 强制正接）与用户语义相反，已移除（未提交上线）。
 - **测试**：lib `wiredAspect`（分辨率预设反序 → 3:4、槽名不符 → null；图片链反序 → 600:800、batch_size → null）；smoke 图片链反接（1920×1080 → 512×910、换竖图 → 512×288）；后端 execute 接线值优先用例不变。
+
+### 3.8 实测修复 3：节点内加载图片未套接线比例（2026-09）
+
+- **症状**：接线 aspect_w/aspect_h 后，节点内 Load/Browse/拖放/粘贴加载图片，裁剪框停在新图原生满幅比例；面板预设/Reset/翻转旋转/工作流重载路径均正常。
+- **根因**：`SOURCE_CFG.onStored`（四加载入口共用，`sf_crop_source.storeSource` 回调）把 crop 重置为新图满幅并复位 `aspect_ratio:"free"`，但未套接线比例；绘制兜底只比对 `_sfCEBWiredRatioSeen`（上游 w:h 串），加载图片不改变该串 → 不补触发。
+- **修法**：`onStored` 的 setState 之后追加 `node._sfCEBWiredRatioSeen = null; syncWiredRatio(node)`——复用 diff 门控辅助（一致不写状态），与 `resetCrop`/`applyOrientation` 同语义；seen 置空兜"此刻不可读、稍后就绪但串未变"（绘制判定 null 即触发，§3.6 同款）。
+- **测试**：smoke 补 `FileReader`/`Image`（`__imgStubDims`）桩 + `onDragDrop` 真链路：接线 16:9 后加载 640×480 → 640×360/y=60（撤下修复该断言失败）、`aspect_ratio` 复位 free、未接线加载保持整幅 800×600。⚠ 用例前须等 1.1s 清空接线重试定时器（0/200/1000ms）——曾只等 20ms 被其掩盖致假通过（定时器在加载后补套了比例）。
+- **部署**：纯前端（无后端改动）→ 同步挂载目录 + 浏览器硬刷新即可，不重启容器。
 
 ## 119. 原生 LoadImage 子目录值被新前端误判“缺失媒体”（options 补齐修复，2026-09）
 
