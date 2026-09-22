@@ -650,7 +650,7 @@
 
 ---
 
-## 126. SFQwenImage21PromptEnhancer：Qwen Image 2.1 提示词增强（复刻 TE_MAN，本地官方 PE + 通用 LLM + API）
+## 126. SFQwenImage21PromptEnhancer：Qwen Image 2.1 提示词增强（复刻 TE_MAN，本地官方 PE + 通用 LLM + 本地LLaMA + API）
 
 > 背景：复刻 TE_MAN `TE_Qwen_Image_2_1_Prompt_Enhancer`（2026-09）。原节点为 Cython `.pyd` 闭源，仓库 LICENSE 禁止复制/衍生，故为**干净室复刻**：能力从 `.pyd` 字符串表与 README 还原（三种增强方式 / 文生图·图生图 / 最多 8 参考图 / 输出语言 / 官方提示词规则），代码与协议文本自写，不抄其内部实现。落地 `sf_utils/qwen21_prompts.py`（官方提示词原文）+ `sf_utils/qwen21_enhance.py`（纯逻辑）+ `nodes/text/qwen21_prompt_enhancer.py`（节点）+ `web/sf_qwen21_prompt_enhancer.js`。
 
@@ -673,7 +673,15 @@
 - `unload_after` 对齐 SFVRAMCleanup：`unload_all_models + cleanup_models_gc + soft_empty_cache`，失败不阻断结果输出；会连带卸载其他节点模型（tooltip 已注明）。
 - 不提供 `context_length`/`do_sample` widget：前者由 ComfyUI/后端管理（llama.cpp `n_ctx` 不适用），后者由 temperature=0 表达贪心。
 
-### 3. 测试
+### 3. 本地LLaMA 模式：ComfyUI-llama-cpp_vlm 软依赖桥接（2026-09）
+
+- **背景**：用户的 `models/LLM/GGUF/*.gguf`（Qwen3-VL-8B 微调 + mmproj）由 `ComfyUI-llama-cpp_vlm` 插件加载（它注册 `folder_paths` 的 `LLM` 类别），输出类型 `LLAMACPPMODEL`，与 `CLIP` 不兼容；本模式让节点直接消费该输出，等价 TE_MAN 的「本地LLaMA」模式（llama.cpp + mmproj，自带视觉）。
+- **模块查找不能按包名 import**：插件目录名含连字符、ComfyUI 以路径式模块名（`module_path.replace(".", "_x_")`）加载，无法按包名导入；若自行 `spec_from_file_location` 加载会产生**第二份模块实例**（`LLAMA_CPP_STORAGE` 分裂 → 用户 Loader 加载的模型与本节点调用的不是同一份，双份显存）。做法：`_find_llama_plugin()` 在 `sys.modules` 按属性指纹（`LLAMA_CPP_STORAGE` + `llama_cpp_instruct_adv`）找已加载实例；未安装返回 None → 明确报错（软依赖，不影响其他模式/其他用户）。
+- **复用其 storage**：`storage.llm`（Llama 实例）为空或 `current_config != llama_model` 时调 `storage.load_model(config)`（配置字典即节点输入值）；图像走 OpenAI 风格 `image_url` data URL 部分（由插件 chat_handler 消费），多图按连接序追加；图生图前检查 `chat_handler.clip_model_path`（无 mmproj 直接报错）。采样参数用 llama.cpp 命名（`repeat_penalty` 而非 repetition_penalty；`max_tokens` 仅 >0 时传，0 = 模型默认）；输出取 `choices[0].message.content`（复用插件的 `.removeprefix(": ")` 清理），`usage.completion_tokens` 进 report.generated_tokens。
+- **`unload_after` 分路**：本地LLaMA 走 `storage.clean()`（关闭 GGUF 模型，插件其他 Instruct 节点下次执行自动重载），CLIP 模式仍走 ComfyUI `unload_all_models`；`thinking` widget 对本模式无效（由 chat_handler 选择，如 `Qwen3-VL-Thinking`）。
+- **顺手排除的弯路**（实测）：把 GGUF 直接给 `CLIPLoader (GGUF)` 不可行——当前 ComfyUI-GGUF 只在 `arch=qwen2vl` 时自动挂 mmproj，`arch=qwen3vl` 的文件被识别为纯文本 `QWEN3_8B`（Klein 路径，无视觉键），且 KleinTokenizer 无条件二次包模板，与节点直送的 `<|im_start|>` 原文冲突；要 CLIP 本地模式请用 safetensors `qwen3vl_8b_int8_convrot`（type `qwen_image`）。
+
+### 4. 测试
 
 - `tests/test_qwen21_enhance.py`：profile 常量/官方与通用协议选择（中文覆盖指令）/本地聊天文本（占位与 thinking 两态）/思考链分割/答案解析全分支（多对象取最后、字符串花括号、拼写兼容、比例归一与互斥、字段级恢复、原文兜底）。
-- `tests/test_qwen21_prompt_enhancer.py`：FakeClip 记录 tokenize/generate（官方/通用协议、预填、视觉占位、图片 RGB 缩放、profile 采样参数、max_tokens 默认/0 回退/覆盖）+ 打桩 `chat_completion_sync`（API 文本/多图消息、参数透传、不传 max_tokens）+ 输入校验/兜底/报错/软告警/卸载调用，不发真实网络。
+- `tests/test_qwen21_prompt_enhancer.py`：FakeClip 记录 tokenize/generate（官方/通用协议、预填、视觉占位、图片 RGB 缩放、profile 采样参数、max_tokens 默认/0 回退/覆盖）+ 打桩 `chat_completion_sync`（API 文本/多图消息、参数透传、不传 max_tokens）+ FakeLlama 插件替身（属性指纹查找、自动加载/配置变化重载、无图/多图消息、无 mmproj 报错、max_tokens=0、system_prompt 覆盖、storage.clean 卸载、插件缺失报错）+ 输入校验/兜底/报错/软告警/卸载调用，不发真实网络。

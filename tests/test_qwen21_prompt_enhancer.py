@@ -103,6 +103,62 @@ class FakeClip:
         return self.reply
 
 
+class FakeLlama:
+    def __init__(self):
+        self.calls = []
+        self.reply = '{"rewritten_prompt": "llama prompt", "wh_ratio": "3:2"}'
+
+    def create_chat_completion(self, messages, **kwargs):
+        self.calls.append({"messages": messages, "kwargs": kwargs})
+        return {"choices": [{"message": {"content": self.reply}}], "usage": {"completion_tokens": 42}}
+
+
+class FakeLlamaStorage:
+    def __init__(self):
+        self.llm = None
+        self.chat_handler = None
+        self.current_config = None
+        self.load_calls = []
+        self.clean_calls = 0
+
+    def load_model(self, config):
+        self.load_calls.append(config)
+        self.current_config = dict(config)
+        self.llm = FakeLlama()
+        self.chat_handler = types.SimpleNamespace(
+            clip_model_path=(config.get("mmproj") if config.get("mmproj") not in (None, "None") else None)
+        )
+
+    def clean(self, all=False):
+        self.clean_calls += 1
+        self.llm = None
+        self.chat_handler = None
+        self.current_config = None
+
+
+LLAMA_CFG = {
+    "model": "GGUF/Qwen3-VL-8B-NSFW-Caption-V4.5.Q4_K_M.gguf",
+    "mmproj": "GGUF/Qwen3-VL-8B-NSFW-Caption-V4.5.mmproj-Q8_0.gguf",
+    "chat_handler": "Qwen3-VL", "n_ctx": 8192, "vram_limit": -1,
+    "image_min_tokens": 0, "image_max_tokens": 0,
+}
+LLAMA_CFG_NO_VISION = dict(LLAMA_CFG, mmproj="None")
+
+# 软依赖插件替身：按属性指纹（LLAMA_CPP_STORAGE + llama_cpp_instruct_adv）被节点找到
+llama_plugin = types.ModuleType("ComfyUI-llama-cpp_vlm_nodes")
+llama_plugin.__file__ = "/x/custom_nodes/ComfyUI-llama-cpp_vlm/nodes.py"
+llama_plugin.LLAMA_CPP_STORAGE = FakeLlamaStorage()
+llama_plugin.llama_cpp_instruct_adv = object()
+sys.modules["ComfyUI-llama-cpp_vlm_nodes"] = llama_plugin
+STORAGE = llama_plugin.LLAMA_CPP_STORAGE
+
+# 干扰项：插件注册的 torch op 命名空间同名（无 load_model/clean），不得被误认
+decoy = types.ModuleType("decoy_torch_ops")
+decoy.LLAMA_CPP_STORAGE = types.SimpleNamespace()
+decoy.llama_cpp_instruct_adv = object()
+sys.modules["decoy_torch_ops"] = decoy
+
+
 NODE = SFQwenImage21PromptEnhancer()
 
 
@@ -120,7 +176,8 @@ def base_args(**overrides):
 # ── INPUT_TYPES / 元数据 ──
 it = SFQwenImage21PromptEnhancer.INPUT_TYPES()
 req = it["required"]
-check("mode 三选项", req["mode"][0] == ["本地官方PE", "本地LLM", "API"] and req["mode"][1]["default"] == "本地官方PE")
+check("mode 四选项", req["mode"][0] == ["本地官方PE", "本地LLM", "本地LLaMA", "API"]
+      and req["mode"][1]["default"] == "本地官方PE")
 check("task 两选项", req["task"][0] == ["文生图", "图生图"] and req["task"][1]["default"] == "文生图")
 check("output_language 两选项", req["output_language"][0] == ["英文", "中文"])
 check("prompt 多行", req["prompt"][0] == "STRING" and req["prompt"][1].get("multiline") is True)
@@ -136,10 +193,11 @@ check("vision_megapixels 默认 1MP", req["vision_megapixels"][1]["default"] == 
 check("detail 选项", req["detail"][0] == ["auto", "low", "high"])
 check("unload_after 默认 False", req["unload_after"][1]["default"] is False)
 opt = it["optional"]
-check("optional clip + image_1..8 + system_prompt",
-      set(opt) == {"clip", "system_prompt"} | {f"image_{i}" for i in range(1, 9)})
+check("optional clip + llama_model + image_1..8 + system_prompt",
+      set(opt) == {"clip", "llama_model", "system_prompt"} | {f"image_{i}" for i in range(1, 9)})
 check("image 槽全 IMAGE", all(opt[f"image_{i}"][0] == "IMAGE" for i in range(1, 9)))
 check("clip 为 CLIP", opt["clip"][0] == "CLIP")
+check("llama_model 为 LLAMACPPMODEL", opt["llama_model"][0] == "LLAMACPPMODEL")
 check("RETURN_TYPES", SFQwenImage21PromptEnhancer.RETURN_TYPES == ("STRING", "STRING", "STRING", "STRING"))
 check("RETURN_NAMES", SFQwenImage21PromptEnhancer.RETURN_NAMES
       == ("enhanced_prompt", "wh_ratio", "ratio_follow", "report_json"))
@@ -251,6 +309,58 @@ try:
     check("API 多图报告 image_count", json.loads(out[3])["image_count"] == 2)
 finally:
     mod.chat_completion_sync = real_chat
+
+# ── 本地LLaMA 模式（软依赖：按属性指纹找已加载插件）──
+check("指纹查找命中真实插件替身（跳过 torch.ops 干扰项）",
+      mod._find_llama_plugin() is llama_plugin)
+check("本地LLaMA 缺 llama_model 抛错", raises(NODE.enhance, **base_args(mode="本地LLaMA")))
+
+STORAGE.llm = None
+out = NODE.enhance(**base_args(mode="本地LLaMA", llama_model=LLAMA_CFG))
+call = STORAGE.llm.calls[-1]
+report = json.loads(out[3])
+check("LLaMA 首次自动加载模型", bool(STORAGE.load_calls) and STORAGE.load_calls[-1] == LLAMA_CFG)
+check("LLaMA 系统消息 = 通用协议", call["messages"][0]["role"] == "system"
+      and "You are an expert prompt writer" in call["messages"][0]["content"])
+check("LLaMA 无图 user 纯文本", call["messages"][1]["content"] == "一只在雨中弹吉他的柯基")
+check("LLaMA 采样参数", (call["kwargs"]["temperature"], call["kwargs"]["top_k"], call["kwargs"]["top_p"],
+      call["kwargs"]["min_p"], call["kwargs"]["repeat_penalty"], call["kwargs"]["seed"],
+      call["kwargs"]["max_tokens"]) == (1.0, 20, 0.95, 0.0, 1.0, 7, 8192))
+check("LLaMA 输出解析", out[0] == "llama prompt" and out[1] == "3:2" and out[2] == "")
+check("LLaMA 报告", report["mode"] == "本地LLaMA" and report["model"] == LLAMA_CFG["model"]
+      and report["generated_tokens"] == 42 and report["thinking"] is None
+      and report["parse_ok"] is True)
+
+STORAGE.llm = None
+out = NODE.enhance(**base_args(mode="本地LLaMA", task="图生图", llama_model=LLAMA_CFG,
+                               image_1=np.zeros((2, 4, 4, 3), dtype="float32")))
+call = STORAGE.llm.calls[-1]
+parts = call["messages"][1]["content"]
+check("LLaMA 多图 image_url 部分", isinstance(parts, list) and len(parts) == 3
+      and parts[0]["type"] == "text" and all(p["type"] == "image_url" for p in parts[1:]))
+check("LLaMA 图生图报告 image_count", json.loads(out[3])["image_count"] == 2)
+check("LLaMA 无 mmproj 图生图抛错", raises(NODE.enhance, **base_args(
+    mode="本地LLaMA", task="图生图", llama_model=LLAMA_CFG_NO_VISION,
+    image_1=np.zeros((1, 2, 2, 3), dtype="float32"))))
+
+STORAGE.llm = None
+NODE.enhance(**base_args(mode="本地LLaMA", llama_model=LLAMA_CFG, max_tokens=0))
+check("LLaMA max_tokens=0 不传限制", "max_tokens" not in STORAGE.llm.calls[-1]["kwargs"])
+cfg2 = dict(LLAMA_CFG, n_ctx=4096)
+NODE.enhance(**base_args(mode="本地LLaMA", llama_model=cfg2))
+check("LLaMA 配置变化重载", STORAGE.load_calls[-1] == cfg2)
+STORAGE.llm = None
+NODE.enhance(**base_args(mode="本地LLaMA", llama_model=LLAMA_CFG, system_prompt="LLAMA SYS"))
+check("LLaMA system_prompt 覆盖", STORAGE.llm.calls[-1]["messages"][0]["content"] == "LLAMA SYS")
+STORAGE.clean_calls = 0
+NODE.enhance(**base_args(mode="本地LLaMA", llama_model=LLAMA_CFG, unload_after=True))
+check("LLaMA unload_after 走 storage.clean", STORAGE.clean_calls == 1)
+
+saved_plugin = sys.modules.pop("ComfyUI-llama-cpp_vlm_nodes")
+try:
+    check("插件缺失抛错", raises(NODE.enhance, **base_args(mode="本地LLaMA", llama_model=LLAMA_CFG)))
+finally:
+    sys.modules["ComfyUI-llama-cpp_vlm_nodes"] = saved_plugin
 
 # ── 解析兜底 / 报错 ──
 out = NODE.enhance(**base_args(mode="本地LLM", clip=FakeClip("plain enhanced prompt")))

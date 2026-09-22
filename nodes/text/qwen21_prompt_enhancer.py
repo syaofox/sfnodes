@@ -5,6 +5,8 @@
   ComfyUI 自动识别为 qwen35_9b），用官方系统提示词原文 + JSON 契约 + thinking 预填。
 - 本地LLM：clip 输入接任意指令 VLM（如 qwen3vl_8b safetensors / ComfyUI-GGUF 的
   GGUF+mmproj），用 sf_utils/qwen21_enhance.py 的自写通用协议。
+- 本地LLaMA：llama_model 输入接 ComfyUI-llama-cpp_vlm 的 Llama-cpp Model Loader
+  （GGUF + mmproj，自带视觉），复用该插件已加载的 Llama 实例与 chat_handler（软依赖）。
 - API：OpenAI 兼容 LLM，复用 sfnodes.LLM.* 设置与 sf_utils/llm_client.py（节点不接触密钥）。
 
 任务模式显式选择：官方 PE 按任务分权重（PE-T2I / PE-I2I 不可混用），图生图必须连接
@@ -18,6 +20,7 @@ min_p/repetition_penalty/seed（API 模式仅 temperature/seed 可透传，见 t
 
 import json
 import math
+import sys
 
 try:
     from ...sf_utils.common import flatten_to_rgb, frame_to_pil, ordered_slot_items
@@ -66,11 +69,35 @@ _CATEGORY = "sfnodes/text"
 
 MODE_OFFICIAL_PE = "本地官方PE"
 MODE_LOCAL_LLM = "本地LLM"
+MODE_LLAMA = "本地LLaMA"
 MODE_API = "API"
-MODE_OPTIONS = [MODE_OFFICIAL_PE, MODE_LOCAL_LLM, MODE_API]
+MODE_OPTIONS = [MODE_OFFICIAL_PE, MODE_LOCAL_LLM, MODE_LLAMA, MODE_API]
 
 TASK_LABELS = {"文生图": TASK_T2I, "图生图": TASK_EDIT}
 LANGUAGE_LABELS = {"英文": LANGUAGE_EN, "中文": LANGUAGE_ZH}
+
+
+def _find_llama_plugin():
+    """查找已加载的 ComfyUI-llama-cpp_vlm 插件模块（软依赖；未安装返回 None）。
+
+    插件目录名含连字符、由 ComfyUI 以路径式模块名加载，不能按包名 import；按属性
+    指纹在 sys.modules 里找已加载实例，避免二次实例化导致 LLAMA_CPP_STORAGE 分裂
+    （用户 Loader 加载的模型必须与本节点的调用是同一份）。
+
+    指纹必须验到 storage 具备 load_model/clean（仅查名字会撞上插件注册的
+    `torch.ops.LLAMA_CPP_STORAGE` 命名空间——实测踩坑）。
+    """
+    for module in list(sys.modules.values()):
+        try:
+            storage = getattr(module, "LLAMA_CPP_STORAGE", None)
+            if storage is None or not hasattr(storage, "load_model") or not hasattr(storage, "clean"):
+                continue
+            if not hasattr(module, "llama_cpp_instruct_adv"):
+                continue
+            return module
+        except Exception:  # 惰性加载模块的 __getattr__ 可能抛非 AttributeError
+            continue
+    return None
 
 
 class SFQwenImage21PromptEnhancer:
@@ -92,13 +119,19 @@ class SFQwenImage21PromptEnhancer:
             "tooltip": "可选系统指令，覆盖内置（官方 PE / 通用自写协议 + 输出语言指令）。"
                        "适合接入自定义协议或调试；不连接则按增强方式自动选择",
         })
+        optional["llama_model"] = ("LLAMACPPMODEL", {
+            "tooltip": "本地LLaMA 模式必接：ComfyUI-llama-cpp_vlm 的 Llama-cpp Model Loader 输出"
+                       "（GGUF 语言模型 + mmproj 视觉投影；图生图必须有 mmproj）。"
+                       "该模式下 clip 输入被忽略；其他模式忽略此输入",
+        })
         return {
             "required": {
                 "mode": (MODE_OPTIONS, {
                     "default": MODE_OFFICIAL_PE,
-                    "tooltip": "增强方式。本地官方PE = 官方 PE 微调模型 + 官方系统提示词（JSON 契约）；"
-                               "本地LLM = 任意本地指令 VLM + 通用自写协议；API = sfnodes.LLM.* 设置里的"
-                               "OpenAI 兼容端点。本地两种方式都需连接 clip",
+                    "tooltip": "增强方式。本地官方PE = 官方 PE 微调模型 + 官方系统提示词（JSON 契约，接 clip）；"
+                               "本地LLM = 任意本地指令 VLM + 通用自写协议（接 clip）；"
+                               "本地LLaMA = ComfyUI-llama-cpp_vlm 的 GGUF+mmproj 模型（接 llama_model，自带视觉）；"
+                               "API = sfnodes.LLM.* 设置里的 OpenAI 兼容端点",
                 }),
                 "task": (list(TASK_LABELS), {
                     "default": "文生图",
@@ -119,9 +152,9 @@ class SFQwenImage21PromptEnhancer:
                 "max_tokens": ("INT", {
                     "default": 8192, "min": 0, "max": 32768, "step": 256,
                     "tooltip": "本地模式生成上限（token，含思考链；模型生成到 EOS 自动停止，此值只是上限）。"
-                               "0 = 官方 profile 上限（文生图 16256 / 图生图 24000）。"
-                               "低显存机器调小可压缩最坏耗时（进度条按此值估时），撞上限被截断会报错；"
-                               "API 模式不发送此参数",
+                               "0 = 官方 profile 上限（文生图 16256 / 图生图 24000）；本地LLaMA 模式 0 = 不限制"
+                               "（用模型/插件默认）。低显存机器调小可压缩最坏耗时（进度条按此值估时），"
+                               "撞上限被截断会报错；API 模式不发送此参数",
                 }),
                 "temperature": ("FLOAT", {
                     "default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
@@ -151,8 +184,9 @@ class SFQwenImage21PromptEnhancer:
                 }),
                 "thinking": ("BOOLEAN", {
                     "default": True,
-                    "tooltip": "思考模式（仅本地模式）。开启时预填 `<think>` 让模型先推理再作答"
-                               "（官方 PE 默认开启），思考链自动剥离；关闭时预填空 think 块抑制推理。"
+                    "tooltip": "思考模式（仅本地官方PE / 本地LLM 的 CLIP 模式）。开启时预填 `<think>` 让模型先推理"
+                               "再作答（官方 PE 默认开启），思考链自动剥离；关闭时预填空 think 块抑制推理。"
+                               "本地LLaMA 模式由插件的 chat_handler 决定（选 Qwen3-VL-Thinking 即思考）；"
                                "API 模式由 llm_client 处理（DeepSeek 恒关）",
                 }),
                 "vision_megapixels": ("FLOAT", {
@@ -166,8 +200,9 @@ class SFQwenImage21PromptEnhancer:
                 }),
                 "unload_after": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "生成完成后卸载全部缓存模型并清空显存缓存（会连带卸载其他节点已加载的模型，"
-                               "ComfyUI 按需重载）。适合本地大模型占显存时主动释放",
+                    "tooltip": "生成完成后卸载模型释放显存：CLIP 模式走 ComfyUI（会连带卸载其他节点已加载的模型，"
+                               "按需重载）；本地LLaMA 模式走 llama-cpp 插件 storage.clean()（关闭 GGUF 模型，"
+                               "其他 Instruct 节点下次执行会自动重载）",
                 }),
             },
             "optional": optional,
@@ -189,6 +224,7 @@ class SFQwenImage21PromptEnhancer:
         "需求/编辑指令改写为 Qwen Image 2.1 偏好的提示词，输出 enhanced_prompt + wh_ratio + "
         "ratio_follow + report_json。三种增强方式——本地官方PE（CLIPLoader 加载官方 PE 模型，"
         "qwen35_9b 自动识别，官方系统提示词 + JSON 契约）、本地LLM（任意指令 VLM + 自写协议）、"
+        "本地LLaMA（ComfyUI-llama-cpp_vlm 的 GGUF+mmproj，自带视觉）、"
         "API（sfnodes.LLM.* 设置，节点不接触密钥）。任务模式显式选择（图生图需接图，官方 PE "
         "按任务分权重），最多 8 张参考图；采样用官方生产 profile（presence_penalty 1.5/0），"
         "max_tokens 默认 8192（0 = 官方上限 16256/24000，模型到 EOS 自动停止，此值只是上限），"
@@ -243,6 +279,58 @@ class SFQwenImage21PromptEnhancer:
         tokenizer = getattr(clip, "tokenizer", None)
         return raw, len(generated), str(getattr(tokenizer, "clip_name", "") or "")
 
+    def _request_llama(self, llama_model, text, frames, system, temperature, top_k, top_p,
+                       min_p, repetition_penalty, seed, max_tokens, vision_megapixels):
+        """本地LLaMA 生成：走 ComfyUI-llama-cpp_vlm 的 storage（GGUF + mmproj，软依赖）。
+
+        返回 (raw, 生成 token 数, 模型名)。与插件 Instruct 节点同源：复用其已加载的
+        Llama 实例与 chat_handler（图像走 OpenAI 风格 image_url 部分，由 handler 消费）。
+        """
+        plugin = _find_llama_plugin()
+        if plugin is None:
+            raise ValueError(
+                "SF Qwen Image 2.1 Prompt Enhancer: 未检测到 ComfyUI-llama-cpp_vlm 插件；"
+                "本地LLaMA 模式需要它提供 Llama-cpp Model Loader（GGUF + mmproj）"
+            )
+        storage = plugin.LLAMA_CPP_STORAGE
+        if storage.llm is None or storage.current_config != llama_model:
+            storage.load_model(llama_model)
+        if frames and getattr(storage.chat_handler, "clip_model_path", None) is None:
+            raise ValueError(
+                "SF Qwen Image 2.1 Prompt Enhancer: 本地LLaMA 图生图需要 mmproj 视觉投影；"
+                "请在 Llama-cpp Model Loader 的 mmproj 下拉选择与模型匹配的文件"
+            )
+        data_urls = [
+            image_to_data_url(frame_to_pil(tensor, index), max_megapixels=vision_megapixels)
+            for tensor, index in frames
+        ]
+        if data_urls:
+            user_content = [{"type": "text", "text": text}]
+            user_content.extend(
+                {"type": "image_url", "image_url": {"url": url}} for url in data_urls
+            )
+        else:
+            user_content = text
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_content},
+        ]
+        params = {
+            "temperature": float(temperature),
+            "top_k": int(top_k),
+            "top_p": float(top_p),
+            "min_p": float(min_p),
+            "repeat_penalty": float(repetition_penalty),
+            "seed": int(seed),
+        }
+        if int(max_tokens) > 0:
+            params["max_tokens"] = int(max_tokens)
+        output = storage.llm.create_chat_completion(messages=messages, **params)
+        choices = output.get("choices") or [{}]
+        raw = str((choices[0].get("message") or {}).get("content") or "").removeprefix(": ").lstrip()
+        generated_tokens = (output.get("usage") or {}).get("completion_tokens")
+        return raw, generated_tokens, str((llama_model or {}).get("model") or "")
+
     def _request_api(self, text, frames, system, temperature, seed, vision_megapixels, detail):
         """API 生成：复用 llm_client（设置读取/请求/LRU）。返回 (raw, 模型名)。"""
         data_urls = [
@@ -266,7 +354,7 @@ class SFQwenImage21PromptEnhancer:
 
     def enhance(self, mode, task, prompt, output_language, max_tokens, temperature, top_k, top_p, min_p,
                 repetition_penalty, seed, thinking, vision_megapixels, detail, unload_after,
-                clip=None, system_prompt=None, **kwargs):
+                clip=None, system_prompt=None, llama_model=None, **kwargs):
         text = str(prompt or "").strip()
         if not text:
             raise ValueError("SF Qwen Image 2.1 Prompt Enhancer: prompt 不能为空，请输入需求或编辑指令")
@@ -303,6 +391,17 @@ class SFQwenImage21PromptEnhancer:
             system = system or generic_system_prompt(task_key, language)
             raw, model_label = self._request_api(
                 text, frames, system, temperature, seed, vision_megapixels, detail,
+            )
+        elif mode == MODE_LLAMA:
+            if llama_model is None:
+                raise ValueError(
+                    "SF Qwen Image 2.1 Prompt Enhancer: 本地LLaMA 模式需要连接 llama_model 输入"
+                    "（ComfyUI-llama-cpp_vlm 的 Llama-cpp Model Loader 输出）"
+                )
+            system = system or generic_system_prompt(task_key, language)
+            raw, generated_tokens, model_label = self._request_llama(
+                llama_model, text, frames, system, temperature, top_k, top_p, min_p,
+                repetition_penalty, seed, max_tokens, vision_megapixels,
             )
         else:
             if clip is None:
@@ -353,7 +452,7 @@ class SFQwenImage21PromptEnhancer:
             "mode": mode,
             "task": task_key,
             "output_language": language,
-            "thinking": bool(thinking) if mode != MODE_API else None,
+            "thinking": bool(thinking) if mode in (MODE_OFFICIAL_PE, MODE_LOCAL_LLM) else None,
             "image_count": image_count,
             "generated_tokens": generated_tokens,
             "parse_ok": parsed["parse_ok"],
@@ -368,7 +467,12 @@ class SFQwenImage21PromptEnhancer:
 
         if unload_after:
             try:
-                self._unload_models()
+                if mode == MODE_LLAMA:
+                    plugin = _find_llama_plugin()
+                    if plugin is not None:
+                        plugin.LLAMA_CPP_STORAGE.clean()
+                else:
+                    self._unload_models()
             except Exception as exc:  # 卸载失败不影响结果输出
                 print(f"[SFQwenImage21PromptEnhancer] 模型卸载失败：{exc}")
 
