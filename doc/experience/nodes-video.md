@@ -1,6 +1,6 @@
 # nodes-video.md — 视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -379,3 +379,31 @@ SFForLoopEnd
 
 - `tests/test_video_concat.py`：1b 节纯逻辑（有/无 `-audio`、混合结构、大小写、无关 PNG 排除）+ 第 5 节 execute 级三场景（默认全保留 / `cleanup=True` 删段+中间且留 PNG / 加 `cleanup_metadata=True` 连 PNG 删）。
 - 边界：PNG 只在 stem 匹配时删；`VHS_KeepIntermediate=False`（VHS 前端设置）时中间视频不存在，`collect_discarded_paths` 自然返回空；`cleanup` 仍受 §87.4 的缓存重跑风险约束（已删文件被上游缓存引用时合并报“段文件不存在”）。
+
+## 128. SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（2026-09）
+
+> 承接 §87（外部分段）/ §98 / §122。长视频分段处理时，段身份参考 = 上一段生成的最后一帧，逐段递归：段尾没有人脸（转头/遮挡/身体特写）时身份信号消失 → 后续长相漂移。本方案：**每段锚帧 = [角色参考静帧 ×8, 上段尾锚 ×5]（共 13 帧，≡1 mod 4）**，静帧钉在段首提供像素级身份锚、随头部一起丢弃；并把逐段驱动追踪链从「流程2」子图移到主图（预览与下游直连）。用户实测漂移明显改善。
+
+### 128.1 机制与帧账（原生 `WanSCAILToVideo` 约束）
+
+- 原生只把 `previous_frames[-previous_frame_count:]` 钉在 chunk **最前**（`noise_mask=0`），故静帧必须与真实尾锚合成一条锚帧、顺序 `[静帧…, 尾锚]`：尾锚在最后才能保证接缝（生成内容紧接尾锚，输出丢头后无缝）。
+- **锚帧总长须 ≡1 (mod 4)**（Wan VAE 4n+1 帧 ↔ n latent）：8+5=13 ✓。首段只有 8 静帧时 encode 成 2 latent（只覆盖前 5 帧），多出的 3 帧落在丢弃区、无影响。
+- **pose / pose 遮罩必须同步头部插入静帧**：原生按 `T_kept = min(pose_len, mask_len, length)` 截断，只插 pose 会让 chunk 短 8 帧、内容整体错位。静帧 pose = 角色参考图；静帧 pose 遮罩 = 替换模式白底 + 蓝主体（原生 `EmptyImage` 白/蓝 + `ImageCompositeMasked(mask=参考图笔刷遮罩)` + `RepeatImageBatch`，蓝色取 palette[0] 与 `SCAIL2ColoredMask` 同色）。
+- **丢弃记账**：chunk 长度 = 段帧数 + warmup；`锚帧对齐` 子图起点改为 `warmup + discard`，`num_frames = frame_count - discard` 不变 → 首段丢 8、后续丢 13；步长/跳帧/分段规划公式完全不动。
+- 参数：`previous_frame_count` = 13、`length` = 段帧数 + 8、VHS cap/skip 不变；静帧数 k 时锚帧 = k+5 须 ≡1 mod 4（k ∈ {4,8,12,16,…}）。
+- 成本：每段 +8 主 latent + 8 pose latent（只落在首个 context 窗口）与 8 帧丢弃解码；总生成帧数略降（12 段 × 441 vs 159 段 × 41）。
+
+### 128.2 手改工作流 JSON 补充：子图输入的删除与重排（补 §122）
+
+§122 只覆盖「追加」输入；本次删除 `prompts` 输入并追加 `driving_track_data`，完整清单（漏任一侧都槽位错位）：
+
+- 删输入：`subgraph.inputs.pop(i)` 后，**所有 `origin_id:-10` 且 `origin_slot > i` 的内部连线 `origin_slot -= 1`**；实例节点 `inputs.pop(i)` 后，**主图所有 `target_id: 实例` 且 `target_slot > i` 的连线 `target_slot -= 1`**。
+- 追加输入仍按 §122 四步（定义 inputs / 内部连线 / 实例 inputs / `state.lastLinkId`）。
+- 裁输出：只删**尾部**槽安全（`outputs[:1]` + 同步删内部 `-20` 连线与主图消费端）；删中间槽须重排 `target_slot`。
+- 校验器扩展：断言「定义 inputs 索引 ↔ linkIds ↔ 内部连线 origin_slot」与「实例 inputs 名序 == 定义 inputs 名序」，改动前后各跑一次 `/object_info` 差分（§122.3）。
+
+### 128.3 追踪链外移：预览与下游直连主图
+
+- 原拓扑：逐段驱动追踪（`SFSAM3ReanchorTrack` + `SFTrackDataSlice` + `SFAnyToString`）在子图内，子图为此暴露 3 个 `SAM3_TRACK_DATA` 输出（1 个纯透传仅供预览、1 个是死线：`SFMaskToTrackData` 把 mask 转回 track 后无人消费）。
+- 改法：三节点移到主图（仍逐段执行——依赖循环体内 `VHS_LoadVideo`，属循环体），子图新增输入 `driving_track_data` 喂 `SCAIL2ColoredMask`、只暴露 `IMAGE`；预览 / `ComfySwitchNode` / 追踪回退直连主图；子图内重复的 SAM3 `CheckpointLoaderSimple` 删除（与主图同名加载器合并）。
+- 结论：子图输出是「外部看内部结果」的唯一通道，纯透传不算多余；但当预览与下游都要用它时，把生产者外移更直观，且能消掉重复加载器与死线。
