@@ -18,8 +18,8 @@ import { isGraphLoading } from "./sf_common.js";
 import * as lib from "./sf_regional_lora_lib.js";
 
 // 版本标记：诊断"浏览器是否加载了新 JS"（硬刷新后 window.__sfRegionalLoRAVersion
-// 应为 3；undefined/旧值 = 缓存）。每次改 web/ 时递增。
-const EXT_VERSION = 3;
+// 应为 5；undefined/旧值 = 缓存）。每次改 web/ 时递增。
+const EXT_VERSION = 5;
 window.__sfRegionalLoRAVersion = EXT_VERSION;
 
 const NODE_TYPE = "SFRegionalLoRA";
@@ -38,6 +38,13 @@ function markTransient(w) {
   if (!w.options) w.options = {};
   w.options.serialize = false;
   return w;
+}
+
+// 行控件改动后的统一刷新：LiteGraph 画布标脏 + 重绘节点内 DOM canvas
+// （框上叠加的 LoRA 名/提示词摘要跟着变）。
+function refreshNode(node) {
+  node.setDirtyCanvas(true, true);
+  node.__rc_draw && node.__rc_draw();
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +153,11 @@ function buildCanvasWidget(node) {
       ctx.textBaseline = "top";
       ctx.fillStyle = "#111";
       ctx.fillText(`${i + 1} ${lib.shortName(reg.lora)}`, x + 5, y + 4);
+      const prompt = (reg.prompt || "").trim();
+      if (prompt) {
+        const snip = prompt.length > 16 ? prompt.slice(0, 15) + "…" : prompt;
+        ctx.fillText(snip, x + 5, y + 17);
+      }
       ctx.globalAlpha = 1;
     });
 
@@ -395,7 +407,7 @@ function rebuildRows(node) {
   regions.forEach((region, idx) => {
     const enableW = node.addWidget(
       "toggle", `region ${idx + 1} enabled`, region.enable !== false,
-      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].enable = v; lib.writeRegions(node, r); } node.setDirtyCanvas(true, true); },
+      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].enable = v; lib.writeRegions(node, r); } refreshNode(node); },
       { on: "on", off: "off" }
     );
     markTransient(enableW);
@@ -403,16 +415,31 @@ function rebuildRows(node) {
 
     const loraW = node.addWidget(
       "combo", `region ${idx + 1} lora`, region.lora || "None",
-      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].lora = v; lib.writeRegions(node, r); } node.setDirtyCanvas(true, true); },
+      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].lora = v; lib.writeRegions(node, r); } refreshNode(node); },
       { values: lib.getLoraList() }
     );
     markTransient(loraW);
     lib.bindRegionValue(node, loraW, idx, "lora", region.lora || "None");
 
+    // 区域提示词：单行原生 text widget（行控件随区域增删重建，原生 widget
+    // 无 DOM 生命周期问题；多行 DOM widget 的 minNodeSize/孤儿元素风险大）。
+    // 接了节点级 clip 时该提示词只对框内 image token 生效（后端 attn 掩码）。
+    const promptW = node.addWidget(
+      "text", `region ${idx + 1} prompt`, region.prompt || "",
+      (v) => {
+        const r = lib.readRegions(node);
+        if (r[idx]) { r[idx].prompt = v; lib.writeRegions(node, r); }
+        refreshNode(node);
+      },
+      {}
+    );
+    markTransient(promptW);
+    lib.bindRegionValue(node, promptW, idx, "prompt", region.prompt || "");
+
     const strW = node.addWidget(
       "number", `region ${idx + 1} strength`,
       typeof region.strength === "number" ? region.strength : 1.0,
-      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].strength = v; lib.writeRegions(node, r); } },
+      (v) => { const r = lib.readRegions(node); if (r[idx]) { r[idx].strength = v; lib.writeRegions(node, r); } refreshNode(node); },
       { min: -10.0, max: 10.0, step: 0.1, precision: 2 }
     );
     markTransient(strW);
@@ -424,7 +451,7 @@ function rebuildRows(node) {
       r.splice(idx, 1);
       lib.writeRegions(node, r);
       rebuildRows(node);
-      node.setDirtyCanvas(true, true);
+      refreshNode(node);
     });
     markTransient(rmW);
   });

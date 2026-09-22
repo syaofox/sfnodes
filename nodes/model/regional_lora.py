@@ -1,10 +1,13 @@
-"""SF Regional LoRA — multi-region character LoRA injection for Krea2.
+"""SF Regional LoRA — multi-region character LoRA + prompt injection for Krea2.
 
-Draw N boxes on the node, assign one LoRA per box; each LoRA's activation
-delta is injected (via forward hooks, never weight merging) only into the
-image tokens whose mask lands inside its own box. Outside the box the effect
-is exactly zero — a region's identity never bleeds into another region's.
-Works on fp8/quantized Krea2 checkpoints (only activations are read/written).
+Draw N boxes on the node, assign one LoRA and/or one prompt per box; each
+LoRA's activation delta is injected (via forward hooks, never weight merging)
+only into the image tokens whose mask lands inside its own box, and each
+region's prompt tokens are appended to the text context and attention-masked
+so only that region's image tokens can see them. Outside the box the LoRA
+effect is exactly zero and the prompt is invisible — a region's identity
+never bleeds into another region's. Works on fp8/quantized Krea2 checkpoints
+(only activations are read/written).
 
 Architecture (see sf_utils/regional_engine.py for the pure logic):
   - LoRA matrices: kohya (lora_down/up) + diffusers (lora_A/B), alpha/rank
@@ -12,15 +15,20 @@ Architecture (see sf_utils/regional_engine.py for the pure logic):
     (Krea2: blocks.N.attn.wq/wk/wv/gate/wo, blocks.N.mlp.gate/up/down).
   - Token grid derived from the LIVE latent at first model call (VAE f8 +
     patch2 -> latent//2), sequence layout [text | image] (Krea2 concats
-    context before img) so image tokens occupy the tail: offset = seq - n_img.
+    context before img) so image token i sits at text_len + i.
   - Sparse engine: only tokens whose mask > sparse_threshold pay for the
     LoRA matmul; per-(region, seq) token indices are cached.
+  - Region prompts: optional CLIP input; each region's text is encoded once
+    (sf_utils/regional_prompt.py) and its embeddings appended to the live
+    model context (cond rows keep them, uncond rows are zeroed). An
+    attn1_patch (build_prompt_attn_mask) restricts every image token's text
+    attention to its own region's columns; base text stays visible to all.
   - Per-region diagnostics: each region logs "matched m/M layers" — a region
     whose LoRA keys don't map onto the model (wrong architecture/format)
     reports 0 layers instead of silently doing nothing.
 
 Outputs: the patched MODEL (feed KSampler), a rainbow mask preview, and an
-info JSON with per-region match counts.
+info JSON with per-region match counts / prompt token counts.
 """
 
 import json
@@ -44,8 +52,10 @@ from ...sf_utils.regional_engine import (
     rect_token_mask,
     normalize_overlap,
     active_token_indices,
+    build_prompt_attn_mask,
     render_preview,
 )
+from ...sf_utils.regional_prompt import encode_region_prompt
 
 try:
     import comfy.patcher_extension as _pext
@@ -101,13 +111,15 @@ def _materialize_delta_fn(entry, dev, cdt):
 # ============================================================================
 class _RegionSession:
     def __init__(self, patcher, regions, boxes, seam_feather, sparse_threshold,
-                 plan):
+                 plan, prompt_tokens=None, prompt_blocks=None):
         self.patcher = patcher
         self.active = regions            # list of {'name','lora','mats',...}
         self.boxes = boxes               # list of normalized (x0,y0,x1,y1)
         self.seam_feather = float(seam_feather)
         self.sparse_threshold = max(0.0, float(sparse_threshold))
         self.plan = plan                 # {sig: set(region_idx)}
+        self.prompt_tokens = prompt_tokens    # [1, total_tokens, dim] or None
+        self.prompt_blocks = prompt_blocks or []  # [(region_idx, start, end)]
         self.n_img = 0
         self._layer_map = None           # name -> (module, {region_idx: fn})
         self._prepared = False
@@ -115,6 +127,17 @@ class _RegionSession:
         self._masks_d = None             # list[torch.Tensor] device/dtype-ready
         self._active_cache = {}
         self._dev = None
+        self._base_text_len = None       # live text prefix before the prompts
+        self._text_len = None            # base + appended region prompt tokens
+        self._cond_rows = None           # per batch row: True = cond (positive)
+        self._mask = None                # cached bool attention mask
+        self._mask_key = None
+        self._extra = None               # cached broadcast prompt embeddings
+        self._extra_key = None
+        self._width_warned = False       # one-shot non-Krea2 context warning
+
+    def prompt_active(self):
+        return self.prompt_tokens is not None
 
     def _build_layer_map(self, dm, dev, cdt):
         sig_to_region_fns = {}
@@ -163,13 +186,108 @@ class _RegionSession:
     def _diffusion_model(self):
         return _diffusion_model_of(self.patcher)
 
+    def _context_layout(self, ctx, transformer_options):
+        """Record the text prefix length and append region prompt tokens.
+
+        Prompt tokens are appended to every batch row (the tensor must stay
+        rectangular); rows that are not the positive pass (cond_or_uncond
+        entry != 0) get them zeroed so the negative pass never sees region
+        text. Returns the (possibly augmented) context."""
+        if not torch.is_tensor(ctx) or ctx.dim() < 3:
+            self._base_text_len = None
+            self._text_len = None
+            self._cond_rows = None
+            self._mask = None
+            return ctx
+        self._base_text_len = int(ctx.shape[1])
+        self._text_len = self._base_text_len
+        if self.prompt_tokens is None:
+            self._cond_rows = None
+            return ctx
+        if int(ctx.shape[-1]) != int(self.prompt_tokens.shape[-1]):
+            # foreign architecture (region prompts were encoded for Krea2
+            # text width) -- appending would corrupt the context
+            if not self._width_warned:
+                self._width_warned = True
+                logger.warning("context width %d != region prompt width %d -- "
+                               "region prompts skipped for this model.",
+                               int(ctx.shape[-1]), int(self.prompt_tokens.shape[-1]))
+            self._cond_rows = None
+            return ctx
+        batch = int(ctx.shape[0])
+        cond = (transformer_options.get("cond_or_uncond")
+                if isinstance(transformer_options, dict) else None)
+        if isinstance(cond, (list, tuple)) and len(cond) == batch:
+            rows = [int(c) == 0 for c in cond]
+        else:
+            rows = [True] * batch
+        key = (str(ctx.device), str(ctx.dtype), batch, tuple(rows))
+        extra = self._extra if (self._extra is not None
+                                and self._extra_key == key) else None
+        if extra is None:
+            extra = self.prompt_tokens.to(ctx.device, ctx.dtype).expand(
+                batch, -1, -1).clone()
+            for b, is_cond in enumerate(rows):
+                if not is_cond:
+                    extra[b] = 0
+            self._extra = extra
+            self._extra_key = key
+        self._cond_rows = rows
+        self._text_len = self._base_text_len + int(self.prompt_tokens.shape[1])
+        return torch.cat((ctx, extra), dim=1)
+
+    def _get_attn_mask(self, batch, seq):
+        """Cached bool [B, 1, S, S] mask restricting image tokens to their own
+        region's prompt columns; None when prompts/masks are unavailable."""
+        rows = self._cond_rows or [True] * batch
+        if len(rows) != batch:
+            rows = [True] * batch
+        key = (batch, int(seq), tuple(rows), self._base_text_len,
+               self._text_len, self._dev)
+        if self._mask is not None and self._mask_key == key:
+            return self._mask
+        if self._masks is None or self._base_text_len is None or self.n_img <= 0:
+            return None
+        blocks = [(ri, self._base_text_len + int(s), self._base_text_len + int(e))
+                  for (ri, s, e) in self.prompt_blocks]
+        arr = build_prompt_attn_mask(rows, seq, self._text_len, self.n_img,
+                                     self._masks, blocks, self.sparse_threshold)
+        self._mask = torch.from_numpy(arr).to(self._dev or "cpu")
+        self._mask_key = key
+        return self._mask
+
+    def attn_mask_patch(self, q, k, v, pe, attn_mask, extra_options):
+        """attn1_patch: return the region-prompt attention mask. Empty dict
+        (no patch) outside the main Krea2 blocks or without region prompts."""
+        if not self.prompt_active():
+            return {}
+        if not isinstance(extra_options, dict) or extra_options.get("block_index") is None:
+            return {}
+        if not (torch.is_tensor(q) and torch.is_tensor(k)):
+            return {}
+        mask = self._get_attn_mask(int(q.shape[0]), int(k.shape[-2]))
+        if mask is None:
+            return {}
+        if attn_mask is None:
+            return {"attn_mask": mask}
+        try:
+            if attn_mask.dtype == torch.bool:
+                return {"attn_mask": attn_mask & mask}
+            # additive float bias: blocked positions get the dtype's min
+            bias = torch.zeros_like(attn_mask).masked_fill(
+                ~mask, torch.finfo(attn_mask.dtype).min)
+            return {"attn_mask": attn_mask + bias}
+        except Exception:
+            return {"attn_mask": mask}
+
     def _active_tokens(self, region_idx, seq):
-        key = (region_idx, int(seq))
+        key = (region_idx, int(seq), self._text_len)
         cached = self._active_cache.get(key)
         if cached is not None:
             return cached
         idx_np, weight_np = active_token_indices(
-            self._masks[region_idx], self.sparse_threshold, seq, self.n_img)
+            self._masks[region_idx], self.sparse_threshold, seq, self.n_img,
+            self._text_len)
         idx = torch.from_numpy(idx_np).to(self._dev)
         weight = torch.from_numpy(weight_np).to(self._dev, _COMPUTE_DTYPE)
         self._active_cache[key] = (idx, weight)
@@ -210,6 +328,18 @@ class _RegionSession:
                 first = next(dm.parameters(), None)
                 dev = first.device if first is not None else "cpu"
             self._prepare(dev, args[0] if args else None)
+        transformer_options = kwargs.get("transformer_options")
+        if not isinstance(transformer_options, dict):
+            for a in args:
+                if isinstance(a, dict) and "cond_or_uncond" in a:
+                    transformer_options = a
+                    break
+        args = list(args)
+        if len(args) > 2 and (torch.is_tensor(args[2]) or args[2] is None):
+            args[2] = self._context_layout(args[2], transformer_options or {})
+        elif "context" in kwargs:
+            kwargs["context"] = self._context_layout(kwargs["context"],
+                                                     transformer_options or {})
         if not self._layer_map:
             return executor(*args, **kwargs)
         handles = []
@@ -241,7 +371,12 @@ class SFRegionalLoRA:
                 "sparse_threshold": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 0.2, "step": 0.005,
                     "tooltip": "低于此掩码值的 token 跳过 LoRA 计算。0=最安全/最慢。"}),
             },
-            "optional": {},
+            "optional": {
+                "clip": ("CLIP", {
+                    "tooltip": "接与主提示词相同的 Krea2 CLIP，用于逐区域编码提示词。"
+                               "悬空时区域提示词被忽略（纯 LoRA 模式）。",
+                }),
+            },
             "hidden": {
                 "SFRegionsJson": ("STRING", {"default": DEFAULT_REGIONS_JSON}),
             },
@@ -251,50 +386,67 @@ class SFRegionalLoRA:
     RETURN_NAMES = ("model", "mask_preview", "info")
     FUNCTION = "apply"
     CATEGORY = _CATEGORY
-    DESCRIPTION = ("SF Regional LoRA：多区域角色 LoRA 注入（Krea2）。在节点画布上为每个区域画框并分配 "
-                   "一个 LoRA，每个 LoRA 的激活增量只注入自己框内的图像 token——区域外效果精确为零，"
-                   "多角色（LoRA）互动文生图。支持 kohya/diffusers 格式，fp8 量化模型安全。")
+    DESCRIPTION = ("SF Regional LoRA：多区域角色 LoRA + 区域提示词注入（Krea2）。在节点画布上为每个"
+                   "区域画框，分配 LoRA 和/或提示词：每个 LoRA 的激活增量只注入自己框内的图像 token，"
+                   "每段区域提示词的文本 token 也只对框内图像可见——区域外效果精确为零，多角色互动"
+                   "文生图。支持 kohya/diffusers 格式，fp8 量化模型安全。")
 
     def apply(self, model, canvas_width=1024, canvas_height=1024, base_strength=1.0,
-              seam_feather=0.08, sparse_threshold=0.01, SFRegionsJson=DEFAULT_REGIONS_JSON):
+              seam_feather=0.08, sparse_threshold=0.01, clip=None,
+              SFRegionsJson=DEFAULT_REGIONS_JSON):
         regions = parse_regions(SFRegionsJson)
-        active = [r for r in regions
-                  if r["enable"] and r["lora"] not in ("None", "")
-                  and (r["strength"] * base_strength) != 0.0]
+        active = []
+        for r in regions:
+            lora_on = (r["lora"] not in ("None", "")
+                       and (r["strength"] * float(base_strength)) != 0.0)
+            prompt_on = bool(str(r.get("prompt") or "").strip())
+            if r["enable"] and (lora_on or prompt_on):
+                r = dict(r)
+                r["_lora_on"] = lora_on
+                active.append(r)
 
         if not active:
             logger.warning("no active regions; passing model through unchanged.")
             blank = torch.zeros((1, 64, 64, 3))
             info = json.dumps({
                 "n_regions": 0,
-                "note": "no active regions (check enable / lora / strength)",
+                "prompt_mode": "lora_only",
+                "prompt_tokens": 0,
+                "note": "no active regions (check enable / lora / prompt / strength)",
                 "regions": [],
             }, indent=2, ensure_ascii=False)
             return (model, blank, info)
 
         # -- load LoRA matrices per active region (per-region failure =
-        #    warning + skip, never aborts the workflow) ----------------------
+        #    warning + skip / keep for prompt, never aborts the workflow) -----
         file_cache = {}
         prepared = []
         for r in active:
-            path = _resolve_lora_path(r["lora"])
-            if path not in file_cache:
-                try:
-                    sd = safetensors.torch.load_file(path)
-                except Exception as e:
-                    logger.warning("could not load LoRA '%s' (%s) -- region '%s' skipped.",
-                                   r["lora"], e, r["name"])
-                    continue
-                file_cache[path] = parse_lora_sd(sd)
-            mats = file_cache[path]
-            if not mats:
-                logger.warning("'%s' contains no recognized LoRA/LoKr-style keys "
-                               "-- region '%s' skipped.", r["lora"], r["name"])
-                continue
+            mats = {}
+            if r["_lora_on"]:
+                path = _resolve_lora_path(r["lora"])
+                if path not in file_cache:
+                    try:
+                        sd = safetensors.torch.load_file(path)
+                        file_cache[path] = parse_lora_sd(sd)
+                    except Exception as e:
+                        logger.warning("could not load LoRA '%s' (%s).", r["lora"], e)
+                        file_cache[path] = None
+                mats = file_cache[path]
+                if not mats:
+                    if str(r["prompt"] or "").strip():
+                        logger.warning("region '%s' kept for its prompt only "
+                                       "(LoRA '%s' unavailable).", r["name"], r["lora"])
+                        mats = {}
+                    else:
+                        logger.warning("region '%s' skipped (LoRA '%s' unavailable).",
+                                       r["name"], r["lora"])
+                        continue
             s = r["strength"] * float(base_strength)
             mats_scaled = {sig: {**d, "scale": lora_scale(d) * s}
                            for sig, d in mats.items()}
             prepared.append({"name": r["name"], "lora": r["lora"],
+                             "prompt": r["prompt"],
                              "strength": r["strength"], "mats": mats_scaled,
                              "box": r["box"]})
 
@@ -303,6 +455,8 @@ class SFRegionalLoRA:
             blank = torch.zeros((1, 64, 64, 3))
             info = json.dumps({
                 "n_regions": 0,
+                "prompt_mode": "lora_only",
+                "prompt_tokens": 0,
                 "note": "all region LoRAs failed to load (see console log)",
                 "regions": [],
             }, indent=2, ensure_ascii=False)
@@ -310,13 +464,51 @@ class SFRegionalLoRA:
 
         boxes = [p["box"] for p in prepared]
 
-        # -- layer planning + per-region match diagnostics --------------------
+        # -- region prompt encoding (per-region failure = prompt ignored) ------
+        prompt_tokens = None
+        prompt_blocks = []
+        prompt_mode = "lora_only"
+        prompted = [p for p in prepared if str(p["prompt"] or "").strip()]
+        if clip is not None and prompted:
+            parts = []
+            cur = 0
+            for i, p in enumerate(prepared):
+                text = str(p["prompt"] or "").strip()
+                if not text:
+                    continue
+                try:
+                    ctx = encode_region_prompt(clip, text)
+                except Exception as e:
+                    logger.warning("region %d '%s': could not encode prompt (%s) "
+                                   "-- prompt ignored for this region.", i, p["name"], e)
+                    continue
+                if ctx is None:
+                    logger.warning("region %d '%s': prompt encoding produced no usable "
+                                   "context -- prompt ignored for this region.", i, p["name"])
+                    continue
+                length = int(ctx.shape[1])
+                parts.append(ctx)
+                prompt_blocks.append((i, cur, cur + length))
+                cur += length
+            if parts:
+                prompt_tokens = torch.cat(parts, dim=1) if len(parts) > 1 else parts[0]
+                prompt_mode = "regional"
+                logger.info("region prompts armed: %d region(s), %d text token(s)",
+                            len(parts), cur)
+        elif clip is None and prompted:
+            logger.warning("region prompts are set but no CLIP is connected "
+                           "-- prompts ignored (LoRA-only mode).")
+
+        # -- layer planning + per-region diagnostics ---------------------------
         patched = model.clone()
         dm = _diffusion_model_of(patched)
         model_sigs = collect_model_sigs(dm.named_modules())
         plan, per_matched = plan_layer_map([p["mats"] for p in prepared], model_sigs)
         for i, p in enumerate(prepared):
             total = len(p["mats"])
+            if total == 0:
+                logger.info("region %d '%s': prompt-only (no LoRA).", i, p["name"])
+                continue
             logger.info("region %d '%s' (%s): matched %d/%d layers",
                         i, p["name"], p["lora"], per_matched[i], total)
             if per_matched[i] == 0:
@@ -324,8 +516,19 @@ class SFRegionalLoRA:
                                "LoRA will NOT take effect (wrong architecture or "
                                "key format for the loaded model).", i, p["name"])
 
+        # 掩码挂载能力前置检查：没有 attn1 patch 通路就不追加提示词，
+        # 否则区域提示词会全局可见（比不做隔离更糟）
+        if prompt_tokens is not None and not hasattr(patched, "set_model_attn1_patch"):
+            logger.warning("this ComfyUI build lacks set_model_attn1_patch "
+                           "-- region prompts disabled.")
+            prompt_tokens = None
+            prompt_blocks = []
+            prompt_mode = "lora_only"
+
         session = _RegionSession(patched, prepared, boxes, seam_feather,
-                                 sparse_threshold, plan)
+                                 sparse_threshold, plan,
+                                 prompt_tokens=prompt_tokens,
+                                 prompt_blocks=prompt_blocks)
 
         def wrapper(executor, *args, **kwargs):
             return session.run(executor, *args, **kwargs)
@@ -337,16 +540,21 @@ class SFRegionalLoRA:
         else:
             raise RuntimeError("This ComfyUI build lacks model wrapper support. Update ComfyUI.")
 
+        if prompt_tokens is not None:
+            patched.set_model_attn1_patch(session.attn_mask_patch)
+
         # -- rainbow mask preview + info --------------------------------------
         preview = render_preview(boxes, int(canvas_width), int(canvas_height))
         preview_t = torch.from_numpy(preview)
 
         info = json.dumps({
             "n_regions": len(prepared),
+            "prompt_mode": prompt_mode,
+            "prompt_tokens": int(prompt_tokens.shape[1]) if prompt_tokens is not None else 0,
             "grid": "derived from live latent at first model call (canvas size only affects preview)",
             "regions": [
-                {"name": p["name"], "lora": p["lora"], "strength": p["strength"],
-                 "enable": True,
+                {"name": p["name"], "lora": p["lora"], "prompt": p["prompt"],
+                 "strength": p["strength"], "enable": True,
                  "box": [round(v, 4) for v in p["box"]],
                  "layers_matched": per_matched[i],
                  "layers_total": len(p["mats"])}
@@ -354,5 +562,6 @@ class SFRegionalLoRA:
             ],
         }, indent=2, ensure_ascii=False)
 
-        logger.info("armed %d region(s).", len(prepared))
+        logger.info("armed %d region(s)%s.", len(prepared),
+                    " + region prompts" if prompt_tokens is not None else "")
         return (patched, preview_t, info)

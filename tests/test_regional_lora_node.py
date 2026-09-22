@@ -1,12 +1,15 @@
 # SFRegionalLoRA 节点链路模拟测试（Python 直接运行：python tests/test_regional_lora_node.py）
 # 无 torch 环境下 mock torch/safetensors/folder_paths，验证：
-#   - 节点结构：INPUT_TYPES（hidden SFRegionsJson）、RETURN_TYPES、CATEGORY、注册键
+#   - 节点结构：INPUT_TYPES（hidden SFRegionsJson、optional clip）、RETURN_TYPES、
+#     CATEGORY、注册键
 #   - apply 全链路：regions 解析 → 矩阵加载 → plan + per-region 匹配诊断 →
 #     wrapper 挂载 → preview/info 输出
 #   - 诊断回归：region 的 LoRA 键与模型不匹配时 matched=0 且不报错（第二个
 #     LoRA 失效可见性的核心）
 #   - 异常路径：加载失败 skip、无 active region 直通
 #   - session.run：executor 透传、hook 注册/移除
+# 区域提示词链路（clip 编码/context 追加/attn 掩码/降级）见
+# tests/test_regional_lora_prompts.py
 import importlib.util
 import json
 import os
@@ -179,6 +182,7 @@ check("structure: hidden SFRegionsJson", "SFRegionsJson" in it["hidden"])
 check("structure: required model/canvas/params",
       set(it["required"]) == {"model", "canvas_width", "canvas_height",
                               "base_strength", "seam_feather", "sparse_threshold"})
+check("structure: clip optional input", "clip" in it.get("optional", {}))
 check("structure: RETURN_TYPES", node.RETURN_TYPES == ("MODEL", "IMAGE", "STRING"))
 check("structure: CATEGORY", node.CATEGORY == "sfnodes/model")
 check("structure: DESCRIPTION", bool(node.DESCRIPTION))

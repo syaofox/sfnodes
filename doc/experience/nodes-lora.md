@@ -172,7 +172,7 @@
 
 ## 25. SFRegionalLoRA：多区域角色 LoRA（token 网格注入与匹配诊断）
 
-> 背景：`nodes/model/regional_lora.py` + `sf_utils/regional_engine.py`（纯逻辑）+ `web/sf_regional_lora*.js` 两模块（2026-08）。Krea2 专用多区域角色 LoRA：每 box 一个 LoRA，激活 delta 只注入 box 内 image token。
+> 背景：`nodes/model/regional_lora.py` + `sf_utils/regional_engine.py`（纯逻辑）+ `web/sf_regional_lora*.js` 两模块（2026-08）。Krea2 专用多区域角色 LoRA：每 box 一个 LoRA，激活 delta 只注入 box 内 image token。**区域提示词（逐区域 prompt + clip + attention 隔离）见 §127（2026-09 扩展，本节其余机制不变）。**
 
 - **纯逻辑在 `sf_utils/regional_engine.py`**（键归一化/矩阵解析/regions JSON/层规划 + 每区域匹配诊断/token 网格 mask 数学/彩虹预览，无 ComfyUI 依赖可独立测试）；节点层 forward hook 稀疏注入。
 - **前端 DOM canvas 多 box 编辑**：拖拽/8 向 resize/画新框/背景图对齐；隐藏 `SFRegionsJson` widget 为真源（值随工作流保存），行控件 enable/lora/strength/remove。
@@ -693,3 +693,44 @@
 - **LRU 单源共用**：`LruCache`（OrderedDict + threading.Lock，容量 128；命中 move_to_end、超容淘汰最久未用）放在 llm_client，`chat_completion_sync/async` 同用一份 `response_cache`（同步写、异步读命中，反之亦然）。键 = `(base_url, sha256(canonical payload), extra)`——payload 含图片 data URL，故换了图/提示词/温度/模型自动换键；哈希后不驻留图片字节。只缓存成功结果。
 - **开关走同一设置体系**：`sfnodes.LLM.CacheEnabled`（boolean，默认开，前端 sf_llm_settings.js 注册）→ 后端 `get_llm_config()["cache_enabled"]` → `chat_completion_*` 的 `use_cache=None` 时取该值。翻译路由与节点无需额外接线。
 - **可测性**：网络层拆 `_do_request_sync`/`_do_request_async`，测试 monkeypatch 计数即可验证命中/绕过/跨同步异步复用，不发真实请求；`LruCache` 淘汰顺序单测覆盖。
+
+---
+
+## 127. SFRegionalLoRA 区域提示词：逐区域 prompt + attention 隔离（2026-09）
+
+> 背景：多角色文生图里 LoRA 管身份、提示词管动作/服装，但全局提示词会串到所有区域。需求：每个框一段提示词，只对框内图像生效。本功能 2026-09-20 曾实现并实测，随后源码随部署回滚丢失（仅剩 `__pycache__` 的 3.14 字节码与一份用户工作流）；本次按字节码反汇编还原设计并重建，接口/降级语义与原实现一致（见 §25）。
+
+### 1. 接口与数据流（无 conditioning 接线）
+
+- 节点新增 **optional `clip`**（接与主提示词同一个 Krea2 CLIP）与逐区域 `prompt`（regions JSON 新字段，前端行控件编辑；legacy JSON 缺省 `""`）。`RETURN_TYPES` 不变（model/mask_preview/info），**不需要 conditioning 输入输出**：区域提示词 embedding 在模型调用时直接追加进 context，图上只需把 clip 连进来。
+- `info` 增 `prompt_mode`（`regional` / `lora_only`）与 `prompt_tokens`（追加的文本 token 总数）；每区域带 `prompt`。
+- 区域 active 判定 = `enable and (lora_on or prompt)`：**prompt-only 区域**（无 LoRA / strength=0 / LoRA 加载失败但有提示词）照常编码提示词；加载失败且无提示词才跳过。encode 失败只忽略该区域提示词，LoRA 照常注入；无 clip 时提示词整体忽略并告警（纯 LoRA 模式）。
+- 实测事实：krea2 LoRA 全部只含 DiT 键（用户库 709 个扫描 0 个 text-encoder 键），所以**不需要逐区域 CLIP**——单个 clip 输入即可，TE 侧 LoRA 在 Krea2 上不存在。
+
+### 2. 编码与 context 追加（`sf_utils/regional_prompt.py` + `_RegionSession._context_layout`）
+
+- `encode_region_prompt(clip, text)`：`clip.tokenize` + `clip.encode_from_tokens_scheduled`，取 `conditioning[0][0]`，非 3D 返回 None、异常上抛给节点记诊断。每区域编码一次，`torch.cat(dim=1)` 成 `prompt_tokens [1, total, dim]`，同时记录 `prompt_blocks = [(prepared_idx, start, end)]`（相对后缀的列区间）。
+- 追加点在 `WrappersMP.DIFFUSION_MODEL` wrapper 的 `run()`：从 args 里找 `transformer_options`（含 `cond_or_uncond`），按 Krea2 forward 签名改 `args[2]`（context）或 `kwargs["context"]`。**追加到所有 batch 行**（张量必须矩形），再用 `cond_or_uncond`（0=cond）把 uncond 行整行置零——负向 pass 永远看不到区域文本，且 mask 之外还有一层保险。
+- **text_len 贯穿**：`_base_text_len` 为现场 context 前缀长度，`_text_len = base + prompt_tokens`；LoRA 稀疏注入的 image token 偏移从 `seq - n_img` 改为 `text_len + i`（`active_token_indices` 新增 `text_len` 参数，非法时回退旧公式）——**有 ref latent 时旧公式必错**（image 后面还有 ref token），这是本次必须改的点。
+- 非 Krea2 模型守卫：`ctx.shape[-1] != prompt_tokens.shape[-1]` 时跳过追加并一次性告警（避免维度不匹配崩溃）。
+
+### 3. 注意力掩码（`build_prompt_attn_mask` + `set_model_attn1_patch`）
+
+- 语义（bool `[B,1,S,S]`，True=可见）：image token 只对本区域提示词列可见（成员判定用归一化后的区域 mask > `sparse_threshold`，与 LoRA 注入覆盖一致）；**基础文本列、图像列、ref 列永不禁**（文本 token 保持全注意力）；uncond 行整段区域提示词列全禁。
+- 挂载：`patcher.set_model_attn1_patch(session.attn_mask_patch)`（**追加不覆盖**，与 Krea2 Edit 等其他 attn1 patch 共存；已有 bool 掩码按位与、float bias 加 `finfo.min`）。`attn_mask_patch` 仅在 `extra_options["block_index"]` 存在时返回掩码——Krea2 `txtfusion` 的 attention 不带 block_index，天然排除，只作用于 28 个主 block。
+- 掩码按 `(batch, seq, cond_rows, base_len, text_len, dev)` 缓存；无区域提示词时 **不挂 patch、不改 context**，零开销。
+
+### 4. 性能与风险（重要）
+
+- 稠密 bool 掩码使 `attention_flash` 抛错回退 SDPA（`logging.warning` 每次调用）——本容器默认 `Using pytorch attention`（SDPA 原生支持 bool mask），无影响；**若用户开 `--use-flash-attention` 会变慢且刷警告**。sage 是否支持取决于 `SAGE_ATTENTION_SUPPORTS_MASK`（§76.2 同款结论）。
+- 掩码是**按 query 行变化**的 `[B,1,S,S]`，只有 SDPA/attention_pytorch 路径支持；`attention_basic` 的 bool 分支把 mask 当 key mask（`rearrange('b ... -> b (...)')`），退化到它会语义错误。本环境默认 pytorch attention，安全；换后端需重新评估（可改切片注意力）。
+- 显存/带宽 O(B·S²)：1024²（S≈4.2k）约 33MB/次可接受；1536² ≈ 75MB；2048²（S≈16.6k）≈ 550MB **不建议**。需要 2K+ 时改用切片注意力（按区域把 query/key 分组多次小 attention，保持 flash），代价是复杂度大增。
+- 前端逐区域 prompt 用**单行原生 text widget**，不用 `ComfyWidgets["STRING"](multiline)`：行控件随区域增删整体重建，DOM 多行 widget 会带 `minNodeSize=[400,200]` 且移除时可能留孤儿 textarea（Classic 渲染）。画布框内叠加提示词摘要补足可读性。
+- **live getter 绑定在经典画布渲染下会吞编辑（2026-09 实机回归）**：`bindRegionValue` 用 `Object.defineProperty(widget,"value")` 让显示始终读 JSON 真源（防工作流加载期陈旧写回）。Vue 渲染路径的 `createWidgetUpdateHandler` 传**原始新值**给 callback，正常；但经典（canvas）路径交互走 `BaseWidget.setValue`：`let i=this.value; this.value=a; this.callback?.(this.value,…)`——回调里的 `this.value` 经 getter 读到的仍是**旧 JSON**，回调把旧值写回 → 用户编辑静默丢失（诊断特征：`node.widgets` 行齐全、JSON 永远不变、直接 `w.setValue()` 也不写回）。修复：`bindRegionValue` 包装实例 `setValue`——先跑原流程（保留 `onWidgetChanged`/图版本自增），再把新值写入 JSON 真源；外部陈旧写回（直接赋 `widget.value`，不走 setValue）仍被 getter 忽略。回归锁：`tests/test_regional_lora_js.js` 的 "classic setValue writes through / getter reflects classic edit / stale external write still ignored"。
+
+### 5. 测试
+
+- `tests/test_regional_engine.py`：prompt 解析/缺省/非字符串、`active_token_indices` 的 text_len 偏移与回退、`build_prompt_attn_mask` 全分支（基础列恒真/成员放行/外来列屏蔽/uncond 全屏蔽/空 blocks/退化与越界块/阈值下成员）。
+- `tests/test_regional_lora_prompts.py`：mock torch/clip 全链路——逐区域编码与 info、context 追加与 cond/uncond 行、attn patch 形状与守卫、prompt-only/strength-0/加载失败保留、encode 失败降级、no-clip/legacy JSON 纯 LoRA 模式。
+- 前端 `tests/test_regional_lora_js.js`：defaultRegion 带 `prompt:""`、`bindRegionValue` 对 prompt 的读写与 legacy 缺省。
+- **考古经验**：源码丢失但 `.pyc` 仍在 `__pycache__`（host 与部署副本时间戳不同，部署副本保留了 feature 版）。`python3.14` 直接 `marshal.loads(pyc[16:])` + `dis` 可还原函数签名/常量/控制流；测试 pyc 的断言字符串能还原覆盖清单。以后清理 `__pycache__` 前注意其可能的考古价值。

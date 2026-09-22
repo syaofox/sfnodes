@@ -5,9 +5,11 @@
 #   - parse_lora_sd：down/up 配对、alpha 提取与 rank 兜底、缺因子跳过、无 base 跳过
 #   - lora_scale：alpha/rank、rank 缺失兜底
 #   - parse_regions：默认等分 box、越界 clamp、反向 box 拒绝、退化 box 回退、
-#     enable 字符串防御、损坏 JSON 兜底
+#     enable 字符串防御、prompt 字段（缺省/非字符串/legacy 兼容）、损坏 JSON 兜底
 #   - 网格与 mask：token_grid（Krea2 f8+patch2 = latent//2）、羽化矩形行主序、
-#     active_token_indices 稀疏选择 + [text|image] 尾部偏移、全序列回退分支
+#     active_token_indices 稀疏选择 + text_len/[text|image] 偏移与回退、
+#     build_prompt_attn_mask 区域提示词注意力掩码（基础列恒真/本区域成员放行/
+#     外来列屏蔽/uncond 全屏蔽/空 blocks/越界钳制）
 #   - plan_layer_map：sig 合并 + per-region 匹配计数（"region 2 匹配 0 层"诊断回归锁）
 #   - render_preview：形状、区域色、重叠取 max
 import importlib.util
@@ -88,10 +90,14 @@ check("scale: rank zero guarded", eng.lora_scale({"alpha": 2.0, "rank": 0}) == 2
 
 # ── 4. parse_regions ──────────────────────────────────────────────────────
 regs = eng.parse_regions(
-    '[{"lora":"a.safetensors","strength":1.5,"enable":true,"x":0,"y":0,"w":0.5,"h":1},'
-    ' {"lora":"b.safetensors","strength":0.8,"enable":false,"x":0.5,"y":0,"w":0.5,"h":1}]')
+    '[{"lora":"a.safetensors","prompt":"red hair","strength":1.5,"enable":true,"x":0,"y":0,"w":0.5,"h":1},'
+    ' {"lora":"b.safetensors","prompt":123,"strength":0.8,"enable":false,"x":0.5,"y":0,"w":0.5,"h":1}]')
 check("regions: parsed 2", len(regs) == 2)
 check("regions: strength/enable", regs[0]["strength"] == 1.5 and regs[1]["enable"] is False)
+check("regions: prompt parsed", regs[0]["prompt"] == "red hair")
+check("regions: prompt non-string coerced", regs[1]["prompt"] == "123")
+check("regions: legacy row prompt defaults empty", eng.parse_regions(
+    '[{"lora":"a","x":0,"y":0,"w":0.5,"h":1}]')[0]["prompt"] == "")
 check("regions: box clamp", regs[0]["box"] == (0.0, 0.0, 0.5, 1.0))
 regs_out = eng.parse_regions('[{"lora":"a","x":0.8,"y":0.2,"w":0.5,"h":0.5}]')
 check("regions: out-of-range clamped", regs_out[0]["box"] == (0.8, 0.2, 1.0, 0.7))
@@ -110,6 +116,8 @@ check("default_regions_json: 2 equal columns",
       len(eng.parse_regions(eng.default_regions_json(2))) == 2)
 check("default_regions_json: valid boxes",
       eng.parse_regions(eng.default_regions_json(2))[1]["box"] == (0.5, 0.0, 1.0, 1.0))
+check("default_regions_json: prompt key present",
+      all(r["prompt"] == "" for r in eng.parse_regions(eng.default_regions_json(2))))
 
 # ── 5. 网格与 mask ────────────────────────────────────────────────────────
 check("grid: krea2 f8+patch2", eng.token_grid(128, 128) == (64, 64))
@@ -147,6 +155,53 @@ check("tokens: fallback whole-seq when n_img > seq", len(idx_all) == 4
       and np.allclose(w_all, m_l.mean(), atol=1e-6))
 idx_empty, w_empty = eng.active_token_indices(np.zeros(8), 0.01, seq=12, n_img=8)
 check("tokens: empty mask -> empty idx", idx_empty.size == 0 and w_empty.size == 0)
+# 区域提示词追加后文本前缀变长：offset 用 live text_len 而非 seq - n_img
+idx_t, w_t = eng.active_token_indices(m_l, 0.01, seq=16, n_img=8, text_len=6)
+check("tokens: text_len offset", np.array_equal(idx_t, keep + 6)
+      and np.allclose(w_t, m_l[keep], atol=1e-6))
+idx_bad, _ = eng.active_token_indices(m_l, 0.01, seq=12, n_img=8, text_len=9)
+check("tokens: invalid text_len falls back to tail", np.array_equal(idx_bad, keep + 4))
+
+# ── 5b. build_prompt_attn_mask（区域提示词注意力掩码）─────────────────────
+# 布局：[基础文本 0..6 | region0 提示词 6..8 | region1 提示词 8..10 | 图像 10..18]
+# region0 覆盖图像 token 0..3（行 10..14），region1 覆盖 4..7（行 14..18）
+masks = [np.array([1, 1, 1, 1, 0, 0, 0, 0], dtype=np.float32),
+         np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=np.float32)]
+blocks = [(0, 6, 8), (1, 8, 10)]
+am = eng.build_prompt_attn_mask([True, False], 18, 10, 8, masks, blocks, 0.01)
+check("attn_mask: shape [B,1,S,S] bool", am.shape == (2, 1, 18, 18) and am.dtype == bool)
+check("attn_mask: base text always visible",
+      am[0, 0, :, :6].all() and am[1, 0, :, :6].all())
+check("attn_mask: image columns always visible",
+      am[0, 0, :, 10:].all() and am[1, 0, :, 10:].all())
+check("attn_mask: text query rows untouched on cond",
+      am[0, 0, :10, 6:10].all())
+check("attn_mask: own region prompt visible",
+      am[0, 0, 10:14, 6:8].all() and am[0, 0, 14:18, 8:10].all())
+check("attn_mask: foreign region prompt blocked",
+      not am[0, 0, 10:14, 8:10].any() and not am[0, 0, 14:18, 6:8].any())
+check("attn_mask: uncond rows fully blocked",
+      not am[1, 0, :, 6:10].any())
+# 空 blocks / 无图 token / 越界 blocks -> 全 True（不限制）
+check("attn_mask: empty blocks all visible",
+      eng.build_prompt_attn_mask([True], 12, 4, 8, masks, [], 0.01).all())
+check("attn_mask: no image tokens all visible",
+      eng.build_prompt_attn_mask([True], 12, 12, 8, masks, blocks, 0.01).all())
+check("attn_mask: degenerate block skipped",
+      eng.build_prompt_attn_mask([True], 18, 10, 8, masks, [(0, 8, 8)], 0.01).all())
+check("attn_mask: out-of-range region idx skipped",
+      eng.build_prompt_attn_mask([True], 18, 10, 8, masks, [(9, 6, 8)], 0.01).all())
+# 越界 block 列钳制到 S：非成员 image token 被屏蔽、成员放行、基础文本不受影响
+masks_half = [np.array([0, 1, 0, 0, 0, 0, 0, 0], dtype=np.float32), masks[1]]
+am_clip = eng.build_prompt_attn_mask([True], 12, 10, 2, masks_half, [(0, 6, 99)], 0.01)
+check("attn_mask: block end clamped to S",
+      not am_clip[0, 0, 10, 6:].any() and am_clip[0, 0, 11, 6:].all()
+      and am_clip[0, 0, :, :6].all())
+# 阈值以下成员不算本区域（mask=0.005 < 0.01 -> 该 token 也看不到本区域提示词）
+masks_low = [np.array([0.005, 1, 1, 1, 0, 0, 0, 0], dtype=np.float32), masks[1]]
+am_low = eng.build_prompt_attn_mask([True], 18, 10, 8, masks_low, [(0, 6, 8)], 0.01)
+check("attn_mask: below-threshold member blocked",
+      not am_low[0, 0, 10, 6:8].any() and am_low[0, 0, 11, 6:8].all())
 
 # ── 6. plan_layer_map（诊断回归锁）───────────────────────────────────────
 sig_a = {"blocks0attnwq", "blocks0attnwk", "blocks0mlpgate"}

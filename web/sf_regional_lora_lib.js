@@ -13,6 +13,7 @@ export function defaultRegion(i, n) {
   const cols = Math.max(1, n);
   return {
     lora: "None",
+    prompt: "",
     strength: 1.0,
     enable: true,
     x: i / cols, y: 0.0, w: 1.0 / cols, h: 1.0,
@@ -77,6 +78,23 @@ export function bindRegionValue(node, widget, idx, key, initial) {
     set(v) { _staged = v; },
     configurable: true,
   });
+  // 经典（canvas）渲染下前端交互走 BaseWidget.setValue：它先 `this.value = 新值`
+  // 再以 `this.value` 回调 —— 而本 getter 读 JSON 真源（此时尚未写入），回调会拿
+  // 到旧值并写回旧值，编辑静默丢失（Vue 渲染路径传原始新值，无此问题）。包一层
+  // setValue：原流程照跑（保留 onWidgetChanged / 图版本自增）后把新值写入真源；
+  // 外部陈旧写回（直接赋 widget.value，不走 setValue）仍被 getter 忽略。
+  const origSetValue = widget.setValue;
+  if (typeof origSetValue === "function") {
+    widget.setValue = function (v, ctx) {
+      const res = origSetValue.call(this, v, ctx);
+      const r = readRegions(node);
+      if (r[idx]) {
+        r[idx][key] = v;
+        writeRegions(node, r);
+      }
+      return res;
+    };
+  }
   return widget;
 }
 

@@ -28,8 +28,8 @@ function check(name, cond) {
 const defs = lib.defaultRegions(2);
 check("default: 2 regions", defs.length === 2);
 check("default: equal columns", defs[0].x === 0 && defs[1].x === 0.5 && defs[0].w === 0.5);
-check("default: lora None / strength 1.0 / enable", defs.every((r) => r.lora === "None"
-  && r.strength === 1.0 && r.enable === true && r.h === 1.0));
+check("default: lora None / prompt empty / strength 1.0 / enable", defs.every((r) => r.lora === "None"
+  && r.prompt === "" && r.strength === 1.0 && r.enable === true && r.h === 1.0));
 const json = lib.defaultRegionsJson(2);
 check("default: json parses back", lib.readRegions({ widgets: [{ name: "SFRegionsJson", value: json }] }).length === 2);
 
@@ -115,14 +115,17 @@ check("safeRebuild: missing widget -> false", lib.safeRebuildRows(restoreNode, b
 
 // ── bindRegionValue：行控件 value 活绑定 regions JSON（根治显示时序）──────
 const bindNode = { widgets: [{ name: "SFRegionsJson", value: JSON.stringify([
-  { lora: "a.safetensors", strength: 1.2, enable: true, x: 0, y: 0, w: 0.5, h: 1 },
+  { lora: "a.safetensors", prompt: "red hair", strength: 1.2, enable: true, x: 0, y: 0, w: 0.5, h: 1 },
   { lora: "None", strength: 0.8, enable: false, x: 0.5, y: 0, w: 0.5, h: 1 }]) }] };
 const wLora = lib.bindRegionValue(bindNode, { value: "None" }, 0, "lora", "None");
 const wStr = lib.bindRegionValue(bindNode, { value: 1.0 }, 1, "strength", 1.0);
 const wEn = lib.bindRegionValue(bindNode, { value: true }, 1, "enable", true);
+const wPr = lib.bindRegionValue(bindNode, { value: "" }, 0, "prompt", "");
 check("bind: combo reads json", wLora.value === "a.safetensors");
 check("bind: number reads json as number", wStr.value === 0.8 && typeof wStr.value === "number");
 check("bind: toggle reads json bool", wEn.value === false);
+check("bind: prompt reads json string", wPr.value === "red hair");
+check("bind: legacy region without prompt -> initial", lib.bindRegionValue(bindNode, { value: "" }, 1, "prompt", "").value === "");
 // JSON 更新（模拟 configure 值恢复 / 用户编辑）→ getter 立即反映，无需重建
 bindNode.widgets[0].value = JSON.stringify([{ lora: "b.safetensors", strength: 2.0, enable: true, x: 0, y: 0, w: 0.5, h: 1 }]);
 check("bind: json restore reflected immediately", wLora.value === "b.safetensors");
@@ -137,6 +140,35 @@ check("bind: user pick reflected", wLora.value === "c.safetensors");
 // idx 越界 → 回退 initial
 const wOut = lib.bindRegionValue(bindNode, { value: "None" }, 9, "lora", "None");
 check("bind: out-of-range falls back", wOut.value === "None");
+
+// 经典（canvas）渲染：BaseWidget.setValue 先 this.value=新值 再以 this.value 回调，
+// 回调经 live getter 读到的是旧 JSON → 旧值写回、编辑丢失。绑定后的 setValue 包装
+// 必须在原流程之后把新值写入真源（回归锁）。
+const svNode = { widgets: [{ name: "SFRegionsJson", value: JSON.stringify([
+  { lora: "None", prompt: "old", strength: 1, enable: true, x: 0, y: 0, w: 1, h: 1 }]) }] };
+const svWidget = {
+  type: "text",
+  value: "",
+  callback: null,
+  setValue(v, ctx) {
+    if (v === this.value) return "noop";
+    this.value = v;
+    if (typeof this.callback === "function") this.callback(this.value, ctx);
+    return "done";
+  },
+};
+lib.bindRegionValue(svNode, svWidget, 0, "prompt", "");
+svWidget.callback = (v) => {
+  const r = lib.readRegions(svNode);
+  if (r[0]) { r[0].prompt = v; lib.writeRegions(svNode, r); }
+};
+check("bind: classic setValue writes through", svWidget.setValue("typed", {}) === "done"
+  && lib.readRegions(svNode)[0].prompt === "typed");
+check("bind: getter reflects classic edit", svWidget.value === "typed");
+svWidget.setValue("typed", {});
+check("bind: classic repeat set is idempotent", lib.readRegions(svNode)[0].prompt === "typed");
+svWidget.value = "stale";
+check("bind: stale external write still ignored", svWidget.value === "typed");
 // readRegions 缓存：同值不重复 parse
 let parseCount = 0;
 const cacheNode = { widgets: [{ name: "SFRegionsJson", value: "[]" }] };

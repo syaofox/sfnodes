@@ -1,8 +1,9 @@
 """Regional LoRA engine — pure logic for the SFRegionalLoRA node.
 
 Single source of truth for: LoRA key normalization / matrix parsing, region
-JSON parsing, model-layer planning (with per-region match diagnostics), token
-grid + rectangular mask math, sparse token selection, and the rainbow mask
+JSON parsing (incl. per-region prompt text), model-layer planning (with
+per-region match diagnostics), token grid + rectangular mask math, sparse
+token selection, the region-prompt attention mask, and the rainbow mask
 preview. Framework-agnostic (numpy only, no ComfyUI/torch dependency) so it
 can be unit-tested directly; the node converts results to torch once per
 session (masks/indices are built once per apply, CPU->GPU copies are
@@ -117,17 +118,17 @@ def lora_scale(entry: dict) -> float:
 
 
 # ---------------------------------------------------------------------------
-# region JSON parsing — rows of {lora, strength, enable, x, y, w, h}
+# region JSON parsing — rows of {lora, prompt, strength, enable, x, y, w, h}
 # ---------------------------------------------------------------------------
 DEFAULT_STRENGTH = 1.0
 
 
 def default_regions_json(n=2) -> str:
-    """Equal left->right columns with no LoRA assigned."""
+    """Equal left->right columns with no LoRA / no prompt assigned."""
     rows = []
     for i in range(max(1, n)):
         rows.append({
-            "lora": "None", "strength": DEFAULT_STRENGTH, "enable": True,
+            "lora": "None", "prompt": "", "strength": DEFAULT_STRENGTH, "enable": True,
             "x": round(i / n, 6), "y": 0.0, "w": round(1.0 / n, 6), "h": 1.0,
         })
     return json.dumps(rows, ensure_ascii=False, indent=2)
@@ -144,9 +145,10 @@ def _as_bool(v):
 def parse_regions(regions_json: str) -> list:
     """Parse the hidden regions_json into a list of region dicts.
 
-    Each region: {name, lora, strength, enable, box:(x0,y0,x1,y1)}. Missing /
-    malformed x/y/w/h falls back to an equal-width column; boxes are clamped
-    to [0,1] and inverted boxes are flipped. Any error returns [] (the node
+    Each region: {name, lora, prompt, strength, enable, box:(x0,y0,x1,y1)}.
+    Missing / malformed x/y/w/h falls back to an equal-width column; boxes
+    are clamped to [0,1] and inverted boxes are flipped. Legacy rows without
+    a prompt parse to "" (pure LoRA region). Any error returns [] (the node
     then passes the model through unchanged)."""
     try:
         raw = json.loads(regions_json or "[]")
@@ -172,6 +174,7 @@ def parse_regions(regions_json: str) -> list:
         out.append({
             "name": str(r.get("name") or f"region_{i}"),
             "lora": lora,
+            "prompt": str(r.get("prompt") or ""),
             "strength": strength,
             "enable": enable,
             "box": box,
@@ -305,13 +308,16 @@ def rect_token_mask(rows: int, cols: int, box, feather: float) -> np.ndarray:
 
 
 def active_token_indices(mask: np.ndarray, threshold: float, seq: int,
-                         n_img: int):
+                         n_img: int, text_len=None):
     """Sparse token selection for one region.
 
     mask: [n_img] token mask. Sequence layout is [text | image] (Krea2
-    concatenates context before img), so image tokens occupy the tail:
-    idx = keep + (seq - n_img). Falls back to the whole sequence with the
-    mean weight when the mask doesn't line up with the sequence.
+    concatenates context before img), so image token i sits at text_len + i.
+    text_len is the live text prefix length (base text + appended region
+    prompt tokens); when unknown / out of range it falls back to the tail
+    offset seq - n_img (correct only without appended prompt tokens). Falls
+    back to the whole sequence with the mean weight when the mask doesn't
+    line up with the sequence.
 
     Returns (idx, weight) numpy arrays of dtype int64 / float32."""
     if n_img <= 0 or n_img > seq:
@@ -320,8 +326,60 @@ def active_token_indices(mask: np.ndarray, threshold: float, seq: int,
                          dtype=np.float32) if mask.size else np.zeros(
                              (seq,), dtype=np.float32)
         return idx, weight
+    if text_len is None or text_len < 0 or text_len + n_img > seq:
+        text_len = seq - n_img
     keep = np.nonzero(np.abs(mask) > threshold)[0]
-    return (keep + (seq - n_img)).astype(np.int64), mask[keep].astype(np.float32)
+    return (keep + text_len).astype(np.int64), mask[keep].astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
+# region-prompt attention mask (bool [B, 1, S, S], True = attend)
+# ---------------------------------------------------------------------------
+def build_prompt_attn_mask(cond_rows, seq_len, text_len, n_img, masks, blocks,
+                           threshold) -> np.ndarray:
+    """Region-local prompt attention mask (bool [B, 1, S, S], True = attend).
+
+    Sequence layout is [text | image ...] where the text prefix contains the
+    base context followed by every region's prompt tokens at the absolute
+    column ranges given by `blocks` (region_idx, start, end). Each image token
+    may only attend to its own region's prompt columns (membership = mask >
+    threshold); image tokens outside every region see base text only. Base
+    text, image and any trailing reference columns are never blocked.
+
+    cond_rows: one bool per batch row — False (uncond) rows never see any
+    region prompt column at all (their embeddings are zeroed separately by
+    the node, this makes the mask safe on its own).
+
+    masks: per-region [n_img] token masks (region_idx indexes this list).
+    blocks: list of (region_idx, start, end) column ranges of the appended
+    region prompts; ranges are clamped, empty ones skipped."""
+    cond_rows = cond_rows or []
+    B = max(1, len(cond_rows))
+    allow = list(cond_rows) if len(cond_rows) == B else [True] * B
+    S = max(1, int(seq_len))
+    m = np.ones((B, 1, S, S), dtype=bool)
+    tl = max(0, min(int(text_len), S))
+    n = max(0, min(int(n_img), S - tl))
+    if n == 0 or not blocks:
+        return m
+    img_rows = np.arange(tl, tl + n)
+    for ri, start, end in blocks:
+        if ri < 0 or ri >= len(masks):
+            continue
+        c0, c1 = max(0, int(start)), min(S, int(end))
+        if c1 <= c0:
+            continue
+        mask = masks[ri]
+        member = np.nonzero(np.abs(mask) > threshold)[0]
+        member = member[(member >= 0) & (member < n)] + tl
+        for b in range(B):
+            if not allow[b]:
+                m[b, :, :, c0:c1] = False
+                continue
+            m[b, :, img_rows, c0:c1] = False
+            if member.size:
+                m[b, :, member, c0:c1] = True
+    return m
 
 
 # ---------------------------------------------------------------------------
