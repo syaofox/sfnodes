@@ -7,6 +7,7 @@
 //   - 左右快速步进：当前层子目录循环（进入所选）
 //   - 面包屑回退（祖先段点击）
 //   - 模式切换：直接输入路径模式
+//   - popup 定位：视口钳位 / 方向翻转 / 限高（LoRA Stack 同款）
 //   - onConfigure 恢复：DOM 状态同步当前值
 const fs = require("fs");
 const os = require("os");
@@ -193,6 +194,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await wait(20);
     const popup = _bodyAppends[_bodyAppends.length - 1];
     check("popup 已打开", !!popup && popup.className.includes("sf-lip-popup"));
+    // 定位（mock：锚点 left=0/bottom=20，window 1280×720，popup offsetWidth/Height=100/20）：
+    // 下方空间充足 → 向下展开 top=bottom+4；left 钳到 8；限高 min(60vh=432, downSpace=688)
+    check("popup 左侧视口钳位", popup.style.left === "8px");
+    check("popup 向下展开", popup.style.top === "24px");
+    check("popup 限高取方向空间", popup.style.maxHeight === "432px");
     const listEl = popup.querySelector("[data-role='pop-list']");
     check("popup 列出子目录", listEl.children.length === 2);
     check("popup 头部显示当前路径", typeof popup.children[0].textContent === "string" && popup.children[0].textContent.includes("input"));
@@ -217,6 +223,21 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     check("popup 再次打开", !!popupEsc);
     if (typeof _docHandlers.keydown === "function") _docHandlers.keydown({ key: "Escape" });
     check("Esc 关闭 popup", popupEsc.removed === true);
+
+    // ── popup 边缘定位：下方空间不足 → 向上展开；右侧越界 → left 钳位 ──
+    const triggerBtn = root.querySelector("[data-role='dir-trigger']");
+    const origRect = triggerBtn.getBoundingClientRect;
+    triggerBtn.getBoundingClientRect = () => ({ left: 1200, top: 700, right: 1300, bottom: 720, width: 100, height: 20 });
+    _bodyAppends.length = 0;
+    triggerBtn._handlers.click();
+    await wait(20);
+    const popupEdge = _bodyAppends[_bodyAppends.length - 1];
+    check("popup 下方不足向上展开", popupEdge.style.top === "676px");   // max(8, 700-4-20)
+    check("popup 右侧越界钳位", popupEdge.style.left === "1172px");     // 1280-100-8
+    check("popup 限高取上方空间", popupEdge.style.maxHeight === "432px"); // min(432, upSpace=696)
+    if (typeof _docHandlers.keydown === "function") _docHandlers.keydown({ key: "Escape" });
+    check("边缘 popup 已关闭", popupEdge.removed === true);
+    triggerBtn.getBoundingClientRect = origRect;
 
     // ── 同值缓存：值未变重复渲染（onConfigure 恢复等）不重复请求 ──
     subdirCalls = subdirCalls.filter((f) => f !== "input/faces");

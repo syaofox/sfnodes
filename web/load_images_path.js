@@ -66,9 +66,13 @@ function injectCSS() {
     .sf-lip-nav { flex:none; width:26px; padding:4px 0; }
     .sf-lip-nav:active { background:var(--sf-surface-hover); }
     .sf-lip-popup { position:fixed; z-index:99999; background:var(--sf-panel-bg); border:1px solid var(--sf-border);
-      border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.5); overflow:hidden; font-size:11px; }
-    .sf-lip-pop-head { padding:6px 10px; background:var(--sf-panel-bg-2); color:var(--sf-text-dim); border-bottom:1px solid var(--sf-border-soft);
+      border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,.5); overflow:hidden; font-size:11px;
+      display:flex; flex-direction:column; max-height:60vh; }
+    .sf-lip-pop-head { flex:none; padding:6px 10px; background:var(--sf-panel-bg-2); color:var(--sf-text-dim); border-bottom:1px solid var(--sf-border-soft);
       font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sf-lip-pop-list { overflow-y:auto; overflow-x:hidden; padding:2px 0 4px; }
+    .sf-lip-pop-list::-webkit-scrollbar { width:7px; }
+    .sf-lip-pop-list::-webkit-scrollbar-thumb { background:var(--sf-border); border-radius:3px; }
     .sf-lip-pop-item { padding:6px 10px; color:var(--sf-text-dim); cursor:pointer; display:flex; gap:6px;
       align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .sf-lip-pop-item:hover { background:var(--sf-surface-hover); color:var(--sf-text-strong); }
@@ -264,12 +268,14 @@ app.registerExtension({
             if (_openPopup) renderDirPopup(_openPopup);
         };
 
-        // ── 目录 popup（SFLoadImageResize 下拉风格：锚点下方 fixed 列表）──
+        // ── 目录 popup（fixed 列表；定位策略同 SF LoRA Stack 下拉）──
         let _openPopup = null;
+        let _placePopup = null;   // 当前 popup 的 place()（内容变化后重定位）
         const closeDirPopup = () => {
             if (!_openPopup) return;
             const popup = _openPopup;
             _openPopup = null;
+            _placePopup = null;
             popup.remove();
             document.removeEventListener("mousedown", onDocDown, true);
             document.removeEventListener("pointerdown", onDocDown, true);
@@ -301,6 +307,8 @@ app.registerExtension({
                 });
                 listEl.appendChild(item);
             }
+            // 内容变化 → 重新定位（方向打开时已定死，这里只更新 top/maxHeight）
+            _placePopup?.();
         };
 
         const openDirPopup = () => {
@@ -309,22 +317,37 @@ app.registerExtension({
             if (!trigger) return;
             const popup = document.createElement("div");
             popup.className = "sf-lip-popup";
-            const rect = trigger.getBoundingClientRect();
-            const width = Math.max(rect.width, 240);
-            Object.assign(popup.style, {
-                left: `${rect.left}px`,
-                top: `${rect.bottom + 2}px`,
-                width: `${width}px`,
-            });
             const head = document.createElement("div");
             head.className = "sf-lip-pop-head";
             head.textContent = `📁 ${currentValue() || "—"}`;
             popup.appendChild(head);
             const listEl = document.createElement("div");
+            listEl.className = "sf-lip-pop-list";
             listEl.dataset.role = "pop-list";
             popup.appendChild(listEl);
             document.body.appendChild(popup);
             _openPopup = popup;
+
+            // 定位（同 SF LoRA Stack 下拉）：left 视口钳位；方向上/下比较
+            // 可用空间选大者（相等向下），**打开时定一次**，内容变化只更新
+            // top/maxHeight——弹窗不会"一会上、一会下"跳变。
+            const rect = trigger.getBoundingClientRect();
+            const upSpace = rect.top - 4;   // 锚点上方可用空间（含 4px 间距）
+            const downSpace = window.innerHeight - 8 - (rect.bottom + 4); // 下方（含底部 8px 边距）
+            const goUp = upSpace > downSpace;
+            popup.style.width = `${Math.max(rect.width, 240)}px`;
+            popup.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - popup.offsetWidth - 8))}px`;
+            const place = () => {
+                const h = popup.offsetHeight;
+                // 上限取"所选方向可用空间"：内容超高时列表内部滚动
+                // （overflow-y:auto），弹窗实际高度 ≤ 方向空间 → 永不越界。
+                const maxH = Math.min(0.6 * window.innerHeight, goUp ? upSpace : downSpace);
+                popup.style.maxHeight = `${Math.max(40, maxH)}px`;
+                if (goUp) popup.style.top = `${Math.max(8, rect.top - 4 - h)}px`; // 底边贴锚点、顶边延伸
+                else popup.style.top = `${rect.bottom + 4}px`;                  // 恒定
+            };
+            _placePopup = place;
+            place();   // 先按空内容限高，内容填充后 renderDirPopup 末尾再定位
             renderDirPopup(popup);
             setTimeout(() => {
                 document.addEventListener("mousedown", onDocDown, true);

@@ -325,6 +325,12 @@
 - **CSS 兜底**：`.sf-lip-btn` 加 `min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis`（按钮收缩省略而非撑破边界）；`.sf-lip-root` 加 `overflow:hidden`（最后防线；popup 挂 document.body 不受影响）。
 - **顺带清理**：移除冗余的"📁 当前路径"显示行——它曾躺在 138px 裁剪区外被遮挡，修复后露出才发现与面包屑导航重复（面包屑 + 下拉按钮 title 已承载路径）；按钮文案统一英文化（Folder Mode / Path Mode / Apply / Refresh）。
 
+### 7. popup 下拉视口越界修复（2026-09）
+
+- **现象**：节点靠近屏幕下/右边缘时，子目录下拉列表伸出视口被裁掉。根因同 §18.6 的"声称与内容不符"一类：`.sf-lip-popup` 只有 `top = rect.bottom + 2` / `left = rect.left` 的固定锚定，无视口钳位、无 `max-height`、列表无滚动——锚点靠边时必然越界。
+- **修复 = 照搬 SF LoRA Stack 下拉定位**（`sf_lora_stack_dropdown.js` 的 `place()`，§39.10 同族经验）：① `left` 视口钳位；② 打开时比较上/下可用空间**定一次方向**（相等向下，内容变化不翻转防跳变）；③ `maxHeight = min(60vh, 方向空间)` + `top` 随高度重算，列表 `overflow-y:auto` 内部滚动 → 弹窗实际高度 ≤ 方向空间，永不越界；④ `renderDirPopup` 内容变化后重调 `place()`（空列表先 `place()` 一次预限高，避免首帧按未限高高度定位）。
+- 未迁移 `sf_popup.js` 三件套：`clampToViewport` 只有四向钳位、无翻转与限高，弱于 LoRA 方案；存量弹层不强制迁移（§26）。smoke 测试补定位断言（钳位/向下/向上翻转/限高四值）。
+
 ---
 
 ## 23. SFPromptList：行号编辑器与 wrap 镜像测量
