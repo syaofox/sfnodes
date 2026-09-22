@@ -48,6 +48,13 @@ class FakeNode {
 }
 
 // ---- 加载被测模块（去 import / export）----
+// 依赖的 widget 显隐公共库（sf_widget_visibility_lib.js）先剥壳取出，再注入被测模块作用域。
+const libRaw = fs.readFileSync(path.join(__dirname, "..", "web", "sf_widget_visibility_lib.js"), "utf8");
+const libCode = libRaw.replace(/export\s+(?=function|const|let|class|var)/g, "");
+const lib = new Function(
+  libCode + "\nreturn { setWidgetVisible, isWidgetVisible, refreshWidgetSnapshot };"
+)();
+
 const raw = fs.readFileSync(path.join(__dirname, "..", "web", "sf_scail2.js"), "utf8");
 const code = raw
   .replace(/import[^;]+;/g, "")
@@ -59,7 +66,10 @@ const names = [
   "reorderSimpleVideoWidgets", "repairSimpleVideoWidgetOrder", "trimReferencePackNodeDataInputs",
   "SCAIL2_LABELS", "EXT_NAME",
 ];
-const exported = new Function("app", code + "\nreturn {" + names.join(",") + "};")(app);
+const exported = new Function(
+  "app", "setWidgetVisible", "isWidgetVisible", "refreshWidgetSnapshot",
+  code + "\nreturn {" + names.join(",") + "};"
+)(app, lib.setWidgetVisible, lib.isWidgetVisible, lib.refreshWidgetSnapshot);
 
 // 1. 扩展注册
 check("ext registered", capturedExts.length === 1 && capturedExts[0].name === "sfnodes.scail2");

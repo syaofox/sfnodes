@@ -10,6 +10,7 @@
 // 源文件的双语探测（isChineseLocale / EASY_TRANSLATIONS.zh|en）已按项目约定收敛：仅 widget 标签中文化，
 // combo 选项值（mode/long_video_mode/context_schedule）保持英文原文显示。
 import { app } from "/scripts/app.js";
+import { isWidgetVisible, refreshWidgetSnapshot, setWidgetVisible } from "./sf_widget_visibility_lib.js";
 
 const EXT_NAME = "sfnodes.scail2";
 const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode"];
@@ -79,11 +80,9 @@ for (let subject = 1; subject <= MAX_REFERENCE_SUBJECTS; subject++) {
   }
 }
 
-const WIDGET_DEFAULTS = new WeakMap();
 const FIT_VIDEO_SETUP = new WeakSet();
 const REFERENCE_PACK_SETUP = new WeakSet();
 const SIMPLE_VIDEO_SETUP = new WeakSet();
-const hiddenWidgetComputeSize = () => [0, -4];
 
 function classNameForNode(node) {
   return node?.constructor?.comfyClass || node?.constructor?.type || node?.type;
@@ -345,110 +344,6 @@ function rebuildReferencePackInputs(node, desiredNames) {
     return true;
   }
   return false;
-}
-
-function ensureOptions(widget) {
-  widget.options ||= {};
-  if (widget._state) {
-    widget._state.options ||= {};
-  }
-}
-
-function setOption(widget, key, value) {
-  ensureOptions(widget);
-  widget.options[key] = value;
-  if (widget._state) {
-    widget._state.options[key] = value;
-  }
-}
-
-function deleteOption(widget, key) {
-  widget.options ||= {};
-  delete widget.options[key];
-  if (widget._state?.options) {
-    delete widget._state.options[key];
-  }
-}
-
-function storeWidgetDefaults(widget) {
-  if (!widget || WIDGET_DEFAULTS.has(widget)) return;
-  WIDGET_DEFAULTS.set(widget, {
-    type: widget.type,
-    computeSize: widget.computeSize,
-    computeSizeDescriptor: Object.getOwnPropertyDescriptor(widget, "computeSize"),
-    hidden: widget.hidden,
-    optionsHidden: widget.options?.hidden,
-    optionsCanvasOnly: widget.options?.canvasOnly,
-  });
-}
-
-function restoreComputeSize(widget, defaults) {
-  if (defaults.computeSizeDescriptor) {
-    Object.defineProperty(widget, "computeSize", defaults.computeSizeDescriptor);
-  } else {
-    delete widget.computeSize;
-  }
-}
-
-function hideComputeSize(widget) {
-  Object.defineProperty(widget, "computeSize", {
-    value: hiddenWidgetComputeSize,
-    configurable: true,
-    writable: true,
-    enumerable: false,
-  });
-}
-
-function setWidgetVisible(widget, visible) {
-  if (!widget) return false;
-  storeWidgetDefaults(widget);
-  const defaults = WIDGET_DEFAULTS.get(widget);
-  const wasHidden = widget.type === "hidden" || widget.hidden === true || widget.options?.hidden === true;
-  if (visible) {
-    widget.hidden = defaults.hidden ?? false;
-    widget.type = defaults.type;
-    restoreComputeSize(widget, defaults);
-    if (widget.inputEl) widget.inputEl.style.display = "";
-    if (widget.element) widget.element.style.display = "";
-    if (defaults.optionsHidden === undefined) {
-      deleteOption(widget, "hidden");
-    } else {
-      setOption(widget, "hidden", defaults.optionsHidden);
-    }
-    if (defaults.optionsCanvasOnly === undefined) {
-      deleteOption(widget, "canvasOnly");
-    } else {
-      setOption(widget, "canvasOnly", defaults.optionsCanvasOnly);
-    }
-  } else {
-    widget.hidden = true;
-    widget.type = "hidden";
-    hideComputeSize(widget);
-    if (widget.inputEl) widget.inputEl.style.display = "none";
-    if (widget.element) widget.element.style.display = "none";
-    setOption(widget, "hidden", true);
-    setOption(widget, "canvasOnly", true);
-  }
-  if (widget._state) {
-    widget._state.hidden = widget.hidden;
-    widget._state.type = widget.type;
-  }
-  widget.triggerDraw?.();
-  const isHidden = widget.type === "hidden" || widget.hidden === true || widget.options?.hidden === true;
-  return wasHidden !== isHidden;
-}
-
-function refreshWidgetSnapshot(node) {
-  if (!Array.isArray(node?.widgets)) return;
-  try {
-    node.widgets = [...node.widgets];
-  } catch {
-    // Old ComfyUI builds expose widgets as a plain mutable field.
-  }
-}
-
-function isWidgetVisible(widget) {
-  return widget && widget.type !== "hidden" && widget.hidden !== true && widget.options?.hidden !== true;
 }
 
 function collectReferencePackWidgets(node) {

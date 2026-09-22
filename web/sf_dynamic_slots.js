@@ -181,8 +181,7 @@ function recoverDynamicSide(node, side, cfg) {
     }
 }
 
-// 与 installDynamicSlots 配套使用（同一 prefix/type/初始值与上限）。
-// config 同时给 inputPrefix 与 outputPrefix 时两侧都恢复（如循环节点 value 槽）。
+// 与 installDynamicSlots 配套使用（同一 prefix/type/初始值与上限）。// config 同时给 inputPrefix 与 outputPrefix 时两侧都恢复（如循环节点 value 槽）。
 export function installConfiguredSlotRecovery(node, config) {
     const originalOnAfterGraphConfigured = node.onAfterGraphConfigured;
     node.onAfterGraphConfigured = function () {
@@ -263,4 +262,29 @@ export function installDynamicSlots(node, config) {
             originalOnConnectionsChange.apply(this, arguments);
         }
     };
+}
+
+// ── 固定输入槽的按需增删（模式/条件驱动的源输入显隐，SFQwenImage21PromptEnhancer 用）──
+// 移除指定输入槽：优先原生 removeInput（会一并断开该槽连线），旧版回退断开 + splice。
+export function removeInputAt(node, index) {
+    if (typeof node?.removeInput === "function") {
+        node.removeInput(index);
+        return;
+    }
+    if (node?.inputs?.[index]?.link != null) {
+        node.disconnectInput?.(index);
+    }
+    node?.inputs?.splice(index, 1);
+}
+
+// 增删中间输入槽后修正其余已连线输入的 link.target_slot（索引位移，否则连线错位）。
+// graph 缺省取 node.graph；纯函数式传参便于测试。
+export function syncInputLinkTargets(node, graph) {
+    const g = graph || node?.graph;
+    if (!g || !Array.isArray(node?.inputs)) return;
+    node.inputs.forEach((input, index) => {
+        if (input?.link == null) return;
+        const link = g.links?.[input.link];
+        if (link) link.target_slot = index;
+    });
 }

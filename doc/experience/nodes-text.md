@@ -681,7 +681,16 @@
 - **`unload_after` 分路**：本地LLaMA 走 `storage.clean()`（关闭 GGUF 模型，插件其他 Instruct 节点下次执行自动重载），CLIP 模式仍走 ComfyUI `unload_all_models`；`thinking` widget 对本模式无效（由 chat_handler 选择，如 `Qwen3-VL-Thinking`）。
 - **顺手排除的弯路**（实测）：把 GGUF 直接给 `CLIPLoader (GGUF)` 不可行——当前 ComfyUI-GGUF 只在 `arch=qwen2vl` 时自动挂 mmproj，`arch=qwen3vl` 的文件被识别为纯文本 `QWEN3_8B`（Klein 路径，无视觉键），且 KleinTokenizer 无条件二次包模板，与节点直送的 `<|im_start|>` 原文冲突；要 CLIP 本地模式请用 safetensors `qwen3vl_8b_int8_convrot`（type `qwen_image`）。
 
-### 4. 测试
+### 4. 前端模式联动显隐（mode 切换隐藏不生效选项，2026-09）
+
+- **widget 显隐表**：`MODE_WIDGETS` 按模式列出生效 widget（公共项 mode/task/prompt/output_language 常显）。API 隐藏 `max_tokens`（不发送）/`top_k`/`top_p`/`min_p`/`repetition_penalty`（llm_client 不支持）/`thinking`（由 llm_client 处理）/`unload_after`（无本地模型）；本地LLaMA 隐藏 `thinking`（由插件 chat_handler 决定）；`detail` 仅 API。隐藏只影响渲染，隐藏 widget 的值仍随工作流保存/提交，后端 required 校验不受影响。
+- **显隐机制单源收敛**：`setWidgetVisible`/`isWidgetVisible`/`refreshWidgetSnapshot` 自 `sf_scail2.js` 提取到新共享库 `web/sf_widget_visibility_lib.js`（scail2 改为 import + re-export 保持其导出与测试不变；tests/test_scail2_js.js 相应注入库函数）。新节点不得再内联副本。
+- **源输入槽增删**：`clip`（CLIP）/`llama_model`（LLAMACPPMODEL）按模式保留；API 两个都移除。**已连线的源输入不移除**——不静默断用户的线，后端按模式忽略（模式切回即恢复使用）；只移除未连线的。新增/移除固定槽的通用 helper `removeInputAt`/`syncInputLinkTargets` 落在 `sf_dynamic_slots.js`（原 scail2 私有同名实现保留未动，属后续收敛候选）。
+- **中间槽移除必须修正 link.target_slot**：`node.removeInput` 只 splice 数组，后续已连线输入的 `link.target_slot` 会整体前移一位，不修则连线错位（表现为加载后线接错口）。`syncInputLinkTargets(node, graph)` 遍历 inputs 重写每条 link 的 target_slot；graph 显式传参以便纯测试。
+- **触发与重放**：`mode` widget callback 包装（切模式即时生效）+ `onAfterGraphConfigured` 包装（configure 直赋 widget 值不触发 callback，加载/粘贴工作流后重放）+ `nodeCreated`/`loadedGraphNode` 初始化；`WeakSet` 防 setup 重复安装（避免动态槽恢复回调被二次包装）。
+- 测试：`tests/test_qwen21_enhancer_js.js`（扩展注册/模式表/显隐/输入增删/已连线保留/target_slot 位移/callback 与配置重放/图片槽初始裁剪）。
+
+### 5. 测试
 
 - `tests/test_qwen21_enhance.py`：profile 常量/官方与通用协议选择（中文覆盖指令）/本地聊天文本（占位与 thinking 两态）/思考链分割/答案解析全分支（多对象取最后、字符串花括号、拼写兼容、比例归一与互斥、字段级恢复、原文兜底）。
 - `tests/test_qwen21_prompt_enhancer.py`：FakeClip 记录 tokenize/generate（官方/通用协议、预填、视觉占位、图片 RGB 缩放、profile 采样参数、max_tokens 默认/0 回退/覆盖）+ 打桩 `chat_completion_sync`（API 文本/多图消息、参数透传、不传 max_tokens）+ FakeLlama 插件替身（属性指纹查找、自动加载/配置变化重载、无图/多图消息、无 mmproj 报错、max_tokens=0、system_prompt 覆盖、storage.clean 卸载、插件缺失报错）+ 输入校验/兜底/报错/软告警/卸载调用，不发真实网络。
