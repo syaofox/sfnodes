@@ -3,6 +3,7 @@
 #   - _resolve_folder：default（→input 根）/ input / output / 前缀子目录 / 绝对路径
 #   - _list_folders：两源根（input/output）+ 一级子目录
 #   - VALIDATE_INPUTS：目录存在校验
+#   - IS_CHANGED：文件 mtime 哈希 / 切片参与 / 连线输入（None）退化为全量目录哈希
 # mock：torch / aiohttp / folder_paths / comfy.utils（numpy/PIL 本机真实可用）
 import importlib.util
 import os
@@ -143,6 +144,25 @@ check("子层图片数（a.png + b.jpg，note.txt 不算）", mod._count_image_f
 check("绝对路径图片数", mod._count_image_files(os.path.join(tmp_in, "faces")) == 2)
 check("不存在的目录图片数为 0", mod._count_image_files("input/nope") == 0)
 check("越界路径图片数钳到 input 根（无逃逸）", mod._count_image_files("../../etc") == 1)
+
+# ── IS_CHANGED：文件哈希；连线输入（None）退化为全量目录哈希而非报错 ──
+ip = mod.SFLoadImagesPath
+h_full = ip.IS_CHANGED("input/faces", 0, 0, 1)
+check("IS_CHANGED 返回 sha256 十六进制", isinstance(h_full, str) and len(h_full) == 64)
+check("IS_CHANGED 稳定（同输入同值）", ip.IS_CHANGED("input/faces", 0, 0, 1) == h_full)
+check("IS_CHANGED 切片参与（cap=1 不同于全量）", ip.IS_CHANGED("input/faces", 1, 0, 1) != h_full)
+check("IS_CHANGED 切片参与（skip=1 不同于全量）", ip.IS_CHANGED("input/faces", 0, 1, 1) != h_full)
+check("IS_CHANGED 连线 cap（None）退全量且不抛错", ip.IS_CHANGED("input/faces", None, 0, 1) == h_full)
+check("IS_CHANGED 连线 skip（None）退全量", ip.IS_CHANGED("input/faces", 0, None, 1) == h_full)
+check("IS_CHANGED 连线 nth（None）退全量", ip.IS_CHANGED("input/faces", 0, 0, None) == h_full)
+check("IS_CHANGED 三输入全连线（None）退全量", ip.IS_CHANGED("input/faces", None, None, None) == h_full)
+check("IS_CHANGED 目录不存在 False", ip.IS_CHANGED("input/no_such_dir") is False)
+_a = os.path.join(tmp_in, "faces", "a.png")
+_old_ns = os.stat(_a).st_mtime_ns
+os.utime(_a, ns=(_old_ns + 10_000_000_000, _old_ns + 10_000_000_000))
+check("IS_CHANGED 感知文件 mtime 变化", ip.IS_CHANGED("input/faces", 0, 0, 1) != h_full)
+os.utime(_a, ns=(_old_ns, _old_ns))
+check("IS_CHANGED mtime 复原后哈希复原", ip.IS_CHANGED("input/faces", 0, 0, 1) == h_full)
 
 # ── 路由响应：subdirs + file_count（前端计数器数据源）──
 class _FakeRoutes:

@@ -119,6 +119,11 @@ class SFLoadImagesPath:
 
     @classmethod
     def IS_CHANGED(cls, folder, image_load_cap=0, skip_first_images=0, select_every_nth=1):
+        # 连线驱动的输入在 IS_CHANGED 里是 None（ComfyUI 不解析链接，见 experience/platform.md §134）：
+        # 无法确定本轮实际切片，退回对目录全部图片做哈希——目录一变即失效，既不误用缓存，
+        # 也不返回 NaN（NaN 会沿祖先签名折叠下游全部缓存，见 experience/nodes-text.md §89）。
+        if image_load_cap is None or skip_first_images is None or select_every_nth is None:
+            image_load_cap, skip_first_images, select_every_nth = 0, 0, 1
         directory = _resolve_folder(folder)
         if not os.path.isdir(directory):
             return False

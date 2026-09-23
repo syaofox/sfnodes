@@ -348,3 +348,16 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **Align 提示行**：`buildAlignMenuItems` 仍 `<2 返回 []`（门槛留在构建器侧），聚合器改放 `{content:"SF Align (select ≥2 nodes)", disabled:true}`（无 callback，fail-safe）提升可发现性；≥2 时正常嵌套子菜单。
 - **排序**：Align/Node Color（随选中集出现，上下文相关）在前，`SF LoRA Browser → SF LoRA Presets → SF Workflows → SF Memory → Add SF Note` 随后（LoRA 两工具相邻）。
 - **测试**：`tests/test_canvas_menu_js.js` 增补——画布前导 null / 节点无 null、0 选中提示行 disabled 无 callback 且居首、2 选中提示行消失、排序链、`Add SF Note` 落图（先 `registerCustomNodes()`，test_note_js 先例）、`SF LoRA Presets` 面板挂载（`document.body.appendChild` spy + overlay id）；DOM 桩 `style` 补 `setProperty/removeProperty/getPropertyValue`。
+
+---
+
+## 134. IS_CHANGED 拿不到连线输入的值（链接输入传 None，2026-09）
+
+> 背景：用户的循环工作流出现"单轮耗时随 index 线性增长"（`SFForLoopStart.index` → `SFLoadImagesPath`），日志里每轮一条 `WARNING: '>' not supported between instances of 'NoneType' and 'int'`，间隔 0.05s → 0.96s。按该 WARNING 反查：只有 `IS_CHANGED` 的 `image_load_cap > 0` 能产生它 → 那一轮 `image_load_cap` 是**连线输入**（运行时值 = index，第 k 轮加载 k 张图）；正确接法是 index 接 `skip_first_images`、`image_load_cap` 留 widget=1。
+
+- **机制**：`IsChangedCache.get` 用 `get_input_data(node["inputs"], class_def, node_id, execution_list=None)` 取"常量"——链接输入没有执行列表可查 → `mark_missing()` 写 `(None,)`，`_async_map_node_over_list` 的 `slice_dict` 再取 `v[0]` → **IS_CHANGED 形参拿到 None**（既不是链接对象也不是 widget 默认值）。于是 IS_CHANGED 里对可连线输入的常规写法都会踩空：
+  - `x > 0` / 算术比较 → TypeError（被 `except Exception` 吞成 `logging.warning("WARNING: {}")` + `is_changed = NaN`）；
+  - `lst[x:]` → **不报错**：`lst[None:]` 等价于 `lst[:]`，静默按"全量"走（本次 skip 连线就是这种，哈希只覆盖第一张，与 skip/nth 无关）。
+- **本次误诊现场**：`image_load_cap` 被连线（运行时值 = index）→ 第 k 轮解码+预览 k 张图（780×1200 单张：JPEG 解码 ≈7ms + 预览 PNG ≈17ms）→ 总耗时 O(N²)、单轮 +30ms ✓ 与日志间隔增量吻合。**每轮一条的 WARNING 是定位这类接线错误的关键线索：其时间戳间隔就是单轮耗时**（`docker exec comfyui-docker` 看 `user/comfyui.log` / `comfyui.prev*.log`，重启会清 `/history`、清不了 rotated 日志）。
+- **修法（`nodes/image/load_images_path.py` 已改）**：任一形参为 None 即视为"未知切片"，退化为对**目录全部图片**哈希（cap=0/skip=0/nth=1）：目录一变即失效、绝不误用缓存，且**不返回 NaN**——NaN 会沿祖先签名折叠下游全部缓存（nodes-text.md §89），本节点靠稳定签名支持重复 Run 命中缓存（容器日志里的 `Prompt executed in 0.00 seconds`）。
+- **测试**：`tests/test_load_images_path.py`——哈希稳定/切片参与（cap、skip）/三输入各自 None 与全 None 均等于全量哈希/目录不存在 False/mtime 变化与复原（用 `st_mtime_ns` 精确回写，防 `os.utime(float)` 纳秒漂移导致假失败）。
