@@ -1,6 +1,6 @@
-# nodes-video.md — 视频与视频生成节点
+# 经验归档：视频与视频生成节点
 
-> 所含章节：§72 SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy）· §77 SAM3 视觉点选追踪与 track_data 排除（驱动遮罩排男/阴茎/精液）· §78 SCAIL-2 上下文窗口参数对齐原生 WanContextWindowsManual + 单图负向条件修正 · §82 SCAIL-2 预处理 O(T) 内存分块（运行时补丁 + 设置）· §87 SCAIL-2 外部分段处理（VHS 分段循环 + 外锚接续 + SFVideoConcat 合并）· §98 SFSAM3ReanchorTrack 指定帧重锚追踪（分段调用原生 SAM3_VideoTrack + 逐行提示词/间隔锚帧）· §100 SCAIL2Mem 设置语义收口（Enabled 主开关 + 分块回归测试 + 设置读盘缓存）· §117 SFVideoConcat cleanup 扩展（选中段 + 被 -audio 覆盖的中间视频，cleanup_metadata 连首帧 PNG）· §128 SCAIL-2 分段「首帧预热」锚帧 + 追踪链外移（静帧锚帧 ≡1 mod 4 / 子图输入删除与索引重排 / 预览与下游外移）· §130 VOSR2 视频帧超分（逐帧 + DINOv2 时序缓存 + 帧拼批）· §131 SFVideoCompare：TE_MAN 视频对比干净室复刻（temp H264 落盘 + av 探针 + 双 `<video>` 叠加播放）。本文件为 `doc/experience/` 第七个主题（2026-09）：视频生成节点族（SCAIL-2 / Wan）不与 platform / patterns / nodes-text / nodes-image / nodes-lora / apps 适配，故新建。
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 
 ## 72. SCAIL-2 四节点复刻（ComfyUI-SCAIL2-Easy，2026-09）
 
@@ -68,7 +68,7 @@
 ### 77.1 两个核心限制决定节点形态
 
 - 核心 `comfy.ldm.sam3.tracker.track_video` 的 `initial_masks` **只对应第 0 帧**（`detector.forward_video` 文档 `[N_obj,1,H,W] binary masks for first frame`）。**不能中途锚定**：精液等中途出现的目标必须从出现帧起锚定，否则无从 seed。
-- `MaskComposite(subtract)`（§69）要求两路帧数一致。若直接从出现帧切片追踪，输出会短于基础序列 → 帧错位。
+- `MaskComposite(subtract)`（§141）要求两路帧数一致。若直接从出现帧切片追踪，输出会短于基础序列 → 帧错位。
 - 故新增 `SFSAM3PointTrack`：在节点内完成"锚帧检测 + 切片传播 + **前补空帧回全长**"，使输出帧数与输入驱动序列一致；排除做成 `SFTrackDataSubtract` 在 track_data 层一步完成。
 
 ### 77.2 SFSAM3PointTrack（`nodes/video/sam3_point_track.py`，CATEGORY `sfnodes/video`）

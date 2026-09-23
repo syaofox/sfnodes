@@ -1,6 +1,6 @@
-# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态（§5、§19、§20、§21、§25、§28、§31、§33、§59、§61、§75）
+# 经验归档：LoRA / Civitai / Krea2 / Flux2 编码生态
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 
 ## 5. Qwen3 无审查微调版 + TextGenerate：thinking 参数与思考链（COT）
 
@@ -432,7 +432,7 @@
 
 ### 1. INPUT_TYPES 变更与 widgets_values 位置敏感（初版 → 重排破兼容）
 
-- **初版（§38.0）**：`image` 从 `required` 移入 `optional`：`("IMAGE", {tooltip: "可选，纯文本/图文双模式"})`；新增 `video: ("IMAGE", {tooltip: "视频帧 batch 24FPS→1FPS 抽帧"})`、`audio: ("AUDIO", {tooltip: "透传"})`，均 `optional` 槽位（不进 `widgets_values`），旧连线按名注入安全。`user_prompt` 由 `("STRING", {forceInput: True})` 改为 `("STRING", {multiline: True, default: ""})`，为保兼容被迫追加到 `optional` 末尾（`thinking` 之后），`widgets_values` 12→13。
+- **初版**：`image` 从 `required` 移入 `optional`：`("IMAGE", {tooltip: "可选，纯文本/图文双模式"})`；新增 `video: ("IMAGE", {tooltip: "视频帧 batch 24FPS→1FPS 抽帧"})`、`audio: ("AUDIO", {tooltip: "透传"})`，均 `optional` 槽位（不进 `widgets_values`），旧连线按名注入安全。`user_prompt` 由 `("STRING", {forceInput: True})` 改为 `("STRING", {multiline: True, default: ""})`，为保兼容被迫追加到 `optional` 末尾（`thinking` 之后），`widgets_values` 12→13。
 - **重排（§38.1，已授权破兼容，见用户“不考虑破坏旧工作流,节点参数顺序调整合理”）**：按功能分区 `文本→视觉→采样→模板` 重排，`user_prompt` 紧邻 `prompt`（`required` 内 `preset/prompt/user_prompt` 连续），采样组 `max_length/do_sample/temperature/top_k/top_p/min_p/repetition_penalty/presence_penalty/seed/thinking` 聚合，视觉组 `system_prompt/image/video/audio/vision_megapixels/use_default_template` 置 `optional`。破兼容后 `afterConfigureGraph` 改为按名类型自愈（旧索引必然错位，不再追求追加保位）。
 - **新增采样对齐原生**：`min_p`(`FLOAT 0.05 0-1`)、`presence_penalty`(`FLOAT 0.0 0-5`) 置 `required` 采样组，`use_default_template`(`BOOLEAN True, advanced`) 置 `optional` 末位，`max_length` 上限 `4096→8192`（原生 `32768` 取 8192 兼顾思考预算）。
 - `DESCRIPTION` 同步新分区与采样清单。
@@ -566,7 +566,9 @@
 - **测试**：`tests/test_wan_window_lora.py` 加 GGUF mock（`FakeGGMLModule.is_ggml_quantized→True` + 带上游 base 的 `weight.patches`）：量化登记/不装函数/w0=base+本槽/base 原样/空槽纯 base/回槽不累积/跨会话不累积。
 - **局限**：本机无 torch/GGUF 运行环境，mock 只锁契约；容器实测确认生效（窗口间动作分化）仍需用户跑一次。
 
-### §56 官方加载器 info 图标：前端挂载零核心改动（2026-09）
+---
+
+## 56. 官方加载器 info 图标：前端挂载零核心改动（2026-09）
 
 > 背景：SF 三加载器（SFLoraLoader / SFLoraLoaderModelOnly / SFLoadDiffusionModel）早有 i 图标，但存量工作流多用官方节点（LoraLoader / LoraLoaderModelOnly / UNETLoader），切 SF 版会丢连线重配。需求：在官方节点上同款 info，且不碰官方核心代码。
 

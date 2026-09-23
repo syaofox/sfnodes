@@ -2,7 +2,7 @@
 
 把图像指定区域（典型：人脸）做模糊/均值/填充中和，使 Krea2 参考 latent 在该区域
 不再携带原人物细节；用于在保留姿势/背景/服装的同时把面部交给角色 LoRA。
-见 experience/nodes-image.md §74。
+见 experience/nodes-image.md §76。
 
 模糊复用 sf_utils/inpaint_helpers.gaussian_blur_np（惰性 import，保持本模块顶层
 无 torch 依赖，可直接 numpy 单测）。

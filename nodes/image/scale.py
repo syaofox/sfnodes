@@ -805,7 +805,7 @@ class ImageResizePlus:
             width, height = computed if computed is not None else (0, 0)
         elif size_mode == "scale to multiple":
             # 原生等价：倍数网格由 multiple 独占，divisible_by 不参与
-            # （否则二次取整可能破坏 multiple 网格，见 experience/nodes-image.md §75）
+            # （否则二次取整可能破坏 multiple 网格，见 experience/nodes-image.md §142）
             divisible_by = 1
             computed = multiple_to_wh(ow, oh, multiple)
             if computed is not None:

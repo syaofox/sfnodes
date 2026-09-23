@@ -1,7 +1,6 @@
-# 经验归档：横切模式与修复批次（§3、§4、§17、§26、§27、§39、§40、§41、§43、§49、§50、§52、§53、§54、§55、§68、§69、§70、§79、§84、§86、§89、§116、§122）
+# 经验归档：横切模式与修复批次
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
-
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 ## 3. 静态检查脚本经验（AST 对比踩坑）
 
 用 Python AST 做"前后端一致性/结构对比"验证时（如对比注册字典、检查节点 INPUT_TYPES），易踩两个坑：
@@ -163,23 +162,6 @@
 - **lora_routes.py / lora_presets.py / workflow_routes.py**：`asyncio.get_event_loop()` → `get_running_loop()`（3.12 弃用告警、3.14 移除），闭包内冗余 `import asyncio` 删除；`.tmp` 临时名带 `threading.get_ident()`（并发写同文件互覆盖）；预设 POST/DELETE 加 `asyncio.Lock`。
 - **requirements.txt**：补 `requests`、`typing_extensions`（代码已在用但未声明）。
 - **自定义输入框键盘/滚轮（2026-08 快捷键拦截修复批次）**：① 输入框 keydown 必须放行 `ctrl/meta/alt` 组合键（否则焦点在输入框时 Ctrl+S 漏成浏览器"保存网页"——sf_prompt_list/prompt_stack/pause_text/prompt_tags/find_replace/crop_panel/lora_stack_*/load_image_ui/workflows_ui/prompt_tags_editor 等 11+ 处统一修复）；② **sf 的 DOM widget 输入框挂载在 canvas DOM 层，不在 Vue 新版 TransformPane 的 @wheel.capture 转发路径内——ComfyUI 画布缩放/滚动在编辑框上完全失效（连 Ctrl+滚轮都不缩放）**。修复：`sf_common.installWheelZoomPassthrough(el)` 挂输入框——Ctrl/⌘+滚轮总转发 canvas 缩放；普通滚轮在输入框可滚动（scrollHeight>clientHeight）时滚动文本、否则转发缩放（对齐 ComfyUI 原生输入框行为）。
-
----
-
-## 39. COLOR 输入类型被 Vue 前端内置 widget 收编（2026-09）
-
-> 背景：SF Image Resize Plus 的 `pad_color` 默认显示 "0,0,0"、点一次取色器后才变 "#000000"+色块。同病灶：SFMaskFill 的 `fill_color`。涉及 `web/sf_color_picker.js`、`nodes/image/scale.py`、`nodes/mask/masks.py`。
-
-### 1. 机制：内置 COLOR widget 覆盖自定义注册
-
-- 新版 Vue 前端 `widgetRegistry` 已注册 `'color'`（别名 `COLOR`）→ 内置 `ColorWidget`（左侧画 hex 文本、右侧画色块，点击弹原生取色器）。`widgetStore` 合并时 `new Map([...customWidgets, ...coreWidgets])` —— **重复键后写胜出，core 覆盖同名 `getCustomWidgets` 自定义注册**，`sf_color_picker.js` 的自定义 COLOR widget（色块 + RGB 文本）在新前端实际已死代码。
-- 内置 ColorWidget 的 value 必须是 **hex 字符串**：数组 `[0,0,0]` 作默认值时 `fillStyle` 无效（无色块）、`fillText` 直出 "0,0,0"；用户点一次取色器后 value 变 hex 才正常显示。**教训：COLOR 输入的 default 一律写 hex 字符串，不写数组。**
-- 自定义 widget 的 type 是大写 `"COLOR"`，内置是小写 `"color"`——按 type 查找 widget 的逻辑（如旧 serialize hack）必须大小写不敏感匹配。
-
-### 2. 修复形态
-
-- 后端 default 改 hex（`pad_color="#000000"` / `fill_color="#ffffff"`）；execute 对 hex 字符串与 `[r,g,b]` 数组双兼容（`_parse_fill_color` / scale.py 内联解析），旧工作流数组值后端照常工作。
-- 前端 `sf_color_picker.js`：nodeCreated + loadedGraphNode + configure 包装三时序把 widget 值归一为 hex（`toHexColor`，数组四舍五入取整 / hex 字符串规范化）；旧工作流已存的数组值经归一后显示恢复正常。旧 serialize hack（写 `widgets_data`）确认是死代码（LiteGraph 序列化字段是 `widgets_values`，`widgets_data` 无人消费）删除。配套 `tests/test_color_picker_js.js`。
 
 ---
 
@@ -457,30 +439,6 @@
 
 - `tests/test_points_bg_lib.mjs`：拷 `.mjs` 直测（§53 同款）；fake graph（对象表 + Map 两形态）覆盖 `describeSource` 四类优先级、`parseCropExpandState` 对象/坏 JSON/缺失、链式解析、循环保护、未接线、`*` 回退、KJNodes `GetNode→SetNode` 通道解析、`ImageFromBatch` 起始帧偏移。
 
-## 69. 手动分段 SeC 管线：分段标注 + SFMaskBatch 合并 + 男性/精液相减（2026-09）
-
-> 背景：一镜到底/缓慢变化的视频里，SeC 的 LVLM 概念重识别**只在硬切时触发**（`is_scene_change_hsv` 阈值硬编码 0.35），长镜头全程只有 SAM2 memory，遇长时间遮挡（口交/颜射）易漂移或串入男性。最可靠的做法是**人为分段**：每段用干净的首帧重新标注、各自跑 SeC，再合并——每段开头等于重新初始化 tracker + 概念。
-
-### 1. 结构
-
-- 单次 `VHS_LoadVideo` → N×`SFImageBatchRange`（`start_index/num_frames` 手动分段）切片；
-- 每段：`PointsEditor`（`bg_image` 接该段切片，`annotation_frame_idx=0`）+ `SeCVideoSegmentation`（`frames` 接切片）+ `SFTextConcatenate`（正+负签名）+ `SFMaskCache`（`segN`，命中跳过该段追踪）；
-- 合并：`SFMaskBatch`（沿 batch 维拼接，**未连接端口跳过** → 段数可少于端口数）→ 得到整段 MASK；
-- 排除男性/精液：**单独** `PointsEditor+SeC+Cache`（`male`/`semen`，跑完整帧序列；精液用出现帧做 `annotation_frame_idx` 且 `forward`，忌 bidirectional）→ 两个原生 `MaskComposite(operation=subtract)` 串联：`合并 − male − semen` → `SFMaskToTrackData` → SCAIL driving。
-
-### 2. 关键约束/坑
-
-- **分段必须连续覆盖 `[0,T)`**：`sum(len_i)==源批次帧数`，否则合并后的 mask 与 `WanSCAILToVideo` 的帧数错位。
-- `MaskComposite` 的 `subtract` 会把 batch 展平成帧做 `destination - source` 再 clamp（≈ 二值相减），**要求两路 T 相同**（male/semen 跑全片即满足）。
-- **`sorted(kwargs.keys())` 是字典序**（`image_10` 排在 `image_2` 前，>9 槽顺序会错）。已把两个合并节点收敛到共用 `batch.py::_ordered_pairs(kwargs, prefix)` 做**数字序**排序（`SFMaskBatch` 新增即用，`SFImageBatch` 一并修正；其旧测试因数据全 0 掩盖了该 bug，已改为不同数值真正校验顺序）。
-- 每段缓存签名 = 该段「正点+负点」拼接（`SFTextConcatenate` 分隔符 `|`），改任一类点即失效重算；源用该段切片（`SFImageBatchRange.images`），换段/换源也失效。
-- 代价：SeC 调用数 = 段数 + 2（男/精液）+ 参考路；`auto_unload_model` 取舍同 §66——首次慢，缓存命中后大幅加速。
-- 底图刷新（§68）需偏移感知，否则分段 PointsEditor 显示的是源视频首帧而非段首帧。
-
-### 3. 测试
-
-- `tests/test_mask_batch.py`：FakeTensor + mock `torch.cat`，覆盖数字序拼接（`mask_10` 必须在 `mask_2` 后）、None 槽跳过、2D 升 3D、尺寸不一致抛错、全空抛错、双字典注册。
-
 ## 70. 前端 INT 缺 max 默认 2048：第三方节点数值上限规避（2026-09）
 
 > 现象：Comfyui-SecNodes 的 `annotation_frame_idx` 在 UI 里最大只能填 2048，长视频（如 2785 帧）无法标注靠后的帧。节点源码只写了 `min:0`、**没有 `max`**，后端也只校验 `idx < num_frames`，按理不该被限。
@@ -620,3 +578,59 @@ e.addWidget(i, t.name, o, onValueChange,      { min: t.min ?? 0, max: t.max ?? 2
 - 提升 `previous_frames`(IMAGE) / `previous_frame_count`(INT) 两输入即可把原生 `WanSCAILToVideo` 的外锚接进循环状态；**`video_frame_offset` 不必提升**——原生 `max(0, offset - 锚帧数)` 使传 0 时仍从段首起算。
 - 无缝三件套：`skip = 段序 × 步长`、`步长 = 每段帧数 - 重叠帧数`、输出用 `SFImageBatchRange` 丢弃头部重叠帧；尾部重叠帧作下一段锚帧（状态槽）。**每段帧数须 ≡ 1 (mod 4)**：否则解码帧数比输入少 1~3 帧，段输出比步长短 → 相邻段边界出现跳帧。
 - 重叠分段后**每段不能再挂音轨**（音轨与丢弃后的画面相差重叠帧数）：改由整段 `LoadAudio` 接到 `SFVideoConcat.audio` 合并时统一注入（§87.4）。
+
+---
+
+## 140. COLOR 输入类型被 Vue 前端内置 widget 收编（2026-09）
+
+> 背景：SF Image Resize Plus 的 `pad_color` 默认显示 "0,0,0"、点一次取色器后才变 "#000000"+色块。同病灶：SFMaskFill 的 `fill_color`。涉及 `web/sf_color_picker.js`、`nodes/image/scale.py`、`nodes/mask/masks.py`。
+
+### 1. 机制：内置 COLOR widget 覆盖自定义注册
+
+- 新版 Vue 前端 `widgetRegistry` 已注册 `'color'`（别名 `COLOR`）→ 内置 `ColorWidget`（左侧画 hex 文本、右侧画色块，点击弹原生取色器）。`widgetStore` 合并时 `new Map([...customWidgets, ...coreWidgets])` —— **重复键后写胜出，core 覆盖同名 `getCustomWidgets` 自定义注册**，`sf_color_picker.js` 的自定义 COLOR widget（色块 + RGB 文本）在新前端实际已死代码。
+- 内置 ColorWidget 的 value 必须是 **hex 字符串**：数组 `[0,0,0]` 作默认值时 `fillStyle` 无效（无色块）、`fillText` 直出 "0,0,0"；用户点一次取色器后 value 变 hex 才正常显示。**教训：COLOR 输入的 default 一律写 hex 字符串，不写数组。**
+- 自定义 widget 的 type 是大写 `"COLOR"`，内置是小写 `"color"`——按 type 查找 widget 的逻辑（如旧 serialize hack）必须大小写不敏感匹配。
+
+### 2. 修复形态
+
+- 后端 default 改 hex（`pad_color="#000000"` / `fill_color="#ffffff"`）；execute 对 hex 字符串与 `[r,g,b]` 数组双兼容（`_parse_fill_color` / scale.py 内联解析），旧工作流数组值后端照常工作。
+- 前端 `sf_color_picker.js`：nodeCreated + loadedGraphNode + configure 包装三时序把 widget 值归一为 hex（`toHexColor`，数组四舍五入取整 / hex 字符串规范化）；旧工作流已存的数组值经归一后显示恢复正常。旧 serialize hack（写 `widgets_data`）确认是死代码（LiteGraph 序列化字段是 `widgets_values`，`widgets_data` 无人消费）删除。配套 `tests/test_color_picker_js.js`。
+
+---
+
+## 141. 手动分段 SeC 管线：分段标注 + SFMaskBatch 合并 + 男性/精液相减（2026-09）
+
+> 背景：一镜到底/缓慢变化的视频里，SeC 的 LVLM 概念重识别**只在硬切时触发**（`is_scene_change_hsv` 阈值硬编码 0.35），长镜头全程只有 SAM2 memory，遇长时间遮挡（口交/颜射）易漂移或串入男性。最可靠的做法是**人为分段**：每段用干净的首帧重新标注、各自跑 SeC，再合并——每段开头等于重新初始化 tracker + 概念。
+
+### 1. 结构
+
+- 单次 `VHS_LoadVideo` → N×`SFImageBatchRange`（`start_index/num_frames` 手动分段）切片；
+- 每段：`PointsEditor`（`bg_image` 接该段切片，`annotation_frame_idx=0`）+ `SeCVideoSegmentation`（`frames` 接切片）+ `SFTextConcatenate`（正+负签名）+ `SFMaskCache`（`segN`，命中跳过该段追踪）；
+- 合并：`SFMaskBatch`（沿 batch 维拼接，**未连接端口跳过** → 段数可少于端口数）→ 得到整段 MASK；
+- 排除男性/精液：**单独** `PointsEditor+SeC+Cache`（`male`/`semen`，跑完整帧序列；精液用出现帧做 `annotation_frame_idx` 且 `forward`，忌 bidirectional）→ 两个原生 `MaskComposite(operation=subtract)` 串联：`合并 − male − semen` → `SFMaskToTrackData` → SCAIL driving。
+
+### 2. 关键约束/坑
+
+- **分段必须连续覆盖 `[0,T)`**：`sum(len_i)==源批次帧数`，否则合并后的 mask 与 `WanSCAILToVideo` 的帧数错位。
+- `MaskComposite` 的 `subtract` 会把 batch 展平成帧做 `destination - source` 再 clamp（≈ 二值相减），**要求两路 T 相同**（male/semen 跑全片即满足）。
+- **`sorted(kwargs.keys())` 是字典序**（`image_10` 排在 `image_2` 前，>9 槽顺序会错）。已把两个合并节点收敛到共用 `batch.py::_ordered_pairs(kwargs, prefix)` 做**数字序**排序（`SFMaskBatch` 新增即用，`SFImageBatch` 一并修正；其旧测试因数据全 0 掩盖了该 bug，已改为不同数值真正校验顺序）。
+- 每段缓存签名 = 该段「正点+负点」拼接（`SFTextConcatenate` 分隔符 `|`），改任一类点即失效重算；源用该段切片（`SFImageBatchRange.images`），换段/换源也失效。
+- 代价：SeC 调用数 = 段数 + 2（男/精液）+ 参考路；`auto_unload_model` 取舍同 §66——首次慢，缓存命中后大幅加速。
+- 底图刷新（§68）需偏移感知，否则分段 PointsEditor 显示的是源视频首帧而非段首帧。
+
+### 3. 测试
+
+- `tests/test_mask_batch.py`：FakeTensor + mock `torch.cat`，覆盖数字序拼接（`mask_10` 必须在 `mask_2` 后）、None 槽跳过、2D 升 3D、尺寸不一致抛错、全空抛错、双字典注册。
+
+---
+
+## 143. 文档体系治理：§N 全局唯一 + 标题型索引 + check_docs 校验（2026-09）
+
+> 背景：全面评估 AGENTS.md / doc/ 发现三类漂移，逐项根治并固化为可执行校验。
+
+- **§N 重号（8 处）**：拆分后各会话独立取「下一个全局 §N」，导致 §34/§35/§36/§37/§39/§69/§75 在 2–3 个主题文件重复，裸 `§N` 引用有歧义。修法：本批重编号（nodes-image §34/§35/§36/§75 → §135/§136/§139/§142，nodes-text §36/§37 → §137/§138，patterns §39/§69 → §140/§141，按创建时间先到先得），改号章节整块移到文件末尾保持升序；`### §56`（官方加载器 info 图标，被误挂在 §39 下）提级为 `## 56.`。取号从此以 README 顶部「当前最大 §N」为单点真源（新经验 = max+1 并回写），不再各文件自算。
+- **索引与正文双份漂移**：原 README 索引条目是正文摘要的压缩副本（nodes-image 单行 8550 字符），已出现旧结论未撤（§118「端口定分量」）与乱序（§76 排在 §75 前）。修法：索引瘦身为 `§N 标题`（标题逐字取自正文 `## N.` 标题行前缀），细节只留正文。
+- **文件头章节列表漂移**：nodes-lora/nodes-image/nodes-text/patterns/platform/apps 的 `# 标题（§…）` 列表均有缺失或过时。修法：文件头只写主题，章节映射统一由 README 索引承担。
+- **引用规范收紧**：跨文件引用写「文件名 §N」（同文件内可简写）；小节号写全、带上完整章节号（`§118.3.7`），不写省略上级的简写。
+- **固化校验**：新增 `tests/check_docs.py`（注册字典键集/前缀、§N 唯一与升序、README 最大号与索引标题前缀、全仓 `§N`/`§N.M` 与限定引用可解析、architecture.md 对 nodes/ sf_utils/ web/ tools/ 全覆盖）。本次顺带修掉断链引用 4 处（platform.md 与 nodes/image/load_images_path.py 中 `§89` 的限定文件应为 `patterns.md`、sf_utils/image_region.py 中 `§74` 应为 `§76`、web/sf_popup.js 中 `§19` 应为 `nodes-lora.md`）与 nodes-image §118 内 `§3.x` 简写 4 处、architecture.md 旧「端口定分量」表述；补齐 face/inpaint/utils 缺失文件条目、tools/ 树条目与 4 个 web 纯逻辑库。
+- **教训**：① 分布式取号的「下一个全局 N」没有计数器必然碰撞——文档规则必须给出单点真源；② 摘要型索引 = 第二份正文，必然漂移——索引只放可机械校验的标题；③ 文档规范要配静态检查（同 `check_web_imports.py` 思路），否则只在提交时靠人自觉。

@@ -17,7 +17,7 @@
 // ── 三关闭（外部 pointerdown / Esc / wheel）─────────────────────────────
 // 挂到 overlay 元素上，返回清理函数（幂等，可安全多次调用）。外部点击与滚轮
 // 用 capture 阶段 document 监听；Esc 用 keydown。`exempt(e)` 返回 true 时跳过
-// 关闭（用于豁免宿主面板自身的 document 捕获监听，见 experience/nodes-text.md §19）。
+// 关闭（用于豁免宿主面板自身的 document 捕获监听，见 experience/nodes-lora.md §19）。
 // `onClose` 在真正关闭时调用一次（三路共用，监听移除后天然去重）。
 export function attachPopupDismiss(overlay, { onClose, exempt } = {}) {
   if (!overlay || typeof overlay.addEventListener !== "function") return () => {};

@@ -1,7 +1,6 @@
-# 经验归档：图片 / 遮罩 / latent 节点（§8、§9、§11、§12、§13、§22、§34、§35、§36、§37、§44、§45、§51、§60、§62、§63、§64、§65、§66、§67、§69、§71、§75、§76、§80、§81、§83、§85、§88、§90、§91、§92、§93、§94、§95、§96、§97、§99、§101、§104、§109、§110、§111、§112、§113、§114、§118、§119、§120、§129、§132、§133）
+# 经验归档：图片 / 遮罩 / latent 节点
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
-
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 ## 8. SFPauseImage：快照闸门与预览保存（复刻 Pixaroma Pause Image）
 
 > 背景：复刻 Pixaroma 的 `PixaromaPauseImage`（2026-08），落地为 `nodes/image/pause_image.py` + `nodes/image/preview_routes.py`（新后端路由）+ `web/sf_pause_kit.js` 共享引擎（image/mask/latent 三闸门共用）+ `web/sf_pause_image.js` 薄配置。与 SFPauseText 是兄弟闸门（prune/双钩子/一次性模式/executed 机制完全同构），核心差异是**图片无法像文本一样随隐藏输入携带**——必须走快照文件，并引入 PNG 元数据嵌入与自定义保存路由。
@@ -252,88 +251,6 @@
 - 测试：`tests/test_pause_latent.py` + `test_pause_latent_js.js`（快照 round-trip、extraInputKeys 仅 continue 生效）。
 
 ---
-
-## 34. SFLoadImageBrowser 右键菜单：提示词复制与工作流载入（全链路复用零后端改动）
-
-> 背景：`web/image_browser.js` 弹窗浏览器图片项新增右键菜单——①复制正向提示词 ②载入内嵌工作流（新标签）。两能力全部复用既有实现，后端零改动（无需重启容器）。
-
-### 1. 复用路由图（关键：先查复用再动手）
-
-- **提示词提取**：`GET /api/sfnodes/prompt_reader/extract?filename=<path>[output]`（`nodes/text/prompt_reader_routes.py`，启动时副作用注册）。返回 `{found, text|message}` 恒 200；后端权威解析 ComfyUI prompt JSON（追 KSampler 正向）→ A1111 `parameters` 兜底。output 目录文件拼 `" [output]"` 注解即被 `folder_paths.get_annotated_filepath` 正确解析，input/output/temp 均在 allowed_roots 内。
-- **PNG 内嵌工作流**：`sf_lora_shared_info.js::loadWorkflowFromImageUrl(url, onError)`（本次从 `loadImageAsWorkflow` 参数化导出；原函数变 lora_samples URL 薄包装，两个既有调用方签名不变、冒烟测试桩兼容）。内部 readPngWorkflowData 前端 chunk 解析 → prompt chunk 走 `app.loadApiJson`、workflow chunk 走 `loadGraphData`；新标签经 `app.extensionManager.command.execute("Comfy.NewBlankWorkflow")`，旧前端降级 confirm 后替换画布。
-- **取原始字节**：ComfyUI 内置 `/view?filename=<basename>&subfolder=<dir>&type=input|output`——不带 preview/channel 参数时 FileResponse 返回原文件字节（PNG 元数据完整）；`sf_common.parseAnnotatedImageValue` + `buildSourceURL` 现成拼 URL。
-
-### 2. DOM 右键菜单要点
-
-- 菜单单例挂 `document.body`，z-index 100000 > 浏览弹窗 overlay 的 99999；三关闭（外点/Esc/滚轮）直接 `sf_popup.attachPopupDismiss` + `clampToViewport` 钳位，勿手写监听。
-- `close()` 必须联动 `closeContextMenu()`——菜单不在 overlay DOM 子树内，overlay.remove() 不会带走它。
-- contextmenu 处理器需 `preventDefault()` + `stopPropagation()`；右键另一图片时 pointerdown 先触发外点关闭旧菜单，再开新单，顺序天然安全。
-
-### 3. 行为约定
-
-- 非 PNG（jpg/webp 等）两菜单项恒显：readPngWorkflowData 按 PNG magic 校验返回 null → toast「未内嵌工作流数据」，fail-safe 与 LoRA 面板一致。
-- 载入工作流先关浏览弹窗再异步载入（用户意图明确离开浏览），失败仅 toast 可见。
-
----
-
-## 35. SFMaskFill：统一填充节点（合并 SFMaskedFill / SFMaskFillColor）
-
-> 背景：`nodes/mask/masks.py:MaskFill` 合并原 `MaskedFill`（neutral/telea/navier-stokes）与 `MaskFillColor`（纯色+opacity+skip）为单节点 `SFMaskFill`，前端 `web/sf_mask_fill.js` 按 `fill_mode` 条件显隐，`web/sf_color_picker.js` 适配新类名。决策：**直接删除旧键**（破裂式合并，已获确认）、`falloff` 与 `skip_if_all_white` 提升为全局（对所有模式生效，color 也羽化）、`fill_color/opacity` 仅 color 模式显示。
-
-### 1. 合并策略与兼容性
-
-- **破裂删除**：`__init__.py` 仅留 `SFMaskFill`，历史工作流含 `SFMaskedFill`/`SFMaskFillColor` 将加载失败（Missing node type），需用户手动替换。保留别名可无破裂，但本次按任务目标直接删除。
-- **参数统一**：`fill_mode=[color,neutral,telea,navier-stokes]`；`fill_color:COLOR` + `opacity:FLOAT` 仅 color 分支读取；`falloff:INT` 与 `skip_if_all_white:BOOLEAN` 全局；`DESCRIPTION` 中文并注明合并。
-- **纯函数抽取**：`_parse_fill_color`（hex 字符串与 RGB 列表双形态）与 `_apply_falloff(alpha,falloff)`（`make_odd+binary_erosion*gaussian_blur`）供单测与复用，避免分支内联副本。
-
-### 2. falloff 全局化与尺寸/批次对齐
-
-- **尺寸重采样**：沿用 `MaskFillColor` 的 `mask2tensor→rescale_image→tensor2mask` 宽松策略（`image H/W != mask H/W` 时缩放），对 telea/neutral 同样生效，替代旧 `MaskedFill` 的严格 `assert`。
-- **批次广播**：`alpha` 单例（`[1,1,H,W]`）自动 `repeat` 到 `image` batch；多 batch 仍逐 slice 处理。
-- **falloff 顺序**：`mask_floor→mask_unsqueeze→[resize 重算]→_apply_falloff→分支混合`；color 分支的 `alpha_with_opacity=alpha*opacity` 使用已羽化的 `alpha`，与 telea 的 `alpha_bc` 羽化同源。
-
-### 3. 前端条件显隐（`web/sf_mask_fill.js`）
-
-- 仅对 `SFMaskFill` 生效：`fill_mode` 非 `color` 时 `fill_color.hidden=opacity.hidden=true`，`setDirtyCanvas` 重绘；`fill_mode.callback` 包装原回调 + `configure`/`onAfterGraphConfigured` 双重 `setTimeout(toggle,0)` 保工作流恢复后状态一致。
-- `sf_color_picker.js` 的 COLOR 序列化 hack（`SFImageResizePlus` 同款）同步改 `SFMaskFill` 类名判定，不新增逻辑；`check_web_imports.py` MODS 加 `sf_mask_fill`。
-
-### 4. 模块边界
-
-- `nodes/mask/masks.py:MaskFill`（统一实现，FUNCTION=execute，5 输入 + skip 全局）
-- `web/sf_mask_fill.js`（单文件扩展，`sfnodes.SFMaskFill`，无导出）
-- `web/sf_color_picker.js`（COLOR widget，适配新类名）
-- `__init__.py` 唯一真源 `SFMaskFill`
-
----
-
-## 36. SFImageSceneSplit：镜头切分（硬切/黑白场/溶解 + 负索引/max_frames 首 N 帧 + LIST 全段）
-
-> 背景：`nodes/image/scene_split.py:SFImageSceneSplit` + `sf_utils/scene_detect.py` 纯逻辑（无 torch/ComfyUI 依赖）。输入为视频连续帧 `IMAGE [B,H,W,C]`，按阈值检测硬切/黑场/白闪/溶解四类切点，去抖后按 `segment_index` 输出指定段与全段 LIST（首 N 帧截断、负索引、越界抛错）。
-
-### 1. 检测策略（纯逻辑，无重依赖）
-
-- **缩略**：每帧最长边 `160` 下采样（`cv2.INTER_AREA`→PIL→最近邻三级回退），转灰度后 `32-bin` 归一化直方图 + 均值亮度 `[0,1]`。千帧 256px 内 <1s。
-- **硬切**：`hist` 用 Bhattacharyya `1-BC`，`diff` 用缩略图均差 `/255`，`d>threshold` 即切 `i+1`。阈值默认 `0.30` 对应 `BC=0.7` 中等相似度。
-- **黑/白场**：灰度均值 `<black_threshold`（默认 0.08）/ `>white_threshold`（默认 0.92）的连续段边界各切一刀（`s` 与 `e+1`），全黑/全白不切。
-- **溶解**：滑窗 `W=dissolve_window`（默认 8），累积距离 `D=dist(h[i],h[i+W])`，`D>threshold && max_step<threshold && avg_step>dissolve_threshold(0.18)` 时在 `i+W//2+1` 记切点；已硬切的窗被 `max_step` 过滤不重复。
-- **去抖**：候选切点排序后 `c-last<min_scene_len(12)` 删后者；尾段不足也合并到上一段，最终补 `[0,B]` 哨兵。
-
-### 2. 节点契约（与 ComfyUI 张量/列表约定）
-
-- **逐帧转 `uint8` 生成器**：`for i in range(B): arr=(images[i].cpu().numpy()*255).astype(uint8)` 避免一次性 `B*H*W` 批拷贝 OOM；`C==1` 复制为 3 通道，`>3` 截断 RGB。
-- **输出**：`images [N,H,W,C]`（选中段首 N 帧截断后）、`count INT`（截断后）、`cuts STRING(JSON [0,..,B])`、`scene_count INT`、`all_segments IMAGE+OUTPUT_IS_LIST`（每段一批，`all_segments[segment_index]` 即选中段原长）。
-- **索引**：`segment_index` 负数走 `scene_count+idx`，越界 `ValueError("越界 ... cuts=...")`（对齐 `batch_index.py` 风格）。
-
-### 3. 测试与复用
-
-- 纯逻辑 `sf_utils/scene_detect.py` 无 comfy：`detect_scenes` 支持 `np.ndarray [B,H,W,3]` 与 `iterable` 帧，`_to_uint8_rgb/_downscale_and_gray/_hist` 内部三级回退保证 CI 无 `cv2` 仍可跑。
-- `tests/test_scene_detect.py` 覆盖硬切/黑白场/溶解/min_len 去抖/单帧/空/float + 节点 mock `torch`（`FakeTensor` 模拟 `detach/cpu/numpy/__getitem__` 切片）断言选段/负索引/max_frames/越界。
-
-### 4. 模块边界
-
-- `sf_utils/scene_detect.py`：`detect_scenes/split_scenes` + `_process_frame/_hist_distance/_downscale_and_gray`（纯函数）
-- `nodes/image/scene_split.py`：`SFImageSceneSplit`（9 输入 + 5 输出，`OUTPUT_IS_LIST[4]=True`）
-- `__init__.py` 唯一真源 `SFImageSceneSplit`
 
 ## 37. SFImageCropExpand：出界裁剪/外绘预处理（复刻 YCNodes Load Image Crop Expand）
 
@@ -749,7 +666,7 @@
 
 ### 1. 复用与实现
 
-- 直接复用 `web/image_browser.js::showImageBrowser(node, opts)` 的 **onPick 选择器模式**（§34 参数化的产物）：宿主传 `onPick` + `selectedValue`，弹层不碰 widget、选中值交回调。
+- 直接复用 `web/image_browser.js::showImageBrowser(node, opts)` 的 **onPick 选择器模式**（§135 参数化的产物）：宿主传 `onPick` + `selectedValue`，弹层不碰 widget、选中值交回调。
 - 新增 `applyNativeLoadImagePick(node, value)`（导出，纯函数好测）：定位 `widgets` 里 `name==="image"` 的 widget → 赋 `value` → 调其 `callback(value)`（核心 `image_upload` 借此刷新预览）→ `setDirtyCanvas`。无 widget/null 值返回 false。
 - 独立扩展 `sfnodes.native_load_image_browse`，`nodeCreated` 精确匹配 `comfyClass ∈ {LoadImage, LoadImageMask}`（**不误伤 SFLoadImageBrowser**——它已有自挂按钮），`addWidget("button", "Browse Images", ...)`。
 - 显隐受设置 `sfnodes.LoadImage.BrowseButton.Enabled`（boolean，默认开）门控：`nodeCreated` 时读设置决定是否挂载；`onChange` 遍历 `app.graph._nodes` 对现存节点即时增删（`widgets.splice`）——与官方 info 开关同款，**onChange 时 store 尚未更新，须 `setTimeout(...,0)` 延后一 tick 再读值**。`findNativeBrowseButton(widgets)` 纯函数（返回下标/-1）供增删去重与测试复用。
@@ -764,42 +681,6 @@
 
 - `tests/test_image_browser_js.js` 文本提取 `applyNativeLoadImagePick`/`findNativeBrowseButton` 进 `.mjs` 直跑（依赖的模块级常量按源文件正则取值注入，守单真源）：写入值/触发 callback/setDirtyCanvas、无 callback 不抛错、无 widget/空值/node 空返回 false；按钮下标命中/无返回 -1/同名非 button 不算。
 - 实机验证走分段 console 诊断（platform §2.9），重点看：按钮存在、pick input/output 后 widget 值与预览刷新、队列不报 `Value not in list`。
-
-## 75. SFImageResizePlus size_mode 复刻原生 ResizeImageMaskNode（2026-09）
-
-> 背景：原生 `ResizeImageMaskNode.resize_type` 有 9 种模式，而 `SFImageResizePlus` 原 `size_mode` 只有 `width & height` / `total pixels`。目标是把"缺少的、有意义的"模式补进 `size_mode`。
-
-### 1. 覆盖判定（哪些该复刻）
-
-- 已覆盖：`scale dimensions`（= width & height + method 的 stretch/keep/fill crop/pad）、`scale total pixels`。
-- **冗余不复刻**：`scale width` / `scale height` —— `width & height` + `method="keep proportion"` 把另一维填 0 即等价（实测 2000×1000 缩宽 1024 → 1024×512，与原生一致）。单边 auto 逻辑见 `execute` 里 `method in (keep proportion, pad)` 分支。
-- 新增 4 个：`scale by multiplier` / `longer dimension` / `shorter dimension` / `scale to multiple`。
-- `match size`（按参考图尺寸）需额外 optional 参考输入，本次不做（可后续单独加）。
-
-### 2. 数学单源收敛到 resize_engine.py
-
-- 新增纯函数 `multiplier_to_wh` / `longer_dimension_to_wh` / `shorter_dimension_to_wh` / `multiple_to_wh`（与既有 `total_pixels_to_wh` 同文件同风格，非法输入返回 None，1px 下限）。
-- **不要在 scale.py 内联**：`SFImageResize` 的 `resize_engine` 已有 longest_side/scale_factor 的 PIL 版实现，目标尺寸数学应收敛为纯函数单源，可直测。
-- `scale to multiple` 语义 = 先 `floor` 到倍数得目标，再 **cover 缩放 + 居中裁剪**（原生 `scale_to_multiple_cover`）；与既有 `divisible_by`（只裁不 cover）不同。
-
-### 3. execute 分支与 method 特例
-
-- 新分支只改"目标尺寸计算"段（在 `divisible_by` 取整之前），算出的 width/height 仍走既有 `divisible_by` → `method` → `condition` 通路，mask/pad/interpolation 全复用。
-- 倍率/长边/短边：默认 `method="keep proportion"` 即得原生精确结果；用户改 method 则是合理超集。
-- **`scale to multiple` 内部强制 `method="fill / crop"`**（忽略 method widget，前端同步隐藏）——因为原生该模式恒为 cover+裁剪，与 method 无关。退化（multiple<=1 / 取整为 0）时 `width=height=0` 走自动档直通，**不能**回落到隐藏 widget 里残留的旧 width/height。
-- **`scale to multiple` 必须让 `divisible_by` 退场**：`divisible_by` 是全局后置取整，会在 multiple 目标上再 `floor`，若 `multiple % divisible_by != 0` 会破坏倍数网格（如 multiple=6、divisible_by=8 会把 996 压成 992）。原生 `ResizeImageMaskNode` 无 `divisible_by`，故本模式**后端 `divisible_by=1` 跳过、前端隐藏该 widget**；其余模式 `divisible_by` 照常生效。
-
-### 4. widgets_values 位置敏感与新控件兼容（核心坑）
-
-- 新增 4 个 widget（multiplier/longer_size/shorter_size/multiple）紧跟 total_pixels，canonical 长度 10 → **14**。旧工作流按位恢复会错位，`web/sf_image_resize_plus.js::configure` 必须**逐级 remap**：先 8→10（size_mode 置顶重排前），再 10→14（在 `total_pixels` 后插入 4 个默认值 `1.0/512/512/8`）。判据用 `widgets_values.length`，新版 14 项原样放行。
-- 前端显隐按 `size_mode` 分支；`scale to multiple` 额外 `methodW.hidden=true`，切回其它模式由统一 `toggle()` 恢复。
-
-### 5. 测试
-
-- `tests/test_image_resize_plus.py`：4 个纯函数（含倍数已整除/取整为 0/竖图）与 `execute` 各新模式出图尺寸、multiple 退化直通、六选项/顺序断言。
-- `tests/test_image_resize_plus_js.js`：各模式参数显隐、scale to multiple 隐藏 method、8→14 与 10→14 remap、14 项不改写。
-
----
 
 ## 76. SFReferenceRegionNeutralize：Krea2 参考区域中和（保留姿势/背景，只换脸，2026-09）
 
@@ -1366,7 +1247,7 @@ slice_track_data(track_data, start=0, length=0)
 ### 2. 前端即时刷新与优先级
 
 - `wiredAspect(node)`/`effectiveRatio(st, wa)` 纯逻辑在 `sf_crop_expand_brush_mask_lib.js`：`wired` 仅两项都接；值可读才给 `ratio`（否则 null）；`effectiveRatio` 接线优先——可读=接线比例，**不可读=null（编辑期不约束，不用面板预设误导预览）**，未接/半接回退 `ratioFromAspect`。
-- 即时刷新路径：`onConnectionsChange`（INPUT）+ `LiteGraph.INPUT` 常量兜底、`isGraphLoading()`/`_sfCEBConfiguring` 守卫 → **同步** `syncWiredRatio`（同帧可见）+ `setTimeout(0)` 幂等补一次（platform §12 坑 3：新版前端 link 表可能滞后）；`onAfterGraphConfigured` 覆盖打开工作流恢复连线（configure 直赋 links 不触发连接事件）；**上游 widget 值变化无事件** → `onDrawForeground` 比对 `_sfCEBWiredRatioSeen`（w:h 串），变化则下一拍同步（不在绘制中改状态，防重绘环）；**节点内加载图片**（`SOURCE_CFG.onStored`，Load/Browse/拖放/粘贴四入口）后同步重套（§3.8）。
+- 即时刷新路径：`onConnectionsChange`（INPUT）+ `LiteGraph.INPUT` 常量兜底、`isGraphLoading()`/`_sfCEBConfiguring` 守卫 → **同步** `syncWiredRatio`（同帧可见）+ `setTimeout(0)` 幂等补一次（platform §12 坑 3：新版前端 link 表可能滞后）；`onAfterGraphConfigured` 覆盖打开工作流恢复连线（configure 直赋 links 不触发连接事件）；**上游 widget 值变化无事件** → `onDrawForeground` 比对 `_sfCEBWiredRatioSeen`（w:h 串），变化则下一拍同步（不在绘制中改状态，防重绘环）；**节点内加载图片**（`SOURCE_CFG.onStored`，Load/Browse/拖放/粘贴四入口）后同步重套（§118.3.8）。
 - `syncWiredRatio` 逐字段 diff 命中才 `setState`——一致状态绝不写 properties，打开工作流不标脏（onAfterGraphConfigured 每次加载都会调用）。
 - 语义落点：拖拽用 `effectiveRatio`；`setAspect`/Custom Apply 在 `wired` 时只写状态 + toast「比例由接线输入决定」；`resetCrop`/`applyOrientation` 结果再套一次可读接线比例（旋转会交换宽高，不套则预览≠执行）；信息栏 `| AR 16:9`（可读原值）/`| AR wire`（不可读）/`| AR 半接`；比例按钮悬停说明追加接线注记。
 - 槽名冲突（本轮实测发现）：核心渲染顺序是 `onDrawForeground` **先于** `drawSlots`（bundle 内 `drawNode`：`e.onDrawForeground?.()` → `e.drawSlots(...)`），槽名与槽点画在自定义面板之上——输入槽名 `aspect_w` 会盖住 RATIO 列顶部两个按钮。处理：复用 `sf_dropdown_lib.ZW`（零宽空格）写 `slot.label` 隐藏（diff 门控；onNodeCreated/onConfigure/onAfterGraphConfigured 三处调用，configure 可能重建 inputs），说明由 tooltip/信息栏/悬停 hint 承担；零几何改动（MIN 仍 400×360）。
@@ -1399,11 +1280,11 @@ slice_track_data(track_data, start=0, length=0)
 
 ### 3.7 语义订正：接线值优先（反序取反比，2026-09）
 
-> ⚠️ 本节取代 §3.5/§3.6 的"分量按目标端口（接入顺序）定、上游槽名不参与、反序与顺序一致"结论。用户实际需求是**接线决定数值**：把 GetImageSize 的 height 接进 aspect_w、width 接进 aspect_h，就要得到转置比例（如源图 200×300 → crop 按 300:200 约束）。
+> ⚠️ 本节取代 §118.3.5/§118.3.6 的"分量按目标端口（接入顺序）定、上游槽名不参与、反序与顺序一致"结论。用户实际需求是**接线决定数值**：把 GetImageSize 的 height 接进 aspect_w、width 接进 aspect_h，就要得到转置比例（如源图 200×300 → crop 按 300:200 约束）。
 
 - **症状**：反接（height→aspect_w、width→aspect_h）时预览/输出仍按源图 w:h（或前后端结论相反），得不到转置比例。
 - **修法**：`readWiredDim` 的分量由**接线来源的输出槽名**决定——`link.origin_slot` 对应上游输出的 `name` 为 `width` / `height` 时分别取尺寸源的宽 / 高分量；槽名不符（如 `batch_size`）或尺寸源不可读 → null（宁可不套也不猜），执行期由后端按接线原始数值兜底。后端 `_apply_aspect_ratio` 一直就是"接线数值原样当分子/分母"，无需改动。
-  - 由此：**反接即反比**（§3.6 的"反序一致"作废）；`[LATENT,width,height]` 形态仍按槽名识别（槽位序号不参与）。
+  - 由此：**反接即反比**（§118.3.6 的"反序一致"作废）；`[LATENT,width,height]` 形态仍按槽名识别（槽位序号不参与）。
 - **回退**：一次"注入归一"尝试（前端 graphToPrompt 注入 `wire_aspect=[w,h]` 强制正接）与用户语义相反，已移除（未提交上线）。
 - **测试**：lib `wiredAspect`（分辨率预设反序 → 3:4、槽名不符 → null；图片链反序 → 600:800、batch_size → null）；smoke 图片链反接（1920×1080 → 512×910、换竖图 → 512×288）；后端 execute 接线值优先用例不变。
 
@@ -1411,7 +1292,7 @@ slice_track_data(track_data, start=0, length=0)
 
 - **症状**：接线 aspect_w/aspect_h 后，节点内 Load/Browse/拖放/粘贴加载图片，裁剪框停在新图原生满幅比例；面板预设/Reset/翻转旋转/工作流重载路径均正常。
 - **根因**：`SOURCE_CFG.onStored`（四加载入口共用，`sf_crop_source.storeSource` 回调）把 crop 重置为新图满幅并复位 `aspect_ratio:"free"`，但未套接线比例；绘制兜底只比对 `_sfCEBWiredRatioSeen`（上游 w:h 串），加载图片不改变该串 → 不补触发。
-- **修法**：`onStored` 的 setState 之后追加 `node._sfCEBWiredRatioSeen = null; syncWiredRatio(node)`——复用 diff 门控辅助（一致不写状态），与 `resetCrop`/`applyOrientation` 同语义；seen 置空兜"此刻不可读、稍后就绪但串未变"（绘制判定 null 即触发，§3.6 同款）。
+- **修法**：`onStored` 的 setState 之后追加 `node._sfCEBWiredRatioSeen = null; syncWiredRatio(node)`——复用 diff 门控辅助（一致不写状态），与 `resetCrop`/`applyOrientation` 同语义；seen 置空兜"此刻不可读、稍后就绪但串未变"（绘制判定 null 即触发，§118.3.6 同款）。
 - **测试**：smoke 补 `FileReader`/`Image`（`__imgStubDims`）桩 + `onDragDrop` 真链路：接线 16:9 后加载 640×480 → 640×360/y=60（撤下修复该断言失败）、`aspect_ratio` 复位 free、未接线加载保持整幅 800×600。⚠ 用例前须等 1.1s 清空接线重试定时器（0/200/1000ms）——曾只等 20ms 被其掩盖致假通过（定时器在加载后补套了比例）。
 - **部署**：纯前端（无后端改动）→ 同步挂载目录 + 浏览器硬刷新即可，不重启容器。
 
@@ -1568,3 +1449,121 @@ slice_track_data(track_data, start=0, length=0)
 - `tests/test_te_speed_qwen.py`：numpy 版 FakeTensor + mock `WrappersMP`，覆盖常量/窗口 auto/指纹 stride/相对变化/step 幂等与窗口边界/8 闸门逐一/外推公式与因子钳制/质量衰减与下限/校准冷却/命中不写历史/非目标模型透传/attention 各档与回退/全流程 full→full→hit→full 的调用次数与统计/多分支/各类 bypass。
 - **本机无法实机验证**：无 Qwen Image 2.1 权重与 GPU，pyd 也只在 Windows 可加载 ⇒ 复刻是「行为等价 + 逆向依据」而非逐位一致；实机请以控制台统计（命中率/误差/加速比）与画质对照确认 `reuse_threshold`。
 - 定位同原版：不替代官方 Prefix KV Cache（`QwenImage21Cache`），也不建议把标准模型改极低步数——本节点保持原采样调度、只减少模型调用次数。
+
+---
+
+## 135. SFLoadImageBrowser 右键菜单：提示词复制与工作流载入（全链路复用零后端改动）
+
+> 背景：`web/image_browser.js` 弹窗浏览器图片项新增右键菜单——①复制正向提示词 ②载入内嵌工作流（新标签）。两能力全部复用既有实现，后端零改动（无需重启容器）。
+
+### 1. 复用路由图（关键：先查复用再动手）
+
+- **提示词提取**：`GET /api/sfnodes/prompt_reader/extract?filename=<path>[output]`（`nodes/text/prompt_reader_routes.py`，启动时副作用注册）。返回 `{found, text|message}` 恒 200；后端权威解析 ComfyUI prompt JSON（追 KSampler 正向）→ A1111 `parameters` 兜底。output 目录文件拼 `" [output]"` 注解即被 `folder_paths.get_annotated_filepath` 正确解析，input/output/temp 均在 allowed_roots 内。
+- **PNG 内嵌工作流**：`sf_lora_shared_info.js::loadWorkflowFromImageUrl(url, onError)`（本次从 `loadImageAsWorkflow` 参数化导出；原函数变 lora_samples URL 薄包装，两个既有调用方签名不变、冒烟测试桩兼容）。内部 readPngWorkflowData 前端 chunk 解析 → prompt chunk 走 `app.loadApiJson`、workflow chunk 走 `loadGraphData`；新标签经 `app.extensionManager.command.execute("Comfy.NewBlankWorkflow")`，旧前端降级 confirm 后替换画布。
+- **取原始字节**：ComfyUI 内置 `/view?filename=<basename>&subfolder=<dir>&type=input|output`——不带 preview/channel 参数时 FileResponse 返回原文件字节（PNG 元数据完整）；`sf_common.parseAnnotatedImageValue` + `buildSourceURL` 现成拼 URL。
+
+### 2. DOM 右键菜单要点
+
+- 菜单单例挂 `document.body`，z-index 100000 > 浏览弹窗 overlay 的 99999；三关闭（外点/Esc/滚轮）直接 `sf_popup.attachPopupDismiss` + `clampToViewport` 钳位，勿手写监听。
+- `close()` 必须联动 `closeContextMenu()`——菜单不在 overlay DOM 子树内，overlay.remove() 不会带走它。
+- contextmenu 处理器需 `preventDefault()` + `stopPropagation()`；右键另一图片时 pointerdown 先触发外点关闭旧菜单，再开新单，顺序天然安全。
+
+### 3. 行为约定
+
+- 非 PNG（jpg/webp 等）两菜单项恒显：readPngWorkflowData 按 PNG magic 校验返回 null → toast「未内嵌工作流数据」，fail-safe 与 LoRA 面板一致。
+- 载入工作流先关浏览弹窗再异步载入（用户意图明确离开浏览），失败仅 toast 可见。
+
+---
+
+## 136. SFMaskFill：统一填充节点（合并 SFMaskedFill / SFMaskFillColor）
+
+> 背景：`nodes/mask/masks.py:MaskFill` 合并原 `MaskedFill`（neutral/telea/navier-stokes）与 `MaskFillColor`（纯色+opacity+skip）为单节点 `SFMaskFill`，前端 `web/sf_mask_fill.js` 按 `fill_mode` 条件显隐，`web/sf_color_picker.js` 适配新类名。决策：**直接删除旧键**（破裂式合并，已获确认）、`falloff` 与 `skip_if_all_white` 提升为全局（对所有模式生效，color 也羽化）、`fill_color/opacity` 仅 color 模式显示。
+
+### 1. 合并策略与兼容性
+
+- **破裂删除**：`__init__.py` 仅留 `SFMaskFill`，历史工作流含 `SFMaskedFill`/`SFMaskFillColor` 将加载失败（Missing node type），需用户手动替换。保留别名可无破裂，但本次按任务目标直接删除。
+- **参数统一**：`fill_mode=[color,neutral,telea,navier-stokes]`；`fill_color:COLOR` + `opacity:FLOAT` 仅 color 分支读取；`falloff:INT` 与 `skip_if_all_white:BOOLEAN` 全局；`DESCRIPTION` 中文并注明合并。
+- **纯函数抽取**：`_parse_fill_color`（hex 字符串与 RGB 列表双形态）与 `_apply_falloff(alpha,falloff)`（`make_odd+binary_erosion*gaussian_blur`）供单测与复用，避免分支内联副本。
+
+### 2. falloff 全局化与尺寸/批次对齐
+
+- **尺寸重采样**：沿用 `MaskFillColor` 的 `mask2tensor→rescale_image→tensor2mask` 宽松策略（`image H/W != mask H/W` 时缩放），对 telea/neutral 同样生效，替代旧 `MaskedFill` 的严格 `assert`。
+- **批次广播**：`alpha` 单例（`[1,1,H,W]`）自动 `repeat` 到 `image` batch；多 batch 仍逐 slice 处理。
+- **falloff 顺序**：`mask_floor→mask_unsqueeze→[resize 重算]→_apply_falloff→分支混合`；color 分支的 `alpha_with_opacity=alpha*opacity` 使用已羽化的 `alpha`，与 telea 的 `alpha_bc` 羽化同源。
+
+### 3. 前端条件显隐（`web/sf_mask_fill.js`）
+
+- 仅对 `SFMaskFill` 生效：`fill_mode` 非 `color` 时 `fill_color.hidden=opacity.hidden=true`，`setDirtyCanvas` 重绘；`fill_mode.callback` 包装原回调 + `configure`/`onAfterGraphConfigured` 双重 `setTimeout(toggle,0)` 保工作流恢复后状态一致。
+- `sf_color_picker.js` 的 COLOR 序列化 hack（`SFImageResizePlus` 同款）同步改 `SFMaskFill` 类名判定，不新增逻辑；`check_web_imports.py` MODS 加 `sf_mask_fill`。
+
+### 4. 模块边界
+
+- `nodes/mask/masks.py:MaskFill`（统一实现，FUNCTION=execute，5 输入 + skip 全局）
+- `web/sf_mask_fill.js`（单文件扩展，`sfnodes.SFMaskFill`，无导出）
+- `web/sf_color_picker.js`（COLOR widget，适配新类名）
+- `__init__.py` 唯一真源 `SFMaskFill`
+
+---
+
+## 139. SFImageSceneSplit：镜头切分（硬切/黑白场/溶解 + 负索引/max_frames 首 N 帧 + LIST 全段）
+
+> 背景：`nodes/image/scene_split.py:SFImageSceneSplit` + `sf_utils/scene_detect.py` 纯逻辑（无 torch/ComfyUI 依赖）。输入为视频连续帧 `IMAGE [B,H,W,C]`，按阈值检测硬切/黑场/白闪/溶解四类切点，去抖后按 `segment_index` 输出指定段与全段 LIST（首 N 帧截断、负索引、越界抛错）。
+
+### 1. 检测策略（纯逻辑，无重依赖）
+
+- **缩略**：每帧最长边 `160` 下采样（`cv2.INTER_AREA`→PIL→最近邻三级回退），转灰度后 `32-bin` 归一化直方图 + 均值亮度 `[0,1]`。千帧 256px 内 <1s。
+- **硬切**：`hist` 用 Bhattacharyya `1-BC`，`diff` 用缩略图均差 `/255`，`d>threshold` 即切 `i+1`。阈值默认 `0.30` 对应 `BC=0.7` 中等相似度。
+- **黑/白场**：灰度均值 `<black_threshold`（默认 0.08）/ `>white_threshold`（默认 0.92）的连续段边界各切一刀（`s` 与 `e+1`），全黑/全白不切。
+- **溶解**：滑窗 `W=dissolve_window`（默认 8），累积距离 `D=dist(h[i],h[i+W])`，`D>threshold && max_step<threshold && avg_step>dissolve_threshold(0.18)` 时在 `i+W//2+1` 记切点；已硬切的窗被 `max_step` 过滤不重复。
+- **去抖**：候选切点排序后 `c-last<min_scene_len(12)` 删后者；尾段不足也合并到上一段，最终补 `[0,B]` 哨兵。
+
+### 2. 节点契约（与 ComfyUI 张量/列表约定）
+
+- **逐帧转 `uint8` 生成器**：`for i in range(B): arr=(images[i].cpu().numpy()*255).astype(uint8)` 避免一次性 `B*H*W` 批拷贝 OOM；`C==1` 复制为 3 通道，`>3` 截断 RGB。
+- **输出**：`images [N,H,W,C]`（选中段首 N 帧截断后）、`count INT`（截断后）、`cuts STRING(JSON [0,..,B])`、`scene_count INT`、`all_segments IMAGE+OUTPUT_IS_LIST`（每段一批，`all_segments[segment_index]` 即选中段原长）。
+- **索引**：`segment_index` 负数走 `scene_count+idx`，越界 `ValueError("越界 ... cuts=...")`（对齐 `batch_index.py` 风格）。
+
+### 3. 测试与复用
+
+- 纯逻辑 `sf_utils/scene_detect.py` 无 comfy：`detect_scenes` 支持 `np.ndarray [B,H,W,3]` 与 `iterable` 帧，`_to_uint8_rgb/_downscale_and_gray/_hist` 内部三级回退保证 CI 无 `cv2` 仍可跑。
+- `tests/test_scene_detect.py` 覆盖硬切/黑白场/溶解/min_len 去抖/单帧/空/float + 节点 mock `torch`（`FakeTensor` 模拟 `detach/cpu/numpy/__getitem__` 切片）断言选段/负索引/max_frames/越界。
+
+### 4. 模块边界
+
+- `sf_utils/scene_detect.py`：`detect_scenes/split_scenes` + `_process_frame/_hist_distance/_downscale_and_gray`（纯函数）
+- `nodes/image/scene_split.py`：`SFImageSceneSplit`（9 输入 + 5 输出，`OUTPUT_IS_LIST[4]=True`）
+- `__init__.py` 唯一真源 `SFImageSceneSplit`
+
+## 142. SFImageResizePlus size_mode 复刻原生 ResizeImageMaskNode（2026-09）
+
+> 背景：原生 `ResizeImageMaskNode.resize_type` 有 9 种模式，而 `SFImageResizePlus` 原 `size_mode` 只有 `width & height` / `total pixels`。目标是把"缺少的、有意义的"模式补进 `size_mode`。
+
+### 1. 覆盖判定（哪些该复刻）
+
+- 已覆盖：`scale dimensions`（= width & height + method 的 stretch/keep/fill crop/pad）、`scale total pixels`。
+- **冗余不复刻**：`scale width` / `scale height` —— `width & height` + `method="keep proportion"` 把另一维填 0 即等价（实测 2000×1000 缩宽 1024 → 1024×512，与原生一致）。单边 auto 逻辑见 `execute` 里 `method in (keep proportion, pad)` 分支。
+- 新增 4 个：`scale by multiplier` / `longer dimension` / `shorter dimension` / `scale to multiple`。
+- `match size`（按参考图尺寸）需额外 optional 参考输入，本次不做（可后续单独加）。
+
+### 2. 数学单源收敛到 resize_engine.py
+
+- 新增纯函数 `multiplier_to_wh` / `longer_dimension_to_wh` / `shorter_dimension_to_wh` / `multiple_to_wh`（与既有 `total_pixels_to_wh` 同文件同风格，非法输入返回 None，1px 下限）。
+- **不要在 scale.py 内联**：`SFImageResize` 的 `resize_engine` 已有 longest_side/scale_factor 的 PIL 版实现，目标尺寸数学应收敛为纯函数单源，可直测。
+- `scale to multiple` 语义 = 先 `floor` 到倍数得目标，再 **cover 缩放 + 居中裁剪**（原生 `scale_to_multiple_cover`）；与既有 `divisible_by`（只裁不 cover）不同。
+
+### 3. execute 分支与 method 特例
+
+- 新分支只改"目标尺寸计算"段（在 `divisible_by` 取整之前），算出的 width/height 仍走既有 `divisible_by` → `method` → `condition` 通路，mask/pad/interpolation 全复用。
+- 倍率/长边/短边：默认 `method="keep proportion"` 即得原生精确结果；用户改 method 则是合理超集。
+- **`scale to multiple` 内部强制 `method="fill / crop"`**（忽略 method widget，前端同步隐藏）——因为原生该模式恒为 cover+裁剪，与 method 无关。退化（multiple<=1 / 取整为 0）时 `width=height=0` 走自动档直通，**不能**回落到隐藏 widget 里残留的旧 width/height。
+- **`scale to multiple` 必须让 `divisible_by` 退场**：`divisible_by` 是全局后置取整，会在 multiple 目标上再 `floor`，若 `multiple % divisible_by != 0` 会破坏倍数网格（如 multiple=6、divisible_by=8 会把 996 压成 992）。原生 `ResizeImageMaskNode` 无 `divisible_by`，故本模式**后端 `divisible_by=1` 跳过、前端隐藏该 widget**；其余模式 `divisible_by` 照常生效。
+
+### 4. widgets_values 位置敏感与新控件兼容（核心坑）
+
+- 新增 4 个 widget（multiplier/longer_size/shorter_size/multiple）紧跟 total_pixels，canonical 长度 10 → **14**。旧工作流按位恢复会错位，`web/sf_image_resize_plus.js::configure` 必须**逐级 remap**：先 8→10（size_mode 置顶重排前），再 10→14（在 `total_pixels` 后插入 4 个默认值 `1.0/512/512/8`）。判据用 `widgets_values.length`，新版 14 项原样放行。
+- 前端显隐按 `size_mode` 分支；`scale to multiple` 额外 `methodW.hidden=true`，切回其它模式由统一 `toggle()` 恢复。
+
+### 5. 测试
+
+- `tests/test_image_resize_plus.py`：4 个纯函数（含倍数已整除/取整为 0/竖图）与 `execute` 各新模式出图尺寸、multiple 退化直通、六选项/顺序断言。
+- `tests/test_image_resize_plus_js.js`：各模式参数显隐、scale to multiple 隐藏 method、8→14 与 10→14 remap、14 项不改写。

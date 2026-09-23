@@ -1,6 +1,6 @@
-# 经验归档：平台机制（ComfyUI 前后端通用）（§1、§2、§106、§121）
+# 经验归档：平台机制（ComfyUI 前后端通用）
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 
 ## 1. ComfyUI 后端机制（循环/图展开，经验总结）
 
@@ -359,5 +359,5 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
   - `x > 0` / 算术比较 → TypeError（被 `except Exception` 吞成 `logging.warning("WARNING: {}")` + `is_changed = NaN`）；
   - `lst[x:]` → **不报错**：`lst[None:]` 等价于 `lst[:]`，静默按"全量"走（本次 skip 连线就是这种，哈希只覆盖第一张，与 skip/nth 无关）。
 - **本次误诊现场**：`image_load_cap` 被连线（运行时值 = index）→ 第 k 轮解码+预览 k 张图（780×1200 单张：JPEG 解码 ≈7ms + 预览 PNG ≈17ms）→ 总耗时 O(N²)、单轮 +30ms ✓ 与日志间隔增量吻合。**每轮一条的 WARNING 是定位这类接线错误的关键线索：其时间戳间隔就是单轮耗时**（`docker exec comfyui-docker` 看 `user/comfyui.log` / `comfyui.prev*.log`，重启会清 `/history`、清不了 rotated 日志）。
-- **修法（`nodes/image/load_images_path.py` 已改）**：任一形参为 None 即视为"未知切片"，退化为对**目录全部图片**哈希（cap=0/skip=0/nth=1）：目录一变即失效、绝不误用缓存，且**不返回 NaN**——NaN 会沿祖先签名折叠下游全部缓存（nodes-text.md §89），本节点靠稳定签名支持重复 Run 命中缓存（容器日志里的 `Prompt executed in 0.00 seconds`）。
+- **修法（`nodes/image/load_images_path.py` 已改）**：任一形参为 None 即视为"未知切片"，退化为对**目录全部图片**哈希（cap=0/skip=0/nth=1）：目录一变即失效、绝不误用缓存，且**不返回 NaN**——NaN 会沿祖先签名折叠下游全部缓存（patterns.md §89），本节点靠稳定签名支持重复 Run 命中缓存（容器日志里的 `Prompt executed in 0.00 seconds`）。
 - **测试**：`tests/test_load_images_path.py`——哈希稳定/切片参与（cap、skip）/三输入各自 None 与全 None 均等于全量哈希/目录不存在 False/mtime 变化与复原（用 `st_mtime_ns` 精确回写，防 `os.utime(float)` 纳秒漂移导致假失败）。

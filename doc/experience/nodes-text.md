@@ -1,7 +1,6 @@
-# 经验归档：文本与提示词节点（§6、§7、§14、§15、§16、§18、§23、§24、§29、§36、§37、§42、§46、§47、§48、§74、§102、§103、§115）
+# 经验归档：文本与提示词节点
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
-
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 ## 6. SFPromptTags：@tag 展开注入 / Picks 游标 / 全屏编辑器 / 中文与拼音（复刻 Pixaroma Prompt）
 
 > 背景：复刻 Pixaroma 的 `PixaromaPrompt` 节点（2026-08），落地为 `nodes/text/prompt_tags.py` + `web/sf_prompt_tags*.js` 六模块（lib/store/cursors/guard/editor/主扩展）。后端极简（115 行拼接），主体是前端：DOM widget 输入框、@tag 自动补全、标签库、全屏编辑器、Picks 模式。本节点是项目内**最完整的前端注入 + 全屏 UI + 多模块**案例，经验可直接迁移。
@@ -396,44 +395,6 @@
 
 ---
 
-## 36. SFLongTextToList：长文本分割转列表（复刻 ComfyUI_Lam LongTextToList）
-
-> 背景：1:1 复刻 `ComfyUI_Lam/py/LongTextToList.py`（2026-08）。原节点 `text.split(delimiter)` 后输出下标项/数组/长度，逻辑极简但有两处崩点。本次落地为 `nodes/text/long_text_to_list.py:SFLongTextToList` + `sf_utils/string.py:split_text` 纯函数（无 ComfyUI 依赖），按 `sfnodes/text` 规范注册，无前端。
-
-### 1. 原版缺陷与加固
-
-- **空分隔符**：`text.split("")` 抛 `ValueError`。本实现 `split_text` 中 `delimiter == ""`（含 `None`）时退化为 `[text]`（空文本则 `[]`），不崩且符合直觉（无分隔符即整体）。
-- **越界 i**：原 `strList[i]` 直接越界抛 `IndexError` 拖垮工作流。本实现 `0 <= i < len(parts)` 守卫，越界返回 `""` 并 `print` 警告，不崩；`i` 仍为 `INT 0..99999`，默认值 `0`。
-- **转义**：原仅 `delimiter.replace("\\n","\n")`。本实现追加 `"\\t"→"\t"` 对齐 `SFTextConcatenate:44` 的双转义约定（分隔符常用 `","`/`"\n"`/`"\t"`）。
-- **类型收敛**：原 `RETURN_TYPES ("STRING","LIST","INT")` 中 `LIST` 为泛型。本实现按 sfnodes 文本列表生态（`SFPromptList`/`SFPromptStack`/`SFLoadPromptsFromFolder`）收敛为 `("STRING","STRING","INT") + OUTPUT_IS_LIST (False,True,False)`——`list` 输出为 `STRING` 列表，下游自动逐项执行，无需额外 `LIST` 类型；`text_at_i`/`count` 为单值。
-- **空项过滤**：新增 `filter_empty: BOOLEAN default True`（2026-08 扩展，原版无此开关）—— `True` 时 `split_text(..., filter_empty=True)` 过滤 `p.strip()==""` 的项，`count` 与索引对应过滤后列表，避免空行产生空提示词触发空队列。
-
-### 2. 模块边界
-
-- `sf_utils/string.py:split_text(text, delimiter, filter_empty=False)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错、`filter_empty` 按 `strip` 过滤），供节点与 `tests/test_long_text_to_list.py` 共用。
-- `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i`/`filter_empty` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，分隔符默认 `"\\n"`（换行，贴合长文本场景），`filter_empty` 默认 `True` 对齐 `SFPromptList.skip_empty`。
-- 测试：`tests/test_long_text_to_list.py` 30 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`filter_empty True/False`、索引联动、`OUTPUT_IS_LIST` 契约）。
-
----
-
-## 37. SFTextListAffix：列表前后缀（输入列表加前后缀）
-
-> 背景：弥补 `SFLongTextToList` 分割后无统一前后缀能力的缺口（2026-08）。单节点 `SFPromptList` 有 `prepend/append` 但仅对行拆分支，`SFLongTextToList` 需后接 `prompt_list` 中转多一步；新增 `nodes/text/text_list_affix.py:SFTextListAffix` 通用输入列表前后缀节点，`INPUT_IS_LIST + OUTPUT_IS_LIST` 透传。
-
-### 1. 输入/输出与转义
-
-- **输入列表**：`text_list: STRING forceInput` `INPUT_IS_LIST=True` 整批接收（`SFLongTextToList.list`/`SFPromptList.prompt` 等直接连入），未连接输出 `[]` 不崩；单值输入自动包裹为单元素列表。
-- **前后缀**：`prepend_text`/`append_text` `\\n→\n` `\\t→\t` 转义（与 `SFTextConcatenate:44`/`split_text` 双端一致），`INPUT_IS_LIST` 下单值被包裹为 `[value]` 需取 `[0]` 解包。
-- **空项过滤**：`filter_empty` 默认 `True`，过滤 `s.strip()==""` 的原项（非附加后），对齐 `SFPromptList:30` 的 `skip_empty` 语义；`False` 时保留空串项（`prefix+suffix`）。
-
-### 2. 模块边界
-
-- `sf_utils/string.py:affix_list(items, prefix, suffix, filter_empty)` 纯函数（转义、空项、None/列表包裹容错），节点与测试共用，无 ComfyUI 依赖。
-- `nodes/text/text_list_affix.py:SFTextListAffix` 薄封装（解包标量+调 `affix_list`），`_CATEGORY="sfnodes/text"`，`INPUT_IS_LIST` 整批、`OUTPUT_IS_LIST=(True,)` 透传列表，下游自动逐项执行。
-- 测试：`tests/test_text_list_affix.py` 18 断言（基础前后缀、空项过滤 `True/False`、转义、None/空列表、单值输入、INPUT_IS_LIST 解包、契约）。
-
----
-
 ## 42. SFTextPreset：工作流绑定预设 → 全局持久化改造（user/sfnodes）
 
 > 背景：SFTextPreset 原为工作流绑定预设（presets_json 隐藏 widget 随工作流保存，见 patterns.md §4 的数据载体模式，2026-08）。用户要求预设跨工作流持久化到 `user/sfnodes`（2026-09）。落地为 `sf_utils/text_presets.py`（存储+路由）+ `nodes/text/text_preset.py`/`web/sf_text_preset.js` 改造，确认语义：全局库为真源、不提供旧数据迁移 UI。
@@ -708,3 +669,41 @@
 
 - `tests/test_qwen21_enhance.py`：profile 常量/官方与通用协议选择（中文覆盖指令）/本地聊天文本（占位与 thinking 两态）/思考链分割/答案解析全分支（多对象取最后、字符串花括号、拼写兼容、比例归一与互斥、字段级恢复、原文兜底）。
 - `tests/test_qwen21_prompt_enhancer.py`：FakeClip 记录 tokenize/generate（官方/通用协议、预填、视觉占位、图片 RGB 缩放、profile 采样参数、max_tokens 默认/0 回退/覆盖）+ 打桩 `chat_completion_sync`（API 文本/多图消息、参数透传、不传 max_tokens）+ FakeLlama 插件替身（属性指纹查找、自动加载/配置变化重载、无图/多图消息、无 mmproj 报错、max_tokens=0、system_prompt 覆盖、storage.clean 卸载、插件缺失报错）+ 输入校验/兜底/报错/软告警/卸载调用，不发真实网络。
+
+---
+
+## 137. SFLongTextToList：长文本分割转列表（复刻 ComfyUI_Lam LongTextToList）
+
+> 背景：1:1 复刻 `ComfyUI_Lam/py/LongTextToList.py`（2026-08）。原节点 `text.split(delimiter)` 后输出下标项/数组/长度，逻辑极简但有两处崩点。本次落地为 `nodes/text/long_text_to_list.py:SFLongTextToList` + `sf_utils/string.py:split_text` 纯函数（无 ComfyUI 依赖），按 `sfnodes/text` 规范注册，无前端。
+
+### 1. 原版缺陷与加固
+
+- **空分隔符**：`text.split("")` 抛 `ValueError`。本实现 `split_text` 中 `delimiter == ""`（含 `None`）时退化为 `[text]`（空文本则 `[]`），不崩且符合直觉（无分隔符即整体）。
+- **越界 i**：原 `strList[i]` 直接越界抛 `IndexError` 拖垮工作流。本实现 `0 <= i < len(parts)` 守卫，越界返回 `""` 并 `print` 警告，不崩；`i` 仍为 `INT 0..99999`，默认值 `0`。
+- **转义**：原仅 `delimiter.replace("\\n","\n")`。本实现追加 `"\\t"→"\t"` 对齐 `SFTextConcatenate:44` 的双转义约定（分隔符常用 `","`/`"\n"`/`"\t"`）。
+- **类型收敛**：原 `RETURN_TYPES ("STRING","LIST","INT")` 中 `LIST` 为泛型。本实现按 sfnodes 文本列表生态（`SFPromptList`/`SFPromptStack`/`SFLoadPromptsFromFolder`）收敛为 `("STRING","STRING","INT") + OUTPUT_IS_LIST (False,True,False)`——`list` 输出为 `STRING` 列表，下游自动逐项执行，无需额外 `LIST` 类型；`text_at_i`/`count` 为单值。
+- **空项过滤**：新增 `filter_empty: BOOLEAN default True`（2026-08 扩展，原版无此开关）—— `True` 时 `split_text(..., filter_empty=True)` 过滤 `p.strip()==""` 的项，`count` 与索引对应过滤后列表，避免空行产生空提示词触发空队列。
+
+### 2. 模块边界
+
+- `sf_utils/string.py:split_text(text, delimiter, filter_empty=False)` —— 纯函数（`None`/`""` 守卫、`\\n`/`\\t` 转义、`text is None` 容错、`filter_empty` 按 `strip` 过滤），供节点与 `tests/test_long_text_to_list.py` 共用。
+- `nodes/text/long_text_to_list.py:SFLongTextToList` —— 薄封装（`INPUT_TYPES` 文本/分隔符/`i`/`filter_empty` + `execute` 调 `split_text` + 越界守卫），`_CATEGORY="sfnodes/text"`，分隔符默认 `"\\n"`（换行，贴合长文本场景），`filter_empty` 默认 `True` 对齐 `SFPromptList.skip_empty`。
+- 测试：`tests/test_long_text_to_list.py` 30 断言（`\n`/`,`/`""`/`\t`/`None` 分隔符、越界、count、`filter_empty True/False`、索引联动、`OUTPUT_IS_LIST` 契约）。
+
+---
+
+## 138. SFTextListAffix：列表前后缀（输入列表加前后缀）
+
+> 背景：弥补 `SFLongTextToList` 分割后无统一前后缀能力的缺口（2026-08）。单节点 `SFPromptList` 有 `prepend/append` 但仅对行拆分支，`SFLongTextToList` 需后接 `prompt_list` 中转多一步；新增 `nodes/text/text_list_affix.py:SFTextListAffix` 通用输入列表前后缀节点，`INPUT_IS_LIST + OUTPUT_IS_LIST` 透传。
+
+### 1. 输入/输出与转义
+
+- **输入列表**：`text_list: STRING forceInput` `INPUT_IS_LIST=True` 整批接收（`SFLongTextToList.list`/`SFPromptList.prompt` 等直接连入），未连接输出 `[]` 不崩；单值输入自动包裹为单元素列表。
+- **前后缀**：`prepend_text`/`append_text` `\\n→\n` `\\t→\t` 转义（与 `SFTextConcatenate:44`/`split_text` 双端一致），`INPUT_IS_LIST` 下单值被包裹为 `[value]` 需取 `[0]` 解包。
+- **空项过滤**：`filter_empty` 默认 `True`，过滤 `s.strip()==""` 的原项（非附加后），对齐 `SFPromptList:30` 的 `skip_empty` 语义；`False` 时保留空串项（`prefix+suffix`）。
+
+### 2. 模块边界
+
+- `sf_utils/string.py:affix_list(items, prefix, suffix, filter_empty)` 纯函数（转义、空项、None/列表包裹容错），节点与测试共用，无 ComfyUI 依赖。
+- `nodes/text/text_list_affix.py:SFTextListAffix` 薄封装（解包标量+调 `affix_list`），`_CATEGORY="sfnodes/text"`，`INPUT_IS_LIST` 整批、`OUTPUT_IS_LIST=(True,)` 透传列表，下游自动逐项执行。
+- 测试：`tests/test_text_list_affix.py` 18 断言（基础前后缀、空项过滤 `True/False`、转义、None/空列表、单值输入、INPUT_IS_LIST 解包、契约）。

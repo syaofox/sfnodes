@@ -1,6 +1,6 @@
-# 经验归档：无节点面板应用（§10、§30）
+# 经验归档：无节点面板应用
 
-> 全局章节号 §N 与拆分前的 experience.md 一致；跨节/跨文件引用一律写 §N，映射见 [README.md](README.md)。版本时效说明见 README。
+> 全局章节号 §N 唯一、只增不复用；跨文件引用写「文件名 §N」（同文件内可简写 §N），映射与当前最大 §N 见 [README.md](README.md)。版本时效说明见 README。
 
 ## 10. SF Workflows：工作流面板（复刻 Pixaroma Workflows）
 

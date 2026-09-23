@@ -4,7 +4,7 @@
 latent（同时也是初始 latent）在该区域不再携带原人物面部几何；姿势/背景/服装仍由
 参考约束，脸交给角色 LoRA。配合可选的 SFRegionalLoRA 脸区加强使用。
 
-纯逻辑在 sf_utils/image_region.py，见 experience/nodes-image.md §74。
+纯逻辑在 sf_utils/image_region.py，见 experience/nodes-image.md §76。
 """
 
 import numpy as np

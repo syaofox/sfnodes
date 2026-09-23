@@ -263,7 +263,7 @@ const SOURCE_CFG = {
       strokes: [],
     });
     // 接线比例即时重套（diff 门控：一致不写状态）；seen 置空兜"此刻不可读、
-    // 稍后就绪但 w:h 串未变"（绘制判定 null 即触发，幂等无副作用，§3.6 同款）
+    // 稍后就绪但 w:h 串未变"（绘制判定 null 即触发，幂等无副作用，§118.3.6 同款）
     node._sfCEBWiredRatioSeen = null;
     syncWiredRatio(node);
   },
