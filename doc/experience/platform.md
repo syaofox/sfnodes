@@ -361,3 +361,18 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **本次误诊现场**：`image_load_cap` 被连线（运行时值 = index）→ 第 k 轮解码+预览 k 张图（780×1200 单张：JPEG 解码 ≈7ms + 预览 PNG ≈17ms）→ 总耗时 O(N²)、单轮 +30ms ✓ 与日志间隔增量吻合。**每轮一条的 WARNING 是定位这类接线错误的关键线索：其时间戳间隔就是单轮耗时**（`docker exec comfyui-docker` 看 `user/comfyui.log` / `comfyui.prev*.log`，重启会清 `/history`、清不了 rotated 日志）。
 - **修法（`nodes/image/load_images_path.py` 已改）**：任一形参为 None 即视为"未知切片"，退化为对**目录全部图片**哈希（cap=0/skip=0/nth=1）：目录一变即失效、绝不误用缓存，且**不返回 NaN**——NaN 会沿祖先签名折叠下游全部缓存（patterns.md §89），本节点靠稳定签名支持重复 Run 命中缓存（容器日志里的 `Prompt executed in 0.00 seconds`）。
 - **测试**：`tests/test_load_images_path.py`——哈希稳定/切片参与（cap、skip）/三输入各自 None 与全 None 均等于全量哈希/目录不存在 False/mtime 变化与复原（用 `st_mtime_ns` 精确回写，防 `os.utime(float)` 纳秒漂移导致假失败）。
+
+---
+
+## 145. 原生循环节点 StartLoop/EndLoop：语义、验证约束与 sf 循环转换（2026-09）
+
+> 背景：把 SCAIL2 分段工作流（`SF For Loop Start/End` + 5 个循环状态 + 循环体内多处预览）换成原生 `StartLoop/EndLoop`（ComfyUI 0.37 `comfy_extras/nodes_loop.py`，容器前端 1.53.6）。原生循环的配对与循环体完全由后端在 /prompt 校验时按图连通性推导，工作流 JSON 里没有任何循环分组元数据；本次两个主要坑是「循环体闭合校验会拒绝预览节点」与「单值携带通道的列表语义」。
+
+- **配对与闭合校验**（`comfy_execution/validation.py::validate_loops`，/prompt 校验阶段）：EndLoop 沿 parents 回溯找最近的 StartLoop，End 由内向外逐个配对；配对后从 StartLoop 前向走图，**任何可达但到不了 EndLoop 的输出节点（OUTPUT_NODE）都报 `loop_escape`（`loop_body_not_closed`），整个队列被拒**，错误发生在提交时而非连接时。展开用的 `_loop_body`/`_loop_end` 由该校验写入 prompt，不在工作流里。
+- **循环体内预览的合法处置**：把预览节点接到 EndLoop 的 `terminations.terminationN`（Autogrow，0~50；只作每轮执行依赖，值不返回）。0.37 里 `PreviewImage`/`MaskPreview`/`PreviewAny` 都有输出可以接；**`SAM3_TrackPreview` 没有任何输出，无法留在循环体内**（只能移出循环或 mode=4 屏蔽——屏蔽节点不进 prompt 所以不触发校验，重新启用会再次被拒）。子图实例内部的预览需先提升为子图输出，前端生成 prompt 时会把该输出解析回内部节点执行 id（如 `910:916`）直连 termination。
+- **单值携带通道**：`initial_iteration_value`/`current_iteration_value`/`next_iteration_value` 只有一条。多状态打包用核心节点：`CreateList`（`is_input_list=True`，`output_list += input` 拼接每个输入的一元素包装列表 → 每个**已连接**槽贡献一个元素；**未连接 optional 槽不出现在 inputs 里，位置会前移**，初始包与体内包必须同槽数）+ `GetItemFromList`（`is_input_list=True`，`list[index[0]]`：接收到的是上游 output-list 整表，widget index 决定取第几项）。首轮无值的槽沿用官方模板写法：懒 `ComfySwitchNode(switch=is_first)`，on_true 不接 → 首轮返回 None，且 on_false 分支（GetItemFromList）因懒执行**不执行**，无需 None 常量节点。
+- **EndLoop 输出是 output-list**：`EndLoop.execute` 把各轮 output_value 摊平一层；普通（非 INPUT_IS_LIST）下游节点会**按元素各跑一次**（execution 对 list 输入逐项 slice）。要让下游收到"一个整体值"，先在循环体内用 `CreateList` 包一层（输出变成长度 1 的列表）；官方模板 `video_wan_animate2.json` 下游接 `RebatchImages`（`is_input_list=True`）所以能直连。
+- **展开机制**（`_expand_loop`）：每轮拷贝循环体节点（id `{pos}_{node_id}`）并插入 LoopIteration/LoopProgress/LoopResult；第 0 轮 carry 取 `initial_iteration_value` 的链接，第 k>0 轮取上一轮 `next_iteration_value` 源节点的拷贝输出；`cache_iterations` 默认 false（LoopIteration fingerprint=NaN，每轮重算，与 sf 循环行为一致）。
+- **工作流 JSON 序列化**：StartLoop 的 DynamicCombo 子槽在 graph 里是独立输入槽（`mode.max_iteration` 等，widget-backed 可连线，prompt 键名=槽名）；EndLoop 终止槽名为 `terminations.terminationN`；`accumulate` 仅是 widget；循环体靠连线表达。改 JSON 后 UI 重新打开工作流即可，无需重启（无 JS/py 改动）。
+- **sf→原生对照（本次转换）**：For 模式 `start=0 / max_iteration←total / step=1` 等价 `SFForLoopStart(total)` 的 0..N-1；`index→iteration_index`（下游 `skip=index×step` 不变）；5 个循环状态（累积文件列表/参考图/追踪/尾锚/丢弃帧数）打包为一个 CreateList、循环体内 5 个 GetItemFromList 接回原去向、v1/v4 首轮 None 用 is_first 开关、`EndLoop.output_value` 接 `CreateList(921.batch)` 包装后喂 `SFVideoConcat`。
+- **离线验证法（可复用，不跑队列）**：取 `/history` 里该工作流的执行 prompt（`prompt[2]`，子图已展开成 `910:916` 式 id），按目标连线改写后，在容器内直接调 `validate_loops` + `DynamicPrompt(prompt)` + `_expand_loop`，可验证配对/闭合/每轮拷贝/携带链，无需模型与队列。
