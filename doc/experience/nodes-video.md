@@ -430,7 +430,7 @@ SFForLoopEnd
 ### 130.3 测试
 
 - `tests/test_vosr2_loader.py`：缓存关闭不复用 / 几何变化清空 / 进度总量按帧×瓦片；`tests/test_vosr2_settings.py`：frame_batch 档位解析与 batch_override。
-- 实机未测（见 §129.5）；后续实测重点：静帧/慢镜头命中率、refresh 取值对闪烁的影响。
+- 实机已测（2026-09 订正，见 §129.5）：2 次 149 帧执行（scale ×1.00 / total pixels 0.52MP），时序缓存统计正常输出（运动内容命中率 1.3%）；静帧/慢镜头命中收益、`cache_refresh` 与阈值对闪烁的影响仍未专项评估。
 
 ## 131. SFVideoCompare：TE_MAN 视频对比干净室复刻（2026-09）
 

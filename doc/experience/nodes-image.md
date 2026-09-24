@@ -1381,7 +1381,7 @@ slice_track_data(track_data, start=0, length=0)
 - `tests/test_vosr2_tiling.py`（纯逻辑：瓦片网格/潜空间参数/patch 对齐/pad/瓦片数）、`tests/test_vosr2_settings.py`（档位解析/0=自动/override/容错/校验）、`tests/test_vosr2_loader.py`（stub torch+comfy：路径发现与旧目录回退、args 校验、权重优先级、DINO 转换识别、dtype、key 清洗、策略/编译幂等、VAE 降级、批次分组与进度总量、时序缓存关闭态与几何失效）。
 - `tools/vosr2_selftest.py`（容器内自检，不加载权重）：真实 torch/comfy 导入 + 节点 schema + DiT 小模型前向（含动态 RoPE）+ VAE 分块一致性 + FakeBundle 端到端 + 模拟 OOM 降级。**该自检首轮即抓出 3 个宿主 mock 测试覆盖不到的 bug**：`vision_features` 删除 `batch` 参数后调用点未同步（TypeError）、DiT 瓦片逐项 in-place `+=` 的 rhs 带 B 维（`output with shape [4,8,8] doesn't match broadcast shape [1,4,8,8]`）、`upscale()` 漏 `movedim(1, -1)` 导致返回 BCHW 而非 BHWC。
 - 顺带修掉上游隐患：`_pad_to_square`/`_pad_to_multiple` 的 reflect pad 在 pad >= 该维尺寸时非法（2:1 长宽比或小图直接崩），`pad_reflect_safe` 退化为 replicate（仅影响贴边像素）。
-- 实机未测（用户选择暂不下载 7GB 权重）；后续实测重点：分块拼批 OOM 降级路径、staged 换载耗时、torch.compile 首次编译与回退日志。
+- 实机已测（2026-09 订正，原记录「实机未测」已失效）：docker 实例累计 481 次图片超分（`dtype=default`，SageAttention 后端生效），全部走分块路径（tile 512/32、vae_tile 1024/32），目标 544×376～2944×4320（含 >4096px 告警口径）；`auto_expand_vae_tile` 扩张后的 VAE OOM 降级被真实触发（2048→1024）。仍未覆盖：torch.compile、speed 档位/拼批、staged/resident 换载、full_frame 未分块路径（所有目标均 >512px，auto 策略全走 tiled）、DiT/DINO 拼批 OOM 降级。
 
 ## 132. VOSR2 目标尺寸四模式（倍率/总像素/长边/短边，2026-09）
 
