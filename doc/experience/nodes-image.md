@@ -1567,3 +1567,44 @@ slice_track_data(track_data, start=0, length=0)
 
 - `tests/test_image_resize_plus.py`：4 个纯函数（含倍数已整除/取整为 0/竖图）与 `execute` 各新模式出图尺寸、multiple 退化直通、六选项/顺序断言。
 - `tests/test_image_resize_plus_js.js`：各模式参数显隐、scale to multiple 隐藏 method、8→14 与 10→14 remap、14 项不改写。
+
+## 144. 原生 LoadImage 追加 filename 输出：注册表子类替换 + 启动开关（不能原地 patch）（2026-09）
+
+> 需求：给原生 `LoadImage` 加 filename(STRING) 输出（image widget 原始值 = input 相对路径），全局生效 + sfnodes 设置开关（LoadImage 段），不改核心文件。
+
+### 1. 不能原地 patch（与 §79 VHS 同款做法的关键区别）
+
+§79 是"原地改类属性 + 包装方法"，对 LoadImage **不可行**——核心有三处按 2 元组消费 `load_image`：
+
+| 位置 | 用法 | 原地 patch 后果 |
+|---|---|---|
+| `LoadImageMask.load_image_mask` | `image_tensor, mask_tensor = super().load_image(image)` | 解包 3 值崩溃 |
+| `comfy_extras/nodes_webcam.py::WebcamCapture` | 继承 LoadImage，`load_capture` 直接 `return super().load_image(...)`，`RETURN_TYPES=("IMAGE",)` | 返回 3 值 vs 1 槽，执行报错 |
+| `comfy_extras/nodes_load_3d.py` | `nodes.LoadImage()` 实例调用，`a, b = load_image_node.load_image(...)` ×3 | 解包 3 值崩溃 |
+
+结论：**原地改基类方法会破坏 3 处核心代码**（且第三方子类同样有风险）。
+
+### 2. 注册表条目替换为子类（原类零改动）
+
+- `class SFLoadImage(nodes.LoadImage)`：`RETURN_TYPES/NAMES` 末尾追加 `STRING/filename`，`load_image` 调 `super()` 后追加 `image` 原始值（非 str 给空串）——然后 `nodes.NODE_CLASS_MAPPINGS["LoadImage"] = SFLoadImage`。
+- 继承者 `LoadImageMask`/`LoadImageOutput`/`WebcamCapture` 定义时绑定的是原类 → 零影响；`nodes_load_3d` 直接引用 `nodes.LoadImage` → 零影响。
+- 注册表键仍是 `"LoadImage"` → 前端 `comfyClass` 不变，§71/§119/§120 的 Browse 按钮/子目录值/递归列表补丁照常命中。
+- `server.node_info()` 每次 /object_info 惰性读类属性（§79.2）→ 无需前端 JS；输出槽**追加在末尾**（IMAGE=0/MASK=1 不动），旧工作流按槽索引连线安全。
+- 动态类在函数内定义，`super()` 无参形式正常（`__class__` cell 自动建立）；`__module__`/`__qualname__` 不影响 object_info（`python_module` 走 `RELATIVE_PYTHON_MODULE`，原类没有 → 默认 "nodes"）。
+
+### 3. 开关：后端启动时读设置（彻底，改设置需重启）
+
+- `sfnodes.LoadImage.FilenameOutput.Enabled`（comfy.settings.json，默认开）：`install()` 读盘复用 `llm_client.read_comfy_settings`（scail2_mem 先例），**关闭则不替换注册表**，LoadImage 完全原生 2 输出。
+- 为什么不做"前端槽显隐"（即时生效）：RETURN_TYPES 是静态类属性，前端隐藏槽 ≠ 后端不输出 → API/缓存仍多第 3 值，双端不一致；且旧工作流槽恢复时序 + 删槽丢线都要额外保护。设置项名标注 "(restart required)" + onChange toast 提示，避免"设置变了但节点没变"的困惑。
+- 前端 `web/native_load_image_filename.js` 只注册设置（与 `sfnodes.LoadImage.BrowseButton.Enabled` 同段）。
+
+### 4. 守卫与测试
+
+- 守卫：缺 key / 非 LoadImage 子类 / 第三方子类覆盖了 `load_image`（返回结构未知）/ 已带 filename（打幂等标记）/ FUNCTION 不符 / RETURN_TYPES 前两位不是 IMAGE,MASK / RETURN_NAMES 长度与 RETURN_TYPES 不符 / 幂等标记 / nodes 模块不可用 → 跳过告警，绝不阻断启动。第三方子类未覆盖方法时基于它建子类（保留其属性 + OUTPUT_IS_LIST 同步追加）。
+- `tests/test_native_load_image_filename.py`：fake nodes 类覆盖替换/返回值/原类零改动（WebcamCapture 式 super 透传安全）/开关/幂等/全部守卫/默认注册表路径/根 `__init__.py` 接线；`tests/test_native_load_image_filename_smoke.mjs`：扩展注册名/设置 id/type/默认值/init 幂等/onChange toast。
+
+### 5. 验证与回退
+
+- 生效条件：重启容器 + 浏览器硬刷新。`GET /object_info/LoadImage` 应见 3 输出（`output_name` 含 filename）。
+- 关闭开关并重启后：LoadImage 回到 2 输出，已接 filename 连线的工作流该连线失效（槽不存在）——这是关闭的预期后果。
+- 若第三方扩展也替换注册表 `LoadImage`：加载顺序（os.listdir 不排序）决定谁生效；守卫对"覆盖了 load_image 的子类"跳过，不产生半残状态。
