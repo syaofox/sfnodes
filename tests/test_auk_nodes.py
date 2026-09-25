@@ -29,6 +29,10 @@ class FakeTensor:
             return FakeTensor(self.shape[1:], self._finite)
         return self
 
+    @property
+    def T(self):
+        return self
+
     def detach(self):
         return self
 
@@ -141,8 +145,23 @@ sys.modules["torch.nn"] = torch.nn
 sys.modules["torch.nn.functional"] = torch.nn.functional
 
 sf = types.ModuleType("soundfile")
-sf.read = lambda *args, **kwargs: (None, 24000)
-sf.write = lambda *args, **kwargs: None
+sf_read_calls = []
+sf_write_calls = []
+
+
+def _fake_sf_read(path, *args, **kwargs):
+    sf_read_calls.append(path)
+    return (None, 24000)
+
+
+def _fake_sf_write(path, data, samplerate, **kwargs):
+    with open(path, "wb") as handle:  # 真实建文件，便于断言临时 WAV 清理
+        handle.write(b"wav")
+    sf_write_calls.append((str(path), samplerate))
+
+
+sf.read = _fake_sf_read
+sf.write = _fake_sf_write
 sf.info = lambda *args, **kwargs: types.SimpleNamespace(frames=0, samplerate=24000)
 sys.modules["soundfile"] = sf
 
@@ -201,6 +220,26 @@ class PromptEnhancerError(RuntimeError):
 
 
 pe_stub.PromptEnhancerError = PromptEnhancerError
+
+
+class FakeSenseVoice:
+    """SenseVoiceSmallASR 替身：记录 language 与音频路径，返回可配置结果。"""
+
+    calls = []
+    paths = []
+    text = "识别出的文字"
+    error = None
+
+    def __init__(self, *, language="auto", **kwargs):
+        self.language = language
+        FakeSenseVoice.calls.append(language)
+
+    def transcribe(self, audio_path):
+        FakeSenseVoice.paths.append(str(audio_path))
+        return types.SimpleNamespace(text=FakeSenseVoice.text, language="zh", error=FakeSenseVoice.error)
+
+
+pe_stub.SenseVoiceSmallASR = FakeSenseVoice
 sys.modules["nodes.audio.auk.infer.pe"] = pe_stub
 
 # infer_auk 模块桩（Loader 的延迟导入走 sys.modules，不加载 transformers）
@@ -269,6 +308,7 @@ sys.modules["fake_llama_plugin"] = plugin
 from nodes.audio import auk_config as C  # noqa: E402
 from nodes.audio import auk_generate as G  # noqa: E402
 from nodes.audio import auk_loader as L  # noqa: E402
+from nodes.audio import auk_transcribe as T  # noqa: E402
 
 failures = []
 
@@ -405,6 +445,38 @@ check("放置 OOM 释放旧引擎后重试", old_inference2.released and len(Fak
       and engine3.inference is FakeAukInfer.instances[1])
 L._CACHE.clear()
 check("_release_others 无其他引擎返回 0", L._release_others(("none",)) == 0)
+
+
+# ── SF AuK Audio Transcribe ──
+schema = T.SFAuKAudioTranscribe.INPUT_TYPES()
+check("Transcribe schema 两项", set(schema["required"]) == {"audio", "language"})
+check("Transcribe 输入类型", schema["required"]["audio"][0] == "AUDIO" and schema["required"]["language"][0][0] == "自动")
+check("Transcribe 默认自动", schema["required"]["language"][1]["default"] == "自动")
+check("Transcribe 输出", T.SFAuKAudioTranscribe.RETURN_TYPES == ("STRING",) and T.SFAuKAudioTranscribe.RETURN_NAMES == ("text",))
+
+transcribe_node = T.SFAuKAudioTranscribe()
+FakeSenseVoice.calls.clear()
+FakeSenseVoice.paths.clear()
+sf_write_calls.clear()
+(text,) = transcribe_node.execute({"waveform": FakeTensor((1, 1, 16000)), "sample_rate": 16000}, "中文")
+check("Transcribe 返回文字", text == "识别出的文字")
+check("Transcribe 语言映射", FakeSenseVoice.calls[-1] == "zh")
+check("Transcribe 写临时 wav 并传入", bool(sf_write_calls) and FakeSenseVoice.paths[-1] == sf_write_calls[-1][0]
+      and FakeSenseVoice.paths[-1].endswith(".wav"))
+check("Transcribe 临时文件已清理", not os.path.exists(sf_write_calls[-1][0]))
+
+transcribe_node.execute({"waveform": FakeTensor((1, 1, 16000)), "sample_rate": 16000}, "自动")
+check("Transcribe 自动语言映射", FakeSenseVoice.calls[-1] == "auto")
+check("Transcribe 未知语言拒绝", raises(transcribe_node.execute, {"waveform": FakeTensor((1, 1, 16000)), "sample_rate": 16000}, "法语"))
+check("Transcribe 批大小 1 校验", raises(transcribe_node.execute, {"waveform": FakeTensor((2, 1, 16000)), "sample_rate": 16000}, "自动"))
+
+FakeSenseVoice.error = "boom"
+check("Transcribe 识别失败报错", raises(transcribe_node.execute, {"waveform": FakeTensor((1, 1, 16000)), "sample_rate": 16000}, "自动"))
+check("Transcribe 失败也清理临时文件", not os.path.exists(FakeSenseVoice.paths[-1]))
+FakeSenseVoice.error = None
+FakeSenseVoice.text = "   "
+check("Transcribe 空文本报错", raises(transcribe_node.execute, {"waveform": FakeTensor((1, 1, 16000)), "sample_rate": 16000}, "自动"))
+FakeSenseVoice.text = "识别出的文字"
 
 
 # ── SF AuK Generate / Edit ──

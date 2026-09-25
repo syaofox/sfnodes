@@ -190,6 +190,7 @@ from .nodes.text.spreadsheet_outputlist import SFSpreadsheetOutputList
 from .nodes.audio.auk_config import SFAuKOpenAISettings, SFAuKLlamaCppSettings
 from .nodes.audio.auk_generate import SFAuKGenerateEdit
 from .nodes.audio.auk_loader import SFAuKModelsLoader
+from .nodes.audio.auk_transcribe import SFAuKAudioTranscribe
 
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.qwen_edit import (
@@ -437,6 +438,7 @@ NODE_CLASS_MAPPINGS = {
     "SFAuKGenerateEdit": SFAuKGenerateEdit,
     "SFAuKOpenAISettings": SFAuKOpenAISettings,
     "SFAuKLlamaCppSettings": SFAuKLlamaCppSettings,
+    "SFAuKAudioTranscribe": SFAuKAudioTranscribe,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFUniversalSlider": SFUniversalSlider,
@@ -686,6 +688,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFAuKGenerateEdit": "SF AuK Generate / Edit",
     "SFAuKOpenAISettings": "SF AuK OpenAI Settings",
     "SFAuKLlamaCppSettings": "SF AuK Llama.cpp Adapter",
+    "SFAuKAudioTranscribe": "SF AuK Audio Transcribe",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFUniversalSlider": "SF Universal Slider",

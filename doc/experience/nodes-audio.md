@@ -111,3 +111,12 @@ nodes/audio/
 - **不占 widgets_values**：三个控件都带 `serialize:false`（前端在序列化与位置恢复时均跳过 `serialize === false` 的 widget，`addCustomWidget` 也因此不做即时恢复）——旧工作流的 8 项位置值原样归位，零迁移；选择状态改存 `node.properties.sfAukPresetGroup/sfAukPresetTemplate`，加载时在 `configure` 包装与 `onAfterGraphConfigured` 双路恢复（base configure 先恢复 properties 再恢复 widget 值，故包装内读取可靠）。
 - 「填入」按钮用于重复套用：下拉值未变时 callback 不触发，按钮可再填一次；加载恢复只重建选项、不覆盖 instruction。
 - 纯前端改动：同步部署目录后浏览器硬刷新即可，无需重启后端。
+
+### 146.12 SFAuKAudioTranscribe：本地语音识别节点（2026-09）
+
+`SFAuKAudioTranscribe`（显示名 SF AuK Audio Transcribe）：输入 AUDIO、输出识别文字，目标语言下拉（自动/中文/英文/粤语/日语/韩语，默认自动）。
+
+- **引擎侧复用**：`pe.py::SenseVoiceSmallASR` 新增可选 `language="auto"` 参数（默认值不变，PE 链路零影响）；节点另复用 `auk_generate.normalize_audio`（AUDIO 校验/批=1/多声道均值/NaN 检查）与 `auk.infer.audio_io.write_wav`（临时 WAV 桥接，`finally` 清理）。
+- **仅本地**：不接腾讯云 ASR（避免独立工具节点静默上传音频）；首次使用经 funasr/ModelScope 下载 SenseVoiceSmall（~900MB，缓存于 `.cache`），之后离线可用。语言码映射：自动→auto、中文→zh、英文→en、粤语→yue、日语→ja、韩语→ko。
+- **报错**：未知语言、识别失败（`ASRCall.error`）、空文本（无人声/过短）均抛 `ValueError` 带原因，不静默返回空串。
+- 测试在 `tests/test_auk_nodes.py`（schema/语言映射/临时文件写入与清理/失败与空文本路径）。

@@ -548,11 +548,13 @@ class SenseVoiceSmallASR:
         model: str = "iic/SenseVoiceSmall",
         device: str = "cpu",
         ncpu: int = 4,
+        language: str = "auto",  # sfnodes 扩展：识别语言（auto/zh/en/yue/ja/ko），PE 默认 auto
         model_instance: Any | None = None,
     ):
         self.model_name = model
         self.device = device
         self.ncpu = max(1, int(ncpu))
+        self.language = str(language or "auto")
         self._model_instance = model_instance
 
     def _get_model(self):
@@ -582,7 +584,7 @@ class SenseVoiceSmallASR:
                     input=[audio_path],
                     cache={},
                     batch_size=1,
-                    language="auto",
+                    language=self.language,
                     use_itn=True,
                 )
             if not results or not isinstance(results[0], dict):
