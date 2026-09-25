@@ -105,6 +105,10 @@ function makeNode(modeValue = "参考音色 TTS", audioConnected = false) {
         fakeWidget("instruction", "", "string"),
         fakeWidget("duration_mode", "等长", "combo"),
         fakeWidget("speed_multiplier", 1.0),
+        fakeWidget("edit_operation", "替换", "combo"),
+        fakeWidget("edit_target", "", "string"),
+        fakeWidget("edit_new", "", "string"),
+        fakeWidget("edit_anchor", "", "string"),
         fakeWidget("ref_tail_seconds", 4.0),
         fakeWidget("pause_seconds", 0.1),
         fakeWidget("continuity", "滚动参考", "combo"),
@@ -235,6 +239,24 @@ check("处理→声音描述：处理参数隐藏", !lib.isWidgetVisible(pInstru
     && !lib.isWidgetVisible(pPresetApply) && lib.isWidgetVisible(widgetOf(process, "voice_description")));
 check("处理→声音描述：input_audio 移除", !inputOf(process, "input_audio"));
 check("desiredSourceInputs 处理模式", JSON.stringify(mod.desiredSourceInputs("长音频处理（编辑/增强）")) === '["input_audio"]');
+
+// ---- 语音内容编辑模式：显隐 ----
+const edit = makeNode("语音内容编辑（替换/增添/删除）");
+ext.nodeCreated(edit);
+check("编辑模式：四字段显示", ["edit_operation", "edit_target", "edit_new", "edit_anchor"]
+    .every((name) => lib.isWidgetVisible(widgetOf(edit, name))));
+check("编辑模式：TTS/处理参数隐藏", !lib.isWidgetVisible(widgetOf(edit, "text"))
+    && !lib.isWidgetVisible(widgetOf(edit, "instruction"))
+    && !lib.isWidgetVisible(widgetOf(edit, "duration_mode"))
+    && !lib.isWidgetVisible(widgetOf(edit, "speed_multiplier"))
+    && !lib.isWidgetVisible(widgetOf(edit, "预设分类"))
+    && !lib.isWidgetVisible(widgetOf(edit, "填入 instruction"))
+    && !lib.isWidgetVisible(widgetOf(edit, "speech_rate"))
+    && !lib.isWidgetVisible(widgetOf(edit, "reference_seconds"))
+    && !lib.isWidgetVisible(widgetOf(edit, "voice_description")));
+check("编辑模式：input_audio 插槽存在", !!inputOf(edit, "input_audio"));
+check("desiredSourceInputs 编辑模式",
+    JSON.stringify(mod.desiredSourceInputs("语音内容编辑（替换/增添/删除）")) === '["input_audio"]');
 
 if (failures.length) {
     console.log(`\n${failures.length} 项失败：`);

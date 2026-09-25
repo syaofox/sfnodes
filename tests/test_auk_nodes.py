@@ -249,10 +249,14 @@ pe_stub.estimate_speech_units = lambda text, language=None: len(str(text)) * 0.1
 
 
 class FakeSenseVoice:
-    """SenseVoiceSmallASR 替身：记录 language 与音频路径，返回可配置结果。"""
+    """SenseVoiceSmallASR 替身：记录 language 与音频路径，返回可配置结果。
+
+    texts 为列表时逐次弹出（逐块 ASR 用）；否则用 text。
+    """
 
     calls = []
     paths = []
+    texts = None
     text = "识别出的文字"
     error = None
 
@@ -262,7 +266,8 @@ class FakeSenseVoice:
 
     def transcribe(self, audio_path):
         FakeSenseVoice.paths.append(str(audio_path))
-        return types.SimpleNamespace(text=FakeSenseVoice.text, language="zh", error=FakeSenseVoice.error)
+        text = FakeSenseVoice.texts.pop(0) if FakeSenseVoice.texts else FakeSenseVoice.text
+        return types.SimpleNamespace(text=text, language="zh", error=FakeSenseVoice.error)
 
 
 pe_stub.SenseVoiceSmallASR = FakeSenseVoice
@@ -585,11 +590,12 @@ required_keys = {"engine", "text", "mode", "max_chunk_seconds", "speech_rate", "
 check("LongSpeech required 十四项", set(schema["required"]) == required_keys)
 check("LongSpeech 语速默认 4.15", schema["required"]["speech_rate"][1]["default"] == 4.15
       and schema["required"]["speech_rate"][1]["min"] == 3.0 and schema["required"]["speech_rate"][1]["max"] == 6.0)
-check("LongSpeech optional 五项", set(schema["optional"]) == {"input_audio", "voice_description",
-      "instruction", "duration_mode", "speed_multiplier"})
+check("LongSpeech optional 九项", set(schema["optional"]) == {"input_audio", "voice_description",
+      "instruction", "duration_mode", "speed_multiplier",
+      "edit_operation", "edit_target", "edit_new", "edit_anchor"})
 check("LongSpeech 输出", LS.SFAuKLongSpeech.RETURN_TYPES == ("AUDIO", "STRING")
       and LS.SFAuKLongSpeech.RETURN_NAMES == ("audio", "report"))
-check("LongSpeech 模式/连续性选项", schema["required"]["mode"][0] == ["参考音色 TTS", "声音描述 TTS", "长音频处理（编辑/增强）"]
+check("LongSpeech 模式/连续性选项", schema["required"]["mode"][0] == ["参考音色 TTS", "声音描述 TTS", "长音频处理（编辑/增强）", "语音内容编辑（替换/增添/删除）"]
       and schema["required"]["continuity"][0] == ["滚动参考", "同一参考"]
       and schema["optional"]["duration_mode"][0] == ["等长", "变速"])
 
@@ -741,6 +747,72 @@ finally:
     LS._split_source_chunks = real_split
     LS._fade_edges = real_fade2
     LS._trim_trailing_silence = real_trim2
+
+
+# ── SF AuK Long Speech：语音内容编辑模式 ──
+plan = LS._edit_plan("替换", "旧词", "新词", "")
+check("Edit 替换指令/定位/增删", plan == ("把‘旧词’改成‘新词’", "旧词", "新词", "旧词"))
+check("Edit 前插指令/定位", LS._edit_plan("前插", "", "嗯", "你好") == ("在‘你好’前面加上‘嗯’", "你好", "嗯", ""))
+check("Edit 后插指令", LS._edit_plan("后插", "", "谢谢", "再见")[0] == "在‘再见’后面加上‘谢谢’")
+check("Edit 删除指令", LS._edit_plan("删除", "嗯", "", "") == ("删掉‘嗯’", "嗯", "", "嗯"))
+check("Edit 锚点前删除指令", LS._edit_plan("锚点前删除", "嗯", "", "你好")[0] == "删掉‘你好’前面的‘嗯’")
+check("Edit 锚点后删除指令", LS._edit_plan("锚点后删除", "嗯", "", "你好")[0] == "删掉‘你好’后面的‘嗯’")
+check("Edit 替换缺字段拒绝", raises(LS._edit_plan, "替换", "", "新词", ""))
+check("Edit 前插缺锚点拒绝", raises(LS._edit_plan, "前插", "", "嗯", ""))
+check("Edit 删除缺原词拒绝", raises(LS._edit_plan, "删除", "", "", ""))
+check("Edit 未知操作拒绝", raises(LS._edit_plan, "未知", "a", "b", "c"))
+check("Edit 匹配归一", LS._normalize_match_text("你好，世界！") == "你好世界"
+      and LS._normalize_match_text("Hello, World.") == "helloworld")
+
+edit_node = LS.SFAuKLongSpeech()
+check("Edit 缺音频拒绝", raises(edit_node.execute, FakeEngine(), "", "语音内容编辑（替换/增添/删除）",
+      edit_target="旧词", edit_new="新词"))
+check("Edit 缺参数拒绝", raises(edit_node.execute, FakeEngine(), "", "语音内容编辑（替换/增添/删除）",
+      input_audio={"waveform": FakeTensor((1, 1, 24000)), "sample_rate": 24000}))
+
+real_split3 = LS._split_source_chunks
+real_fade3 = LS._fade_edges
+LS._split_source_chunks = _fake_split
+LS._fade_edges = lambda waveform, sample_rate, fade_ms=5.0, fade_in=True, fade_out=True: waveform
+try:
+    edit_source = {"waveform": FakeTensor((1, 1, 24000 * 30)), "sample_rate": 24000}
+    edit_engine = FakeEngine()
+    FakeSenseVoice.texts = ["第一句内容", "这里是要替换的旧词", "第三句内容"]
+    audio_e, report_e = edit_node.execute(
+        edit_engine, "", "语音内容编辑（替换/增添/删除）", max_chunk_seconds=15.0,
+        input_audio=edit_source, edit_operation="替换", edit_target="旧词", edit_new="崭新的词语")
+    FakeSenseVoice.texts = None
+    parsed_e = json.loads(report_e)
+    e_calls = edit_engine.inference.generate_calls
+    check("Edit 只改命中块", parsed_e["edited_chunks"] == [2] and len(e_calls) == 1)
+    check("Edit 指令自动生成", e_calls[0][0][0]["content"][0]["text"] == "把‘旧词’改成‘崭新的词语’")
+    check("Edit 命中块以自身为源", e_calls[0][1]["audio"] is not None)
+    check("Edit 内容缩放目标时长", abs(parsed_e["segments"][1]["applied_seconds"] - 13.33) < 0.05)
+    check("Edit 未命中块直通", parsed_e["segments"][0]["matched"] is False
+          and parsed_e["segments"][2]["matched"] is False)
+    check("Edit 拼接保留直通块全长", audio_e["waveform"].shape == (1, 1, 240000 * 2 + 1000))
+    check("Edit 进度条含 ASR 阶段", FakeProgressBar.instances[-1].total == 3 * (32 + 4))
+    check("Edit 报告含 ASR 文本", parsed_e["segments"][1]["asr"] == "这里是要替换的旧词")
+
+    # 多块命中：全部编辑
+    multi_engine = FakeEngine()
+    FakeSenseVoice.texts = ["这里有旧词", "这里也有旧词", "没有"]
+    _, report_m = edit_node.execute(
+        multi_engine, "", "语音内容编辑（替换/增添/删除）", max_chunk_seconds=15.0,
+        input_audio=edit_source, edit_operation="删除", edit_target="旧词")
+    FakeSenseVoice.texts = None
+    check("Edit 多块命中全部编辑", json.loads(report_m)["edited_chunks"] == [1, 2]
+          and len(multi_engine.inference.generate_calls) == 2)
+
+    # 未命中报错（带 ASR 预览）
+    FakeSenseVoice.texts = ["甲", "乙", "丙"]
+    check("Edit 未命中报错", raises(edit_node.execute, FakeEngine(), "", "语音内容编辑（替换/增添/删除）",
+          max_chunk_seconds=15.0, input_audio=edit_source, edit_operation="删除", edit_target="不存在的词"))
+    FakeSenseVoice.texts = None
+finally:
+    LS._split_source_chunks = real_split3
+    LS._fade_edges = real_fade3
+    FakeSenseVoice.texts = None
 
 
 if failures:

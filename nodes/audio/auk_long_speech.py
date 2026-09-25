@@ -6,7 +6,9 @@
 2. 声音描述 TTS：同上，首段用声音描述模板；
 3. 长音频处理（编辑/增强）：整段长音频按静音点切块，每块以自身为源（编辑语义）套用 instruction
    逐块处理 → 边缘淡化拼接。等长类任务（增强/修复/音量/音高/情绪/音色/口音/耳语/非语言声删除/
-   音乐人声分离）与变速类共用；源块 + 目标块共享 30s 预算，单块上限按 `1+目标倍率` 自动收窄。
+   音乐人声分离）与变速类共用；源块 + 目标块共享 30s 预算，单块上限按 `1+目标倍率` 自动收窄；
+4. 语音内容编辑（替换/增添/删除）：逐块本地 ASR 定位目标词/锚点，只对命中块套用官方编辑模板
+   （长度按内容缩放），未命中块原样直通。
 
 TTS 模式不走 Prompt Enhancer：节点直接套官方指令模板，时长用 pe.py 的本地 utf8 权重估计
 （`estimate_speech_seconds` / `estimate_speech_units` + `speech_rate` 语速直控）。
@@ -14,6 +16,9 @@ TTS 模式不走 Prompt Enhancer：节点直接套官方指令模板，时长用
 """
 
 import json
+import os
+import re
+import tempfile
 
 import torch
 
@@ -37,7 +42,8 @@ _CATEGORY = "sfnodes/audio"
 MODE_REFERENCE = "参考音色 TTS"
 MODE_DESCRIPTION = "声音描述 TTS"
 MODE_PROCESS = "长音频处理（编辑/增强）"
-MODE_OPTIONS = [MODE_REFERENCE, MODE_DESCRIPTION, MODE_PROCESS]
+MODE_EDIT = "语音内容编辑（替换/增添/删除）"
+MODE_OPTIONS = [MODE_REFERENCE, MODE_DESCRIPTION, MODE_PROCESS, MODE_EDIT]
 
 CONTINUITY_ROLLING = "滚动参考"
 CONTINUITY_FIXED = "同一参考"
@@ -47,6 +53,27 @@ DURATION_EQUAL = "等长"
 DURATION_SPEED = "变速"
 DURATION_OPTIONS = [DURATION_EQUAL, DURATION_SPEED]
 
+EDIT_REPLACE = "替换"
+EDIT_INSERT_BEFORE = "前插"
+EDIT_INSERT_AFTER = "后插"
+EDIT_REMOVE = "删除"
+EDIT_REMOVE_BEFORE = "锚点前删除"
+EDIT_REMOVE_AFTER = "锚点后删除"
+EDIT_OPTIONS = [EDIT_REPLACE, EDIT_INSERT_BEFORE, EDIT_INSERT_AFTER, EDIT_REMOVE, EDIT_REMOVE_BEFORE, EDIT_REMOVE_AFTER]
+
+# 官方中文模板（Tencent-Hunyuan/AuK Cookbook）；{...} 由参数填充
+EDIT_TEMPLATES = {
+    EDIT_REPLACE: "把‘{target}’改成‘{new}’",
+    EDIT_INSERT_BEFORE: "在‘{anchor}’前面加上‘{new}’",
+    EDIT_INSERT_AFTER: "在‘{anchor}’后面加上‘{new}’",
+    EDIT_REMOVE: "删掉‘{target}’",
+    EDIT_REMOVE_BEFORE: "删掉‘{anchor}’前面的‘{target}’",
+    EDIT_REMOVE_AFTER: "删掉‘{anchor}’后面的‘{target}’",
+}
+
+# 定位匹配归一：去空白与常见中英标点、统一小写（ASR 文本 vs 用户给的原词）
+_MATCH_STRIP_RE = re.compile(r"[\s，。！？；：、“”‘’\"'（）()\[\]【】,.!?;:…—\-·]+")
+
 REFERENCE_TEMPLATE = 'Say the following with the same voice: "{text}"'
 DESCRIPTION_TEMPLATE = (
     'Generate speech based on the following description: "{description}". '
@@ -55,6 +82,35 @@ DESCRIPTION_TEMPLATE = (
 
 TARGET_HEADROOM = 0.15  # TTS 段时长头寸（防估计略紧截字；语速由 speech_rate 直接控制）
 PROCESS_RESERVE = 0.3  # 处理模式切块预算保留（源 + 目标 ≤ 30s）
+
+
+def _edit_plan(operation, target, new, anchor):
+    """返回 (指令, ASR 定位文本, 增删内容)；按操作校验必填字段。"""
+    target = str(target or "").strip()
+    new = str(new or "").strip()
+    anchor = str(anchor or "").strip()
+    if operation == EDIT_REPLACE:
+        if not target or not new:
+            raise ValueError("替换需要填写 edit_target（原词）与 edit_new（新词）")
+        return EDIT_TEMPLATES[operation].format(target=target, new=new), target, new, target
+    if operation in (EDIT_INSERT_BEFORE, EDIT_INSERT_AFTER):
+        if not new or not anchor:
+            raise ValueError("前插/后插需要填写 edit_new（插入内容）与 edit_anchor（锚点）")
+        return EDIT_TEMPLATES[operation].format(anchor=anchor, new=new), anchor, new, ""
+    if operation == EDIT_REMOVE:
+        if not target:
+            raise ValueError("删除需要填写 edit_target（要删的词）")
+        return EDIT_TEMPLATES[operation].format(target=target), target, "", target
+    if operation in (EDIT_REMOVE_BEFORE, EDIT_REMOVE_AFTER):
+        if not target or not anchor:
+            raise ValueError("锚点删除需要填写 edit_target（要删的词）与 edit_anchor（锚点）")
+        return EDIT_TEMPLATES[operation].format(anchor=anchor, target=target), anchor, "", target
+    raise ValueError(f"未知编辑操作：{operation!r}")
+
+
+def _normalize_match_text(value):
+    """定位匹配归一：去空白/标点、转小写（ASR 文本与用户原词两侧都归一）。"""
+    return _MATCH_STRIP_RE.sub("", str(value or "")).lower()
 
 
 def _chunk_target_seconds(estimated_seconds, reference, sample_rate):
@@ -165,7 +221,8 @@ class SFAuKLongSpeech:
         "AuK 长音频节点（30 秒限制是单次序列预算，总时长不限）："
         "参考音色 TTS / 声音描述 TTS = 长文本自动分句逐段合成（首段参考 + 后续滚动参考续接语气）；"
         "长音频处理（编辑/增强）= 整段长音频按静音点切块，每块以自身为源套用 instruction 处理"
-        "（等长类增强/修复/音量/音高/情绪/音色/口音/耳语/非语言声删除/音乐人声分离，以及变速）。"
+        "（等长类增强/修复/音量/音高/情绪/音色/口音/耳语/非语言声删除/音乐人声分离，以及变速）；"
+        "语音内容编辑（替换/增添/删除）= 逐块 ASR 定位目标词，只改命中块、其余直通。"
         "输出音频 + 分段报告；长文本/长音频建议用 AuK-Flash（4 步）"
     )
 
@@ -260,6 +317,23 @@ class SFAuKLongSpeech:
                     "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.05,
                     "tooltip": "长音频处理「变速」档的目标倍率：2.0 = 快一倍（目标减半）、0.5 = 慢一倍",
                 }),
+                "edit_operation": (EDIT_OPTIONS, {
+                    "default": EDIT_REPLACE,
+                    "tooltip": "语音内容编辑模式的操作（对应官方模板）：替换/前插/后插/删除/锚点前删除/锚点后删除；"
+                               "节点按 edit_target 或 edit_anchor 在逐块 ASR 结果里定位命中块，只改命中块",
+                }),
+                "edit_target": ("STRING", {
+                    "default": "",
+                    "tooltip": "原词：替换的原文 / 删除的目标词 / 锚点删除的目标词（需与音频内容一致，按 ASR 文本匹配）",
+                }),
+                "edit_new": ("STRING", {
+                    "default": "",
+                    "tooltip": "替换的新词，或前插/后插要插入的内容",
+                }),
+                "edit_anchor": ("STRING", {
+                    "default": "",
+                    "tooltip": "锚点：前插/后插的参照词，或锚点删除的参照词",
+                }),
             },
         }
 
@@ -276,7 +350,8 @@ class SFAuKLongSpeech:
                 reference_seconds=10.0, pause_seconds=0.1, continuity=CONTINUITY_ROLLING,
                 seed=42, nfe_steps=32, cfg_strength=2.0, sway_sampling_coef=-1.0,
                 trim_trailing_silence=True, input_audio=None, voice_description="",
-                instruction="", duration_mode=DURATION_EQUAL, speed_multiplier=1.0):
+                instruction="", duration_mode=DURATION_EQUAL, speed_multiplier=1.0,
+                edit_operation=EDIT_REPLACE, edit_target="", edit_new="", edit_anchor=""):
         if mode not in MODE_OPTIONS:
             raise ValueError(f"未知模式：{mode!r}")
 
@@ -292,6 +367,11 @@ class SFAuKLongSpeech:
         if mode == MODE_PROCESS:
             return self._execute_process(
                 engine, input_audio, instruction, duration_mode, speed_multiplier,
+                max_chunk_seconds, seed, nfe_steps, cfg_strength, sway_sampling_coef,
+            )
+        if mode == MODE_EDIT:
+            return self._execute_edit(
+                engine, input_audio, edit_operation, edit_target, edit_new, edit_anchor,
                 max_chunk_seconds, seed, nfe_steps, cfg_strength, sway_sampling_coef,
             )
 
@@ -497,10 +577,155 @@ class SFAuKLongSpeech:
         return ({"waveform": audio.unsqueeze(0), "sample_rate": int(output_rate)}, report)
 
 
-def _make_chunk_report(mm, pbar, grand_total, per_chunk_span, expected_steps):
-    """按段索引返回进度回调：段内 vae_encode/encode/sample/decode 映射到总进度，并做中断检查。"""
-    phase_offsets = {"vae_encode": 0, "encode": 1, "sample": 2, "decode": 2 + expected_steps}
-    phase_spans = {"vae_encode": 1, "encode": 1, "sample": expected_steps, "decode": 1}
+    def _execute_edit(self, engine, input_audio, edit_operation, edit_target, edit_new, edit_anchor,
+                      max_chunk_seconds, seed, nfe_steps, cfg_strength, sway_sampling_coef):
+        """语音内容编辑：逐块 ASR 定位 → 只对命中块套用官方编辑指令 → 拼接（未命中块原样直通）。"""
+        instruction, search_text, add_text, remove_text = _edit_plan(
+            edit_operation, edit_target, edit_new, edit_anchor)
+        if input_audio is None:
+            raise ValueError("语音内容编辑需要连接 input_audio（待编辑的长音频）")
+
+        source = normalize_audio(input_audio)
+        if source is None:
+            raise ValueError("audio 输入为空")
+        waveform, sample_rate = source
+        # 内容编辑长度可变：源块上限保守取「30s 预算的一半再留 1s」，再取用户上限
+        chunk_limit = max(2.0, min(float(max_chunk_seconds), MAX_SEQUENCE_SECONDS / 2 - 1.0))
+        chunks = _split_source_chunks(waveform, sample_rate, chunk_limit)
+
+        from .auk.infer.audio_io import write_wav
+        from .auk.infer.pe import SenseVoiceSmallASR, estimate_speech_units
+
+        asr = SenseVoiceSmallASR(language="auto")
+        normalized_search = _normalize_match_text(search_text)
+
+        import comfy.model_management as mm
+        import comfy.utils
+
+        output_rate = engine.inference.target_sample_rate
+        expected_steps = 4 if engine.inference.is_flash else int(nfe_steps)
+        per_chunk_span = expected_steps + 4  # asr + vae_encode + encode + sample + decode
+        grand_total = per_chunk_span * len(chunks)
+        pbar = comfy.utils.ProgressBar(grand_total)
+        make_report = _make_chunk_report(mm, pbar, grand_total, per_chunk_span, expected_steps, asr_first=True)
+
+        generated_chunks = []
+        segment_reports = []
+        edited_indices = []
+        with engine.lock:
+            if engine.inference.memory_mode != "standard":
+                mm.unload_all_models()
+                mm.soft_empty_cache()
+            for index, (chunk_wave, start, end) in enumerate(chunks):
+                report = make_report(index)
+                source_seconds = (end - start) / float(sample_rate)
+
+                descriptor, path = tempfile.mkstemp(prefix="sf_auk_edit_", suffix=".wav")
+                os.close(descriptor)
+                try:
+                    write_wav(path, chunk_wave, sample_rate)
+                    result = asr.transcribe(path)
+                finally:
+                    try:
+                        os.remove(path)
+                    except FileNotFoundError:
+                        pass
+                report("asr", 1, 1)
+                if result.error:
+                    raise ValueError(f"第 {index + 1}/{len(chunks)} 块语音识别失败：{result.error}")
+                asr_text = str(result.text or "")
+                matched = bool(normalized_search) and normalized_search in _normalize_match_text(asr_text)
+                if not matched:
+                    generated_chunks.append(chunk_wave)  # 未命中：原样直通（不跑模型）
+                    report("decode", 1, 1)  # 该块进度补满
+                    segment_reports.append({
+                        "index": index + 1,
+                        "start_seconds": round(start / float(sample_rate), 2),
+                        "end_seconds": round(end / float(sample_rate), 2),
+                        "matched": False,
+                        "asr": asr_text[:200],
+                        "source_seconds": round(source_seconds, 2),
+                        "audio_seconds": round(chunk_wave.shape[-1] / float(sample_rate), 2),
+                    })
+                    continue
+
+                orig_units = estimate_speech_units(asr_text)
+                delta_units = (estimate_speech_units(add_text) if add_text else 0.0) - (
+                    estimate_speech_units(remove_text) if remove_text else 0.0)
+                factor = max(0.05, (orig_units + delta_units) / orig_units) if orig_units > 0 else 1.0
+                reference = (chunk_wave, sample_rate)
+                model_audio, qwen_audio = prepare_model_audio(reference, output_rate)
+                target_seconds = max(0.5, min(source_seconds * factor, MAX_SEQUENCE_SECONDS))
+                validate_sequence_duration(engine, model_audio, target_seconds)
+                content = [{"type": "text", "text": instruction}]
+                if qwen_audio is not None:
+                    content.append({"type": "audio", "audio": qwen_audio})
+                messages = [{"role": "user", "content": content}]
+                torch.manual_seed(int(seed) + index)
+                try:
+                    chunk_audio, chunk_rate = engine.inference.generate(
+                        messages,
+                        audio=model_audio,
+                        gen_seconds=target_seconds,
+                        nfe=int(nfe_steps),
+                        cfg_strength=float(cfg_strength),
+                        sway_sampling_coef=float(sway_sampling_coef),
+                        seed=int(seed) + index,
+                        progress_cb=report,
+                    )
+                except Exception as error:
+                    raise ValueError(
+                        f"长音频第 {index + 1}/{len(chunks)} 块编辑失败：{type(error).__name__}: {error}"
+                    ) from error
+                chunk_audio = _check_chunk_audio(chunk_audio, index, len(chunks))
+                generated_chunks.append(chunk_audio)
+                edited_indices.append(index + 1)
+                segment_reports.append({
+                    "index": index + 1,
+                    "start_seconds": round(start / float(sample_rate), 2),
+                    "end_seconds": round(end / float(sample_rate), 2),
+                    "matched": True,
+                    "asr": asr_text[:200],
+                    "source_seconds": round(source_seconds, 2),
+                    "applied_seconds": round(target_seconds, 2),
+                    "audio_seconds": round(chunk_audio.shape[-1] / float(chunk_rate), 2),
+                })
+
+        if not edited_indices:
+            preview = " | ".join(f"#{seg['index']}:{seg['asr'][:40]}" for seg in segment_reports)
+            raise ValueError(
+                f"未在逐块 ASR 结果中找到定位文本「{search_text}」，请确认用词与音频一致"
+                f"（ASR 预览：{preview[:300]}）"
+            )
+
+        audio = _concat_chunks(generated_chunks, output_rate, 0.0)
+        report = json.dumps({
+            "mode": MODE_EDIT,
+            "operation": edit_operation,
+            "target": str(edit_target or "").strip(),
+            "new": str(edit_new or "").strip(),
+            "anchor": str(edit_anchor or "").strip(),
+            "instruction": instruction,
+            "search_text": search_text,
+            "chunks": len(chunks),
+            "edited_chunks": edited_indices,
+            "total_seconds": round(audio.shape[-1] / float(output_rate), 2),
+            "segments": segment_reports,
+        }, ensure_ascii=False)
+        return ({"waveform": audio.unsqueeze(0), "sample_rate": int(output_rate)}, report)
+
+
+def _make_chunk_report(mm, pbar, grand_total, per_chunk_span, expected_steps, asr_first=False):
+    """按段索引返回进度回调：段内（可选 asr）vae_encode/encode/sample/decode 映射到总进度，并做中断检查。"""
+    shift = 1 if asr_first else 0
+    phase_offsets = {
+        "asr": 0,
+        "vae_encode": shift,
+        "encode": shift + 1,
+        "sample": shift + 2,
+        "decode": shift + 2 + expected_steps,
+    }
+    phase_spans = {"asr": 1, "vae_encode": 1, "encode": 1, "sample": expected_steps, "decode": 1}
 
     def make(chunk_index):
         base = chunk_index * per_chunk_span

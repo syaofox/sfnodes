@@ -156,3 +156,17 @@ nodes/audio/
 - **预设下拉按 scope 过滤**（`sf_auk_presets_lib` 的 `SCOPE_GENERATE`/`SCOPE_PROCESS`，组级默认 + 条目级覆盖）：处理模式只列 11 组可用模板（音高/语速/音量/情绪/音色/去口音/非语言声删除/耳语/增强/音乐人声分离/附音质改善），排除 TTS 两组、内容编辑/歌词、多人分离/按内容提取，以及"开头/结尾加声"位置型条目；Generate 节点默认 scope=generate，模板列表不变。
 - **明确不包含**（语义跨块不稳，v1 不做）：多人语音分离（按序/按内容）、位置型非语言编辑（开头/结尾加声，逐块生效语义不对）、内容编辑/歌词编辑（需 ASR 逐块定位目标词，留二期）。
 - 测试：`tests/test_auk_nodes.py` Process 段（单块上限四档/校验/分块与逐块参数/等长与变速目标/区间报告/不插静音/进度/忽略裁尾）+ `tests/test_auk_long_speech_js.js`（三模式显隐与预设填入）。
+
+### 146.16 SFAuKLongSpeech 语音内容编辑模式（2026-09）
+
+第四种 mode「语音内容编辑（替换/增添/删除）」：长音频里的目标词/锚点定位后只改命中块，其余块原样直通。
+
+- **结构化四字段**（不用自由 instruction）：`edit_operation`（替换/前插/后插/删除/锚点前删除/锚点后删除，对应官方中文模板）+ `edit_target`/`edit_new`/`edit_anchor`；`_edit_plan` 负责校验必填、生成指令、给出 ASR 定位文本与增删内容。选择结构化的原因：节点必须知道**搜什么词**（定位）和**增删了多少**（算目标时长）。
+- **定位**：每块写临时 WAV → 本地 `SenseVoiceSmallASR(language="auto")`（复用 §146.12 的引擎栈）→ `_normalize_match_text` 双侧归一（去空白/标点、小写）后做子串匹配；`edit_target`（替换/删除/锚点删除）或 `edit_anchor`（前插/后插/锚点删除）为定位文本；**所有命中块都编辑**（多块命中即多块套指令），未命中块不跑模型、原样拼接。
+- **时长**：内容缩放 `目标 = 源块 × (原字数 + 增删字数) / 原字数`（`estimate_speech_units` 加权字数，与 PE 的 content_scaled 同源）；夹到 30s 预算，超预算由 `validate_sequence_duration` 明确报错（提示减小 `max_chunk_seconds`）。切块上限保守取 `30/2 − 1s`（编辑长度可变）。
+- **未命中**：直接报错并附每块 ASR 预览（前 300 字），避免静默输出原音频。
+- **进度**：块内多一个 `asr` 阶段（总格 = 块数 ×（steps + 4）），直通块 ASR 后进度补满；中断检查沿用。
+- **报告**：operation/target/new/anchor/instruction/search_text/edited_chunks + 每块 ASR（截断 200 字）/matched/源与目标时长。
+- **前端**：编辑模式显示四字段与采样参数，隐藏 TTS/处理参数与预设下拉（结构化参数不经过预设）；`input_audio` 必接。
+- **不包含**：歌词编辑（`vocal_edit`，同形但要求无伴奏纯人声，模板不同，可后续按同机制加）。
+- 测试：`tests/test_auk_nodes.py` Edit 段（六操作指令/校验/归一/只改命中块/内容缩放时长/直通拼接/多块命中/未命中报错/进度）+ `tests/test_auk_long_speech_js.js`（编辑模式显隐）。

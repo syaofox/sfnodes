@@ -31,6 +31,7 @@ const EXT_NAME = "sfnodes.auk_long_speech";
 const MODE_REFERENCE = "参考音色 TTS";
 const MODE_DESCRIPTION = "声音描述 TTS";
 const MODE_PROCESS = "长音频处理（编辑/增强）";
+const MODE_EDIT = "语音内容编辑（替换/增添/删除）";
 
 const PRESET_GROUP = "预设分类";
 const PRESET_TEMPLATE = "提示词模板";
@@ -47,12 +48,17 @@ const PROCESS_WIDGETS = [
     "max_chunk_seconds", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
     PRESET_GROUP, PRESET_TEMPLATE, PRESET_APPLY,
 ];
+const EDIT_WIDGETS = [
+    "edit_operation", "edit_target", "edit_new", "edit_anchor",
+    "max_chunk_seconds", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
+];
 
 // 模式 -> 该模式生效的 widget（未列出的受管 widget 一律隐藏）
 const MODE_WIDGETS = {
     [MODE_REFERENCE]: [...TTS_WIDGETS, "reference_seconds"],
     [MODE_DESCRIPTION]: [...TTS_WIDGETS, "voice_description"],
     [MODE_PROCESS]: PROCESS_WIDGETS,
+    [MODE_EDIT]: EDIT_WIDGETS,
 };
 const MANAGED_WIDGETS = [...new Set(Object.values(MODE_WIDGETS).flat())];
 
@@ -62,6 +68,7 @@ const MODE_SOURCE_INPUTS = {
     [MODE_REFERENCE]: ["input_audio"],
     [MODE_DESCRIPTION]: [],
     [MODE_PROCESS]: ["input_audio"],
+    [MODE_EDIT]: ["input_audio"],
 };
 
 const SETUP = new WeakSet();
