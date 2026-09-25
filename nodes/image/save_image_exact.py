@@ -14,6 +14,9 @@
   compress_level=4（与原生 SaveImage 一致）。
 - 沿用原生 SaveImage 的 metadata 嵌入（png 仅，尊重 --disable-metadata）、
   `is_within_directory` 越界检查与 `_safe_prefix` 风格的非法字符清洗。
+- 可选 `caption`：非空时在图片旁写同名 `.txt` 侧车（数据集回转，与
+  SFLoadImagesCursor 的 caption 读端对称，见 experience/nodes-image.md §148；
+  多行折叠为 ", " 单行，batch>1 只写基名首帧文件，空值不写不删旧侧车）。
 
 无前端 JS，纯后端节点。
 """
@@ -81,6 +84,18 @@ def _safe_filename(raw):
     return result
 
 
+def _fold_caption(caption):
+    """caption 折叠为单行标签串：换行归一后逐行 strip、去空行、", " 连接。
+
+    与 SFLoadImagesCursor._caption_for 的读取合并规则 1:1（存回再读回幂等）；
+    空/纯空白返回 ""（调用方不写侧车）。
+    """
+    if not caption:
+        return ""
+    text = str(caption).replace("\r\n", "\n").replace("\r", "\n")
+    return ", ".join(line.strip() for line in text.split("\n") if line.strip())
+
+
 def _metadata_disabled():
     try:
         from comfy.cli_args import args as _comfy_cli_args
@@ -94,6 +109,7 @@ class SFSaveImageExact:
         "精确文件名保存图片（无计数后缀）：filename=\"seedvr/xiaoguo-v3gai/a1\" "
         "直接保存为 output/seedvr/xiaoguo-v3gai/a1.png，重复执行按 overwrite 决定覆盖或递增 "
         "（_1 风格，非 _00001_）。支持 png/jpeg/webp，batch>1 时首帧为精确名，后续帧 _1/_2..."
+        "可选 caption 在图片旁写同名 .txt 侧车（数据集回转，接 SFLoadImagesCursor 的 caption）。"
     )
 
     @classmethod
@@ -124,6 +140,11 @@ class SFSaveImageExact:
                     "step": 1,
                     "tooltip": "jpeg/webp 质量 1-100（png 忽略，png 固定 compress_level=4）",
                 }),
+                "caption": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "非空时在图片旁写同名 .txt 侧车（数据集 caption，可直连 SFLoadImagesCursor 的 caption）；多行折叠为 ', ' 单行与该节点读端对称，batch>1 只写基名（首帧）文件，空值不写也不删旧侧车",
+                }),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -137,7 +158,7 @@ class SFSaveImageExact:
     OUTPUT_NODE = True
     CATEGORY = _CATEGORY
 
-    def save(self, images, filename="ComfyUI", overwrite=True, format="png", quality=95,
+    def save(self, images, filename="ComfyUI", overwrite=True, format="png", quality=95, caption="",
              prompt=None, extra_pnginfo=None):
         # 清洗 filename，空则回退 ComfyUI
         cleaned = _safe_filename(filename) or "ComfyUI"
@@ -229,6 +250,13 @@ class SFSaveImageExact:
                 img.save(full_path, "JPEG", quality=q, subsampling=0, optimize=True)
             else:  # webp
                 img.save(full_path, "WEBP", quality=q, method=4)
+
+            # ── caption 侧车（仅基名首帧；空值不写、不删旧侧车）──
+            if batch_number == 0:
+                text = _fold_caption(caption)
+                if text:
+                    with open(os.path.splitext(full_path)[0] + ".txt", "w", encoding="utf-8") as f:
+                        f.write(text)
 
             results.append({
                 "filename": fname,

@@ -1623,3 +1623,12 @@ slice_track_data(track_data, start=0, length=0)
 - **前端**：复用 `web/load_images_path.js`（`LIP_CLASSES` 两宿主；Auto total 只对 SFLoadImagesPath 显示——游标节点不需要反向写循环 total）。
 - **测试**：`tests/test_load_images_cursor.py`——推进/回卷/停住、peek 无副作用、实例隔离、prefix/cap/skip/nth、reset、shuffle/random、None 形参、四类解码与遮罩、目录变化续跑、state_name 续跑与失效、空目录/坏图报错、caption 侧车；`tests/test_load_images_path.py` 随之改为从共享模块取 `resolve_folder/sort_key` 并加了排序断言。
 - **接线注意**：切片参数保持 widget（连线后 IS_CHANGED 拿到 None → 归一为默认，执行侧按真实值重建，只会让 peek 与实际错位，不丢图）。一次 Run 内批处理/循环仍用 SFLoadImagesPath + 循环节点（platform.md §145）。
+
+## 148. SFSaveImageExact caption 侧车：数据集 caption 回写（2026-09）
+
+> 背景：评估 ostris_nodes_comfyui 的 OstrisSaveImageDirect（任意绝对路径 + 同名 .txt 侧车 + 只存首帧）。结论：**不 1:1 复刻**——任意路径写盘与包内 containment 约定冲突（save_image_exact 的 output 外越界拒绝已有测试固化），且源节点自身有坑（`save_path` 无目录段时 `os.makedirs("")` 抛 FileNotFoundError；存到 output 外时 `ui.images` 按 `type=output`/`subfolder=''` 返回，前端预览必错位；batch>1 静默丢帧）。真正缺的只有"caption 回写"：§147 的 SFLoadImagesCursor 已读同名 `.txt`/`.caption`（多行合并 `", "`）并输出 `caption`/`filename_no_ext`/`full_path`，就绪等着 saver 端闭环。故把该能力并入现有 SFSaveImageExact（可选 `caption`），不新增节点。
+
+- **语义**：optional `caption`（multiline STRING，可接线）非空时在图片旁写 `<stem>.txt`（UTF-8）——空值不写、**不删旧侧车**；batch>1 只写基名（首帧）文件（单一 STRING 无法表达逐帧 caption，cursor 场景 batch 恒为 1）；`overwrite` 重复执行覆盖侧车；`overwrite=False` 递增命名时侧车跟基名。
+- **写读对称（回转幂等）**：写入前 `_fold_caption` 把 `\r\n`/`\r` 归一为 `\n` → 逐行 strip → 去空行 → `", "` 连接，与 `SFLoadImagesCursor._caption_for` 的读取合并规则 1:1，保证"存回去再读回来"不漂移。读端优先 `.txt` 再 `.caption`，故写 `.txt`。
+- **测试**：`tests/test_save_image_exact.py`——caption 存在性/折叠/CRLF/空白、中文 UTF-8、空值不写且不删旧侧车、batch 仅基名、overwrite 覆盖、increment 跟基名、jpeg 同名 stem。
+- **未吸收**：任意绝对路径写入（若将来确有 output 外数据集原地回转需求，需单独立项并显式设计：绝对路径=用户主动意图、`..` 仍拒绝、output 外帧不进 `ui.images` 或落 temp 预览）。

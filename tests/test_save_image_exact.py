@@ -224,6 +224,51 @@ except Exception as e:
 # 直接测试 is_within_directory 拒绝绝对逃逸（构造 subfolder 含 .. 的清洗已拒绝，回退）
 check("清洗后无 ..", sf("../../etc/passwd") == "")
 
+# ── caption 侧车 ──
+check("optional caption", "caption" in it["optional"] and it["optional"]["caption"][0] == "STRING")
+check("caption multiline", it["optional"]["caption"][1].get("multiline") is True)
+
+fold = mod._fold_caption
+check("_fold_caption 单行原样", fold("a cat") == "a cat")
+check("_fold_caption 多行折叠", fold("a cat\n\n  a dog  \r\n") == "a cat, a dog")
+check("_fold_caption CRLF", fold("x\r\ny") == "x, y")
+check("_fold_caption 空白/None", fold("   \n\t") == "" and fold("") == "" and fold(None) == "")
+
+clean_output()
+node.save(make_images(1), filename="cap/a", overwrite=True, format="png", caption="金色长发，蓝色眼睛\n白色背景")
+check("caption 侧车存在", exists("a.txt", "cap"))
+with open(os.path.join(tmp_output, "cap", "a.txt"), encoding="utf-8") as f:
+    check("caption 内容折叠", f.read() == "金色长发，蓝色眼睛, 白色背景")
+
+# 空 caption：不写、也不删旧侧车
+clean_output()
+node.save(make_images(1), filename="cap2/b", overwrite=True, format="png", caption="旧标签")
+node.save(make_images(1), filename="cap2/b", overwrite=True, format="png", caption="   ")
+with open(os.path.join(tmp_output, "cap2", "b.txt"), encoding="utf-8") as f:
+    check("空 caption 不删旧侧车", f.read() == "旧标签")
+
+# batch>1：仅基名首帧写侧车
+clean_output()
+node.save(make_images(3), filename="cap3/c", overwrite=True, format="png", caption="batch标签")
+check("batch 仅基名侧车", exists("c.txt", "cap3") and not exists("c_1.txt", "cap3") and not exists("c_2.txt", "cap3"))
+
+# overwrite 重复执行：侧车更新
+clean_output()
+node.save(make_images(1), filename="cap4/d", overwrite=True, format="png", caption="v1")
+node.save(make_images(1), filename="cap4/d", overwrite=True, format="png", caption="v2")
+with open(os.path.join(tmp_output, "cap4", "d.txt"), encoding="utf-8") as f:
+    check("overwrite 覆盖侧车", f.read() == "v2")
+
+# overwrite=False 递增：侧车跟基名
+clean_output()
+node.save(make_images(1), filename="cap5/e", overwrite=False, format="png", caption="inc")
+check("increment 侧车跟基名", exists("e.png", "cap5") and exists("e.txt", "cap5") and not exists("e_1.txt", "cap5"))
+
+# format=jpeg：侧车与 .jpg 并列
+clean_output()
+node.save(make_images(1), filename="cap6/f", overwrite=True, format="jpeg", quality=80, caption="jpg标签")
+check("jpeg 侧车同名 stem", exists("f.jpg", "cap6") and exists("f.txt", "cap6"))
+
 print("\nFAILURES:", len(failures))
 if failures:
     print(failures)
