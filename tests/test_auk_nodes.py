@@ -33,6 +33,17 @@ class FakeTensor:
     def T(self):
         return self
 
+    def __getitem__(self, index):
+        if isinstance(index, int):
+            return FakeTensor(self.shape[1:], self._finite)
+        if (isinstance(index, tuple) and len(index) == 2
+                and index[0] is Ellipsis and isinstance(index[1], slice)):
+            start, stop, step = index[1].indices(self.shape[-1])
+            shape = list(self.shape)
+            shape[-1] = len(range(start, stop, step))
+            return FakeTensor(shape, self._finite)
+        return self
+
     def detach(self):
         return self
 
@@ -103,6 +114,17 @@ torch.Tensor = FakeTensor
 torch.is_tensor = lambda value: isinstance(value, FakeTensor)
 torch.isfinite = lambda value: FakeTensor(getattr(value, "shape", ()), finite=True)
 torch.manual_seed = lambda seed: None
+torch.zeros = lambda *shape, **kwargs: FakeTensor(tuple(int(s) for s in shape))
+
+
+def _fake_cat(tensors, dim=-1):
+    total = sum(t.shape[dim] for t in tensors)
+    shape = list(tensors[0].shape)
+    shape[dim] = total
+    return FakeTensor(tuple(shape))
+
+
+torch.cat = _fake_cat
 sys.modules["torch"] = torch
 
 torchaudio = types.ModuleType("torchaudio")
@@ -220,6 +242,8 @@ class PromptEnhancerError(RuntimeError):
 
 
 pe_stub.PromptEnhancerError = PromptEnhancerError
+# 假估计：0.1 秒/字符（便于手算分段）
+pe_stub.estimate_speech_seconds = lambda text, language=None: len(str(text)) * 0.1
 
 
 class FakeSenseVoice:
@@ -308,6 +332,7 @@ sys.modules["fake_llama_plugin"] = plugin
 from nodes.audio import auk_config as C  # noqa: E402
 from nodes.audio import auk_generate as G  # noqa: E402
 from nodes.audio import auk_loader as L  # noqa: E402
+from nodes.audio import auk_long_speech as LS  # noqa: E402
 from nodes.audio import auk_transcribe as T  # noqa: E402
 
 failures = []
@@ -549,6 +574,87 @@ check("消息携带音频", engine.inference.generate_calls[-1][0][0]["content"]
 check("input_audio 非法批大小拒绝", raises(node.execute, engine, "hi", 1.0, False, 42, input_audio={"waveform": FakeTensor((2, 1, 100)), "sample_rate": 24000}))
 check("input_audio 非法采样率拒绝", raises(node.execute, engine, "hi", 1.0, False, 42, input_audio={"waveform": FakeTensor((1, 1, 100)), "sample_rate": 0}))
 check("30s 预算拒绝", raises(node.execute, engine, "hi", 1.0, False, 42, input_audio={"waveform": FakeTensor((1, 1, 30 * 24000)), "sample_rate": 24000}))
+
+# ── SF AuK Long Speech ──
+schema = LS.SFAuKLongSpeech.INPUT_TYPES()
+required_keys = {"engine", "text", "mode", "max_chunk_seconds", "ref_tail_seconds", "reference_seconds",
+                 "pause_seconds", "continuity", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
+                 "trim_trailing_silence"}
+check("LongSpeech required 十三项", set(schema["required"]) == required_keys)
+check("LongSpeech optional 两项", set(schema["optional"]) == {"input_audio", "voice_description"})
+check("LongSpeech 输出", LS.SFAuKLongSpeech.RETURN_TYPES == ("AUDIO", "STRING")
+      and LS.SFAuKLongSpeech.RETURN_NAMES == ("audio", "report"))
+check("LongSpeech 模式/连续性选项", schema["required"]["mode"][0] == ["参考音色 TTS", "声音描述 TTS"]
+      and schema["required"]["continuity"][0] == ["滚动参考", "同一参考"])
+
+long_node = LS.SFAuKLongSpeech()
+check("LongSpeech 空文本拒绝", raises(long_node.execute, FakeEngine(), "  ", "参考音色 TTS"))
+check("LongSpeech 参考模式缺音频拒绝", raises(long_node.execute, FakeEngine(), "你好。", "参考音色 TTS"))
+check("LongSpeech 描述模式缺描述拒绝", raises(long_node.execute, FakeEngine(), "你好。", "声音描述 TTS"))
+check("LongSpeech 未知模式拒绝", raises(long_node.execute, FakeEngine(), "你好。", "未知"))
+check("LongSpeech 未知连续性拒绝", raises(long_node.execute, FakeEngine(), "你好。", "声音描述 TTS",
+      voice_description="温柔女声", continuity="未知"))
+
+real_fade = LS._fade_edges
+LS._fade_edges = lambda waveform, sample_rate, fade_ms=5.0, fade_in=True, fade_out=True: waveform
+try:
+    long_engine = FakeEngine()
+    ref = {"waveform": FakeTensor((1, 1, 24000 * 6)), "sample_rate": 24000}
+    audio_out, report = long_node.execute(
+        long_engine, "第一句。第二句。第三句。第四句。", "参考音色 TTS",
+        max_chunk_seconds=0.5, ref_tail_seconds=2.0, reference_seconds=4.0, pause_seconds=0.1,
+        trim_trailing_silence=False, input_audio=ref,
+    )
+    parsed = json.loads(report)
+    calls = long_engine.inference.generate_calls
+    check("LongSpeech 逐段生成", parsed["chunks"] == 4 and len(calls) == 4)
+    check("LongSpeech 段种子递增", [call[1]["seed"] for call in calls] == [42, 43, 44, 45])
+    check("LongSpeech 首段用输入参考并裁剪", parsed["segments"][0]["reference"] == "input_audio"
+          and parsed["segments"][0]["reference_seconds"] == 4.0)
+    check("LongSpeech 后续段滚动参考", all(seg["reference"] == "rolling" for seg in parsed["segments"][1:]))
+    check("LongSpeech 逐段消息模板", "第一句。" in calls[0][0][0]["content"][0]["text"]
+          and calls[0][0][0]["content"][0]["text"].startswith("Say the following with the same voice"))
+    check("LongSpeech 进度条总格", FakeProgressBar.instances[-1].total == 4 * (32 + 3))
+    check("LongSpeech 拼接长度", audio_out["waveform"].shape == (1, 1, 4 * 1000 + 3 * 2400)
+          and audio_out["sample_rate"] == 24000)
+    check("LongSpeech 报告总时长", abs(parsed["total_seconds"] - (4 * 1000 + 3 * 2400) / 24000) < 0.01)
+
+    fixed_engine = FakeEngine()
+    long_node.execute(fixed_engine, "第一句。第二句。", "参考音色 TTS", max_chunk_seconds=0.5,
+                      reference_seconds=4.0, continuity="同一参考", trim_trailing_silence=False, input_audio=ref)
+    fixed_calls = fixed_engine.inference.generate_calls
+    check("LongSpeech 同一参考复用", len(fixed_calls) == 2
+          and fixed_calls[1][1]["audio"][0] is fixed_calls[0][1]["audio"][0])
+
+    desc_engine = FakeEngine()
+    _, report2 = long_node.execute(
+        desc_engine, "你好。世界。", "声音描述 TTS", voice_description="温柔的年轻女声",
+        max_chunk_seconds=0.5, trim_trailing_silence=False)
+    desc_calls = desc_engine.inference.generate_calls
+    parsed2 = json.loads(report2)
+    check("LongSpeech 描述模式首段无参考", desc_calls[0][1]["audio"] is None
+          and parsed2["segments"][0]["reference"] == "none")
+    check("LongSpeech 描述模板", "温柔的年轻女声" in desc_calls[0][0][0]["content"][0]["text"])
+    check("LongSpeech 描述模式次段滚动参考", desc_calls[1][1]["audio"] is not None
+          and parsed2["segments"][1]["reference"] == "rolling")
+
+    flash_long = FakeEngine(is_flash=True)
+    long_node.execute(flash_long, "你好。", "参考音色 TTS", max_chunk_seconds=1.0,
+                      trim_trailing_silence=False, input_audio=ref)
+    flash_kwargs = flash_long.inference.generate_calls[-1][1]
+    check("LongSpeech Flash 自动锁定",
+          (flash_kwargs["nfe"], flash_kwargs["cfg_strength"], flash_kwargs["sway_sampling_coef"]) == (4, 0.0, -1.0))
+
+    trim_calls = []
+    real_trim = LS._trim_trailing_silence
+    LS._trim_trailing_silence = lambda waveform, sample_rate: trim_calls.append(sample_rate) or waveform
+    long_node.execute(FakeEngine(), "你好。", "参考音色 TTS", max_chunk_seconds=1.0,
+                      trim_trailing_silence=True, input_audio=ref)
+    check("LongSpeech 裁尾静音接线", trim_calls == [24000])
+    LS._trim_trailing_silence = real_trim
+finally:
+    LS._fade_edges = real_fade
+
 
 if failures:
     print(f"\n{len(failures)} 项失败：")

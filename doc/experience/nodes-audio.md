@@ -120,3 +120,16 @@ nodes/audio/
 - **仅本地**：不接腾讯云 ASR（避免独立工具节点静默上传音频）；首次使用经 funasr/ModelScope 下载 SenseVoiceSmall（~900MB，缓存于 `.cache`），之后离线可用。语言码映射：自动→auto、中文→zh、英文→en、粤语→yue、日语→ja、韩语→ko。
 - **报错**：未知语言、识别失败（`ASRCall.error`）、空文本（无人声/过短）均抛 `ValueError` 带原因，不静默返回空串。
 - 测试在 `tests/test_auk_nodes.py`（schema/语言映射/临时文件写入与清理/失败与空文本路径）。
+
+### 146.13 SFAuKLongSpeech：长文本语音合成（2026-09）
+
+30 秒是**单次模型序列预算**（参考 + 目标），拼接总时长不受限。`SFAuKLongSpeech`（显示名 SF AuK Long Speech）把长文本做成：分句 → 按时长估计打包 → 逐段生成 → 拼接。
+
+- **分句与打包**（纯逻辑 `sf_utils/text_chunk.py`）：中英句末（`。！？…` 与后接空白/行尾的 `.!?`）与换行切句并保留后置引号；超长单元先按 `，,、；;：:` 次级切分、再按字符二分硬切（切出的纯标点片并入前片，避免孤标点成段）；按 `estimate(text)` 贪心打包并留 8% 余量。
+- **时长估计单源**：`pe.py` 新增公共包装 `estimate_speech_seconds(text, language=None)`（内部即 instruct_tts 的 F5/utf8 权重估计，zh 0.0803、en 0.0656 s/字节），长文本节点与 PE 共用同一口径；不走 LLM。
+- **逐段生成**：首段参考 = `input_audio`（按 `reference_seconds` 截前 N 秒，0=全长）；后续段参考 = 上一段生成音频尾部 `ref_tail_seconds`（滚动参考，模型把参考当前缀续说；`同一参考`档则复用首段参考）。每段 `gen_seconds = 估计 × 1.08 + 0.15` 并夹到 `30s − 参考` 预算；`engine.lock` 全程持有、`unload_all_models` 只在循环前一次；逐段 `seed + 段序号` 可复现。
+- **指令模板**：参考音色模式全段 `Say the following with the same voice: "{段文本}"`；声音描述模式仅首段用 `Generate speech based on ... description ...`（后续段音色已由滚动参考建立，改用 same-voice 模板避免描述与参考冲突）。
+- **拼接**：每段可选按 20ms 窗口能量裁尾静音（防段间静音累积），段间 `pause_seconds` 静音 + 5ms 淡入淡出（仅拼接边），`torch.cat`。
+- **进度/中断**：总格 = 段数 ×（nfe+3：vae_encode/encode/sample/decode），沿用 `progress_cb` + `throw_exception_if_processing_interrupted`，长任务可取消。
+- **失败**：任一段失败抛 `ValueError` 带段号（不输出半截音频）。
+- 测试：`tests/test_text_chunk.py`（分句/硬切/打包纯逻辑）+ `tests/test_auk_nodes.py` LongSpeech 段（schema/校验/逐段参数与种子/滚动与同一参考/描述模式模板/拼接长度/进度/Flash 锁定/裁尾接线）。

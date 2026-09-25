@@ -1506,6 +1506,17 @@ def _estimate_f5_zero_shot_duration(
     return target_frames * F5_HOP_LENGTH / F5_SAMPLE_RATE
 
 
+def estimate_speech_seconds(text: str, language: str | None = None) -> float:
+    """sfnodes 扩展：纯本地时长估计（utf8 权重 + F5 短文本速度），供长文本分段规划复用。
+
+    与 instruct_tts 的 F5 估计同源；不发起任何 LLM/网络调用。
+    """
+    value = str(text or "")
+    if not value.strip():
+        return 0.0
+    return _estimate_f5_instruct_duration(value, language)
+
+
 def _spoken_duration(text: str | None, fallback_language: str | None) -> float:
     value = str(text or "")
     num_zh = len(_CJK_RE.findall(value))
