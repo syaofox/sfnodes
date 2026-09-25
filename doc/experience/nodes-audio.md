@@ -101,3 +101,13 @@ nodes/audio/
 - `SFAuKModelsLoader`：模块内 `_CACHE` 改**强引用**；`_release_others(key)` 释放非当前 key 的全部引擎；`IS_CHANGED` 恒 `NaN`（ComfyUI 执行缓存不复用引擎对象，避免命中已释放的旧引擎；引擎复用由 `_CACHE` 负责）。
 - 释放时机：仅在**显存不足**时触发——max_vram 放置失败走引擎 `vram_retry` 回调（已建好的 CPU 模型无需重载），low_vram/balanced 放置抛 `torch.cuda.OutOfMemoryError` 走 loader catch 后重试一次（重新构建）。同图多个 AuK 引擎只要显存放得下就不会被提前释放；放不下时后者会释放前者（该组合本身跑不动，日志有 `Released N previous AuK engine(s)`）。
 - 引擎侧新增 `InsufficientVRAMError(ValueError)`（max_vram 显存不足专用），报错文案不变。
+
+### 146.11 官方提示词预设下拉（sfnodes 扩展，2026-09）
+
+`SFAuKGenerateEdit` 顶部（instruction 之前）挂「预设分类 → 提示词模板」两个下拉 + 「填入 instruction」按钮：选模板即把官方 instruction 模板（保留 `{占位符}`）整段写入 instruction 文本控件，分类切换只重建模板选项不写文本。
+
+- 数据：`web/sf_auk_presets_lib.js`（纯模块，17 组 = 16 类 + 附音质改善，含各语言/变体与「官方演示原句」条目；来源 AuK 官方 COOKBOOK.md / infer_gradio.py，MIT），纯函数 `groupNames/itemsOf/templateText`。
+- 挂载：`web/sf_auk_generate.js`（registerExtension `sfnodes.auk_generate`）在 `nodeCreated` 用 `addWidget("combo"/"button")` 追加后**原地重排**（`node.widgets.length = 0` + push，保持数组引用）到 instruction 之前。
+- **不占 widgets_values**：三个控件都带 `serialize:false`（前端在序列化与位置恢复时均跳过 `serialize === false` 的 widget，`addCustomWidget` 也因此不做即时恢复）——旧工作流的 8 项位置值原样归位，零迁移；选择状态改存 `node.properties.sfAukPresetGroup/sfAukPresetTemplate`，加载时在 `configure` 包装与 `onAfterGraphConfigured` 双路恢复（base configure 先恢复 properties 再恢复 widget 值，故包装内读取可靠）。
+- 「填入」按钮用于重复套用：下拉值未变时 callback 不触发，按钮可再填一次；加载恢复只重建选项、不覆盖 instruction。
+- 纯前端改动：同步部署目录后浏览器硬刷新即可，无需重启后端。
