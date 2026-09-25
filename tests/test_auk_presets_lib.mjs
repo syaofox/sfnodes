@@ -32,6 +32,21 @@ check("占位符花括号配对", groups.every((g) => g.items.every((it) =>
 check("默认组/模板有效", L.DEFAULT_GROUP === groups[0].name && L.DEFAULT_TEMPLATE === groups[0].items[0].label);
 
 check("groupNames 与数据一致", JSON.stringify(L.groupNames()) === JSON.stringify(groups.map((g) => g.name)));
+
+// ── scope 过滤（generate = 全部；process = 长音频处理可用项）──
+const processGroups = L.groupNames(L.SCOPE_PROCESS);
+check("process 组数 11", processGroups.length === 11);
+check("process 排除 TTS 与长模式不适用组", ["1. 参考音色 TTS", "2. 声音描述 TTS", "3. 语音内容编辑（替换、增添、删除）",
+      "4. 歌词编辑", "14. 多人语音分离", "16. 按说话内容提取目标说话人"]
+      .every((name) => !processGroups.includes(name)));
+check("process 含增强/语速/分离/附", ["5. 音高调整", "6. 语速调整", "13. 语音增强（降噪、去混响、修复）",
+      "15. 音乐人声分离", "附：官方音质改善演示"].every((name) => processGroups.includes(name)));
+check("process 组 11 仅 Remove", JSON.stringify(L.itemsOf("11. 非语言声音编辑", L.SCOPE_PROCESS).map((i) => i.label))
+      === JSON.stringify(["Remove · EN", "Remove · CN"]));
+check("process 查 TTS 组为空", L.itemsOf("1. 参考音色 TTS", L.SCOPE_PROCESS).length === 0);
+check("process 组 5 全量", L.itemsOf("5. 音高调整", L.SCOPE_PROCESS).length === 5);
+check("默认 scope = generate", L.itemsOf("11. 非语言声音编辑").length === 5
+      && L.itemsOf("1. 参考音色 TTS").length === 2);
 check("itemsOf 命中", L.itemsOf("5. 音高调整").length === 5);
 check("itemsOf 未知回退空数组", Array.isArray(L.itemsOf("不存在")) && L.itemsOf("不存在").length === 0);
 check("templateText 命中", L.templateText("1. 参考音色 TTS", "EN & CN") === `Say the following with the same voice: "{text}"`);

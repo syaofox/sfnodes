@@ -5,10 +5,19 @@
 //
 // 纯数据 + 纯函数模块：无 app/ComfyUI 依赖，可拷贝为 .mjs 直接测试
 // （tests/test_auk_presets_lib.mjs）。控件挂载与填入逻辑在 sf_auk_generate.js。
+//
+// scope（适用场景，组级默认、条目级可覆盖）：
+//   generate = SFAuKGenerateEdit（单段 ≤30s，全部模板可用）
+//   process  = SFAuKLongSpeech 长音频处理模式（逐块套用；排除 TTS、内容编辑/歌词、
+//              多人分离/按内容提取，以及"开头/结尾加声"这类位置型条目）
+
+export const SCOPE_GENERATE = "generate";
+export const SCOPE_PROCESS = "process";
 
 export const AUK_PRESET_GROUPS = [
     {
         name: "1. 参考音色 TTS",
+        scopes: ["generate"],
         items: [
             { label: "EN & CN", text: `Say the following with the same voice: "{text}"` },
             { label: "官方演示原句", text: `Say the following with the same voice: 'Ladies and gentlemen, it's an honor to have the opportunity to address such a distinguished audience'` },
@@ -16,6 +25,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "2. 声音描述 TTS",
+        scopes: ["generate"],
         items: [
             { label: "EN", text: `Generate speech based on the following description: "{voice description}". The content to speak is: "{text}".` },
             { label: "CN", text: `请基于下面的描述: "{声音描述}",生成语音内容"{文本}".` },
@@ -24,6 +34,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "3. 语音内容编辑（替换、增添、删除）",
+        scopes: ["generate"],
         items: [
             { label: "Replace · EN", text: `Replace '{original}' with '{new}'.` },
             { label: "Replace · CN", text: `把‘{原文}’改成‘{新文}’` },
@@ -40,6 +51,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "4. 歌词编辑",
+        scopes: ["generate"],
         items: [
             { label: "EN", text: `Change "{original lyrics}" to "{new lyrics}" in the vocal recording.` },
             { label: "CN", text: `把这段歌词中的“{原歌词}”改成“{新歌词}”。` },
@@ -48,6 +60,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "5. 音高调整",
+        scopes: ["generate", "process"],
         items: [
             { label: "Raise · EN", text: `Raise the pitch by {1/2/3} semitones.` },
             { label: "Raise · CN", text: `将音调升高{1/2/3}个半音。` },
@@ -58,6 +71,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "6. 语速调整",
+        scopes: ["generate", "process"],
         items: [
             { label: "EN", text: `Adjust the speech speed to {0.5/0.75/1.25/1.5/2.0}x.` },
             { label: "CN", text: `将语速调整为{0.5/0.75/1.25/1.5/2.0}倍。` },
@@ -66,6 +80,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "7. 音量调整",
+        scopes: ["generate", "process"],
         items: [
             { label: "Increase · EN", text: `Increase the volume by {5/10/15} dB.` },
             { label: "Increase · CN", text: `将音量升高{5/10/15}分贝。` },
@@ -76,6 +91,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "8. 情绪转换",
+        scopes: ["generate", "process"],
         items: [
             { label: "EN", text: `Change the emotion to {happy/angry/sad/fearful/surprised/disgusted/calm/excited}.` },
             { label: "CN", text: `将情感转变为{开心/愤怒/悲伤/恐惧/惊讶/厌恶/平静/兴奋}。` },
@@ -84,6 +100,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "9. 音色转换",
+        scopes: ["generate", "process"],
         items: [
             { label: "EN", text: `Keep the spoken content unchanged and change the timbre to: "{description}".` },
             { label: "CN", text: `请将这段音频的音色修改为符合以下描述的声音：“{音色描述}”。` },
@@ -92,6 +109,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "10. 去口音",
+        scopes: ["generate", "process"],
         items: [
             { label: "EN", text: `Remove the regional accent while preserving the speaker's voice and content.` },
             { label: "CN", text: `请去掉这段语音里的方言口音，保持说话人音色一致。` },
@@ -100,16 +118,18 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "11. 非语言声音编辑",
+        scopes: ["generate", "process"],
         items: [
             { label: "Remove · EN", text: `Remove all {breaths/laughs/coughs/etc.} from the audio.` },
             { label: "Remove · CN", text: `删除音频中所有的{换气声/笑声/咳嗽声等}。` },
-            { label: "Add · EN", text: `Add a {sound} at the {beginning/end} of the speech.` },
-            { label: "Add · CN", text: `在语音{开头/结尾}增加{声音}。` },
-            { label: "官方演示原句", text: `Add a breath before “We tested”` },
+            { label: "Add · EN", text: `Add a {sound} at the {beginning/end} of the speech.`, scopes: ["generate"] },
+            { label: "Add · CN", text: `在语音{开头/结尾}增加{声音}。`, scopes: ["generate"] },
+            { label: "官方演示原句", text: `Add a breath before “We tested”`, scopes: ["generate"] },
         ],
     },
     {
         name: "12. 耳语与正常语音互转",
+        scopes: ["generate", "process"],
         items: [
             { label: "To whisper · EN", text: `Convert this speech into a soft whisper while preserving the speaker and content.` },
             { label: "To whisper · CN", text: `用小声耳语的方式把这段话说出来。` },
@@ -120,6 +140,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "13. 语音增强（降噪、去混响、修复）",
+        scopes: ["generate", "process"],
         items: [
             { label: "Denoise · EN", text: `Remove only the background noise, preserve everything else, and output audio of the same length.` },
             { label: "Denoise · CN", text: `请只去除背景噪声，保留其他内容，输出等长结果。` },
@@ -134,6 +155,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "14. 多人语音分离",
+        scopes: ["generate"],
         items: [
             { label: "EN", text: `Keep only the {first/second/etc.} speaker to start talking and remove all other speakers.` },
             { label: "CN", text: `只保留第{序号}个开始说话的人，去掉其余说话人。` },
@@ -142,6 +164,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "15. 音乐人声分离",
+        scopes: ["generate", "process"],
         items: [
             { label: "Singing only · EN", text: `Keep only the singing voice and remove everything else.` },
             { label: "Singing only · CN", text: `请只保留歌声，其余声音都去掉。` },
@@ -152,6 +175,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "16. 按说话内容提取目标说话人",
+        scopes: ["generate"],
         items: [
             { label: "EN", text: `Keep only the speaker who says "{content}" and remove all other speakers.` },
             { label: "CN", text: `请只保留说“{内容}”的人，去掉其他说话人。` },
@@ -160,6 +184,7 @@ export const AUK_PRESET_GROUPS = [
     },
     {
         name: "附：官方音质改善演示",
+        scopes: ["generate", "process"],
         items: [
             { label: "官方演示原句", text: `Improve the audio quality and make it clearer` },
         ],
@@ -169,13 +194,20 @@ export const AUK_PRESET_GROUPS = [
 export const DEFAULT_GROUP = AUK_PRESET_GROUPS[0].name;
 export const DEFAULT_TEMPLATE = AUK_PRESET_GROUPS[0].items[0].label;
 
-export function groupNames() {
-    return AUK_PRESET_GROUPS.map((group) => group.name);
+function itemScopes(group, item) {
+    return item.scopes ?? group.scopes ?? [SCOPE_GENERATE];
 }
 
-export function itemsOf(groupName) {
+export function groupNames(scope = SCOPE_GENERATE) {
+    return AUK_PRESET_GROUPS
+        .filter((group) => group.items.some((item) => itemScopes(group, item).includes(scope)))
+        .map((group) => group.name);
+}
+
+export function itemsOf(groupName, scope = SCOPE_GENERATE) {
     const group = AUK_PRESET_GROUPS.find((entry) => entry.name === groupName);
-    return group ? group.items : [];
+    if (!group) return [];
+    return group.items.filter((item) => itemScopes(group, item).includes(scope));
 }
 
 export function templateText(groupName, label) {

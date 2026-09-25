@@ -143,3 +143,16 @@ nodes/audio/
 - **插槽增删**：`input_audio` 在声音描述模式**未连线时移除、已连线保留**（不静默断线，后端按模式忽略该输入）；复用 `sf_dynamic_slots.removeInputAt/syncInputLinkTargets` 修正后续 `link.target_slot`。
 - **重放**：mode callback + `onAfterGraphConfigured` 双路（加载/粘贴恢复时 configure 直赋 widget 值不触发 callback）。
 - 测试 `tests/test_auk_long_speech_js.js`（17 断言）；`check_web_imports.py` MODS 登记 `sf_auk_long_speech`。
+
+### 146.15 SFAuKLongSpeech 长音频处理模式（编辑/增强，2026-09）
+
+第三种 mode「长音频处理（编辑/增强）」：输入整段长音频，逐块处理后拼回。适用于**等长类**任务（语音增强/去噪/去混响、音质修复、音量、音高、情绪、音色、去口音、耳语互转、非语言声删除、音乐人声分离）与**变速**。
+
+- **预算约束**：处理类任务里源音频同时占 30s 预算（源块 + 目标块），单块源上限 = `30 / (1 + 目标倍率) − 0.3s`（等长 ≈14.7s、变速 2× ≈19.7s、变速 0.5× ≈9.7s），再取用户 `max_chunk_seconds` 的较小值（`_process_chunk_limit`）。TTS 模式的 `max_chunk_seconds`（默认 24）对处理模式只是上限。
+- **切块**：`_split_source_chunks` 在目标切点前 1.2s 内找最低能量 20ms 窗口切（避开词中），总长不超上限则整段；纯 torch，容器实测。
+- **逐块生成**：每块**以自身为源**（编辑语义，不用滚动参考）；`gen_seconds = 源块秒数 × 倍率`（等长 1.0、变速 1/speed）；instruction 由用户填写（前端预设下拉复用 `sf_auk_presets_lib` 官方模板）；`seed + 块序号`。
+- **拼接**：不插静音（避免改变时间轴），块间 5ms 淡出/淡入（`_concat_chunks(pause=0)`）；`trim_trailing_silence` 在处理模式**忽略**（源静音属于内容）。
+- **mode 联动显隐**（§146.14 扩展）：处理模式显示 `instruction`/`duration_mode`/`speed_multiplier`/预设三件套，隐藏 TTS 参数；`input_audio` 在参考音色与处理模式都需要。
+- **预设下拉按 scope 过滤**（`sf_auk_presets_lib` 的 `SCOPE_GENERATE`/`SCOPE_PROCESS`，组级默认 + 条目级覆盖）：处理模式只列 11 组可用模板（音高/语速/音量/情绪/音色/去口音/非语言声删除/耳语/增强/音乐人声分离/附音质改善），排除 TTS 两组、内容编辑/歌词、多人分离/按内容提取，以及"开头/结尾加声"位置型条目；Generate 节点默认 scope=generate，模板列表不变。
+- **明确不包含**（语义跨块不稳，v1 不做）：多人语音分离（按序/按内容）、位置型非语言编辑（开头/结尾加声，逐块生效语义不对）、内容编辑/歌词编辑（需 ASR 逐块定位目标词，留二期）。
+- 测试：`tests/test_auk_nodes.py` Process 段（单块上限四档/校验/分块与逐块参数/等长与变速目标/区间报告/不插静音/进度/忽略裁尾）+ `tests/test_auk_long_speech_js.js`（三模式显隐与预设填入）。

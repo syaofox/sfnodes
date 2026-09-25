@@ -585,11 +585,13 @@ required_keys = {"engine", "text", "mode", "max_chunk_seconds", "speech_rate", "
 check("LongSpeech required 十四项", set(schema["required"]) == required_keys)
 check("LongSpeech 语速默认 4.15", schema["required"]["speech_rate"][1]["default"] == 4.15
       and schema["required"]["speech_rate"][1]["min"] == 3.0 and schema["required"]["speech_rate"][1]["max"] == 6.0)
-check("LongSpeech optional 两项", set(schema["optional"]) == {"input_audio", "voice_description"})
+check("LongSpeech optional 五项", set(schema["optional"]) == {"input_audio", "voice_description",
+      "instruction", "duration_mode", "speed_multiplier"})
 check("LongSpeech 输出", LS.SFAuKLongSpeech.RETURN_TYPES == ("AUDIO", "STRING")
       and LS.SFAuKLongSpeech.RETURN_NAMES == ("audio", "report"))
-check("LongSpeech 模式/连续性选项", schema["required"]["mode"][0] == ["参考音色 TTS", "声音描述 TTS"]
-      and schema["required"]["continuity"][0] == ["滚动参考", "同一参考"])
+check("LongSpeech 模式/连续性选项", schema["required"]["mode"][0] == ["参考音色 TTS", "声音描述 TTS", "长音频处理（编辑/增强）"]
+      and schema["required"]["continuity"][0] == ["滚动参考", "同一参考"]
+      and schema["optional"]["duration_mode"][0] == ["等长", "变速"])
 
 long_node = LS.SFAuKLongSpeech()
 check("LongSpeech 空文本拒绝", raises(long_node.execute, FakeEngine(), "  ", "参考音色 TTS"))
@@ -676,6 +678,69 @@ try:
     LS._trim_trailing_silence = real_trim
 finally:
     LS._fade_edges = real_fade
+
+
+# ── SF AuK Long Speech：长音频处理模式 ──
+check("Process 单块上限：等长", abs(LS._process_chunk_limit("等长", 1.0, 24.0) - 14.7) < 0.01)
+check("Process 单块上限：变速 2x", abs(LS._process_chunk_limit("变速", 2.0, 24.0) - 19.7) < 0.01)
+check("Process 单块上限：变速 0.5x", abs(LS._process_chunk_limit("变速", 0.5, 24.0) - 9.7) < 0.01)
+check("Process 单块上限：用户上限优先", LS._process_chunk_limit("等长", 1.0, 8.0) == 8.0)
+
+process_node = LS.SFAuKLongSpeech()
+check("Process 缺音频拒绝", raises(process_node.execute, FakeEngine(), "", "长音频处理（编辑/增强）",
+      instruction="请只去除背景噪声，保留其他内容，输出等长结果。"))
+check("Process 缺指令拒绝", raises(process_node.execute, FakeEngine(), "", "长音频处理（编辑/增强）",
+      input_audio={"waveform": FakeTensor((1, 1, 24000)), "sample_rate": 24000}))
+check("Process 未知时长模式拒绝", raises(process_node.execute, FakeEngine(), "", "长音频处理（编辑/增强）",
+      input_audio={"waveform": FakeTensor((1, 1, 24000)), "sample_rate": 24000},
+      instruction="x", duration_mode="未知"))
+
+real_split = LS._split_source_chunks
+real_fade2 = LS._fade_edges
+real_trim2 = LS._trim_trailing_silence
+trim_seen = []
+
+
+def _fake_split(waveform, sample_rate, max_seconds):
+    step = 24000 * 10
+    return [(waveform[..., i:i + step], i, i + step) for i in range(0, waveform.shape[-1], step)]
+
+
+LS._split_source_chunks = _fake_split
+LS._fade_edges = lambda waveform, sample_rate, fade_ms=5.0, fade_in=True, fade_out=True: waveform
+LS._trim_trailing_silence = lambda waveform, sample_rate: trim_seen.append(1) or waveform
+try:
+    long_source = {"waveform": FakeTensor((1, 1, 24000 * 30)), "sample_rate": 24000}
+    process_engine = FakeEngine()
+    audio_p, report_p = process_node.execute(
+        process_engine, "", "长音频处理（编辑/增强）", max_chunk_seconds=15.0,
+        input_audio=long_source, instruction="请只去除背景噪声，保留其他内容，输出等长结果。",
+        duration_mode="等长", trim_trailing_silence=True)
+    parsed_p = json.loads(report_p)
+    p_calls = process_engine.inference.generate_calls
+    check("Process 按静音点分块（桩 3 块）", parsed_p["chunks"] == 3 and len(p_calls) == 3)
+    check("Process 指令套用到每块", all(call[0][0]["content"][0]["text"] == "请只去除背景噪声，保留其他内容，输出等长结果。" for call in p_calls))
+    check("Process 等长目标时长", [round(call[1]["gen_seconds"], 2) for call in p_calls] == [10.0, 10.0, 10.0])
+    check("Process 每块以自身为源", all(call[1]["audio"] is not None for call in p_calls))
+    check("Process 忽略裁尾静音", trim_seen == [])
+    check("Process 分段区间报告", [(s["start_seconds"], s["end_seconds"]) for s in parsed_p["segments"]]
+          == [(0.0, 10.0), (10.0, 20.0), (20.0, 30.0)])
+    check("Process 拼接不插静音", audio_p["waveform"].shape == (1, 1, 3000))
+    check("Process 进度条总格", FakeProgressBar.instances[-1].total == 3 * (32 + 3))
+
+    speed_engine = FakeEngine()
+    _, report_s = process_node.execute(
+        speed_engine, "", "长音频处理（编辑/增强）", max_chunk_seconds=15.0,
+        input_audio=long_source, instruction="将语速调整为2倍。",
+        duration_mode="变速", speed_multiplier=2.0)
+    parsed_s = json.loads(report_s)
+    check("Process 变速目标时长", [round(call[1]["gen_seconds"], 2) for call in speed_engine.inference.generate_calls]
+          == [5.0, 5.0, 5.0])
+    check("Process 变速报告", parsed_s["duration_mode"] == "变速" and parsed_s["speed_multiplier"] == 2.0)
+finally:
+    LS._split_source_chunks = real_split
+    LS._fade_edges = real_fade2
+    LS._trim_trailing_silence = real_trim2
 
 
 if failures:

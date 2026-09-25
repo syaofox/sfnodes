@@ -1,16 +1,24 @@
-// SFAuKLongSpeech mode 联动显隐（前端）
+// SFAuKLongSpeech mode 联动显隐 + 处理模式预设下拉（前端）
 //
-// 参考音色 TTS：显示 input_audio 插槽与 reference_seconds，隐藏 voice_description；
-// 声音描述 TTS：显示 voice_description，隐藏 reference_seconds；input_audio 未连线时移除插槽
-// （已连线保留——不静默断用户的线，后端按模式忽略该输入）。
+// 参考音色 TTS：显示 text/reference_seconds 等 TTS 参数，隐藏 voice_description 与处理模式参数；
+// 声音描述 TTS：显示 text/voice_description，隐藏 reference_seconds 与处理模式参数；
+// 长音频处理：显示 instruction（+ 官方模板预设下拉）/duration_mode/speed_multiplier，隐藏 TTS 参数。
+// input_audio 插槽：TTS 参考音色与处理模式需要，声音描述模式未连线时移除（已连线保留，不静默断线）。
 //
 // 复用公共库：sf_widget_visibility_lib（widget 显隐，隐藏只影响渲染、值仍随工作流保存）
-// + sf_dynamic_slots（插槽增删与 link.target_slot 位移修正）。机制与 §126.4 同款。
+// + sf_dynamic_slots（插槽增删与 link.target_slot 位移修正）+ sf_auk_presets_lib（官方模板数据）。
 // mode callback 与 onAfterGraphConfigured 双路重放（加载/粘贴恢复时也生效）。
 
 import { app } from "/scripts/app.js";
 
 import { removeInputAt, syncInputLinkTargets } from "./sf_dynamic_slots.js";
+import {
+    DEFAULT_GROUP,
+    SCOPE_PROCESS,
+    groupNames,
+    itemsOf,
+    templateText,
+} from "./sf_auk_presets_lib.js";
 import {
     fitNodeToContent,
     isWidgetVisible,
@@ -22,19 +30,38 @@ const EXT_NAME = "sfnodes.auk_long_speech";
 
 const MODE_REFERENCE = "参考音色 TTS";
 const MODE_DESCRIPTION = "声音描述 TTS";
+const MODE_PROCESS = "长音频处理（编辑/增强）";
 
-// 模式 -> 该模式生效的专属 widget（未列出的模式专属 widget 一律隐藏）
+const PRESET_GROUP = "预设分类";
+const PRESET_TEMPLATE = "提示词模板";
+const PRESET_APPLY = "填入 instruction";
+const PROP_GROUP = "sfAukPresetGroup";
+const PROP_TEMPLATE = "sfAukPresetTemplate";
+
+const TTS_WIDGETS = [
+    "text", "max_chunk_seconds", "speech_rate", "ref_tail_seconds", "pause_seconds",
+    "continuity", "trim_trailing_silence", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
+];
+const PROCESS_WIDGETS = [
+    "instruction", "duration_mode", "speed_multiplier",
+    "max_chunk_seconds", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
+    PRESET_GROUP, PRESET_TEMPLATE, PRESET_APPLY,
+];
+
+// 模式 -> 该模式生效的 widget（未列出的受管 widget 一律隐藏）
 const MODE_WIDGETS = {
-    [MODE_REFERENCE]: ["reference_seconds"],
-    [MODE_DESCRIPTION]: ["voice_description"],
+    [MODE_REFERENCE]: [...TTS_WIDGETS, "reference_seconds"],
+    [MODE_DESCRIPTION]: [...TTS_WIDGETS, "voice_description"],
+    [MODE_PROCESS]: PROCESS_WIDGETS,
 };
-const MANAGED_WIDGETS = ["reference_seconds", "voice_description"];
+const MANAGED_WIDGETS = [...new Set(Object.values(MODE_WIDGETS).flat())];
 
-// 模式 -> 生效的源输入（AUDIO 插槽；声音描述模式不使用）
+// 模式 -> 生效的源输入（AUDIO 插槽）
 const SOURCE_INPUTS = { input_audio: "AUDIO" };
 const MODE_SOURCE_INPUTS = {
     [MODE_REFERENCE]: ["input_audio"],
     [MODE_DESCRIPTION]: [],
+    [MODE_PROCESS]: ["input_audio"],
 };
 
 const SETUP = new WeakSet();
@@ -53,6 +80,66 @@ export function desiredSourceInputs(mode) {
 
 function isInputConnected(input) {
     return !!input && input.link != null && input.link !== -1;
+}
+
+function setComboValues(widget, values) {
+    if (!widget.options) widget.options = {};
+    widget.options.values = values;
+}
+
+// 在 instruction 之前插入官方模板预设三件套（serialize:false，不占 widgets_values 位）
+function installPresetWidgets(node) {
+    if (findWidget(node, PRESET_APPLY)) return;
+    const instruction = findWidget(node, "instruction");
+    if (!instruction) return;
+
+    const applyTemplate = () => {
+        const text = templateText(groupWidget.value, templateWidget.value);
+        if (!text) return;
+        instruction.value = text;
+        node.setDirtyCanvas?.(true, true);
+    };
+    const remember = () => {
+        node.properties[PROP_GROUP] = groupWidget.value;
+        node.properties[PROP_TEMPLATE] = templateWidget.value;
+    };
+    // 处理模式只列 process scope 的模板（不含 TTS/内容编辑/多人分离等长模式不适用项）
+    const processGroups = groupNames(SCOPE_PROCESS);
+    const initialGroup = processGroups[0] ?? DEFAULT_GROUP;
+    const initialTemplate = itemsOf(initialGroup, SCOPE_PROCESS)[0]?.label ?? "";
+    const syncTemplates = (keepValue) => {
+        const labels = itemsOf(groupWidget.value, SCOPE_PROCESS).map((item) => item.label);
+        setComboValues(templateWidget, labels);
+        if (!keepValue || !labels.includes(templateWidget.value)) {
+            templateWidget.value = labels[0] ?? "";
+        }
+    };
+
+    const groupWidget = node.addWidget("combo", PRESET_GROUP, initialGroup, () => {
+        syncTemplates(false);
+        remember();
+        node.setDirtyCanvas?.(true, true);
+    }, { values: processGroups, serialize: false });
+    const templateWidget = node.addWidget("combo", PRESET_TEMPLATE, initialTemplate, () => {
+        applyTemplate();
+        remember();
+    }, { values: itemsOf(initialGroup, SCOPE_PROCESS).map((item) => item.label), serialize: false });
+    const applyWidget = node.addWidget("button", PRESET_APPLY, null, () => applyTemplate(), { serialize: false });
+
+    const added = [groupWidget, templateWidget, applyWidget];
+    const rest = node.widgets.filter((widget) => !added.includes(widget));
+    const index = rest.indexOf(instruction);
+    node.widgets.length = 0;
+    node.widgets.push(...rest.slice(0, index), ...added, ...rest.slice(index));
+
+    node._sfAukPresetRestore = () => {
+        const savedGroup = node.properties?.[PROP_GROUP];
+        groupWidget.value = processGroups.includes(savedGroup) ? savedGroup : initialGroup;
+        syncTemplates(false);
+        const labels = itemsOf(groupWidget.value, SCOPE_PROCESS).map((item) => item.label);
+        const savedTemplate = node.properties?.[PROP_TEMPLATE];
+        templateWidget.value = labels.includes(savedTemplate) ? savedTemplate : (labels[0] ?? "");
+    };
 }
 
 // 按模式显隐 widget（隐藏只影响渲染，值仍随工作流保存/提交）。返回是否有变化。
@@ -119,6 +206,7 @@ function setupNode(node) {
         return;
     }
     SETUP.add(node);
+    installPresetWidgets(node);
     installModeWatch(node);
     applyModeVisibility(node, currentMode(node), app.graph);
 
@@ -128,7 +216,9 @@ function setupNode(node) {
         if (originalOnAfterGraphConfigured) {
             originalOnAfterGraphConfigured.apply(this, arguments);
         }
+        installPresetWidgets(this);
         installModeWatch(this);
+        this._sfAukPresetRestore?.();
         applyModeVisibility(this, currentMode(this), app.graph);
     };
 }
