@@ -178,6 +178,7 @@ class CFMEdit(nn.Module):
         vocoder: Callable[[float["b d n"]], float["b nw"]] | None = None,
         use_epss=True,
         no_ref_audio=False,
+        progress_cb: Callable | None = None,  # sfnodes 扩展：逐步进度回调 (done, total)
     ):
         # ODE state is target-only; ref audio prepended inside backbone.
         self.eval()
@@ -256,11 +257,15 @@ class CFMEdit(nn.Module):
             t = t + sway_sampling_coef * (torch.cos(torch.pi / 2 * t) - 1 + t)
 
         if self.low_memory and self.odeint_kwargs == {"method": "euler"}:
-            sampled = euler_final(fn, y0, t)
+            sampled = euler_final(fn, y0, t, progress_cb=progress_cb)
             trajectory = None
         else:
+            if progress_cb is not None:
+                progress_cb(0, 1)
             trajectory = odeint(fn, y0, t, **self.odeint_kwargs)
             sampled = trajectory[-1]
+            if progress_cb is not None:
+                progress_cb(1, 1)
         self.transformer.clear_cache()
         # sampled  # [B, max_target_dur, D]
 

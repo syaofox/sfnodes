@@ -12,9 +12,15 @@ def fuse_layers(states, logits, scale):
     return hidden * scale.to(device)
 
 
-def euler_final(fn, initial, times):
-    """Same fixed-grid Euler update as torchdiffeq; discard intermediate states."""
+def euler_final(fn, initial, times, progress_cb=None):
+    """Same fixed-grid Euler update as torchdiffeq; discard intermediate states.
+
+    progress_cb（sfnodes 扩展，可选）：每步后回调 (done, total)，供节点进度条/中断检查。
+    """
     value = initial
-    for start, end in zip(times[:-1], times[1:]):
+    total = len(times) - 1
+    for done, (start, end) in enumerate(zip(times[:-1], times[1:]), start=1):
         value = value + (end - start) * fn(start, value)
+        if progress_cb is not None:
+            progress_cb(done, total)
     return value

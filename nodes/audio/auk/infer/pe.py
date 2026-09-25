@@ -723,7 +723,12 @@ class PromptEnhancer:
         audio_path: str | None = None,
         *,
         target_duration: float | None = None,
+        progress_cb=None,  # sfnodes 扩展：阶段进度回调 (done, total)，共 5 个检查点
     ) -> PromptEnhancerOutput:
+        def report(done: int) -> None:
+            if progress_cb is not None:
+                progress_cb("pe", done, 5)
+
         user_instruction = str(instruction or "").strip()
         if not user_instruction:
             raise ValueError("instruction 不能为空")
@@ -731,13 +736,16 @@ class PromptEnhancer:
             raise FileNotFoundError(audio_path)
 
         llm_calls: list[LLMCall] = []
+        report(0)
         asr = self._transcribe(audio_path) if audio_path else None
+        report(1)
         classified, classify_call = self._classify(
             user_instruction,
             audio_path=audio_path,
             asr=asr,
         )
         llm_calls.append(classify_call)
+        report(2)
         if not classified.supported:
             raise UnsupportedRequestError(classified.reasoning or "请求不在 AuK 单步能力范围内")
         if _TASKS[classified.task_type]["needs_audio"] and not audio_path:
@@ -761,6 +769,7 @@ class PromptEnhancer:
                 asr_text=asr.text if asr else None,
             )
             llm_calls.append(rewrite_call)
+        report(3)
 
         if classified.task_type in ("instruct_tts", "zero_shot_tts"):
             params["text"] = _normalize_tts_text(
@@ -803,6 +812,7 @@ class PromptEnhancer:
         duration_details["vad_bounds_sec"] = list(vad_bounds) if vad_bounds else None
         duration_details["applied_duration_sec"] = target_len / MODEL_LATENT_FRAMES_PER_SECOND
         duration_details["target_len"] = target_len
+        report(4)
 
         model_instruction = _render_instruction(
             classified.task_type,
@@ -819,6 +829,7 @@ class PromptEnhancer:
         )
         if classified.task_type == "instruct_tts":
             processed_audio = None
+        report(5)
 
         is_zero_shot = classified.task_type == "zero_shot_tts"
         return PromptEnhancerOutput(

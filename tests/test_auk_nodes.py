@@ -96,12 +96,38 @@ torchaudio.transforms = types.SimpleNamespace(Resample=lambda src, dst: (lambda 
 sys.modules["torchaudio"] = torchaudio
 
 comfy = types.ModuleType("comfy")
+
+
+class FakeProgressBar:
+    instances = []
+
+    def __init__(self, total):
+        self.total = total
+        self.updates = []
+        FakeProgressBar.instances.append(self)
+
+    def update_absolute(self, value, total=None):
+        self.updates.append((value, total))
+
+
+interrupt_checks = []
+
+
+comfy.utils = types.SimpleNamespace(ProgressBar=FakeProgressBar)
 comfy.model_management = types.SimpleNamespace(
     unload_all_models=lambda: None,
     soft_empty_cache=lambda: None,
+    throw_exception_if_processing_interrupted=lambda: interrupt_checks.append(1),
 )
 sys.modules["comfy"] = comfy
+sys.modules["comfy.utils"] = comfy.utils
 sys.modules["comfy.model_management"] = comfy.model_management
+
+# torch.nn（memory_utils 的 import torch.nn.functional；fuse_layers 未被测试调用）
+torch.nn = types.ModuleType("torch.nn")
+torch.nn.functional = types.ModuleType("torch.nn.functional")
+sys.modules["torch.nn"] = torch.nn
+sys.modules["torch.nn.functional"] = torch.nn.functional
 
 sf = types.ModuleType("soundfile")
 sf.read = lambda *args, **kwargs: (None, 24000)
@@ -222,6 +248,20 @@ def raises(fn, *args, **kwargs):
         return True
 
 
+# ── euler_final 进度回调（按文件路径加载，绕开 model/__init__ 的重依赖链）──
+import importlib.util  # noqa: E402
+
+_mu_spec = importlib.util.spec_from_file_location(
+    "auk_memory_utils", os.path.join(root, "nodes/audio/auk/model/memory_utils.py")
+)
+MU = importlib.util.module_from_spec(_mu_spec)
+_mu_spec.loader.exec_module(MU)
+_steps = []
+_value = MU.euler_final(lambda t, x: 0.0, 1.0, [0.0, 0.5, 1.0],
+                        progress_cb=lambda done, total: _steps.append((done, total)))
+check("euler_final 逐步回调", _steps == [(1, 2), (2, 2)] and _value == 1.0)
+
+
 # ── 注册/槽类型 ──
 check("引擎槽类型 SF_AUK_ENGINE", L.AUK_ENGINE == "SF_AUK_ENGINE")
 check("设置槽类型 SF_AUK_LLM_CONFIG", C.AUK_LLM_CONFIG == "SF_AUK_LLM_CONFIG")
@@ -284,6 +324,11 @@ class FakeInference:
 
     def generate(self, messages, **kwargs):
         self.generate_calls.append((messages, kwargs))
+        callback = kwargs.get("progress_cb")
+        if callback is not None:
+            callback("encode", 1, 1)
+            callback("sample", 3, 4)
+            callback("decode", 1, 1)
         return FakeTensor((1, 1000)), self.target_sample_rate
 
 
@@ -308,20 +353,28 @@ check("空指令拒绝", raises(node.execute, engine, "  ", 1.0, False, 42))
 check("时长超范围拒绝", raises(node.execute, engine, "hi", 31.0, False, 42))
 check("时长负数拒绝", raises(node.execute, engine, "hi", -1.0, False, 42))
 check("关增强且 0 秒拒绝", raises(node.execute, engine, "hi", 0.0, False, 42))
-check("Flash 配方校验", raises(node.execute, FakeEngine(is_flash=True), "hi", 1.0, False, 42, 32, 2.0, -1.0))
+flash_engine = FakeEngine(is_flash=True)
+node.execute(flash_engine, "hi", 1.0, False, 42, 32, 2.0, -1.0)
+flash_call = flash_engine.inference.generate_calls[-1][1]
+check("Flash 自动锁定配方", (flash_call["nfe"], flash_call["cfg_strength"], flash_call["sway_sampling_coef"]) == (4, 0.0, -1.0))
+check("Flash 忽略 widget 步数（进度条按 4 步）", FakeProgressBar.instances[-1].total == 7)
 
 audio_out, instruction, info = node.execute(engine, " hello ", 1.0, False, 42)
 check("返回指令去空白", instruction == "hello")
 check("未开启增强信息", info == "Prompt Enhancer: disabled")
 check("音频输出形状", audio_out["waveform"].shape == (1, 1, 1000) and audio_out["sample_rate"] == 24000)
-check("采样参数透传", engine.inference.generate_calls[-1][1] == {
+check("采样参数透传", {k: v for k, v in engine.inference.generate_calls[-1][1].items() if k != "progress_cb"} == {
     "audio": None, "gen_seconds": 1.0, "nfe": 32, "cfg_strength": 2.0, "sway_sampling_coef": -1.0, "seed": 42,
 })
 check("消息文本", engine.inference.generate_calls[-1][0][0]["content"] == [{"type": "text", "text": "hello"}])
+bar = FakeProgressBar.instances[-1]
+check("进度条总格数（32 步无 PE）", bar.total == 35)
+check("进度条阶段映射", bar.updates[-3:] == [(2, 35), (26, 35), (35, 35)])
+check("进度回调触发中断检查", len(interrupt_checks) >= 3)
 
-flash_engine = FakeEngine(is_flash=True)
-node.execute(flash_engine, "hi", 2.0, False, 7, 4, 0.0, -1.0)
-check("Flash 合法配方可执行", len(flash_engine.inference.generate_calls) == 1)
+flash_ok = FakeEngine(is_flash=True)
+node.execute(flash_ok, "hi", 2.0, False, 7, 4, 0.0, -1.0)
+check("Flash 已符合配方可直接执行", len(flash_ok.inference.generate_calls) == 1)
 
 wav = {"waveform": FakeTensor((1, 2, 44100)), "sample_rate": 44100}
 audio_out, _, _ = node.execute(engine, "hi", 1.0, False, 42, input_audio=wav)

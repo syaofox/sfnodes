@@ -478,7 +478,12 @@ class AukInfer:
         sway_sampling_coef: float,
         t_grid: list[float] | None,
         seed: int | None,
+        progress_cb=None,  # sfnodes 扩展：阶段进度回调 (phase, done, total)
     ) -> torch.Tensor:
+        def report(phase: str, done: int, total: int) -> None:
+            if progress_cb is not None:
+                progress_cb(phase, done, total)
+
         if ref_rms is None:
             ref_latent_lens_t = torch.zeros(1, dtype=torch.long, device=self.device)
             total_latent_lens_t = torch.tensor([gen_latent_len], dtype=torch.long, device=self.device)
@@ -493,16 +498,23 @@ class AukInfer:
             audio_lens_t = ref_latent_lens_t * self.downsample_rate
 
             # --- online VAE encode + normalize ---
+            report("vae_encode", 0, 1)
             ref_latents, enc_latent_lens = self.vae_model.encoding_and_normalization(
                 ref_audio,
                 sample_lengths=audio_lens_t.to(self.vae_device),
             )
             ref_latents = ref_latents.to(self.device)
             ref_latent_lens_t = torch.minimum(ref_latent_lens_t, enc_latent_lens.to(ref_latent_lens_t.device))
+            report("vae_encode", 1, 1)
 
         # --- CFM sample in latent space ---
         with torch.autocast("cuda", dtype=self.dtype, enabled=self.device.startswith("cuda")):
+            report("encode", 0, 1)
             cond_inputs = self.model.build_cond_inputs([messages], self.model.text_processor)
+            report("encode", 1, 1)
+            sample_progress = None
+            if progress_cb is not None:
+                sample_progress = lambda done, total: report("sample", done, total)
             generated, _ = self.model.sample(
                 cond=ref_latents,
                 text=cond_inputs,
@@ -514,6 +526,7 @@ class AukInfer:
                 t_grid=t_grid,
                 no_ref_audio=False,
                 seed=seed,
+                progress_cb=sample_progress,
             )  # [1, T_total, D]
 
         gen = generated[0]
@@ -531,7 +544,9 @@ class AukInfer:
         gen_latent = self.vae_model.denormalize(gen_latent)
         gen_latent = gen_latent.permute(0, 2, 1)  # [1, D, T_new]
 
+        report("decode", 0, 1)
         gen_audio = self.vae_model.inference_from_latents(gen_latent).cpu()
+        report("decode", 1, 1)
         if gen_audio.ndim == 3:
             gen_audio = gen_audio.squeeze(0)  # [1, T_wav]
         if torch.isnan(gen_audio).any() or torch.isinf(gen_audio).any():
@@ -552,6 +567,7 @@ class AukInfer:
         sway_sampling_coef: float = -1.0,
         t_grid: list[float] | None = None,
         seed: int | None = None,
+        progress_cb=None,  # sfnodes 扩展：阶段进度回调 (phase, done, total)
     ) -> tuple[torch.Tensor, int]:
         wav_path = audio or extract_audio_path(messages, required=False)
         if wav_path is not None:
@@ -596,6 +612,7 @@ class AukInfer:
                 sway_sampling_coef=sway_sampling_coef,
                 t_grid=t_grid,
                 seed=seed,
+                progress_cb=progress_cb,
             )
         finally:
             if self.cpu_offload:

@@ -64,7 +64,7 @@ nodes/audio/
 - `memory_mode`：`low_vram`（Qwen+VAE 在 CPU、半精度 DiT 在 GPU）/ `balanced`（Qwen 与 DiT 轮流上 GPU）/ `max_vram`（DiT+VAE 常驻；int8 Qwen 用 forward pre/post hook 逐层反量化、常驻显存）。
 - int8 权重依赖 `comfy_kitchen.tensor.TensorWiseINT8Layout`（`int8_tensorwise`，可带 convrot）；`w4a8` 明确报错不支持。
 - 源/参考 + 生成目标共享 30s 序列预算：`validate_sequence_duration` 在采样前按 `downsample_rate` 折算模型帧校验，超限报出实际秒数。
-- Flash（`config.model.name == "AuK-Flash"`）在引擎层强制 4 步/CFG 0/sway None/t_grid 固定，节点层再校验用户参数是否保持配方（不一致直接报错），二者不可只留一处。
+- Flash（`config.model.name == "AuK-Flash"`）在引擎层强制 4 步/CFG 0/sway None/t_grid 固定；节点层检测到 widget 值与配方不一致时**自动锁定**（改为 4/0/-1 并打印一行说明），不因参数拒绝工作流——引擎本就忽略这三个调用参数，拦截只会制造无意义的报错。
 
 ### 146.6 复用与依赖决策
 
@@ -82,3 +82,13 @@ nodes/audio/
 ### 146.8 模型目录与使用
 
 沿用上游目录约定（无需改动既有下载）：`models/auk/{AuK,AuK-Flash}/`（权重 + `config.yaml`，VAE 放 `models/auk/vae/`，也可与权重同目录）、`models/text_encoders/Qwen2.5-Omni-3B/`；ComfyUI 格式 repack 放 `models/diffusion_models/auk/` 亦可。Qwen 需完整目录（config/tokenizer），int8 单文件需同目录有 `config.json`。
+
+### 146.9 节点进度条与采样中断（sfnodes 扩展，2026-09）
+
+上游无进度反馈：AuK 采样（Base 32 步）与 PE 阶段在节点上完全是黑盒。本包在引擎/PE 中加了**可选回调**（默认 `None`，不改变上游行为）：
+
+- **回调协议**：`progress_cb(phase, done, total)`；phase ∈ `pe`（5 个检查点：ASR / 分类 / 改写或非语言声匹配 / 时长 / 音频预处理）、`vae_encode`、`encode`（条件编码）、`sample`（每步）、`decode`。
+- **引擎侧落点**：`pe.py::PromptEnhancer.prepare(progress_cb=)`、`infer_auk.py::AukInfer.generate/_run`、`cfm_edit.py::CFMEdit.sample`、`memory_utils.py::euler_final`（每步后回调）。`sample` 的标准模式（odeint 路径）只在前后各报一次；我们的加载器恒为 `low_memory=True` 走 euler 路径，逐步进度始终可用。
+- **节点侧**：`SFAuKGenerateEdit.execute` 建 `comfy.utils.ProgressBar(grand_total)`，总格数 = PE 5（关闭时不占格）+ VAE 编码 1 + 条件编码 1 + 采样 nfe（Flash 4）+ 解码 1，按 `update_absolute` 映射总进度；前端 1.53+ 按 `nodeProgressStates` 在节点上渲染（`ProgressBar` 自带 0.1s / 0.5% 节流）。
+- **中断**：回调内调用 `comfy.model_management.throw_exception_if_processing_interrupted()`——排队取消/中断可打断长采样（上游原本只能等整段结束）。异常沿 `euler_final → sample → _run → generate` 抛出，引擎 `finally`（offload hook 归还）与节点 `finally`（PE 临时文件清理）照常执行。
+- 已知边界：ASR 首次模型下载（funasr 内部）与单次 LLM 请求不可中断，只在阶段边界生效；`ProgressBar` 的节点 id 绑定依赖「execute 内创建」，勿提前到模块级。

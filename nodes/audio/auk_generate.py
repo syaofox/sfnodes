@@ -3,6 +3,7 @@
 上游：DocWorkBox/ComfyUI-AuK_Doc（基于 Tencent-Hunyuan/AuK，MIT，见 auk/LICENSE）。
 V3→V1 适配（AUDIO 输入输出、SF_AUK_ENGINE/SF_AUK_LLM_CONFIG 槽类型、io.NodeOutput → tuple）；
 torchaudio/SoundFile/PE 引擎均延迟到实际用到时导入（启动阶段只依赖 torch 与轻量模块）。
+另含 sfnodes 扩展：节点进度条（PE 分段 + 采样逐步）与采样中断检查，见 experience/nodes-audio.md §146.9。
 
 支持指令 TTS、零样本音色克隆与语音编辑；源/参考与生成目标共享 30 秒序列预算。
 开启提示词增强（PE）时由 LLM 把自然语言请求转成标准模型指令并估计时长，ASR/VAD 链路
@@ -89,7 +90,7 @@ class SFAuKGenerateEdit:
         "AuK 指令 TTS / 零样本音色克隆 / 语音编辑：输入自然语言 instruction 与生成秒数，"
         "可选 input_audio 作参考音色或待编辑音频（纯描述 TTS 不接），源/参考与生成目标合计"
         "最多 30 秒。开启提示词增强时 0 秒自动估计时长，llm_config 可接 SF AuK OpenAI Settings "
-        "或 SF AuK Llama.cpp Adapter；Base 默认 32 步/CFG 2/sway -1，Flash 固定四步/CFG 0。"
+        "或 SF AuK Llama.cpp Adapter；Base 默认 32 步/CFG 2/sway -1，Flash 自动锁定四步/CFG 0/sway -1。"
         "输出音频、实际模型指令与增强信息"
     )
 
@@ -125,15 +126,15 @@ class SFAuKGenerateEdit:
                 }),
                 "nfe_steps": ("INT", {
                     "default": 32, "min": 4, "max": 64, "step": 1, "advanced": True,
-                    "tooltip": "AuK 采样步数；Flash 固定 4 步",
+                    "tooltip": "AuK 采样步数；Flash 自动锁定为 4（忽略本值）",
                 }),
                 "cfg_strength": ("FLOAT", {
                     "default": 2.0, "min": 0.0, "max": 5.0, "step": 0.1, "advanced": True,
-                    "tooltip": "CFG 强度；Flash 固定 0",
+                    "tooltip": "CFG 强度；Flash 自动锁定为 0（忽略本值）",
                 }),
                 "sway_sampling_coef": ("FLOAT", {
                     "default": -1.0, "min": -1.0, "max": 1.0, "step": 0.1, "advanced": True,
-                    "tooltip": "sway 采样系数；Flash 需保持默认 -1 占位",
+                    "tooltip": "sway 采样系数；Flash 自动锁定为 -1（忽略本值）",
                 }),
             },
             "optional": {
@@ -166,10 +167,15 @@ class SFAuKGenerateEdit:
             raise ValueError("AuK instruction is empty.")
         if not math.isfinite(float(generation_seconds)) or not 0.0 <= float(generation_seconds) <= MAX_SEQUENCE_SECONDS:
             raise ValueError(f"generation_seconds must be between 0 and {MAX_SEQUENCE_SECONDS:.0f}, got {generation_seconds!r}.")
-        if engine.inference.is_flash and (int(nfe_steps) != 4 or float(cfg_strength) != 0.0 or float(sway_sampling_coef) != -1.0):
-            raise ValueError(
-                "AuK-Flash requires NFE steps=4, CFG strength=0, and sway=-1; these controls are fixed by its recipe."
-            )
+        if engine.inference.is_flash:
+            # Flash 引擎内部固定 4 步 / CFG 0 / sway -1（DMD 学生自带引导，重加 CFG 会削波）；
+            # 这里自动锁定配方并忽略 widget 值（仅打印一行说明），不因参数拒绝工作流。
+            if int(nfe_steps) != 4 or float(cfg_strength) != 0.0 or float(sway_sampling_coef) != -1.0:
+                print(
+                    f"[SFAuKGenerateEdit] AuK-Flash 配方锁定：NFE 4 / CFG 0 / sway -1 "
+                    f"（忽略 widget 值 NFE {int(nfe_steps)} / CFG {float(cfg_strength)} / sway {float(sway_sampling_coef)}）"
+                )
+            nfe_steps, cfg_strength, sway_sampling_coef = 4, 0.0, -1.0
 
         audio = normalize_audio(input_audio)
         prepared = None
@@ -177,6 +183,31 @@ class SFAuKGenerateEdit:
         final_instruction = instruction
         prompt_enhancer_info = "Prompt Enhancer: disabled"
         target_seconds = float(generation_seconds)
+
+        # 节点进度条：总格数 = PE 5 段（可选）+ VAE 编码 1 + 条件编码 1 + 采样 nfe（Flash 4）+ 解码 1。
+        # 回调同时做中断检查（每步/每阶段一次，取消按钮可打断长采样）。
+        import comfy.model_management as mm
+        import comfy.utils
+
+        expected_steps = 4 if engine.inference.is_flash else int(nfe_steps)
+        spans = ([("pe", 5)] if use_prompt_enhancer else []) + [
+            ("vae_encode", 1), ("encode", 1), ("sample", expected_steps), ("decode", 1),
+        ]
+        offsets = {}
+        grand_total = 0
+        for phase, span in spans:
+            offsets[phase] = grand_total
+            grand_total += span
+        span_by_phase = dict(spans)
+        pbar = comfy.utils.ProgressBar(grand_total)
+
+        def report(phase, done, total):
+            mm.throw_exception_if_processing_interrupted()
+            span = span_by_phase.get(phase)
+            if not span:
+                return
+            value = offsets[phase] + span * min(max(done, 0), total) / max(total, 1)
+            pbar.update_absolute(min(round(value), grand_total), grand_total)
 
         try:
             if use_prompt_enhancer:
@@ -199,6 +230,7 @@ class SFAuKGenerateEdit:
                         instruction,
                         bridge_path,
                         target_duration=target_seconds if target_seconds > 0 else None,
+                        progress_cb=report,
                     )
                 except (PromptEnhancerError, ValueError, FileNotFoundError) as error:
                     raise ValueError(f"Prompt Enhancer failed: {type(error).__name__}: {error}") from error
@@ -231,7 +263,6 @@ class SFAuKGenerateEdit:
 
             with engine.lock:
                 if engine.inference.memory_mode != "standard":
-                    import comfy.model_management as mm
                     mm.unload_all_models()
                     mm.soft_empty_cache()
                 torch.manual_seed(int(seed))
@@ -243,6 +274,7 @@ class SFAuKGenerateEdit:
                     cfg_strength=float(cfg_strength),
                     sway_sampling_coef=float(sway_sampling_coef),
                     seed=int(seed),
+                    progress_cb=report,
                 )
         finally:
             if prepared is not None:
