@@ -1608,3 +1608,18 @@ slice_track_data(track_data, start=0, length=0)
 - 生效条件：重启容器 + 浏览器硬刷新。`GET /object_info/LoadImage` 应见 3 输出（`output_name` 含 filename）。
 - 关闭开关并重启后：LoadImage 回到 2 输出，已接 filename 连线的工作流该连线失效（槽不存在）——这是关闭的预期后果。
 - 若第三方扩展也替换注册表 `LoadImage`：加载顺序（os.listdir 不排序）决定谁生效；守卫对"覆盖了 load_image 的子类"跳过，不产生半残状态。
+
+---
+
+## 147. SFLoadImagesCursor：IS_CHANGED 当游标的批量单图加载器（2026-09）
+
+> 背景：复刻 ostris_nodes_comfyui 的 OstrisBatchImageLoader。语义是"每 Run（每个 prompt）消费目录一张、排队 N 次跑完整目录"，与 SFLoadImagesPath 的"一次 Run 整目录成批"互补。原节点是模块级单例 + glob 无序 + `pil2tensor` 不转 RGB + 失败递归；本实现修掉这四个坑，并补了切片/顺序/续跑。目录解析、自然排序、EXIF 旋转与 alpha 提取抽到 `sf_utils/image_sources.py`（与 SFLoadImagesPath 单源，后者顺带修掉调色板 transparency 被丢弃的问题）。
+
+- **机制（为什么每 Run 会换图）**：ComfyUI 在 prompt 开始时为图内所有节点预计算缓存签名（`execution.py` 的 `IsChangedCache` → `comfy_execution/caching.py::CacheKeySetInputSignature`），`IS_CHANGED` 在**节点执行之前**求值，且取常量输入（`get_input_data(..., execution_list=None)`，连线输入是 None，见 §134）。本节点让它返回"下一张"的游标 token（`next|cycle|pos|路径`）→ 每轮键都不同 → 节点与全部下游重跑；执行时才 `_take` 推进并解码。列表耗尽 token 变为 `exhausted|<cycle_index>|...`：**不返回 `False`**（会与首轮键重合，源版正是靠它回到开头，但语义上依赖了 CacheKeySet 的巧合），更不返回 NaN（会折叠祖先链上的全部缓存，见 patterns.md §89）。
+- **状态隔离**：游标放模块级 `_CURSORS`（节点实例每轮重建，实例属性存不住），但键 = `unique_id`（无则目录+参数哈希），每节点独立——源版的模块单例会被同图两个实例互抢（A 扫目录后 B 从 A 的队列 pop）。
+- **排序与目录变化**：`sorted_image_files`（`filter_files_content_types(["image"])` + 自然序 + cap/skip/nth）。`sort_key` 补了同数字按文件名的兜底：`a1.png` 与 `b1.png` 原本键相同，排序结果取决于 `os.listdir` 顺序（tmpfs 实测与创建顺序无关，会翻转）。目录 `st_mtime_ns` 指纹变化 → 重建列表并按 `last_path` 对齐游标，不重复已消费、新文件下一轮进入。
+- **回卷 / 顺序 / 续跑**：`cycle=False` 停在最后一张（token 稳定 → 后续 Run 命中缓存输出同一张）；`order=shuffle` 每轮重洗（一轮内不重复）、`random` 每张独立随机；改 `reset_token` 硬重置；`state_name` 非空时每轮把 `{directory, params, reset_token, last_path, last_index, cycle_index}` 原子写 `user/sfnodes/image_cursor/<sanitize_id>.json`，重启/重建节点后按 `last_path` 续跑（目录、参数或 reset_token 任一变化则忽略记录）。
+- **解码与容错**：`convert("RGB")` 归一灰度/调色板/CMYK 三通道 + `image_alpha`（A 通道或调色板 transparency）→ 遮罩 `1 - alpha`；无 alpha 时输出与图等大的全 0（同 SFLoadImageResize，而非原生的 64×64）。坏图逐张跳过（有界循环；源版递归，全目录坏图时 RecursionError）；目录空/整轮全坏 → 明确报错。
+- **前端**：复用 `web/load_images_path.js`（`LIP_CLASSES` 两宿主；Auto total 只对 SFLoadImagesPath 显示——游标节点不需要反向写循环 total）。
+- **测试**：`tests/test_load_images_cursor.py`——推进/回卷/停住、peek 无副作用、实例隔离、prefix/cap/skip/nth、reset、shuffle/random、None 形参、四类解码与遮罩、目录变化续跑、state_name 续跑与失效、空目录/坏图报错、caption 侧车；`tests/test_load_images_path.py` 随之改为从共享模块取 `resolve_folder/sort_key` 并加了排序断言。
+- **接线注意**：切片参数保持 widget（连线后 IS_CHANGED 拿到 None → 归一为默认，执行侧按真实值重建，只会让 peek 与实际错位，不丢图）。一次 Run 内批处理/循环仍用 SFLoadImagesPath + 循环节点（platform.md §145）。

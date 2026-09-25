@@ -1,8 +1,10 @@
 // ============================================================
-// SF Load Images Path — 目录切换前端（Pixaroma 风格）
+// SF Load Images Path / Cursor — 目录切换前端（Pixaroma 风格）
 // 源切换两档（input / output）+ 渐进式目录浏览（面包屑 +
 // 当前层子目录下拉 + 左右快速步进）+ 直接输入路径模式。
-// 数据通道：隐藏的 folder combo widget（值随 workflow 保存、graphToPrompt
+// 两个宿主共用本模块：SFLoadImagesPath（整目录成批）与
+// SFLoadImagesCursor（游标式单图，每次 Run 一张；Auto total 只对前者）。
+// 数据通道：隐藏的 folder widget（值随 workflow 保存、graphToPrompt
 // 自动收集；目录不存在由后端 VALIDATE_INPUTS 校验提示）。
 // 目录浏览按需加载：每次进入/回退只 fetch 当前层（/subdirs?folder=）。
 // Auto total 开关（默认关，同 SFPromptList）：把当前目录图片数反向写入
@@ -18,6 +20,8 @@ const SOURCES = ["input", "output"];
 const WIDGET_TYPE = "sf_lip_ui";
 const MIN_W = 320; // 源两档按钮行 + 面包屑行容纳所需的最小节点宽度
 const AUTO_TOTAL_KEY = "sfLoadImagesPathAutoTotal"; // 自动 total 持久化键（缺省/删除 = 关闭）
+const LIP_CLASSES = ["SFLoadImagesPath", "SFLoadImagesCursor"]; // 共用目录浏览 UI 的宿主
+const nodeClass = (n) => n?.comfyClass ?? n?.type;
 
 // ── folder 值解析 ─────────────────────────────────────────────────────────
 // 目录模式判定只依赖前缀（input/output 或 default）——不检查列表
@@ -98,11 +102,12 @@ app.registerExtension({
     name: "sfnodes.load_images_path",
 
     nodeCreated(node) {
-        if (node?.comfyClass !== "SFLoadImagesPath") return;
+        if (!LIP_CLASSES.includes(nodeClass(node))) return;
         injectCSS();
 
         const folderWidget = node.widgets?.find((w) => w.name === "folder");
         if (!folderWidget) return;
+        const autoTotalCapable = nodeClass(node) === "SFLoadImagesPath"; // Auto total 只服务整目录成批节点
 
         // 隐藏原生 combo：值仍是数据通道（随 workflow 保存 + 自动收集）
         folderWidget.hidden = true;
@@ -540,6 +545,7 @@ app.registerExtension({
         autoTotalBtn.type = "button";
         autoTotalBtn.className = "sf-lip-btn";
         autoTotalBtn.textContent = "Auto total";
+        autoTotalBtn.style.display = autoTotalCapable ? "" : "none";
         const refreshBtn = document.createElement("button");
         refreshBtn.type = "button";
         refreshBtn.className = "sf-lip-btn";
@@ -558,7 +564,7 @@ app.registerExtension({
         // 前端反向写目标 widget。默认关（properties.sfLoadImagesPathAutoTotal）：
         // 既有工作流存在"故意 total < 文件数"（只处理前 N 张），无条件同步
         // 会改写其行为。
-        let autoTotal = !!(node.properties && node.properties[AUTO_TOTAL_KEY]);
+        let autoTotal = autoTotalCapable && !!(node.properties && node.properties[AUTO_TOTAL_KEY]);
 
         const linkOf = (id) => {
             const graph = node.graph;
@@ -625,6 +631,7 @@ app.registerExtension({
             loop.setDirtyCanvas?.(true, true);
         };
         const applyAutoTotal = (on) => {
+            if (!autoTotalCapable) return;
             autoTotal = !!on;
             autoTotalBtn.classList.toggle("on", autoTotal);
             autoTotalBtn.textContent = autoTotal ? "Auto total ✓" : "Auto total";

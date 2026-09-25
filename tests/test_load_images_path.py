@@ -1,7 +1,8 @@
 # SFLoadImagesPath 后端测试（Node/Python 直接运行：python tests/test_load_images_path.py）
 # 覆盖：
-#   - _resolve_folder：default（→input 根）/ input / output / 前缀子目录 / 绝对路径
-#   - _list_folders：两源根（input/output）+ 一级子目录
+#   - resolve_folder：default（→input 根）/ input / output / 前缀子目录 / 绝对路径（sf_utils/image_sources）
+#   - list_folders：两源根（input/output）+ 一级子目录
+#   - sort_key：数字序 + 同数字按文件名兜底（不依赖 os.listdir 顺序）
 #   - VALIDATE_INPUTS：目录存在校验
 #   - IS_CHANGED：文件 mtime 哈希 / 切片参与 / 连线输入（None）退化为全量目录哈希
 # mock：torch / aiohttp / folder_paths / comfy.utils（numpy/PIL 本机真实可用）
@@ -86,16 +87,17 @@ for name in ("a.png", "b.jpg", "note.txt"):
     with open(os.path.join(tmp_in, "faces", name), "w") as f:
         f.write("x")
 
-# ── _list_folders ──
-folders = mod._list_folders()
+# ── list_folders（共享模块 sf_utils/image_sources）──
+sources = sys.modules["sfnodes.sf_utils.image_sources"]
+folders = sources.list_folders()
 check("列表含 default", "default" in folders)
 check("列表无 images 源", "images" not in folders and not any(f.startswith("images/") for f in folders))
 check("列表含 input/output 根", "input" in folders and "output" in folders)
 check("列表含 input/faces", "input/faces" in folders)
 check("列表含 output/render", "output/render" in folders)
 
-# ── _resolve_folder ──
-rf = mod._resolve_folder
+# ── resolve_folder + sort_key ──
+rf = sources.resolve_folder
 check("default 解析到 input 根", rf("default") == os.path.normpath(tmp_in))
 check("空值解析到 input 根", rf("") == os.path.normpath(tmp_in))
 check("input 根解析", rf("input") == os.path.normpath(tmp_in))
@@ -105,6 +107,8 @@ check("裸名走 input 相对解析", rf("faces") == os.path.join(tmp_in, "faces
 abs_dir = os.path.join(tmp_in, "faces")
 check("绝对路径直通", rf(abs_dir) == os.path.normpath(abs_dir))
 check("绝对路径不存在的目录也直通（校验层提示）", rf(os.path.join(tmp_in, "nope")) == os.path.normpath(os.path.join(tmp_in, "nope")))
+check("sort_key 数字序", sources.sort_key("10.png") > sources.sort_key("2.png"))
+check("sort_key 同数字按文件名兜底", sources.sort_key("a1.png") < sources.sort_key("b1.png"))
 
 # ── VALIDATE_INPUTS ──
 check("VALIDATE 目录存在 True", mod.SFLoadImagesPath.VALIDATE_INPUTS("input/faces") is True)

@@ -9,6 +9,7 @@
 //   - 模式切换：直接输入路径模式
 //   - popup 定位：视口钳位 / 方向翻转 / 限高（LoRA Stack 同款）
 //   - onConfigure 恢复：DOM 状态同步当前值
+//   - SFLoadImagesCursor 宿主：共用目录浏览（源切换/进入子目录/Path Mode）、Auto total 隐藏且早退
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -142,13 +143,13 @@ function stageJs(names) {
     }
 }
 
-function makeNode() {
+function makeNode(cls = "SFLoadImagesPath") {
     const folderWidget = {
         name: "folder", value: "default", hidden: false,
         options: { values: ["default"] }, computeSize: null, element: null, inputEl: null,
     };
     return {
-        comfyClass: "SFLoadImagesPath",
+        comfyClass: cls,
         widgets: [folderWidget],
         inputs: [],
         addDOMWidget(name, type, el, opts) {
@@ -405,6 +406,37 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     if (node.onConfigure) node.onConfigure({});
     await wait(20);
     check("auto total 恢复后同步", totalWidget.value === 3 && autoTotalBtn.classList.contains("on") === true);
+
+    // ── 游标节点（SFLoadImagesCursor）：共用目录浏览 UI，Auto total 隐藏且早退 ──
+    const cursor = makeNode("SFLoadImagesCursor");
+    subdirCalls = [];
+    ext.nodeCreated(cursor);
+    check("cursor: folder widget 已隐藏", cursor.widgets[0].hidden === true);
+    check("cursor: DOM widget 已添加", cursor.widgets.some((w) => w.name === "lip_ui"));
+    const cRoot = cursor.widgets.find((w) => w.name === "lip_ui").element;
+    await wait(20);
+    check("cursor: 初始 fetch 当前目录", subdirCalls.includes("default"));
+    cRoot.children[0].children[1]._handlers.click();   // OUT · output
+    check("cursor: 源切换写值", cursor.widgets[0].value === "output");
+    await wait(20);
+    _bodyAppends.length = 0;
+    cRoot.querySelector("[data-role='dir-trigger']")._handlers.click();
+    await wait(20);
+    const cPopup = _bodyAppends[_bodyAppends.length - 1];
+    const cList = cPopup.querySelector("[data-role='pop-list']");
+    cList.children[0]._handlers.click();   // 📁 render
+    check("cursor: popup 进入子目录", cursor.widgets[0].value === "output/render");
+    await wait(20);
+    check("cursor: 子目录计数显示", cRoot.querySelector("[data-role='dir-count']").textContent === "7 文件");
+    const cAutoBtn = cRoot.children[5].children[0];
+    check("cursor: Auto total 按钮隐藏", cAutoBtn.style.display === "none");
+    cAutoBtn._handlers.click({ preventDefault() {}, stopPropagation() {} });
+    check("cursor: Auto total 不写 properties", cursor.properties.sfLoadImagesPathAutoTotal === undefined);
+    cRoot.children[1].children[1]._handlers.click();   // Path Mode
+    const cInput = cRoot.querySelector("[data-role='path-input']");
+    cInput.value = "/data/batch";
+    cRoot.children[4].children[1]._handlers.click();
+    check("cursor: 路径模式写值", cursor.widgets[0].value === "/data/batch");
 
     console.log();
     if (failures.length) {

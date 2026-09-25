@@ -14,6 +14,7 @@ from .nodes.image.files import (
 )
 from .nodes.image.browser import SFLoadImageBrowser
 from .nodes.image.load_images_path import SFLoadImagesPath
+from .nodes.image.load_images_cursor import SFLoadImagesCursor
 from .nodes.image.load_image_resize import SFLoadImageResize
 from .nodes.image.resize_image import SFImageResize
 from .nodes.image.crop import SFImageCrop, SFImageUncrop
@@ -275,6 +276,7 @@ NODE_CLASS_MAPPINGS = {
     "SFLoadImages": LoadImages,
     "SFLoadImageBrowser": SFLoadImageBrowser,
     "SFLoadImagesPath": SFLoadImagesPath,
+    "SFLoadImagesCursor": SFLoadImagesCursor,
     "SFLoadImageResize": SFLoadImageResize,
     "SFImageResize": SFImageResize,
     "SFImageCrop": SFImageCrop,
@@ -526,6 +528,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLoadImages": "SF Load Images",
     "SFLoadImageBrowser": "SF Load Image Browser",
     "SFLoadImagesPath": "SF Load Images Path",
+    "SFLoadImagesCursor": "SF Load Images Cursor",
     "SFLoadImageResize": "SF Load Image Resize",
     "SFImageResize": "SF Image Resize",
     "SFImageCrop": "SF Image Crop",

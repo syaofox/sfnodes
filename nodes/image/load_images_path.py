@@ -1,102 +1,29 @@
 import hashlib
 import os
-import re
 
 import numpy as np
 import torch
-from PIL import Image, ImageOps
 
 import comfy.utils
 import folder_paths
 from aiohttp import web
 
+from ...sf_utils.image_sources import (
+    image_alpha,
+    list_folders,
+    list_one_level_subdirs,
+    open_image,
+    resolve_folder,
+    sorted_image_files,
+)
+
 _CATEGORY = "sfnodes/image"
-
-_DEFAULT_FOLDER = "default"
-
-
-def _get_input_base_dir() -> str:
-    return os.path.normpath(folder_paths.get_input_directory())
-
-
-def _list_one_level_subdirs(root: str) -> list:
-    try:
-        return sorted(
-            d for d in os.listdir(root)
-            if os.path.isdir(os.path.join(root, d)) and not d.startswith(".")
-        )
-    except OSError:
-        return []
-
-
-def _list_folders() -> list:
-    folders = [_DEFAULT_FOLDER]
-    for prefix, root in (
-        ("input", folder_paths.get_input_directory()),
-        ("output", folder_paths.get_output_directory()),
-    ):
-        if not os.path.isdir(root):
-            continue
-        folders.append(prefix)
-        folders += [prefix + "/" + d for d in _list_one_level_subdirs(root)]
-    return folders
-
-
-def _resolve_under(root: str, rel: str) -> str:
-    root = os.path.normpath(root)
-    rel = (rel or "").strip()
-    if not rel or os.path.isabs(rel):
-        rel = _DEFAULT_FOLDER
-    else:
-        rel = rel.lstrip("/\\")
-    target = os.path.normpath(os.path.join(root, rel))
-    if target != root and not target.startswith(root + os.sep):
-        return _get_input_base_dir()
-    return target
-
-
-def _resolve_folder(folder: str) -> str:
-    name = (folder or _DEFAULT_FOLDER).strip()
-    if not name or name == _DEFAULT_FOLDER:
-        return _get_input_base_dir()
-
-    # 直接输入路径模式：绝对路径原样使用（用户主动输入的任意目录）。
-    if os.path.isabs(name):
-        return os.path.normpath(name)
-
-    if name == "input":
-        return os.path.normpath(folder_paths.get_input_directory())
-    if name == "output":
-        return os.path.normpath(folder_paths.get_output_directory())
-    if name.startswith("input/"):
-        return _resolve_under(folder_paths.get_input_directory(), name[len("input/"):])
-    if name.startswith("output/"):
-        return _resolve_under(folder_paths.get_output_directory(), name[len("output/"):])
-    return _resolve_under(_get_input_base_dir(), name)
-
-
-def _sort_key(filename):
-    match = re.search(r'\d+', filename)
-    if match:
-        return (0, int(match.group()))
-    return (1, filename)
-
-
-def _sorted_image_files(directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1) -> list:
-    dir_files = [os.path.join(directory, x) for x in sorted(os.listdir(directory), key=_sort_key)]
-    dir_files = [f for f in dir_files if os.path.isfile(f)]
-    dir_files = folder_paths.filter_files_content_types(dir_files, ["image"])
-    dir_files = dir_files[skip_first_images:]
-    dir_files = dir_files[0::select_every_nth]
-    if image_load_cap > 0:
-        dir_files = dir_files[:image_load_cap]
-    return dir_files
 
 
 class SFLoadImagesPath:
     @classmethod
     def INPUT_TYPES(cls):
-        folders = _list_folders()
+        folders = list_folders()
         return {
             "required": {
                 "folder": (folders, {"tooltip": "选择图片目录：input / output 目录及其子目录，批量加载其中全部图片"}),
@@ -124,10 +51,10 @@ class SFLoadImagesPath:
         # 也不返回 NaN（NaN 会沿祖先签名折叠下游全部缓存，见 experience/patterns.md §89）。
         if image_load_cap is None or skip_first_images is None or select_every_nth is None:
             image_load_cap, skip_first_images, select_every_nth = 0, 0, 1
-        directory = _resolve_folder(folder)
+        directory = resolve_folder(folder)
         if not os.path.isdir(directory):
             return False
-        dir_files = _sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
+        dir_files = sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
         h = hashlib.sha256()
         for filepath in dir_files:
             h.update(filepath.encode())
@@ -136,8 +63,8 @@ class SFLoadImagesPath:
 
     @classmethod
     def VALIDATE_INPUTS(cls, folder, **kwargs):
-        if not os.path.isdir(_resolve_folder(folder)):
-            return f"Directory '{_resolve_folder(folder)}' cannot be found."
+        if not os.path.isdir(resolve_folder(folder)):
+            return f"Directory '{resolve_folder(folder)}' cannot be found."
         return True
 
     def _empty_result(self):
@@ -150,13 +77,13 @@ class SFLoadImagesPath:
         return (img, mask, 0, [], [])
 
     def load_images(self, folder, image_load_cap=0, skip_first_images=0, select_every_nth=1):
-        directory = _resolve_folder(folder)
+        directory = resolve_folder(folder)
         if not os.path.isdir(directory):
             # 目录不存在：不抛错，返回空占位（工作流继续跑；VALIDATE_INPUTS
             # 在节点面板给出提示，运行路径保持宽容）。
             return self._empty_result()
 
-        dir_files = _sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
+        dir_files = sorted_image_files(directory, image_load_cap, skip_first_images, select_every_nth)
         if len(dir_files) == 0:
             # 空目录 / 全部被 skip/nth 滤掉：返回空占位而非抛错
             return self._empty_result()
@@ -164,9 +91,8 @@ class SFLoadImagesPath:
         sizes = {}
         has_alpha = False
         for image_path in dir_files:
-            i = Image.open(image_path)
-            i = ImageOps.exif_transpose(i)
-            has_alpha |= 'A' in i.getbands()
+            i = open_image(image_path)
+            has_alpha |= image_alpha(i) is not None
             count = sizes.get(i.size, 0)
             sizes[i.size] = count + 1
         width, height = max(sizes.items(), key=lambda x: x[1])[0]
@@ -175,8 +101,7 @@ class SFLoadImagesPath:
         pbar = comfy.utils.ProgressBar(len(dir_files))
         images = []
         for idx, image_path in enumerate(dir_files):
-            img = Image.open(image_path)
-            img = ImageOps.exif_transpose(img)
+            img = open_image(image_path)
             img = img.convert(iformat)
             arr = np.array(img, dtype=np.float32)
             t = torch.from_numpy(arr).div_(255)
@@ -204,12 +129,12 @@ class SFLoadImagesPath:
 def _list_subdirs(folder: str) -> list:
     """解析 folder 值并返回其下一级子目录名（隐藏目录已在枚举层过滤）。
 
-    folder 复用 _resolve_folder 解析（前缀/绝对路径/包含性安全校验），
+    folder 复用 resolve_folder 解析（前缀/绝对路径/包含性安全校验），
     越界或不存在返回空列表。前端按需加载（渐进式目录浏览）。"""
-    directory = _resolve_folder(folder)
+    directory = resolve_folder(folder)
     if not os.path.isdir(directory):
         return []
-    return _list_one_level_subdirs(directory)
+    return list_one_level_subdirs(directory)
 
 
 def _count_image_files(folder: str) -> int:
@@ -217,7 +142,7 @@ def _count_image_files(folder: str) -> int:
 
     与节点加载同一内容类型过滤（filter_files_content_types(["image"])）；
     越界或不存在返回 0。"""
-    directory = _resolve_folder(folder)
+    directory = resolve_folder(folder)
     try:
         names = os.listdir(directory)
     except OSError:
@@ -237,7 +162,7 @@ def _register_routes():
         @routes.get("/api/sfnodes/images_path/folders")
         async def _list_folders_route(request: web.Request) -> web.Response:
             try:
-                return web.json_response({"folders": _list_folders()})
+                return web.json_response({"folders": list_folders()})
             except Exception:
                 return web.Response(status=500)
 
