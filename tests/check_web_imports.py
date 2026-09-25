@@ -86,6 +86,8 @@ MODS = [
     "canvas_size", "sf_canvas_size_lib",
     # AuK 提示词预设（SFAuKGenerateEdit：分类/模板下拉 + 填入 instruction）
     "sf_auk_generate", "sf_auk_presets_lib",
+    # AuK 长文本（SFAuKLongSpeech：mode 联动显隐 widget 与 input_audio 插槽）
+    "sf_auk_long_speech",
     # Krea2 预设管理（Interrogator + SystemPrompt 共用）
     "sf_krea2_presets",
     # Krea2 反推预设联动（本地版 + API 版 SFImageInterrogatorAPI 共用双 class）

@@ -133,3 +133,13 @@ nodes/audio/
 - **进度/中断**：总格 = 段数 ×（nfe+3：vae_encode/encode/sample/decode），沿用 `progress_cb` + `throw_exception_if_processing_interrupted`，长任务可取消。
 - **失败**：任一段失败抛 `ValueError` 带段号（不输出半截音频）。
 - 测试：`tests/test_text_chunk.py`（分句/硬切/打包纯逻辑）+ `tests/test_auk_nodes.py` LongSpeech 段（schema/校验/逐段参数与种子/滚动与同一参考/描述模式模板/拼接长度/进度/Flash 锁定/裁尾接线）。
+
+### 146.14 SFAuKLongSpeech mode 联动显隐（2026-09）
+
+`mode` 切换时按模式显隐参数（纯前端，`web/sf_auk_long_speech.js`，机制与 §126.4 同款）：
+
+- **映射**：参考音色 TTS 显示 `reference_seconds`、隐藏 `voice_description`；声音描述 TTS 反之；其余参数两模式通用常显。
+- **widget 显隐**：复用 `sf_widget_visibility_lib.setWidgetVisible/refreshWidgetSnapshot`（隐藏只影响渲染，值仍随工作流保存与提交）；显隐后调该库新增的通用 `fitNodeToContent(node, graph)` 按内容自适应节点高度。
+- **插槽增删**：`input_audio` 在声音描述模式**未连线时移除、已连线保留**（不静默断线，后端按模式忽略该输入）；复用 `sf_dynamic_slots.removeInputAt/syncInputLinkTargets` 修正后续 `link.target_slot`。
+- **重放**：mode callback + `onAfterGraphConfigured` 双路（加载/粘贴恢复时 configure 直赋 widget 值不触发 callback）。
+- 测试 `tests/test_auk_long_speech_js.js`（17 断言）；`check_web_imports.py` MODS 登记 `sf_auk_long_speech`。

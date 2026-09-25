@@ -126,3 +126,15 @@ export function refreshWidgetSnapshot(node) {
 export function isWidgetVisible(widget) {
   return widget && widget.type !== "hidden" && widget.hidden !== true && widget.options?.hidden !== true;
 }
+
+// 条件显隐后按内容自适应节点高度（隐藏 widget 的 computeSize 收缩为 [0,-4]，
+// 显隐变化后调用一次可避免节点底部留空）。graph 可省略。
+export function fitNodeToContent(node, graph) {
+  if (!node || node.flags?.collapsed) return;
+  const width = Math.max(node.size?.[0] || 300, 300);
+  const size = node.computeSize?.([width, node.size?.[1] || 0]);
+  if (!size) return;
+  node.setSize?.([Math.max(width, size[0]), size[1]]);
+  node.setDirtyCanvas?.(true, true);
+  graph?.setDirtyCanvas?.(true, true);
+}
