@@ -312,7 +312,7 @@ finally:
 
 # ── 本地LLaMA 模式（软依赖：按属性指纹找已加载插件）──
 check("指纹查找命中真实插件替身（跳过 torch.ops 干扰项）",
-      mod._find_llama_plugin() is llama_plugin)
+      mod.find_llama_plugin() is llama_plugin)
 check("本地LLaMA 缺 llama_model 抛错", raises(NODE.enhance, **base_args(mode="本地LLaMA")))
 
 STORAGE.llm = None

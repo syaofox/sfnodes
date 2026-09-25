@@ -14,14 +14,14 @@ ComfyUI 源码根目录即 `../..`（`custom_nodes/` 的父目录，含 `comfy/`
 sfnodes/
 ├── __init__.py      # 注册入口：NODE_CLASS_MAPPINGS + NODE_DISPLAY_NAME_MAPPINGS + WEB_DIRECTORY="web"
 ├── requirements.txt # Python 依赖（仅声明，不在本机安装）
-├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ video/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
+├── nodes/           # 节点实现：face/ image/ mask/ model/ text/ utils/ inpaint/ latent/ video/ audio/ 子目录 + logic.py（循环/Any 打包）、workflow_routes.py
 ├── tools/           # 一次性脚本（extract_lora_diff.py 模型差异提 LoRA、vosr2_selftest.py VOSR2 容器自检；自带 README，不进 requirements.txt）
 ├── sf_utils/        # 共享工具库（无状态纯函数为主）：image/mask 转换、lora_* 系列、resize_engine / dropdown / regional_engine / krea2_presets / disk_state / prompt_reader 等纯逻辑模块
 ├── web/             # 前端 JS Widget：sf_common.js（公共小工具/微工具 injectCSSOnce·sfToast·el·hideJsonWidget/强调色/LoRA 行名）+ sf_popup.js（弹层三件套）+ 各节点模块（单文件或 *_lib/*_core/_ui 多模块系列）
 ├── data/            # 静态数据（prompt_presets.json、styles/ 内置风格库+samples、anime_char/characters/face_distance 子数据，含 CSV/字体）
 ├── tests/           # 前端/后端模拟测试（Node/Python 直接运行，无测试框架）
 ├── user/            # 用户数据目录回退占位（真源 `<ComfyUI user dir>/sfnodes`，见 user/sfnodes/README.md；仅 README 入库）
-└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 七主题文件）
+└── doc/             # 文档：architecture.md 逐文件细目 / experience/ 经验归档（README 索引 + 八主题文件）
 ```
 
 **逐文件职责与机制说明见 `doc/architecture.md`**——新增/删除文件必须同步其条目。
@@ -42,7 +42,7 @@ class SFMyNode:
     RETURN_TYPES = ("TYPE",)
     RETURN_NAMES = ("name",)
     FUNCTION = "execute"          # 执行方法名
-    CATEGORY = "sfnodes/<group>"  # 统一 sfnodes/<功能组>：face/image/mask/model/text/video/utils/logic/inpaint/latent
+    CATEGORY = "sfnodes/<group>"  # 统一 sfnodes/<功能组>：face/image/mask/model/text/video/audio/utils/logic/inpaint/latent
     DESCRIPTION = "..."           # 必填
 
     def execute(self, ...):
@@ -103,6 +103,6 @@ class SFMyNode:
 
 ## 经验归档（按主题，细则见 `doc/experience/`）
 
-> 本包所有具体机制、节点族约定与踩坑经验统一归档在 `doc/experience/`（七主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / nodes-video(video) / apps）。全局章节号 §N 唯一、只增不复用，映射与当前最大号见 `doc/experience/README.md`；**动手改动某功能前，先按 §N 到对应主题文件查阅**，本文档不重复收录细节。
+> 本包所有具体机制、节点族约定与踩坑经验统一归档在 `doc/experience/`（八主题文件：platform / patterns / nodes-text(简写 text) / nodes-image(image) / nodes-lora(lora) / nodes-video(video) / nodes-audio(audio) / apps）。全局章节号 §N 唯一、只增不复用，映射与当前最大号见 `doc/experience/README.md`；**动手改动某功能前，先按 §N 到对应主题文件查阅**，本文档不重复收录细节。
 >
 > 收录规则：节点专属机制与横切踩坑一律写进对应主题文件（取号 = README 顶部「当前最大 §N」+ 1 并更新该数字，编号唯一、只增不复用；允许最小事实订正与旧节「已被 §N 取代」标注，细则见 `doc/experience/README.md`「维护规则」），并同步索引表；本文档只保留通用规则（「Node Registration & Class Convention」「Dependencies & ComfyUI APIs」「Code Style」「Development Rules」「Workflow」「Testing」）与本节引用。

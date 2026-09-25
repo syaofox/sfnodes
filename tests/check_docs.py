@@ -22,7 +22,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPERIENCE = os.path.join(BASE, "doc", "experience")
 THEME_FILES = [
     "platform.md", "patterns.md", "nodes-text.md", "nodes-image.md",
-    "nodes-lora.md", "nodes-video.md", "apps.md",
+    "nodes-lora.md", "nodes-video.md", "nodes-audio.md", "apps.md",
 ]
 
 errors = []

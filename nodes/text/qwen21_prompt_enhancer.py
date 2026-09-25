@@ -20,10 +20,10 @@ min_p/repetition_penalty/seed（API 模式仅 temperature/seed 可透传，见 t
 
 import json
 import math
-import sys
 
 try:
     from ...sf_utils.common import flatten_to_rgb, frame_to_pil, ordered_slot_items
+    from ...sf_utils.llama_cpp import find_llama_plugin
     from ...sf_utils.llm_client import (
         build_image_content,
         chat_completion_sync,
@@ -45,6 +45,7 @@ try:
     )
 except Exception:  # pragma: no cover - 测试/移植性兜底
     from sf_utils.common import flatten_to_rgb, frame_to_pil, ordered_slot_items  # type: ignore
+    from sf_utils.llama_cpp import find_llama_plugin  # type: ignore
     from sf_utils.llm_client import (  # type: ignore
         build_image_content,
         chat_completion_sync,
@@ -75,29 +76,6 @@ MODE_OPTIONS = [MODE_OFFICIAL_PE, MODE_LOCAL_LLM, MODE_LLAMA, MODE_API]
 
 TASK_LABELS = {"文生图": TASK_T2I, "图生图": TASK_EDIT}
 LANGUAGE_LABELS = {"英文": LANGUAGE_EN, "中文": LANGUAGE_ZH}
-
-
-def _find_llama_plugin():
-    """查找已加载的 ComfyUI-llama-cpp_vlm 插件模块（软依赖；未安装返回 None）。
-
-    插件目录名含连字符、由 ComfyUI 以路径式模块名加载，不能按包名 import；按属性
-    指纹在 sys.modules 里找已加载实例，避免二次实例化导致 LLAMA_CPP_STORAGE 分裂
-    （用户 Loader 加载的模型必须与本节点的调用是同一份）。
-
-    指纹必须验到 storage 具备 load_model/clean（仅查名字会撞上插件注册的
-    `torch.ops.LLAMA_CPP_STORAGE` 命名空间——实测踩坑）。
-    """
-    for module in list(sys.modules.values()):
-        try:
-            storage = getattr(module, "LLAMA_CPP_STORAGE", None)
-            if storage is None or not hasattr(storage, "load_model") or not hasattr(storage, "clean"):
-                continue
-            if not hasattr(module, "llama_cpp_instruct_adv"):
-                continue
-            return module
-        except Exception:  # 惰性加载模块的 __getattr__ 可能抛非 AttributeError
-            continue
-    return None
 
 
 class SFQwenImage21PromptEnhancer:
@@ -286,7 +264,7 @@ class SFQwenImage21PromptEnhancer:
         返回 (raw, 生成 token 数, 模型名)。与插件 Instruct 节点同源：复用其已加载的
         Llama 实例与 chat_handler（图像走 OpenAI 风格 image_url 部分，由 handler 消费）。
         """
-        plugin = _find_llama_plugin()
+        plugin = find_llama_plugin()
         if plugin is None:
             raise ValueError(
                 "SF Qwen Image 2.1 Prompt Enhancer: 未检测到 ComfyUI-llama-cpp_vlm 插件；"
@@ -468,7 +446,7 @@ class SFQwenImage21PromptEnhancer:
         if unload_after:
             try:
                 if mode == MODE_LLAMA:
-                    plugin = _find_llama_plugin()
+                    plugin = find_llama_plugin()
                     if plugin is not None:
                         plugin.LLAMA_CPP_STORAGE.clean()
                 else:

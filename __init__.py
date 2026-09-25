@@ -187,6 +187,10 @@ from .nodes.text.long_text_to_list import SFLongTextToList
 from .nodes.text.text_list_affix import SFTextListAffix
 from .nodes.text.spreadsheet_outputlist import SFSpreadsheetOutputList
 
+from .nodes.audio.auk_config import SFAuKOpenAISettings, SFAuKLlamaCppSettings
+from .nodes.audio.auk_generate import SFAuKGenerateEdit
+from .nodes.audio.auk_loader import SFAuKModelsLoader
+
 from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus
 from .nodes.utils.qwen_edit import (
     SFQwenEditTextEncode,
@@ -428,6 +432,11 @@ NODE_CLASS_MAPPINGS = {
     "SFLongTextToList": SFLongTextToList,
     "SFTextListAffix": SFTextListAffix,
     "SFSpreadsheetOutputList": SFSpreadsheetOutputList,
+    # 音频节点（AuK）
+    "SFAuKModelsLoader": SFAuKModelsLoader,
+    "SFAuKGenerateEdit": SFAuKGenerateEdit,
+    "SFAuKOpenAISettings": SFAuKOpenAISettings,
+    "SFAuKLlamaCppSettings": SFAuKLlamaCppSettings,
     # 简单数学节点
     "SFNumber": SFNumber,
     "SFUniversalSlider": SFUniversalSlider,
@@ -672,6 +681,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFLongTextToList": "SF Long Text To List",
     "SFTextListAffix": "SF Text List Affix",
     "SFSpreadsheetOutputList": "SF Spreadsheet OutputList",
+    # 音频节点（AuK）
+    "SFAuKModelsLoader": "SF AuK Models Loader",
+    "SFAuKGenerateEdit": "SF AuK Generate / Edit",
+    "SFAuKOpenAISettings": "SF AuK OpenAI Settings",
+    "SFAuKLlamaCppSettings": "SF AuK Llama.cpp Adapter",
     # 简单数学节点
     "SFNumber": "SF Number",
     "SFUniversalSlider": "SF Universal Slider",

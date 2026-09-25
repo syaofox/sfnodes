@@ -17,3 +17,21 @@ diffusers
 einops
 timm
 huggingface_hub
+
+# AuK 音频节点（复刻 ComfyUI-AuK_Doc，MIT；版本下限 = 实机容器实测版本）
+transformers>=5.16.1
+qwen-omni-utils>=0.0.9
+omegaconf>=2.3.1
+torchdiffeq>=0.2.5
+x_transformers>=2.31.0
+accelerate>=1.15.0
+PyYAML>=6.0.3
+silero-vad>=6.2.3
+pyloudnorm>=0.2.0
+openai>=2.54.0
+tencentcloud-sdk-python-asr>=3.1.177
+funasr>=1.4.16,<2
+modelscope>=1.40.1,<2
+soundfile>=0.14.0
+audioread>=3.1.0
+WeTextProcessing>=1.2.0; sys_platform != "win32"
