@@ -46,8 +46,7 @@ DESCRIPTION_TEMPLATE = (
     'The content to speak is: "{text}".'
 )
 
-TARGET_MARGIN = 1.08  # 段时长估计余量（偏长可裁尾静音，偏短会截字）
-TARGET_HEADROOM = 0.15
+TARGET_HEADROOM = 0.15  # 段时长头寸（防估计略紧截字；语速由 speech_rate 直接控制）
 
 
 def _chunk_target_seconds(estimated_seconds, reference, sample_rate):
@@ -56,7 +55,7 @@ def _chunk_target_seconds(estimated_seconds, reference, sample_rate):
     if reference is not None:
         ref_seconds = reference[0].shape[-1] / float(reference[1])
     allowed = MAX_SEQUENCE_SECONDS - ref_seconds - 0.2
-    target = float(estimated_seconds) * TARGET_MARGIN + TARGET_HEADROOM
+    target = float(estimated_seconds) + TARGET_HEADROOM
     return max(0.5, min(target, allowed, MAX_SEQUENCE_SECONDS))
 
 
@@ -144,6 +143,12 @@ class SFAuKLongSpeech:
                     "default": 24.0, "min": 2.0, "max": 30.0, "step": 0.5,
                     "tooltip": "单段生成时长上限（受 30s 预算与参考长度约束，实际按预算自动收窄）",
                 }),
+                "speech_rate": ("FLOAT", {
+                    "default": 4.15, "min": 3.0, "max": 6.0, "step": 0.05,
+                    "tooltip": "语速（中文字/秒；英文/数字/标点按字节权重折算）：数值越大越紧、越小越慢。"
+                               "自然语速约 4.2-4.8；过大会语速过快或尾字被截断。"
+                               "实际请求时长 = 加权字数 ÷ 语速 + 0.15s",
+                }),
                 "ref_tail_seconds": ("FLOAT", {
                     "default": 4.0, "min": 1.0, "max": 10.0, "step": 0.5,
                     "tooltip": "滚动参考：取上一段尾部多少秒作下一段参考（音色/语气续接；3-6s 常用）",
@@ -205,7 +210,7 @@ class SFAuKLongSpeech:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
-    def execute(self, engine, text, mode, max_chunk_seconds=24.0, ref_tail_seconds=4.0,
+    def execute(self, engine, text, mode, max_chunk_seconds=24.0, speech_rate=4.15, ref_tail_seconds=4.0,
                 reference_seconds=10.0, pause_seconds=0.1, continuity=CONTINUITY_ROLLING,
                 seed=42, nfe_steps=32, cfg_strength=2.0, sway_sampling_coef=-1.0,
                 trim_trailing_silence=True, input_audio=None, voice_description=""):
@@ -238,10 +243,12 @@ class SFAuKLongSpeech:
             if ref_audio[0].shape[-1] > limit:
                 ref_audio = (ref_audio[0][..., :limit].contiguous(), ref_audio[1])
 
-        from .auk.infer.pe import estimate_speech_seconds
+        from .auk.infer.pe import DEFAULT_SPEECH_RATE, estimate_speech_units
+
+        rate = max(1.0, min(10.0, float(speech_rate)))
 
         def estimate(value):
-            return estimate_speech_seconds(value, None)
+            return estimate_speech_units(value, None) / rate
 
         first_ref_seconds = ref_audio[0].shape[-1] / float(ref_audio[1]) if ref_audio is not None else 0.0
         next_ref_seconds = float(ref_tail_seconds) if continuity == CONTINUITY_ROLLING else first_ref_seconds
@@ -334,6 +341,7 @@ class SFAuKLongSpeech:
                     "index": index + 1,
                     "text": chunk["text"],
                     "estimated_seconds": round(chunk["seconds"], 2),
+                    "raw_estimated_seconds": round(chunk["seconds"] * rate / DEFAULT_SPEECH_RATE, 2),
                     "applied_seconds": round(target_seconds, 2),
                     "reference": reference_source,
                     "reference_seconds": round(ref_seconds, 2),
@@ -344,6 +352,7 @@ class SFAuKLongSpeech:
         report = json.dumps({
             "mode": mode,
             "continuity": continuity,
+            "speech_rate": rate,
             "chunks": len(chunks),
             "total_seconds": round(audio.shape[-1] / float(sample_rate), 2),
             "pause_seconds": float(pause_seconds),

@@ -126,7 +126,7 @@ nodes/audio/
 30 秒是**单次模型序列预算**（参考 + 目标），拼接总时长不受限。`SFAuKLongSpeech`（显示名 SF AuK Long Speech）把长文本做成：分句 → 按时长估计打包 → 逐段生成 → 拼接。
 
 - **分句与打包**（纯逻辑 `sf_utils/text_chunk.py`）：中英句末（`。！？…` 与后接空白/行尾的 `.!?`）与换行切句并保留后置引号；超长单元先按 `，,、；;：:` 次级切分、再按字符二分硬切（切出的纯标点片并入前片，避免孤标点成段）；按 `estimate(text)` 贪心打包并留 8% 余量。
-- **时长估计单源**：`pe.py` 新增公共包装 `estimate_speech_seconds(text, language=None)`（内部即 instruct_tts 的 F5/utf8 权重估计，zh 0.0803、en 0.0656 s/字节），长文本节点与 PE 共用同一口径；不走 LLM。
+- **时长估计单源 + 语速直控**：`pe.py` 新增公共包装 `estimate_speech_seconds`（instruct_tts 的 F5/utf8 权重口径，zh 0.0803、en 0.0656 s/字节）与 `estimate_speech_units`（加权字数：中文字=1、英文/数字/标点按字节权重≈0.27 折算，`DEFAULT_SPEECH_RATE = 1/(3×0.0803) ≈ 4.15` 字/秒）。节点用 `speech_rate`（3.0–6.0，默认 4.15）直控语速：`estimated = 加权字数 ÷ speech_rate`、`target = estimated + 0.15s`（不再叠加百分比余量，自然语速约 4.2–4.8）；报告带 `speech_rate` 与每段 `raw_estimated_seconds`（默认口径）便于对照。
 - **逐段生成**：首段参考 = `input_audio`（按 `reference_seconds` 截前 N 秒，0=全长）；后续段参考 = 上一段生成音频尾部 `ref_tail_seconds`（滚动参考，模型把参考当前缀续说；`同一参考`档则复用首段参考）。每段 `gen_seconds = 估计 × 1.08 + 0.15` 并夹到 `30s − 参考` 预算；`engine.lock` 全程持有、`unload_all_models` 只在循环前一次；逐段 `seed + 段序号` 可复现。
 - **指令模板**：参考音色模式全段 `Say the following with the same voice: "{段文本}"`；声音描述模式仅首段用 `Generate speech based on ... description ...`（后续段音色已由滚动参考建立，改用 same-voice 模板避免描述与参考冲突）。
 - **拼接**：每段可选按 20ms 窗口能量裁尾静音（防段间静音累积），段间 `pause_seconds` 静音 + 5ms 淡入淡出（仅拼接边），`torch.cat`。

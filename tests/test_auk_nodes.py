@@ -242,8 +242,10 @@ class PromptEnhancerError(RuntimeError):
 
 
 pe_stub.PromptEnhancerError = PromptEnhancerError
-# 假估计：0.1 秒/字符（便于手算分段）
+# 假估计：0.1 秒/字符（便于手算分段）；units = seconds × 默认语速
 pe_stub.estimate_speech_seconds = lambda text, language=None: len(str(text)) * 0.1
+pe_stub.DEFAULT_SPEECH_RATE = 4.1511
+pe_stub.estimate_speech_units = lambda text, language=None: len(str(text)) * 0.1 * 4.1511
 
 
 class FakeSenseVoice:
@@ -577,10 +579,12 @@ check("30s 预算拒绝", raises(node.execute, engine, "hi", 1.0, False, 42, inp
 
 # ── SF AuK Long Speech ──
 schema = LS.SFAuKLongSpeech.INPUT_TYPES()
-required_keys = {"engine", "text", "mode", "max_chunk_seconds", "ref_tail_seconds", "reference_seconds",
-                 "pause_seconds", "continuity", "seed", "nfe_steps", "cfg_strength", "sway_sampling_coef",
-                 "trim_trailing_silence"}
-check("LongSpeech required 十三项", set(schema["required"]) == required_keys)
+required_keys = {"engine", "text", "mode", "max_chunk_seconds", "speech_rate", "ref_tail_seconds",
+                 "reference_seconds", "pause_seconds", "continuity", "seed", "nfe_steps", "cfg_strength",
+                 "sway_sampling_coef", "trim_trailing_silence"}
+check("LongSpeech required 十四项", set(schema["required"]) == required_keys)
+check("LongSpeech 语速默认 4.15", schema["required"]["speech_rate"][1]["default"] == 4.15
+      and schema["required"]["speech_rate"][1]["min"] == 3.0 and schema["required"]["speech_rate"][1]["max"] == 6.0)
 check("LongSpeech optional 两项", set(schema["optional"]) == {"input_audio", "voice_description"})
 check("LongSpeech 输出", LS.SFAuKLongSpeech.RETURN_TYPES == ("AUDIO", "STRING")
       and LS.SFAuKLongSpeech.RETURN_NAMES == ("audio", "report"))
@@ -637,6 +641,24 @@ try:
     check("LongSpeech 描述模板", "温柔的年轻女声" in desc_calls[0][0][0]["content"][0]["text"])
     check("LongSpeech 描述模式次段滚动参考", desc_calls[1][1]["audio"] is not None
           and parsed2["segments"][1]["reference"] == "rolling")
+
+    rate_engine = FakeEngine()
+    _, rate_report = long_node.execute(
+        rate_engine, "第一句。第二句。", "参考音色 TTS", max_chunk_seconds=5.0,
+        speech_rate=5.0, reference_seconds=4.0, trim_trailing_silence=False, input_audio=ref)
+    rated = json.loads(rate_report)
+    seg = rated["segments"][0]
+    check("LongSpeech 语速写入报告", rated["speech_rate"] == 5.0)
+    check("LongSpeech 语速影响估计", abs(seg["estimated_seconds"] - seg["raw_estimated_seconds"] * (4.1511 / 5.0)) < 0.1)
+    check("LongSpeech 目标 = 估计 + 头寸", abs(seg["applied_seconds"] - (seg["estimated_seconds"] + 0.15)) < 0.02)
+
+    default_engine = FakeEngine()
+    _, default_report = long_node.execute(
+        default_engine, "第一句。第二句。", "参考音色 TTS", max_chunk_seconds=5.0,
+        reference_seconds=4.0, trim_trailing_silence=False, input_audio=ref)
+    default_seg = json.loads(default_report)["segments"][0]
+    check("LongSpeech 默认语速=原始估计", abs(default_seg["estimated_seconds"] - default_seg["raw_estimated_seconds"]) < 0.02)
+    check("LongSpeech 语速越大目标越短", seg["applied_seconds"] < default_seg["applied_seconds"])
 
     flash_long = FakeEngine(is_flash=True)
     long_node.execute(flash_long, "你好。", "参考音色 TTS", max_chunk_seconds=1.0,

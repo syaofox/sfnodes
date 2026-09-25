@@ -1517,6 +1517,21 @@ def estimate_speech_seconds(text: str, language: str | None = None) -> float:
     return _estimate_f5_instruct_duration(value, language)
 
 
+# utf8 权重口径的中文语速（字/秒）：3 字节/字 × 每字节秒数
+DEFAULT_SPEECH_RATE = 1.0 / (3.0 * float(TTS_SEC_PER_UTF8_BYTE["zh"]))
+
+
+def estimate_speech_units(text: str, language: str | None = None) -> float:
+    """sfnodes 扩展：加权字数（中文字等价：中文字=1，英文/数字/标点按字节权重折算）。
+
+    与 estimate_speech_seconds 同源；除以语速（字/秒）即得估计时长，供长文本按语速调速。
+    """
+    value = str(text or "")
+    if not value.strip():
+        return 0.0
+    return _tts_utf8_weight(value, language) * DEFAULT_SPEECH_RATE
+
+
 def _spoken_duration(text: str | None, fallback_language: str | None) -> float:
     value = str(text or "")
     num_zh = len(_CJK_RE.findall(value))
