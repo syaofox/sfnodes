@@ -92,3 +92,12 @@ nodes/audio/
 - **节点侧**：`SFAuKGenerateEdit.execute` 建 `comfy.utils.ProgressBar(grand_total)`，总格数 = PE 5（关闭时不占格）+ VAE 编码 1 + 条件编码 1 + 采样 nfe（Flash 4）+ 解码 1，按 `update_absolute` 映射总进度；前端 1.53+ 按 `nodeProgressStates` 在节点上渲染（`ProgressBar` 自带 0.1s / 0.5% 节流）。
 - **中断**：回调内调用 `comfy.model_management.throw_exception_if_processing_interrupted()`——排队取消/中断可打断长采样（上游原本只能等整段结束）。异常沿 `euler_final → sample → _run → generate` 抛出，引擎 `finally`（offload hook 归还）与节点 `finally`（PE 临时文件清理）照常执行。
 - 已知边界：ASR 首次模型下载（funasr 内部）与单次 LLM 请求不可中断，只在阶段边界生效；`ProgressBar` 的节点 id 绑定依赖「execute 内创建」，勿提前到模块级。
+
+### 146.10 切换模型释放旧引擎（sfnodes 扩展，2026-09）
+
+问题：AuK 引擎不在 `comfy.model_management` 管理范围内，`unload_all_models()` 不会释放它；ComfyUI 执行缓存会长期持有 loader 输出（引擎对象），换模型再排队时旧引擎权重仍占显存——实测 Flash→Base 在 max_vram 下报「needs 4.4 GiB but only 1.9 GiB available」。
+
+- `AukInfer.release()`：主动丢 `model`/`vae_model`/offload hooks + `gc.collect()` + `torch.cuda.empty_cache()`，并置 `released=True`（此后 `generate()` 直接报错提示重跑 loader）。
+- `SFAuKModelsLoader`：模块内 `_CACHE` 改**强引用**；`_release_others(key)` 释放非当前 key 的全部引擎；`IS_CHANGED` 恒 `NaN`（ComfyUI 执行缓存不复用引擎对象，避免命中已释放的旧引擎；引擎复用由 `_CACHE` 负责）。
+- 释放时机：仅在**显存不足**时触发——max_vram 放置失败走引擎 `vram_retry` 回调（已建好的 CPU 模型无需重载），low_vram/balanced 放置抛 `torch.cuda.OutOfMemoryError` 走 loader catch 后重试一次（重新构建）。同图多个 AuK 引擎只要显存放得下就不会被提前释放；放不下时后者会释放前者（该组合本身跑不动，日志有 `Released N previous AuK engine(s)`）。
+- 引擎侧新增 `InsufficientVRAMError(ValueError)`（max_vram 显存不足专用），报错文案不变。

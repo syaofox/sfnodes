@@ -2,7 +2,11 @@
 
 上游：DocWorkBox/ComfyUI-AuK_Doc（基于 Tencent-Hunyuan/AuK，MIT，见 auk/LICENSE）。
 V3→V1 适配；引擎在 execute 内延迟导入（节点注册/启动阶段不加载 transformers）。
-输出 SF_AUK_ENGINE 连接 SFAuKGenerateEdit；同一组参数命中弱引用缓存，不重复加载。
+输出 SF_AUK_ENGINE 连接 SFAuKGenerateEdit；同一组参数命中模块内强引用缓存，不重复加载。
+
+sfnodes 扩展：切换模型（换 key）时若显存不足，自动释放旧引擎权重后重试一次
+（max_vram 走引擎 vram_retry 回调，low_vram/balanced 的放置 OOM 走 catch 重试）；
+IS_CHANGED 恒 NaN 避免 ComfyUI 执行缓存复用已释放的旧引擎。
 
 模型目录沿用上游约定（folder_paths 幂等追加，与 AuK_Doc 共存不冲突）：
   auk: models/auk、models/diffusion_models/auk
@@ -11,7 +15,6 @@ V3→V1 适配；引擎在 execute 内延迟导入（节点注册/启动阶段�
 """
 
 import threading
-import weakref
 from pathlib import Path
 
 import folder_paths
@@ -48,8 +51,34 @@ folder_paths.add_model_folder_path('auk_vae', str(Path(folder_paths.models_dir) 
 folder_paths.add_model_folder_path('auk_vae', str(Path(folder_paths.models_dir) / 'vae' / 'auk'))
 folder_paths.add_model_folder_path('auk_vae', str(Path(folder_paths.models_dir) / 'vae'))
 
-_CACHE = weakref.WeakValueDictionary()
-_LOCK = threading.Lock()
+_CACHE = {}
+_LOCK = threading.RLock()
+
+
+def _release_others(key):
+    """释放缓存中其他引擎的权重（切换模型/显存不足时调用），返回释放数量。
+
+    只从本模块缓存移除；ComfyUI 执行缓存可能仍持有旧引擎对象，故必须靠 AukInfer.release()
+    主动丢权重。配合 SFAuKModelsLoader.IS_CHANGED 恒为 NaN，旧引擎不会被复用。
+    """
+    released = 0
+    with _LOCK:
+        for old_key in [k for k in _CACHE if k != key]:
+            engine = _CACHE.pop(old_key)
+            engine.inference.release()
+            released += 1
+    if released:
+        logger.info(f'Released {released} previous AuK engine(s) to free VRAM')
+    return released
+
+
+def _retry_after_release(key):
+    """max_vram 放置失败时的回调：释放其他引擎 + 清缓存，供引擎重试放置。"""
+    def retry():
+        _release_others(key)
+        import comfy.model_management as mm
+        mm.soft_empty_cache()
+    return retry
 
 
 class AuKEngine:
@@ -63,7 +92,8 @@ class SFAuKModelsLoader:
         "从 models/auk 选择 AuK Base/Flash（含 ComfyUI 格式 fp32/bf16/int8 repack，"
         "config.yaml 与 VAE 自动解析）与 Qwen2.5-Omni-3B 编码器；显存档位 low_vram/balanced "
         "在 CPU/GPU 间搬运模型，max_vram 让 DiT+VAE 常驻显存、int8 Qwen 以量化权重常驻"
-        "（逐层反量化），宿主内存占用最低。输出 engine 连接 SF AuK Generate / Edit"
+        "（逐层反量化），宿主内存占用最低。输出 engine 连接 SF AuK Generate / Edit；"
+        "切换模型且显存不足时自动释放旧引擎权重后重试（同图同时用多个 AuK 引擎仍需显存放得下）"
     )
 
     @classmethod
@@ -103,6 +133,12 @@ class SFAuKModelsLoader:
     FUNCTION = "execute"
     CATEGORY = _CATEGORY
 
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # 恒 NaN：引擎对象不随工作流缓存复用（切换模型时旧引擎会被 release()，
+        # 若 ComfyUI 命中旧签名返回已释放引擎会直接报错）。引擎复用由本模块 _CACHE 负责。
+        return float('nan')
+
     def execute(self, model_name, qwen_name, memory_mode, dtype, device, sequential_cfg=True):
         if memory_mode not in set(MEMORY_MODES) or dtype not in {'bf16', 'fp16'}:
             raise ValueError('Select a supported memory profile and precision.')
@@ -123,15 +159,29 @@ class SFAuKModelsLoader:
         with _LOCK:
             engine = _CACHE.get(key)
             if engine is None:
-                from .auk.infer.infer_auk import AukInfer
+                from .auk.infer.infer_auk import AukInfer, InsufficientVRAMError
 
                 import comfy.model_management as mm
                 mm.unload_all_models()
                 mm.soft_empty_cache()
-                engine = AuKEngine(AukInfer(config_path=str(config), ckpt_path=str(checkpoint),
-                                          vae_path=str(vae), qwen_path=str(qwen),
-                                          qwen_config_dir=str(qwen_config_dir), device=device, dtype=dtype,
-                                          memory_mode=memory_mode, sequential_cfg=sequential_cfg))
+
+                def build():
+                    return AukInfer(config_path=str(config), ckpt_path=str(checkpoint),
+                                    vae_path=str(vae), qwen_path=str(qwen),
+                                    qwen_config_dir=str(qwen_config_dir), device=device, dtype=dtype,
+                                    memory_mode=memory_mode, sequential_cfg=sequential_cfg,
+                                    vram_retry=_retry_after_release(key))
+
+                try:
+                    inference = build()
+                except (InsufficientVRAMError, torch.cuda.OutOfMemoryError):
+                    # 切换模型时旧引擎仍占显存：释放其他引擎后重试一次（max_vram 走 vram_retry，
+                    # low_vram/balanced 的放置 OOM 走这里）。
+                    if not _release_others(key):
+                        raise
+                    mm.soft_empty_cache()
+                    inference = build()
+                engine = AuKEngine(inference)
                 _CACHE[key] = engine
                 logger.info(f'Loaded AuK engine: {checkpoint.name} / {qwen.name} / {memory_mode} / {dtype} / {device}')
         return (engine,)

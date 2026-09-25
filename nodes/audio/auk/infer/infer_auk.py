@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import logging
 import math
@@ -22,6 +23,10 @@ logging.getLogger().addFilter(lambda record: "System prompt modified" not in rec
 
 
 _DTYPE_MAP = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}
+
+
+class InsufficientVRAMError(ValueError):
+    """max_vram 常驻显存不足（sfnodes 扩展：loader 可释放旧引擎后重试放置）。"""
 
 
 def _dequantize_int8(qdata: torch.Tensor, scale: torch.Tensor, conf: dict, target_dtype: torch.dtype) -> torch.Tensor:
@@ -118,9 +123,11 @@ class AukInfer:
         cpu_offload: bool = False,
         memory_mode: str = "standard",
         sequential_cfg: bool = False,
+        vram_retry=None,  # sfnodes 扩展：max_vram 放置失败时的回调（loader 释放旧引擎后重试）
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.dtype = _DTYPE_MAP.get(dtype, torch.bfloat16)
+        self.released = False
         if memory_mode not in {"standard", "balanced", "low_vram", "max_vram"}:
             raise ValueError(f"Unknown memory mode: {memory_mode}")
         self.memory_mode = memory_mode
@@ -250,7 +257,13 @@ class AukInfer:
                 _, transformer_hook = cpu_offload_with_hook(self.model.transformer, self.device, prev_module_hook=text_hook)
                 self._offload_hooks = (text_hook, transformer_hook)
         elif self.gpu_resident:
-            self._place_gpu_resident(model)
+            try:
+                self._place_gpu_resident(model)
+            except InsufficientVRAMError:
+                if vram_retry is None:
+                    raise
+                vram_retry()
+                self._place_gpu_resident(model)
 
     def _place_gpu_resident(self, model: CFMEdit):
         """max_vram: pin DiT + VAE on GPU and keep as much of the encoder resident as fits."""
@@ -260,7 +273,7 @@ class AukInfer:
         dit_bytes = _model_nbytes(model.transformer)
         text_bytes = _model_nbytes(model.text_encoder)
         if dit_bytes + reserve > free_bytes:
-            raise ValueError(
+            raise InsufficientVRAMError(
                 f"max_vram needs about {(dit_bytes + reserve) / 2 ** 30:.1f} GiB free VRAM for the "
                 f"DiT but only {free_bytes / 2 ** 30:.1f} GiB is available. Use balanced or low_vram."
             )
@@ -283,6 +296,19 @@ class AukInfer:
                 "(%.1f GiB does not fit).",
                 self.device, (vae_bytes + dit_bytes) / 2 ** 30, text_bytes / 2 ** 30,
             )
+
+    def release(self):
+        """sfnodes 扩展：释放引擎权重（切换模型时由 loader 调用，释放后该引擎不可再用）。
+
+        ComfyUI 的执行缓存可能仍持有旧引擎对象，故这里主动丢权重并清缓存，不依赖对象析构。
+        """
+        self.model = None
+        self.vae_model = None
+        self._offload_hooks = ()
+        self.released = True
+        gc.collect()
+        if self.device.startswith("cuda"):
+            torch.cuda.empty_cache()
 
     def _copy_weights(self, model: torch.nn.Module, weights):
         """Copy a streamed (name, tensor) sequence into the model; returns (missing, unexpected)."""
@@ -569,6 +595,8 @@ class AukInfer:
         seed: int | None = None,
         progress_cb=None,  # sfnodes 扩展：阶段进度回调 (phase, done, total)
     ) -> tuple[torch.Tensor, int]:
+        if self.released:
+            raise RuntimeError("AuK engine was released after a model switch; re-run SF AuK Models Loader.")
         wav_path = audio or extract_audio_path(messages, required=False)
         if wav_path is not None:
             ref_audio, ref_rms = self._load_audio(wav_path)

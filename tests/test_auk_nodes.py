@@ -1,12 +1,16 @@
 # SF AuK 四节点后端测试（python tests/test_auk_nodes.py）
 # 覆盖：V1 schema（类型/槽位/默认值/可选输入）、OpenAI 设置校验与归一化、llama.cpp 适配
-# （本地 client 加载模型、cleanup 卸载）、Loader 选项与显存档位校验、Generate 输入校验
-# （空指令/时长范围/Flash 固定配方/30s 预算）与音频输出形状、消息与采样参数透传。
+# （本地 client 加载模型、cleanup 卸载）、Loader 选项/显存档位校验/切换模型释放旧引擎与重试、
+# Generate 输入校验（空指令/时长范围/Flash 自动锁定/30s 预算）与音频输出形状、消息与采样
+# 参数透传、进度条映射与中断检查。
 # 不发网络请求、不加载真实模型：torch/torchaudio/soundfile/folder_paths/omegaconf/openai
-# 全部为最小桩，引擎用 FakeEngine。
+# 全部为最小桩，引擎用 FakeEngine/FakeAukInfer。
 
+import json
+import math
 import os
 import sys
+import tempfile
 import types
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -81,6 +85,13 @@ class _Cuda:
 
 torch = types.ModuleType("torch")
 torch.cuda = _Cuda()
+
+
+class _FakeCudaOOM(RuntimeError):
+    pass
+
+
+torch.cuda.OutOfMemoryError = _FakeCudaOOM
 torch.float32 = "float32"
 torch.float16 = "float16"
 torch.bfloat16 = "bfloat16"
@@ -138,8 +149,9 @@ sys.modules["soundfile"] = sf
 folder_paths = types.ModuleType("folder_paths")
 folder_paths.models_dir = os.path.join(root, "user", "models")
 folder_paths.added = []
+folder_paths.paths = {}
 folder_paths.add_model_folder_path = lambda name, path, is_default=False: folder_paths.added.append((name, path))
-folder_paths.get_folder_paths = lambda name: []
+folder_paths.get_folder_paths = lambda name: folder_paths.paths.get(name, [])
 sys.modules["folder_paths"] = folder_paths
 
 # omegaconf（auk_paths 用；yaml + 属性访问对象）
@@ -190,6 +202,35 @@ class PromptEnhancerError(RuntimeError):
 
 pe_stub.PromptEnhancerError = PromptEnhancerError
 sys.modules["nodes.audio.auk.infer.pe"] = pe_stub
+
+# infer_auk 模块桩（Loader 的延迟导入走 sys.modules，不加载 transformers）
+
+
+class FakeInsufficientVRAMError(ValueError):
+    pass
+
+
+class FakeAukInfer:
+    instances = []
+    behavior = "retry"
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.released = False
+        FakeAukInfer.instances.append(self)
+        if len(FakeAukInfer.instances) == 1 and FakeAukInfer.behavior == "retry":
+            kwargs["vram_retry"]()  # 模拟引擎内部：放置失败 → 回调释放旧引擎 → 重试成功
+        elif len(FakeAukInfer.instances) == 1 and FakeAukInfer.behavior == "oom":
+            raise torch.cuda.OutOfMemoryError("simulated")
+
+    def release(self):
+        self.released = True
+
+
+infer_auk_stub = types.ModuleType("nodes.audio.auk.infer.infer_auk")
+infer_auk_stub.AukInfer = FakeAukInfer
+infer_auk_stub.InsufficientVRAMError = FakeInsufficientVRAMError
+sys.modules["nodes.audio.auk.infer.infer_auk"] = infer_auk_stub
 
 # llama-cpp 插件桩（find_llama_plugin 按 sys.modules 属性指纹查找）
 storage = types.SimpleNamespace(load_model_calls=[], clean_calls=0)
@@ -311,6 +352,59 @@ check("Loader 档位选项", schema["required"]["memory_mode"][0] == ["low_vram"
 check("Loader 无 CUDA 占位", schema["required"]["device"][0] == ["CUDA unavailable"])
 check("Loader 非法档位拒绝", raises(L.SFAuKModelsLoader().execute, "x", "y", "turbo", "bf16", "cuda:0"))
 check("Loader 非法设备拒绝", raises(L.SFAuKModelsLoader().execute, "x", "y", "low_vram", "fp32", "cuda:0"))
+
+# ── Loader：切换模型释放旧引擎 + 重试（引擎模块桩）──
+tmp_models = tempfile.mkdtemp(prefix="sf_auk_models_")
+os.makedirs(os.path.join(tmp_models, "auk", "AuK"))
+os.makedirs(os.path.join(tmp_models, "qwen", "Qwen2.5-Omni-3B"))
+with open(os.path.join(tmp_models, "auk", "AuK", "config.yaml"), "w", encoding="utf-8") as handle:
+    handle.write("model:\n  name: AuK\n")
+open(os.path.join(tmp_models, "auk", "AuK", "auk_base.safetensors"), "wb").write(b"")
+open(os.path.join(tmp_models, "auk", "AuK", "vae.safetensors"), "wb").write(b"")
+with open(os.path.join(tmp_models, "qwen", "Qwen2.5-Omni-3B", "config.json"), "w", encoding="utf-8") as handle:
+    json.dump({"model_type": "qwen2_5_omni"}, handle)
+folder_paths.paths = {
+    "auk": [os.path.join(tmp_models, "auk")],
+    "auk_qwen": [os.path.join(tmp_models, "qwen")],
+    "auk_vae": [os.path.join(tmp_models, "auk")],
+}
+torch.cuda.device_count = lambda: 1
+
+check("Loader IS_CHANGED 恒 NaN", math.isnan(L.SFAuKModelsLoader.IS_CHANGED(model_name="x")))
+
+
+class _OldInference:
+    def __init__(self):
+        self.released = False
+
+    def release(self):
+        self.released = True
+
+
+loader = L.SFAuKModelsLoader()
+old_inference = _OldInference()
+L._CACHE.clear()
+L._CACHE[("old-key",)] = L.AuKEngine(old_inference)
+FakeAukInfer.instances = []
+FakeAukInfer.behavior = "retry"
+(engine,) = loader.execute("AuK/auk_base.safetensors", "Qwen2.5-Omni-3B", "max_vram", "bf16", "cuda:0")
+check("切换模型释放旧引擎", old_inference.released and ("old-key",) not in L._CACHE)
+check("新引擎入缓存", len(L._CACHE) == 1 and list(L._CACHE.values())[0] is engine)
+check("vram_retry 由引擎回调触发", len(FakeAukInfer.instances) == 1 and engine.inference is FakeAukInfer.instances[0])
+
+(engine2,) = loader.execute("AuK/auk_base.safetensors", "Qwen2.5-Omni-3B", "max_vram", "bf16", "cuda:0")
+check("同参数命中缓存不重建", engine2 is engine and len(FakeAukInfer.instances) == 1)
+
+L._CACHE.clear()
+old_inference2 = _OldInference()
+L._CACHE[("old-key-2",)] = L.AuKEngine(old_inference2)
+FakeAukInfer.instances = []
+FakeAukInfer.behavior = "oom"
+(engine3,) = loader.execute("AuK/auk_base.safetensors", "Qwen2.5-Omni-3B", "low_vram", "bf16", "cuda:0")
+check("放置 OOM 释放旧引擎后重试", old_inference2.released and len(FakeAukInfer.instances) == 2
+      and engine3.inference is FakeAukInfer.instances[1])
+L._CACHE.clear()
+check("_release_others 无其他引擎返回 0", L._release_others(("none",)) == 0)
 
 
 # ── SF AuK Generate / Edit ──
