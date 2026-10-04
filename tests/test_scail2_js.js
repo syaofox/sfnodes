@@ -141,6 +141,8 @@ const advNode = new FakeNode([
   fakeWidget("context_overlap_frames", 20), fakeWidget("tiled_decode", false, "toggle"),
   fakeWidget("context_schedule", "standard_static", "combo"), fakeWidget("context_stride", 1),
   fakeWidget("closed_loop", false, "toggle"), fakeWidget("freenoise", false, "toggle"),
+  fakeWidget("fuse_method", "pyramid", "combo"), fakeWidget("pose_strength", 1),
+  fakeWidget("pose_start", 0), fakeWidget("pose_end", 1),
 ]);
 exported.updateSimpleVideoWidgets(advNode);
 check("advanced off hides tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === false);
@@ -153,17 +155,25 @@ check("chunk hides context_frames", exported.isWidgetVisible(getW(advNode, "cont
 check("chunk hides context_schedule", exported.isWidgetVisible(getW(advNode, "context_schedule")) === false);
 check("chunk hides freenoise", exported.isWidgetVisible(getW(advNode, "freenoise")) === false);
 check("chunk hides context_stride", exported.isWidgetVisible(getW(advNode, "context_stride")) === false);
+check("chunk shows pose_strength", exported.isWidgetVisible(getW(advNode, "pose_strength")) === true);
+check("chunk hides fuse_method", exported.isWidgetVisible(getW(advNode, "fuse_method")) === false);
 getW(advNode, "long_video_mode").value = "context_sampling";
 exported.updateSimpleVideoWidgets(advNode);
 check("context shows tiled_decode", exported.isWidgetVisible(getW(advNode, "tiled_decode")) === true);
 check("context shows context_frames", exported.isWidgetVisible(getW(advNode, "context_frames")) === true);
 check("context shows context_schedule", exported.isWidgetVisible(getW(advNode, "context_schedule")) === true);
 check("context shows freenoise", exported.isWidgetVisible(getW(advNode, "freenoise")) === true);
+check("context shows fuse_method", exported.isWidgetVisible(getW(advNode, "fuse_method")) === true);
+check("context shows pose_strength", exported.isWidgetVisible(getW(advNode, "pose_strength")) === true);
 check("context hides chunk_frames", exported.isWidgetVisible(getW(advNode, "chunk_frames")) === false);
 check("context static hides context_stride", exported.isWidgetVisible(getW(advNode, "context_stride")) === false);
 check("context static hides closed_loop", exported.isWidgetVisible(getW(advNode, "closed_loop")) === false);
 check("context_schedule label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.context_schedule === "窗口调度");
 check("freenoise label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.freenoise === "FreeNoise 噪声扰动");
+check("fuse_method label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.fuse_method === "融合方式");
+check("pose_strength label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.pose_strength === "姿态强度");
+check("pose_start label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.pose_start === "姿态起始步");
+check("pose_end label", exported.SCAIL2_LABELS.SCAIL2SimpleVideo.pose_end === "姿态结束步");
 getW(advNode, "context_schedule").value = "standard_uniform";
 exported.updateSimpleVideoWidgets(advNode);
 check("uniform shows context_stride", exported.isWidgetVisible(getW(advNode, "context_stride")) === true);
@@ -180,6 +190,7 @@ const orderNode = new FakeNode([
   fakeWidget("freenoise", false, "toggle"), fakeWidget("seed", 1),
   fakeWidget("context_schedule", "standard_static", "combo"), fakeWidget("advanced", false, "toggle"),
   fakeWidget("closed_loop", false, "toggle"), fakeWidget("context_stride", 1),
+  fakeWidget("fuse_method", "pyramid", "combo"),
 ]);
 exported.reorderSimpleVideoWidgets(orderNode);
 check("reorder context_schedule before freenoise", orderNode.widgets.findIndex((w) => w.name === "context_schedule") <
@@ -188,6 +199,8 @@ check("reorder context_stride before closed_loop", orderNode.widgets.findIndex((
   orderNode.widgets.findIndex((w) => w.name === "closed_loop"));
 check("reorder freenoise before context_stride", orderNode.widgets.findIndex((w) => w.name === "freenoise") <
   orderNode.widgets.findIndex((w) => w.name === "context_stride"));
+check("reorder closed_loop before fuse_method", orderNode.widgets.findIndex((w) => w.name === "closed_loop") <
+  orderNode.widgets.findIndex((w) => w.name === "fuse_method"));
 
 // 7. widgets_values 位置错位修复（advanced + long_video_mode 顺序颠倒）
 const repairNode = new FakeNode([

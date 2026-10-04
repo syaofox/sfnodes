@@ -61,6 +61,7 @@ assert_eq(easy.round_nearest_32(48), 64, "round_nearest_32(48)")
 
 # 上下文窗口调度枚举（对齐 comfy.context_windows.ContextSchedules）
 assert_eq(easy.CONTEXT_SCHEDULES, ("standard_static", "standard_uniform", "looped_uniform", "batched"), "context schedules")
+assert_eq(easy.CONTEXT_FUSE_METHODS, ("pyramid", "relative", "flat", "overlap-linear"), "context fuse methods")
 
 # Fit Video 尺寸策略
 assert_eq(easy.target_size_for_video(480, 832, "512p"), (896, 512), "target 512p")
@@ -148,6 +149,13 @@ check("simple optional previous_frames", "previous_frames" in simple.INPUT_TYPES
 check("simple previous_frames IMAGE 类型", simple.INPUT_TYPES()["optional"]["previous_frames"][0] == "IMAGE")
 check("simple generate 签名含 previous_frames",
       "previous_frames" in inspect.signature(simple.generate).parameters)
+generate_params = inspect.signature(simple.generate).parameters
+check("generate fuse_method default", generate_params["fuse_method"].default == "pyramid")
+check("generate pose defaults", (
+    generate_params["pose_strength"].default,
+    generate_params["pose_start"].default,
+    generate_params["pose_end"].default,
+) == (1.0, 0.0, 1.0))
 
 # 每个节点的每个输入/选项都必须带非空中文 tooltip
 for key, cls in nodes_mod.NODE_CLASS_MAPPINGS.items():
@@ -172,6 +180,11 @@ check("simple has context_stride", required["context_stride"][0] == "INT")
 check("context_stride default 1", required["context_stride"][1].get("default") == 1)
 check("simple has closed_loop", required["closed_loop"][0] == "BOOLEAN")
 check("closed_loop default off", required["closed_loop"][1].get("default") is False)
+check("simple has fuse_method", required["fuse_method"][0] == list(easy.CONTEXT_FUSE_METHODS))
+check("fuse_method default pyramid", required["fuse_method"][1].get("default") == "pyramid")
+check("pose_strength default 1.0", required["pose_strength"][1].get("default") == 1.0)
+check("pose_start default 0.0", required["pose_start"][1].get("default") == 0.0)
+check("pose_end default 1.0", required["pose_end"][1].get("default") == 1.0)
 
 # ── _decode_latent_to_frames：tiled 分块解码分支选择 ──
 class FakeTensor:
@@ -227,6 +240,9 @@ class FakeSchedules:
 
 class FakeFuseMethods:
     PYRAMID = "pyramid"
+    RELATIVE = "relative"
+    FLAT = "flat"
+    OVERLAP_LINEAR = "overlap-linear"
 
 
 class FakeNamed:
@@ -275,6 +291,7 @@ class FakeModel:
 default_model = FakeModel()
 _, default_summary = context_mod.apply_scail2_easy_context(default_model, 81, 25)
 assert_eq(default_summary["context_schedule"], "standard_uniform", "context default schedule")
+assert_eq(default_summary["fuse_method"], "pyramid", "context default fuse")
 assert_eq(default_summary["freenoise"], True, "context default freenoise")
 assert_eq(default_summary["context_stride"], 1, "context default stride")
 assert_eq(default_summary["closed_loop"], False, "context default closed_loop")
@@ -311,6 +328,9 @@ assert_eq(handler_kwargs_log[-1]["context_stride"], 2, "handler stride looped")
 assert_eq(handler_kwargs_log[-1]["closed_loop"], True, "handler closed_loop looped")
 assert_eq(len(prepare_wrapper_calls), 3, "prepare wrapper per call (looped)")
 
+context_mod.apply_scail2_easy_context(FakeModel(), 81, 25, fuse_method="flat")
+assert_eq(handler_kwargs_log[-1]["fuse_method"].name, "flat", "handler fuse passthrough")
+
 context_mod.apply_scail2_easy_context(FakeModel(), 81, 20, context_stride=0)
 assert_eq(handler_kwargs_log[-1]["context_stride"], 1, "handler stride clamped to 1")
 
@@ -333,6 +353,63 @@ node_helpers_stub.conditioning_set_values = lambda cond, values, append=False: (
     cond_set_calls.append((cond, values, append)) or cond
 )
 sys.modules["node_helpers"] = node_helpers_stub
+
+# ── _set_scail_pose_conditioning：pose 时间范围透传 + 遮罩帧数不足的报错带数字 ──
+pose_range_calls = []
+node_helpers_stub.conditioning_set_values_with_timestep_range = lambda cond, values, start, end: (
+    pose_range_calls.append((start, end)) or cond
+)
+
+
+class FakePoseTensor:
+    def __init__(self, frames):
+        self.shape = (frames, 4, 4, 3)
+
+    def __getitem__(self, item):
+        return self
+
+    def movedim(self, a, b):
+        return self
+
+    def __mul__(self, other):
+        return self
+
+
+class FakePoseVAE:
+    def encode(self, pixels):
+        return FakePoseTensor(1)
+
+
+nodes_mod._set_scail_pose_conditioning(
+    positive={},
+    negative={},
+    vae=FakePoseVAE(),
+    pose_video=FakePoseTensor(160),
+    pose_video_mask=None,
+    width=64,
+    height=64,
+    length=157,
+    pose_strength=1.0,
+    pose_start=0.3,
+    pose_end=0.8,
+)
+assert_eq(pose_range_calls[-1], (0.3, 0.8), "pose timestep range passthrough")
+
+try:
+    nodes_mod._set_scail_pose_conditioning(
+        positive={},
+        negative={},
+        vae=FakePoseVAE(),
+        pose_video=FakePoseTensor(160),
+        pose_video_mask=FakePoseTensor(1),
+        width=64,
+        height=64,
+        length=157,
+        pose_strength=1.0,
+    )
+    check("pose mask length error", False)
+except ValueError as exc:
+    check("pose mask length error mentions frames", "1" in str(exc) and "157" in str(exc))
 
 
 class FakeImageTensor:

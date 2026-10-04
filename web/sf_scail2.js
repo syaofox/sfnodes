@@ -13,8 +13,8 @@ import { app } from "/scripts/app.js";
 import { isWidgetVisible, refreshWidgetSnapshot, setWidgetVisible } from "./sf_widget_visibility_lib.js";
 
 const EXT_NAME = "sfnodes.scail2";
-const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode"];
-const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "context_schedule", "context_stride", "closed_loop", "freenoise", "tiled_decode"];
+const SIMPLE_CHUNK_ADVANCED_WIDGETS = ["max_frames", "chunk_frames", "overlap_frames", "color_correction", "tiled_decode", "pose_strength", "pose_start", "pose_end"];
+const SIMPLE_CONTEXT_ADVANCED_WIDGETS = ["max_frames", "context_frames", "context_overlap_frames", "context_schedule", "context_stride", "closed_loop", "freenoise", "tiled_decode", "fuse_method", "pose_strength", "pose_start", "pose_end"];
 const SIMPLE_ADVANCED_MODE_WIDGET = "long_video_mode";
 const SIMPLE_UNIFORM_SCHEDULES = new Set(["standard_uniform", "looped_uniform"]);
 const SIMPLE_LOOPED_SCHEDULE = "looped_uniform";
@@ -32,6 +32,10 @@ const SIMPLE_WIDGET_ORDER = [
   "freenoise",
   "context_stride",
   "closed_loop",
+  "fuse_method",
+  "pose_strength",
+  "pose_start",
+  "pose_end",
 ];
 const SIMPLE_ALL_ADVANCED_WIDGETS = Array.from(new Set([SIMPLE_ADVANCED_MODE_WIDGET, ...SIMPLE_CHUNK_ADVANCED_WIDGETS, ...SIMPLE_CONTEXT_ADVANCED_WIDGETS]));
 const MAX_REFERENCE_SUBJECTS = 6;
@@ -51,6 +55,10 @@ const SCAIL2_LABELS = {
     context_stride: "窗口步幅",
     closed_loop: "循环闭环",
     freenoise: "FreeNoise 噪声扰动",
+    fuse_method: "融合方式",
+    pose_strength: "姿态强度",
+    pose_start: "姿态起始步",
+    pose_end: "姿态结束步",
   },
   SCAIL2ReferencePack: {
     subject_count: "主体数量",

@@ -493,3 +493,24 @@ SFForLoopEnd
 - `web/sf_scail2.js`：`simpleVisibleAdvancedWidgets` 的 schedule 缺省兜底同改，保证 `context_stride` 默认可见与后端一致。
 - **旧工作流不受影响**：`widgets_values` 保存值优先于默认值，只有新建节点/手动重置才吃到新默认；已保存旧值的工作流需手动改值（或重置 widget）。
 - `tests/test_scail2.py`：默认断言改 uniform/on、新增 overlap 25 与 25→7 latent 断言；保留显式 `standard_static + freenoise=False` 调用覆盖"关"路径。
+
+## 150. SCAIL-2 SimpleVideo 诊断增强 + fuse_method/姿态范围暴露（2026-10）
+
+> 需求：把「driving_track_data 接错」这类事故从 traceback 猜谜变成一眼定位，并补齐原生可调项。
+
+### 150.1 诊断
+
+- `_set_scail_pose_conditioning` 报错带数字与线索：`pose_video_mask has 1 frame(s) but the requested generation length is 157. Check that driving_track_data comes from tracking the driving video (not the reference image) and covers the full video.`（`pose_video` 同理）。
+- chunk 模式走原生 `WanSCAILToVideo` 的「pose 与 mask 联合截到较短者」语义：mask 过短会**静默**截断姿态条件，故 `generate` 在 chunk 路径对 `pose_video_mask.shape[0] < total_frames` 打 `logging.warning`；context 模式不警告（只要求覆盖 `generation_length`，不足由硬报错兜底）。
+- `previous_frames` 在 context_sampling 下本就被忽略（仅 summary 记 `external_anchor_ignored`），补 `logging.warning` 明确提示改用 chunk。
+
+### 150.2 新暴露参数（追加在 required/JS 末尾，旧工作流 widgets_values 按位不受影响）
+
+- `fuse_method`（context_sampling，默认 pyramid）：对齐原生 `ContextFuseMethods.LIST_STATIC`；常量表 `CONTEXT_FUSE_METHODS` 放 `sf_utils/scail2_easy.py` 无依赖单源，`apply_scail2_easy_context` 可选透传（原硬编码 pyramid）。
+- `pose_strength`（默认 1.0）/ `pose_start`（0.0）/ `pose_end`（1.0）：贯通 chunk 原生路径（`WanSCAILToVideo.execute` 参数位）、multi-ref chunk 与 context 路径的 `conditioning_set_values_with_timestep_range`；原硬编码 `pose_strength = 1.0` 与 `0.0/1.0` 时间范围改为参数。
+- 前端 `SIMPLE_CHUNK/CONTEXT_ADVANCED_WIDGETS`、`SIMPLE_WIDGET_ORDER`、中文标签同步；`fuse_method` 仅 context 模式显示，姿态三件套两种模式都显示（需 advanced 开）。
+
+### 150.3 测试
+
+- `tests/test_scail2.py`：`CONTEXT_FUSE_METHODS` 常量、新 widget/签名默认值、`fuse_method` 透传、pose 时间范围透传、mask 帧数报错含数字（`FakePoseTensor`/`FakePoseVAE`）。
+- `tests/test_scail2_js.js`：新 widget 显隐（chunk 隐藏 `fuse_method`、context 显示）、标签、排序（`closed_loop` → `fuse_method`）。

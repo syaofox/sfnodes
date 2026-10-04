@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import gc
 import json
+import logging
 
 import torch
 import torch.nn.functional as F
 
 from ...sf_utils.scail2_context import apply_scail2_easy_context
 from ...sf_utils.scail2_easy import (
+    CONTEXT_FUSE_METHODS,
     CONTEXT_SCHEDULES,
     LONG_VIDEO_MODES,
     MAX_LEGACY_REFERENCE_IMAGES_PER_SUBJECT,
@@ -336,6 +338,8 @@ def _run_native_scail_chunk(
     seed: int,
     cfg: float,
     pose_strength: float,
+    pose_start: float = 0.0,
+    pose_end: float = 1.0,
     tiled_decode: bool = False,
 ):
     WanSCAILToVideo = _get_scail_nodes_module().WanSCAILToVideo
@@ -349,8 +353,8 @@ def _run_native_scail_chunk(
             length,
             1,
             pose_strength,
-            0.0,
-            1.0,
+            pose_start,
+            pose_end,
             video_frame_offset,
             previous_frame_count,
             replacement_mode=replacement_mode,
@@ -1143,6 +1147,8 @@ def _run_multi_ref_scail_chunk(
     seed: int,
     cfg: float,
     pose_strength: float,
+    pose_start: float = 0.0,
+    pose_end: float = 1.0,
     prepared_reference_pack=None,
     tiled_decode: bool = False,
 ):
@@ -1204,10 +1210,10 @@ def _run_multi_ref_scail_chunk(
         ).movedim(1, -1)
         pose_video_latent = vae.encode(pose_video[:, :, :, :3]) * pose_strength
         positive = node_helpers.conditioning_set_values_with_timestep_range(
-            positive, {"pose_video_latent": pose_video_latent}, 0.0, 1.0
+            positive, {"pose_video_latent": pose_video_latent}, pose_start, pose_end
         )
         negative = node_helpers.conditioning_set_values_with_timestep_range(
-            negative, {"pose_video_latent": pose_video_latent}, 0.0, 1.0
+            negative, {"pose_video_latent": pose_video_latent}, pose_start, pose_end
         )
 
     if pose_video_mask is not None:
@@ -1338,14 +1344,21 @@ def _set_scail_pose_conditioning(
     height: int,
     length: int,
     pose_strength: float,
+    pose_start: float = 0.0,
+    pose_end: float = 1.0,
 ):
     import comfy.utils
     import node_helpers
 
     if pose_video.shape[0] < length:
-        raise ValueError("pose_video is shorter than the requested generation length.")
+        raise ValueError(
+            f"pose_video has {int(pose_video.shape[0])} frame(s) but the requested generation length is {length}."
+        )
     if pose_video_mask is not None and pose_video_mask.shape[0] < length:
-        raise ValueError("pose_video_mask is shorter than the requested generation length.")
+        raise ValueError(
+            f"pose_video_mask has {int(pose_video_mask.shape[0])} frame(s) but the requested generation length is {length}. "
+            "Check that driving_track_data comes from tracking the driving video (not the reference image) and covers the full video."
+        )
 
     pose_video = pose_video[:length]
     pose_video_hw = comfy.utils.common_upscale(
@@ -1359,14 +1372,14 @@ def _set_scail_pose_conditioning(
     positive = node_helpers.conditioning_set_values_with_timestep_range(
         positive,
         {"pose_video_latent": pose_video_latent},
-        0.0,
-        1.0,
+        pose_start,
+        pose_end,
     )
     negative = node_helpers.conditioning_set_values_with_timestep_range(
         negative,
         {"pose_video_latent": pose_video_latent},
-        0.0,
-        1.0,
+        pose_start,
+        pose_end,
     )
 
     driving_mask_shape = None
@@ -1413,8 +1426,11 @@ def _run_context_scail(
     seed: int,
     cfg: float,
     pose_strength: float,
+    pose_start: float = 0.0,
+    pose_end: float = 1.0,
     context_schedule: str = "standard_uniform",
     freenoise: bool = True,
+    fuse_method: str = "pyramid",
     context_stride: int = 1,
     closed_loop: bool = False,
     prepared_reference_pack=None,
@@ -1472,6 +1488,8 @@ def _run_context_scail(
         height=height,
         length=length,
         pose_strength=pose_strength,
+        pose_start=pose_start,
+        pose_end=pose_end,
     )
 
     context_model, context_summary = apply_scail2_easy_context(
@@ -1480,6 +1498,7 @@ def _run_context_scail(
         context_overlap_frames=context_overlap_frames,
         context_schedule=context_schedule,
         freenoise=freenoise,
+        fuse_method=fuse_method,
         context_stride=context_stride,
         closed_loop=closed_loop,
     )
@@ -1751,6 +1770,10 @@ class SFSCAIL2SimpleVideo:
                 "freenoise": ("BOOLEAN", {"default": True, "tooltip": "上下文窗口 FreeNoise 噪声扰动（context_sampling 模式，原生 Wan 默认开）：窗口间扰动噪声改善衔接；开启需运行环境提供 create_sampler_sample_wrapper"}),
                 "context_stride": ("INT", {"default": 1, "min": 1, "max": 8, "step": 1, "tooltip": "上下文窗口步幅（仅均匀窗口/循环均匀调度生效）：>1 时在采样后段生成跨更长时段的多尺度窗口（同一 token 数、更大时间跨度），进一步减少窗口边界伪影；1=仅单尺度"}),
                 "closed_loop": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口闭环（仅循环均匀调度生效）：把视频首尾当作相邻帧生成回绕窗口，用于无缝循环视频；普通内容开启会让首尾互相干扰"}),
+                "fuse_method": (list(CONTEXT_FUSE_METHODS), {"default": "pyramid", "tooltip": "上下文窗口融合方式（context_sampling 模式，对齐原生 Wan Context Windows）：pyramid=金字塔加权（原生默认）；relative=相对权重；flat=平均；overlap-linear=重叠线性"}),
+                "pose_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01, "tooltip": "姿态条件强度（0=关闭姿态引导；chunk 与 context_sampling 均生效，对齐原生 WanSCAILToVideo）"}),
+                "pose_start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "姿态条件生效起始步（采样进度 0-1，对齐原生 WanSCAILToVideo）"}),
+                "pose_end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "姿态条件生效结束步（采样进度 0-1，对齐原生 WanSCAILToVideo）"}),
             },
             "optional": {
                 "driving_track_data": ("SAM3_TRACK_DATA", {"tooltip": "驱动视频的 SAM3 追踪数据（replacement 模式必需；多主体 Reference Pack 也必需）"}),
@@ -1792,6 +1815,10 @@ class SFSCAIL2SimpleVideo:
         freenoise: bool = True,
         context_stride: int = 1,
         closed_loop: bool = False,
+        fuse_method: str = "pyramid",
+        pose_strength: float = 1.0,
+        pose_start: float = 0.0,
+        pose_end: float = 1.0,
         driving_track_data=None,
         reference_track_data=None,
         previous_frames=None,
@@ -1870,9 +1897,30 @@ class SFSCAIL2SimpleVideo:
 
         if long_video_mode not in LONG_VIDEO_MODES:
             long_video_mode = "chunk"
-        pose_strength = 1.0
+        if fuse_method not in CONTEXT_FUSE_METHODS:
+            fuse_method = "pyramid"
+        pose_strength = float(pose_strength)
+        pose_start = float(pose_start)
+        pose_end = float(pose_end)
+
+        if (
+            pose_video_mask is not None
+            and long_video_mode != "context_sampling"
+            and pose_video_mask.shape[0] < total_frames
+        ):
+            logging.warning(
+                "[SF SCAIL-2] pose_video_mask covers only %d of %d frame(s); chunk mode truncates pose conditioning "
+                "to the mask length, so the result may lack pose guidance. Check that driving_track_data comes from "
+                "tracking the driving video (not the reference image) and covers the full video.",
+                int(pose_video_mask.shape[0]),
+                int(total_frames),
+            )
 
         if long_video_mode == "context_sampling":
+            if previous_frames is not None:
+                logging.warning(
+                    "[SF SCAIL-2] previous_frames is ignored in context_sampling mode; use chunk mode for external anchoring."
+                )
             generation_length = _wan_frame_count_floor(total_frames)
             if generation_length <= 0:
                 raise ValueError("pose_video has no usable 4n+1 frame range.")
@@ -1916,6 +1964,9 @@ class SFSCAIL2SimpleVideo:
                 seed=int(seed),
                 cfg=float(cfg),
                 pose_strength=float(pose_strength),
+                pose_start=pose_start,
+                pose_end=pose_end,
+                fuse_method=fuse_method,
                 prepared_reference_pack=prepared_reference_pack,
                 tiled_decode=bool(tiled_decode),
             )
@@ -2008,6 +2059,8 @@ class SFSCAIL2SimpleVideo:
                     seed=int(seed) + chunk_index,
                     cfg=float(cfg),
                     pose_strength=float(pose_strength),
+                    pose_start=pose_start,
+                    pose_end=pose_end,
                     prepared_reference_pack=prepared_reference_pack,
                     tiled_decode=bool(tiled_decode),
                 )
@@ -2034,6 +2087,8 @@ class SFSCAIL2SimpleVideo:
                     seed=int(seed) + chunk_index,
                     cfg=float(cfg),
                     pose_strength=float(pose_strength),
+                    pose_start=pose_start,
+                    pose_end=pose_end,
                     tiled_decode=bool(tiled_decode),
                 )
 
