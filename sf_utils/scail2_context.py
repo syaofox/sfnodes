@@ -6,8 +6,9 @@ context_sampling 长视频模式在 comfy.context_windows 的窗口调度下采�
 在每个窗口前把蒙版按同一 index 列表切片，并让 handler 的 get_resized_cond 同步处理
 model_conds 里的蒙版——否则跨窗口复用会错位。
 
-窗口参数对齐原生 WanContextWindowsManual：`context_schedule` 可选（默认固定窗口）,
-`freenoise` 开启时补挂 create_sampler_sample_wrapper（核心仅 freenoise 需要它）。
+窗口参数对齐原生 WanContextWindowsManual：`context_schedule` 可选（默认均匀窗口
+standard_uniform，对齐原生 Wan 默认）；`freenoise` 开启时补挂
+create_sampler_sample_wrapper（核心仅 freenoise 需要它）。
 """
 
 import logging
@@ -193,7 +194,7 @@ def apply_scail2_easy_context(
     context_overlap_frames,
     *,
     context_schedule=None,
-    freenoise=False,
+    freenoise=True,
     context_stride=1,
     closed_loop=False,
 ):
@@ -210,7 +211,7 @@ def apply_scail2_easy_context(
         raise ValueError("context_overlap_frames must be smaller than context_frames.")
 
     schedule = context_windows.get_matching_context_schedule(
-        context_schedule or context_windows.ContextSchedules.STATIC_STANDARD
+        context_schedule or context_windows.ContextSchedules.UNIFORM_STANDARD
     )
     fuse_method = context_windows.get_matching_fuse_method(context_windows.ContextFuseMethods.PYRAMID)
 

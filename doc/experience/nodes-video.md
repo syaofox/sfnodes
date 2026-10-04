@@ -121,8 +121,8 @@
 
 | 原生 Wan 参数 | 原生默认 | SF 原状 | 结论 |
 |---|---|---|---|
-| `context_schedule` | `standard_uniform` | 硬编码 `standard_static` | 新增 widget（4 档 `ContextSchedules`，默认仍 `standard_static` 保存量行为） |
-| `freenoise` | True（并挂 sampler wrapper） | 硬编码 False、无 wrapper | 新增 widget（默认关；开启补挂 wrapper） |
+| `context_schedule` | `standard_uniform` | 硬编码 `standard_static` | 新增 widget（4 档 `ContextSchedules`；默认 `standard_static` 保存量行为，§149 起改 `standard_uniform` 对齐原生） |
+| `freenoise` | True（并挂 sampler wrapper） | 硬编码 False、无 wrapper | 新增 widget（默认关；开启补挂 wrapper；§149 起默认开对齐原生） |
 | `context_stride` | 1（仅 uniform 系生效） | 硬编码 1 | 新增 widget（默认 1；仅 `standard_uniform`/`looped_uniform` 显示） |
 | `closed_loop` | False（仅 looped 生效） | 硬编码 False | 新增 widget（默认关；仅 `looped_uniform` 显示） |
 | `fuse_method` | pyramid | pyramid | 与原生默认一致，未暴露 |
@@ -472,3 +472,24 @@ SFForLoopEnd
 - `tests/test_video_compare_lib.mjs`：时间格式、元数据归一、帧/时间换算夹紧、分界线几何、预览高度、菜单定位四向。
 - `tests/test_video_compare_js.js`：假 DOM + FakeNode——扩展名/类型门控、widget 安装、onExecuted 装载（src/properties/分界线/按钮）、播放暂停、同步帧对齐与禁用、悬停菜单选择、分界线拖动、单视频占满、configure 恢复、onRemoved 清理。
 - 坑：测试剥 import 的 `loadStripped` 不能裸用 `/import[^;]+;/`——注释里出现 "import" 字样会跨行吞掉代码（本模块 lib 头注释即触发，改用 `^import[^;]+;/gm` 只剥行首）。
+
+## 149. SCAIL-2 上下文窗口默认值对齐原生默认质量（2026-10）
+
+> 需求：`SFSCAIL2SimpleVideo` 的 `context_sampling` 开箱默认即对齐原生 `WanContextWindowsManual` 默认质量（§78 当时只补齐了参数项，默认值刻意保持存量行为，本次翻转）。
+
+### 149.1 默认值对照
+
+| 参数 | 原默认 | 新默认 | 原生默认 | 对齐说明 |
+|---|---|---|---|---|
+| `context_schedule` | `standard_static` | `standard_uniform` | `standard_uniform` | 随采样步从精细到全局推进 |
+| `freenoise` | False | True | True | 默认开需核心提供 `create_sampler_sample_wrapper`，旧核心会抛明确错误 |
+| `context_overlap_frames` | 20 | 25 | 30（→ 7 latent） | 本节点先圆整 4n+1 再折 latent：25→7 latent 与原生 30//4=7 一致；填 30 反而得 8，故取 25 |
+| `context_frames` / `context_stride` / `closed_loop` | 81 / 1 / False | 不变 | 81 / 1 / False | 本就一致（81→21 latent） |
+
+### 149.2 落点与影响
+
+- `nodes/video/scail2.py`：`INPUT_TYPES` 默认值 + `generate`/`_run_context_scail` 签名默认值 + 非法 schedule 回退值（static→uniform）。
+- `sf_utils/scail2_context.py`：`apply_scail2_easy_context` 的 `freenoise` 默认 True、`context_schedule=None` 回退 `UNIFORM_STANDARD`（消除节点与纯工具双默认分叉）。
+- `web/sf_scail2.js`：`simpleVisibleAdvancedWidgets` 的 schedule 缺省兜底同改，保证 `context_stride` 默认可见与后端一致。
+- **旧工作流不受影响**：`widgets_values` 保存值优先于默认值，只有新建节点/手动重置才吃到新默认；已保存旧值的工作流需手动改值（或重置 widget）。
+- `tests/test_scail2.py`：默认断言改 uniform/on、新增 overlap 25 与 25→7 latent 断言；保留显式 `standard_static + freenoise=False` 调用覆盖"关"路径。

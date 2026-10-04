@@ -161,11 +161,13 @@ for key, cls in nodes_mod.NODE_CLASS_MAPPINGS.items():
 check("simple has tiled_decode", "tiled_decode" in required)
 check("tiled_decode default off", required["tiled_decode"][1].get("default") is False)
 
-# context_schedule / freenoise 选项（对齐原生 WanContextWindowsManual，默认保持现状）
+# context_schedule / freenoise 选项（对齐原生 WanContextWindowsManual 默认质量：uniform + 开）
 check("simple has context_schedule", required["context_schedule"][0] == list(easy.CONTEXT_SCHEDULES))
-check("context_schedule default static", required["context_schedule"][1].get("default") == "standard_static")
+check("context_schedule default uniform", required["context_schedule"][1].get("default") == "standard_uniform")
+check("context_overlap_frames default 25", required["context_overlap_frames"][1].get("default") == 25)
+check("context_frames default 81", required["context_frames"][1].get("default") == 81)
 check("simple has freenoise", required["freenoise"][0] == "BOOLEAN")
-check("freenoise default off", required["freenoise"][1].get("default") is False)
+check("freenoise default on", required["freenoise"][1].get("default") is True)
 check("simple has context_stride", required["context_stride"][0] == "INT")
 check("context_stride default 1", required["context_stride"][1].get("default") == 1)
 check("simple has closed_loop", required["closed_loop"][0] == "BOOLEAN")
@@ -271,32 +273,32 @@ class FakeModel:
 
 
 default_model = FakeModel()
-_, default_summary = context_mod.apply_scail2_easy_context(default_model, 81, 20)
-assert_eq(default_summary["context_schedule"], "standard_static", "context default schedule")
-assert_eq(default_summary["freenoise"], False, "context default freenoise")
+_, default_summary = context_mod.apply_scail2_easy_context(default_model, 81, 25)
+assert_eq(default_summary["context_schedule"], "standard_uniform", "context default schedule")
+assert_eq(default_summary["freenoise"], True, "context default freenoise")
 assert_eq(default_summary["context_stride"], 1, "context default stride")
 assert_eq(default_summary["closed_loop"], False, "context default closed_loop")
 assert_eq(default_summary["context_latent_frames"], 21, "context latent length")
-assert_eq(default_summary["context_overlap_latent_frames"], 5, "context latent overlap")
-assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_static", "handler schedule default")
+assert_eq(default_summary["context_overlap_latent_frames"], 7, "context latent overlap (25 real frames -> 7)")
+assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_uniform", "handler schedule default")
 assert_eq(handler_kwargs_log[-1]["fuse_method"].name, "pyramid", "handler fuse default")
-assert_eq(handler_kwargs_log[-1]["freenoise"], False, "handler freenoise default")
+assert_eq(handler_kwargs_log[-1]["freenoise"], True, "handler freenoise default")
 assert_eq(handler_kwargs_log[-1]["context_stride"], 1, "handler stride")
 assert_eq(handler_kwargs_log[-1]["closed_loop"], False, "handler closed_loop")
 assert_eq(handler_kwargs_log[-1]["dim"], 2, "handler dim")
-assert_eq(sampler_wrapper_calls, [], "no sampler wrapper without freenoise")
+assert_eq(len(sampler_wrapper_calls), 1, "sampler wrapper with default freenoise")
 
-uniform_model = FakeModel()
-_, uniform_summary = context_mod.apply_scail2_easy_context(
-    uniform_model, 81, 20, context_schedule="standard_uniform", freenoise=True
+static_model = FakeModel()
+_, static_summary = context_mod.apply_scail2_easy_context(
+    static_model, 81, 20, context_schedule="standard_static", freenoise=False
 )
-assert_eq(uniform_summary["context_schedule"], "standard_uniform", "context uniform schedule")
-assert_eq(uniform_summary["freenoise"], True, "context freenoise on")
-assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_uniform", "handler schedule uniform")
-assert_eq(handler_kwargs_log[-1]["freenoise"], True, "handler freenoise on")
+assert_eq(static_summary["context_schedule"], "standard_static", "context static schedule")
+assert_eq(static_summary["freenoise"], False, "context freenoise off")
+assert_eq(handler_kwargs_log[-1]["context_schedule"].name, "standard_static", "handler schedule static")
+assert_eq(handler_kwargs_log[-1]["freenoise"], False, "handler freenoise off")
 assert_eq(len(prepare_wrapper_calls), 2, "prepare wrapper per call")
-assert_eq(len(sampler_wrapper_calls), 1, "sampler wrapper with freenoise")
-assert_eq(uniform_model.model_options["context_handler"].kwargs["freenoise"], True, "handler attached")
+assert_eq(len(sampler_wrapper_calls), 1, "no extra sampler wrapper without freenoise")
+assert_eq(static_model.model_options["context_handler"].kwargs["freenoise"], False, "handler attached")
 
 looped_model = FakeModel()
 _, looped_summary = context_mod.apply_scail2_easy_context(

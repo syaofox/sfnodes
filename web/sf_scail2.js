@@ -562,7 +562,7 @@ function setupReferencePackNode(node) {
 function simpleVisibleAdvancedWidgets(node) {
   const longVideoMode = String(getWidget(node, "long_video_mode")?.value || "chunk");
   if (longVideoMode !== "context_sampling") return SIMPLE_CHUNK_ADVANCED_WIDGETS;
-  const schedule = String(getWidget(node, "context_schedule")?.value || "standard_static");
+  const schedule = String(getWidget(node, "context_schedule")?.value || "standard_uniform");
   return SIMPLE_CONTEXT_ADVANCED_WIDGETS.filter((name) => {
     if (name === "context_stride") return SIMPLE_UNIFORM_SCHEDULES.has(schedule);
     if (name === "closed_loop") return schedule === SIMPLE_LOOPED_SCHEDULE;

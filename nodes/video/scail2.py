@@ -1413,8 +1413,8 @@ def _run_context_scail(
     seed: int,
     cfg: float,
     pose_strength: float,
-    context_schedule: str = "standard_static",
-    freenoise: bool = False,
+    context_schedule: str = "standard_uniform",
+    freenoise: bool = True,
     context_stride: int = 1,
     closed_loop: bool = False,
     prepared_reference_pack=None,
@@ -1745,10 +1745,10 @@ class SFSCAIL2SimpleVideo:
                 "overlap_frames": ("INT", {"default": 5, "min": 0, "max": 33, "step": 1, "tooltip": "段间重叠帧数（作为上一段历史上下文，0=不重叠）"}),
                 "color_correction": ("BOOLEAN", {"default": False, "tooltip": "开启段间重叠区域色彩校正（减少接缝色差；overlap=0 时无效）"}),
                 "context_frames": ("INT", {"default": 81, "min": 17, "max": 321, "step": 4, "tooltip": "上下文窗口帧数（context_sampling 模式，自动对齐 4n+1）"}),
-                "context_overlap_frames": ("INT", {"default": 20, "min": 0, "max": 320, "step": 1, "tooltip": "上下文窗口重叠帧数（context_sampling 模式，0=不重叠）"}),
+                "context_overlap_frames": ("INT", {"default": 25, "min": 0, "max": 320, "step": 1, "tooltip": "上下文窗口重叠帧数（context_sampling 模式，0=不重叠；默认 25 对齐原生默认质量——25 真实帧折算 7 latent，与原生默认 30 帧的 7 latent 一致）"}),
                 "tiled_decode": ("BOOLEAN", {"default": False, "tooltip": "输出解码使用分块 VAE 解码（VAEDecodeTiled，降低解码显存峰值；速度略慢，长视频/高分辨率建议开启）"}),
-                "context_schedule": (list(CONTEXT_SCHEDULES), {"default": "standard_static", "tooltip": "上下文窗口调度（context_sampling 模式，对齐原生 Wan Context Windows）：固定窗口=每步复用同一组窗口；均匀窗口=随采样步从精细到全局推进（原生 Wan 默认）；循环均匀=窗口回绕的均匀调度；分批=无重叠顺序切段"}),
-                "freenoise": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口 FreeNoise 噪声扰动（context_sampling 模式，原生 Wan 默认开）：窗口间扰动噪声改善衔接；开启需运行环境提供 create_sampler_sample_wrapper"}),
+                "context_schedule": (list(CONTEXT_SCHEDULES), {"default": "standard_uniform", "tooltip": "上下文窗口调度（context_sampling 模式，对齐原生 Wan Context Windows）：固定窗口=每步复用同一组窗口；均匀窗口=随采样步从精细到全局推进（原生 Wan 默认）；循环均匀=窗口回绕的均匀调度；分批=无重叠顺序切段"}),
+                "freenoise": ("BOOLEAN", {"default": True, "tooltip": "上下文窗口 FreeNoise 噪声扰动（context_sampling 模式，原生 Wan 默认开）：窗口间扰动噪声改善衔接；开启需运行环境提供 create_sampler_sample_wrapper"}),
                 "context_stride": ("INT", {"default": 1, "min": 1, "max": 8, "step": 1, "tooltip": "上下文窗口步幅（仅均匀窗口/循环均匀调度生效）：>1 时在采样后段生成跨更长时段的多尺度窗口（同一 token 数、更大时间跨度），进一步减少窗口边界伪影；1=仅单尺度"}),
                 "closed_loop": ("BOOLEAN", {"default": False, "tooltip": "上下文窗口闭环（仅循环均匀调度生效）：把视频首尾当作相邻帧生成回绕窗口，用于无缝循环视频；普通内容开启会让首尾互相干扰"}),
             },
@@ -1786,10 +1786,10 @@ class SFSCAIL2SimpleVideo:
         overlap_frames: int = 5,
         color_correction: bool = False,
         context_frames: int = 81,
-        context_overlap_frames: int = 20,
+        context_overlap_frames: int = 25,
         tiled_decode: bool = False,
-        context_schedule: str = "standard_static",
-        freenoise: bool = False,
+        context_schedule: str = "standard_uniform",
+        freenoise: bool = True,
         context_stride: int = 1,
         closed_loop: bool = False,
         driving_track_data=None,
@@ -1877,7 +1877,7 @@ class SFSCAIL2SimpleVideo:
             if generation_length <= 0:
                 raise ValueError("pose_video has no usable 4n+1 frame range.")
             if context_schedule not in CONTEXT_SCHEDULES:
-                context_schedule = "standard_static"
+                context_schedule = "standard_uniform"
             context_stride = max(1, min(8, int(context_stride)))
             closed_loop = bool(closed_loop)
             context_frames = _wan_frame_count_cover(max(17, int(context_frames)))
