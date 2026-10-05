@@ -56,6 +56,11 @@ class FakeTensor:
     def __setitem__(self, idx, value):
         self._arr[idx] = value._arr if isinstance(value, FakeTensor) else value
 
+    def __mul__(self, k):
+        return FakeTensor(self._arr * k)
+
+    __rmul__ = __mul__
+
 
 fake_torch = types.ModuleType("torch")
 fake_torch.Tensor = FakeTensor
@@ -110,6 +115,8 @@ from sf_utils.qwen_edit import (  # noqa: E402
     pad_info_from,
     mask_matches,
     encode_qwen_edit,
+    resize_to_target,
+    zero_conditioning,
     TEXT_ONLY_LATENT_SHAPE,
     DEFAULT_LLAMA_TEMPLATE,
 )
@@ -129,7 +136,8 @@ class FakeVae:
 
     def encode(self, img):
         self.encoded.append(img.shape)
-        return {"samples": FakeTensor(np.zeros((img.shape[0], 16, img.shape[1] // 8, img.shape[2] // 8)))}
+        # 与真实 VAE.encode 一致返回张量（值为 1，便于断言 strength 缩放）
+        return FakeTensor(np.ones((img.shape[0], 16, img.shape[1] // 8, img.shape[2] // 8)))
 
 
 class FakeClip:
@@ -142,7 +150,7 @@ class FakeClip:
         return ["TOKENS"]
 
     def encode_from_tokens_scheduled(self, tokens):
-        return [["COND", {}]]
+        return [[FakeTensor(np.ones((1, 4))), {"pooled_output": FakeTensor(np.ones((1, 4)))}]]
 
 
 # ── 1. 纯函数 ────────────────────────────────────────────────────────────────
@@ -254,6 +262,58 @@ entries5 = [{"image": make_image(32, 32), "mask": None, "ref_longest_edge": 32,
 _cond5, _lat5, custom5, _main5, _nm5 = encode_qwen_edit(FakeClip(), vae5, "p", entries5)
 check("零 rope offsets 不写键", "reference_rope_offsets" not in custom5["full_refs_cond"][0][1])
 
+# ── 3.7 Easy 语义：目标尺寸统一 / init_image / strength / zero_conditioning ──
+
+_patch = make_image(100, 50).movedim(-1, 1)  # [B,C,H=100,W=50]
+check("resize_to_target crop/stretch/pad 形状", (
+    resize_to_target(_patch, 64, 80).shape,
+    resize_to_target(_patch, 64, 80, "stretch").shape,
+    resize_to_target(_patch, 64, 80, "pad").shape) == ((1, 3, 64, 80),) * 3)
+check("resize_to_target 目标下限 32", resize_to_target(_patch, 8, 8, "stretch").shape == (1, 3, 32, 32))
+
+# init_image：初始 latent 只来自它；参考图统一到目标尺寸；mask→noise_mask
+vae6 = FakeVae()
+clip6 = FakeClip()
+entries6 = [
+    {"image": make_image(100, 50), "mask": None, "ref_longest_edge": 32, "ref_crop": "center"},
+    {"image": make_image(40, 100), "mask": None, "ref_longest_edge": 40, "ref_crop": "center"},
+]
+_cond6, lat6, custom6, main6, nm6 = encode_qwen_edit(
+    clip6, vae6, "p", entries6,
+    init_image=make_image(64, 40), init_mask=make_mask(64, 40), ref_target_mode="crop")
+check("init 路径 vae 编码 3 次（init+2 ref）", len(vae6.encoded) == 3)
+check("init 初始 latent 形状", lat6["samples"].shape == (1, 16, 8, 5))
+check("init noise_mask 尺寸=latent_image", nm6.shape == (1, 64, 40))
+check("init 初始 latent 独立于 ref", lat6["samples"] is not custom6["ref_latents"][0])
+check("目标尺寸统一 ref latent 形状", all(r.shape == (1, 16, 8, 5) for r in custom6["ref_latents"]))
+check("ref vae 图像统一到目标", all(v.shape == (1, 64, 40, 3) for v in custom6["vae_images"]))
+check("VL 仍用原图（面积 384²）", len(custom6["vl_images"]) == 2 and custom6["vl_images"][0].shape[1:3] != (64, 40))
+
+# ref_strength：只缩放写入 conditioning 的副本，初始 latent 保持未缩放
+vae7 = FakeVae()
+entries7 = [
+    {"image": make_image(64, 64), "mask": None, "ref_longest_edge": 32, "ref_crop": "center", "ref_strength": 0.5},
+    {"image": make_image(64, 64), "mask": None, "ref_longest_edge": 32, "ref_crop": "center"},
+]
+_cond7, lat7, custom7, _m7, _n7 = encode_qwen_edit(FakeClip(), vae7, "p", entries7, ref_target_mode="stretch")
+_raw_sum = float(np.ones((1, 16, 8, 8)).sum())
+check("strength 缩放 ref latent", float(custom7["ref_latents"][0]._arr.sum()) == 0.5 * _raw_sum)
+check("strength=1 的 ref 不缩放", float(custom7["ref_latents"][1]._arr.sum()) == _raw_sum)
+check("初始 latent 不缩放", float(lat7["samples"]._arr.sum()) == _raw_sum)
+check("strength 缩放产生新张量", custom7["ref_latents"][0] is not lat7["samples"])
+
+# zero_conditioning：cond/pooled 置零、dict 字段保留；pooled_output=None 不炸（Krea2 条件实测）
+_zero_in = [[FakeTensor(np.ones((1, 4))),
+             {"pooled_output": FakeTensor(np.ones((1, 4))), "reference_latents": ["R"]}]]
+_zero_out = zero_conditioning(_zero_in)
+check("zero_conditioning cond 置零", float(_zero_out[0][0]._arr.sum()) == 0.0)
+check("zero_conditioning pooled 置零", float(_zero_out[0][1]["pooled_output"]._arr.sum()) == 0.0)
+check("zero_conditioning 保留 dict 字段", _zero_out[0][1]["reference_latents"] == ["R"])
+_zero_none = zero_conditioning([[FakeTensor(np.ones((1, 4))),
+                                 {"pooled_output": None, "conditioning_lyrics": None}]])
+check("zero_conditioning pooled=None 不炸", _zero_none[0][1]["pooled_output"] is None
+      and float(_zero_none[0][0]._arr.sum()) == 0.0)
+
 # ── 4. 节点壳 ────────────────────────────────────────────────────────────────
 
 _sf_pkg = types.ModuleType("sfnodes")
@@ -334,6 +394,66 @@ for i, name in enumerate(names):
 
 out2 = ext.extract({})
 check("Extractor 缺键返回 None", all(v is None for v in out2))
+
+# ── 6. SFEasyKrea2Edit ───────────────────────────────────────────────────────
+
+Easy = mod.SFEasyKrea2Edit
+check("Easy CATEGORY", Easy.CATEGORY == "sfnodes/model")
+check("Easy FUNCTION", Easy.FUNCTION == "encode")
+check("Easy RETURN_NAMES", Easy.RETURN_NAMES == ("positive", "zero_negative", "latent"))
+_it_e = Easy.INPUT_TYPES()
+check("Easy required", all(k in _it_e["required"] for k in ("clip", "vae", "prompt")))
+check("Easy optional 基础", all(k in _it_e["optional"] for k in (
+    "image1", "latent_image", "latent_mask", "auto_resize", "vl_size",
+    "system_prompt", "reference_latents_method")))
+check("Easy hidden 状态", "SFEasyKrea2EditState" in _it_e["hidden"])
+check("Easy auto_resize 选项", _it_e["optional"]["auto_resize"][0] == ["crop", "pad", "stretch"])
+check("Easy system_prompt 默认=Qwen 编辑模板",
+      _it_e["optional"]["system_prompt"][1]["default"].startswith("Describe the key features"))
+
+# 动态槽位：image1 显式 + image2 走 kwargs（前端追加槽）；独立 latent_image + mask + strength
+easy = Easy()
+clip_e, vae_e = FakeClip(), FakeVae()
+pos, neg, lat = easy.encode(
+    clip=clip_e, vae=vae_e, prompt="make it real",
+    image1=make_image(64, 40),
+    image2=make_image(100, 50),
+    latent_image=make_image(64, 40),
+    latent_mask=make_mask(64, 40),
+    SFEasyKrea2EditState='{"strengths": {"2": 0.25}}',
+)
+check("Easy vae 编码 init+2 ref", len(vae_e.encoded) == 3)
+check("Easy 初始 latent 形状", lat["samples"].shape == (1, 16, 8, 5))
+check("Easy noise_mask 来自 init", lat["noise_mask"].shape == (1, 64, 40))
+_refs = pos[0][1].get("reference_latents")
+check("Easy reference_latents 两份", _refs is not None and len(_refs) == 2)
+check("Easy 逐图 strength 生效", float(_refs[1]._arr.sum()) == 0.25 * float(_refs[0]._arr.sum()))
+check("Easy 写入 reference_latents_method",
+      pos[0][1].get("reference_latents_method") == "index_timestep_zero")
+check("Easy zero_negative cond 置零", float(neg[0][0]._arr.sum()) == 0.0)
+check("Easy zero_negative 保留 reference_latents", neg[0][1].get("reference_latents") is not None)
+check("Easy 模板包装（Picture 1/2）", clip_e.calls[0]["prompt"].startswith("Picture 1:") and
+      "Picture 2:" in clip_e.calls[0]["prompt"])
+
+# latent_image 缺省：image1 兼作初始 latent 与参考，latent_mask 作用于主图
+easy2 = Easy()
+clip_e2, vae_e2 = FakeClip(), FakeVae()
+_pos2, _neg2, lat2 = easy2.encode(clip=clip_e2, vae=vae_e2, prompt="p",
+                                  image1=make_image(64, 40), latent_mask=make_mask(64, 40))
+check("Easy 无 latent_image 时 image1 兼作初始 latent", lat2["samples"].shape == (1, 16, 8, 5))
+check("Easy 无 latent_image 时 mask 作用于主图", lat2["noise_mask"].shape == (1, 64, 40))
+check("Easy 无 latent_image 时单次 vae 编码", len(vae_e2.encoded) == 1)
+
+# method 置空 = 不写
+easy3 = Easy()
+_pos3, _neg3, _lat3 = easy3.encode(clip=FakeClip(), vae=FakeVae(), prompt="p",
+                                   image1=make_image(32, 32), reference_latents_method="")
+check("Easy method 空串不写键", "reference_latents_method" not in _pos3[0][1])
+
+# 无图纯文本（占位 latent，与旧路径一致）
+easy4 = Easy()
+_p4, _n4, lat4 = easy4.encode(clip=FakeClip(), vae=FakeVae(), prompt="solo")
+check("Easy 无图占位 latent", lat4["samples"].shape == TEXT_ONLY_LATENT_SHAPE)
 
 # ── 汇总 ─────────────────────────────────────────────────────────────────────
 

@@ -7,7 +7,8 @@
 
 import copy
 
-from ...sf_utils.common import AnyType
+from ...sf_utils.common import AnyType, collect_indexed, parse_json_dict
+from ...sf_utils import krea2_edit as ke
 from ...sf_utils import qwen_edit as qwe
 
 _CATEGORY = "sfnodes/model"
@@ -112,6 +113,86 @@ class SFQwenEditOutputExtractor:
             get("no_refs_cond"),
             get("mask"),
         )
+
+
+class SFEasyKrea2Edit:
+    """Krea2 / Qwen 编辑单节点编码（Easy_QwenEdit2509 等价，纯 sfnodes 实现）。
+
+    动态 imageN 参考图槽位（前端自动增删）；latent_image 缺省时首个参考图兼作初始 latent
+    （Easy 语义：独立 latent_image 不额外进参考）；auto_resize 把参考图统一到目标尺寸
+    （crop/pad/stretch）；逐图 strength 经隐藏状态传入；直接输出 positive/zero_negative/latent。
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "clip": ("CLIP",),
+                "vae": ("VAE",),
+                "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            },
+            "optional": {
+                "image1": ("IMAGE", {"tooltip": "参考图（连接后前端自动追加 image2、image3…）"}),
+                "latent_image": ("IMAGE", {"tooltip": "生成尺寸与初始 latent 的来源；缺省用 image1 兼作"}),
+                "latent_mask": ("MASK", {"tooltip": "局部重绘遮罩（作用于 latent_image；无 latent_image 时作用于主图）"}),
+                "auto_resize": (["crop", "pad", "stretch"], {
+                    "default": "crop",
+                    "tooltip": "参考图统一到目标尺寸：crop=覆盖缩放后居中裁剪 / pad=完整缩放后居中黑边 / stretch=强制拉伸",
+                }),
+                "vl_size": ("INT", {"default": 384, "min": 64, "max": 2048, "step": 64,
+                           "tooltip": "视觉塔输入的目标面积边长（vl_size² 像素，与原 Easy 一致）"}),
+                "system_prompt": ("STRING", {"multiline": False, "default": ke.DEFAULT_QWEN_EDIT_INSTRUCTION,
+                                 "tooltip": "系统指令；留空回退 Qwen 编辑默认模板，包装规则与 Easy 相同"}),
+                "reference_latents_method": (["", "index_timestep_zero", "index", "offset", "uxo/uno"], {
+                    "default": "index_timestep_zero",
+                    "tooltip": "写入 conditioning 的参考方法；空 = 不写，交给外部节点（如 Edit Model Reference Method）",
+                }),
+            },
+            "hidden": {"SFEasyKrea2EditState": ("STRING", {"default": "{}"})},
+        }
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "zero_negative", "latent")
+    FUNCTION = "encode"
+    CATEGORY = _CATEGORY
+    DESCRIPTION = (
+        "Easy 式 Krea2/Qwen 编辑编码：多参考图（动态槽位，可选逐图 strength）+ 目标尺寸统一 "
+        "（auto_resize）+ 初始 latent/noise_mask + 零负条件，直接替代 Easy_QwenEdit2509。"
+    )
+
+    def encode(self, clip, vae, prompt, image1=None, latent_image=None, latent_mask=None,
+               auto_resize="crop", vl_size=384, system_prompt=ke.DEFAULT_QWEN_EDIT_INSTRUCTION,
+               reference_latents_method="index_timestep_zero",
+               SFEasyKrea2EditState="{}", **kwargs):
+        images = collect_indexed(kwargs, "image")
+        if image1 is not None:
+            images[1] = image1
+
+        raw_strengths = parse_json_dict(SFEasyKrea2EditState).get("strengths") or {}
+        entries = []
+        for n in sorted(images):
+            try:
+                strength = float(raw_strengths.get(str(n), raw_strengths.get(n, 1.0)))
+            except (TypeError, ValueError):
+                strength = 1.0
+            entries.append({"image": images[n], "ref_strength": strength})
+
+        if latent_image is None and latent_mask is not None and entries:
+            entries[0]["mask"] = latent_mask  # 无独立 latent_image：遮罩作用于首个参考图（主图）
+            latent_mask = None
+
+        conditioning, latent_out, _custom, _main_image, _mask = qwe.encode_qwen_edit(
+            clip, vae, prompt, entries,
+            llama_template=ke.get_system_prompt(system_prompt),
+            ref_upscale="bicubic",
+            vl_target_size=vl_size, vl_crop="disabled", vl_upscale="area",
+            init_image=latent_image, init_mask=latent_mask,
+            ref_target_mode=auto_resize,
+        )
+        if reference_latents_method:
+            conditioning = qwe.set_conditioning_values(
+                conditioning, {"reference_latents_method": reference_latents_method})
+        return (conditioning, qwe.zero_conditioning(conditioning), latent_out)
 
 
 class SFKrea2ConfigPreparer:

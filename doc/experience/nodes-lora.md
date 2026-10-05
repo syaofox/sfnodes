@@ -766,3 +766,30 @@
 - 不支持：Easy 的 image strength（ref latent 缩放）、独立 latent_image（SF 链初始 latent 只能来自主参考图）、auto_resize 统一到目标尺寸（crop/pad/stretch）；迁移脚本对这些拓扑警告或直接报错，不猜测映射。
 - `FluxKontextMultiReferenceLatentMethod` 节点保留：Ostris 补丁 forward 恒用 index_timestep_zero 几何、不看 method 键，保留可让图结构与原图一致。
 - 变体工作流写回用户 workflows 目录（原文件不动）；前端硬刷新后同 seed A/B 应一致。
+
+## 152. SFEasyKrea2Edit：Easy 式 Krea2/Qwen 编辑单节点（2026-10）
+
+> 背景：§151 的 4 节点替换链可用但搭建繁琐；新增 `SFEasyKrea2Edit` 单节点（Easy_QwenEdit2509 等价），新工作流直接使用；§151 的迁移脚本继续服务存量工作流。
+
+### 1. 接口与语义
+
+- `clip/vae/prompt` + 动态 `image1..N`（复用 `sf_dynamic_slots`：全连追加/断开回收/`installConfiguredSlotRecovery` 加载恢复）+ 可选 `latent_image`/`latent_mask` + `auto_resize(crop/pad/stretch)` + `vl_size(64-2048)` + `system_prompt` + `reference_latents_method`；输出 `positive/zero_negative/latent`（与 Easy 一一对应）。
+- `latent_image` 缺省时首个参考图兼作初始 latent 与主图（Easy 是必填独立图；该扩展兼顾 §151 链的原生拓扑）；`latent_mask` 此时作用于主图。`reference_latents_method` 默认 `index_timestep_zero` 直接写进 conditioning，可省掉两个 `FluxKontextMultiReferenceLatentMethod` 节点（空值=不写）。
+
+### 2. 纯逻辑扩展（`sf_utils/qwen_edit.py`，全部可选、缺省=旧行为）
+
+- `resize_to_target(samples, H, W, mode, method)`：Easy auto_resize 的 crop（覆盖缩放+居中裁剪）/ pad（完整缩放+居中黑边）/ stretch；目标 ≥32，不做 vae_unit 对齐。
+- `process_init_image`：像素居中裁剪到 vae_unit 倍数 → VAE 编码为初始 latent；mask 与图同尺寸时做同样裁剪产出 noise_mask。
+- `encode_qwen_edit` 新增 `init_image/init_mask/ref_target_mode`：init 优先决定初始 latent 与参考图目标尺寸（Easy 先按 latent_image 原始尺寸缩放参考图再 floor8，与旧路径的 `process_reference(target_size=...)` 一致）；每图 `ref_strength` 只缩放写入 conditioning 的副本，初始 latent 保持未缩放（Easy 语义）。
+- `zero_conditioning`：复刻核心 `ConditioningZeroOut`（含 pooled_output/conditioning_lyrics，保留 dict 字段）。
+- `sf_utils/krea2_edit.py` 抽出 `DEFAULT_QWEN_EDIT_INSTRUCTION`（原 get_system_prompt 字面量，行为不变），作节点 system_prompt 默认值。
+
+### 3. 逐图 strength 前端（动态 widget + properties 真源）
+
+- 不能用 widgets_values 承载：动态槽数量随连接变化、位置式序列化会漂移（同 §35 seed 的坑）。做法：imageN 槽对应的 number widget 标 `serialize:false` 且带 `_sfStrengthN` 标记，真源存 `node.properties.sfEasyKrea2Strengths`（按槽位编号键控，断开槽位不丢历史值），`graphToPrompt` 钩子注入 hidden `SFEasyKrea2EditState`（subgraph-safe + fail-open，同 SFImageResize）。
+- 纯逻辑在 `web/sf_easy_krea2_edit_lib.js`（可 .mjs 直测）：增删同步/回填/回调写回/stateJson；槽位恢复后由 `onAfterGraphConfigured` 包装重放。
+
+### 4. 测试
+
+- `tests/test_qwen_edit.py`：resize_to_target 三模式与下限、init 路径（目标统一/独立 latent/独立 noise_mask）、ref_strength 缩放与初始 latent 不缩放、zero_conditioning、节点 schema/动态 kwargs/缺省 latent_image/method 空值。
+- `tests/test_easy_krea2_edit_lib.mjs` + `tests/test_easy_krea2_edit_js.js`：strength widget 增删/回填/历史值恢复、动态槽追加与回收、graphToPrompt hidden 注入。

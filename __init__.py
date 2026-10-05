@@ -198,6 +198,7 @@ from .nodes.utils.image_edit import TextEncodeQwenImageEdit, TextEncodeQwenImage
 from .nodes.utils.qwen_edit import (
     SFQwenEditTextEncode,
     SFQwenEditOutputExtractor,
+    SFEasyKrea2Edit,
     SFKrea2ConfigPreparer,
     SFKrea2EditTextEncode,
 )
@@ -466,6 +467,7 @@ NODE_CLASS_MAPPINGS = {
     "SFKrea2SystemPrompt": Krea2SystemPrompt,
     "SFImageInterrogator": SFImageInterrogator,
     "SFImageInterrogatorAPI": SFImageInterrogatorAPI,
+    "SFEasyKrea2Edit": SFEasyKrea2Edit,
     "SFKrea2ModelConfig": SFKrea2ModelConfig,
     "SFKrea2ConfigPreparer": SFKrea2ConfigPreparer,
     "SFKrea2EditTextEncode": SFKrea2EditTextEncode,
@@ -718,6 +720,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFKrea2SystemPrompt": "SF Krea2 System Prompt",
     "SFImageInterrogator": "SF Image Interrogator",
     "SFImageInterrogatorAPI": "SF Image Interrogator (API)",
+    "SFEasyKrea2Edit": "SF Easy Krea2 Edit",
     "SFKrea2ModelConfig": "SF Krea2 Model Config",
     "SFKrea2ConfigPreparer": "SF Krea2 Config Preparer",
     "SFKrea2EditTextEncode": "SF Krea2 Edit Text Encode",

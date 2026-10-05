@@ -38,6 +38,15 @@ DEFAULT_INSTRUCTION = (
     "spatial relationships of the objects and background:"
 )
 
+# EditUtils / Easy_QwenEdit2509 的 Qwen 编辑默认指令（system_prompt 为空时的回退文本）。
+DEFAULT_QWEN_EDIT_INSTRUCTION = (
+    "Describe the key features of the input image (color, shape, size, texture, "
+    "objects, background), then explain how the user's text instruction should "
+    "alter or modify the image. Generate a new image that meets the user's "
+    "requirements while maintaining consistency with the original input where "
+    "appropriate."
+)
+
 _SYSTEM_PREFIX = "<|im_start|>system\n"
 _SYSTEM_SUFFIX = "<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 
@@ -46,13 +55,7 @@ def get_system_prompt(instruction):
     """构造 llama chat 模板（复刻 EditUtils get_system_prompt）。"""
     instruction_content = ""
     if instruction == "":
-        instruction_content = (
-            "Describe the key features of the input image (color, shape, size, texture, "
-            "objects, background), then explain how the user's text instruction should "
-            "alter or modify the image. Generate a new image that meets the user's "
-            "requirements while maintaining consistency with the original input where "
-            "appropriate."
-        )
+        instruction_content = DEFAULT_QWEN_EDIT_INSTRUCTION
     else:
         if _SYSTEM_PREFIX in instruction:
             instruction = instruction.split(_SYSTEM_PREFIX)[1]
