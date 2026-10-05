@@ -156,3 +156,24 @@ docker exec comfyui-docker python3 /tmp/sfnodes_selftest/tools/vosr2_selftest.py
 - 退出码 0 全通过 / 1 有失败 / 2 环境不满足；`torch.cuda.OutOfMemoryError` 用模拟
   异常触发降级分支，无需真的爆显存。
 - 实机（GPU + 真实权重）验证仍走节点 UI；本脚本只保证契约与管线形状/确定性。
+
+---
+
+# migrate_easy_qwen_edit_to_sf_krea2.py — 工作流迁移：Easy_QwenEdit2509 → SF Krea2 链
+
+把 Krea2 工作流里充当"编码器"的 `Easy_QwenEdit2509` 替换为纯 sfnodes 节点
+（`SFKrea2ModelConfig` + `SFKrea2ConfigPreparer` + `SFKrea2EditTextEncode` + 核心
+`ConditioningZeroOut`），自动重建节点与连线，原工作流不动。
+
+```bash
+python3 migrate_easy_qwen_edit_to_sf_krea2.py "/path/to/workflow.json" \
+    [--out OUT] [--mp 1.5] [--edge 1254] [--dry-run]
+```
+
+- 自动从 image1 上游的 `ImageScaleToTotalPixels` 读取 megapixels，换算
+  `ref_longest_edge = round(1024*sqrt(mp))`（Krea2 链用 area 模式抵消缩放，保持参考/初始
+  latent 尺寸与 Easy 一致）；图源分辨率调整后重跑即可。
+- 只支持 **image1 与 latent_image 同源**（此时 Easy 的 auto_resize、strength=1 均为空操作）。
+  独立 latent_image、strength≠1、多参考图会报错或警告。
+- 输出默认 `<原名>(SF-Krea2版).json`；前端硬刷新后同 seed 对比应一致。
+- 等价性依据与差分结论见 `doc/experience/nodes-lora.md` §151。

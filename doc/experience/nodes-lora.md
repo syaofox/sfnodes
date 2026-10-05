@@ -743,3 +743,26 @@
 - `tests/test_regional_lora_prompts.py`：mock torch/clip 全链路——逐区域编码与 info、context 追加与 cond/uncond 行、attn patch 形状与守卫、prompt-only/strength-0/加载失败保留、encode 失败降级、no-clip/legacy JSON 纯 LoRA 模式。
 - 前端 `tests/test_regional_lora_js.js`：defaultRegion 带 `prompt:""`、`bindRegionValue` 对 prompt 的读写与 legacy 缺省、classic setValue 写回、containRect。
 - **考古经验**：源码丢失但 `.pyc` 仍在 `__pycache__`（host 与部署副本时间戳不同，部署副本保留了 feature 版）。`python3.14` 直接 `marshal.loads(pyc[16:])` + `dis` 可还原函数签名/常量/控制流；测试 pyc 的断言字符串能还原覆盖清单。以后清理 `__pycache__` 前注意其可能的考古价值。
+
+## 151. Easy_QwenEdit2509 → SF Krea2 链工作流迁移：等价映射与参数换算（2026-10）
+
+> 背景：用户 Krea2 工作流（`krea2_turbo_int8` + Anything2Real LoRA + 外部包 `Krea2OstrisEditModelPatch` + `FluxKontextMultiReferenceLatentMethod(index_timestep_zero)` 两步采样）把 `Easy_QwenEdit2509` 当编码器：同一张 `ImageScaleToTotalPixels(resolution_steps=8)` 图同时接 image1/latent_image，输出 positive/zero_negative/latent。目标：用包内节点替换第三方节点。迁移工具 `tools/migrate_easy_qwen_edit_to_sf_krea2.py`（自动重建节点与连线、按 MP 换算尺寸）。
+
+### 1. 为什么可以同源替换
+
+- 该位置 Easy 只承担：VLM 文本条件（Krea2 CLIP）+ `reference_latents` + 初始 latent + 零负条件。`Krea2OstrisEditModelPatch.extra_conds` 只消费 conditioning 上的 `reference_latents`（其 docstring 明确可接任意 Set Reference Latent 来源），与编码节点实现无关；核心 Krea2 类同理。
+- `sf_utils/qwen_edit.py::encode_qwen_edit` 与 Easy 内部算法同源（VL 面积缩放、参考图缩放+VAE、`conditioning_set_values(..., append=True)` 追加 reference_latents）。
+- 核心 `ConditioningZeroOut` 与 Easy `zero_out` 逐行一致（含 `pooled_output`/`conditioning_lyrics`），并保留 reference_latents 等 dict 字段。
+- Easy 的 `concat_latent_image`/`concat_mask`（`addConditioning` 无条件写入）是死键：Qwen/Krea2 类模型与 Ostris 补丁的 forward 均不消费；`auto_resize` 在 image1==latent_image 时为空操作。
+
+### 2. 等价参数（容器内差分锁定）
+
+- `SFKrea2ConfigPreparer`：`ref_resize_mode="area"`、`ref_longest_edge=round(1024*sqrt(mp))`（1.5MP→1254）、`ref_crop="disabled"`、`ref_upscale="bicubic"`、`vl_resize=true`、`vl_target_size=vl_size`、`vl_crop="disabled"`、`vl_upscale="area"`；`SFKrea2ModelConfig.instruction` 填 Easy `system_prompt` 原文——注意 Easy widget 为空时回退 Qwen 编辑模板文本，而 `SFKrea2ModelConfig` 空 instruction 回退 **Krea2 描述指令**，空值场景必须显式补文本。
+- 容器内差分（真实 torch/comfy.utils + FakeClip/FakeVae，1024×1536 与 1040×1520 等 8 倍数尺寸）：tokenize 文本/模板、VL 图形状与数值、参考/初始 latent、reference_latents、负条件张量全部一致；唯一 diff 是 Easy 多带的 `concat_latent_image`（见上，无行为影响）。
+- 非 8 倍数尺寸仅差 floor8（Easy）vs round8（SF）取整；工作流上游 `ImageScaleToTotalPixels(resolution_steps=8)` 保证不会出现。
+
+### 3. 边界与保留
+
+- 不支持：Easy 的 image strength（ref latent 缩放）、独立 latent_image（SF 链初始 latent 只能来自主参考图）、auto_resize 统一到目标尺寸（crop/pad/stretch）；迁移脚本对这些拓扑警告或直接报错，不猜测映射。
+- `FluxKontextMultiReferenceLatentMethod` 节点保留：Ostris 补丁 forward 恒用 index_timestep_zero 几何、不看 method 键，保留可让图结构与原图一致。
+- 变体工作流写回用户 workflows 目录（原文件不动）；前端硬刷新后同 seed A/B 应一致。

@@ -158,7 +158,7 @@ sfnodes/
 ├── data/                # 静态数据（anime_char/ CSV、face_distance/ 字体、prompt_presets.json 提示词预设、styles/fooocus_styles.json 内置风格库 + samples/ 缩略图、characters/ 角色库示例骨架等）
 ├── user/sfnodes/        # 用户数据统一目录（sf_utils/disk_state.py::sf_user_dir() 单源，即 <ComfyUI user dir>/sfnodes；包内仅回退占位，目录组织与命名规范见 user/sfnodes/README.md）
 ├── tests/               # 前端/后端模拟测试（Node/Python 直接运行，无测试框架；静态一致性脚本 check_web_imports.py / check_docs.py）
-├── tools/               # 一次性脚本（extract_lora_diff.py 模型差异提 LoRA / vosr2_selftest.py 容器自检，不进 requirements.txt）
+├── tools/               # 一次性脚本（extract_lora_diff.py 模型差异提 LoRA / vosr2_selftest.py 容器自检 / migrate_easy_qwen_edit_to_sf_krea2.py 工作流迁移 Easy_QwenEdit2509→SF Krea2 链，不进 requirements.txt）
 └── doc/                 # 项目文档（architecture.md 逐文件细目、experience/ 历史经验归档目录等）
 ```
 
