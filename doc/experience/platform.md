@@ -32,7 +32,7 @@
 - **LoopEnd 悬空输出的历史坑（2026-09 已修复）**：`ExecutionList`（TopologicalSort）只调度被下游引用的节点——`add_node` 从输出节点回溯依赖链入队，**死端节点（输出无下游）从不执行**。LoopEnd 原本非 OUTPUT_NODE，输出悬空时从不执行 → 不触发 expand → 整个循环静默不跑（2026-08 实测：删除循环外 PreviewImage 后循环完全不启动）。修复：`SFForLoopEnd`/`SFWhileLoopEnd` 声明 `OUTPUT_NODE = True` 成为调度根，输出未接下游也照常执行展开（官方先例 `TestParallelSleep`："OUTPUT_NODE=True + expand 返回" 组合合法；输出节点同样走缓存，不会强制重跑）。
 - **LoopEnd 带 OUTPUT_NODE 后的衍生坑**：`SFWhileLoopEnd.while_loop_close` 收集 OUTPUT_NODE 节点并入循环体（保证体内 SaveImage 每轮重跑）时，**必须跳过 `SFForLoopEnd`**（`_collect_output_nodes` 内 class_type 过滤）——否则 ForLoopEnd 因带链接输入被误当"循环体内输出消费者"加入 `contained` 集，每轮迭代重建出其克隆并再次 expand → 嵌套错误展开。WhileLoopEnd 自身被收集则天然无害：`explore_dependencies` 已把它排除出 `parent_ids`（永不匹配），且 `upstream[parent_id]` 守卫挡住重复追加。
 - **`explore_output_nodes` 必须收集输出节点的全部链接输入**：原实现 `output_nodes[id] = v` 在遍历多个链接输入时被**最后一个**覆盖（如 SaveImage 的 `images←RMBG` 被 `filename_prefix←TextReplace` 覆盖）→ OUTPUT_NODE 无法并入循环体 → 每轮不重跑。正确写法：`output_nodes.setdefault(id, []).append(v)`，匹配时遍历任意一个 link（2026-08 修复）。
-- **循环体内存线性累积（现状，无解）**：循环每轮重建的节点输出全部保留在 `HierarchicalCache` 嵌套 subcache 中直到 prompt 结束（`clean_unused` 只在 prompt 开始时对顶层缓存调用）。重节点（RMBG 3 输出 ~109MB/轮、LoadImagesPath 47MB/轮）× 67 轮 ≈ 13GB RAM。避免二次方增长：不要在循环内做 `SFBatchAnything` 每轮 cat 累积（Σk 张 ≈ 百 GB 级）。可用 `--cache-ram` 启动参数缓解（注意参数名是连字符 `--cache-ram`，`--cache ram` 不是合法参数会导致启动失败）。
+- **循环体内存线性累积（现状，无解）**：循环每轮重建的节点输出全部保留在 `HierarchicalCache` 嵌套 subcache 中直到 prompt 结束（`clean_unused` 只在 prompt 开始时对顶层缓存调用）。重节点（RMBG 3 输出 ~109MB/轮、LoadImagesPath 47MB/轮）× 67 轮 ≈ 13GB RAM。避免二次方增长：不要在循环内做 `SFBatchAnything` 每轮 cat 累积（Σk 张 ≈ 百 GB 级）。可用 `--cache-ram` 启动参数缓解（注意参数名是连字符 `--cache-ram`，`--cache ram` 不是合法参数会导致启动失败）。（2026-10 订正：本条结论仅适用于 `--cache-classic`；默认 RAM-pressure 模式下循环轮次缓存是扁平条目、可被内存压力驱逐，机制与水位见 §153。）
 - 每轮迭代 forLoopStart 重建时其 expand 会多产生一个无引用的 whileLoopStart 节点（原版同款，无害）。
 - `nodes.NODE_CLASS_MAPPINGS` 在**运行时**才包含全部自定义节点（加载器逐个合并），函数内 import 最安全。
 - **本地模拟验证**：mock `torch`/`comfy.utils` 后可直接加载 `nodes/logic.py`（构造 `sfnodes`/`sfnodes.nodes`/`sfnodes.sf_utils` 包上下文 + `spec_from_file_location`），用 FakeDynPrompt 断言 expand 图结构、result link 指向、终止分支返回值。
@@ -376,3 +376,37 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - **工作流 JSON 序列化**：StartLoop 的 DynamicCombo 子槽在 graph 里是独立输入槽（`mode.max_iteration` 等，widget-backed 可连线，prompt 键名=槽名）；EndLoop 终止槽名为 `terminations.terminationN`；`accumulate` 仅是 widget；循环体靠连线表达。改 JSON 后 UI 重新打开工作流即可，无需重启（无 JS/py 改动）。
 - **sf→原生对照（本次转换）**：For 模式 `start=0 / max_iteration←total / step=1` 等价 `SFForLoopStart(total)` 的 0..N-1；`index→iteration_index`（下游 `skip=index×step` 不变）；5 个循环状态（累积文件列表/参考图/追踪/尾锚/丢弃帧数）打包为一个 CreateList、循环体内 5 个 GetItemFromList 接回原去向、v1/v4 首轮 None 用 is_first 开关、`EndLoop.output_value` 接 `CreateList(921.batch)` 包装后喂 `SFVideoConcat`。
 - **离线验证法（可复用，不跑队列）**：取 `/history` 里该工作流的执行 prompt（`prompt[2]`，子图已展开成 `910:916` 式 id），按目标连线改写后，在容器内直接调 `validate_loops` + `DynamicPrompt(prompt)` + `_expand_loop`，可验证配对/闭合/每轮拷贝/携带链，无需模型与队列。
+
+---
+
+## 153. 循环体缓存与 RAM-pressure 驱逐：订正「循环体内存线性累积」（2026-10）
+
+> 背景：§1 第 3 小节「循环体内存线性累积（现状，无解）」是 `--cache-classic`（HierarchicalCache 嵌套 subcache，仅 prompt 开始时按 key 清理）下的结论；容器实例（后端 0.38.0，2026-10）默认已是 **RAM-pressure 缓存**，循环轮次输出会被内存压力逐出——§87 的「分段加载→分段生成→分段落盘」正是靠它把长视频常驻内存压回 O(段长)，本包工作流 `[scail2]simple1-长视频`（L=81）依赖该机制。
+
+### 153.1 缓存模式与默认水位（`main.py::prompt_worker`）
+
+- 模式判定：`--cache-classic` → CLASSIC；`--cache-lru N` → LRU（按条目数）；`--cache-none` → 不缓存中间结果；**三者都不给 = `CacheType.RAM_PRESSURE`（默认）**。
+- 默认水位（未显式传 `--cache-ram`）：`active = min(10, max(2, 10% 物理内存))` GB、`inactive = min(128, 物理内存)` GB。本容器 15.3GiB → active **2GB**、inactive **15.3GB**。
+- `--cache-ram [activeGB] [inactiveGB]` 可显式调小/调大（参数名连字符，见 §1 旧告警）；调小 active 让驱逐更早发生。
+- 水位口径 = `comfy/system_memory.py::virtual_memory_available()` = psutil `MemAvailable`（**不含 swap**），再按 cgroup 限额收敛 → 驱逐盯真实空闲 RAM，swap 再大也不会推迟驱逐。
+
+### 153.2 循环轮次输出在 RAM_PRESSURE 下是「可逐出的扁平条目」
+
+- expand 展开的循环体节点（ephemeral，id 带前缀）输出仍走 `caches.outputs.set()`；但 `LRUCache.ensure_subcache_for()`（`comfy_execution/caching.py`）只建「跟踪用」subcache 并 **`return self`**（与 `HierarchicalCache` 返回真 subcache 不同）→ 所有轮次条目落在**同一个扁平 dict**，`RAMPressureCache.ram_release()` 遍历 `self.cache.items()` 全部可见、可删。
+- 当前代（`used_generation == generation`，generation 每次 prompt 开始时 +1）条目只在 `free_active=True` 的主动驱逐里可删；「整组输出均为 dynamic」（`all_outputs_dynamic`）的当前代条目恒定豁免。IMAGE 张量不满足 dynamic → 可逐出。
+- `RAMPressureCache.clean_unused()` 只清 subcache（跟踪结构），**不按 key 清顶层缓存**——旧条目靠 153.3 的释放路径回收。
+
+### 153.3 驱逐时机与顺序（`execution.py::execute_async` 每节点执行后）
+
+1. `ram_release(inactive_headroom)`：只清**非当前 prompt** 的旧缓存（上一/更早 prompt 的条目）。
+2. 若 available < active_headroom：`ram_release(active_headroom, free_active=True, min_entry_size=512MiB)`——先逐出当前 prompt 中**单条目 ≥512MiB** 的大块（常量 `RAM_CACHE_LARGE_INTERMEDIATE`）。
+3. 仍不足时（Linux `should_free_pins_for_ram_pressure` 恒真）：先按 pinned-memory 预算 `free_pins`（`--disable-pinned-memory` 下等价直接进入下一步），再 `ram_release(active_headroom, free_active=True)` **不限大小**逐出任意条目，直到 available 回到水位。
+- 排序（`ram_release` 内 `oom_score`）：`1.3^(generation-used_generation)`（越旧越先）× 条目 CPU 张量字节数（同代内越大越先），同分再按时间戳兜底；大小按 CPU 张量 storage 去重统计（`scan_list_for_ram_usage`），无张量的条目按 0.05GB 基线；测不出尺寸的条目按最大优先删；非当前代的 ModelPatcher 最先（`oom_ram_usage=1e30`）。
+- 另有挂钩 `comfy/memory_management.py::extra_ram_release`（模型/固定内存注册路径），只做第 1 类（非当前 prompt）释放。
+
+### 153.4 结论与用法
+
+- **循环本身不等于省内存**：省的是「每轮只载入/生成/落盘 + 状态只传锚帧/文件名」；RAM_PRESSURE 下旧轮缓存属"可回收内存"，回收是**水位触发的延迟驱逐**（内存先涨到 available≈2GB 再回落，呈锯齿形），不是实时 O(L)。
+- 小内存机器可 `--cache-ram 1` 提前回收（重启生效）；`--cache-none` 最省但全量重算；`--cache-classic` 下旧结论仍成立（循环越跑越涨、prompt 结束才回落）——遇到该现象先确认缓存模式。
+- 旧告警与缓存模式无关、仍然成立：循环状态槽绝不能累积帧；循环内 `SFBatchAnything` 累计**帧**是 Σk 二次方增长。
+- 量级参考（按张量字节数估算）：`[scail2]simple1-长视频` L=81 @896×512 每轮进缓存 ≈0.7GB（VHS 段帧 445MB f32 + 生成输出 ~210MB f16），64 轮累计 ≈45GB，靠上述驱逐回收。
