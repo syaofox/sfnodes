@@ -214,6 +214,7 @@ from .nodes.inpaint.inpaint_editor import SFInpaintCrop, SFInpaintStitch
 from .nodes.utils.image_orientation import ImageOrientation
 from .nodes.utils.workflow_name import SFWorkflowName
 from .nodes.utils.path_parse import SFParsePath
+from .nodes.utils.input_path import SFInputPath
 
 from .nodes.logic import (
     AnythingIndexSwitch,
@@ -487,6 +488,7 @@ NODE_CLASS_MAPPINGS = {
     "SFWorkflowName": SFWorkflowName,
     # 路径解析节点
     "SFParsePath": SFParsePath,
+    "SFInputPath": SFInputPath,
     # 逻辑节点
     "SFAnythingIndexSwitch": AnythingIndexSwitch,
     "SFAnySwitch": SFAnySwitch,
@@ -740,6 +742,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SFWorkflowName": "SF Workflow Name",
     # 路径解析节点
     "SFParsePath": "SF Parse Path",
+    "SFInputPath": "SF Input Path",
     # 逻辑节点
     "SFAnythingIndexSwitch": "SF Anything Index Switch",
     "SFAnySwitch": "SF Any Switch",

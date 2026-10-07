@@ -410,3 +410,15 @@ console.log("[D4] 可见槽名:", [...document.querySelectorAll("span")].map(s =
 - 小内存机器可 `--cache-ram 1` 提前回收（重启生效）；`--cache-none` 最省但全量重算；`--cache-classic` 下旧结论仍成立（循环越跑越涨、prompt 结束才回落）——遇到该现象先确认缓存模式。
 - 旧告警与缓存模式无关、仍然成立：循环状态槽绝不能累积帧；循环内 `SFBatchAnything` 累计**帧**是 Σk 二次方增长。
 - 量级参考（按张量字节数估算）：`[scail2]simple1-长视频` L=81 @896×512 每轮进缓存 ≈0.7GB（VHS 段帧 445MB f32 + 生成输出 ~210MB f16），64 轮累计 ≈45GB，靠上述驱逐回收。
+
+---
+
+## 154. SFInputPath：input 名→绝对路径（VHS Path 类节点跨机器修复，2026-10）
+
+> 背景：分段长视频工作流用 VHS 的 Path 类加载节点（`VHS_LoadVideoPath` / `VHS_LoadAudio`）承接「视频源」的自动路径，前缀写成 `input/{a}`。2026-10 某远程实例报 `video is not a valid path: input/020318_641.mp4`——该实例 ComfyUI 从 `/root` 启动（CWD=/root），而 VHS `validate_path()` 就是 `os.path.isfile(strip_path(path))`：相对路径按**进程 CWD** 解析（`VHS_STRICT_PATHS` 未设置时 `is_safe_path` 恒放行，拦人的不是它）。
+
+- **为什么不能靠连线绕开**：`VHS_LoadVideo`（上传变体）与核心 `LoadAudio` 的 combo 输入都带 `VALIDATE_INPUTS`，连线输入在校验期值是 None → `exists_annotated_filepath(None)` 抛 AttributeError → prompt 被拒；且 combo 列表类型校验只接受 AnyType 来源。因此 Path 变体（STRING 输入 + `validate_path(..., allow_none=True)` + `hash_path(None)` 容忍）是唯一可直连的 VHS 加载器——它只差一个「与 CWD 无关的路径」。
+- **节点**（`nodes/utils/input_path.py`，CATEGORY `sfnodes/utils`）：`input`（STRING）→ `path`（STRING 绝对路径）。解析复用 `folder_paths.get_annotated_filepath`（含 `[input]` 注解与防目录穿越），已是存在的绝对路径原样 normpath；空输入返回空串（不报错），解析失败抛 `SF Input Path: 无法解析 ...`。
+- **接线**：`视频源 VHS.filename → SFInputPath.name → VHS_LoadVideoPath.video + VHS_LoadAudio.audio_file`（替换原 `StringFormat "input/{a}"` 前缀），工作流从此与启动目录无关。
+- **替代方案与取舍**：把启动方式规范成 `cd <ComfyUI 根> && python main.py` 也能修（相对路径回到根目录），但依赖每台机器的启动习惯；多机场景用本节点更稳。
+- **测试**：`tests/test_input_path.py`（结构 + 空/None/空白、纯名/子路径/注解、绝对路径原样/normpath、目录穿越抛 ValueError；注入最小 `folder_paths` 桩）。
